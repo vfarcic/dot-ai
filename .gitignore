@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and config
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+config/default.yaml
+config/local.yaml
+
+# Runtime data
+data/lessons.json
+data/*.db
+data/*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Runtime
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+.jest/
+
+# Debug
+debug/
+manifests/
+
+# Kubernetes
+*.kubeconfig
+
+
