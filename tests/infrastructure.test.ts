@@ -5,13 +5,14 @@
  * and working before we implement any actual functionality.
  */
 
-import fs from 'fs';
-import path from 'path';
+import { existsSync, readFileSync, mkdirSync } from 'fs';
+import * as path from 'path';
+import * as yaml from 'yaml';
 
 describe('Test Infrastructure', () => {
   describe('Project Structure', () => {
     test('should have package.json with correct structure', () => {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
       
       expect(packageJson.name).toBe('app-agent');
       expect(packageJson.main).toBe('dist/index.js');
@@ -21,7 +22,7 @@ describe('Test Infrastructure', () => {
     });
 
     test('should have TypeScript configuration', () => {
-      const tsConfig = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8'));
+      const tsConfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'));
       
       expect(tsConfig.compilerOptions.strict).toBe(true);
       expect(tsConfig.compilerOptions.outDir).toBe('./dist');
@@ -29,7 +30,7 @@ describe('Test Infrastructure', () => {
     });
 
     test('should have Jest configuration in package.json', () => {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
       
       expect(packageJson.jest).toBeDefined();
       expect(packageJson.jest.preset).toBe('ts-jest');
@@ -48,10 +49,10 @@ describe('Test Infrastructure', () => {
       ];
 
       expectedDirs.forEach(dir => {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
         }
-        expect(fs.existsSync(dir)).toBe(true);
+        expect(existsSync(dir)).toBe(true);
       });
     });
 
@@ -67,11 +68,11 @@ describe('Test Infrastructure', () => {
 
       expectedFiles.forEach(({ path: filePath, shouldExist }) => {
         if (shouldExist) {
-          expect(fs.existsSync(filePath)).toBe(true);
+          expect(existsSync(filePath)).toBe(true);
         } else {
           // Test that the directory exists for future file creation
           const dir = path.dirname(filePath);
-          expect(fs.existsSync(dir)).toBe(true);
+          expect(existsSync(dir)).toBe(true);
         }
       });
     });
@@ -141,5 +142,244 @@ describe('Smoke Tests', () => {
     const message: string = 'TypeScript works';
     expect(typeof message).toBe('string');
     expect(message).toBe('TypeScript works');
+  });
+});
+
+describe('CI/CD Pipeline Infrastructure', () => {
+  const rootDir = process.cwd();
+  const githubWorkflowsDir = path.join(rootDir, '.github', 'workflows');
+
+  describe('GitHub Actions Configuration', () => {
+    test('should have .github/workflows directory', () => {
+      expect(existsSync(githubWorkflowsDir)).toBe(true);
+    });
+
+    test('should have main CI workflow file', () => {
+      const ciWorkflowPath = path.join(githubWorkflowsDir, 'ci.yml');
+      expect(existsSync(ciWorkflowPath)).toBe(true);
+    });
+
+    test('should have security scanning workflow', () => {
+      const securityWorkflowPath = path.join(githubWorkflowsDir, 'security.yml');
+      expect(existsSync(securityWorkflowPath)).toBe(true);
+    });
+
+    test('should have renovate configuration for dependency management', () => {
+      const renovatePath = path.join(rootDir, 'renovate.json');
+      expect(existsSync(renovatePath)).toBe(true);
+      
+      const renovateContent = readFileSync(renovatePath, 'utf-8');
+      const renovateConfig = JSON.parse(renovateContent);
+      expect(renovateConfig.extends).toContain('config:base');
+      expect(renovateConfig.schedule).toBeDefined();
+      expect(renovateConfig.packageRules).toBeDefined();
+    });
+  });
+
+  describe('CI Workflow Validation', () => {
+    let ciWorkflow: any;
+
+    beforeAll(() => {
+      const ciWorkflowPath = path.join(githubWorkflowsDir, 'ci.yml');
+      if (existsSync(ciWorkflowPath)) {
+        const content = readFileSync(ciWorkflowPath, 'utf-8');
+        ciWorkflow = yaml.parse(content);
+      }
+    });
+
+    test('should trigger on push and pull request', () => {
+      expect(ciWorkflow?.on).toBeDefined();
+      expect(ciWorkflow.on.push).toBeDefined();
+      expect(ciWorkflow.on.pull_request).toBeDefined();
+    });
+
+    test('should have test job with proper Node.js setup', () => {
+      expect(ciWorkflow?.jobs?.test).toBeDefined();
+      const testJob = ciWorkflow.jobs.test;
+      
+      expect(testJob['runs-on']).toBe('ubuntu-latest');
+      expect(testJob.strategy?.matrix?.['node-version']).toContain('18.x');
+      expect(testJob.strategy?.matrix?.['node-version']).toContain('20.x');
+    });
+
+    test('should include all required CI steps', () => {
+      const testJob = ciWorkflow?.jobs?.test;
+      const stepNames = testJob?.steps?.map((step: any) => step.name || step.uses) || [];
+      
+      expect(stepNames.some((name: string) => name.includes('checkout'))).toBe(true);
+      expect(stepNames.some((name: string) => name.includes('Node.js'))).toBe(true);
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('install'))).toBe(true);
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('lint'))).toBe(true);
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('test'))).toBe(true);
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('build'))).toBe(true);
+    });
+
+    test('should cache node_modules for performance', () => {
+      const testJob = ciWorkflow?.jobs?.test;
+      const cacheStep = testJob?.steps?.find((step: any) => 
+        step.uses?.includes('actions/cache') || step.name?.toLowerCase().includes('cache')
+      );
+      expect(cacheStep).toBeDefined();
+    });
+  });
+
+  describe('Security Workflow Validation', () => {
+    let securityWorkflow: any;
+
+    beforeAll(() => {
+      const securityWorkflowPath = path.join(githubWorkflowsDir, 'security.yml');
+      if (existsSync(securityWorkflowPath)) {
+        const content = readFileSync(securityWorkflowPath, 'utf-8');
+        securityWorkflow = yaml.parse(content);
+      }
+    });
+
+    test('should trigger on schedule and push', () => {
+      expect(securityWorkflow?.on).toBeDefined();
+      expect(securityWorkflow.on.schedule || securityWorkflow.on.push).toBeDefined();
+    });
+
+    test('should include CodeQL analysis', () => {
+      const codeqlJob = securityWorkflow?.jobs?.codeql;
+      expect(codeqlJob).toBeDefined();
+      
+      const codeqlStep = codeqlJob?.steps?.find((step: any) => 
+        step.uses?.includes('github/codeql-action')
+      );
+      expect(codeqlStep).toBeDefined();
+    });
+
+    test('should include dependency vulnerability scanning', () => {
+      const securityJob = securityWorkflow?.jobs?.security || securityWorkflow?.jobs?.vulnerability;
+      expect(securityJob).toBeDefined();
+      
+      const vulnStep = securityJob?.steps?.find((step: any) => 
+        step.name?.toLowerCase().includes('audit') || 
+        step.run?.includes('npm audit')
+      );
+      expect(vulnStep).toBeDefined();
+    });
+  });
+
+  describe('Renovate Configuration Validation', () => {
+    let renovateConfig: any;
+
+    beforeAll(() => {
+      const renovatePath = path.join(rootDir, 'renovate.json');
+      if (existsSync(renovatePath)) {
+        const content = readFileSync(renovatePath, 'utf-8');
+        renovateConfig = JSON.parse(content);
+      }
+    });
+
+    test('should extend base configuration', () => {
+      expect(renovateConfig?.extends).toBeDefined();
+      expect(renovateConfig.extends).toContain('config:base');
+    });
+
+    test('should have scheduled updates', () => {
+      expect(renovateConfig?.schedule).toBeDefined();
+      expect(Array.isArray(renovateConfig.schedule)).toBe(true);
+    });
+
+    test('should have package rules for intelligent grouping', () => {
+      expect(renovateConfig?.packageRules).toBeDefined();
+      expect(Array.isArray(renovateConfig.packageRules)).toBe(true);
+      expect(renovateConfig.packageRules.length).toBeGreaterThan(0);
+    });
+
+    test('should configure automerge for safe updates', () => {
+      const automergeRule = renovateConfig?.packageRules?.find((rule: any) => 
+        rule.automerge === true
+      );
+      expect(automergeRule).toBeDefined();
+    });
+  });
+
+  describe('Workflow Security and Best Practices', () => {
+    test('workflows should use specific action versions (not @main)', () => {
+      const workflowFiles = ['ci.yml', 'security.yml'];
+      
+      workflowFiles.forEach(file => {
+        const workflowPath = path.join(githubWorkflowsDir, file);
+        if (existsSync(workflowPath)) {
+          const content = readFileSync(workflowPath, 'utf-8');
+          const workflow = yaml.parse(content);
+          
+          // Check all jobs for action versions
+          Object.values(workflow.jobs || {}).forEach((job: any) => {
+            job.steps?.forEach((step: any) => {
+              if (step.uses && !step.uses.includes('@v')) {
+                // Allow some exceptions for well-known stable actions
+                const allowedMainActions = ['actions/checkout@main'];
+                if (!allowedMainActions.includes(step.uses)) {
+                  expect(step.uses).toMatch(/@v\d+/);
+                }
+              }
+            });
+          });
+        }
+      });
+    });
+
+    test('workflows should have appropriate permissions', () => {
+      const ciWorkflowPath = path.join(githubWorkflowsDir, 'ci.yml');
+      if (existsSync(ciWorkflowPath)) {
+        const content = readFileSync(ciWorkflowPath, 'utf-8');
+        const workflow = yaml.parse(content);
+        
+        // Should have read permissions or specific permissions defined
+        expect(workflow.permissions).toBeDefined();
+      }
+    });
+  });
+
+  describe('Package.json CI/CD Integration', () => {
+    let packageJson: any;
+
+    beforeAll(() => {
+      const packagePath = path.join(rootDir, 'package.json');
+      const content = readFileSync(packagePath, 'utf-8');
+      packageJson = JSON.parse(content);
+    });
+
+    test('should have CI-friendly scripts', () => {
+      expect(packageJson.scripts['ci']).toBeDefined();
+      expect(packageJson.scripts['ci:test']).toBeDefined();
+      expect(packageJson.scripts['ci:build']).toBeDefined();
+      expect(packageJson.scripts['ci:security']).toBeDefined();
+    });
+
+    test('should have engines field for Node.js version', () => {
+      expect(packageJson.engines?.node).toBeDefined();
+      expect(packageJson.engines.node).toMatch(/>=\s*18/);
+    });
+
+    test('should have repository field for GitHub integration', () => {
+      expect(packageJson.repository).toBeDefined();
+      expect(typeof packageJson.repository === 'string' || packageJson.repository.type).toBe('git');
+    });
+  });
+
+  describe('Development Dependencies for CI/CD', () => {
+    let packageJson: any;
+
+    beforeAll(() => {
+      const packagePath = path.join(rootDir, 'package.json');
+      const content = readFileSync(packagePath, 'utf-8');
+      packageJson = JSON.parse(content);
+    });
+
+    test('should include security scanning tools', () => {
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      // Should have audit tools or rely on npm audit
+      expect(packageJson.scripts).toHaveProperty('audit');
+    });
+
+    test('should include linting and formatting for CI', () => {
+      const devDeps = packageJson.devDependencies || {};
+      expect(devDeps.eslint).toBeDefined();
+      expect(devDeps.prettier).toBeDefined();
+    });
   });
 }); 

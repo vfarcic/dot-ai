@@ -35,6 +35,13 @@ export class CliInterface {
     this.appAgent = appAgent;
     this.config = config;
     this.program = new Command();
+    this.program.name('app-agent').description('AI-powered Kubernetes deployment agent');
+    
+    // Add global options that apply to all commands
+    this.program
+      .option('--kubeconfig <path>', 'Path to kubeconfig file (overrides KUBECONFIG env var and default location)')
+      .option('--verbose', 'Enable verbose output globally');
+    
     this.setupCommands();
   }
 

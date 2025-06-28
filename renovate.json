@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
+  ],
+  "schedule": ["before 9am on monday"],
+  "timezone": "UTC",
+  "labels": ["dependencies"],
+  "assignees": ["@vfarcic"],
+  "packageRules": [
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "matchPackageNames": ["@types/*"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "groupName": "TypeScript definitions"
+    },
+    {
+      "matchPackageNames": ["jest", "@types/jest", "ts-jest"],
+      "groupName": "Jest packages"
+    },
+    {
+      "matchPackageNames": ["eslint*", "prettier", "@typescript-eslint/*"],
+      "groupName": "Linting tools"
+    },
+    {
+      "matchPackageNames": ["@kubernetes/client-node"],
+      "reviewersFromCodeOwners": true,
+      "labels": ["kubernetes", "major-update"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on monday"]
+  },
+  "prHourlyLimit": 3,
+  "prConcurrentLimit": 5,
+  "rebaseWhen": "conflicted"
+} 

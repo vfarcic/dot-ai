@@ -6,6 +6,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import * as path from 'path';
+import * as os from 'os';
 
 export interface ClusterInfo {
   type: string;
@@ -26,20 +27,62 @@ export interface CRD {
   schema: any;
 }
 
+export interface KubernetesDiscoveryConfig {
+  kubeconfigPath?: string;
+}
+
 export class KubernetesDiscovery {
   private kc: k8s.KubeConfig;
   private k8sApi!: k8s.CoreV1Api;
   private connected: boolean = false;
+  private kubeconfigPath: string;
 
-  constructor() {
+  constructor(config?: KubernetesDiscoveryConfig) {
     this.kc = new k8s.KubeConfig();
+    this.kubeconfigPath = this.resolveKubeconfigPath(config?.kubeconfigPath);
+  }
+
+  /**
+   * Resolves kubeconfig path following priority order:
+   * 1. Custom path provided in constructor
+   * 2. KUBECONFIG environment variable (first path if multiple)
+   * 3. Default ~/.kube/config
+   */
+  private resolveKubeconfigPath(customPath?: string): string {
+    // Priority 1: Custom path provided
+    if (customPath) {
+      return customPath;
+    }
+
+    // Priority 2: KUBECONFIG environment variable
+    const envPath = process.env.KUBECONFIG;
+    if (envPath) {
+      // Handle multiple paths separated by colons (use first one)
+      return envPath.split(':')[0];
+    }
+
+    // Priority 3: Default location
+    return path.join(os.homedir(), '.kube', 'config');
+  }
+
+  /**
+   * Get the current kubeconfig path being used
+   */
+  getKubeconfigPath(): string {
+    return this.kubeconfigPath;
+  }
+
+  /**
+   * Set a new kubeconfig path (will require reconnection)
+   */
+  setKubeconfigPath(newPath: string): void {
+    this.kubeconfigPath = newPath;
+    this.connected = false; // Force reconnection with new path
   }
 
   async connect(): Promise<void> {
     try {
-      // Use the kubeconfig.yaml file in the project root
-      const kubeconfigPath = path.join(process.cwd(), 'kubeconfig.yaml');
-      this.kc.loadFromFile(kubeconfigPath);
+      this.kc.loadFromFile(this.kubeconfigPath);
       
       this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
       
@@ -48,7 +91,7 @@ export class KubernetesDiscovery {
       this.connected = true;
     } catch (error) {
       this.connected = false;
-      throw new Error(`Failed to connect to Kubernetes cluster: ${error}`);
+      throw new Error(`Failed to connect to Kubernetes cluster using kubeconfig at ${this.kubeconfigPath}: ${error}`);
     }
   }
 

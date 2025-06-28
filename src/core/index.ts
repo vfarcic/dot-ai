@@ -28,7 +28,9 @@ export class AppAgent {
     this.config = config;
     
     // Initialize modules
-    this.discovery = new KubernetesDiscovery();
+    this.discovery = new KubernetesDiscovery({ 
+      kubeconfigPath: config.kubernetesConfig 
+    });
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
     this.claude = new ClaudeIntegration(config.anthropicApiKey || 'test-key');

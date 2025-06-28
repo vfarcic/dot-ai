@@ -15,15 +15,25 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "build": "tsc",
+    "test:integration": "KUBECONFIG=./kubeconfig.yaml jest",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "build": "tsc --sourceMap false",
+    "build:prod": "npm run clean && tsc --sourceMap false --removeComments true",
+    "build:dev": "tsc --sourceMap true",
     "build:watch": "tsc --watch",
-    "build:cli": "tsc && chmod +x dist/cli.js",
-    "build:mcp": "tsc && echo 'MCP server built successfully'",
+    "build:cli": "npm run build && chmod +x dist/cli.js",
+    "build:mcp": "npm run build && echo 'MCP server built successfully'",
     "dev": "ts-node src/index.ts",
     "start:cli": "node dist/cli.js",
     "start:mcp": "node dist/mcp/server.js",
     "lint": "eslint src/ --ext .ts",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "ci": "npm run lint && npm run ci:test && npm run ci:build && npm run ci:security",
+    "ci:test": "npm run test",
+    "ci:build": "npm run build:prod",
+    "ci:security": "npm audit --audit-level moderate",
+    "audit": "npm audit"
   },
   "keywords": [
     "kubernetes",
@@ -31,10 +41,26 @@
     "cli",
     "mcp",
     "devops",
-    "containers"
+    "containers",
+    "ai",
+    "automation",
+    "cloud-native"
   ],
   "author": "Viktor Farcic",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vfarcic/app-agent.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
@@ -50,6 +76,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
     "@kubernetes/client-node": "^0.20.0",
+    "@modelcontextprotocol/sdk": "^1.13.2",
     "cli-table3": "^0.6.5",
     "commander": "^11.1.0",
     "yaml": "^2.8.0"
