@@ -9,6 +9,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
 
 const execAsync = promisify(exec);
 
@@ -190,8 +192,9 @@ export class KubernetesDiscovery {
       }
     } catch (error) {
       this.connected = false;
-      // Re-throw the error to ensure tests can catch it
-      throw error;
+      // Use error classification to provide enhanced error messages
+      const classified = ErrorClassifier.classifyError(error as Error);
+      throw new Error(classified.enhancedMessage);
     }
   }
 
@@ -311,19 +314,28 @@ export class KubernetesDiscovery {
     }
 
     try {
-      // Get ALL available API resources from the cluster
+      // Always try to get standard API resources first
       const allResources = await this.getAPIResources();
       
-      // Get custom resources from CRDs
-      const customCRDs = await this.discoverCRDs();
+      // Try to get CRDs, but handle failures gracefully
+      let customCRDs: EnhancedCRD[] = [];
+      try {
+        customCRDs = await this.discoverCRDs();
+      } catch (crdError) {
+        // Log the CRD discovery failure but continue with standard resources
+        console.warn('CRD discovery failed, continuing with standard resources only:', (crdError as Error).message);
+        // Return empty CRD array to indicate graceful degradation
+        customCRDs = [];
+      }
       
       return {
         resources: allResources, // Return all resources with full metadata
         custom: customCRDs
       };
     } catch (error) {
-      // If discovery fails, throw error instead of returning hardcoded fallback
-      throw new Error(`Failed to discover resources: ${error}`);
+      // Use error classification to provide enhanced error messages
+      const classified = ErrorClassifier.classifyError(error as Error);
+      throw new Error(classified.enhancedMessage);
     }
   }
 
@@ -344,7 +356,10 @@ export class KubernetesDiscovery {
       if (error.code === 'ENOENT') {
         throw new Error('kubectl binary not found. Please install kubectl and ensure it\'s in your PATH.');
       }
-      throw new Error(`kubectl execution failed: ${error.message}`);
+      
+      // Use error classification for better error messages
+      const classified = ErrorClassifier.classifyError(error);
+      throw new Error(classified.enhancedMessage);
     }
   }
 
@@ -403,8 +418,17 @@ export class KubernetesDiscovery {
 
       return crds;
     } catch (error) {
-      // Return empty array if CRDs are not available
-      return [];
+      // Graceful degradation: Classify error and provide appropriate fallback
+      const classified = ErrorClassifier.classifyError(error as Error);
+      
+      // For authorization errors, log warning but don't fail completely
+      if (classified.type === 'authorization') {
+        console.warn(`Warning: ${classified.enhancedMessage}`);
+        return []; // Return empty array to allow core functionality to continue
+      }
+      
+      // For other errors, throw enhanced error message
+      throw new Error(classified.enhancedMessage);
     }
   }
 
@@ -491,8 +515,9 @@ export class KubernetesDiscovery {
 
       return filteredResources;
     } catch (error) {
-      // Don't return fallback data - let the caller handle the failure appropriately
-      throw new Error(`Failed to discover API resources: ${error instanceof Error ? error.message : 'Unknown error'}. Please check cluster connectivity and kubectl configuration.`);
+      // Use error classification to provide enhanced error messages
+      const classified = ErrorClassifier.classifyError(error as Error);
+      throw new Error(classified.enhancedMessage);
     }
   }
 
@@ -824,5 +849,154 @@ export class KubernetesDiscovery {
     } catch (error) {
       return false;
     }
+  }
+}
+
+// Enhanced Error Classification System
+export class ErrorClassifier {
+  static classifyError(error: Error): { type: string; enhancedMessage: string } {
+    const originalMessage = error.message;
+
+    // Connection and Network Errors
+    if (this.isNetworkError(originalMessage)) {
+      return {
+        type: 'network',
+        enhancedMessage: this.enhanceNetworkError(originalMessage)
+      };
+    }
+
+    // Authentication Errors
+    if (this.isAuthenticationError(originalMessage)) {
+      return {
+        type: 'authentication',
+        enhancedMessage: this.enhanceAuthenticationError(originalMessage)
+      };
+    }
+
+    // Authorization/RBAC Errors
+    if (this.isAuthorizationError(originalMessage)) {
+      return {
+        type: 'authorization',
+        enhancedMessage: this.enhanceAuthorizationError(originalMessage)
+      };
+    }
+
+    // API Availability Errors
+    if (this.isAPIAvailabilityError(originalMessage)) {
+      return {
+        type: 'api-availability',
+        enhancedMessage: this.enhanceAPIAvailabilityError(originalMessage)
+      };
+    }
+
+    // Kubeconfig Validation Errors
+    if (this.isKubeconfigError(originalMessage)) {
+      return {
+        type: 'kubeconfig',
+        enhancedMessage: this.enhanceKubeconfigError(originalMessage)
+      };
+    }
+
+    // Version Compatibility Errors
+    if (this.isVersionCompatibilityError(originalMessage)) {
+      return {
+        type: 'version',
+        enhancedMessage: this.enhanceVersionCompatibilityError(originalMessage)
+      };
+    }
+
+    // Default: return original message with basic enhancement
+    return {
+      type: 'unknown',
+      enhancedMessage: `${originalMessage}\n\nTroubleshooting steps:\n- Run 'kubectl cluster-info' to verify cluster connectivity\n- Check your kubeconfig with 'kubectl config view'\n- Verify cluster endpoint accessibility`
+    };
+  }
+
+  private static isNetworkError(message: string): boolean {
+    return /getaddrinfo ENOTFOUND|timeout|ECONNREFUSED|ENOTFOUND|network|unreachable/i.test(message);
+  }
+
+  private static isAuthenticationError(message: string): boolean {
+    return /unauthorized|invalid bearer token|certificate|auth|authentication/i.test(message);
+  }
+
+  private static isAuthorizationError(message: string): boolean {
+    return /forbidden|cannot list|cannot get|cannot create|RBAC|permission denied/i.test(message);
+  }
+
+  private static isAPIAvailabilityError(message: string): boolean {
+    return /server could not find|resource type.*not found|doesn't have a resource type|no matches for kind/i.test(message);
+  }
+
+  private static isKubeconfigError(message: string): boolean {
+    return /context.*does not exist|kubeconfig|config.*not found|invalid.*config|no Auth Provider/i.test(message);
+  }
+
+  private static isVersionCompatibilityError(message: string): boolean {
+    return /server version|version.*old|unsupported.*version|api.*version/i.test(message);
+  }
+
+  private static enhanceNetworkError(message: string): string {
+    if (message.includes('getaddrinfo ENOTFOUND')) {
+      return `DNS resolution failed: Cannot resolve cluster endpoint hostname.\n\nTroubleshooting steps:\n- Check cluster endpoint in kubeconfig: kubectl config view\n- Verify network connectivity and DNS settings\n- Confirm cluster is running and accessible\n- Check VPN connection if using private cluster\n\nOriginal error: ${message}`;
+    }
+
+    if (message.includes('timeout')) {
+      return `Connection timeout: Unable to reach cluster within timeout period.\n\nTroubleshooting steps:\n- Check network latency to cluster endpoint\n- Increase timeout value if needed\n- Verify cluster is responsive: kubectl get nodes\n- Check firewall and proxy settings\n\nOriginal error: ${message}`;
+    }
+
+    return `Network connectivity issue detected.\n\nTroubleshooting steps:\n- Verify cluster endpoint accessibility\n- Run 'kubectl cluster-info' to test connectivity\n- Check network and firewall settings\n- Confirm cluster is running\n\nOriginal error: ${message}`;
+  }
+
+  private static enhanceAuthenticationError(message: string): string {
+    if (message.includes('invalid bearer token')) {
+      return `Authentication failed: Bearer token is invalid or expired.\n\nTroubleshooting steps:\n- Token may be expired - refresh credentials\n- Check token format in kubeconfig\n- Re-authenticate with cluster: kubectl auth login\n- Verify service account token if applicable\n\nOriginal error: ${message}`;
+    }
+
+    if (message.includes('certificate')) {
+      return `Certificate authentication failed: Client certificate validation error.\n\nTroubleshooting steps:\n- Verify certificate path in kubeconfig\n- Check certificate expiration date\n- Ensure certificate authority (CA) bundle is correct\n- Re-generate client certificates if needed\n\nOriginal error: ${message}`;
+    }
+
+    if (message.includes('no Auth Provider found')) {
+      return `Authentication provider not available: Required auth plugin missing.\n\nTroubleshooting steps:\n- Install required authentication plugin (e.g., OIDC)\n- Check kubectl config for auth provider configuration\n- Verify authentication method compatibility\n- Consult cluster administrator for auth setup\n\nOriginal error: ${message}`;
+    }
+
+    return `Authentication failed: Invalid or missing credentials.\n\nTroubleshooting steps:\n- Verify credentials in kubeconfig\n- Re-authenticate with cluster\n- Check authentication method configuration\n- Contact cluster administrator if needed\n\nOriginal error: ${message}`;
+  }
+
+  private static enhanceAuthorizationError(message: string): string {
+    if (message.includes('customresourcedefinitions')) {
+      return `CRD discovery requires cluster-level permissions: Insufficient RBAC permissions.\n\nTroubleshooting steps:\n- CRD discovery requires admin privileges\n- Request cluster-admin role or CRD read permissions\n- Contact cluster administrator for permission escalation\n- Use 'kubectl auth can-i list customresourcedefinitions' to check permissions\n\nOriginal error: ${message}`;
+    }
+
+    if (message.includes('forbidden')) {
+      return `Insufficient permissions: RBAC restrictions prevent this operation.\n\nTroubleshooting steps:\n- RBAC role required for resource access\n- Request appropriate permissions from cluster administrator\n- Check current permissions: kubectl auth can-i list <resource>\n- Consider using cluster-admin role for discovery operations\n\nOriginal error: ${message}`;
+    }
+
+    return `Permission denied: Insufficient RBAC permissions for cluster access.\n\nTroubleshooting steps:\n- Request appropriate RBAC permissions\n- Check current access: kubectl auth can-i list <resource>\n- Contact cluster administrator for role assignment\n- Verify service account permissions if applicable\n\nOriginal error: ${message}`;
+  }
+
+  private static enhanceAPIAvailabilityError(message: string): string {
+    if (message.includes('apps/v1beta1')) {
+      return `API version not supported: Cluster doesn't support requested API version.\n\nTroubleshooting steps:\n- Try different API version (e.g., apps/v1 instead of apps/v1beta1)\n- Check available API versions: kubectl api-versions\n- Verify Kubernetes cluster version compatibility\n- Consult API migration guides for version changes\n\nOriginal error: ${message}`;
+    }
+
+    return `API resource not available: Requested resource type not found in cluster.\n\nTroubleshooting steps:\n- Check available resources: kubectl api-resources\n- Verify cluster supports required resource types\n- Check Kubernetes version compatibility\n- Confirm cluster configuration and enabled APIs\n\nOriginal error: ${message}`;
+  }
+
+  private static enhanceKubeconfigError(message: string): string {
+    if (message.includes('context') && message.includes('does not exist')) {
+      return `Context not found: Specified context doesn't exist in kubeconfig.\n\nTroubleshooting steps:\n- List available contexts: kubectl config get-contexts\n- Set correct context: kubectl config use-context <context-name>\n- Verify kubeconfig file contains required context\n- Check context name spelling and case sensitivity\n\nOriginal error: ${message}`;
+    }
+
+    if (message.includes('not found')) {
+      return `Kubeconfig file not found: Cannot locate configuration file.\n\nTroubleshooting steps:\n- Check file path exists and is accessible\n- Verify kubeconfig file permissions\n- Set KUBECONFIG environment variable if needed\n- Create kubeconfig file or copy from cluster administrator\n\nOriginal error: ${message}`;
+    }
+
+    return `Invalid kubeconfig format: Configuration file has syntax or format errors.\n\nTroubleshooting steps:\n- Validate YAML syntax in kubeconfig file\n- Check file structure: kubectl config view\n- Restore from backup or re-download from cluster\n- Verify all required sections (clusters, contexts, users)\n\nOriginal error: ${message}`;
+  }
+
+  private static enhanceVersionCompatibilityError(message: string): string {
+    return `Kubernetes version compatibility issue: Version mismatch detected.\n\nTroubleshooting steps:\n- Check cluster and client versions: kubectl version\n- Verify supported Kubernetes versions for this tool\n- Update kubectl client if needed\n- Consult compatibility matrix for version support\n\nOriginal error: ${message}`;
   }
 } 

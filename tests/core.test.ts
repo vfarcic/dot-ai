@@ -12,6 +12,7 @@ import {
   WorkflowEngine, 
   ClaudeIntegration 
 } from '../src/core';
+import { ErrorClassifier } from '../src/core/discovery';
 import path from 'path';
 
 describe('Core Module Structure', () => {
@@ -837,6 +838,219 @@ describe('Kubernetes Discovery Module', () => {
         expect(command).toContain('kubectl get pods');
         expect(command).not.toContain('--context');
         expect(command).not.toContain('--namespace');
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    test('should handle API errors gracefully', async () => {
+      const invalidClaude = new ClaudeIntegration('invalid-key');
+      
+      await expect(invalidClaude.sendMessage('test')).rejects.toThrow();
+    });
+
+    test('should provide meaningful error messages', async () => {
+      try {
+        const invalidClaude = new ClaudeIntegration('');
+        await invalidClaude.sendMessage('test');
+      } catch (error) {
+        expect((error as Error).message).toContain('API key');
+      }
+    });
+  });
+
+  describe('Robust Discovery Error Handling', () => {
+    let discovery: KubernetesDiscovery;
+
+    beforeEach(() => {
+      discovery = new KubernetesDiscovery();
+    });
+
+    describe('Connection Error Classification', () => {
+      test('should provide specific guidance for network connectivity issues', async () => {
+        // Test with unreachable endpoint
+        discovery.setKubeconfigPath('/tmp/unreachable-config.yaml');
+        
+        try {
+          await discovery.connect();
+        } catch (error) {
+          const err = error as Error;
+          expect(err.message).toContain('network');
+          expect(err.message).toContain('kubectl cluster-info');
+          expect(err.message).toContain('endpoint');
+        }
+      });
+
+      test('should detect DNS resolution failures with troubleshooting steps', async () => {
+        // Test the ErrorClassifier directly since mocking the full connect flow is complex
+        const { ErrorClassifier } = require('../src/core/discovery');
+        const originalError = new Error('getaddrinfo ENOTFOUND invalid-cluster.example.com');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('DNS resolution failed');
+        expect(classified.enhancedMessage).toContain('Check cluster endpoint');
+        expect(classified.enhancedMessage).toContain('kubectl config view');
+      });
+
+      test('should handle timeout scenarios with retry guidance', async () => {
+        const originalError = new Error('timeout of 30000ms exceeded');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Connection timeout');
+        expect(classified.enhancedMessage).toContain('network latency');
+        expect(classified.enhancedMessage).toContain('Increase timeout value');
+      });
+    });
+
+    describe('Authentication Error Handling', () => {
+      test('should detect invalid token scenarios with renewal guidance', async () => {
+        const originalError = new Error('Unauthorized: invalid bearer token');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Authentication failed');
+        expect(classified.enhancedMessage).toContain('Token may be expired');
+        expect(classified.enhancedMessage).toContain('refresh credentials');
+      });
+
+      test('should handle certificate authentication failures', async () => {
+        const originalError = new Error('certificate verify failed: unable to get local issuer certificate');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Certificate authentication failed');
+        expect(classified.enhancedMessage).toContain('Verify certificate path');
+        expect(classified.enhancedMessage).toContain('certificate authority (CA) bundle');
+      });
+
+      test('should detect missing authentication context', async () => {
+        const originalError = new Error('no Auth Provider found for name "oidc"');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Authentication provider not available');
+        expect(classified.enhancedMessage).toContain('auth provider configuration');
+        expect(classified.enhancedMessage).toContain('kubectl config');
+      });
+    });
+
+    describe('Authorization/RBAC Error Handling', () => {
+      test('should provide specific guidance for permission denied scenarios', async () => {
+        const originalError = new Error('forbidden: User "system:serviceaccount:default:test" cannot list resource "apiservices"');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Insufficient permissions');
+        expect(classified.enhancedMessage).toContain('RBAC role required');
+        expect(classified.enhancedMessage).toContain('cluster-admin');
+        expect(classified.enhancedMessage).toContain('kubectl auth can-i');
+      });
+
+      test('should handle namespace-level permission restrictions', async () => {
+        const originalError = new Error('forbidden: customresourcedefinitions.apiextensions.k8s.io is forbidden: User cannot list resource');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('CRD discovery requires cluster-level permissions');
+        expect(classified.enhancedMessage).toContain('admin privileges');
+        expect(classified.enhancedMessage).toContain('Contact cluster administrator');
+      });
+    });
+
+    describe('API Availability and Graceful Degradation', () => {
+      test('should handle missing CRD API gracefully', async () => {
+        // Use project's working kubeconfig.yaml for integration tests
+        const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
+        const testDiscovery = new KubernetesDiscovery({ kubeconfigPath: projectKubeconfig });
+        await testDiscovery.connect();
+        
+        jest.spyOn(testDiscovery, 'discoverCRDs').mockImplementation(async () => {
+          const error = new Error('the server could not find the requested resource (get customresourcedefinitions.apiextensions.k8s.io)');
+          throw error;
+        });
+
+        // Should not throw, but return empty results with warning
+        const result = await testDiscovery.discoverResources();
+        expect(result).toHaveProperty('custom');
+        expect(Array.isArray(result.custom)).toBe(true);
+        expect(result.custom.length).toBe(0);
+      });
+
+      test('should continue with core resources when CRD discovery fails', async () => {
+        // Use project's working kubeconfig.yaml for integration tests
+        const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
+        const testDiscovery = new KubernetesDiscovery({ kubeconfigPath: projectKubeconfig });
+        await testDiscovery.connect();
+        
+        jest.spyOn(testDiscovery, 'discoverCRDs').mockImplementation(async () => {
+          throw new Error('CRD API not available');
+        });
+
+        const result = await testDiscovery.discoverResources();
+        expect(result).toHaveProperty('resources');
+        expect(Array.isArray(result.resources)).toBe(true);
+        expect(result.resources.length).toBeGreaterThan(0);
+      });
+
+      test('should handle unsupported API versions with fallbacks', async () => {
+        const originalError = new Error('the server doesn\'t have a resource type "deployments" in group "apps/v1beta1"');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('API version not supported');
+        expect(classified.enhancedMessage).toContain('Try different API version');
+        expect(classified.enhancedMessage).toContain('kubectl api-versions');
+      });
+    });
+
+    describe('Kubeconfig Validation Errors', () => {
+      test('should detect malformed kubeconfig files', async () => {
+        const testDiscovery = new KubernetesDiscovery({ kubeconfigPath: '/tmp/malformed-config.yaml' });
+        
+        try {
+          await testDiscovery.connect();
+        } catch (error) {
+          const err = error as Error;
+          expect(err.message).toContain('Kubeconfig file not found');
+          expect(err.message).toContain('Check file path exists');
+          expect(err.message).toContain('KUBECONFIG environment variable');
+        }
+      });
+
+      test('should handle missing context references', async () => {
+        const originalError = new Error('context "nonexistent-context" does not exist');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Context not found');
+        expect(classified.enhancedMessage).toContain('kubectl config get-contexts');
+        expect(classified.enhancedMessage).toContain('available contexts');
+      });
+
+      test('should validate kubeconfig file existence', async () => {
+        const testDiscovery = new KubernetesDiscovery({ kubeconfigPath: '/nonexistent/path/config' });
+        
+        try {
+          await testDiscovery.connect();
+        } catch (error) {
+          const err = error as Error;
+          expect(err.message).toContain('Kubeconfig file not found');
+          expect(err.message).toContain('/nonexistent/path/config');
+          expect(err.message).toContain('Check file path exists');
+        }
+      });
+    });
+
+    describe('Enhanced Error Recovery', () => {
+      test('should provide cluster health check commands', async () => {
+        const originalError = new Error('Connection failed');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('kubectl cluster-info');
+        expect(classified.enhancedMessage).toContain('kubectl config view');
+        expect(classified.enhancedMessage).toContain('Troubleshooting steps');
+      });
+
+      test('should suggest version compatibility checks', async () => {
+        const originalError = new Error('server version too old');
+        const classified = ErrorClassifier.classifyError(originalError);
+        
+        expect(classified.enhancedMessage).toContain('Kubernetes version compatibility');
+        expect(classified.enhancedMessage).toContain('kubectl version');
+        expect(classified.enhancedMessage).toContain('supported Kubernetes versions');
       });
     });
   });
