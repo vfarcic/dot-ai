@@ -155,8 +155,13 @@ describe('CLI Interface', () => {
         { name: 'configmaps.core', group: '', version: 'v1', kind: 'ConfigMap', scope: 'Namespaced', versions: [], schema: {} }
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        core: ['Pod', 'Service', 'ConfigMap', 'Secret'],
-        apps: ['Deployment', 'StatefulSet', 'DaemonSet'],
+        resources: [
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
+          { kind: 'Secret', name: 'secrets', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'secret' }
+        ],
+        
         custom: []
       });
       mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
@@ -320,6 +325,51 @@ describe('CLI Interface', () => {
       expect(formatted).toContain('services');
     });
 
+    test('should format table with correct column names and no verb confusion', async () => {
+      // TDD Test: Define expected behavior for table formatting
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
+      mockAppAgent.discovery.discoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['get', 'list', 'create'], shortNames: ['po'], singularName: 'pod' },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['get', 'list', 'create'], shortNames: ['svc'], singularName: 'service' }
+        ],
+        custom: []
+      });
+      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
+        version: 'v1.29.0',
+        platform: 'kind',
+        nodeCount: 1,
+        namespaceCount: 4,
+        crdCount: 1,
+        capabilities: ['api-server'],
+        features: { deployments: 0, services: 0, pods: 0, configMaps: 0, secrets: 0 },
+        networking: { cni: 'kindnet', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
+        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
+        storage: { storageClasses: [], persistentVolumes: 0, csiDrivers: [] }
+      });
+
+      const result = await cli.executeCommand('discover', { output: 'table' });
+      const formatted = cli.formatOutput(result, 'table');
+      
+      // Table should contain proper resource kinds, not verb strings
+      expect(formatted).toContain('Pod');
+      expect(formatted).toContain('Service');
+      expect(formatted).toContain('deployments.apps'); // CRDs show their full name in the table
+      
+      // Table should NOT contain verb strings as resource types
+      expect(formatted).not.toContain('create,delete,get,list');
+      expect(formatted).not.toContain('get,list,patch');
+      expect(formatted).not.toContain('create,delete,deletecollection');
+      
+      // Should use meaningful column headers that match data structure
+      // Current implementation uses 'Resource Type' and 'Category' which is acceptable
+      // but ideally should match field names like 'kind' and 'group'
+      expect(formatted).toContain('│'); // Table structure should be present
+    });
+
     test('should format error output consistently', () => {
       const errorResult = {
         success: false,
@@ -453,8 +503,13 @@ describe('CLI Interface', () => {
         { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        core: ['Pod', 'Service', 'ConfigMap'],
-        apps: ['Deployment', 'StatefulSet'],
+        resources: [
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'deployment' },
+          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'statefulset' }
+        ],
         custom: []
       });
       mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
@@ -482,8 +537,13 @@ describe('CLI Interface', () => {
         { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        core: ['Pod', 'Service', 'ConfigMap'],
-        apps: ['Deployment', 'StatefulSet'],
+        resources: [
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'deployment' },
+          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'statefulset' }
+        ],
         custom: []
       });
       mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({

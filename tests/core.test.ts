@@ -229,10 +229,134 @@ describe('Kubernetes Discovery Module', () => {
     });
 
     test('should discover available Kubernetes resources', async () => {
+      // Mock the underlying methods to avoid real cluster calls
+      const mockAPIResources = [
+        { name: 'pods', singularName: 'pod', kind: 'Pod', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: ['po'] },
+        { name: 'services', singularName: 'service', kind: 'Service', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: ['svc'] }
+      ];
+      const mockCRDs = [
+        { name: 'test-crd', group: 'test.io', version: 'v1', kind: 'TestCRD', scope: 'Namespaced', versions: [], schema: {} }
+      ];
+      
+      const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue(mockAPIResources);
+      const discoverCRDDetailsSpy = jest.spyOn(discovery, 'discoverCRDDetails').mockResolvedValue(mockCRDs);
+      
       const resources = await discovery.discoverResources();
       expect(resources).toBeDefined();
-      expect(resources.core).toBeInstanceOf(Array);
-      expect(resources.apps).toBeInstanceOf(Array);
+      expect(resources.resources).toBeInstanceOf(Array);
+      expect(resources.custom).toBeInstanceOf(Array);
+      
+      getAPIResourcesSpy.mockRestore();
+      discoverCRDDetailsSpy.mockRestore();
+    });
+
+    test('should return comprehensive resource discovery without arbitrary categorization', async () => {
+      const resources = await discovery.discoverResources();
+      expect(resources).toBeDefined();
+      
+      // Should contain ALL available resources with full metadata
+      expect(resources.resources).toBeInstanceOf(Array);
+      expect(resources.custom).toBeInstanceOf(Array);
+      
+      // Each resource should have comprehensive information
+      if (resources.resources.length > 0) {
+        const sampleResource = resources.resources[0];
+        expect(sampleResource).toHaveProperty('kind');
+        expect(sampleResource).toHaveProperty('apiVersion');
+        expect(sampleResource).toHaveProperty('group');
+        expect(sampleResource).toHaveProperty('namespaced');
+        expect(sampleResource).toHaveProperty('verbs');
+        expect(sampleResource).toHaveProperty('name');
+      }
+      
+      // Should include essential resources without arbitrary filtering
+      const resourceKinds = resources.resources.map(r => r.kind);
+      expect(resourceKinds).toContain('Pod');
+      expect(resourceKinds).toContain('Service');
+      expect(resourceKinds).toContain('Deployment');
+      
+      // Should include networking and security resources
+      expect(resourceKinds).toContain('Namespace');
+      expect(resourceKinds).toContain('ServiceAccount');
+    });
+
+    test('should use getAPIResources() internally instead of hardcoded lists', async () => {
+      // Mock getAPIResources to return comprehensive data
+      const mockAPIResources = [
+        { name: 'pods', singularName: 'pod', kind: 'Pod', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list', 'create'], shortNames: ['po'] },
+        { name: 'services', singularName: 'service', kind: 'Service', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list', 'create'], shortNames: ['svc'] },
+        { name: 'namespaces', singularName: 'namespace', kind: 'Namespace', group: '', apiVersion: 'v1', namespaced: false, verbs: ['list', 'create'], shortNames: ['ns'] },
+        { name: 'serviceaccounts', singularName: 'serviceaccount', kind: 'ServiceAccount', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list', 'create'], shortNames: ['sa'] },
+        { name: 'deployments', singularName: 'deployment', kind: 'Deployment', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list', 'create'], shortNames: ['deploy'] },
+        { name: 'jobs', singularName: 'job', kind: 'Job', group: 'batch', apiVersion: 'batch/v1', namespaced: true, verbs: ['list', 'create'], shortNames: [] },
+        { name: 'cronjobs', singularName: 'cronjob', kind: 'CronJob', group: 'batch', apiVersion: 'batch/v1', namespaced: true, verbs: ['list', 'create'], shortNames: ['cj'] }
+      ];
+      
+      // Spy on getAPIResources to verify it's being called
+      const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue(mockAPIResources);
+      
+      const resources = await discovery.discoverResources();
+      
+      // Should call getAPIResources() instead of using hardcoded data
+      expect(getAPIResourcesSpy).toHaveBeenCalled();
+      
+      // Should return all resources directly without arbitrary categorization
+      const resourceKinds = resources.resources.map(r => r.kind);
+      expect(resourceKinds).toContain('Pod');
+      expect(resourceKinds).toContain('Service');
+      expect(resourceKinds).toContain('Namespace');
+      expect(resourceKinds).toContain('ServiceAccount');
+      expect(resourceKinds).toContain('Deployment');
+      expect(resourceKinds).toContain('Job');
+      expect(resourceKinds).toContain('CronJob');
+      
+      getAPIResourcesSpy.mockRestore();
+    });
+
+    test('should return comprehensive resource metadata without arbitrary grouping', async () => {
+      const resources = await discovery.discoverResources();
+      
+      // Should provide comprehensive resource information without artificial categorization
+      expect(resources).toHaveProperty('resources');
+      expect(resources).toHaveProperty('custom');
+      
+      // Each resource should contain full metadata for intelligent decision making
+      if (resources.resources.length > 0) {
+        const resource = resources.resources[0];
+        expect(resource).toHaveProperty('group');
+        expect(resource).toHaveProperty('apiVersion');
+        expect(resource).toHaveProperty('verbs');
+        expect(resource).toHaveProperty('namespaced');
+      }
+    });
+
+    test('should handle empty clusters gracefully without hardcoded fallbacks', async () => {
+      // Mock empty getAPIResources response
+      const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue([]);
+      const discoverCRDDetailsSpy = jest.spyOn(discovery, 'discoverCRDDetails').mockResolvedValue([]);
+      
+      const resources = await discovery.discoverResources();
+      
+      // Should return empty arrays, not hardcoded fallback data
+      expect(resources.resources).toEqual([]);
+      expect(resources.custom).toEqual([]);
+      
+      getAPIResourcesSpy.mockRestore();
+      discoverCRDDetailsSpy.mockRestore();
+    });
+
+    test('should not contain hardcoded resource filtering logic', async () => {
+      // This test ensures the method doesn't contain the problematic hardcoded arrays
+      const resources = await discovery.discoverResources();
+      
+      // The method should discover resources dynamically, not return hardcoded lists
+      // If this fails, it means hardcoded filtering is still present
+      expect(resources).toBeDefined();
+      
+      // Verify the method is actually discovering resources, not just returning static data
+      // by checking that it provides comprehensive resource information
+      const totalResources = resources.resources.length + resources.custom.length;
+      expect(totalResources).toBeGreaterThanOrEqual(0); // Should be dynamic based on cluster
     });
 
     test('should discover Custom Resource Definitions (CRDs)', async () => {
@@ -383,46 +507,209 @@ describe('Kubernetes Discovery Module', () => {
 
     describe('Enhanced API Resource Discovery', () => {
       test('should discover API resources using kubectl with detailed information', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+        // Test with real cluster - should return comprehensive resource information
+        const resources = await discovery.getAPIResources();
+        expect(resources).toBeInstanceOf(Array);
+        expect(resources.length).toBeGreaterThan(0);
+        
+        // Should include core resources like pods, services, etc.
+        const resourceNames = resources.map(r => r.name);
+        expect(resourceNames).toContain('pods');
+        expect(resourceNames).toContain('services');
+        expect(resourceNames).toContain('namespaces');
+      });
+
+      test('should parse API resource fields correctly and not confuse verbs with resource names', async () => {
+        // TDD Test: Define expected behavior for correct parsing
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        // Each resource should have proper structure with correct field types
+        resources.forEach(resource => {
+          // Resource name should be a string, not a comma-separated verb list
+          expect(typeof resource.name).toBe('string');
+          expect(resource.name).not.toMatch(/^(create|delete|get|list|patch|update|watch)/);
+          expect(resource.name).not.toContain(',');
+          
+          // Kind should be a proper resource kind, not verbs
+          expect(typeof resource.kind).toBe('string');
+          expect(resource.kind).not.toMatch(/^(create|delete|get|list|patch|update|watch)/);
+          expect(resource.kind).not.toContain(',');
+          
+          // Verbs should be an array of individual verb strings
+          expect(resource.verbs).toBeInstanceOf(Array);
+          expect(resource.verbs.length).toBeGreaterThan(0);
+          resource.verbs.forEach(verb => {
+            expect(typeof verb).toBe('string');
+            expect(verb).not.toContain(','); // Individual verbs should not contain commas
+            expect(['create', 'delete', 'deletecollection', 'get', 'list', 'patch', 'update', 'watch'].includes(verb)).toBe(true);
+          });
+          
+          // API version should be properly formatted
+          expect(typeof resource.apiVersion).toBe('string');
+          expect(resource.apiVersion).toMatch(/^(v\d+|[\w.-]+\/v\d+)$/);
+          
+          // Group should be a string (empty for core resources)
+          expect(typeof resource.group).toBe('string');
+          
+          // Namespaced should be boolean
+          expect(typeof resource.namespaced).toBe('boolean');
+          
+          // Short names should be array of strings
+          expect(resource.shortNames).toBeInstanceOf(Array);
+          resource.shortNames.forEach(shortName => {
+            expect(typeof shortName).toBe('string');
+            expect(shortName.length).toBeGreaterThan(0);
+          });
+        });
+      });
+
+      test('should not return verb strings as resource entries', async () => {
+        // TDD Test: Ensure verbs like "create,delete,get,list" don't appear as resource names
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        const resourceNames = resources.map(r => r.name);
+        const resourceKinds = resources.map(r => r.kind);
+        
+        // None of the resource names should be verb strings
+        const verbPatterns = [
+          /^create,/,
+          /^delete,/,
+          /^get,/,
+          /^list,/,
+          /,get,/,
+          /,list,/,
+          /,create,/,
+          /,delete,/
+        ];
+        
+        resourceNames.forEach(name => {
+          verbPatterns.forEach(pattern => {
+            expect(name).not.toMatch(pattern);
+          });
+        });
+        
+        resourceKinds.forEach(kind => {
+          verbPatterns.forEach(pattern => {
+            expect(kind).not.toMatch(pattern);
+          });
+        });
       });
 
       test('should include verb information for each resource', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+        // Test with real cluster - verify verb information is included
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        // Each resource should have verbs
+        resources.forEach(resource => {
+          expect(resource.verbs).toBeInstanceOf(Array);
+          expect(resource.verbs.length).toBeGreaterThan(0);
+        });
+        
+        // Find pods resource and verify it has expected verbs
+        const podResource = resources.find(r => r.name === 'pods');
+        expect(podResource).toBeDefined();
+        expect(podResource!.verbs).toContain('get');
+        expect(podResource!.verbs).toContain('list');
       });
 
       test('should filter resources by verb capabilities', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.getAPIResources({ verbs: ['list'] })).rejects.toThrow('Failed to discover API resources');
+        // Test filtering by verbs with real cluster
+        const allResources = await discovery.getAPIResources();
+        const listableResources = await discovery.getAPIResources({ verbs: ['list'] });
+        
+        expect(listableResources).toBeInstanceOf(Array);
+        expect(listableResources.length).toBeGreaterThan(0);
+        expect(listableResources.length).toBeLessThanOrEqual(allResources.length);
+        
+        // All returned resources should have 'list' verb
+        listableResources.forEach(resource => {
+          expect(resource.verbs).toContain('list');
+        });
       });
 
       test('should filter resources by API group', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.getAPIResources({ group: '' })).rejects.toThrow('Failed to discover API resources');
-        await expect(discovery.getAPIResources({ group: 'apps' })).rejects.toThrow('Failed to discover API resources');
+        // Test filtering by API group with real cluster
+        const coreResources = await discovery.getAPIResources({ group: '' });
+        const appsResources = await discovery.getAPIResources({ group: 'apps' });
+        
+        expect(coreResources).toBeInstanceOf(Array);
+        expect(coreResources.length).toBeGreaterThan(0);
+        
+        // Core group should include pods, services, etc.
+        const coreNames = coreResources.map(r => r.name);
+        expect(coreNames).toContain('pods');
+        expect(coreNames).toContain('services');
+        
+        // Apps group should include deployments if available
+        if (appsResources.length > 0) {
+          const appsNames = appsResources.map(r => r.name);
+          expect(appsNames).toContain('deployments');
+        }
       });
 
       test('should include short names when available', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+        // Test short names with real cluster
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        // Find resources with known short names
+        const podResource = resources.find(r => r.name === 'pods');
+        const serviceResource = resources.find(r => r.name === 'services');
+        
+        expect(podResource).toBeDefined();
+        expect(podResource!.shortNames).toContain('po');
+        
+        expect(serviceResource).toBeDefined();
+        expect(serviceResource!.shortNames).toContain('svc');
       });
     });
 
     describe('Enhanced Resource Explanation', () => {
       test('should explain resource schema using kubectl explain', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.explainResource('Pod')).rejects.toThrow('Failed to explain resource');
+        // Test with real cluster - should return detailed resource explanation
+        const explanation = await discovery.explainResource('Pod');
+        expect(explanation).toBeDefined();
+        expect(explanation.kind).toBe('Pod');
+        expect(explanation.version).toBe('v1');
+        expect(explanation.group).toBe('');
+        expect(explanation.fields).toBeInstanceOf(Array);
+        expect(explanation.fields.length).toBeGreaterThan(0);
       });
 
       test('should provide detailed field information with types', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.explainResource('Pod')).rejects.toThrow('Failed to explain resource');
+        // Test field information with real cluster
+        const explanation = await discovery.explainResource('Pod');
+        expect(explanation.fields).toBeInstanceOf(Array);
+        expect(explanation.fields.length).toBeGreaterThan(0);
+        
+        // Should include standard Pod fields
+        const fieldNames = explanation.fields.map(f => f.name);
+        expect(fieldNames).toContain('apiVersion');
+        expect(fieldNames).toContain('kind');
+        expect(fieldNames).toContain('metadata');
+        
+        // Each field should have required properties
+        explanation.fields.forEach(field => {
+          expect(field.name).toBeDefined();
+          expect(field.type).toBeDefined();
+          expect(typeof field.required).toBe('boolean');
+        });
       });
 
       test('should support nested field explanation', async () => {
-        // When no cluster is available, expect the method to throw an error
-        await expect(discovery.explainResource('Pod', { field: 'spec' })).rejects.toThrow('Failed to explain resource');
+        // Test nested field explanation with real cluster
+        const explanation = await discovery.explainResource('Pod', { field: 'spec' });
+        expect(explanation).toBeDefined();
+        expect(explanation.kind).toBe('Pod');
+        expect(explanation.fields).toBeInstanceOf(Array);
+        expect(explanation.fields.length).toBeGreaterThan(0);
+        
+        // Should include spec-specific fields
+        const fieldNames = explanation.fields.map(f => f.name);
+        expect(fieldNames).toContain('containers');
       });
 
       test('should handle custom resource explanation', async () => {

@@ -238,7 +238,7 @@ export class CliInterface {
         result.data.details = {
           timing: `${endTime - startTime}ms`,
           crdCount: crds.length,
-          resourceCount: Object.keys(resources.core).length + Object.keys(resources.apps).length + Object.keys(resources.custom).length
+          resourceCount: resources.resources.length + resources.custom.length
         };
       }
 
@@ -416,17 +416,11 @@ export class CliInterface {
         colWidths: [40, 20]
       });
       
-      // Add core Kubernetes resources
-      if (result.data.resources && result.data.resources.core) {
-        result.data.resources.core.forEach((resource: string) => {
-          table.push([resource, 'Core']);
-        });
-      }
-      
-      // Add apps resources
-      if (result.data.resources && result.data.resources.apps) {
-        result.data.resources.apps.forEach((resource: string) => {
-          table.push([resource, 'Apps']);
+      // Add discovered resources
+      if (result.data.resources && result.data.resources.resources) {
+        result.data.resources.resources.forEach((resource: any) => {
+          const category = resource.group === '' ? 'Core' : resource.group;
+          table.push([resource.kind, category]);
         });
       }
       

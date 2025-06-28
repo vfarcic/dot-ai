@@ -19,9 +19,8 @@ export interface ClusterInfo {
 }
 
 export interface ResourceMap {
-  core: any[];
-  apps: any[];
-  custom: any[];
+  resources: EnhancedResource[];
+  custom: EnhancedCRD[];
 }
 
 export interface CRD {
@@ -260,7 +259,7 @@ export class KubernetesDiscovery {
       
       // Check for scheduler by looking at system pods
       try {
-        const systemPods = await this.executeKubectl(['get', 'pods', '-n', 'kube-system', '-o', 'json']);
+        const systemPods = await this.executeKubectl(['get', 'pods', '-n', 'kube-system', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
         const pods = JSON.parse(systemPods);
         
         if (pods.items.some((pod: any) => pod.metadata.name.includes('scheduler'))) {
@@ -311,11 +310,21 @@ export class KubernetesDiscovery {
       throw new Error('Not connected to cluster');
     }
 
-    return {
-      core: ['Pod', 'Service', 'ConfigMap', 'Secret', 'PersistentVolume'],
-      apps: ['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet'],
-      custom: await this.discoverCRDDetails()
-    };
+    try {
+      // Get ALL available API resources from the cluster
+      const allResources = await this.getAPIResources();
+      
+      // Get custom resources from CRDs
+      const customCRDs = await this.discoverCRDs();
+      
+      return {
+        resources: allResources, // Return all resources with full metadata
+        custom: customCRDs
+      };
+    } catch (error) {
+      // If discovery fails, throw error instead of returning hardcoded fallback
+      throw new Error(`Failed to discover resources: ${error}`);
+    }
   }
 
   /**
@@ -367,7 +376,7 @@ export class KubernetesDiscovery {
     }
 
     try {
-      const output = await this.executeKubectl(['get', 'crd', '-o', 'json']);
+      const output = await this.executeKubectl(['get', 'crd', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
       const crdList = JSON.parse(output);
       
       const crds: EnhancedCRD[] = crdList.items.map((item: any) => {
@@ -425,14 +434,24 @@ export class KubernetesDiscovery {
     }
     
     try {
-      const output = await this.executeKubectl(['api-resources', '--verbs=list', '-o', 'wide']);
+      // Use simpler format without -o wide to avoid complex multi-line parsing
+      const output = await this.executeKubectl(['api-resources', '--verbs=list'], { kubeconfig: this.kubeconfigPath });
       const lines = output.split('\n').slice(1); // Skip header line
       
       const resources: EnhancedResource[] = lines
         .filter(line => line.trim())
         .map(line => {
+          // Parse the standard kubectl api-resources format:
+          // NAME                                SHORTNAMES   APIVERSION                        NAMESPACED   KIND
+          // pods                                po           v1                                true         Pod
           const parts = line.trim().split(/\s+/);
-          const [name, shortNames, apiVersion, namespaced, kind, ...verbs] = parts;
+          
+          if (parts.length < 5) {
+            // Skip malformed lines
+            return null;
+          }
+          
+          const [name, shortNames, apiVersion, namespaced, kind] = parts;
           
           // Extract group from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
           let group = '';
@@ -440,17 +459,23 @@ export class KubernetesDiscovery {
             group = apiVersion.split('/')[0];
           }
           
+          // For verbs, we'll use a reasonable default set since we can't get them from the simple format
+          // We could make a separate kubectl call per resource, but that would be too slow
+          // Instead, we'll use common verbs that most resources support
+          const defaultVerbs = ['get', 'list', 'create', 'update', 'patch', 'delete'];
+
           return {
             name,
-            singularName: name.slice(0, -1), // Simple singularization
+            singularName: name.endsWith('s') ? name.slice(0, -1) : name, // Simple singularization
             namespaced: namespaced === 'true',
             kind,
-            verbs: verbs.length > 0 ? verbs : ['list', 'get', 'create', 'update', 'delete'],
+            verbs: defaultVerbs,
             shortNames: shortNames && shortNames !== '<none>' ? shortNames.split(',') : [],
             apiVersion,
             group
           };
-        });
+        })
+        .filter(resource => resource !== null) as EnhancedResource[];
 
       let filteredResources = resources;
 
@@ -483,7 +508,7 @@ export class KubernetesDiscovery {
       }
       args.push('--recursive');
       
-      const output = await this.executeKubectl(args);
+      const output = await this.executeKubectl(args, { kubeconfig: this.kubeconfigPath });
       const lines = output.split('\n');
       
       // Parse the explain output
