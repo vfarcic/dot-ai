@@ -156,10 +156,10 @@ describe('CLI Interface', () => {
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
-          { kind: 'Secret', name: 'secrets', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'secret' }
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Secret', name: 'secrets', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] }
         ],
         
         custom: []
@@ -333,8 +333,8 @@ describe('CLI Interface', () => {
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['get', 'list', 'create'], shortNames: ['po'], singularName: 'pod' },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['get', 'list', 'create'], shortNames: ['svc'], singularName: 'service' }
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: ['po'] },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: ['svc'] }
         ],
         custom: []
       });
@@ -504,11 +504,11 @@ describe('CLI Interface', () => {
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'deployment' },
-          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'statefulset' }
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] },
+          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
         ],
         custom: []
       });
@@ -538,11 +538,11 @@ describe('CLI Interface', () => {
       ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'pod' },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'service' },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'configmap' },
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'deployment' },
-          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, verbs: ['list'], shortNames: [], singularName: 'statefulset' }
+          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] },
+          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
         ],
         custom: []
       });

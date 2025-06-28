@@ -57,10 +57,8 @@ export interface EnhancedCRD {
 
 export interface EnhancedResource {
   name: string;
-  singularName: string;
   namespaced: boolean;
   kind: string;
-  verbs: string[];
   shortNames: string[];
   apiVersion: string;
   group: string;
@@ -385,6 +383,8 @@ export class KubernetesDiscovery {
     return command;
   }
 
+
+
   async discoverCRDs(options?: { group?: string }): Promise<EnhancedCRD[]> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
@@ -452,14 +452,14 @@ export class KubernetesDiscovery {
     }
   }
 
-  async getAPIResources(options?: { verbs?: string[]; group?: string }): Promise<EnhancedResource[]> {
+  async getAPIResources(options?: { group?: string }): Promise<EnhancedResource[]> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
     }
     
     try {
-      // Use simpler format without -o wide to avoid complex multi-line parsing
-      const output = await this.executeKubectl(['api-resources', '--verbs=list'], { kubeconfig: this.kubeconfigPath });
+      // Use standard format - simple and reliable
+      const output = await this.executeKubectl(['api-resources'], { kubeconfig: this.kubeconfigPath });
       const lines = output.split('\n').slice(1); // Skip header line
       
       const resources: EnhancedResource[] = lines
@@ -482,18 +482,11 @@ export class KubernetesDiscovery {
           if (apiVersion && apiVersion.includes('/')) {
             group = apiVersion.split('/')[0];
           }
-          
-          // For verbs, we'll use a reasonable default set since we can't get them from the simple format
-          // We could make a separate kubectl call per resource, but that would be too slow
-          // Instead, we'll use common verbs that most resources support
-          const defaultVerbs = ['get', 'list', 'create', 'update', 'patch', 'delete'];
 
           return {
             name,
-            singularName: name.endsWith('s') ? name.slice(0, -1) : name, // Simple singularization
             namespaced: namespaced === 'true',
             kind,
-            verbs: defaultVerbs,
             shortNames: shortNames && shortNames !== '<none>' ? shortNames.split(',') : [],
             apiVersion,
             group
@@ -501,19 +494,12 @@ export class KubernetesDiscovery {
         })
         .filter(resource => resource !== null) as EnhancedResource[];
 
-      let filteredResources = resources;
-
+      // Filter by group if specified
       if (options?.group !== undefined) {
-        filteredResources = filteredResources.filter(r => r.group === options.group);
+        return resources.filter(r => r.group === options.group);
       }
 
-      if (options?.verbs && options.verbs.length > 0) {
-        filteredResources = filteredResources.filter(r => 
-          options.verbs!.every(verb => r.verbs.includes(verb))
-        );
-      }
-
-      return filteredResources;
+      return resources;
     } catch (error) {
       // Use error classification to provide enhanced error messages
       const classified = ErrorClassifier.classifyError(error as Error);

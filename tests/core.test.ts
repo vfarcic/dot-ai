@@ -266,7 +266,7 @@ describe('Kubernetes Discovery Module', () => {
         expect(sampleResource).toHaveProperty('apiVersion');
         expect(sampleResource).toHaveProperty('group');
         expect(sampleResource).toHaveProperty('namespaced');
-        expect(sampleResource).toHaveProperty('verbs');
+        expect(sampleResource).not.toHaveProperty('verbs'); // Verbs removed for simplified discovery
         expect(sampleResource).toHaveProperty('name');
       }
       
@@ -326,7 +326,7 @@ describe('Kubernetes Discovery Module', () => {
         const resource = resources.resources[0];
         expect(resource).toHaveProperty('group');
         expect(resource).toHaveProperty('apiVersion');
-        expect(resource).toHaveProperty('verbs');
+        expect(resource).not.toHaveProperty('verbs'); // Verbs removed for simplified discovery
         expect(resource).toHaveProperty('namespaced');
       }
     });
@@ -537,14 +537,7 @@ describe('Kubernetes Discovery Module', () => {
           expect(resource.kind).not.toMatch(/^(create|delete|get|list|patch|update|watch)/);
           expect(resource.kind).not.toContain(',');
           
-          // Verbs should be an array of individual verb strings
-          expect(resource.verbs).toBeInstanceOf(Array);
-          expect(resource.verbs.length).toBeGreaterThan(0);
-          resource.verbs.forEach(verb => {
-            expect(typeof verb).toBe('string');
-            expect(verb).not.toContain(','); // Individual verbs should not contain commas
-            expect(['create', 'delete', 'deletecollection', 'get', 'list', 'patch', 'update', 'watch'].includes(verb)).toBe(true);
-          });
+          // No verbs in simplified discovery - focused on resource selection
           
           // API version should be properly formatted
           expect(typeof resource.apiVersion).toBe('string');
@@ -598,38 +591,9 @@ describe('Kubernetes Discovery Module', () => {
         });
       });
 
-      test('should include verb information for each resource', async () => {
-        // Test with real cluster - verify verb information is included
-        const resources = await discovery.getAPIResources();
-        expect(resources.length).toBeGreaterThan(0);
-        
-        // Each resource should have verbs
-        resources.forEach(resource => {
-          expect(resource.verbs).toBeInstanceOf(Array);
-          expect(resource.verbs.length).toBeGreaterThan(0);
-        });
-        
-        // Find pods resource and verify it has expected verbs
-        const podResource = resources.find(r => r.name === 'pods');
-        expect(podResource).toBeDefined();
-        expect(podResource!.verbs).toContain('get');
-        expect(podResource!.verbs).toContain('list');
-      });
 
-      test('should filter resources by verb capabilities', async () => {
-        // Test filtering by verbs with real cluster
-        const allResources = await discovery.getAPIResources();
-        const listableResources = await discovery.getAPIResources({ verbs: ['list'] });
-        
-        expect(listableResources).toBeInstanceOf(Array);
-        expect(listableResources.length).toBeGreaterThan(0);
-        expect(listableResources.length).toBeLessThanOrEqual(allResources.length);
-        
-        // All returned resources should have 'list' verb
-        listableResources.forEach(resource => {
-          expect(resource.verbs).toContain('list');
-        });
-      });
+
+
 
       test('should filter resources by API group', async () => {
         // Test filtering by API group with real cluster
@@ -665,6 +629,43 @@ describe('Kubernetes Discovery Module', () => {
         
         expect(serviceResource).toBeDefined();
         expect(serviceResource!.shortNames).toContain('svc');
+      });
+
+      // TDD Tests for Simplified Discovery focused on Resource Selection
+      test('should not include verbs in resource discovery for selection purposes', async () => {
+        // TDD Test: Discovery should focus on resource selection, not operation capabilities
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        // Resources should NOT have verbs property since it's not needed for selection
+        resources.forEach(resource => {
+          expect((resource as any).verbs).toBeUndefined();
+        });
+      });
+
+      test('should focus on selection-relevant metadata only', async () => {
+        // TDD Test: Ensure only selection-relevant fields are included
+        const resources = await discovery.getAPIResources();
+        expect(resources.length).toBeGreaterThan(0);
+        
+        resources.forEach(resource => {
+          // Required fields for resource selection
+          expect(typeof resource.name).toBe('string');
+          expect(typeof resource.kind).toBe('string');
+          expect(typeof resource.apiVersion).toBe('string');
+          expect(typeof resource.group).toBe('string');
+          expect(typeof resource.namespaced).toBe('boolean');
+          expect(resource.shortNames).toBeInstanceOf(Array);
+          
+          // Should NOT include operation-specific fields
+          expect((resource as any).verbs).toBeUndefined();
+          expect((resource as any).singularName).toBeUndefined();
+          
+          // Validate that all required fields have meaningful values
+          expect(resource.name.length).toBeGreaterThan(0);
+          expect(resource.kind.length).toBeGreaterThan(0);
+          expect(resource.apiVersion.length).toBeGreaterThan(0);
+        });
       });
     });
 
