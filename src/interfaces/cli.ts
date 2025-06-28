@@ -456,8 +456,8 @@ export class CliInterface {
   }
 
   private outputResult(result: CliResult, format: string): void {
-    const formatted = this.formatOutput(result, format);
-    console.log(formatted);
+    const output = this.formatOutput(result, format);
+    process.stdout.write(`${output}\n`);
     
     if (!result.success) {
       process.exit(1);
@@ -473,7 +473,7 @@ export class CliInterface {
     } else if (errorMessage.includes('Connection failed')) {
       errorMessage = `Failed to initialize App Agent: ${errorMessage}`;
     }
-
+    
     return {
       success: false,
       error: errorMessage
@@ -485,7 +485,8 @@ export class CliInterface {
     try {
       await this.program.parseAsync(args);
     } catch (error) {
-      console.error('CLI Error:', (error as Error).message);
+      const result = this.handleError(error, 'general');
+      this.outputResult(result, 'json');
       process.exit(1);
     }
   }

@@ -77,7 +77,8 @@ describe('Build System Validation (TDD)', () => {
     test('should allow CLI binary to run without errors', () => {
       expect(() => {
         const projectKubeconfig = path.join(projectRoot, 'kubeconfig.yaml');
-        const output = execSync(`node bin/app-agent.ts --kubeconfig "${projectKubeconfig}" --help`, { 
+        // Use the compiled JavaScript version for CI compatibility
+        const output = execSync(`node dist/cli.js --kubeconfig "${projectKubeconfig}" --help`, { 
           cwd: projectRoot, 
           stdio: 'pipe' 
         });
@@ -87,7 +88,8 @@ describe('Build System Validation (TDD)', () => {
 
     test('should include all required dependencies in CLI build', () => {
       const projectKubeconfig = path.join(projectRoot, 'kubeconfig.yaml');
-      const output = execSync(`node bin/app-agent.ts --kubeconfig "${projectKubeconfig}" --version`, { 
+      // Use the compiled JavaScript version for CI compatibility
+      const output = execSync(`node dist/cli.js --kubeconfig "${projectKubeconfig}" --version`, { 
         cwd: projectRoot, 
         stdio: 'pipe' 
       });

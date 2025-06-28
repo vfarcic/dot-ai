@@ -82,16 +82,33 @@ export class KubernetesDiscovery {
 
   async connect(): Promise<void> {
     try {
-      this.kc.loadFromFile(this.kubeconfigPath);
+      this.kc = new k8s.KubeConfig();
       
+      if (this.kubeconfigPath) {
+        // Check if the kubeconfig file exists before trying to load it
+        if (!require('fs').existsSync(this.kubeconfigPath)) {
+          throw new Error(`Kubeconfig file not found: ${this.kubeconfigPath}`);
+        }
+        this.kc.loadFromFile(this.kubeconfigPath);
+      } else {
+        this.kc.loadFromDefault();
+      }
+
+      // Create API clients
       this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
       
-      // Test the connection by getting cluster info
-      await this.k8sApi.listNamespace();
-      this.connected = true;
+      // Test the connection by making a simple API call
+      try {
+        await this.k8sApi.listNamespace();
+        this.connected = true;
+      } catch (apiError) {
+        this.connected = false;
+        throw new Error(`Cannot connect to Kubernetes cluster: ${(apiError as Error).message}`);
+      }
     } catch (error) {
       this.connected = false;
-      throw new Error(`Failed to connect to Kubernetes cluster using kubeconfig at ${this.kubeconfigPath}: ${error}`);
+      // Re-throw the error to ensure tests can catch it
+      throw error;
     }
   }
 
@@ -166,7 +183,7 @@ export class KubernetesDiscovery {
       const apiExtensions = this.kc.makeApiClient(k8s.ApiextensionsV1Api);
       const crdList = await apiExtensions.listCustomResourceDefinition();
       
-      return crdList.body.items.map(crd => crd.metadata?.name || '');
+      return crdList.items.map((crd: any) => crd.metadata?.name || '');
     } catch (error) {
       // Return empty array if CRDs are not available
       return [];
@@ -182,7 +199,7 @@ export class KubernetesDiscovery {
       const apiExtensions = this.kc.makeApiClient(k8s.ApiextensionsV1Api);
       const crdList = await apiExtensions.listCustomResourceDefinition();
       
-      return crdList.body.items.map(crd => ({
+      return crdList.items.map((crd: any) => ({
         name: crd.metadata?.name || '',
         group: crd.spec.group,
         version: crd.spec.versions[0]?.name || '',
@@ -203,7 +220,7 @@ export class KubernetesDiscovery {
       const apis = this.kc.makeApiClient(k8s.ApisApi);
       
       const apiGroups = await apis.getAPIVersions();
-      return apiGroups.body.groups.map(group => group.preferredVersion?.groupVersion || group.name);
+      return apiGroups.groups.map((group: any) => group.preferredVersion?.groupVersion || group.name);
     } catch (error) {
       // Return default API resources
       return ['v1', 'apps/v1', 'networking.k8s.io/v1'];
@@ -266,7 +283,7 @@ export class KubernetesDiscovery {
 
     try {
       const namespaces = await this.k8sApi.listNamespace();
-      return namespaces.body.items.map((ns: any) => ns.metadata?.name || '');
+      return namespaces.items.map((ns: any) => ns.metadata?.name || '');
     } catch (error) {
       throw new Error(`Failed to get namespaces: ${error}`);
     }
