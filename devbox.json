@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
+  "packages": [
+    "kind@0.29.0",
+    "git@2.49.0"
+  ],
+  "shell": {
+    "init_hook": [],
+    "scripts":   {}
+  }
+}

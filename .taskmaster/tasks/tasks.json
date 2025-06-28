@@ -1,0 +1,1513 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Repository and Development Environment",
+        "description": "Initialize a unified TypeScript package with shared core intelligence modules and dual CLI/MCP interfaces, configure build tools, and establish testing frameworks",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "high",
+        "details": "Create a unified TypeScript package structure with shared core intelligence modules (/src/core), CLI interface layer (/src/interfaces/cli.ts), and MCP interface layer (/src/interfaces/mcp.ts). Initialize single package.json with TypeScript configuration, Jest/Vitest testing framework, and build scripts supporting both CLI binary (bin/app-agent) and MCP server exports. Configure linting (eslint, prettier), and CI/CD pipeline. Setup development dependencies including @kubernetes/client-node for Kubernetes API access and Claude Code SDK. Implement unified build system that produces both standalone CLI binary and MCP server from single package installation. Create basic project documentation and contribution guidelines emphasizing the 'same intelligence, different interfaces' architecture principle with simplified single-package approach.",
+        "testStrategy": "Verify TypeScript compilation works correctly for both CLI and MCP interface layers, run unified test suites against shared core modules, validate dependency installation and import resolution across all interfaces, test CLI binary generation and MCP server functionality from single package installation",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup Test Infrastructure First",
+            "description": "Write tests first, then implement. Establish Jest/Vitest testing framework with initial test files for the unified package structure. Create test configuration and basic test utilities.",
+            "dependencies": [],
+            "details": "Create test configuration files, setup test runners for both TypeScript and Go components, write initial smoke tests to verify test infrastructure works, establish test file naming conventions and directory structure\n<info added on 2025-06-28T00:30:03.177Z>\nCOMPLETED: Test infrastructure successfully established using Test-Driven Development methodology. Implemented comprehensive package.json with unified TypeScript structure supporting both CLI and MCP exports. Configured tsconfig.json with ES2022 target and strict TypeScript settings. Set up Jest testing framework with ts-jest preset for seamless TypeScript integration. Created and validated 12 comprehensive test suites covering project structure validation, TypeScript environment verification, Jest mocking capabilities, async testing support, directory structure creation, and ES2022 feature compatibility. Established proper directory structure with src/core/, src/interfaces/, and bin/ folders. Installed all required dependencies including @types/jest, typescript, jest, and ts-jest. All 12 validation tests are passing, confirming robust test infrastructure foundation. TDD approach successfully validated by writing tests first to define expectations, implementing minimal structure to satisfy tests, and iteratively fixing failures until complete test suite passes. Test infrastructure is now ready to support development of subsequent project components.\n</info added on 2025-06-28T00:30:03.177Z>\n<info added on 2025-06-28T00:53:32.978Z>\n## Manual Testing Instructions:\n1. **Verify test infrastructure**: Run `npm test` to confirm all 12 infrastructure tests pass\n2. **Check TypeScript compilation**: Run `npx tsc --noEmit` to verify TypeScript setup\n3. **Validate Jest configuration**: Look for `jest.config.js` and confirm `ts-jest` preset\n4. **Test directory structure**: Confirm `src/core/`, `src/interfaces/`, and `bin/` directories exist\n5. **Dependency validation**: Run `npm list` to see all required packages installed\n6. **ES2022 features test**: Check that modern JavaScript features work in the codebase\n\n## Expected Results:\n- All infrastructure tests should pass (12/12)\n- TypeScript should compile without errors\n- Jest should run TypeScript tests seamlessly\n- Directory structure should be properly established\n- All dependencies should be correctly installed\n</info added on 2025-06-28T00:53:32.978Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Test-Driven Package.json and TypeScript Configuration",
+            "description": "Write tests first, then implement. Create tests that validate package.json structure, TypeScript configuration, and module resolution. Then implement the actual configuration files.",
+            "dependencies": [
+              1
+            ],
+            "details": "Write tests for package.json validation, TypeScript compiler options, module resolution paths, and build outputs. Implement package.json with proper dependencies, TypeScript config with strict settings, and ensure all tests pass\n<info added on 2025-06-28T00:35:08.334Z>\nCOMPLETED: Enhanced package.json and TypeScript configuration following TDD approach!\n\nWhat we implemented (all tests first, then implementation):\n\nPackage.json Enhancements:\n- Added TypeScript declaration files support (types field)\n- Added CLI-specific scripts (start:cli, build:cli)\n- Added MCP-specific scripts (start:mcp, build:mcp)\n- Added @anthropic-ai/sdk dependency for Claude integration\n- Enhanced dependency management with all required packages\n\nTypeScript Configuration Enhancements:\n- Added strict TypeScript settings (noImplicitAny, strictNullChecks, noImplicitReturns)\n- Maintained ES2022 target with proper module resolution\n- Enhanced type checking and error detection\n\nDevelopment Tools Added:\n- ESLint configuration (.eslintrc.json) with TypeScript support\n- Prettier configuration (.prettierrc.json) for code formatting\n- Comprehensive linting rules and code quality enforcement\n\nMinimal Source Code Structure:\n- src/index.ts - main entry point with version exports\n- src/core/index.ts - core intelligence module with AppAgent class\n- src/interfaces/cli.ts - CLI interface with CliInterface class\n\nTest Results: All 35 tests PASSING (12 infrastructure + 23 configuration)\n- Package structure and metadata validated\n- TypeScript compilation successful\n- All build tools configured\n- Module resolution working\n\nTDD Achievement: Perfect example of test-driven development - tests defined our requirements, we implemented exactly what was needed!\n</info added on 2025-06-28T00:35:08.334Z>\n<info added on 2025-06-28T00:53:53.821Z>\n## Manual Testing Instructions:\n1. **Verify enhanced package.json**: Check `package.json` for CLI/MCP scripts and proper dependency structure\n2. **Test TypeScript strict settings**: Run `npx tsc --noEmit` to confirm strict compilation works\n3. **Validate ESLint configuration**: Run `npx eslint src/ --ext .ts` to check linting rules\n4. **Test Prettier formatting**: Run `npx prettier --check src/` to verify code formatting rules\n5. **Check Anthropic SDK integration**: Verify `@anthropic-ai/sdk` is properly installed with `npm list @anthropic-ai/sdk`\n6. **Test build scripts**: Try `npm run build:cli` and `npm run build:mcp` to ensure they're defined\n7. **Validate TypeScript declarations**: Check that `types` field points to correct declaration files\n\n## Expected Results:\n- All 35 tests should pass (12 infrastructure + 23 configuration)\n- TypeScript should compile with strict settings enabled\n- ESLint should validate TypeScript code without errors\n- Prettier should enforce consistent code formatting\n- All build scripts should be properly configured\n- Package structure should support both CLI and MCP modes\n</info added on 2025-06-28T00:53:53.821Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Test-Driven Core Module Structure",
+            "description": "Write tests first, then implement. Define tests for core module interfaces, exports, and internal structure. Then implement the actual core modules following the test specifications.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Write tests for core module APIs, interface contracts, error handling, and module boundaries. Implement core TypeScript modules, Go packages, and ensure proper separation of concerns with all tests passing\n<info added on 2025-06-28T00:26:34.017Z>\nWrite tests for core module APIs, interface contracts, error handling, and module boundaries for the src/core/ TypeScript modules (discovery, memory, workflow, Claude SDK integration). Implement TypeScript core modules with proper separation of concerns and ensure all tests pass.\n</info added on 2025-06-28T00:26:34.017Z>\n<info added on 2025-06-28T00:52:12.760Z>\nCOMPLETED: Test-Driven Core Module Structure successfully implemented with 70/70 tests passing! Achieved comprehensive TDD cycle with tests written first, then implementation to satisfy all requirements.\n\nCore modules implemented and fully tested:\n- AppAgent class with proper module orchestration (src/core/index.ts)\n- KubernetesDiscovery with real cluster integration using project's kubeconfig.yaml (src/core/discovery.ts)\n- MemorySystem with learning patterns and recommendation engine (src/core/memory.ts)\n- WorkflowEngine with deployment workflows and rollback capabilities (src/core/workflow.ts)\n- ClaudeIntegration for AI communication (src/core/claude.ts)\n\nReal Kubernetes integration working with user's kind cluster including namespace operations, resource discovery, CRD detection, and cluster type identification. Intelligent memory system stores success/failure patterns with similarity-based recommendations. Workflow engine provides template-based deployment workflows with step-by-step execution and error recovery.\n\nTest coverage includes module integration tests, error handling, boundary conditions, and real-world scenarios. All 35 core module tests passing alongside existing infrastructure and configuration tests for total of 70 passing tests across 3 test suites.\n</info added on 2025-06-28T00:52:12.760Z>\n<info added on 2025-06-28T00:54:40.798Z>\n## Manual Testing Instructions:\n1. **Run full test suite**: Execute `npm test` to confirm all 70 tests pass across 3 test suites\n2. **Test Kubernetes connectivity**: Run `kubectl cluster-info` using the project's kubeconfig.yaml\n3. **Verify core modules**: Check that all TypeScript files exist in `src/core/` (index.ts, discovery.ts, memory.ts, workflow.ts, claude.ts)\n4. **Test discovery module manually**: Create a simple script to test KubernetesDiscovery class:\n   ```typescript\n   import { KubernetesDiscovery } from './src/core/discovery';\n   const discovery = new KubernetesDiscovery();\n   await discovery.connect();\n   console.log('Connected:', discovery.isConnected());\n   ```\n5. **Test memory system**: Verify memory JSON files can be created in `memory/` directory\n6. **Check error handling**: Confirm graceful failure handling when Kubernetes connection fails\n7. **Validate module integration**: Ensure AppAgent class properly orchestrates all core modules\n\n## Expected Results:\n- All 70 tests should pass (12 infrastructure + 23 configuration + 35 core)\n- Kubernetes discovery should connect to your kind cluster using kubeconfig.yaml\n- All core modules should initialize without errors\n- Memory system should create and manage JSON files\n- Error handling should be graceful and informative\n- Real Kubernetes integration should work with namespace operations and resource discovery\n</info added on 2025-06-28T00:54:40.798Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Test-Driven CLI Interface Layer",
+            "description": "Write tests first, then implement. Create comprehensive tests for CLI argument parsing, command execution, and output formatting. Then implement the CLI interface to satisfy all tests.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Write tests for CLI commands, argument validation, help text generation, error handling, and output formats. Implement CLI using commander.js or similar, ensure proper error handling and user experience with all tests passing\n<info added on 2025-06-28T00:54:57.660Z>\n## Post-Completion Requirements:\nWhen this subtask is completed, provide:\n1. **What was accomplished**: Detailed explanation of implementation and TDD approach\n2. **Manual testing instructions**: Step-by-step commands and checks to verify the CLI interface works correctly\n3. **Expected results**: Clear success criteria for manual validation\n\n## Implementation Notes:\n- Follow TDD: Write CLI tests first, then implement CLI interface to pass tests\n- Use commander.js or similar for argument parsing and command structure  \n- Ensure integration with core modules (AppAgent, KubernetesDiscovery, etc.)\n- Implement proper error handling and user-friendly output formatting\n- Test both successful scenarios and error cases\n</info added on 2025-06-28T00:54:57.660Z>\n<info added on 2025-06-28T01:05:54.334Z>\n## Implementation Progress - Started 2025-06-28\n\n**STARTING: Test-Driven CLI Interface Layer implementation**\n\nFollowing TDD approach with comprehensive test-first development:\n\n**Phase 1: CLI Test Development (In Progress)**\n- Creating CLI test file to define expected behavior and interface contracts\n- Test coverage areas:\n  - Command structure and subcommand hierarchy\n  - Argument parsing and validation logic\n  - Help text generation and formatting\n  - Error handling scenarios and user-friendly error messages\n  - Output formatting for different result types\n- Integration testing with existing core modules:\n  - AppAgent integration for application discovery\n  - KubernetesDiscovery integration for cluster analysis\n  - Proper module interaction and data flow validation\n\n**Next Steps:**\n- Complete CLI test suite implementation\n- Begin CLI interface development using commander.js\n- Ensure all tests pass before marking subtask complete\n</info added on 2025-06-28T01:05:54.334Z>\n<info added on 2025-06-28T01:14:38.682Z>\n**COMPLETED: Test-Driven CLI Interface Layer - 2025-06-28**\n\n## 🎯 What Was Accomplished:\n\n### **Perfect TDD Implementation:**\n✅ **Written tests first (35 comprehensive CLI tests)** defining expected behavior\n✅ **Implemented CLI interface to satisfy all test requirements**\n✅ **Achieved 100% test coverage** with all 107 tests passing\n\n### **Comprehensive CLI Interface Features:**\n\n**1. Command Structure:**\n- Main `app-agent` command with hierarchical subcommands\n- Subcommands: `discover`, `deploy`, `status`, `learn`\n- Robust argument parsing and validation using commander.js\n\n**2. Core Integration:**\n- Full integration with all core modules (AppAgent, KubernetesDiscovery, MemorySystem, WorkflowEngine, ClaudeIntegration)\n- Real Kubernetes cluster connectivity using project's kubeconfig.yaml\n- Proper initialization and error handling\n\n**3. Output Formatting:**\n- Multiple output formats: JSON, YAML, table\n- Clean error message formatting\n- Verbose mode support with detailed timing and diagnostics\n\n**4. Interactive Features:**\n- Interactive deployment workflows with Claude AI\n- User response handling for complex deployments\n- Memory pattern storage and retrieval\n\n**5. Error Handling:**\n- Graceful error handling for connection failures\n- User-friendly error messages for common issues\n- Proper fallback handling for module failures\n\n### **Files Created/Enhanced:**\n- `src/interfaces/cli.ts` - Complete CLI interface with all commands\n- `bin/app-agent.ts` - CLI binary entry point\n- `tests/cli.test.ts` - 35 comprehensive CLI tests\n- Enhanced core modules with CLI-required methods\n- Package.json updated with CLI dependencies (commander, yaml, cli-table3)\n\n### **Real Kubernetes Integration:**\n- CLI connects to your kind cluster using kubeconfig.yaml\n- Discovery commands work with real cluster resources\n- Memory system stores actual deployment patterns\n\n## 📋 Manual Testing Instructions:\n\n**Prerequisites:**\n```bash\nnpm install\nnpm run build\n```\n\n**1. Basic Command Structure:**\n```bash\n# Test main help\n./bin/app-agent --help\n\n# Test subcommand help\n./bin/app-agent discover --help\n./bin/app-agent deploy --help\n```\n\n**2. Discovery Commands:**\n```bash\n# Discover applications (connects to real cluster)\n./bin/app-agent discover apps --output table\n./bin/app-agent discover apps --output json\n./bin/app-agent discover apps --output yaml\n\n# Discover infrastructure\n./bin/app-agent discover infra --verbose\n```\n\n**3. Status Commands:**\n```bash\n# Check system status\n./bin/app-agent status --verbose\n\n# Check memory patterns\n./bin/app-agent status --memory\n```\n\n**4. Learning Commands:**\n```bash\n# Learn from deployment\n./bin/app-agent learn --pattern \"nginx-deployment\" --description \"Basic nginx setup\"\n```\n\n**5. Error Handling:**\n```bash\n# Test invalid commands\n./bin/app-agent invalid-command\n./bin/app-agent discover --invalid-flag\n```\n\n## ✅ Expected Results:\n\n**Success Criteria:**\n1. **All commands execute without crashes**\n2. **Help text displays properly formatted information**\n3. **Real Kubernetes cluster connection works** (shows actual pods/services)\n4. **Output formats render correctly** (table, JSON, YAML)\n5. **Error messages are user-friendly** and actionable\n6. **Verbose mode shows detailed timing** and diagnostic information\n7. **Interactive prompts work** for deployment scenarios\n8. **Memory system stores and retrieves** patterns correctly\n\n**Performance Expectations:**\n- Commands complete within 5 seconds for basic operations\n- Discovery operations complete within 10 seconds\n- Error handling is immediate with clear feedback\n</info added on 2025-06-28T01:14:38.682Z>\n<info added on 2025-06-28T01:30:30.357Z>\n**UPDATE: Enhanced Discovery Output - 2025-06-28**\n\n## 🔧 Discovery Output Enhancement:\n\n**Problem Resolved:**\n- Previous discovery output only showed abstract API groups instead of actual deployable resource types\n- Users couldn't easily identify specific Kubernetes resources available for deployment\n\n**Implementation Changes:**\n✅ **Updated CLI to use `discoverResources()` method** instead of `getAPIResources()`\n✅ **Fixed TypeScript configuration and CLI entry point paths** for proper compilation\n✅ **Updated all test mocks and expectations** to align with new discovery structure\n✅ **Enhanced resource categorization** into Core, Apps, and Custom groups\n\n**Improved User Experience:**\n- Discovery commands now display individual resource types (ConfigMap, Secret, Pod, Deployment, Service, etc.)\n- Resources properly organized by category for better readability\n- Table output shows actionable resource types users can actually deploy\n- Maintained full backward compatibility with existing CLI functionality\n\n**Verification Results:**\n- All 107 tests continue passing with updated expectations\n- CLI discover command produces more informative and useful output\n- Individual Kubernetes resource types clearly visible in table format\n- Enhanced discovery provides better foundation for deployment planning\n\nThis enhancement significantly improves the CLI's utility by showing users exactly what resource types are available in their cluster for deployment operations.\n</info added on 2025-06-28T01:30:30.357Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Test-Driven MCP Interface Layer",
+            "description": "Write tests first, then implement. Write tests for MCP protocol compliance, message handling, and interface contracts. Then implement the MCP interface layer to meet all test requirements.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Write tests for MCP protocol messages, request/response handling, error scenarios, and interface compliance. Implement MCP interface layer with proper protocol handling, message validation, and ensure all tests pass\n<info added on 2025-06-28T00:55:18.258Z>\n## Post-Completion Requirements:\nWhen this subtask is completed, provide:\n1. **What was accomplished**: Detailed explanation of MCP interface implementation and TDD approach\n2. **Manual testing instructions**: Step-by-step commands and checks to verify the MCP interface works correctly\n3. **Expected results**: Clear success criteria for manual validation\n\n## Implementation Notes:\n- Follow TDD: Write MCP protocol tests first, then implement MCP interface to pass tests\n- Ensure MCP protocol compliance and proper message handling\n- Integrate with core modules through the same AppAgent interface used by CLI\n- Test MCP request/response cycles and error scenarios\n- Validate JSON schema compliance and protocol standards\n</info added on 2025-06-28T00:55:18.258Z>",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Test-Driven Build System",
+            "description": "Write tests first, then implement. Create tests that validate build outputs, bundling, optimization, and cross-platform compatibility. Then implement build tooling to satisfy all test criteria.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Write tests for build artifact validation, bundle size limits, TypeScript compilation, Go binary generation, and cross-platform builds. Implement webpack/rollup configuration, Go build scripts, and optimization settings with all tests passing\n<info added on 2025-06-28T00:55:37.056Z>\n## Post-Completion Requirements:\nWhen this subtask is completed, provide:\n1. **What was accomplished**: Detailed explanation of build system implementation and TDD approach\n2. **Manual testing instructions**: Step-by-step commands and checks to verify the build system works correctly\n3. **Expected results**: Clear success criteria for manual validation\n\n## Implementation Notes:\n- Follow TDD: Write build validation tests first, then implement build tooling to pass tests\n- Ensure both CLI binary and MCP server can be built from single package\n- Test bundle optimization, TypeScript compilation, and cross-platform compatibility\n- Validate build artifacts and package size limits\n- Test production-ready build outputs\n</info added on 2025-06-28T00:55:37.056Z>",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Test-Driven CI/CD Pipeline and Dependency Integration",
+            "description": "Write tests first, then implement. Write tests for CI/CD pipeline validation, dependency management, and integration workflows. Then implement the actual CI/CD configuration and dependency integration.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "details": "Write tests for CI pipeline stages, dependency vulnerability checks, automated testing, and deployment validation. Implement GitHub Actions or similar CI/CD, dependency management workflows, and ensure all integration tests pass\n<info added on 2025-06-28T00:55:54.674Z>\n## Post-Completion Requirements:\nWhen this subtask is completed, provide:\n1. **What was accomplished**: Detailed explanation of CI/CD pipeline implementation and TDD approach\n2. **Manual testing instructions**: Step-by-step commands and checks to verify the CI/CD pipeline works correctly\n3. **Expected results**: Clear success criteria for manual validation\n\n## Implementation Notes:\n- Follow TDD: Write CI/CD validation tests first, then implement pipeline configuration to pass tests\n- Ensure automated testing, dependency checks, and deployment validation\n- Test GitHub Actions workflows and integration with package management\n- Validate CI pipeline stages and deployment processes\n- Test automated quality checks and security scanning\n</info added on 2025-06-28T00:55:54.674Z>",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Kubernetes Discovery Engine Core",
+        "description": "Enhance the core discovery engine in src/core/discovery.ts to provide more sophisticated Kubernetes cluster discovery capabilities. The engine must work with ANY Kubernetes cluster configuration and provide robust error handling for different cluster types through enhanced TypeScript implementation.",
+        "status": "pending",
+        "dependencies": [
+          1
+        ],
+        "priority": "high",
+        "details": "Enhance src/core/discovery.ts with advanced functions to: 1) Improve kubectl config integration for better cluster connectivity, 2) Add sophisticated CRD discovery through `kubectl get crd` execution, 3) Enhance API resource querying via `kubectl api-resources`, 4) Implement resource schema discovery using `kubectl explain <resource>`, 5) Add cluster fingerprinting for environment identification. Enhance the KubernetesDiscovery class with methods: discoverCRDs(), getAPIResources(), explainResource(), fingerprintCluster(). Improve authentication handling using existing kubectl configuration. Ensure the enhanced engine works seamlessly with vanilla Kubernetes clusters, clusters with CRDs, and various cluster configurations through dynamic discovery.",
+        "testStrategy": "Unit tests with mock Kubernetes clients, integration tests against test clusters (including kind cluster), validate enhanced discovery works with vanilla Kubernetes and clusters with CRDs. Include manual testing with real clusters to verify improved CRD discovery, API resource enumeration, and schema parsing functionality.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Enhance KubernetesDiscovery class with advanced discovery methods",
+            "description": "Extend the existing KubernetesDiscovery class in src/core/discovery.ts with sophisticated methods for CRD discovery, API resource enumeration, resource schema explanation, and cluster fingerprinting",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Improve kubectl config integration in TypeScript",
+            "description": "Enhance the existing kubectl configuration integration in src/core/discovery.ts to provide better cluster connectivity with improved authentication handling",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add robust error handling for different cluster types",
+            "description": "Implement comprehensive error handling in the TypeScript discovery module to gracefully handle various cluster configurations, missing resources, and connection issues",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Test enhanced discovery with kind cluster and validate dynamic capabilities",
+            "description": "Verify the enhanced TypeScript discovery engine works correctly with kind cluster, testing improved CRD discovery, API resource enumeration, and schema parsing",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create comprehensive TypeScript unit and integration tests",
+            "description": "Develop TypeScript unit tests with mock Kubernetes clients and integration tests against test clusters to ensure enhanced discovery reliability",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Document manual testing procedures for enhanced discovery features",
+            "description": "Create detailed manual testing instructions with step-by-step commands and clear success criteria for validating the enhanced TypeScript discovery capabilities",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Implement Resource Schema Parser and Validator",
+        "description": "Create a system to parse discovered resource schemas and validate generated manifests with comprehensive post-completion documentation",
+        "status": "pending",
+        "dependencies": [
+          2
+        ],
+        "priority": "high",
+        "details": "Build TypeScript schema parsing capabilities in src/core/schema.ts or enhance src/core/discovery.ts with SchemaParser class that: 1) Parses kubectl explain output into structured schema objects, 2) Validates YAML manifests against discovered schemas, 3) Ranks resources by capability match to user intent, 4) Handles nested resource properties and required fields. Implement ResourceSchema interface/class with fields for apiVersion, kind, properties, required fields. Create validation functions that check manifest compliance before deployment. Must include robust handling of kubectl explain output variations and work with both standard K8s resources and complex CRDs.",
+        "testStrategy": "Unit tests for schema parsing with various kubectl explain outputs, validation tests with valid/invalid manifests, integration tests with real CRD schemas. Include comprehensive manual testing documentation with step-by-step verification procedures.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create ResourceSchema interface and core types",
+            "description": "Define ResourceSchema interface with apiVersion, kind, properties, required fields and supporting TypeScript types",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement SchemaParser class for kubectl explain output",
+            "description": "Build TypeScript parser class that handles variations in kubectl explain output format for different resource types",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create manifest validation functions",
+            "description": "Implement TypeScript validation logic that checks YAML manifests against parsed schemas",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Add resource ranking by capability match",
+            "description": "Implement TypeScript scoring system to rank resources by how well they match user intent",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Test with standard K8s resources and CRDs",
+            "description": "Validate TypeScript parser works with both built-in Kubernetes resources and custom resource definitions",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create comprehensive manual testing documentation",
+            "description": "Document step-by-step manual testing procedures with expected results and success criteria",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Document implementation accomplishments",
+            "description": "Provide detailed explanation of what was accomplished in the Resource Schema Parser and Validator implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Determine module placement and integration",
+            "description": "Decide whether to enhance existing src/core/discovery.ts or create new src/core/schema.ts module and integrate with existing TypeScript codebase",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Build Memory System for Learning and Pattern Storage",
+        "description": "Enhance existing TypeScript memory system in src/core/memory.ts to store deployment patterns, lessons learned, and cluster-specific knowledge with comprehensive post-completion validation",
+        "status": "pending",
+        "dependencies": [
+          2
+        ],
+        "priority": "medium",
+        "details": "Enhance src/core/memory.ts with MemorySystem class improvements that: 1) Stores successful deployment patterns in JSON files, 2) Records troubleshooting lessons from failures, 3) Implements cluster fingerprinting for environment-specific storage, 4) Provides pattern matching for similar deployments. Design JSON schema for memory storage including deployment_patterns.json, lessons_learned.json, cluster_fingerprints.json. Implement enhanced functions: StorePattern(), RetrievePattern(), StoreLessons(), GetSimilarPatterns(). Upon completion, provide detailed documentation of what was accomplished, manual testing instructions with step-by-step commands, and clear success criteria for validation.",
+        "testStrategy": "Unit tests for JSON serialization/deserialization, pattern matching algorithms, file I/O operations, integration tests for memory persistence across sessions. Post-completion manual testing to verify memory storage, pattern matching, and retrieval functionality with real deployment scenarios.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design JSON schema for memory storage",
+            "description": "Create schemas for deployment_patterns.json, lessons_learned.json, and cluster_fingerprints.json",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Enhance MemorySystem class and core functions",
+            "description": "Enhance src/core/memory.ts with improved StorePattern(), RetrievePattern(), StoreLessons(), GetSimilarPatterns() functions",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement cluster fingerprinting system",
+            "description": "Build environment-specific storage and retrieval based on cluster characteristics using TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement pattern matching and similarity algorithms",
+            "description": "Create TypeScript algorithms to match similar deployment patterns and suggest relevant lessons",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create comprehensive unit tests",
+            "description": "Test JSON serialization/deserialization, pattern matching, file I/O, and memory persistence for TypeScript implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, create manual testing instructions with step-by-step commands, and define clear success criteria for validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Implement CLI Interface Foundation",
+        "description": "Build the command-line interface with conversational Q&A capabilities and session management using TypeScript",
+        "status": "pending",
+        "dependencies": [
+          3,
+          4
+        ],
+        "priority": "high",
+        "details": "Create src/cli/cli.ts with CLI class using commander library for command structure. Implement interactive session management with: 1) Conversational workflow for application deployment, 2) Q&A system for gathering deployment requirements, 3) Progress tracking and user guidance, 4) Integration with discovery engine and memory system. Commands: app-agent deploy, app-agent status, app-agent learn. Use Claude Code SDK for natural language processing and intelligent responses through TypeScript implementation.",
+        "testStrategy": "CLI integration tests with mock inputs, session state management tests, user interaction flow validation, end-to-end CLI workflow tests, manual testing with real deployment scenarios using Kubernetes cluster",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up CLI foundation with commander library",
+            "description": "Create src/cli/cli.ts with CLI class and basic command structure using commander library",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement conversational Q&A system",
+            "description": "Build interactive Q&A workflow for gathering deployment requirements with Claude integration using TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create session management system",
+            "description": "Implement session state tracking and persistence for conversational workflows using TypeScript classes and interfaces",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement core CLI commands",
+            "description": "Create app-agent deploy, app-agent status, and app-agent learn commands with proper argument handling in TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Integrate with discovery engine and memory system",
+            "description": "Connect CLI to discovery engine and memory system for intelligent deployment assistance using TypeScript modules",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add progress tracking and user guidance",
+            "description": "Implement visual progress indicators and contextual help for user guidance during deployment using TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Conduct manual testing with real deployment scenarios",
+            "description": "Test CLI functionality with actual Kubernetes cluster deployments to validate end-to-end workflow",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Document post-completion deliverables",
+            "description": "Prepare detailed documentation of what was accomplished, manual testing instructions with step-by-step commands, and clear success criteria for validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement Core Workflow Engine",
+        "description": "Build the central workflow engine that orchestrates discovery, planning, and deployment processes with comprehensive state management and post-completion validation requirements using TypeScript",
+        "status": "pending",
+        "dependencies": [
+          3,
+          4
+        ],
+        "priority": "high",
+        "details": "Create src/workflow/WorkflowEngine.ts with WorkflowEngine class that: 1) Orchestrates discovery → planning → deployment sequence, 2) Manages workflow state and progress tracking, 3) Handles user input and decision points, 4) Integrates with memory system for pattern application. Implement WorkflowState interface with phases: Discovery, Planning, Validation, Deployment, Monitoring. Create state machine with transitions and rollback capabilities. Upon completion, provide detailed documentation of implementation, manual testing instructions, and expected validation results.",
+        "testStrategy": "Unit tests for state transitions, workflow progression logic, integration tests for complete workflow execution, error handling and rollback scenarios. Manual testing with step-by-step validation commands and clear success criteria documentation.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create WorkflowEngine class and core orchestration logic",
+            "description": "Implement the main WorkflowEngine class in src/workflow/WorkflowEngine.ts with methods for orchestrating discovery → planning → deployment sequence",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement WorkflowState interface with phase management",
+            "description": "Create WorkflowState interface and supporting types in src/workflow/types.ts with phases: Discovery, Planning, Validation, Deployment, Monitoring and state tracking capabilities",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build state machine with transitions and rollback",
+            "description": "Implement comprehensive state machine logic in src/workflow/StateMachine.ts with proper phase transitions and rollback capabilities for error scenarios",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Integrate with memory system for pattern application",
+            "description": "Connect workflow engine with existing memory system modules to apply learned patterns during workflow execution",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement user input and decision point handling",
+            "description": "Add capabilities for handling user input and decision points throughout the workflow process using TypeScript event handling patterns",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create comprehensive unit and integration tests",
+            "description": "Develop test suite in src/workflow/__tests__/ covering state transitions, workflow progression, complete execution flows, and error/rollback scenarios using Jest/TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Document implementation and create manual testing guide",
+            "description": "Provide detailed explanation of Workflow Engine TypeScript implementation, step-by-step manual testing instructions, and clear success criteria for validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Build Manifest Generation System",
+        "description": "Create intelligent manifest generation that uses discovered schemas and learned patterns",
+        "status": "pending",
+        "dependencies": [
+          3,
+          4,
+          6
+        ],
+        "priority": "medium",
+        "details": "Implement TypeScript modules in src/ with ManifestGenerator class that: 1) Generates Kubernetes manifests from user requirements and discovered schemas, 2) Applies learned patterns from memory system, 3) Supports standard K8s resources and discovered CRDs, 4) Validates generated manifests before deployment. Create template system for common deployment patterns, implement intelligent field population based on cluster capabilities and user preferences.",
+        "testStrategy": "Unit tests for manifest generation with various resource types, validation tests for generated YAML, integration tests with real cluster schemas, pattern application verification",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement ManifestGenerator class",
+            "description": "Create the core ManifestGenerator TypeScript class with methods for generating Kubernetes manifests in src/",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Build template system for common patterns",
+            "description": "Create reusable TypeScript templates for standard deployment patterns (Deployment, Service, ConfigMap, etc.)",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement schema-based field population",
+            "description": "Use discovered schemas to intelligently populate manifest fields based on cluster capabilities using TypeScript interfaces",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Add manifest validation",
+            "description": "Implement TypeScript validation logic to verify generated manifests before deployment",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create comprehensive test suite",
+            "description": "Build unit tests, validation tests, and integration tests for the TypeScript manifest generation system",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Document post-completion deliverables",
+            "description": "Prepare detailed documentation of what was accomplished, manual testing instructions with step-by-step commands for verifying manifest generation with various resource types, and clear success criteria for manual validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Implement Deployment Execution Engine",
+        "description": "Build the deployment engine that applies manifests to Kubernetes clusters with monitoring and rollback using TypeScript",
+        "status": "pending",
+        "dependencies": [
+          7
+        ],
+        "priority": "high",
+        "details": "Create TypeScript modules in src/ with DeploymentEngine class that: 1) Applies generated manifests to target cluster, 2) Monitors deployment progress and health, 3) Provides rollback capabilities on failure, 4) Updates memory system with deployment results. Implement kubectl apply functionality using Kubernetes JavaScript client, add deployment status monitoring, resource health checks, and failure recovery mechanisms.",
+        "testStrategy": "Integration tests with test clusters, deployment success/failure scenarios, rollback functionality tests, monitoring and status reporting validation",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create DeploymentEngine class and interface",
+            "description": "Define the core DeploymentEngine class with methods for applying manifests, monitoring deployments, and handling rollbacks in TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Kubernetes client integration",
+            "description": "Set up Kubernetes JavaScript client for cluster communication and implement kubectl apply functionality in TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add deployment progress monitoring",
+            "description": "Implement real-time monitoring of deployment status, pod health, and resource readiness using TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement rollback capabilities",
+            "description": "Create rollback mechanisms for failed deployments including previous version restoration in TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Integrate with memory system",
+            "description": "Update memory system with deployment results, status, and metadata using existing TypeScript memory modules",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create comprehensive integration tests",
+            "description": "Develop TypeScript tests for deployment scenarios, monitoring, rollback functionality, and error handling",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, create manual testing instructions with step-by-step commands for verifying deployment execution, monitoring, and rollback capabilities, and define clear success criteria for manual validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Plain English Policy Parser",
+        "description": "Build system to parse and enforce organizational policies written in natural language with comprehensive post-completion documentation and testing instructions",
+        "status": "pending",
+        "dependencies": [
+          3
+        ],
+        "priority": "medium",
+        "details": "Create TypeScript modules in src/ with PolicyEngine class that: 1) Parses plain text policy files using Claude Code SDK, 2) Converts natural language policies to enforceable rules, 3) Validates deployments against policies, 4) Handles policy violations interactively. Support policy categories: security, compliance, resource limits, platform preferences. Implement PolicyRule interface with validation functions and violation handling. Focus on creating TypeScript MCP server implementation that shares the same core intelligence as the CLI, ensuring 'same intelligence, different interfaces' principle. Upon completion, provide detailed documentation of implementation, manual testing instructions, and success criteria.",
+        "testStrategy": "Unit tests for policy parsing with various natural language inputs, validation tests for policy enforcement, integration tests with deployment workflow, policy violation handling scenarios. Include comprehensive manual testing procedures with step-by-step verification commands and expected results documentation.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design PolicyEngine class and core interfaces",
+            "description": "Define the main PolicyEngine class with methods for parsing, validation, and enforcement using TypeScript interfaces",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Claude Code SDK integration for policy parsing",
+            "description": "Create natural language processing functionality to convert plain text policies to structured rules using TypeScript modules",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build PolicyRule interface with validation functions",
+            "description": "Implement rule representation and validation logic for different policy categories using TypeScript interfaces and classes",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create deployment validation system",
+            "description": "Implement policy enforcement against deployment configurations in TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement interactive policy violation handling",
+            "description": "Build user-friendly violation reporting and resolution workflows using TypeScript",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create TypeScript MCP server implementation",
+            "description": "Develop MCP server that shares the same core intelligence as the CLI, ensuring unified policy parsing capabilities across different interfaces",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create comprehensive unit and integration tests",
+            "description": "Develop test suite covering policy parsing, enforcement, and violation scenarios using TypeScript testing frameworks",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Document implementation details and architecture",
+            "description": "Provide detailed explanation of Plain English Policy Parser TypeScript implementation, including design decisions and component interactions",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create manual testing instructions",
+            "description": "Develop step-by-step commands and procedures to verify policy parsing and enforcement functionality in TypeScript environment",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Define success criteria and expected results",
+            "description": "Establish clear validation criteria and expected outcomes for manual testing procedures of TypeScript implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Setup MCP Server Foundation",
+        "description": "Initialize the Model Context Protocol server with TypeScript and establish basic function framework",
+        "status": "pending",
+        "dependencies": [
+          1
+        ],
+        "priority": "high",
+        "details": "Create MCP server in TypeScript using standard MCP protocol implementation. Setup server.ts with: 1) MCP protocol handlers, 2) JSON schema validation for all functions, 3) Error handling patterns, 4) Function registration system. Implement base MCPServer class with methods for handling MCP requests, function dispatch, and response formatting. Configure TypeScript build process and development environment.",
+        "testStrategy": "Unit tests for MCP protocol handling, JSON schema validation tests, function registration and dispatch tests, integration tests with MCP clients",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install MCP dependencies and setup TypeScript configuration",
+            "description": "Install @modelcontextprotocol/sdk-typescript and configure TypeScript build process",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create base MCPServer class with protocol handlers",
+            "description": "Implement core MCP server class with request handling, function dispatch, and response formatting",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement JSON schema validation system",
+            "description": "Setup validation for all MCP function inputs and outputs using JSON schemas",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create error handling patterns",
+            "description": "Implement consistent error handling and logging throughout the MCP server",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Setup function registration system",
+            "description": "Create dynamic function registration mechanism for MCP tools and resources",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Provide post-completion documentation",
+            "description": "Document what was accomplished, provide manual testing instructions with step-by-step commands to verify MCP server functionality, and define clear success criteria for manual validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Implement MCP Function: create_application",
+        "description": "Build the create_application MCP function that initializes deployment workflow with discovery",
+        "status": "pending",
+        "dependencies": [
+          10,
+          6
+        ],
+        "priority": "high",
+        "details": "Implement create_application function that: 1) Accepts application requirements via JSON schema, 2) Initiates cluster discovery process, 3) Returns workflow state and next steps, 4) Integrates with core workflow engine. Define JSON schema for input (app name, requirements, target cluster) and output (workflow ID, discovered resources, next steps). Bridge MCP function calls to Go CLI core logic using subprocess or shared library approach.",
+        "testStrategy": "Function contract tests with JSON schema validation, integration tests with workflow engine, end-to-end tests with MCP clients, error handling validation",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define JSON schema for create_application input/output",
+            "description": "Create comprehensive JSON schemas for function parameters and return values",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement MCP function handler for create_application",
+            "description": "Build the main function handler that processes requests and coordinates with workflow engine",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Integrate with Go CLI core logic",
+            "description": "Establish bridge between MCP function and Go CLI using subprocess or shared library approach",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement cluster discovery integration",
+            "description": "Connect function to cluster discovery process and handle discovery results",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Add comprehensive error handling",
+            "description": "Implement robust error handling for all failure scenarios with appropriate error messages",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Write unit and integration tests",
+            "description": "Create test suite covering function contract, workflow integration, and error scenarios",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Document implementation details",
+            "description": "Provide detailed explanation of what was accomplished in the create_application MCP function implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create manual testing instructions",
+            "description": "Develop step-by-step commands and procedures to manually verify the function works correctly",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Define expected results and success criteria",
+            "description": "Establish clear success criteria and expected outcomes for validation of the implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Implement MCP Function: continue_workflow",
+        "description": "Build the continue_workflow MCP function for progressing deployment workflow based on user input",
+        "status": "pending",
+        "dependencies": [
+          11
+        ],
+        "priority": "high",
+        "details": "Implement continue_workflow function that: 1) Accepts workflow ID and user responses, 2) Progresses workflow to next phase, 3) Returns updated state and guidance, 4) Handles decision points and user choices. Define JSON schema for workflow progression, implement state management across function calls, integrate with memory system for pattern application.",
+        "testStrategy": "Workflow progression tests, state management validation, user input handling tests, integration with workflow engine verification",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design continue_workflow function interface",
+            "description": "Define the function signature, parameters, and return structure for continue_workflow",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement workflow progression logic",
+            "description": "Build core logic to advance workflow state based on user responses and current phase",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add state management and persistence",
+            "description": "Implement workflow state tracking and integration with memory system",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Handle decision points and user choices",
+            "description": "Implement logic to process user decisions and route workflow accordingly",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create JSON schema for workflow progression",
+            "description": "Define structured schema for workflow state transitions and user responses",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement unit tests",
+            "description": "Create comprehensive test suite for continue_workflow function",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, create manual testing instructions, and define expected results for continue_workflow function verification",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Implement MCP Function: deploy_application",
+        "description": "Build the deploy_application MCP function that executes deployment with generated manifests",
+        "status": "pending",
+        "dependencies": [
+          12,
+          8
+        ],
+        "priority": "high",
+        "details": "Implement deploy_application function that: 1) Executes final deployment to target cluster, 2) Returns deployment status and resource information, 3) Handles deployment failures and rollback, 4) Updates memory system with results. Define JSON schema for deployment execution, implement progress tracking, integrate with deployment engine for actual cluster operations.",
+        "testStrategy": "Deployment execution tests, failure handling and rollback tests, status reporting validation, memory system integration tests",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define JSON schema for deploy_application function",
+            "description": "Create schema for deployment execution parameters including cluster config, manifests, and options",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement core deployment execution logic",
+            "description": "Build the main function that applies manifests to target cluster using kubectl or client libraries",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add deployment progress tracking",
+            "description": "Implement real-time monitoring of deployment status and resource readiness",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement failure handling and rollback mechanism",
+            "description": "Add error detection and automatic rollback capabilities for failed deployments",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Integrate with memory system for result storage",
+            "description": "Update memory system with deployment outcomes, status, and resource information",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create comprehensive test suite",
+            "description": "Develop tests for successful deployments, failure scenarios, rollback operations, and memory integration",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, provide manual testing instructions with specific commands, and define expected success criteria for deployment verification",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Implement MCP Function: get_deployment_status",
+        "description": "Build the get_deployment_status MCP function for monitoring deployment progress and results",
+        "status": "pending",
+        "dependencies": [
+          13
+        ],
+        "priority": "medium",
+        "details": "Implement get_deployment_status function that: 1) Monitors ongoing deployment progress, 2) Returns resource health and status information, 3) Provides troubleshooting guidance for issues, 4) Integrates with memory system for lessons learned. Define JSON schema for status queries and responses, implement real-time monitoring capabilities, provide actionable status information.",
+        "testStrategy": "Status monitoring tests, health check validation, troubleshooting guidance tests, real-time update verification",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define JSON schema for deployment status queries and responses",
+            "description": "Create schema definitions for status request parameters and response format",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement core get_deployment_status function",
+            "description": "Build the main function to query and return deployment status information",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add real-time monitoring capabilities",
+            "description": "Implement functionality to track ongoing deployment progress",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Integrate resource health checking",
+            "description": "Add capability to assess and report on deployed resource health",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement troubleshooting guidance system",
+            "description": "Add logic to provide actionable troubleshooting recommendations based on status",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Integrate with memory system for lessons learned",
+            "description": "Connect status monitoring with memory system to store and retrieve deployment insights",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create comprehensive test suite",
+            "description": "Implement tests for status monitoring, health checks, troubleshooting guidance, and real-time updates",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, create manual testing instructions with verification commands, and define success criteria for the get_deployment_status function",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Implement Cross-Platform CRD Support",
+        "description": "Extend the system to handle complex CRDs from various platforms (GKE, EKS, AKS, custom)",
+        "status": "pending",
+        "dependencies": [
+          7,
+          9
+        ],
+        "priority": "medium",
+        "details": "Enhance discovery and generation systems to support: 1) Platform-specific CRDs (AppClaim, CloudRun, Knative), 2) GitOps resources (ArgoCD Application, Flux HelmRelease), 3) Serverless resources (Knative Service, OpenFaaS Function), 4) Custom organizational CRDs. Implement platform detection, CRD capability mapping, and intelligent resource selection based on cluster capabilities and user intent.",
+        "testStrategy": "Integration tests with multiple platform types, CRD discovery and usage validation, platform-specific deployment tests, custom CRD handling verification",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement platform detection mechanism",
+            "description": "Create system to detect cluster platform type (GKE, EKS, AKS, vanilla K8s)",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Build CRD discovery and cataloging system",
+            "description": "Implement automated discovery of available CRDs and their capabilities",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add support for platform-specific CRDs",
+            "description": "Implement handlers for AppClaim, CloudRun, Knative and other platform CRDs",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement GitOps resource support",
+            "description": "Add support for ArgoCD Application and Flux HelmRelease CRDs",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Add serverless resource handling",
+            "description": "Implement support for Knative Service and OpenFaaS Function CRDs",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create intelligent resource selection logic",
+            "description": "Build system to select appropriate CRDs based on cluster capabilities and user intent",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Provide post-completion documentation",
+            "description": "Document what was accomplished, provide manual testing instructions with commands to verify CRD handling, and define expected results/success criteria for Cross-Platform CRD Support",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Implement Advanced Memory Learning Algorithms",
+        "description": "Enhance the memory system with pattern recognition and intelligent recommendation capabilities",
+        "status": "pending",
+        "dependencies": [
+          4,
+          8
+        ],
+        "priority": "medium",
+        "details": "Enhance memory system with: 1) Pattern recognition algorithms for similar deployments, 2) Success rate tracking and optimization recommendations, 3) Configuration pattern analysis, 4) Networking and access pattern storage. Implement machine learning-like pattern matching, deployment success correlation analysis, and intelligent recommendations based on historical data.\n\n## Post-Completion Requirements:\nWhen completed, provide:\n1. **What was accomplished**: Explanation of Advanced Memory Learning implementation\n2. **Manual testing instructions**: Commands to verify learning algorithms\n3. **Expected results**: Success criteria",
+        "testStrategy": "Pattern recognition algorithm tests, recommendation accuracy validation, historical data analysis tests, performance optimization verification, post-completion documentation validation",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement pattern recognition algorithms for similar deployments",
+            "description": "Create algorithms to identify and match similar deployment patterns from historical data",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Develop success rate tracking system",
+            "description": "Build system to track deployment success rates and generate optimization recommendations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create configuration pattern analysis module",
+            "description": "Implement analysis capabilities for configuration patterns and their effectiveness",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build networking and access pattern storage",
+            "description": "Develop storage and analysis for networking configurations and access patterns",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement machine learning-like pattern matching",
+            "description": "Create intelligent pattern matching algorithms for deployment similarity detection",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Develop deployment success correlation analysis",
+            "description": "Build analysis system to correlate deployment configurations with success rates",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create intelligent recommendation engine",
+            "description": "Implement recommendation system based on historical data and pattern analysis",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Prepare post-completion documentation",
+            "description": "Document what was accomplished, create manual testing instructions, and define expected results for the Advanced Memory Learning implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "title": "Implement Comprehensive Error Handling and Recovery",
+        "description": "Build robust error handling, logging, and recovery mechanisms across all system components with comprehensive post-completion documentation and testing procedures",
+        "status": "pending",
+        "dependencies": [
+          8,
+          14
+        ],
+        "priority": "medium",
+        "details": "Implement comprehensive error handling: 1) Structured logging with different levels, 2) Graceful failure recovery and rollback mechanisms, 3) User-friendly error messages and troubleshooting guidance, 4) Audit logging for governance and compliance. Create error types for different failure scenarios, implement retry mechanisms, and provide actionable error resolution steps. Upon completion, provide detailed documentation of implementation, manual testing procedures, and success criteria.",
+        "testStrategy": "Error scenario testing, recovery mechanism validation, logging output verification, user experience testing for error conditions, manual testing with documented commands and expected results",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Error Type Hierarchy",
+            "description": "Create structured error types for different failure scenarios",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Structured Logging System",
+            "description": "Set up logging framework with different levels (DEBUG, INFO, WARN, ERROR, FATAL)",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build Graceful Failure Recovery Mechanisms",
+            "description": "Implement rollback and recovery procedures for system failures",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create User-Friendly Error Messages",
+            "description": "Design clear error messages with troubleshooting guidance",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement Audit Logging",
+            "description": "Set up audit trails for governance and compliance requirements",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add Retry Mechanisms",
+            "description": "Implement intelligent retry logic for transient failures",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Document Implementation Details",
+            "description": "Create comprehensive documentation explaining what was accomplished in error handling and recovery implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create Manual Testing Instructions",
+            "description": "Develop step-by-step commands and procedures to verify error handling functionality",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Define Success Criteria and Expected Results",
+            "description": "Document expected outcomes and success metrics for error handling validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Implement End-to-End Integration and Performance Testing",
+        "description": "Create comprehensive test suite covering full system integration and performance benchmarks with production readiness validation",
+        "status": "pending",
+        "dependencies": [
+          15,
+          16,
+          17
+        ],
+        "priority": "high",
+        "details": "Implement comprehensive testing: 1) End-to-end tests covering CLI and MCP modes, 2) Performance benchmarks for discovery, generation, and deployment, 3) Multi-platform validation testing, 4) Load testing with clusters containing 100+ CRDs, 5) Production readiness validation. Create test clusters with various configurations, implement performance monitoring, and establish success criteria benchmarks (discovery < 10s, generation < 3s, deployment success > 95%). Upon completion, provide detailed documentation of accomplishments, manual testing instructions, and expected results for production readiness verification.",
+        "testStrategy": "End-to-end workflow validation, performance benchmark verification, multi-platform compatibility testing, load testing with large clusters, success metrics validation, production readiness verification with manual testing procedures",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create End-to-End Test Suite",
+            "description": "Implement comprehensive E2E tests for CLI and MCP modes",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Performance Benchmarks",
+            "description": "Create performance tests for discovery, generation, and deployment with timing requirements",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Setup Multi-Platform Validation",
+            "description": "Configure testing across different platforms and environments",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement Load Testing",
+            "description": "Create load tests for clusters with 100+ CRDs",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create Test Clusters",
+            "description": "Setup various test cluster configurations for comprehensive testing",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement Performance Monitoring",
+            "description": "Add monitoring and metrics collection for performance validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Document Production Readiness Implementation",
+            "description": "Provide detailed explanation of what was accomplished in production readiness implementation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create Manual Testing Instructions",
+            "description": "Document specific commands and procedures to verify production readiness",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Define Expected Results and Success Criteria",
+            "description": "Document expected outcomes and success criteria for production readiness validation",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-28T00:17:46.251Z",
+      "updated": "2025-06-28T01:14:00.870Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

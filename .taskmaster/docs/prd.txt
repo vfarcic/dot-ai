@@ -1,0 +1,219 @@
+# Product Requirements Document: App-Agent - Kubernetes Application Management System
+
+## Executive Summary
+
+App-Agent is a dual-mode AI-powered agent for deploying applications to ANY Kubernetes cluster through dynamic discovery. It eliminates platform lock-in by discovering available resources at runtime and provides both CLI and MCP (Model Context Protocol) interfaces for maximum flexibility.
+
+## Product Vision
+
+**Core Mission**: Enable seamless application deployment to any Kubernetes cluster without hardcoded platform assumptions, powered by AI intelligence that learns and adapts.
+
+**Key Value Propositions**:
+- Works with ANY Kubernetes cluster (GKE, EKS, AKS, vanilla, custom platforms)
+- Discovers and utilizes ANY available resources (CRDs, core K8s, custom abstractions)
+- Learns from deployments to improve future recommendations
+- Dual-mode operation: standalone CLI + MCP server for agent integration
+- Plain English governance without complex YAML policies
+
+## Target Users
+
+### Primary Users
+1. **DevOps Engineers**: Need to deploy applications across multiple platform types
+2. **Platform Engineers**: Building internal developer platforms with custom CRDs
+3. **AI Agent Developers**: Want to integrate deployment capabilities into agents
+4. **Kubernetes Administrators**: Managing diverse cluster environments
+
+### Secondary Users
+1. **Developers**: Deploying applications without deep Kubernetes knowledge
+2. **Site Reliability Engineers**: Troubleshooting deployment issues
+3. **Security Engineers**: Enforcing governance policies
+
+## Core Requirements
+
+### 1. Discovery-Driven Architecture
+**Requirement**: The system MUST work with any Kubernetes cluster by discovering available resources at runtime.
+
+**Acceptance Criteria**:
+- Discover Custom Resource Definitions (CRDs) using `kubectl get crd`
+- Query resource schemas using `kubectl explain <resource>`
+- Identify available API resources with `kubectl api-resources`
+- Rank resources by capability and user intent match
+- Handle clusters with no CRDs (vanilla Kubernetes)
+- Support custom organizational CRDs without code changes
+
+### 2. Dual-Mode Operation
+**Requirement**: Provide identical intelligence through two distinct interfaces.
+
+**Acceptance Criteria**:
+- **CLI Mode**: Direct user interaction with conversational Q&A
+- **MCP Mode**: Structured JSON responses for AI agent integration
+- Shared core intelligence powered by Claude Code SDK
+- Consistent workflow logic across both modes
+- Session management in CLI, stateless functions in MCP
+- Same discovery and deployment capabilities in both modes
+
+### 3. Universal Resource Support
+**Requirement**: Deploy applications using ANY discovered Kubernetes resources.
+
+**Acceptance Criteria**:
+- Support standard Kubernetes resources (Deployment, Service, Ingress)
+- Support platform-specific CRDs (AppClaim, CloudRun, Knative, etc.)
+- Support GitOps resources (ArgoCD Application, Flux HelmRelease)
+- Support serverless resources (Knative Service, OpenFaaS Function)
+- Support custom organizational CRDs
+- Generate manifests from discovered schemas
+- Validate manifests before deployment
+
+### 4. Memory-Enhanced Learning
+**Requirement**: Learn from deployments and apply lessons to future operations.
+
+**Acceptance Criteria**:
+- Store successful deployment patterns in JSON files
+- Record troubleshooting lessons from failures
+- Apply learned patterns to similar future deployments
+- Cluster fingerprinting for environment-specific lessons
+- Configuration pattern recognition
+- Networking and access pattern storage
+- Integration with optional external memory systems
+
+### 5. Plain English Governance
+**Requirement**: Support organizational policies written in natural language.
+
+**Acceptance Criteria**:
+- Parse plain text policy files (no YAML required)
+- Apply security, compliance, and resource policies
+- Environment-specific rule enforcement
+- Cost and resource limit validation
+- Platform preference application
+- Interactive policy violation handling
+- Template-based policy starter sets
+
+### 6. Comprehensive Testing Strategy
+**Requirement**: Test-driven development with tests written alongside features.
+
+**Acceptance Criteria**:
+- Unit tests for discovery logic
+- Integration tests for Kubernetes API interactions
+- MCP function contract tests
+- CLI interface tests
+- Memory system tests
+- Policy parsing and application tests
+- End-to-end deployment tests
+- Mock cluster testing capabilities
+
+## Technical Requirements
+
+### Core Technologies
+- **Language**: TypeScript/JavaScript (unified codebase for both CLI and MCP)
+- **AI Integration**: Claude Code SDK for shared core intelligence
+- **Kubernetes**: Official JavaScript client library (@kubernetes/client-node)
+- **MCP Protocol**: Standard MCP server implementation
+- **CLI Distribution**: Standalone binary via Bun or pkg for easy distribution
+- **Memory Storage**: JSON files with optional external integration
+- **Testing**: Jest/Vitest with unified test suite for both modes
+
+### Performance Requirements
+- Cluster discovery: < 10 seconds for typical clusters
+- Resource schema parsing: < 5 seconds per resource type
+- Manifest generation: < 3 seconds
+- Memory lesson retrieval: < 1 second
+- Support clusters with 100+ CRDs
+
+### Security Requirements
+- Use user's existing kubectl configuration and permissions
+- No credential storage in memory files
+- Secure handling of generated manifests
+- Policy compliance verification
+- Audit logging for governance violations
+
+## MCP Function Specifications
+
+### Required Functions
+1. **create_application**: Initialize deployment workflow with discovery
+2. **continue_workflow**: Progress workflow based on user input
+3. **deploy_application**: Execute deployment with generated manifests
+4. **get_deployment_status**: Monitor deployment progress and results
+
+### Function Requirements
+- JSON schema validation for all inputs/outputs
+- Consistent error handling patterns
+- Workflow state management
+- Progress tracking and guidance
+- Integration with memory system
+
+## Success Metrics
+
+### Functional Metrics
+- Successfully deploy to 5+ different cluster types
+- Support 20+ different CRD types without code changes
+- Memory system improves deployment success rate by 25%
+- Policy enforcement prevents 90%+ of violation attempts
+
+### Performance Metrics
+- Discovery completes in < 10 seconds
+- Deployment success rate > 95%
+- User satisfaction score > 4.5/5
+- Reduction in deployment troubleshooting time by 50%
+
+## Development Phases
+
+### Phase 1: Core Foundation (Weeks 1-2)
+- Discovery engine implementation with tests
+- Basic Kubernetes resource support with tests
+- CLI interface foundation with tests
+- Memory system design and implementation with tests
+- Core workflow testing
+
+### Phase 2: MCP Integration (Weeks 3-4)
+- MCP server implementation with contract tests
+- Function schema definitions and validation tests
+- Workflow state management with tests
+- Integration testing between CLI and MCP modes
+
+### Phase 3: Advanced Features (Weeks 5-6)
+- CRD support and dynamic schema parsing with tests
+- Memory learning and application with tests
+- Policy parsing and enforcement with tests
+- Multi-platform validation testing
+- Performance optimization and benchmarking
+
+## Risk Mitigation
+
+### Technical Risks
+- **Kubernetes API changes**: Pin to stable API versions, test with multiple K8s versions
+- **CRD schema complexity**: Implement robust schema parsing with fallbacks
+- **Memory corruption**: JSON validation and backup strategies
+
+### Product Risks
+- **Platform fragmentation**: Extensive testing across cluster types
+- **User adoption**: Comprehensive documentation and examples
+- **Performance issues**: Profiling and optimization in each phase
+
+## Success Criteria
+
+### Must Have
+- Deploy standard applications to vanilla Kubernetes
+- Discover and use any CRD in any cluster
+- Learn and apply deployment patterns
+- Support both CLI and MCP modes
+- Basic policy enforcement
+
+### Should Have
+- Advanced memory learning algorithms
+- Complex policy template system
+- Performance optimization
+- Extensive platform validation
+- Rich error handling and recovery
+
+### Could Have
+- Web UI for policy management
+- Integration with external memory systems
+- Advanced analytics and reporting
+- Multi-cluster deployment support
+- Plugin architecture for extensions
+
+## Conclusion
+
+App-Agent represents a paradigm shift from platform-specific deployment tools to a universal, intelligent system that adapts to any Kubernetes environment. By combining discovery-driven architecture with AI-powered intelligence and dual-mode operation, it provides unprecedented flexibility while maintaining ease of use.
+
+The phased development approach ensures that core functionality is thoroughly tested before advanced features are added, with tests written alongside each feature to maintain high quality throughout the development process. 
