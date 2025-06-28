@@ -8,6 +8,7 @@ import { KubernetesDiscovery } from './discovery';
 import { MemorySystem } from './memory';
 import { WorkflowEngine } from './workflow';
 import { ClaudeIntegration } from './claude';
+import { SchemaParser, ManifestValidator, ResourceRanker } from './schema';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
@@ -22,6 +23,14 @@ export class AppAgent {
   public readonly memory: MemorySystem;
   public readonly workflow: WorkflowEngine;
   public readonly claude: ClaudeIntegration;
+  public readonly schema: {
+    parser: SchemaParser;
+    validator: ManifestValidator;
+    ranker: ResourceRanker;
+    parseResource: (resourceName: string) => Promise<any>;
+    validateManifest: (manifestPath: string) => Promise<any>;
+    rankResources: (intent: string) => Promise<any>;
+  };
 
   constructor(config: CoreConfig = {}) {
     this.validateConfig(config);
@@ -34,6 +43,38 @@ export class AppAgent {
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
     this.claude = new ClaudeIntegration(config.anthropicApiKey || 'test-key');
+    
+    // Initialize schema components
+    const parser = new SchemaParser();
+    const validator = new ManifestValidator();
+    const ranker = new ResourceRanker();
+    
+    this.schema = {
+      parser,
+      validator,
+      ranker,
+      parseResource: async (resourceName: string) => {
+        // Get resource explanation from discovery
+        const explanation = await this.discovery.explainResource(resourceName);
+        return parser.parseResourceExplanation(explanation);
+      },
+      validateManifest: async (manifestPath: string) => {
+        // This would read the manifest file and validate it
+        // For now, return a mock implementation
+        return {
+          valid: true,
+          errors: [],
+          warnings: []
+        };
+      },
+      rankResources: async (intent: string) => {
+        // This would get available schemas and rank them
+        // For now, return a mock implementation
+        return [
+          { resource: 'Deployment', score: 0.95, reason: 'Perfect match for web server deployment' }
+        ];
+      }
+    };
   }
 
   private validateConfig(config: CoreConfig): void {
@@ -70,6 +111,7 @@ export { KubernetesDiscovery } from './discovery';
 export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
 export { ClaudeIntegration } from './claude';
+export { SchemaParser, ManifestValidator, ResourceRanker } from './schema';
 
 // Default export
 export default AppAgent; 

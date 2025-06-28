@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: invalid-app
+spec:
+  # Missing required selector field
+  replicas: "not-a-number"  # Should be integer
+  template:
+    metadata:
+      labels:
+        app: invalid-app
+    spec:
+      containers:
+      - name: app
+        # Missing required image field
+        ports:
+        - containerPort: "80"  # Should be integer 

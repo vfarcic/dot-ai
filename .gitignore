@@ -86,3 +86,4 @@ dev-debug.log
 
 # Cursor
 .cursor/mcp.json
+.mcp.json

@@ -6,8 +6,10 @@
 
 import { Command } from 'commander';
 import { AppAgent } from '../core';
-import * as yaml from 'yaml';
+import * as yaml from 'js-yaml';
+import * as fs from 'fs';
 import Table from 'cli-table3';
+import { SchemaParser, ManifestValidator } from '../core/schema';
 
 export interface CliResult {
   success: boolean;
@@ -99,6 +101,20 @@ export class CliInterface {
         const result = await this.executeCommand('learn', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
+
+    // Schema command
+    this.program
+      .command('schema')
+      .description('Parse and display resource schema information')
+      .option('--resource <name>', 'Resource name to get schema for (e.g., deployment, pod)')
+      .option('--api-version <version>', 'API version (e.g., apps/v1, v1). If not specified, will show available versions')
+      .option('--list-versions', 'List all available API versions for the resource')
+      .option('--validate <file>', 'Validate a YAML manifest file against the resource schema')
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options) => {
+        const result = await this.executeCommand('schema', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
+      });
   }
 
   getCommands(): string[] {
@@ -183,6 +199,8 @@ export class CliInterface {
         return [...commonOptions, 'deployment'];
       case 'learn':
         return [...commonOptions, 'pattern'];
+      case 'schema':
+        return [...commonOptions, 'resource', 'api-version', 'list-versions', 'validate'];
       default:
         return commonOptions;
     }
@@ -202,6 +220,8 @@ export class CliInterface {
           return await this.handleStatusCommand(options);
         case 'learn':
           return await this.handleLearnCommand(options);
+        case 'schema':
+          return await this.handleSchemaCommand(options);
         default:
           return {
             success: false,
@@ -363,6 +383,272 @@ export class CliInterface {
     }
   }
 
+  private async handleSchemaCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      const parser = new SchemaParser();
+      
+      // Handle validation if --validate option is provided
+      if (options.validate) {
+        if (!options.resource) {
+          return {
+            success: false,
+            error: 'Resource type must be specified with --resource when using --validate'
+          };
+        }
+
+        // Read and parse the manifest file
+        let manifestContent: any;
+        try {
+          const fileContent = fs.readFileSync(options.validate, 'utf8');
+          manifestContent = yaml.load(fileContent);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Failed to read or parse manifest file: ${(error as Error).message}`
+          };
+        }
+
+        // Get the resource schema
+        let targetApiVersion = options.apiVersion;
+        
+        if (!targetApiVersion) {
+          // Try to get API version from the manifest
+          if (manifestContent && manifestContent.apiVersion) {
+            targetApiVersion = manifestContent.apiVersion;
+          } else {
+            // If no API version specified, try to find the resource
+            const resources = await this.appAgent.discovery.discoverResources();
+            const allResources = [...resources.resources, ...resources.custom];
+            
+            const matchingResources = allResources.filter(r => 
+              r.name.toLowerCase() === options.resource.toLowerCase() ||
+              r.kind.toLowerCase() === options.resource.toLowerCase()
+            );
+
+            if (matchingResources.length === 0) {
+              return {
+                success: false,
+                error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+              };
+            }
+
+            if (matchingResources.length > 1) {
+              return {
+                success: false,
+                error: `Multiple API versions found for '${options.resource}'. Please specify --api-version <version>.`
+              };
+            }
+
+            const resource = matchingResources[0];
+            if ('apiVersion' in resource) {
+              targetApiVersion = resource.apiVersion;
+            } else {
+              targetApiVersion = resource.group ? `${resource.group}/${resource.version}` : resource.version;
+            }
+          }
+        }
+
+        // Get resource explanation and parse schema
+        const explanation = await this.appAgent.discovery.explainResource(options.resource, targetApiVersion);
+        const schema = parser.parseResourceExplanation(explanation);
+
+        // Validate the manifest using dry-run approach
+        const validator = new ManifestValidator();
+        let validationResult;
+        
+        // Get the kubeconfig from the AppAgent's configuration
+        const kubeconfigPath = (this.appAgent as any).config?.kubernetesConfig;
+        
+        // Try server-side dry-run first (more accurate)
+        validationResult = await validator.validateManifest(options.validate, { 
+          dryRunMode: 'server',
+          kubeconfig: kubeconfigPath 
+        });
+        
+        // If server-side validation failed due to connection issues, try client-side
+        if (!validationResult.valid && validationResult.errors.length > 0) {
+          const errorMessage = validationResult.errors[0];
+          if (errorMessage.includes('connection refused') || errorMessage.includes('timeout') || errorMessage.includes('Connection timeout')) {
+            console.warn('Server-side validation failed, falling back to client-side validation...');
+            validationResult = await validator.validateManifest(options.validate, { 
+              dryRunMode: 'client',
+              kubeconfig: kubeconfigPath 
+            });
+          }
+        }
+
+        return {
+          success: validationResult.valid,
+          data: {
+            file: options.validate,
+            resource: options.resource,
+            apiVersion: targetApiVersion,
+            validation: {
+              valid: validationResult.valid,
+              errors: validationResult.errors,
+              warnings: validationResult.warnings
+            },
+            summary: {
+              totalErrors: validationResult.errors.length,
+              totalWarnings: validationResult.warnings.length,
+              manifestKind: manifestContent?.kind,
+              manifestApiVersion: manifestContent?.apiVersion
+            }
+          },
+          warnings: validationResult.warnings
+        };
+      }
+
+      // Handle list versions if requested
+      if (options.listVersions) {
+        if (!options.resource) {
+          return {
+            success: false,
+            error: 'Resource must be specified with --resource when using --list-versions'
+          };
+        }
+
+        const resources = await this.appAgent.discovery.discoverResources();
+        const allResources = [...resources.resources, ...resources.custom];
+        
+        const matchingResources = allResources.filter(r => 
+          r.name.toLowerCase() === options.resource.toLowerCase() ||
+          r.kind.toLowerCase() === options.resource.toLowerCase()
+        );
+
+        if (matchingResources.length === 0) {
+          return {
+            success: false,
+            error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            resource: options.resource,
+            versions: matchingResources.map(r => {
+              if ('apiVersion' in r) {
+                return {
+                  apiVersion: r.apiVersion,
+                  kind: r.kind,
+                  group: r.group || 'core',
+                  namespaced: r.namespaced
+                };
+              } else {
+                return {
+                  apiVersion: r.group ? `${r.group}/${r.version}` : r.version,
+                  kind: r.kind,
+                  group: r.group || 'core',
+                  namespaced: r.scope === 'Namespaced'
+                };
+              }
+            })
+          }
+        };
+      }
+
+      // Handle regular schema parsing
+      if (!options.resource) {
+        return {
+          success: false,
+          error: 'Resource must be specified with --resource option'
+        };
+      }
+
+      // Determine which API version to use
+      let targetApiVersion = options.apiVersion;
+      
+      if (!targetApiVersion) {
+        // If no API version specified, try to find the resource and suggest versions
+        const resources = await this.appAgent.discovery.discoverResources();
+        const allResources = [...resources.resources, ...resources.custom];
+        
+        const matchingResources = allResources.filter(r => 
+          r.name.toLowerCase() === options.resource.toLowerCase() ||
+          r.kind.toLowerCase() === options.resource.toLowerCase()
+        );
+
+        if (matchingResources.length === 0) {
+          return {
+            success: false,
+            error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+          };
+        }
+
+        if (matchingResources.length > 1) {
+          return {
+            success: false,
+            error: `Multiple API versions found for '${options.resource}':\n${
+              matchingResources.map(r => {
+                if ('apiVersion' in r) {
+                  // EnhancedResource
+                  return `  - ${r.apiVersion} (${r.kind})`;
+                } else {
+                  // EnhancedCRD
+                  return `  - ${r.group ? `${r.group}/${r.version}` : r.version} (${r.kind})`;
+                }
+              }).join('\n')
+            }\nPlease specify --api-version <version> or use --list-versions to see all options.`
+          };
+        }
+
+        // Use the single matching resource
+        const resource = matchingResources[0];
+        if ('apiVersion' in resource) {
+          // EnhancedResource
+          targetApiVersion = resource.apiVersion;
+        } else {
+          // EnhancedCRD
+          targetApiVersion = resource.group ? `${resource.group}/${resource.version}` : resource.version;
+        }
+      }
+
+      // Get resource explanation using the discovery engine
+      const explanation = await this.appAgent.discovery.explainResource(options.resource, targetApiVersion);
+      
+      // Parse the explanation into a structured schema
+      const schema = parser.parseResourceExplanation(explanation);
+
+      // Convert Map to Object for JSON serialization
+      const serializableSchema = {
+        ...schema,
+        properties: Object.fromEntries(
+          Array.from(schema.properties.entries()).map(([key, field]) => [
+            key,
+            {
+              ...field,
+              nested: Object.fromEntries(field.nested)
+            }
+          ])
+        )
+      };
+
+      return {
+        success: true,
+        data: {
+          resource: options.resource,
+          apiVersion: targetApiVersion,
+          schema: serializableSchema,
+          summary: {
+            kind: schema.kind,
+            apiVersion: schema.apiVersion,
+            group: schema.group,
+            version: schema.version,
+            propertyCount: schema.properties.size,
+            requiredFields: schema.required.length,
+            namespaced: schema.namespace
+          }
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Schema parsing failed: ${(error as Error).message}`
+      };
+    }
+  }
+
   async continueWorkflow(workflowId: string, input: { responses: Record<string, any> }): Promise<CliResult> {
     try {
       await this.appAgent.workflow.transitionTo('Validation');
@@ -389,7 +675,7 @@ export class CliInterface {
         return JSON.stringify(result, null, 2);
       
       case 'yaml':
-        return yaml.stringify(result);
+        return yaml.dump(result);
       
       case 'table':
         return this.formatAsTable(result);

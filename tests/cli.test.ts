@@ -36,6 +36,11 @@ describe('CLI Interface', () => {
       claude: {
         generateResponse: jest.fn(),
         processUserInput: jest.fn()
+      },
+      schema: {
+        parseResource: jest.fn(),
+        validateManifest: jest.fn(),
+        rankResources: jest.fn()
       }
     } as any;
 
@@ -65,6 +70,11 @@ describe('CLI Interface', () => {
     test('should have learn subcommand', () => {
       const commands = cli.getSubcommands();
       expect(commands).toContain('learn');
+    });
+
+    test('should have schema subcommand', () => {
+      const commands = cli.getSubcommands();
+      expect(commands).toContain('schema');
     });
   });
 
@@ -103,6 +113,15 @@ describe('CLI Interface', () => {
       const helpText = await cli.getCommandHelp('learn');
       expect(helpText).toContain('Show learned deployment patterns');
       expect(helpText).toContain('--pattern');
+    });
+
+    test('should provide schema command help', async () => {
+      const helpText = await cli.getCommandHelp('schema');
+      expect(helpText).toContain('Parse and display resource schema information');
+      expect(helpText).toContain('--resource');
+      expect(helpText).toContain('--api-version');
+      expect(helpText).toContain('--list-versions');
+      expect(helpText).toContain('--validate');
     });
   });
 
@@ -143,6 +162,42 @@ describe('CLI Interface', () => {
     test('should handle unknown options', async () => {
       const args = ['discover', '--unknown-option', 'value'];
       await expect(cli.parseArguments(args)).rejects.toThrow('Unknown option: --unknown-option');
+    });
+
+    test('should parse schema command with resource option', async () => {
+      const args = ['schema', '--resource', 'deployment', '--output', 'json'];
+      const parsed = await cli.parseArguments(args);
+      
+      expect(parsed.command).toBe('schema');
+      expect(parsed.options.resource).toBe('deployment');
+      expect(parsed.options.output).toBe('json');
+    });
+
+    test('should parse schema command with api-version option', async () => {
+      const args = ['schema', '--resource', 'deployment', '--api-version', 'apps/v1'];
+      const parsed = await cli.parseArguments(args);
+      
+      expect(parsed.command).toBe('schema');
+      expect(parsed.options.resource).toBe('deployment');
+      expect(parsed.options['api-version']).toBe('apps/v1');
+    });
+
+    test('should parse schema command with list-versions option', async () => {
+      const args = ['schema', '--resource', 'deployment', '--list-versions'];
+      const parsed = await cli.parseArguments(args);
+      
+      expect(parsed.command).toBe('schema');
+      expect(parsed.options.resource).toBe('deployment');
+      expect(parsed.options['list-versions']).toBe(true);
+    });
+
+    test('should parse schema command with validate option', async () => {
+      const args = ['schema', '--resource', 'deployment', '--validate', 'tests/fixtures/test-deployment.yaml'];
+      const parsed = await cli.parseArguments(args);
+      
+      expect(parsed.command).toBe('schema');
+      expect(parsed.options.resource).toBe('deployment');
+      expect(parsed.options.validate).toBe('tests/fixtures/test-deployment.yaml');
     });
   });
 
@@ -231,6 +286,211 @@ describe('CLI Interface', () => {
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('recommendations');
       expect(result.data.recommendations).toHaveLength(1);
+    });
+
+    test('should execute schema parse command', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.discoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
+        ],
+        custom: []
+      });
+      mockAppAgent.discovery.explainResource.mockResolvedValue({
+        kind: 'Deployment',
+        group: 'apps',
+        version: 'v1',
+        description: 'Manages a replicated application',
+        fields: [
+          {
+            name: 'spec.replicas',
+            type: 'integer',
+            description: 'Number of desired pods. Defaults to 1',
+            required: false
+          }
+        ]
+      });
+
+      const result = await cli.executeCommand('schema', { resource: 'deployment' });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('schema');
+      expect(result.data.schema).toHaveProperty('kind', 'Deployment');
+      expect(result.data).toHaveProperty('summary');
+    });
+
+    test('should execute schema command with api-version', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.explainResource.mockResolvedValue({
+        kind: 'Deployment',
+        group: 'apps',
+        version: 'v1',
+        description: 'Manages a replicated application',
+        fields: [
+          {
+            name: 'spec.replicas',
+            type: 'integer',
+            description: 'Number of desired pods',
+            required: false
+          }
+        ]
+      });
+
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment', 
+        apiVersion: 'apps/v1' 
+      });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('apiVersion', 'apps/v1');
+    });
+
+    test('should execute schema list-versions command', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.discoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
+        ],
+        custom: []
+      });
+
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment', 
+        listVersions: true 
+      });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('versions');
+      expect(result.data.versions).toHaveLength(1);
+      expect(result.data.versions[0]).toHaveProperty('kind', 'Deployment');
+    });
+
+    test('should execute schema validate command', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.explainResource.mockResolvedValue({
+        kind: 'Deployment',
+        group: 'apps',
+        version: 'v1',
+        description: 'Manages a replicated application',
+        fields: [
+          {
+            name: 'metadata',
+            type: 'object',
+            description: 'Standard object metadata',
+            required: true
+          },
+          {
+            name: 'spec',
+            type: 'object', 
+            description: 'Deployment specification',
+            required: true
+          }
+        ]
+      });
+
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment', 
+        validate: 'tests/fixtures/test-deployment.yaml'
+      });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      // Note: discoverResources is NOT called because the manifest contains apiVersion: apps/v1
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
+      expect(result.data).toHaveProperty('validation');
+      expect(result.data.validation).toHaveProperty('valid');
+      expect(result.data.validation).toHaveProperty('errors');
+      expect(result.data.validation).toHaveProperty('warnings');
+      expect(result.data.file).toBe('tests/fixtures/test-deployment.yaml');
+    });
+
+    test('should execute schema validate command with explicit api-version', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.explainResource.mockResolvedValue({
+        kind: 'Deployment',
+        group: 'apps',
+        version: 'v1',
+        description: 'Manages a replicated application',
+        fields: [
+          {
+            name: 'metadata',
+            type: 'object',
+            description: 'Standard object metadata',
+            required: true
+          },
+          {
+            name: 'spec',
+            type: 'object',
+            description: 'Deployment specification', 
+            required: true
+          }
+        ]
+      });
+
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment',
+        apiVersion: 'apps/v1',
+        validate: 'tests/fixtures/test-deployment.yaml'
+      });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
+      expect(result.data.apiVersion).toBe('apps/v1');
+      expect(result.data.validation).toHaveProperty('valid');
+    });
+
+    test('should handle validation errors for missing resource', async () => {
+      const result = await cli.executeCommand('schema', { 
+        validate: 'tests/fixtures/test-deployment.yaml'
+      });
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Resource type must be specified with --resource when using --validate');
+    });
+
+    test('should handle validation errors for missing file', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment',
+        validate: 'nonexistent-file.yaml'
+      });
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Schema parsing failed');
+    });
+
+    test('should handle validation with manifest api version', async () => {
+      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockAppAgent.discovery.explainResource.mockResolvedValue({
+        kind: 'Deployment',
+        group: 'apps',
+        version: 'v1',
+        description: 'Manages a replicated application',
+        fields: [
+          {
+            name: 'metadata',
+            type: 'object',
+            description: 'Standard object metadata',
+            required: true
+          }
+        ]
+      });
+
+      const result = await cli.executeCommand('schema', { 
+        resource: 'deployment',
+        validate: 'tests/fixtures/test-deployment.yaml'
+      });
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
+      expect(result.data.summary.manifestApiVersion).toBe('apps/v1');
     });
   });
 
