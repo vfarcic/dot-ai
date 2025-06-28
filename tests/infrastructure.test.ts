@@ -159,9 +159,13 @@ describe('CI/CD Pipeline Infrastructure', () => {
       expect(existsSync(ciWorkflowPath)).toBe(true);
     });
 
-    test('should have security scanning workflow', () => {
+    test('should have consolidated CI & security workflow', () => {
+      const ciWorkflowPath = path.join(githubWorkflowsDir, 'ci.yml');
+      expect(existsSync(ciWorkflowPath)).toBe(true);
+      
+      // Should NOT have separate security.yml (consolidated into ci.yml)
       const securityWorkflowPath = path.join(githubWorkflowsDir, 'security.yml');
-      expect(existsSync(securityWorkflowPath)).toBe(true);
+      expect(existsSync(securityWorkflowPath)).toBe(false);
     });
 
     test('should have renovate configuration for dependency management', () => {
@@ -198,8 +202,13 @@ describe('CI/CD Pipeline Infrastructure', () => {
       const testJob = ciWorkflow.jobs.test;
       
       expect(testJob['runs-on']).toBe('ubuntu-latest');
-      expect(testJob.strategy?.matrix?.['node-version']).toContain('18.x');
-      expect(testJob.strategy?.matrix?.['node-version']).toContain('20.x');
+      
+      // Should use single Node.js 20.x (no matrix for performance)
+      expect(testJob.strategy?.matrix).toBeUndefined();
+      
+      // Should use Node.js 20.x in setup step
+      const nodeSetupStep = testJob?.steps?.find((step: any) => step.uses?.includes('actions/setup-node'));
+      expect(nodeSetupStep?.with?.['node-version']).toBe('20.x');
     });
 
     test('should include all required CI steps', () => {
@@ -241,41 +250,48 @@ describe('CI/CD Pipeline Infrastructure', () => {
     });
   });
 
-  describe('Security Workflow Validation', () => {
-    let securityWorkflow: any;
+  describe('Consolidated Security Features Validation', () => {
+    let ciWorkflow: any;
 
     beforeAll(() => {
-      const securityWorkflowPath = path.join(githubWorkflowsDir, 'security.yml');
-      if (existsSync(securityWorkflowPath)) {
-        const content = readFileSync(securityWorkflowPath, 'utf-8');
-        securityWorkflow = yaml.parse(content);
+      const ciWorkflowPath = path.join(githubWorkflowsDir, 'ci.yml');
+      if (existsSync(ciWorkflowPath)) {
+        const content = readFileSync(ciWorkflowPath, 'utf-8');
+        ciWorkflow = yaml.parse(content);
       }
     });
 
-    test('should trigger on schedule and push', () => {
-      expect(securityWorkflow?.on).toBeDefined();
-      expect(securityWorkflow.on.schedule || securityWorkflow.on.push).toBeDefined();
+    test('should include security audit in test job', () => {
+      expect(ciWorkflow?.jobs?.test).toBeDefined();
+      const testJob = ciWorkflow.jobs.test;
+      
+      const securityStep = testJob?.steps?.find((step: any) => 
+        step.name?.toLowerCase().includes('security') ||
+        step.run?.includes('npm run ci:security')
+      );
+      expect(securityStep).toBeDefined();
     });
 
-    test('should include CodeQL analysis', () => {
-      const codeqlJob = securityWorkflow?.jobs?.codeql;
-      expect(codeqlJob).toBeDefined();
+    test('should include CodeQL analysis job', () => {
+      expect(ciWorkflow?.jobs?.security).toBeDefined();
+      const securityJob = ciWorkflow.jobs.security;
       
-      const codeqlStep = codeqlJob?.steps?.find((step: any) => 
-        step.uses?.includes('github/codeql-action')
+      const codeqlInitStep = securityJob?.steps?.find((step: any) => 
+        step.uses?.includes('github/codeql-action/init')
       );
-      expect(codeqlStep).toBeDefined();
+      expect(codeqlInitStep).toBeDefined();
+      
+      const codeqlAnalyzeStep = securityJob?.steps?.find((step: any) => 
+        step.uses?.includes('github/codeql-action/analyze')
+      );
+      expect(codeqlAnalyzeStep).toBeDefined();
     });
 
-    test('should include dependency vulnerability scanning', () => {
-      const securityJob = securityWorkflow?.jobs?.security || securityWorkflow?.jobs?.vulnerability;
-      expect(securityJob).toBeDefined();
-      
-      const vulnStep = securityJob?.steps?.find((step: any) => 
-        step.name?.toLowerCase().includes('audit') || 
-        step.run?.includes('npm audit')
-      );
-      expect(vulnStep).toBeDefined();
+    test('should have proper permissions for security scanning', () => {
+      expect(ciWorkflow?.permissions).toBeDefined();
+      expect(ciWorkflow.permissions.actions).toBe('read');
+      expect(ciWorkflow.permissions.contents).toBe('read');
+      expect(ciWorkflow.permissions['security-events']).toBe('write');
     });
   });
 
