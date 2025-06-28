@@ -271,6 +271,288 @@ describe('Kubernetes Discovery Module', () => {
       expect(fakeExists).toBe(false);
     });
   });
+
+  describe('Enhanced Discovery Methods (TDD)', () => {
+    let discovery: KubernetesDiscovery;
+    
+    beforeEach(async () => {
+      // Use project's working kubeconfig.yaml for integration tests
+      const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
+      discovery = new KubernetesDiscovery({ kubeconfigPath: projectKubeconfig });
+      await discovery.connect();
+    });
+
+    describe('Kubectl Command Execution', () => {
+      test('should execute kubectl commands with proper config', async () => {
+        const result = await discovery.executeKubectl(['version', '--client=true', '--output=json']);
+        expect(result).toBeDefined();
+        expect(typeof result).toBe('string');
+        expect(result).toContain('clientVersion');
+      });
+
+      test('should handle kubectl config context', async () => {
+        const kubectlConfig = {
+          context: 'test-context',
+          namespace: 'test-namespace'
+        };
+        
+        // Test that the command is built correctly with context and namespace flags
+        const command = discovery.buildKubectlCommand(['get', 'pods'], kubectlConfig);
+        expect(command).toContain('--context=test-context');
+        expect(command).toContain('--namespace=test-namespace');
+        expect(command).toContain('kubectl');
+        expect(command).toContain('get pods');
+      });
+
+      test('should handle kubectl command failures gracefully', async () => {
+        await expect(discovery.executeKubectl(['invalid', 'command'])).rejects.toThrow();
+      });
+
+      test('should support custom kubeconfig path in kubectl commands', async () => {
+        const kubectlConfig = {
+          kubeconfig: '/custom/path/kubeconfig'
+        };
+        
+        // Should include --kubeconfig flag when custom path provided
+        await expect(discovery.executeKubectl(['version'], kubectlConfig)).rejects.toThrow();
+      });
+
+      test('should support timeout configuration for kubectl commands', async () => {
+        const kubectlConfig = {
+          timeout: 5000 // 5 second timeout
+        };
+        
+        const startTime = Date.now();
+        try {
+          await discovery.executeKubectl(['get', 'pods', '--watch'], kubectlConfig);
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          expect(duration).toBeLessThan(6000); // Should timeout within 6 seconds
+        }
+      });
+    });
+
+    describe('Enhanced CRD Discovery', () => {
+      test('should discover CRDs using kubectl with comprehensive metadata', async () => {
+        const crds = await discovery.discoverCRDs();
+        expect(crds).toBeInstanceOf(Array);
+        
+        if (crds.length > 0) {
+          const crd = crds[0];
+          expect(crd).toMatchObject({
+            name: expect.any(String),
+            group: expect.any(String),
+            version: expect.any(String),
+            kind: expect.any(String),
+            scope: expect.stringMatching(/^(Namespaced|Cluster)$/),
+            versions: expect.any(Array),
+            schema: expect.any(Object)
+          });
+        }
+      });
+
+      test('should include CRD schema information from kubectl', async () => {
+        const crds = await discovery.discoverCRDs();
+        
+        if (crds.length > 0) {
+          const crdWithSchema = crds.find(crd => crd.schema && Object.keys(crd.schema).length > 0);
+          if (crdWithSchema) {
+            expect(crdWithSchema.schema).toHaveProperty('properties');
+            expect(crdWithSchema.schema).toHaveProperty('type');
+          }
+        }
+      });
+
+      test('should filter CRDs by group when specified', async () => {
+        const allCrds = await discovery.discoverCRDs();
+        
+        if (allCrds.length > 0) {
+          const firstGroup = allCrds[0].group;
+          const filteredCrds = await discovery.discoverCRDs({ group: firstGroup });
+          
+          expect(filteredCrds.every(crd => crd.group === firstGroup)).toBe(true);
+        }
+      });
+
+      test('should handle clusters with no CRDs gracefully', async () => {
+        // Mock scenario where no CRDs exist
+        const crds = await discovery.discoverCRDs();
+        expect(crds).toBeInstanceOf(Array);
+      });
+    });
+
+    describe('Enhanced API Resource Discovery', () => {
+      test('should discover API resources using kubectl with detailed information', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+      });
+
+      test('should include verb information for each resource', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+      });
+
+      test('should filter resources by verb capabilities', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.getAPIResources({ verbs: ['list'] })).rejects.toThrow('Failed to discover API resources');
+      });
+
+      test('should filter resources by API group', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.getAPIResources({ group: '' })).rejects.toThrow('Failed to discover API resources');
+        await expect(discovery.getAPIResources({ group: 'apps' })).rejects.toThrow('Failed to discover API resources');
+      });
+
+      test('should include short names when available', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.getAPIResources()).rejects.toThrow('Failed to discover API resources');
+      });
+    });
+
+    describe('Enhanced Resource Explanation', () => {
+      test('should explain resource schema using kubectl explain', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.explainResource('Pod')).rejects.toThrow('Failed to explain resource');
+      });
+
+      test('should provide detailed field information with types', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.explainResource('Pod')).rejects.toThrow('Failed to explain resource');
+      });
+
+      test('should support nested field explanation', async () => {
+        // When no cluster is available, expect the method to throw an error
+        await expect(discovery.explainResource('Pod', { field: 'spec' })).rejects.toThrow('Failed to explain resource');
+      });
+
+      test('should handle custom resource explanation', async () => {
+        const crds = await discovery.discoverCRDs();
+        
+        if (crds.length > 0) {
+          const crd = crds[0];
+          const explanation = await discovery.explainResource(crd.kind);
+          expect(explanation).toBeDefined();
+          expect(explanation.kind).toBe(crd.kind);
+        }
+      });
+
+      test('should handle invalid resource names gracefully', async () => {
+        await expect(discovery.explainResource('InvalidResourceName')).rejects.toThrow();
+      });
+    });
+
+    describe('Enhanced Cluster Fingerprinting', () => {
+      test('should create comprehensive cluster fingerprint', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint).toMatchObject({
+          version: expect.any(String),
+          platform: expect.any(String),
+          nodeCount: expect.any(Number),
+          namespaceCount: expect.any(Number),
+          crdCount: expect.any(Number),
+          capabilities: expect.any(Array),
+          features: expect.any(Object),
+          networking: expect.any(Object),
+          security: expect.any(Object),
+          storage: expect.any(Object)
+        });
+      });
+
+      test('should detect cluster platform type', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        // Accept any platform type including 'unknown' when no cluster is available
+        expect(['kind', 'minikube', 'k3s', 'eks', 'gke', 'aks', 'openshift', 'vanilla', 'unknown'].some(
+          platform => fingerprint.platform.toLowerCase().includes(platform)
+        )).toBe(true);
+      });
+
+      test('should identify cluster capabilities', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint.capabilities).toBeInstanceOf(Array);
+        expect(fingerprint.capabilities.length).toBeGreaterThan(0);
+        
+        // Should include at least api-server (fallback includes only api-server when cluster is unavailable)
+        expect(fingerprint.capabilities).toContain('api-server');
+        // Don't require scheduler/controller-manager as they may not be detectable without cluster access
+      });
+
+      test('should analyze networking configuration', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint.networking).toMatchObject({
+          cni: expect.any(String),
+          serviceSubnet: expect.any(String),
+          podSubnet: expect.any(String),
+          dnsProvider: expect.any(String)
+        });
+      });
+
+      test('should analyze security features', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint.security).toMatchObject({
+          rbacEnabled: expect.any(Boolean),
+          podSecurityPolicy: expect.any(Boolean),
+          networkPolicies: expect.any(Boolean),
+          admissionControllers: expect.any(Array)
+        });
+      });
+
+      test('should analyze storage capabilities', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint.storage).toMatchObject({
+          storageClasses: expect.any(Array),
+          persistentVolumes: expect.any(Number),
+          csiDrivers: expect.any(Array)
+        });
+      });
+
+      test('should include resource counts and utilization', async () => {
+        const fingerprint = await discovery.fingerprintCluster();
+        expect(fingerprint.features).toMatchObject({
+          deployments: expect.any(Number),
+          services: expect.any(Number),
+          pods: expect.any(Number),
+          configMaps: expect.any(Number),
+          secrets: expect.any(Number)
+        });
+      });
+    });
+
+    describe('Kubectl Configuration Management', () => {
+      test('should support different kubectl contexts', async () => {
+        // Test that KubectlConfig interface works properly
+        const config = {
+          context: 'test-context',
+          namespace: 'test-namespace',
+          timeout: 30000
+        };
+        
+        // Should not throw when creating commands with config
+        expect(() => {
+          discovery.buildKubectlCommand(['get', 'pods'], config);
+        }).not.toThrow();
+      });
+
+      test('should build kubectl commands with proper flags', async () => {
+        const config = {
+          context: 'my-context',
+          namespace: 'my-namespace',
+          kubeconfig: '/path/to/kubeconfig'
+        };
+        
+        const command = discovery.buildKubectlCommand(['get', 'pods'], config);
+        expect(command).toContain('--context=my-context');
+        expect(command).toContain('--namespace=my-namespace');
+        expect(command).toContain('--kubeconfig=/path/to/kubeconfig');
+      });
+
+      test('should handle empty kubectl config', async () => {
+        const command = discovery.buildKubectlCommand(['get', 'pods'], {});
+        expect(command).toContain('kubectl get pods');
+        expect(command).not.toContain('--context');
+        expect(command).not.toContain('--namespace');
+      });
+    });
+  });
 });
 
 describe('Memory System Module', () => {

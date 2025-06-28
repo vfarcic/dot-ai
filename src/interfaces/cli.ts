@@ -410,30 +410,31 @@ export class CliInterface {
     }
 
     // Format data as table based on content
-    if (result.data && result.data.resources) {
+    if (result.data && (result.data.resources || result.data.crds)) {
       const table = new Table({
         head: ['Resource Type', 'Category'],
         colWidths: [40, 20]
       });
       
       // Add core Kubernetes resources
-      if (result.data.resources.core) {
+      if (result.data.resources && result.data.resources.core) {
         result.data.resources.core.forEach((resource: string) => {
           table.push([resource, 'Core']);
         });
       }
       
       // Add apps resources
-      if (result.data.resources.apps) {
+      if (result.data.resources && result.data.resources.apps) {
         result.data.resources.apps.forEach((resource: string) => {
           table.push([resource, 'Apps']);
         });
       }
       
-      // Add custom resources (CRDs)
+      // Add custom resources (CRDs) - handle both string and object formats
       if (result.data.crds && Array.isArray(result.data.crds)) {
-        result.data.crds.forEach((crd: string) => {
-          table.push([crd, 'Custom']);
+        result.data.crds.forEach((crd: any) => {
+          const crdName = typeof crd === 'string' ? crd : crd.name;
+          table.push([crdName, 'Custom']);
         });
       }
       

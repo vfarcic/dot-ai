@@ -149,13 +149,28 @@ describe('CLI Interface', () => {
   describe('Command Execution', () => {
     test('should execute discover command successfully', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments', 'services', 'configmaps']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} },
+        { name: 'services.core', group: '', version: 'v1', kind: 'Service', scope: 'Namespaced', versions: [], schema: {} },
+        { name: 'configmaps.core', group: '', version: 'v1', kind: 'ConfigMap', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         core: ['Pod', 'Service', 'ConfigMap', 'Secret'],
         apps: ['Deployment', 'StatefulSet', 'DaemonSet'],
         custom: []
       });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue('kind-cluster-fingerprint');
+      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
+        version: 'v1.28.0',
+        platform: 'kind',
+        nodeCount: 1,
+        namespaceCount: 4,
+        crdCount: 0,
+        capabilities: ['api-server', 'scheduler', 'controller-manager'],
+        features: { deployments: 5, services: 3, pods: 10, configMaps: 2, secrets: 1 },
+        networking: { cni: 'kindnet', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
+        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: ['api-server'] },
+        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
+      });
 
       const result = await cli.executeCommand('discover', { output: 'json' });
       
@@ -264,7 +279,9 @@ describe('CLI Interface', () => {
   describe('Output Formatting', () => {
     test('should format JSON output correctly', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
 
       const result = await cli.executeCommand('discover', { output: 'json' });
       const formatted = cli.formatOutput(result, 'json');
@@ -277,7 +294,9 @@ describe('CLI Interface', () => {
 
     test('should format YAML output correctly', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
 
       const result = await cli.executeCommand('discover', { output: 'yaml' });
       const formatted = cli.formatOutput(result, 'yaml');
@@ -288,7 +307,10 @@ describe('CLI Interface', () => {
 
     test('should format table output correctly', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments', 'services']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} },
+        { name: 'services.core', group: '', version: 'v1', kind: 'Service', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
 
       const result = await cli.executeCommand('discover', { output: 'table' });
       const formatted = cli.formatOutput(result, 'table');
@@ -324,8 +346,21 @@ describe('CLI Interface', () => {
 
     test('should use discovery module for cluster exploration', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue('vanilla-k8s');
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
+      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
+        version: 'v1.29.0',
+        platform: 'vanilla-k8s',
+        nodeCount: 3,
+        namespaceCount: 4,
+        crdCount: 0,
+        capabilities: ['api-server', 'scheduler', 'controller-manager'],
+        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
+        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
+        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
+        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
+      });
 
       await cli.executeCommand('discover', {});
       
@@ -358,7 +393,9 @@ describe('CLI Interface', () => {
 
     test('should handle module interaction failures gracefully', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
       mockAppAgent.memory.storePattern.mockRejectedValue(new Error('Storage failed'));
 
       const result = await cli.executeCommand('discover', { remember: true });
@@ -412,13 +449,26 @@ describe('CLI Interface', () => {
       });
 
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         core: ['Pod', 'Service', 'ConfigMap'],
         apps: ['Deployment', 'StatefulSet'],
         custom: []
       });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue('vanilla-k8s');
+      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
+        version: 'v1.29.0',
+        platform: 'vanilla-k8s',
+        nodeCount: 3,
+        namespaceCount: 4,
+        crdCount: 0,
+        capabilities: ['api-server', 'scheduler', 'controller-manager'],
+        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
+        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
+        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
+        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
+      });
 
       const result = await configCli.executeCommand('discover', {});
       
@@ -428,13 +478,26 @@ describe('CLI Interface', () => {
 
     test('should support verbose mode for detailed output', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue(['deployments']);
+      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
+        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
+      ]);
       mockAppAgent.discovery.discoverResources.mockResolvedValue({
         core: ['Pod', 'Service', 'ConfigMap'],
         apps: ['Deployment', 'StatefulSet'],
         custom: []
       });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue('vanilla-k8s');
+      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
+        version: 'v1.29.0',
+        platform: 'vanilla-k8s',
+        nodeCount: 3,
+        namespaceCount: 4,
+        crdCount: 0,
+        capabilities: ['api-server', 'scheduler', 'controller-manager'],
+        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
+        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
+        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
+        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
+      });
 
       const result = await cli.executeCommand('discover', { verbose: true });
       
