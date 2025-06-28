@@ -203,7 +203,7 @@ spec:
     return yamlContent.trim();
   }
 
-  async analyzeError(error: string, context?: any): Promise<string> {
+  async analyzeError(error: string, _context?: any): Promise<string> {
     if (!this.client) {
       throw new Error('Claude client not initialized');
     }
@@ -212,7 +212,7 @@ spec:
     return `Error analysis: ${error}. Suggested fix: Check the configuration and try again.`;
   }
 
-  async suggestImprovements(manifest: string): Promise<string[]> {
+  async suggestImprovements(_manifest: string): Promise<string[]> {
     if (!this.client) {
       throw new Error('Claude client not initialized');
     }

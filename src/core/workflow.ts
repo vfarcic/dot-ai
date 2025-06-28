@@ -155,7 +155,7 @@ export class WorkflowEngine {
     }
   }
 
-  private generateSteps(spec: WorkflowSpec): WorkflowStep[] {
+  private generateSteps(_spec: WorkflowSpec): WorkflowStep[] {
     const steps: WorkflowStep[] = [
       { name: 'validate-config', status: 'pending' },
       { name: 'create-deployment', status: 'pending' },

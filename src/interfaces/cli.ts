@@ -464,7 +464,7 @@ export class CliInterface {
     }
   }
 
-  private handleError(error: any, command: string): CliResult {
+  private handleError(error: any, _command: string): CliResult {
     let errorMessage = (error as Error).message;
     
     // Provide helpful error messages for common issues

@@ -105,8 +105,7 @@ export class KubernetesDiscovery {
     }
 
     try {
-      // Get version info from server
-      const serverVersion = this.kc.clusters[0]?.server || 'unknown';
+      // Get version info from server (available but not used in current implementation)
       
       return {
         type: this.detectClusterType(),
@@ -201,7 +200,6 @@ export class KubernetesDiscovery {
     
     try {
       // Get API groups and versions
-      const coreApi = this.k8sApi;
       const apis = this.kc.makeApiClient(k8s.ApisApi);
       
       const apiGroups = await apis.getAPIVersions();
@@ -244,7 +242,7 @@ export class KubernetesDiscovery {
     }
   }
 
-  async getResourceSchema(kind: string, apiVersion: string): Promise<any> {
+  async getResourceSchema(_kind: string, _apiVersion: string): Promise<any> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
     }
