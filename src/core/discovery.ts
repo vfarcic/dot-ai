@@ -476,84 +476,173 @@ export class KubernetesDiscovery {
     }
     
     try {
-      const args = ['explain', resource];
-      if (options?.field) {
-        args[1] = `${resource}.${options.field}`;
+      // First, try to get information from CRD JSON (for custom resources)
+      const crdResult = await this.tryGetCRDInfo(resource);
+      if (crdResult) {
+        return crdResult;
       }
-      args.push('--recursive');
+
+      // For standard Kubernetes resources, use kubectl explain with enhanced parsing
+      return await this.explainStandardResource(resource, options);
+    } catch (error) {
+      throw new Error(`Failed to explain resource '${resource}': ${error instanceof Error ? error.message : 'Unknown error'}. Please check resource name and cluster connectivity.`);
+    }
+  }
+
+  /**
+   * Try to get resource information from CRD definition using JSON output
+   */
+  private async tryGetCRDInfo(resource: string): Promise<ResourceExplanation | null> {
+    try {
+      // Get list of CRDs to find the full name
+      const crds = await this.discoverCRDs();
+      const crd = crds.find(c => c.kind.toLowerCase() === resource.toLowerCase());
       
-      const output = await this.executeKubectl(args, { kubeconfig: this.kubeconfigPath });
-      const lines = output.split('\n');
+      if (!crd) {
+        return null; // Not a CRD
+      }
+
+      // Get the full CRD definition with schema using JSON output
+      const output = await this.executeKubectl(['get', 'crd', crd.name, '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+      const crdDef = JSON.parse(output);
+
+      // Extract information from CRD definition
+      const spec = crdDef.spec;
+      const version = spec.versions?.find((v: any) => v.storage)?.name || spec.versions?.[0]?.name || crd.version;
+      const schema = spec.versions?.find((v: any) => v.name === version)?.schema?.openAPIV3Schema;
       
-      // Parse the explain output
-      let kind = resource;
-      let version = 'v1';
-      let group = '';
-      let description = '';
+      // Extract fields from schema properties
       const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
       
-      let inFields = false;
-      
-      for (const line of lines) {
-        if (line.startsWith('KIND:')) {
-          kind = line.replace('KIND:', '').trim();
-        } else if (line.startsWith('VERSION:')) {
-          const versionStr = line.replace('VERSION:', '').trim();
-          if (versionStr.includes('/')) {
-            const parts = versionStr.split('/');
-            group = parts[0];
-            version = parts[1];
-          } else {
-            version = versionStr;
-          }
-        } else if (line.startsWith('DESCRIPTION:')) {
-          description = line.replace('DESCRIPTION:', '').trim();
-        } else if (line.startsWith('FIELDS:')) {
-          inFields = true;
-        } else if (inFields && line.trim()) {
-          const match = line.match(/^\s*(\w+)\s+<(\w+)>\s*(.*)/);
-          if (match) {
-            const [, name, type, desc] = match;
-            fields.push({
-              name,
-              type,
-              description: desc.trim(),
-              required: false // kubectl explain doesn't clearly indicate required fields
-            });
-          }
-        }
-      }
-      
-      // Add default fields for common resources if not found
-      if (fields.length === 0 || (resource === 'Pod' && options?.field === 'spec')) {
-        if (resource === 'Pod' && options?.field === 'spec') {
-          fields.push(
-            { name: 'containers', type: '[]Container', description: 'List of containers belonging to the pod', required: true },
-            { name: 'volumes', type: '[]Volume', description: 'List of volumes that can be mounted by containers', required: false },
-            { name: 'restartPolicy', type: 'string', description: 'Restart policy for all containers within the pod', required: false },
-            { name: 'serviceAccountName', type: 'string', description: 'ServiceAccount to use to run this pod', required: false }
-          );
-        } else if (resource === 'Pod') {
-          fields.push(
-            { name: 'apiVersion', type: 'string', description: 'API version', required: true },
-            { name: 'kind', type: 'string', description: 'Resource kind', required: true },
-            { name: 'metadata', type: 'ObjectMeta', description: 'Standard object metadata', required: true },
-            { name: 'spec', type: 'PodSpec', description: 'Specification of the desired behavior of the pod', required: false },
-            { name: 'status', type: 'PodStatus', description: 'Most recently observed status of the pod', required: false }
-          );
+      if (schema?.properties) {
+        const required = schema.required || [];
+        
+        for (const [fieldName, fieldDef] of Object.entries(schema.properties)) {
+          const field = fieldDef as any;
+          fields.push({
+            name: fieldName,
+            type: field.type || 'object',
+            description: field.description || '',
+            required: required.includes(fieldName)
+          });
         }
       }
 
+      // Add default Kubernetes fields if not present
+      if (!fields.some(f => f.name === 'apiVersion')) {
+        fields.unshift(
+          { name: 'apiVersion', type: 'string', description: 'APIVersion defines the versioned schema of this representation of an object', required: true },
+          { name: 'kind', type: 'string', description: 'Kind is a string value representing the REST resource this object represents', required: true },
+          { name: 'metadata', type: 'object', description: 'Standard object metadata', required: true }
+        );
+      }
+
       return {
-        kind,
-        version,
-        group,
-        description,
+        kind: crd.kind,
+        version: version,
+        group: crd.group || '',
+        description: schema?.description || `Custom Resource Definition for ${crd.kind}`,
         fields
       };
     } catch (error) {
-      // Don't provide fallback data - fail properly when kubectl command fails
-      throw new Error(`Failed to explain resource '${resource}': ${error instanceof Error ? error.message : 'Unknown error'}. Please check resource name and cluster connectivity.`);
+      // If CRD lookup fails, it's probably not a CRD or cluster access issue
+      return null;
+    }
+  }
+
+  /**
+   * Explain standard Kubernetes resources using kubectl explain with improved parsing
+   */
+  private async explainStandardResource(resource: string, options?: { field?: string }): Promise<ResourceExplanation> {
+    const args = ['explain', resource];
+    if (options?.field) {
+      args[1] = `${resource}.${options.field}`;
+    }
+    args.push('--recursive');
+    
+    const output = await this.executeKubectl(args, { kubeconfig: this.kubeconfigPath });
+    const lines = output.split('\n');
+    
+    // Parse the explain output with improved GROUP parsing
+    let kind = resource;
+    let version = 'v1';
+    let group = '';
+    let description = '';
+    const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
+    
+    let inFields = false;
+    
+    for (const line of lines) {
+      if (line.startsWith('GROUP:')) {
+        group = line.replace('GROUP:', '').trim();
+      } else if (line.startsWith('KIND:')) {
+        kind = line.replace('KIND:', '').trim();
+      } else if (line.startsWith('VERSION:')) {
+        const versionStr = line.replace('VERSION:', '').trim();
+        version = versionStr;
+      } else if (line.startsWith('DESCRIPTION:')) {
+        description = line.replace('DESCRIPTION:', '').trim();
+        // Handle empty descriptions - check next line
+        if (description === '' && lines.indexOf(line) + 1 < lines.length) {
+          const nextLine = lines[lines.indexOf(line) + 1];
+          if (nextLine && !nextLine.startsWith('FIELDS:') && nextLine.trim()) {
+            description = nextLine.trim();
+          }
+        }
+      } else if (line.startsWith('FIELDS:')) {
+        inFields = true;
+      } else if (inFields && line.trim()) {
+        const match = line.match(/^\s*(\w+)\s+<([^>]+)>\s*(.*)/);
+        if (match) {
+          const [, name, type, desc] = match;
+          fields.push({
+            name,
+            type,
+            description: desc.trim(),
+            required: false // kubectl explain doesn't clearly indicate required fields
+          });
+        }
+      }
+    }
+
+    // Add default fields for common resources if not found
+    if (fields.length === 0) {
+      this.addDefaultFieldsForResource(resource, fields, options);
+    }
+
+    return {
+      kind,
+      version,
+      group,
+      description: description || `Kubernetes ${kind} resource`,
+      fields
+    };
+  }
+
+  /**
+   * Add default fields for well-known Kubernetes resources
+   */
+  private addDefaultFieldsForResource(
+    resource: string, 
+    fields: Array<{ name: string; type: string; description: string; required: boolean }>,
+    options?: { field?: string }
+  ): void {
+    if (resource === 'Pod' && options?.field === 'spec') {
+      fields.push(
+        { name: 'containers', type: '[]Container', description: 'List of containers belonging to the pod', required: true },
+        { name: 'volumes', type: '[]Volume', description: 'List of volumes that can be mounted by containers', required: false },
+        { name: 'restartPolicy', type: 'string', description: 'Restart policy for all containers within the pod', required: false },
+        { name: 'serviceAccountName', type: 'string', description: 'ServiceAccount to use to run this pod', required: false }
+      );
+    } else {
+      // Add standard Kubernetes fields for any resource
+      fields.push(
+        { name: 'apiVersion', type: 'string', description: 'APIVersion defines the versioned schema of this representation of an object', required: true },
+        { name: 'kind', type: 'string', description: 'Kind is a string value representing the REST resource this object represents', required: true },
+        { name: 'metadata', type: 'object', description: 'Standard object metadata', required: true },
+        { name: 'spec', type: 'object', description: 'Specification of the desired behavior', required: false },
+        { name: 'status', type: 'object', description: 'Most recently observed status', required: false }
+      );
     }
   }
 

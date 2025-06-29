@@ -733,6 +733,44 @@ describe('Kubernetes Discovery Module', () => {
         }
       });
 
+      test('should use JSON-based parsing for CRDs with proper group and description', async () => {
+        const crds = await discovery.discoverCRDs();
+        
+        if (crds.length > 0) {
+          const crd = crds.find(c => c.group === 'devopstoolkit.live') || crds[0];
+          const explanation = await discovery.explainResource(crd.kind);
+          
+          expect(explanation).toBeDefined();
+          expect(explanation.kind).toBe(crd.kind);
+          expect(explanation.group).toBe(crd.group);
+          expect(explanation.description).toBeDefined();
+          expect(explanation.description).not.toBe('');
+          
+          // Should have basic Kubernetes fields
+          const fieldNames = explanation.fields.map(f => f.name);
+          expect(fieldNames).toContain('apiVersion');
+          expect(fieldNames).toContain('kind');
+          expect(fieldNames).toContain('metadata');
+        }
+      });
+
+      test('should use enhanced text parsing for standard resources with proper group extraction', async () => {
+        const explanation = await discovery.explainResource('Deployment');
+        
+        expect(explanation).toBeDefined();
+        expect(explanation.kind).toBe('Deployment');
+        expect(explanation.group).toBe('apps');
+        expect(explanation.description).toBeDefined();
+        expect(explanation.description).not.toBe('');
+        expect(explanation.description).toContain('Deployment');
+        
+        // Should have proper field structure
+        const fieldNames = explanation.fields.map(f => f.name);
+        expect(fieldNames).toContain('apiVersion');
+        expect(fieldNames).toContain('kind');
+        expect(fieldNames).toContain('metadata');
+      });
+
       test('should handle invalid resource names gracefully', async () => {
         await expect(discovery.explainResource('InvalidResourceName')).rejects.toThrow();
       });

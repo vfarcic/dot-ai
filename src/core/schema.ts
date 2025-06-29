@@ -410,10 +410,36 @@ export class ResourceRecommender {
     const response = await this.claudeIntegration.sendMessage(selectionPrompt);
     
     try {
-      // Extract JSON from response
-      const jsonMatch = response.content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || [null, response.content];
-      const jsonContent = jsonMatch[1] || response.content;
-      const selectedResources = JSON.parse(jsonContent);
+      // Extract JSON from response with robust parsing
+      let jsonContent = response.content;
+      
+      // First try to find JSON array wrapped in code blocks
+      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      } else {
+        // Try to find JSON array that starts with [ and find the matching closing ]
+        const startIndex = response.content.indexOf('[');
+        if (startIndex !== -1) {
+          let bracketCount = 0;
+          let endIndex = startIndex;
+          
+          for (let i = startIndex; i < response.content.length; i++) {
+            if (response.content[i] === '[') bracketCount++;
+            if (response.content[i] === ']') bracketCount--;
+            if (bracketCount === 0) {
+              endIndex = i;
+              break;
+            }
+          }
+          
+          if (bracketCount === 0) {
+            jsonContent = response.content.substring(startIndex, endIndex + 1);
+          }
+        }
+      }
+      
+      const selectedResources = JSON.parse(jsonContent.trim());
       
       if (!Array.isArray(selectedResources)) {
         throw new Error('AI response is not an array');
@@ -506,10 +532,35 @@ export class ResourceRecommender {
   private parseAISolutionResponse(aiResponse: string, schemas: ResourceSchema[]): ResourceSolution[] {
     try {
       // Extract JSON from AI response (may be wrapped in markdown)
-      const jsonMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || [null, aiResponse];
-      const jsonContent = jsonMatch[1] || aiResponse;
+      let jsonContent = aiResponse;
       
-      const parsed = JSON.parse(jsonContent);
+      // First try to find JSON wrapped in code blocks
+      const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      } else {
+        // Try to find JSON that starts with { and find the matching closing }
+        const startIndex = aiResponse.indexOf('{');
+        if (startIndex !== -1) {
+          let braceCount = 0;
+          let endIndex = startIndex;
+          
+          for (let i = startIndex; i < aiResponse.length; i++) {
+            if (aiResponse[i] === '{') braceCount++;
+            if (aiResponse[i] === '}') braceCount--;
+            if (braceCount === 0) {
+              endIndex = i;
+              break;
+            }
+          }
+          
+          if (braceCount === 0) {
+            jsonContent = aiResponse.substring(startIndex, endIndex + 1);
+          }
+        }
+      }
+      
+      const parsed = JSON.parse(jsonContent.trim());
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
         const resources = solution.resourceIndexes.map((index: number) => schemas[index]).filter(Boolean);
