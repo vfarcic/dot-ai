@@ -50,6 +50,13 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+export interface ResourceMapping {
+  resourceKind: string;
+  apiVersion: string;
+  group?: string;
+  fieldPath: string;
+}
+
 export interface Question {
   id: string;
   question: string;
@@ -62,6 +69,7 @@ export interface Question {
     max?: number;
     pattern?: string;
   };
+  resourceMapping?: ResourceMapping | ResourceMapping[];
 }
 
 export interface QuestionGroup {

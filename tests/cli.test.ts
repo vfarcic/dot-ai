@@ -284,7 +284,12 @@ describe('CLI Interface', () => {
               question: 'What should we name your application?',
               type: 'text' as const,
               placeholder: 'my-app',
-              validation: { required: true }
+              validation: { required: true },
+              resourceMapping: {
+                resourceKind: 'Pod',
+                apiVersion: 'v1',
+                fieldPath: 'metadata.name'
+              }
             }
           ],
           basic: [
@@ -293,7 +298,12 @@ describe('CLI Interface', () => {
               question: 'Which namespace should we deploy to?',
               type: 'select' as const,
               options: ['default', 'production'],
-              placeholder: 'default'
+              placeholder: 'default',
+              resourceMapping: {
+                resourceKind: 'Pod',
+                apiVersion: 'v1',
+                fieldPath: 'metadata.namespace'
+              }
             }
           ],
           advanced: [
@@ -301,7 +311,12 @@ describe('CLI Interface', () => {
               id: 'resource-limits',
               question: 'Do you need resource limits?',
               type: 'boolean' as const,
-              placeholder: 'false'
+              placeholder: 'false',
+              resourceMapping: {
+                resourceKind: 'Pod',
+                apiVersion: 'v1',
+                fieldPath: 'spec.containers[0].resources.limits'
+              }
             }
           ],
           open: {
@@ -356,7 +371,12 @@ describe('CLI Interface', () => {
         question: 'What should we name your application?',
         type: 'text',
         placeholder: 'my-app',
-        validation: { required: true }
+        validation: { required: true },
+        resourceMapping: {
+          resourceKind: 'Pod',
+          apiVersion: 'v1',
+          fieldPath: 'metadata.name'
+        }
       });
       
       expect(solution.questions.basic).toHaveLength(1);
@@ -364,10 +384,26 @@ describe('CLI Interface', () => {
         id: 'namespace',
         question: 'Which namespace should we deploy to?',
         type: 'select',
-        options: ['default', 'production']
+        options: ['default', 'production'],
+        resourceMapping: {
+          resourceKind: 'Pod',
+          apiVersion: 'v1',
+          fieldPath: 'metadata.namespace'
+        }
       });
       
       expect(solution.questions.advanced).toHaveLength(1);
+      expect(solution.questions.advanced[0]).toMatchObject({
+        id: 'resource-limits',
+        question: 'Do you need resource limits?',
+        type: 'boolean',
+        resourceMapping: {
+          resourceKind: 'Pod',
+          apiVersion: 'v1',
+          fieldPath: 'spec.containers[0].resources.limits'
+        }
+      });
+      
       expect(solution.questions.open).toMatchObject({
         question: 'Any additional requirements?',
         placeholder: 'Enter details...'

@@ -53,6 +53,45 @@ Question types available:
 - `boolean`: Yes/no question
 - `number`: Numeric input
 
+## Resource Mapping Requirements
+
+**CRITICAL**: Each question must include a `resourceMapping` field that specifies exactly where the user's answer should be applied in the Kubernetes manifests.
+
+### Single Resource Mapping
+For questions that apply to one resource field:
+```json
+"resourceMapping": {
+  "resourceKind": "Deployment",
+  "apiVersion": "apps/v1", 
+  "group": "apps",
+  "fieldPath": "spec.template.spec.containers[0].image"
+}
+```
+
+### Multiple Resource Mapping  
+For questions that apply to multiple resources (like namespace):
+```json
+"resourceMapping": [
+  {
+    "resourceKind": "Deployment",
+    "apiVersion": "apps/v1",
+    "group": "apps", 
+    "fieldPath": "metadata.namespace"
+  },
+  {
+    "resourceKind": "Service",
+    "apiVersion": "v1",
+    "fieldPath": "metadata.namespace"
+  }
+]
+```
+
+### Field Path Format
+- Use dot notation for nested fields: `"spec.template.spec.containers[0].image"`
+- Use array indices for specific array elements: `"spec.containers[0].ports[0].containerPort"`
+- For metadata fields: `"metadata.name"`, `"metadata.namespace"`, `"metadata.labels"`
+- Match the exact resource schema structure provided
+
 ## Response Format
 
 Return your response as JSON in this exact format:
@@ -71,6 +110,12 @@ Return your response as JSON in this exact format:
         "min": 1,
         "max": 100,
         "pattern": "^[a-z0-9-]+$"
+      },
+      "resourceMapping": {
+        "resourceKind": "Deployment",
+        "apiVersion": "apps/v1",
+        "group": "apps",
+        "fieldPath": "spec.template.spec.containers[0].image"
       }
     }
   ],
@@ -90,6 +135,7 @@ Return your response as JSON in this exact format:
 ## Important Notes
 
 - **CRITICAL**: Only ask questions about properties explicitly defined in the provided resource schemas
+- **MANDATORY**: Every question must include accurate `resourceMapping` with correct fieldPath
 - Generate as many questions as needed for the solution complexity
 - Focus on questions that actually affect the generated manifests based on the actual schema
 - Avoid asking for information that can be reasonably defaulted
@@ -99,3 +145,4 @@ Return your response as JSON in this exact format:
 - Consider real-world usage patterns and common configurations
 - Ensure question IDs are unique and descriptive
 - Validation rules should match Kubernetes constraints where applicable
+- Field paths must match the exact resource schema structure - verify against the provided resource details
