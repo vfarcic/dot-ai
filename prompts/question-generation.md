@@ -16,6 +16,8 @@
 
 Based on the user's intent and the Kubernetes resources in this solution, generate appropriate questions to gather the information needed to create working manifests.
 
+**IMPORTANT**: Only ask questions about properties that are explicitly listed in the "Resources in Solution" section below. Do not ask about common Kubernetes properties unless they appear in the actual resource schema.
+
 Use the provided cluster options to populate dynamic select questions with real values from the user's cluster.
 
 Organize questions into three categories based on their importance and impact:
@@ -31,14 +33,18 @@ Optional advanced configuration for power users. These are for optimization, sec
 
 ## Guidelines
 
+**CRITICAL CONSTRAINT**: Only ask questions about properties that actually exist in the provided resource schemas. Do not invent or assume properties that are not explicitly listed in the resource details.
+
 For each question, consider:
-- The resource schema properties and their actual constraints
-- What information is truly needed to generate a working manifest
+- **ONLY the resource schema properties and their actual constraints** - never ask about properties not in the schema
+- What information is truly needed to generate a working manifest from the actual schema fields
 - Progressive disclosure - start simple, add complexity only if needed  
 - User-friendly question wording (avoid Kubernetes jargon where possible)
 - Practical defaults that work in most environments
 - The actual complexity of the solution (simple solutions need fewer questions, complex solutions may need many)
 - Use cluster-discovered options when available for select questions
+
+**VALIDATION RULE**: Before creating any question, verify that the property exists in the provided resource schema. If a property like "storageClass" is not listed in the schema, do not ask about it.
 
 Question types available:
 - `text`: Free text input
@@ -83,9 +89,12 @@ Return your response as JSON in this exact format:
 
 ## Important Notes
 
+- **CRITICAL**: Only ask questions about properties explicitly defined in the provided resource schemas
 - Generate as many questions as needed for the solution complexity
-- Focus on questions that actually affect the generated manifests
+- Focus on questions that actually affect the generated manifests based on the actual schema
 - Avoid asking for information that can be reasonably defaulted
+- **DO NOT** ask about storage classes, node selectors, or other properties unless they appear in the resource schema
+- **DO NOT** make assumptions about what properties are configurable - stick strictly to the provided schema
 - Use the provided cluster options to populate select questions with real values
 - Consider real-world usage patterns and common configurations
 - Ensure question IDs are unique and descriptive
