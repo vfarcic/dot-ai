@@ -53,18 +53,6 @@ export class CliInterface {
       .description('Kubernetes application deployment agent with AI-powered orchestration')
       .version('1.0.0');
 
-    // Discover command
-    this.program
-      .command('discover')
-      .description('Discover available resources in the Kubernetes cluster')
-      .option('--cluster <name>', 'Specify cluster name for context')
-      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .option('--verbose', 'Enable verbose output with detailed information')
-      .option('--remember', 'Store discovery patterns in memory for learning')
-      .action(async (options) => {
-        const result = await this.executeCommand('discover', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
-      });
 
     // Deploy command
     this.program
@@ -214,8 +202,6 @@ export class CliInterface {
       await this.appAgent.initialize();
 
       switch (command) {
-        case 'discover':
-          return await this.handleDiscoverCommand(options);
         case 'deploy':
           return await this.handleDeployCommand(options);
         case 'status':
@@ -235,74 +221,6 @@ export class CliInterface {
     }
   }
 
-  private async handleDiscoverCommand(options: Record<string, any>): Promise<CliResult> {
-    try {
-      const startTime = Date.now();
-      
-      // Perform discovery
-      const crds = await this.appAgent.discovery.discoverCRDs();
-      const resources = await this.appAgent.discovery.discoverResources();
-      const clusterFingerprint = await this.appAgent.discovery.fingerprintCluster();
-      
-      const endTime = Date.now();
-
-      const result: CliResult = {
-        success: true,
-        data: {
-          crds,
-          resources,
-          clusterFingerprint
-        }
-      };
-
-      // Add verbose details if requested
-      if (options.verbose || this.config.verboseMode) {
-        result.data.details = {
-          timing: `${endTime - startTime}ms`,
-          crdCount: crds.length,
-          resourceCount: resources.resources.length + resources.custom.length
-        };
-      }
-
-      // Store pattern in memory if requested
-      if (options.remember) {
-        try {
-          await this.appAgent.memory.storePattern('discovery', {
-            crds,
-            resources,
-            clusterFingerprint
-          });
-        } catch (error) {
-          result.warnings = result.warnings || [];
-          result.warnings.push('Could not store discovery pattern');
-        }
-      }
-
-      return result;
-    } catch (error) {
-      const errorMessage = (error as Error).message;
-      
-      // Handle specific error types with helpful messages
-      if (errorMessage.includes('ENOTFOUND')) {
-        return {
-          success: false,
-          error: 'Cannot connect to Kubernetes cluster. Check your kubeconfig'
-        };
-      }
-      
-      if (errorMessage.includes('Cluster unreachable')) {
-        return {
-          success: false,
-          error: 'Discovery failed: Cluster unreachable'
-        };
-      }
-      
-      return {
-        success: false,
-        error: `Discovery failed: ${errorMessage}`
-      };
-    }
-  }
 
   private async handleDeployCommand(options: Record<string, any>): Promise<CliResult> {
     try {
@@ -430,7 +348,7 @@ export class CliInterface {
             if (matchingResources.length === 0) {
               return {
                 success: false,
-                error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+                error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
               };
             }
 
@@ -521,7 +439,7 @@ export class CliInterface {
         if (matchingResources.length === 0) {
           return {
             success: false,
-            error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+            error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
           };
         }
 
@@ -639,7 +557,7 @@ export class CliInterface {
         if (matchingResources.length === 0) {
           return {
             success: false,
-            error: `No resources found matching '${options.resource}'. Use 'discover' command to see available resources.`
+            error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
           };
         }
 

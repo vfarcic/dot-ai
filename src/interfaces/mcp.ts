@@ -50,20 +50,6 @@ export class MCPServer {
       return {
         tools: [
           {
-            name: 'discover_cluster',
-            description: 'Discover Kubernetes cluster resources and capabilities',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                deep_scan: {
-                  type: 'boolean',
-                  description: 'Perform deep resource discovery including CRDs',
-                  default: false
-                }
-              }
-            }
-          },
-          {
             name: 'deploy_application',
             description: 'Deploy application to Kubernetes cluster with AI assistance',
             inputSchema: {
@@ -123,8 +109,6 @@ export class MCPServer {
 
       try {
         switch (name) {
-          case 'discover_cluster':
-            return await this.handleDiscoverCluster(args);
           case 'deploy_application':
             return await this.handleDeployApplication(args);
           case 'check_status':
@@ -149,32 +133,6 @@ export class MCPServer {
     });
   }
 
-  private async handleDiscoverCluster(args: any): Promise<{ content: { type: string; text: string }[] }> {
-    await this.ensureInitialized();
-    
-    const resources = await this.appAgent.discovery.discoverResources();
-    const clusterInfo = await this.appAgent.discovery.getClusterInfo();
-    
-    if (args.deep_scan) {
-      const crds = await this.appAgent.discovery.discoverCRDs();
-      resources.custom = crds;
-    }
-
-    const result = {
-      cluster: clusterInfo,
-      resources: resources,
-      timestamp: new Date().toISOString()
-    };
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
-  }
 
   private async handleDeployApplication(args: any): Promise<{ content: { type: string; text: string }[] }> {
     await this.ensureInitialized();
@@ -264,7 +222,7 @@ export class MCPServer {
 
   getToolCount(): number {
     // Return the number of registered tools
-    return 4;
+    return 3;
   }
 
   isReady(): boolean {

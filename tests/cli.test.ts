@@ -52,10 +52,6 @@ describe('CLI Interface', () => {
       expect(cli.getCommands()).toContain('app-agent');
     });
 
-    test('should have discover subcommand', () => {
-      const commands = cli.getSubcommands();
-      expect(commands).toContain('discover');
-    });
 
     test('should have deploy subcommand', () => {
       const commands = cli.getSubcommands();
@@ -83,18 +79,11 @@ describe('CLI Interface', () => {
       const helpText = await cli.getHelp();
       expect(helpText).toContain('app-agent');
       expect(helpText).toContain('Kubernetes application deployment agent');
-      expect(helpText).toContain('discover');
       expect(helpText).toContain('deploy');
       expect(helpText).toContain('status');
       expect(helpText).toContain('learn');
     });
 
-    test('should provide discover command help', async () => {
-      const helpText = await cli.getCommandHelp('discover');
-      expect(helpText).toContain('Discover available resources in the Kubernetes cluster');
-      expect(helpText).toContain('--cluster');
-      expect(helpText).toContain('--output');
-    });
 
     test('should provide deploy command help', async () => {
       const helpText = await cli.getCommandHelp('deploy');
@@ -126,14 +115,6 @@ describe('CLI Interface', () => {
   });
 
   describe('Argument Parsing and Validation', () => {
-    test('should parse discover command with cluster option', async () => {
-      const args = ['discover', '--cluster', 'test-cluster', '--output', 'json'];
-      const parsed = await cli.parseArguments(args);
-      
-      expect(parsed.command).toBe('discover');
-      expect(parsed.options.cluster).toBe('test-cluster');
-      expect(parsed.options.output).toBe('json');
-    });
 
     test('should parse deploy command with app name', async () => {
       const args = ['deploy', '--app', 'my-app', '--requirements', 'web server'];
@@ -149,20 +130,12 @@ describe('CLI Interface', () => {
       await expect(cli.parseArguments(args)).rejects.toThrow('Missing required argument: --app');
     });
 
-    test('should validate argument values', async () => {
-      const args = ['discover', '--output', 'invalid-format'];
-      await expect(cli.parseArguments(args)).rejects.toThrow('Invalid output format. Supported: json, yaml, table');
-    });
 
     test('should handle unknown commands', async () => {
       const args = ['unknown-command'];
       await expect(cli.parseArguments(args)).rejects.toThrow('Unknown command: unknown-command');
     });
 
-    test('should handle unknown options', async () => {
-      const args = ['discover', '--unknown-option', 'value'];
-      await expect(cli.parseArguments(args)).rejects.toThrow('Unknown option: --unknown-option');
-    });
 
     test('should parse schema command with resource option', async () => {
       const args = ['schema', '--resource', 'deployment', '--output', 'json'];
@@ -202,45 +175,6 @@ describe('CLI Interface', () => {
   });
 
   describe('Command Execution', () => {
-    test('should execute discover command successfully', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} },
-        { name: 'services.core', group: '', version: 'v1', kind: 'Service', scope: 'Namespaced', versions: [], schema: {} },
-        { name: 'configmaps.core', group: '', version: 'v1', kind: 'ConfigMap', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Secret', name: 'secrets', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] }
-        ],
-        
-        custom: []
-      });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
-        version: 'v1.28.0',
-        platform: 'kind',
-        nodeCount: 1,
-        namespaceCount: 4,
-        crdCount: 0,
-        capabilities: ['api-server', 'scheduler', 'controller-manager'],
-        features: { deployments: 5, services: 3, pods: 10, configMaps: 2, secrets: 1 },
-        networking: { cni: 'kindnet', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
-        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: ['api-server'] },
-        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
-      });
-
-      const result = await cli.executeCommand('discover', { output: 'json' });
-      
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.discoverCRDs).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('crds');
-      expect(result.data).toHaveProperty('resources');
-    });
 
     test('should execute deploy command and start workflow', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
@@ -495,26 +429,7 @@ describe('CLI Interface', () => {
   });
 
   describe('Error Handling', () => {
-    test('should handle AppAgent initialization failure', async () => {
-      mockAppAgent.initialize.mockRejectedValue(new Error('Connection failed'));
 
-      const result = await cli.executeCommand('discover', {});
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to initialize');
-      expect(result.error).toContain('Connection failed');
-    });
-
-    test('should handle discovery failures gracefully', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockRejectedValue(new Error('Cluster unreachable'));
-
-      const result = await cli.executeCommand('discover', {});
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Discovery failed');
-      expect(result.error).toContain('Cluster unreachable');
-    });
 
     test('should handle workflow failures', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
@@ -530,25 +445,15 @@ describe('CLI Interface', () => {
       expect(result.error).toContain('Invalid requirements');
     });
 
-    test('should provide helpful error messages for common issues', async () => {
-      mockAppAgent.initialize.mockRejectedValue(new Error('ENOTFOUND'));
-
-      const result = await cli.executeCommand('discover', {});
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Cannot connect to Kubernetes cluster');
-      expect(result.error).toContain('Check your kubeconfig');
-    });
   });
 
   describe('Output Formatting', () => {
     test('should format JSON output correctly', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
+      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
-      const result = await cli.executeCommand('discover', { output: 'json' });
+      const result = await cli.executeCommand('deploy', { app: 'test-app', requirements: 'web server' });
       const formatted = cli.formatOutput(result, 'json');
       
       expect(() => JSON.parse(formatted)).not.toThrow();
@@ -559,76 +464,17 @@ describe('CLI Interface', () => {
 
     test('should format YAML output correctly', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
+      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
-      const result = await cli.executeCommand('discover', { output: 'yaml' });
+      const result = await cli.executeCommand('deploy', { app: 'test-app', requirements: 'web server' });
       const formatted = cli.formatOutput(result, 'yaml');
       
       expect(formatted).toContain('success: true');
       expect(formatted).toContain('data:');
     });
 
-    test('should format table output correctly', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} },
-        { name: 'services.core', group: '', version: 'v1', kind: 'Service', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
 
-      const result = await cli.executeCommand('discover', { output: 'table' });
-      const formatted = cli.formatOutput(result, 'table');
-      
-      expect(formatted).toContain('│'); // Table borders
-      expect(formatted).toContain('deployments');
-      expect(formatted).toContain('services');
-    });
-
-    test('should format table with correct column names and no verb confusion', async () => {
-      // TDD Test: Define expected behavior for table formatting
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: ['po'] },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: ['svc'] }
-        ],
-        custom: []
-      });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
-        version: 'v1.29.0',
-        platform: 'kind',
-        nodeCount: 1,
-        namespaceCount: 4,
-        crdCount: 1,
-        capabilities: ['api-server'],
-        features: { deployments: 0, services: 0, pods: 0, configMaps: 0, secrets: 0 },
-        networking: { cni: 'kindnet', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
-        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
-        storage: { storageClasses: [], persistentVolumes: 0, csiDrivers: [] }
-      });
-
-      const result = await cli.executeCommand('discover', { output: 'table' });
-      const formatted = cli.formatOutput(result, 'table');
-      
-      // Table should contain proper resource kinds, not verb strings
-      expect(formatted).toContain('Pod');
-      expect(formatted).toContain('Service');
-      expect(formatted).toContain('deployments.apps'); // CRDs show their full name in the table
-      
-      // Table should NOT contain verb strings as resource types
-      expect(formatted).not.toContain('create,delete,get,list');
-      expect(formatted).not.toContain('get,list,patch');
-      expect(formatted).not.toContain('create,delete,deletecollection');
-      
-      // Should use meaningful column headers that match data structure
-      // Current implementation uses 'Resource Type' and 'Category' which is acceptable
-      // but ideally should match field names like 'kind' and 'group'
-      expect(formatted).toContain('│'); // Table structure should be present
-    });
 
     test('should format error output consistently', () => {
       const errorResult = {
@@ -648,35 +494,13 @@ describe('CLI Interface', () => {
     test('should properly initialize AppAgent before operations', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
       mockAppAgent.isInitialized.mockReturnValue(true);
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
 
-      await cli.executeCommand('discover', {});
+      await cli.executeCommand('deploy', { app: 'test-app', requirements: 'web server' });
       
       expect(mockAppAgent.initialize).toHaveBeenCalledTimes(1);
     });
 
-    test('should use discovery module for cluster exploration', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
-        version: 'v1.29.0',
-        platform: 'vanilla-k8s',
-        nodeCount: 3,
-        namespaceCount: 4,
-        crdCount: 0,
-        capabilities: ['api-server', 'scheduler', 'controller-manager'],
-        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
-        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
-        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
-        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
-      });
-
-      await cli.executeCommand('discover', {});
-      
-      expect(mockAppAgent.discovery.discoverCRDs).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.fingerprintCluster).toHaveBeenCalled();
-    });
 
     test('should use workflow module for deployment orchestration', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
@@ -703,16 +527,15 @@ describe('CLI Interface', () => {
 
     test('should handle module interaction failures gracefully', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
+      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
       mockAppAgent.memory.storePattern.mockRejectedValue(new Error('Storage failed'));
 
-      const result = await cli.executeCommand('discover', { remember: true });
+      const result = await cli.executeCommand('deploy', { app: 'test-app', requirements: 'web server' });
       
-      // Should succeed with discovery but warn about memory failure
+      // Should succeed with deployment
       expect(result.success).toBe(true);
-      expect(result.warnings).toContain('Could not store discovery pattern');
+      expect(result.data).toHaveProperty('workflowId', 'workflow-123');
     });
   });
 
@@ -759,33 +582,10 @@ describe('CLI Interface', () => {
       });
 
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] },
-          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
-        ],
-        custom: []
-      });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
-        version: 'v1.29.0',
-        platform: 'vanilla-k8s',
-        nodeCount: 3,
-        namespaceCount: 4,
-        crdCount: 0,
-        capabilities: ['api-server', 'scheduler', 'controller-manager'],
-        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
-        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
-        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
-        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
-      });
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
+      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
-      const result = await configCli.executeCommand('discover', {});
+      const result = await configCli.executeCommand('deploy', { app: 'test-app', requirements: 'web server' });
       
       expect(result.success).toBe(true);
       // Should use YAML as default output format
@@ -793,36 +593,14 @@ describe('CLI Interface', () => {
 
     test('should support verbose mode for detailed output', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverCRDs.mockResolvedValue([
-        { name: 'deployments.apps', group: 'apps', version: 'v1', kind: 'Deployment', scope: 'Namespaced', versions: [], schema: {} }
-      ]);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Pod', name: 'pods', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Service', name: 'services', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'ConfigMap', name: 'configmaps', group: '', apiVersion: 'v1', namespaced: true, shortNames: [] },
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] },
-          { kind: 'StatefulSet', name: 'statefulsets', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
-        ],
-        custom: []
-      });
-      mockAppAgent.discovery.fingerprintCluster.mockResolvedValue({
-        version: 'v1.29.0',
-        platform: 'vanilla-k8s',
-        nodeCount: 3,
-        namespaceCount: 4,
-        crdCount: 0,
-        capabilities: ['api-server', 'scheduler', 'controller-manager'],
-        features: { deployments: 5, services: 10, pods: 15, configMaps: 8, secrets: 6 },
-        networking: { cni: 'flannel', serviceSubnet: '10.96.0.0/12', podSubnet: '10.244.0.0/16', dnsProvider: 'coredns' },
-        security: { rbacEnabled: true, podSecurityPolicy: false, networkPolicies: false, admissionControllers: [] },
-        storage: { storageClasses: ['standard'], persistentVolumes: 0, csiDrivers: [] }
-      });
+      mockAppAgent.workflow.initializeWorkflow.mockResolvedValue('workflow-123');
+      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
-      const result = await cli.executeCommand('discover', { verbose: true });
+      const result = await cli.executeCommand('deploy', { app: 'test-app', requirements: 'web server', verbose: true });
       
-      expect(result.data).toHaveProperty('details');
-      expect(result.data.details).toHaveProperty('timing');
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('workflowId', 'workflow-123');
+      expect(result.data).toHaveProperty('phase', 'Discovery');
     });
   });
 }); 

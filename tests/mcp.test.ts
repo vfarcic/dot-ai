@@ -72,16 +72,16 @@ describe('MCP Interface Layer', () => {
   describe('MCP Server Initialization', () => {
     test('should initialize MCPServer with correct configuration', () => {
       expect(mcpServer).toBeDefined();
-      expect(mcpServer.getToolCount()).toBe(4);
+      expect(mcpServer.getToolCount()).toBe(3);
     });
 
     test('should start in uninitialized state', () => {
       expect(mcpServer.isReady()).toBe(false);
     });
 
-    test('should expose exactly 4 MCP tools', () => {
+    test('should expose exactly 3 MCP tools', () => {
       const toolCount = mcpServer.getToolCount();
-      expect(toolCount).toBe(4);
+      expect(toolCount).toBe(3);
     });
 
     test('should accept AppAgent instance during construction', () => {
@@ -90,48 +90,6 @@ describe('MCP Interface Layer', () => {
   });
 
   describe('Tool Handler Functionality', () => {
-    test('should handle discover_cluster tool execution', async () => {
-      // Use direct method access to test without MCP protocol overhead
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
-      
-      const result = await handleDiscoverCluster({ deep_scan: false });
-
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].type).toBe('text');
-      
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData).toEqual(expect.objectContaining({
-        cluster: expect.objectContaining({
-          type: 'vanilla',
-          version: 'v1.29.0'
-        }),
-        resources: expect.objectContaining({
-          core: expect.arrayContaining(['Pod', 'Service']),
-          apps: expect.arrayContaining(['Deployment']),
-          custom: expect.any(Array)
-        }),
-        timestamp: expect.any(String)
-      }));
-
-      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.getClusterInfo).toHaveBeenCalled();
-    });
-
-    test('should handle discover_cluster with deep_scan option', async () => {
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
-      
-      const result = await handleDiscoverCluster({ deep_scan: true });
-
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.resources.custom).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          name: 'AppClaim',
-          group: 'app.io'
-        })
-      ]));
-
-      expect(mockAppAgent.discovery.discoverCRDs).toHaveBeenCalled();
-    });
 
     test('should handle deploy_application tool execution', async () => {
       const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
@@ -234,14 +192,6 @@ describe('MCP Interface Layer', () => {
   });
 
   describe('Initialization and State Management', () => {
-    test('should ensure AppAgent initialization before tool execution', async () => {
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
-      
-      await handleDiscoverCluster({ deep_scan: false });
-
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.connect).toHaveBeenCalled();
-    });
 
     test('should track initialization state', () => {
       expect(mcpServer.isReady()).toBe(false);
@@ -249,10 +199,10 @@ describe('MCP Interface Layer', () => {
     });
 
     test('should handle multiple tool calls with shared state', async () => {
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
+      const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
       const handleCheckStatus = (mcpServer as any).handleCheckStatus.bind(mcpServer);
       
-      await handleDiscoverCluster({ deep_scan: false });
+      await handleDeployApplication({ spec: 'Deploy nginx' });
       await handleCheckStatus({});
 
       // Should only initialize once
@@ -262,13 +212,6 @@ describe('MCP Interface Layer', () => {
   });
 
   describe('Error Handling', () => {
-    test('should handle discovery errors', async () => {
-      mockAppAgent.discovery.discoverResources.mockRejectedValueOnce(new Error('Cluster unreachable'));
-      
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
-      
-      await expect(handleDiscoverCluster({ deep_scan: false })).rejects.toThrow('Cluster unreachable');
-    });
 
     test('should handle workflow creation errors', async () => {
       mockAppAgent.workflow.createDeploymentWorkflow.mockRejectedValueOnce(new Error('Invalid specification'));
@@ -281,17 +224,17 @@ describe('MCP Interface Layer', () => {
     test('should handle initialization errors', async () => {
       mockAppAgent.initialize.mockRejectedValueOnce(new Error('Configuration error'));
       
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
+      const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
       
-      await expect(handleDiscoverCluster({ deep_scan: false })).rejects.toThrow('Configuration error');
+      await expect(handleDeployApplication({ spec: 'Deploy nginx' })).rejects.toThrow('Configuration error');
     });
   });
 
   describe('MCP Protocol Compliance', () => {
     test('should return properly formatted MCP responses', async () => {
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
+      const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
       
-      const result = await handleDiscoverCluster({ deep_scan: false });
+      const result = await handleDeployApplication({ spec: 'Deploy nginx' });
 
       // Verify MCP response structure
       expect(result).toEqual({
@@ -309,7 +252,6 @@ describe('MCP Interface Layer', () => {
 
     test('should handle all tool input schemas correctly', async () => {
       const testCases = [
-        { handler: 'handleDiscoverCluster', args: { deep_scan: true } },
         { handler: 'handleDeployApplication', args: { spec: 'nginx', namespace: 'test', interactive: false } },
         { handler: 'handleCheckStatus', args: { workflow_id: 'test-123' } },
         { handler: 'handleLearnPatterns', args: { pattern_type: 'service' } }
@@ -332,7 +274,6 @@ describe('MCP Interface Layer', () => {
 
     test('should include timestamps in all responses', async () => {
       const handlers = [
-        { method: 'handleDiscoverCluster', args: {} },
         { method: 'handleCheckStatus', args: {} },
         { method: 'handleLearnPatterns', args: {} }
       ];
@@ -354,16 +295,9 @@ describe('MCP Interface Layer', () => {
     });
 
     test('should call core module methods with correct parameters', async () => {
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
       const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
       
-      await handleDiscoverCluster({ deep_scan: true });
       await handleDeployApplication({ spec: 'nginx app', namespace: 'prod' });
-
-      // Verify discovery calls
-      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.getClusterInfo).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.discoverCRDs).toHaveBeenCalled();
 
       // Verify workflow calls
       expect(mockAppAgent.workflow.createDeploymentWorkflow).toHaveBeenCalledWith({
@@ -375,17 +309,14 @@ describe('MCP Interface Layer', () => {
 
     test('should maintain consistent behavior across interface types', async () => {
       // Test that MCP returns same data structure as CLI would expect
-      const handleDiscoverCluster = (mcpServer as any).handleDiscoverCluster.bind(mcpServer);
-      const result = await handleDiscoverCluster({ deep_scan: false });
+      const handleDeployApplication = (mcpServer as any).handleDeployApplication.bind(mcpServer);
+      const result = await handleDeployApplication({ spec: 'Deploy nginx' });
       
       const data = JSON.parse(result.content[0].text);
       
-      // Structure should match what CLI discovery command would return
-      expect(data.cluster).toBeDefined();
-      expect(data.resources).toBeDefined();
-      expect(data.resources.core).toBeInstanceOf(Array);
-      expect(data.resources.apps).toBeInstanceOf(Array);
-      expect(data.resources.custom).toBeInstanceOf(Array);
+      // Structure should match what CLI deployment command would return
+      expect(data.workflow_id).toBeDefined();
+      expect(data.status).toBeDefined();
     });
   });
 
@@ -400,7 +331,7 @@ describe('MCP Interface Layer', () => {
     });
 
     test('should provide tool count', () => {
-      expect(mcpServer.getToolCount()).toBe(4);
+      expect(mcpServer.getToolCount()).toBe(3);
     });
 
     test('should track ready state', () => {
