@@ -610,7 +610,6 @@ describe('CLI Interface', () => {
           reasons: ['test'],
           analysis: 'test analysis',
           resources: [],
-          dependencies: [],
           questions: {
             required: [],
             basic: [],

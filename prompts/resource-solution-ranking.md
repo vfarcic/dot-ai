@@ -19,12 +19,11 @@ For each solution, provide:
 1. A score from 0-100 for how well it meets the user's needs
 2. Specific reasons why this solution addresses the intent
 3. Whether it's a single resource or combination, and why
-4. Any dependencies or deployment considerations
-5. Production readiness and best practices
+4. Production readiness and best practices
 
 Consider:
 - Semantic meaning and typical use cases
-- Resource relationships and dependencies
+- Resource relationships and orchestration patterns
 - Complete end-to-end solutions vs partial solutions
 - Production patterns and best practices
 - **Custom Resource Definitions (CRDs)** that may provide simpler, higher-level abstractions
@@ -57,8 +56,7 @@ When evaluating CRDs vs standard Kubernetes resources:
       "score": 85,
       "description": "Brief description of this solution",
       "reasons": ["reason1", "reason2"],
-      "analysis": "Detailed explanation of why this solution meets the user's needs",
-      "dependencies": ["external dependency if any"]
+      "analysis": "Detailed explanation of why this solution meets the user's needs"
     }
   ]
 }

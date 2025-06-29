@@ -82,7 +82,6 @@ export interface ResourceSolution {
   description: string;
   reasons: string[];
   analysis: string;
-  dependencies: string[];
   questions: QuestionGroup;
 }
 
@@ -614,7 +613,6 @@ export class ResourceRecommender {
           description: solution.description,
           reasons: solution.reasons || [],
           analysis: solution.analysis || '',
-          dependencies: solution.dependencies || [],
           questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } }
         };
       });
