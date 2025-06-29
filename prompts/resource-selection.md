@@ -16,6 +16,8 @@ Select all resources that could be relevant for this intent. Consider:
 - Resource relationships and combinations
 - Production deployment patterns
 - Complex multi-component solutions
+- **Custom Resource Definitions (CRDs)** that might provide higher-level abstractions or simpler alternatives
+- Platform-specific resources (e.g., Crossplane, Knative, Istio, ArgoCD) that could simplify the deployment
 
 Don't limit yourself - if the intent is complex, select as many resources as needed.
 
@@ -46,4 +48,6 @@ IMPORTANT: Your response must be ONLY the JSON array, nothing else.
 - **Think holistically** - Consider complete solutions, not just individual components
 - **Consider dependencies** - If you select one resource, include its typical dependencies
 - **Include supporting resources** - ConfigMaps, Secrets, ServiceAccounts often needed
+- **Evaluate custom resources** - CRDs often provide simpler, higher-level interfaces than raw Kubernetes resources
+- **Don't assume user knowledge** - Users may not know about available platforms/operators in their cluster
 - **Use exact identifiers** - Include full apiVersion and group to avoid ambiguity

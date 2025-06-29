@@ -25,6 +25,13 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
+# Check if helm is available
+if ! command -v helm &> /dev/null; then
+    echo "❌ Error: helm is not installed"
+    echo "Please install helm: https://helm.sh/docs/intro/install/"
+    exit 1
+fi
+
 # Clean up any existing cluster with the same name
 echo "🧹 Cleaning up any existing cluster..."
 kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
@@ -41,6 +48,18 @@ kubectl cluster-info
 # Wait for all system pods to be ready
 echo "⏳ Waiting for system pods to be ready..."
 kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+
+# Install Crossplane
+echo "🔧 Installing Crossplane..."
+helm repo add crossplane-stable https://charts.crossplane.io/stable 2>/dev/null || true
+helm repo update
+helm install crossplane crossplane-stable/crossplane --namespace crossplane-system --create-namespace --kubeconfig "$KUBECONFIG_PATH" --wait
+
+# Apply Crossplane RBAC and providers
+echo "🔐 Setting up Crossplane RBAC and providers..."
+kubectl apply -f tests/fixtures/crossplane-rbac.yaml --kubeconfig "$KUBECONFIG_PATH"
+kubectl apply -f tests/fixtures/crossplane-providers.yaml --kubeconfig "$KUBECONFIG_PATH"
+kubectl apply -f tests/fixtures/crossplane-app-configuration.yaml --kubeconfig "$KUBECONFIG_PATH"
 
 echo "🎉 Kubernetes cluster setup complete!"
 echo "📁 Kubeconfig saved to: $KUBECONFIG_PATH"

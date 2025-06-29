@@ -1,0 +1,6 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: crossplane-app
+spec:
+  package: xpkg.upbound.io/devops-toolkit/dot-application:v0.7.41

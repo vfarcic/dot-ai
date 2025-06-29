@@ -26,7 +26,10 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
   const timeout = config?.timeout || 30000;
 
   try {
-    const { stdout, stderr } = await execAsync(command, { timeout });
+    const { stdout, stderr } = await execAsync(command, { 
+      timeout,
+      maxBuffer: 100 * 1024 * 1024  // 100MB buffer for large clusters with 1000+ CRDs
+    });
     if (stderr && !stderr.includes('Warning')) {
       throw new Error(`kubectl command failed: ${stderr}`);
     }

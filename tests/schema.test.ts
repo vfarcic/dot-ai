@@ -5,7 +5,7 @@
  * Following the same TDD methodology used in Task 2
  */
 
-import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, ValidationResult, ResourceSolution, AIRankingConfig } from '../src/core/schema';
+import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, ValidationResult, ResourceSolution, AIRankingConfig, Question, QuestionGroup, ClusterOptions } from '../src/core/schema';
 import { ResourceExplanation } from '../src/core/discovery';
 
 describe('ResourceSchema Interface and Core Types', () => {
@@ -328,13 +328,26 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
         ]
       });
 
-      // Mock fs.readFileSync for both prompt templates
+      // Mock kubectl for cluster discovery
+      const mockExecuteKubectl = jest.fn();
+      jest.doMock('../src/core/kubernetes-utils', () => ({
+        executeKubectl: mockExecuteKubectl
+      }));
+      
+      mockExecuteKubectl
+        .mockResolvedValueOnce('default') // namespaces
+        .mockResolvedValueOnce('') // storage classes
+        .mockResolvedValueOnce('') // ingress classes
+        .mockResolvedValueOnce('{"items":[]}'); // nodes
+
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}') // Phase 1 template
-        .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}'); // Phase 2 template
+        .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}') // Phase 2 template
+        .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock AI responses for both phases
+      // Mock AI responses for all three phases (selection, ranking, questions)
       mockClaudeIntegration.sendMessage
         .mockResolvedValueOnce({
           content: `\`\`\`json
@@ -364,17 +377,37 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
   ]
 }
 \`\`\``
+        })
+        .mockResolvedValueOnce({
+          content: `\`\`\`json
+{
+  "required": [{
+    "id": "container-image",
+    "question": "What container image do you want to deploy?",
+    "type": "text",
+    "validation": {"required": true}
+  }],
+  "basic": [],
+  "advanced": [],
+  "open": {
+    "question": "Any additional requirements?",
+    "placeholder": "Enter details..."
+  }
+}
+\`\`\``
         });
 
       const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
 
       expect(mockDiscoverResources).toHaveBeenCalledTimes(1);
       expect(mockExplainResource).toHaveBeenCalledWith('Pod');
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledTimes(2);
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledTimes(3);
       expect(solutions).toHaveLength(1);
       expect(solutions[0].type).toBe('single');
       expect(solutions[0].resources[0].kind).toBe('Pod');
       expect(solutions[0].score).toBe(85);
+      expect(solutions[0].questions).toBeDefined();
+      expect(solutions[0].questions.required).toHaveLength(1);
     });
 
     it('should handle CRD resources in two-phase approach', async () => {
@@ -621,5 +654,588 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
       )).toBeDefined();
     });
   });
+
+  describe('Resource Structure Normalization', () => {
+    it('should normalize standard resources and CRDs to consistent structure', async () => {
+      const intent = 'deploy web application';
+      
+      // Mock mixed resources - standard and CRDs with different structures
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          // Standard resource structure
+          { 
+            kind: 'Deployment', 
+            apiVersion: 'apps/v1', 
+            group: 'apps', 
+            namespaced: true 
+          },
+          // Core resource (no group)
+          { 
+            kind: 'Service', 
+            apiVersion: 'v1', 
+            group: '', 
+            namespaced: true 
+          }
+        ],
+        custom: [
+          // CRD structure (different properties)
+          { 
+            kind: 'AppClaim', 
+            group: 'devopstoolkit.live', 
+            version: 'v1alpha1', 
+            scope: 'Namespaced' 
+          },
+          // Another CRD with cluster scope
+          { 
+            kind: 'App', 
+            group: 'devopstoolkit.live', 
+            version: 'v1alpha1', 
+            scope: 'Cluster' 
+          }
+        ]
+      });
+
+      // Mock AI response that includes both standard and custom resources
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+          {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}
+        ]`
+      });
+
+      // Mock explanations for selected resources
+      mockExplainResource
+        .mockResolvedValueOnce({
+          kind: 'Deployment',
+          version: 'v1',
+          group: 'apps',
+          description: 'Deployment manages pods',
+          fields: [
+            { name: 'metadata', type: 'Object', description: 'Standard metadata', required: true },
+            { name: 'spec', type: 'Object', description: 'Deployment spec', required: true }
+          ]
+        })
+        .mockResolvedValueOnce({
+          kind: 'AppClaim',
+          version: 'v1alpha1', 
+          group: 'devopstoolkit.live',
+          description: 'AppClaim for application deployment',
+          fields: [
+            { name: 'metadata', type: 'Object', description: 'Standard metadata', required: true },
+            { name: 'spec', type: 'Object', description: 'App specification', required: true }
+          ]
+        });
+
+      // Mock final AI ranking response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "combination",
+            "score": 95,
+            "description": "Complete app deployment with AppClaim",
+            "resourceIndexes": [1],
+            "reasons": ["AppClaim provides simple app deployment"],
+            "analysis": "AppClaim simplifies application deployment",
+            "deploymentOrder": [1],
+            "dependencies": []
+          }]
+        }`
+      });
+
+      // Mock question generation response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      // Verify the solution includes the CRD (it references resource index 1 which is AppClaim)
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].type).toBe('combination');
+      expect(solutions[0].score).toBe(95);
+
+      // Verify AI received normalized resource summary in first call
+      const firstCall = mockClaudeIntegration.sendMessage.mock.calls[0][0];
+      
+      // Should contain normalized AppClaim with proper apiVersion format
+      expect(firstCall).toContain('AppClaim (devopstoolkit.live/v1alpha1)');
+      expect(firstCall).toContain('Group: devopstoolkit.live');
+      expect(firstCall).toContain('Namespaced: true');
+      
+      // Should contain normalized standard resources
+      expect(firstCall).toContain('Deployment (apps/v1)');
+      expect(firstCall).toContain('Service (v1)');
+    });
+
+    it('should handle CRDs without group in apiVersion format', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [],
+        custom: [
+          // CRD without group (core-like)
+          { 
+            kind: 'TestResource', 
+            group: '', 
+            version: 'v1', 
+            scope: 'Namespaced' 
+          }
+        ]
+      });
+
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[{"kind": "TestResource", "apiVersion": "v1", "group": ""}]`
+      });
+
+      mockExplainResource.mockResolvedValueOnce({
+        kind: 'TestResource',
+        version: 'v1',
+        group: '',
+        description: 'Test resource',
+        fields: []
+      });
+
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "score": 80,
+            "description": "Test resource solution",
+            "resourceIndexes": [0],
+            "reasons": ["TestResource for testing"],
+            "analysis": "Basic test resource",
+            "deploymentOrder": [0],
+            "dependencies": []
+          }]
+        }`
+      });
+
+      // Mock question generation response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      // Verify resource summary format for CRD without group
+      const firstCall = mockClaudeIntegration.sendMessage.mock.calls[0][0];
+      expect(firstCall).toContain('TestResource (v1)');
+      expect(firstCall).toContain('Group: core');
+    });
+
+    it('should include custom resources in general deployment intents without requiring platform knowledge', async () => {
+      const intent = 'deploy a web application'; // Generic intent, no mention of Crossplane
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true },
+          { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: [
+          { kind: 'AppClaim', group: 'devopstoolkit.live', version: 'v1alpha1', scope: 'Namespaced' }
+        ]
+      });
+
+      // Mock AI response that includes both standard and custom resources for general intent
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+          {"kind": "Service", "apiVersion": "v1", "group": ""},
+          {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}
+        ]`
+      });
+
+      // Mock explanations
+      mockExplainResource
+        .mockResolvedValueOnce({
+          kind: 'Deployment', version: 'v1', group: 'apps',
+          description: 'Deployment manages pods', fields: []
+        })
+        .mockResolvedValueOnce({
+          kind: 'Service', version: 'v1', group: '',
+          description: 'Service exposes apps', fields: []
+        })
+        .mockResolvedValueOnce({
+          kind: 'AppClaim', version: 'v1alpha1', group: 'devopstoolkit.live',
+          description: 'AppClaim provides simple app deployment', fields: []
+        });
+
+      // Mock ranking that prefers the simpler CRD approach
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "score": 90,
+            "description": "Simple application deployment using AppClaim",
+            "resourceIndexes": [2],
+            "reasons": ["AppClaim provides declarative app deployment", "Higher-level abstraction"],
+            "analysis": "AppClaim offers simpler deployment",
+            "deploymentOrder": [2],
+            "dependencies": []
+          }, {
+            "type": "combination", 
+            "score": 80,
+            "description": "Traditional Kubernetes deployment",
+            "resourceIndexes": [0, 1],
+            "reasons": ["Standard Kubernetes pattern"],
+            "analysis": "Traditional approach",
+            "deploymentOrder": [0, 1],
+            "dependencies": []
+          }]
+        }`
+      });
+
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      // Verify both traditional and CRD solutions are considered
+      expect(solutions).toHaveLength(2);
+      
+      // Verify CRD solution scored higher (90 vs 80)
+      const crdSolution = solutions.find(s => s.score === 90);
+      const traditionalSolution = solutions.find(s => s.score === 80);
+      
+      expect(crdSolution).toBeDefined();
+      expect(traditionalSolution).toBeDefined();
+
+      // Verify the prompt encourages considering CRDs for general intents
+      const firstCall = mockClaudeIntegration.sendMessage.mock.calls[0][0];
+      expect(firstCall).toContain('Custom Resource Definitions (CRDs)');
+      expect(firstCall).toContain('higher-level abstractions');
+      expect(firstCall).toContain('Don\'t assume user knowledge');
+    });
+  });
+});
+
+describe('Question Generation and Dynamic Discovery', () => {
+  let recommender: ResourceRecommender;
+  let config: AIRankingConfig;
+  let mockClaudeIntegration: any;
+  let mockDiscoverResources: jest.Mock;
+  let mockExplainResource: jest.Mock;
+
+  beforeEach(() => {
+    config = { claudeApiKey: 'test-key' };
+    
+    mockDiscoverResources = jest.fn();
+    mockExplainResource = jest.fn();
+
+    // Mock the Claude integration
+    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    mockClaudeIntegration = {
+      isInitialized: jest.fn().mockReturnValue(true),
+      sendMessage: jest.fn()
+    };
+    jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
+    jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockClaudeIntegration.sendMessage);
+
+    recommender = new ResourceRecommender(config);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('Question structure interfaces', () => {
+    it('should support Question interface with all required fields', () => {
+      const question: Question = {
+        id: 'test-question',
+        question: 'What is your application name?',
+        type: 'text',
+        placeholder: 'my-app',
+        validation: {
+          required: true,
+          pattern: '^[a-z0-9-]+$'
+        }
+      };
+
+      expect(question.id).toBe('test-question');
+      expect(question.type).toBe('text');
+      expect(question.validation?.required).toBe(true);
+    });
+
+    it('should support QuestionGroup interface with all categories', () => {
+      const questionGroup: QuestionGroup = {
+        required: [{
+          id: 'req-1',
+          question: 'Required question?',
+          type: 'text'
+        }],
+        basic: [{
+          id: 'basic-1',
+          question: 'Basic question?',
+          type: 'select',
+          options: ['option1', 'option2']
+        }],
+        advanced: [{
+          id: 'adv-1',
+          question: 'Advanced question?',
+          type: 'boolean'
+        }],
+        open: {
+          question: 'Any additional requirements?',
+          placeholder: 'Enter details...'
+        }
+      };
+
+      expect(questionGroup.required).toHaveLength(1);
+      expect(questionGroup.basic).toHaveLength(1);
+      expect(questionGroup.advanced).toHaveLength(1);
+      expect(questionGroup.open.question).toContain('additional');
+    });
+
+    it('should support ClusterOptions interface for dynamic discovery', () => {
+      const clusterOptions: ClusterOptions = {
+        namespaces: ['default', 'production', 'staging'],
+        storageClasses: ['gp2', 'fast-ssd'],
+        ingressClasses: ['nginx', 'traefik'],
+        nodeLabels: ['environment', 'node-type'],
+        serviceAccounts: {
+          'default': ['default'],
+          'production': ['app-service-account']
+        }
+      };
+
+      expect(clusterOptions.namespaces).toContain('default');
+      expect(clusterOptions.storageClasses).toContain('gp2');
+      expect(clusterOptions.ingressClasses).toContain('nginx');
+      expect(clusterOptions.nodeLabels).toContain('environment');
+    });
+  });
+
+  describe('Cluster options discovery', () => {
+    it('should discover cluster options and populate questions', async () => {
+      const intent = 'deploy a web application';
+      
+      // Mock discovery data
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true }
+        ],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Deployment',
+        version: 'v1',
+        group: 'apps',
+        description: 'Deployment enables declarative updates for Pods and ReplicaSets',
+        fields: [
+          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
+          { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
+        ]
+      });
+
+      // Mock kubectl commands for cluster discovery
+      const mockExecuteKubectl = jest.fn();
+      jest.doMock('../src/core/kubernetes-utils', () => ({
+        executeKubectl: mockExecuteKubectl
+      }));
+
+      mockExecuteKubectl
+        .mockResolvedValueOnce('default production staging') // namespaces
+        .mockResolvedValueOnce('gp2 fast-ssd') // storage classes
+        .mockResolvedValueOnce('nginx traefik') // ingress classes
+        .mockResolvedValueOnce(JSON.stringify({ // nodes
+          items: [{
+            metadata: {
+              labels: {
+                'kubernetes.io/hostname': 'node1',
+                'environment': 'production',
+                'node-type': 'worker'
+              }
+            }
+          }]
+        }));
+
+      // Mock filesystem for prompt loading
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue(
+        'User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'
+      );
+
+      // Mock AI response for both phases
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({
+          content: `[{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}]`
+        })
+        .mockResolvedValueOnce({
+          content: `{
+            "solutions": [{
+              "type": "single",
+              "resourceIndexes": [0],
+              "score": 85,
+              "description": "Simple deployment",
+              "reasons": ["Basic web app"],
+              "analysis": "Perfect for simple apps",
+              "deploymentOrder": [0],
+              "dependencies": []
+            }]
+          }`
+        })
+        .mockResolvedValueOnce({
+          content: `\`\`\`json
+          {
+            "required": [{
+              "id": "app-name",
+              "question": "What should we name your application?",
+              "type": "text",
+              "validation": {"required": true}
+            }],
+            "basic": [{
+              "id": "target-namespace",
+              "question": "Which namespace should we deploy to?",
+              "type": "select",
+              "options": ["default", "production", "staging"]
+            }],
+            "advanced": [{
+              "id": "resource-limits",
+              "question": "Do you need resource limits?",
+              "type": "boolean"
+            }],
+            "open": {
+              "question": "Any additional requirements?",
+              "placeholder": "Enter details..."
+            }
+          }
+          \`\`\``
+        });
+
+      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].questions).toBeDefined();
+      expect(solutions[0].questions.required).toHaveLength(1);
+      expect(solutions[0].questions.basic).toHaveLength(1);
+      expect(solutions[0].questions.advanced).toHaveLength(1);
+      expect(solutions[0].questions.open.question).toContain('additional');
+      
+      // Verify cluster options were used in questions
+      const namespaceQuestion = solutions[0].questions.basic.find(q => q.id === 'target-namespace');
+      expect(namespaceQuestion?.options).toEqual(['default', 'production', 'staging']);
+    });
+
+    it('should handle kubectl discovery failures gracefully', async () => {
+      const intent = 'deploy a simple app';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
+        version: 'v1',
+        group: '',
+        description: 'Pod description',
+        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
+      });
+
+      // Mock kubectl failures
+      const mockExecuteKubectl = jest.fn().mockRejectedValue(new Error('kubectl not found'));
+      jest.doMock('../src/core/kubernetes-utils', () => ({
+        executeKubectl: mockExecuteKubectl
+      }));
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('template content {intent} {solution_description} {resource_details} {cluster_options}');
+
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
+        .mockResolvedValueOnce({
+          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+        })
+        .mockResolvedValueOnce({
+          content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "fallback", "placeholder": "fallback"}}`
+        });
+
+      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].questions).toBeDefined();
+      // Should still work with fallback questions
+    });
+
+    it('should handle AI question generation failures gracefully', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
+        version: 'v1',
+        group: '',
+        description: 'Pod description',
+        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
+      });
+
+      const mockExecuteKubectl = jest.fn().mockResolvedValue('default');
+      jest.doMock('../src/core/kubernetes-utils', () => ({
+        executeKubectl: mockExecuteKubectl
+      }));
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('template');
+
+      // AI succeeds for solution ranking but fails for question generation
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
+        .mockResolvedValueOnce({
+          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+        })
+        .mockRejectedValueOnce(new Error('AI service unavailable'));
+
+      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].questions).toBeDefined();
+      expect(solutions[0].questions.open.question).toContain('requirements or constraints');
+      // Should use fallback questions when AI fails
+    });
+  });
+
+  describe('Solution ID generation', () => {
+    it('should generate unique solution IDs', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
+        version: 'v1',
+        group: '',
+        description: 'Pod description',
+        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
+      });
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('template');
+
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
+        .mockResolvedValueOnce({
+          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+        })
+        .mockResolvedValueOnce({
+          content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+        });
+
+      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].id).toBeDefined();
+      expect(solutions[0].id).toMatch(/^sol-\d+-[a-z0-9]+$/);
+    });
+  });
+
 });
 

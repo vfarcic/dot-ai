@@ -17,6 +17,7 @@ build/
 .env.production.local
 config/default.yaml
 config/local.yaml
+tmp/
 
 # Runtime data
 data/lessons.json

@@ -367,9 +367,11 @@ export class KubernetesDiscovery {
             name: v.name,
             served: v.served,
             storage: v.storage,
-            schema: v.schema?.openAPIV3Schema
+            // Don't load schema here - use lazy loading when needed
+            schema: undefined
           })),
-          schema: versions.find((v: any) => v.schema)?.schema?.openAPIV3Schema || {}
+          // Don't load schema here - use lazy loading when needed
+          schema: {}
         };
       });
 

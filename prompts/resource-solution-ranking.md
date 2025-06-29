@@ -27,7 +27,9 @@ Consider:
 - Resource relationships and dependencies
 - Complete end-to-end solutions vs partial solutions
 - Production patterns and best practices
-- Custom Resource Definitions (CRDs) and their purposes
+- **Custom Resource Definitions (CRDs)** that may provide simpler, higher-level abstractions
+- Platform operators (Crossplane, Knative, etc.) that might offer better user experience
+- User experience - simpler declarative approaches often score higher than complex multi-resource solutions
 
 ## Response Format
 

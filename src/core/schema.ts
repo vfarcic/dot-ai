@@ -50,7 +50,32 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+export interface Question {
+  id: string;
+  question: string;
+  type: 'text' | 'select' | 'multiselect' | 'boolean' | 'number';
+  options?: string[];
+  placeholder?: string;
+  validation?: {
+    required?: boolean;
+    min?: number;
+    max?: number;
+    pattern?: string;
+  };
+}
+
+export interface QuestionGroup {
+  required: Question[];
+  basic: Question[];
+  advanced: Question[];
+  open: {
+    question: string;
+    placeholder: string;
+  };
+}
+
 export interface ResourceSolution {
+  id: string;
   type: 'single' | 'combination';
   resources: ResourceSchema[];
   score: number;
@@ -59,6 +84,7 @@ export interface ResourceSolution {
   analysis: string;
   deploymentOrder: number[];
   dependencies: string[];
+  questions: QuestionGroup;
 }
 
 export interface AIRankingConfig {
@@ -68,6 +94,14 @@ export interface AIRankingConfig {
 export interface DiscoveryFunctions {
   discoverResources: () => Promise<any>;
   explainResource: (resource: string) => Promise<any>;
+}
+
+export interface ClusterOptions {
+  namespaces: string[];
+  storageClasses: string[];
+  ingressClasses: string[];
+  nodeLabels: string[];
+  serviceAccounts?: { [namespace: string]: string[] };
 }
 
 /**
@@ -341,10 +375,26 @@ export class ResourceRecommender {
    * Phase 1: AI selects promising resource candidates from lightweight list
    */
   private async selectResourceCandidates(intent: string, resources: any[]): Promise<any[]> {
-    const resourceSummary = resources.map((resource, index) => 
-      `${index}: ${resource.kind} (${resource.apiVersion || (resource.group ? `${resource.group}/${resource.version}` : resource.version)})
+    // Normalize resource structures between standard resources and CRDs
+    const normalizedResources = resources.map(resource => {
+      // Handle both standard resources and CRDs
+      const apiVersion = resource.apiVersion || 
+                        (resource.group ? `${resource.group}/${resource.version}` : resource.version);
+      const isNamespaced = resource.namespaced !== undefined ? 
+                          resource.namespaced : 
+                          resource.scope === 'Namespaced';
+      
+      return {
+        ...resource,
+        apiVersion,
+        namespaced: isNamespaced
+      };
+    });
+
+    const resourceSummary = normalizedResources.map((resource, index) => 
+      `${index}: ${resource.kind} (${resource.apiVersion})
    Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced || resource.scope === 'Namespaced'}`
+   Namespaced: ${resource.namespaced}`
     ).join('\n\n');
 
     const fs = await import('fs');
@@ -417,7 +467,14 @@ export class ResourceRecommender {
   private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[]): Promise<ResourceSolution[]> {
     const prompt = await this.loadPromptTemplate(intent, schemas);
     const response = await this.claudeIntegration.sendMessage(prompt);
-    return this.parseAISolutionResponse(response.content, schemas);
+    const solutions = this.parseAISolutionResponse(response.content, schemas);
+    
+    // Generate AI-powered questions for each solution
+    for (const solution of solutions) {
+      solution.questions = await this.generateQuestionsWithAI(intent, solution);
+    }
+    
+    return solutions;
   }
 
   /**
@@ -462,6 +519,7 @@ export class ResourceRecommender {
         }
         
         return {
+          id: `sol-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           type: solution.type,
           resources,
           score: solution.score,
@@ -469,7 +527,8 @@ export class ResourceRecommender {
           reasons: solution.reasons || [],
           analysis: solution.analysis || '',
           deploymentOrder: solution.deploymentOrder || solution.resourceIndexes,
-          dependencies: solution.dependencies || []
+          dependencies: solution.dependencies || [],
+          questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } }
         };
       });
 
@@ -478,6 +537,148 @@ export class ResourceRecommender {
       
     } catch (error) {
       throw new Error(`Failed to parse AI solution response: ${error}`);
+    }
+  }
+
+  /**
+   * Discover cluster options for dynamic question generation
+   */
+  private async discoverClusterOptions(): Promise<ClusterOptions> {
+    try {
+      const { executeKubectl } = await import('./kubernetes-utils');
+      
+      // Discover namespaces
+      const namespacesResult = await executeKubectl(['get', 'namespaces', '-o', 'jsonpath={.items[*].metadata.name}']);
+      const namespaces = namespacesResult.split(/\s+/).filter(Boolean);
+
+      // Discover storage classes
+      let storageClasses: string[] = [];
+      try {
+        const storageResult = await executeKubectl(['get', 'storageclass', '-o', 'jsonpath={.items[*].metadata.name}']);
+        storageClasses = storageResult.split(/\s+/).filter(Boolean);
+      } catch {
+        // Storage classes might not be available in all clusters
+        storageClasses = [];
+      }
+
+      // Discover ingress classes
+      let ingressClasses: string[] = [];
+      try {
+        const ingressResult = await executeKubectl(['get', 'ingressclass', '-o', 'jsonpath={.items[*].metadata.name}']);
+        ingressClasses = ingressResult.split(/\s+/).filter(Boolean);
+      } catch {
+        // Ingress classes might not be available
+        ingressClasses = [];
+      }
+
+      // Get common node labels
+      let nodeLabels: string[] = [];
+      try {
+        const nodesResult = await executeKubectl(['get', 'nodes', '-o', 'json']);
+        const nodes = JSON.parse(nodesResult);
+        const labelSet = new Set<string>();
+        
+        nodes.items?.forEach((node: any) => {
+          Object.keys(node.metadata?.labels || {}).forEach(label => {
+            if (!label.startsWith('kubernetes.io/') && !label.startsWith('node.kubernetes.io/')) {
+              labelSet.add(label);
+            }
+          });
+        });
+        
+        nodeLabels = Array.from(labelSet);
+      } catch {
+        nodeLabels = [];
+      }
+
+      return {
+        namespaces,
+        storageClasses,
+        ingressClasses,
+        nodeLabels
+      };
+    } catch (error) {
+      console.warn('Failed to discover cluster options, using defaults:', error);
+      return {
+        namespaces: ['default'],
+        storageClasses: [],
+        ingressClasses: [],
+        nodeLabels: []
+      };
+    }
+  }
+
+  /**
+   * Generate contextual questions using AI based on user intent and solution resources
+   */
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution): Promise<QuestionGroup> {
+    try {
+      // Discover cluster options for dynamic questions
+      const clusterOptions = await this.discoverClusterOptions();
+
+      // Format resource details for the prompt
+      const resourceDetails = solution.resources.map(resource => {
+        const properties = Array.from(resource.properties.entries()).map(([key, field]) => {
+          const nestedFields = Array.from(field.nested.entries()).map(([nestedKey, nestedField]) => 
+            `    ${nestedKey}: ${nestedField.type} - ${nestedField.description}`
+          ).join('\n');
+          
+          return `  ${key}: ${field.type} - ${field.description}${field.required ? ' (required)' : ''}${nestedFields ? '\n' + nestedFields : ''}`;
+        }).join('\n');
+
+        return `${resource.kind} (${resource.apiVersion}):
+  Description: ${resource.description}
+  Required fields: ${resource.required.join(', ')}
+  Properties:
+${properties}`;
+      }).join('\n\n');
+
+      // Format cluster options for the prompt
+      const clusterOptionsText = `Available Namespaces: ${clusterOptions.namespaces.join(', ')}
+Available Storage Classes: ${clusterOptions.storageClasses.length > 0 ? clusterOptions.storageClasses.join(', ') : 'None discovered'}
+Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterOptions.ingressClasses.join(', ') : 'None discovered'}
+Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
+
+      // Load and format the question generation prompt
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const promptPath = path.join(process.cwd(), 'prompts', 'question-generation.md');
+      const template = fs.readFileSync(promptPath, 'utf8');
+      
+      const questionPrompt = template
+        .replace('{intent}', intent)
+        .replace('{solution_description}', solution.description)
+        .replace('{resource_details}', resourceDetails)
+        .replace('{cluster_options}', clusterOptionsText);
+
+      const response = await this.claudeIntegration.sendMessage(questionPrompt);
+      
+      // Extract JSON from response
+      const jsonMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || [null, response.content];
+      const jsonContent = jsonMatch[1] || response.content;
+      
+      const questions = JSON.parse(jsonContent);
+      
+      // Validate the response structure
+      if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {
+        throw new Error('Invalid question structure from AI');
+      }
+      
+      return questions as QuestionGroup;
+    } catch (error) {
+      console.warn(`Failed to generate AI questions for solution ${solution.id}: ${error}`);
+      
+      // Fallback to basic open question
+      return {
+        required: [],
+        basic: [],
+        advanced: [],
+        open: {
+          question: "Is there anything else about your requirements or constraints that would help us provide better recommendations?",
+          placeholder: "e.g., specific security requirements, performance needs, existing infrastructure constraints..."
+        }
+      };
     }
   }
 } 

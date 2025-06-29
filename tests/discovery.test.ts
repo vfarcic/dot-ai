@@ -335,6 +335,7 @@ describe('Kubernetes Discovery Module', () => {
       // Mock empty getAPIResources response
       const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue([]);
       const discoverCRDDetailsSpy = jest.spyOn(discovery, 'discoverCRDDetails').mockResolvedValue([]);
+      const discoverCRDsSpy = jest.spyOn(discovery, 'discoverCRDs').mockResolvedValue([]);
       
       const resources = await discovery.discoverResources();
       
@@ -344,6 +345,7 @@ describe('Kubernetes Discovery Module', () => {
       
       getAPIResourcesSpy.mockRestore();
       discoverCRDDetailsSpy.mockRestore();
+      discoverCRDsSpy.mockRestore();
     });
 
     test('should not contain hardcoded resource filtering logic', async () => {
@@ -547,7 +549,7 @@ describe('Kubernetes Discovery Module', () => {
           
           // API version should be properly formatted
           expect(typeof resource.apiVersion).toBe('string');
-          expect(resource.apiVersion).toMatch(/^(v\d+|[\w.-]+\/v\d+)$/);
+          expect(resource.apiVersion).toMatch(/^(v\d+|[\w.-]+\/v\d+\w*)$/);
           
           // Group should be a string (empty for core resources)
           expect(typeof resource.group).toBe('string');

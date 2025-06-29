@@ -308,16 +308,38 @@ export class CliInterface {
         };
       }
 
-      // Initialize AI-powered ResourceRanker
+      // Show progress for long-running AI operations
+      this.showProgress('🔍 Analyzing your intent and discovering cluster resources...');
+
+      // Initialize AI-powered ResourceRecommender
       const rankingConfig: AIRankingConfig = { claudeApiKey };
       const recommender = new ResourceRecommender(rankingConfig);
 
-      // Create discovery functions
-      const discoverResourcesFn = () => this.appAgent.discovery.discoverResources();
-      const explainResourceFn = (resource: string) => this.appAgent.discovery.explainResource(resource);
+      // Create discovery functions with progress callbacks
+      const discoverResourcesFn = async () => {
+        this.showProgress('🔍 Discovering available Kubernetes resources...');
+        return await this.appAgent.discovery.discoverResources();
+      };
+      
+      const explainResourceFn = async (resource: string) => {
+        this.showProgress(`📋 Analyzing ${resource} schema and capabilities...`);
+        return await this.appAgent.discovery.explainResource(resource);
+      };
+
+      this.showProgress('🤖 AI is selecting the best resources for your intent...');
 
       // Find best solutions for the user intent using functional approach
-      const solutions = await recommender.findBestSolutions(options.intent, discoverResourcesFn, explainResourceFn);
+      const solutions = await this.findBestSolutionsWithProgress(
+        recommender, 
+        options.intent, 
+        discoverResourcesFn, 
+        explainResourceFn
+      );
+
+      this.showProgress('✅ Recommendation complete!');
+      // Small delay to show completion message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.clearProgress();
 
       return {
         success: true,
@@ -329,7 +351,7 @@ export class CliInterface {
             description: solution.description,
             reasons: solution.reasons,
             analysis: solution.analysis,
-            resources: solution.resources.map(r => ({
+            resources: solution.resources.map((r: any) => ({
               kind: r.kind,
               apiVersion: r.apiVersion,
               group: r.group,
@@ -347,6 +369,9 @@ export class CliInterface {
         }
       };
     } catch (error) {
+      // Give a moment for user to see progress before clearing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.clearProgress(); // Clear progress indicators on error
       return {
         success: false,
         error: `AI-powered recommendations failed: ${(error as Error).message}`
@@ -451,6 +476,8 @@ export class CliInterface {
   }
 
   private handleError(error: any, _command: string): CliResult {
+    this.clearProgress(); // Clear any progress indicators on error
+    
     let errorMessage = (error as Error).message;
     
     // Provide helpful error messages for common issues
@@ -464,6 +491,58 @@ export class CliInterface {
       success: false,
       error: errorMessage
     };
+  }
+
+  /**
+   * Show progress message to user during long-running operations
+   */
+  private showProgress(message: string): void {
+    // Only show progress if output is going to console (not when piped or in JSON mode)
+    if (process.stdout.isTTY) {
+      process.stderr.write(`\r\x1b[K${message}`);
+    }
+  }
+
+  /**
+   * Clear progress indicators
+   */
+  private clearProgress(): void {
+    if (process.stdout.isTTY) {
+      process.stderr.write('\r\x1b[K');
+    }
+  }
+
+  /**
+   * Find best solutions with detailed progress feedback
+   */
+  private async findBestSolutionsWithProgress(
+    recommender: ResourceRecommender,
+    intent: string,
+    discoverResourcesFn: () => Promise<any>,
+    explainResourceFn: (resource: string) => Promise<any>
+  ): Promise<any[]> {
+    this.showProgress('🤖 AI is analyzing your intent...');
+    
+    // Start a timer to show elapsed time
+    const startTime = Date.now();
+    const progressInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      this.showProgress(`🤖 AI analysis in progress... (${elapsed}s)`);
+    }, 3000);
+
+    try {
+      // The ResourceRecommender handles the three phases internally:
+      // 1. Resource discovery and selection
+      // 2. Schema fetching and ranking  
+      // 3. Question generation
+      const solutions = await recommender.findBestSolutions(intent, discoverResourcesFn, explainResourceFn);
+      
+      clearInterval(progressInterval);
+      return solutions;
+    } catch (error) {
+      clearInterval(progressInterval);
+      throw error;
+    }
   }
 
   // CLI entry point
