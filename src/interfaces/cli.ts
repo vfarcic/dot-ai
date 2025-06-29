@@ -7,9 +7,8 @@
 import { Command } from 'commander';
 import { AppAgent } from '../core';
 import * as yaml from 'js-yaml';
-import * as fs from 'fs';
 import Table from 'cli-table3';
-import { SchemaParser, ManifestValidator, ResourceRanker, AIRankingConfig } from '../core/schema';
+import { ResourceRecommender, AIRankingConfig } from '../core/schema';
 
 export interface CliResult {
   success: boolean;
@@ -90,19 +89,14 @@ export class CliInterface {
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
 
-    // Schema command
+    // Recommend command
     this.program
-      .command('schema')
-      .description('Parse and display resource schema information with AI-powered ranking')
-      .option('--resource <name>', 'Resource name to get schema for (e.g., deployment, pod)')
-      .option('--api-version <version>', 'API version (e.g., apps/v1, v1). If not specified, will show available versions')
-      .option('--list-versions', 'List all available API versions for the resource')
-      .option('--validate <file>', 'Validate a YAML manifest file against the resource schema')
-      .option('--rank', 'Enable AI-powered resource ranking and recommendation')
-      .option('--intent <description>', 'Describe your intent for AI-powered resource recommendations (required with --rank)')
+      .command('recommend')
+      .description('Get AI-powered Kubernetes resource recommendations based on your intent')
+      .requiredOption('--intent <description>', 'Describe what you want to deploy or accomplish')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
-        const result = await this.executeCommand('schema', options);
+        const result = await this.executeCommand('recommend', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
   }
@@ -189,8 +183,8 @@ export class CliInterface {
         return [...commonOptions, 'deployment'];
       case 'learn':
         return [...commonOptions, 'pattern'];
-      case 'schema':
-        return [...commonOptions, 'resource', 'api-version', 'list-versions', 'validate', 'rank', 'intent'];
+      case 'recommend':
+        return [...commonOptions, 'intent'];
       default:
         return commonOptions;
     }
@@ -208,8 +202,8 @@ export class CliInterface {
           return await this.handleStatusCommand(options);
         case 'learn':
           return await this.handleLearnCommand(options);
-        case 'schema':
-          return await this.handleSchemaCommand(options);
+        case 'recommend':
+          return await this.handleRecommendCommand(options);
         default:
           return {
             success: false,
@@ -303,333 +297,59 @@ export class CliInterface {
     }
   }
 
-  private async handleSchemaCommand(options: Record<string, any>): Promise<CliResult> {
+  private async handleRecommendCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const parser = new SchemaParser();
-      
-      // Handle validation if --validate option is provided
-      if (options.validate) {
-        if (!options.resource) {
-          return {
-            success: false,
-            error: 'Resource type must be specified with --resource when using --validate'
-          };
-        }
-
-        // Read and parse the manifest file
-        let manifestContent: any;
-        try {
-          const fileContent = fs.readFileSync(options.validate, 'utf8');
-          manifestContent = yaml.load(fileContent);
-        } catch (error) {
-          return {
-            success: false,
-            error: `Failed to read or parse manifest file: ${(error as Error).message}`
-          };
-        }
-
-        // Get the resource schema
-        let targetApiVersion = options.apiVersion;
-        
-        if (!targetApiVersion) {
-          // Try to get API version from the manifest
-          if (manifestContent && manifestContent.apiVersion) {
-            targetApiVersion = manifestContent.apiVersion;
-          } else {
-            // If no API version specified, try to find the resource
-            const resources = await this.appAgent.discovery.discoverResources();
-            const allResources = [...resources.resources, ...resources.custom];
-            
-            const matchingResources = allResources.filter(r => 
-              r.name.toLowerCase() === options.resource.toLowerCase() ||
-              r.kind.toLowerCase() === options.resource.toLowerCase()
-            );
-
-            if (matchingResources.length === 0) {
-              return {
-                success: false,
-                error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
-              };
-            }
-
-            if (matchingResources.length > 1) {
-              return {
-                success: false,
-                error: `Multiple API versions found for '${options.resource}'. Please specify --api-version <version>.`
-              };
-            }
-
-            const resource = matchingResources[0];
-            if ('apiVersion' in resource) {
-              targetApiVersion = resource.apiVersion;
-            } else {
-              targetApiVersion = resource.group ? `${resource.group}/${resource.version}` : resource.version;
-            }
-          }
-        }
-
-        // Get resource explanation and parse schema
-        const explanation = await this.appAgent.discovery.explainResource(options.resource, targetApiVersion);
-        const schema = parser.parseResourceExplanation(explanation);
-
-        // Validate the manifest using dry-run approach
-        const validator = new ManifestValidator();
-        let validationResult;
-        
-        // Get the kubeconfig from the AppAgent's configuration
-        const kubeconfigPath = (this.appAgent as any).config?.kubernetesConfig;
-        
-        // Try server-side dry-run first (more accurate)
-        validationResult = await validator.validateManifest(options.validate, { 
-          dryRunMode: 'server',
-          kubeconfig: kubeconfigPath 
-        });
-        
-        // If server-side validation failed due to connection issues, try client-side
-        if (!validationResult.valid && validationResult.errors.length > 0) {
-          const errorMessage = validationResult.errors[0];
-          if (errorMessage.includes('connection refused') || errorMessage.includes('timeout') || errorMessage.includes('Connection timeout')) {
-            console.warn('Server-side validation failed, falling back to client-side validation...');
-            validationResult = await validator.validateManifest(options.validate, { 
-              dryRunMode: 'client',
-              kubeconfig: kubeconfigPath 
-            });
-          }
-        }
-
-        return {
-          success: validationResult.valid,
-          data: {
-            file: options.validate,
-            resource: options.resource,
-            apiVersion: targetApiVersion,
-            validation: {
-              valid: validationResult.valid,
-              errors: validationResult.errors,
-              warnings: validationResult.warnings
-            },
-            summary: {
-              totalErrors: validationResult.errors.length,
-              totalWarnings: validationResult.warnings.length,
-              manifestKind: manifestContent?.kind,
-              manifestApiVersion: manifestContent?.apiVersion
-            }
-          },
-          warnings: validationResult.warnings
-        };
-      }
-
-      // Handle list versions if requested
-      if (options.listVersions) {
-        if (!options.resource) {
-          return {
-            success: false,
-            error: 'Resource must be specified with --resource when using --list-versions'
-          };
-        }
-
-        const resources = await this.appAgent.discovery.discoverResources();
-        const allResources = [...resources.resources, ...resources.custom];
-        
-        const matchingResources = allResources.filter(r => 
-          r.name.toLowerCase() === options.resource.toLowerCase() ||
-          r.kind.toLowerCase() === options.resource.toLowerCase()
-        );
-
-        if (matchingResources.length === 0) {
-          return {
-            success: false,
-            error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
-          };
-        }
-
-        return {
-          success: true,
-          data: {
-            resource: options.resource,
-            versions: matchingResources.map(r => {
-              if ('apiVersion' in r) {
-                return {
-                  apiVersion: r.apiVersion,
-                  kind: r.kind,
-                  group: r.group || 'core',
-                  namespaced: r.namespaced
-                };
-              } else {
-                return {
-                  apiVersion: r.group ? `${r.group}/${r.version}` : r.version,
-                  kind: r.kind,
-                  group: r.group || 'core',
-                  namespaced: r.scope === 'Namespaced'
-                };
-              }
-            })
-          }
-        };
-      }
-
-      // Handle ranking if --rank option is provided (before resource validation)
-      if (options.rank) {
-        if (!options.intent) {
-          return {
-            success: false,
-            error: 'Intent must be specified with --intent when using --rank option'
-          };
-        }
-
-        // Get Claude API key from environment
-        const claudeApiKey = process.env.ANTHROPIC_API_KEY;
-        if (!claudeApiKey) {
-          return {
-            success: false,
-            error: 'ANTHROPIC_API_KEY environment variable must be set for AI-powered resource ranking'
-          };
-        }
-
-        try {
-          // Initialize AI-powered ResourceRanker
-          const rankingConfig: AIRankingConfig = { claudeApiKey };
-          const ranker = new ResourceRanker(rankingConfig);
-
-          // Create discovery functions
-          const discoverResourcesFn = () => this.appAgent.discovery.discoverResources();
-          const explainResourceFn = (resource: string) => this.appAgent.discovery.explainResource(resource);
-
-          // Find best solutions for the user intent using functional approach
-          const solutions = await ranker.findBestSolutions(options.intent, discoverResourcesFn, explainResourceFn);
-
-          return {
-            success: true,
-            data: {
-              intent: options.intent,
-              solutions: solutions.map(solution => ({
-                type: solution.type,
-                score: solution.score,
-                description: solution.description,
-                reasons: solution.reasons,
-                analysis: solution.analysis,
-                resources: solution.resources.map(r => ({
-                  kind: r.kind,
-                  apiVersion: r.apiVersion,
-                  group: r.group,
-                  description: r.description
-                })),
-                deploymentOrder: solution.deploymentOrder,
-                dependencies: solution.dependencies
-              })),
-              summary: {
-                totalSolutions: solutions.length,
-                bestScore: solutions[0]?.score || 0,
-                recommendedSolution: solutions[0]?.type || 'none',
-                topResource: solutions[0]?.resources[0]?.kind || 'none'
-              }
-            }
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: `AI-powered ranking failed: ${(error as Error).message}`
-          };
-        }
-      }
-
-      // Handle regular schema parsing
-      if (!options.resource) {
+      // Get Claude API key from environment
+      const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+      if (!claudeApiKey) {
         return {
           success: false,
-          error: 'Resource must be specified with --resource option'
+          error: 'ANTHROPIC_API_KEY environment variable must be set for AI-powered resource recommendations'
         };
       }
 
-      // Determine which API version to use
-      let targetApiVersion = options.apiVersion;
-      
-      if (!targetApiVersion) {
-        // If no API version specified, try to find the resource and suggest versions
-        const resources = await this.appAgent.discovery.discoverResources();
-        const allResources = [...resources.resources, ...resources.custom];
-        
-        const matchingResources = allResources.filter(r => 
-          r.name.toLowerCase() === options.resource.toLowerCase() ||
-          r.kind.toLowerCase() === options.resource.toLowerCase()
-        );
+      // Initialize AI-powered ResourceRanker
+      const rankingConfig: AIRankingConfig = { claudeApiKey };
+      const recommender = new ResourceRecommender(rankingConfig);
 
-        if (matchingResources.length === 0) {
-          return {
-            success: false,
-            error: `No resources found matching '${options.resource}'. Check cluster connectivity and resource name.`
-          };
-        }
+      // Create discovery functions
+      const discoverResourcesFn = () => this.appAgent.discovery.discoverResources();
+      const explainResourceFn = (resource: string) => this.appAgent.discovery.explainResource(resource);
 
-        if (matchingResources.length > 1) {
-          return {
-            success: false,
-            error: `Multiple API versions found for '${options.resource}':\n${
-              matchingResources.map(r => {
-                if ('apiVersion' in r) {
-                  // EnhancedResource
-                  return `  - ${r.apiVersion} (${r.kind})`;
-                } else {
-                  // EnhancedCRD
-                  return `  - ${r.group ? `${r.group}/${r.version}` : r.version} (${r.kind})`;
-                }
-              }).join('\n')
-            }\nPlease specify --api-version <version> or use --list-versions to see all options.`
-          };
-        }
-
-        // Use the single matching resource
-        const resource = matchingResources[0];
-        if ('apiVersion' in resource) {
-          // EnhancedResource
-          targetApiVersion = resource.apiVersion;
-        } else {
-          // EnhancedCRD
-          targetApiVersion = resource.group ? `${resource.group}/${resource.version}` : resource.version;
-        }
-      }
-
-      // Get resource explanation using the discovery engine
-      const explanation = await this.appAgent.discovery.explainResource(options.resource, targetApiVersion);
-      
-      // Parse the explanation into a structured schema
-      const schema = parser.parseResourceExplanation(explanation);
-
-      // Convert Map to Object for JSON serialization
-      const serializableSchema = {
-        ...schema,
-        properties: Object.fromEntries(
-          Array.from(schema.properties.entries()).map(([key, field]) => [
-            key,
-            {
-              ...field,
-              nested: Object.fromEntries(field.nested)
-            }
-          ])
-        )
-      };
+      // Find best solutions for the user intent using functional approach
+      const solutions = await recommender.findBestSolutions(options.intent, discoverResourcesFn, explainResourceFn);
 
       return {
         success: true,
         data: {
-          resource: options.resource,
-          apiVersion: targetApiVersion,
-          schema: serializableSchema,
+          intent: options.intent,
+          solutions: solutions.map(solution => ({
+            type: solution.type,
+            score: solution.score,
+            description: solution.description,
+            reasons: solution.reasons,
+            analysis: solution.analysis,
+            resources: solution.resources.map(r => ({
+              kind: r.kind,
+              apiVersion: r.apiVersion,
+              group: r.group,
+              description: r.description
+            })),
+            deploymentOrder: solution.deploymentOrder,
+            dependencies: solution.dependencies
+          })),
           summary: {
-            kind: schema.kind,
-            apiVersion: schema.apiVersion,
-            group: schema.group,
-            version: schema.version,
-            propertyCount: schema.properties.size,
-            requiredFields: schema.required.length,
-            namespaced: schema.namespace
+            totalSolutions: solutions.length,
+            bestScore: solutions[0]?.score || 0,
+            recommendedSolution: solutions[0]?.type || 'none',
+            topResource: solutions[0]?.resources[0]?.kind || 'none'
           }
         }
       };
     } catch (error) {
       return {
         success: false,
-        error: `Schema parsing failed: ${(error as Error).message}`
+        error: `AI-powered recommendations failed: ${(error as Error).message}`
       };
     }
   }

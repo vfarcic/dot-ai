@@ -5,7 +5,7 @@
  * Following the same TDD methodology used in Task 2
  */
 
-import { SchemaParser, ResourceSchema, SchemaField, ResourceRanker, ValidationResult, ResourceSolution, AIRankingConfig } from '../src/core/schema';
+import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, ValidationResult, ResourceSolution, AIRankingConfig } from '../src/core/schema';
 import { ResourceExplanation } from '../src/core/discovery';
 
 describe('ResourceSchema Interface and Core Types', () => {
@@ -273,8 +273,8 @@ describe('SchemaParser Class', () => {
   });
 });
 
-describe('ResourceRanker Class (AI-Powered Two-Phase)', () => {
-  let ranker: ResourceRanker;
+describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
+  let ranker: ResourceRecommender;
   let config: AIRankingConfig;
   let mockClaudeIntegration: any;
   let mockDiscoverResources: jest.Mock;
@@ -296,7 +296,7 @@ describe('ResourceRanker Class (AI-Powered Two-Phase)', () => {
     jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
     jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockClaudeIntegration.sendMessage);
 
-    ranker = new ResourceRanker(config);
+    ranker = new ResourceRecommender(config);
   });
 
   afterEach(() => {
@@ -485,7 +485,7 @@ describe('ResourceRanker Class (AI-Powered Two-Phase)', () => {
       const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
       jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(false);
       
-      const uninitializedRanker = new ResourceRanker(config);
+      const uninitializedRanker = new ResourceRecommender(config);
 
       await expect(uninitializedRanker.findBestSolutions('test intent', mockDiscoverResources, mockExplainResource))
         .rejects.toThrow('Claude integration not initialized');

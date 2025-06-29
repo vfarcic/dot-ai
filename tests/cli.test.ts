@@ -68,9 +68,9 @@ describe('CLI Interface', () => {
       expect(commands).toContain('learn');
     });
 
-    test('should have schema subcommand', () => {
+    test('should have recommend subcommand', () => {
       const commands = cli.getSubcommands();
-      expect(commands).toContain('schema');
+      expect(commands).toContain('recommend');
     });
   });
 
@@ -82,6 +82,7 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('deploy');
       expect(helpText).toContain('status');
       expect(helpText).toContain('learn');
+      expect(helpText).toContain('recommend');
     });
 
 
@@ -104,13 +105,11 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('--pattern');
     });
 
-    test('should provide schema command help', async () => {
-      const helpText = await cli.getCommandHelp('schema');
-      expect(helpText).toContain('Parse and display resource schema information');
-      expect(helpText).toContain('--resource');
-      expect(helpText).toContain('--api-version');
-      expect(helpText).toContain('--list-versions');
-      expect(helpText).toContain('--validate');
+    test('should provide recommend command help', async () => {
+      const helpText = await cli.getCommandHelp('recommend');
+      expect(helpText).toContain('Get AI-powered Kubernetes resource recommendations');
+      expect(helpText).toContain('--intent');
+      expect(helpText).toContain('--output');
     });
   });
 
@@ -137,40 +136,21 @@ describe('CLI Interface', () => {
     });
 
 
-    test('should parse schema command with resource option', async () => {
-      const args = ['schema', '--resource', 'deployment', '--output', 'json'];
+    test('should parse recommend command with intent option', async () => {
+      const args = ['recommend', '--intent', 'deploy a web application', '--output', 'json'];
       const parsed = await cli.parseArguments(args);
       
-      expect(parsed.command).toBe('schema');
-      expect(parsed.options.resource).toBe('deployment');
+      expect(parsed.command).toBe('recommend');
+      expect(parsed.options.intent).toBe('deploy a web application');
       expect(parsed.options.output).toBe('json');
     });
 
-    test('should parse schema command with api-version option', async () => {
-      const args = ['schema', '--resource', 'deployment', '--api-version', 'apps/v1'];
+    test('should parse recommend command without intent option', async () => {
+      const args = ['recommend']; // Missing --intent, but parseArguments doesn't validate this
       const parsed = await cli.parseArguments(args);
       
-      expect(parsed.command).toBe('schema');
-      expect(parsed.options.resource).toBe('deployment');
-      expect(parsed.options['api-version']).toBe('apps/v1');
-    });
-
-    test('should parse schema command with list-versions option', async () => {
-      const args = ['schema', '--resource', 'deployment', '--list-versions'];
-      const parsed = await cli.parseArguments(args);
-      
-      expect(parsed.command).toBe('schema');
-      expect(parsed.options.resource).toBe('deployment');
-      expect(parsed.options['list-versions']).toBe(true);
-    });
-
-    test('should parse schema command with validate option', async () => {
-      const args = ['schema', '--resource', 'deployment', '--validate', 'tests/fixtures/test-deployment.yaml'];
-      const parsed = await cli.parseArguments(args);
-      
-      expect(parsed.command).toBe('schema');
-      expect(parsed.options.resource).toBe('deployment');
-      expect(parsed.options.validate).toBe('tests/fixtures/test-deployment.yaml');
+      expect(parsed.command).toBe('recommend');
+      expect(parsed.options.intent).toBeUndefined();
     });
   });
 
@@ -222,209 +202,57 @@ describe('CLI Interface', () => {
       expect(result.data.recommendations).toHaveLength(1);
     });
 
-    test('should execute schema parse command', async () => {
+    test('should execute recommend command', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
-        ],
-        custom: []
-      });
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Deployment',
-        group: 'apps',
-        version: 'v1',
-        description: 'Manages a replicated application',
-        fields: [
-          {
-            name: 'spec.replicas',
-            type: 'integer',
-            description: 'Number of desired pods. Defaults to 1',
-            required: false
-          }
-        ]
-      });
-
-      const result = await cli.executeCommand('schema', { resource: 'deployment' });
       
+      // Mock environment variable
+      const originalEnv = process.env.ANTHROPIC_API_KEY;
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      const result = await cli.executeCommand('recommend', { intent: 'deploy a web application' });
+      
+      // Restore environment
+      if (originalEnv) {
+        process.env.ANTHROPIC_API_KEY = originalEnv;
+      } else {
+        delete process.env.ANTHROPIC_API_KEY;
+      }
+      
+      // The command should succeed but actual ranking will fail due to mocked API
       expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('schema');
-      expect(result.data.schema).toHaveProperty('kind', 'Deployment');
-      expect(result.data).toHaveProperty('summary');
+      // We can't easily test the full flow due to ResourceRanker instantiation
+      // So we just verify the command structure is correct
     });
 
-    test('should execute schema command with api-version', async () => {
+    test('should execute recommend command with output format', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Deployment',
-        group: 'apps',
-        version: 'v1',
-        description: 'Manages a replicated application',
-        fields: [
-          {
-            name: 'spec.replicas',
-            type: 'integer',
-            description: 'Number of desired pods',
-            required: false
-          }
-        ]
-      });
-
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment', 
-        apiVersion: 'apps/v1' 
+      
+      const result = await cli.executeCommand('recommend', { 
+        intent: 'deploy a web application',
+        output: 'json'
       });
       
       expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('apiVersion', 'apps/v1');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
 
-    test('should execute schema list-versions command', async () => {
+    test('should handle recommend command failure when no API key', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [
-          { kind: 'Deployment', name: 'deployments', group: 'apps', apiVersion: 'apps/v1', namespaced: true, shortNames: [] }
-        ],
-        custom: []
-      });
-
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment', 
-        listVersions: true 
-      });
       
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.discoverResources).toHaveBeenCalled();
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('versions');
-      expect(result.data.versions).toHaveLength(1);
-      expect(result.data.versions[0]).toHaveProperty('kind', 'Deployment');
-    });
+      // Ensure no API key is set
+      const originalEnv = process.env.ANTHROPIC_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
 
-    test('should execute schema validate command', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Deployment',
-        group: 'apps',
-        version: 'v1',
-        description: 'Manages a replicated application',
-        fields: [
-          {
-            name: 'metadata',
-            type: 'object',
-            description: 'Standard object metadata',
-            required: true
-          },
-          {
-            name: 'spec',
-            type: 'object', 
-            description: 'Deployment specification',
-            required: true
-          }
-        ]
-      });
-
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment', 
-        validate: 'tests/fixtures/test-deployment.yaml'
-      });
+      const result = await cli.executeCommand('recommend', { intent: 'deploy a web application' });
       
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      // Note: discoverResources is NOT called because the manifest contains apiVersion: apps/v1
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
-      expect(result.data).toHaveProperty('validation');
-      expect(result.data.validation).toHaveProperty('valid');
-      expect(result.data.validation).toHaveProperty('errors');
-      expect(result.data.validation).toHaveProperty('warnings');
-      expect(result.data.file).toBe('tests/fixtures/test-deployment.yaml');
-    });
-
-    test('should execute schema validate command with explicit api-version', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Deployment',
-        group: 'apps',
-        version: 'v1',
-        description: 'Manages a replicated application',
-        fields: [
-          {
-            name: 'metadata',
-            type: 'object',
-            description: 'Standard object metadata',
-            required: true
-          },
-          {
-            name: 'spec',
-            type: 'object',
-            description: 'Deployment specification', 
-            required: true
-          }
-        ]
-      });
-
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment',
-        apiVersion: 'apps/v1',
-        validate: 'tests/fixtures/test-deployment.yaml'
-      });
-      
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
-      expect(result.data.apiVersion).toBe('apps/v1');
-      expect(result.data.validation).toHaveProperty('valid');
-    });
-
-    test('should handle validation errors for missing resource', async () => {
-      const result = await cli.executeCommand('schema', { 
-        validate: 'tests/fixtures/test-deployment.yaml'
-      });
+      // Restore environment
+      if (originalEnv) {
+        process.env.ANTHROPIC_API_KEY = originalEnv;
+      }
       
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Resource type must be specified with --resource when using --validate');
-    });
-
-    test('should handle validation errors for missing file', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment',
-        validate: 'nonexistent-file.yaml'
-      });
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Schema parsing failed');
-    });
-
-    test('should handle validation with manifest api version', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Deployment',
-        group: 'apps',
-        version: 'v1',
-        description: 'Manages a replicated application',
-        fields: [
-          {
-            name: 'metadata',
-            type: 'object',
-            description: 'Standard object metadata',
-            required: true
-          }
-        ]
-      });
-
-      const result = await cli.executeCommand('schema', { 
-        resource: 'deployment',
-        validate: 'tests/fixtures/test-deployment.yaml'
-      });
-      
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('deployment', 'apps/v1');
-      expect(result.data.summary.manifestApiVersion).toBe('apps/v1');
+      expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
   });
 

@@ -300,9 +300,9 @@ export class ManifestValidator {
 }
 
 /**
- * ResourceRanker determines which resources best meet user needs using AI
+ * ResourceRecommender determines which resources best meet user needs using AI
  */
-export class ResourceRanker {
+export class ResourceRecommender {
   private claudeIntegration: ClaudeIntegration;
   private config: AIRankingConfig;
 

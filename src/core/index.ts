@@ -8,7 +8,7 @@ import { KubernetesDiscovery } from './discovery';
 import { MemorySystem } from './memory';
 import { WorkflowEngine } from './workflow';
 import { ClaudeIntegration } from './claude';
-import { SchemaParser, ManifestValidator, ResourceRanker } from './schema';
+import { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
@@ -26,7 +26,7 @@ export class AppAgent {
   public readonly schema: {
     parser: SchemaParser;
     validator: ManifestValidator;
-    ranker: ResourceRanker | null;
+    ranker: ResourceRecommender | null;
     parseResource: (resourceName: string) => Promise<any>;
     validateManifest: (manifestPath: string) => Promise<any>;
     rankResources: (intent: string) => Promise<any>;
@@ -48,7 +48,7 @@ export class AppAgent {
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
     const ranker = config.anthropicApiKey ? 
-      new ResourceRanker({ claudeApiKey: config.anthropicApiKey }) : 
+      new ResourceRecommender({ claudeApiKey: config.anthropicApiKey }) : 
       null;
     
     this.schema = {
@@ -117,7 +117,7 @@ export { KubernetesDiscovery } from './discovery';
 export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
 export { ClaudeIntegration } from './claude';
-export { SchemaParser, ManifestValidator, ResourceRanker } from './schema';
+export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 
 // Default export
 export default AppAgent; 

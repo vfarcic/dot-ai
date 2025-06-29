@@ -382,7 +382,7 @@
           4
         ],
         "priority": "high",
-        "details": "Create src/cli/cli.ts with CLI class using commander library for command structure. Implement interactive session management with: 1) Conversational workflow for application deployment, 2) Q&A system for gathering deployment requirements, 3) Progress tracking and user guidance, 4) Integration with discovery engine and memory system. Commands: app-agent deploy, app-agent status, app-agent learn. Use Claude Code SDK for natural language processing and intelligent responses through TypeScript implementation.",
+        "details": "Create src/cli/cli.ts with CLI class using commander library for command structure. Implement interactive session management with: 1) Conversational workflow for application deployment, 2) Q&A system for gathering deployment requirements, 3) Progress tracking and user guidance, 4) Integration with discovery engine and memory system for internal use. Commands: app-agent deploy, app-agent status, app-agent learn, app-agent schema (with --rank option). Discovery functionality is used internally by these commands rather than as a standalone command. Use Claude Code SDK for natural language processing and intelligent responses through TypeScript implementation.",
         "testStrategy": "CLI integration tests with mock inputs, session state management tests, user interaction flow validation, end-to-end CLI workflow tests, manual testing with real deployment scenarios using Kubernetes cluster",
         "subtasks": [
           {
@@ -415,7 +415,7 @@
           {
             "id": 4,
             "title": "Implement core CLI commands",
-            "description": "Create app-agent deploy, app-agent status, and app-agent learn commands with proper argument handling in TypeScript",
+            "description": "Create app-agent deploy, app-agent status, app-agent learn, and app-agent schema commands with proper argument handling in TypeScript. Include --rank option for schema command.",
             "status": "pending",
             "dependencies": [],
             "details": "",
@@ -424,7 +424,7 @@
           {
             "id": 5,
             "title": "Integrate with discovery engine and memory system",
-            "description": "Connect CLI to discovery engine and memory system for intelligent deployment assistance using TypeScript modules",
+            "description": "Connect CLI to discovery engine and memory system for internal use by commands, providing intelligent deployment assistance using TypeScript modules",
             "status": "pending",
             "dependencies": [],
             "details": "",
