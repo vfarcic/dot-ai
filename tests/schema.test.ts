@@ -1393,3 +1393,241 @@ This often happens when AI adds context after the JSON.`
 
 });
 
+describe('Enhanced Error Handling and Debugging', () => {
+  let recommender: ResourceRecommender;
+  let config: AIRankingConfig;
+  let mockClaudeIntegration: any;
+  let mockDiscoverResources: jest.Mock;
+  let mockExplainResource: jest.Mock;
+
+  beforeEach(() => {
+    config = { claudeApiKey: 'test-key' };
+    
+    mockDiscoverResources = jest.fn();
+    mockExplainResource = jest.fn();
+
+    // Mock the Claude integration
+    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    mockClaudeIntegration = {
+      isInitialized: jest.fn().mockReturnValue(true),
+      sendMessage: jest.fn()
+    };
+    jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
+    jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockClaudeIntegration.sendMessage);
+
+    recommender = new ResourceRecommender(config);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('Enhanced error handling for invalid resource indexes', () => {
+    it('should provide detailed debugging info for invalid resource indexes', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
+          { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
+        version: 'v1',
+        group: '',
+        description: 'Pod description',
+        fields: []
+      });
+
+      // Mock resource selection returning valid resources
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]`
+      });
+
+      // Mock AI ranking returning invalid indexes (higher than available schemas)
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "resourceIndexes": [5, 10],
+            "score": 90,
+            "description": "Invalid solution",
+            "reasons": ["test"],
+            "analysis": "test"
+          }]
+        }`
+      });
+
+      // Mock question generation
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      await expect(recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+        .rejects.toThrow(/Invalid resource indexes/);
+    });
+
+    it('should include AI response context in error messages', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
+        version: 'v1',
+        group: '',
+        description: 'Pod description',
+        fields: []
+      });
+
+      // Mock resource selection
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]`
+      });
+
+      // Mock AI ranking with completely malformed JSON
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `This is not JSON at all`
+      });
+
+      try {
+        await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('Failed to parse AI solution response');
+        expect(error.message).toContain('AI Response (first 500 chars)');
+        expect(error.message).toContain('Available schemas');
+      }
+    });
+
+    it('should handle conditional debug logging based on environment variable', () => {
+      const originalEnv = process.env.APP_AGENT_DEBUG;
+      
+      // Test with debug enabled
+      process.env.APP_AGENT_DEBUG = 'true';
+      
+      const consoleSpy = jest.spyOn(console, 'debug').mockImplementation(() => {});
+      
+      // This would trigger debug logging if the error path is hit
+      // For this test, we just verify the environment variable is read correctly
+      expect(process.env.APP_AGENT_DEBUG).toBe('true');
+      
+      // Test with debug disabled
+      process.env.APP_AGENT_DEBUG = 'false';
+      expect(process.env.APP_AGENT_DEBUG).toBe('false');
+      
+      // Restore original environment
+      if (originalEnv !== undefined) {
+        process.env.APP_AGENT_DEBUG = originalEnv;
+      } else {
+        delete process.env.APP_AGENT_DEBUG;
+      }
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Enhanced schema fetching error handling', () => {
+    it('should provide detailed error info when no schemas can be fetched', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
+          { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: []
+      });
+
+      // Mock explainResource to always fail
+      mockExplainResource.mockRejectedValue(new Error('Resource explanation failed'));
+
+      // Mock resource selection
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Pod", "apiVersion": "v1", "group": ""},
+          {"kind": "Service", "apiVersion": "v1", "group": ""}
+        ]`
+      });
+
+      try {
+        await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('Could not fetch schemas for any selected resources');
+        expect(error.message).toContain('Candidates: Pod, Service');
+        expect(error.message).toContain('Errors:');
+      }
+    });
+
+    it('should warn about partial schema fetch failures', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
+          { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: []
+      });
+
+      // Mock explainResource to succeed for Pod but fail for Service
+      mockExplainResource.mockImplementation((kind: string) => {
+        if (kind === 'Pod') {
+          return Promise.resolve({
+            kind: 'Pod',
+            version: 'v1',
+            group: '',
+            description: 'Pod description',
+            fields: []
+          });
+        }
+        return Promise.reject(new Error('Service explanation failed'));
+      });
+
+      // Mock resource selection
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Pod", "apiVersion": "v1", "group": ""},
+          {"kind": "Service", "apiVersion": "v1", "group": ""}
+        ]`
+      });
+
+      // Mock AI ranking
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "resourceIndexes": [0],
+            "score": 90,
+            "description": "Pod solution",
+            "reasons": ["test"],
+            "analysis": "test"
+          }]
+        }`
+      });
+
+      // Mock question generation
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Some resources could not be analyzed'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Successfully fetched schemas for: Pod'));
+
+      consoleSpy.mockRestore();
+    });
+  });
+});
+

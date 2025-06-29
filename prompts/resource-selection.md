@@ -18,6 +18,7 @@ Select all resources that could be relevant for this intent. Consider:
 - Complex multi-component solutions
 - **Custom Resource Definitions (CRDs)** that might provide higher-level abstractions or simpler alternatives
 - Platform-specific resources (e.g., Crossplane, Knative, Istio, ArgoCD) that could simplify the deployment
+- **CRD Selection Priority**: If you see multiple CRDs from the same group with similar purposes (like "App" and "AppClaim"), include the namespace-scoped ones (marked as "Namespaced: true") rather than cluster-scoped ones, as they're more appropriate for application deployments
 
 Don't limit yourself - if the intent is complex, select as many resources as needed.
 
@@ -49,5 +50,6 @@ IMPORTANT: Your response must be ONLY the JSON array, nothing else.
 - **Consider dependencies** - If you select one resource, include its typical dependencies
 - **Include supporting resources** - ConfigMaps, Secrets, ServiceAccounts often needed
 - **Evaluate custom resources** - CRDs often provide simpler, higher-level interfaces than raw Kubernetes resources
+- **Prefer namespace-scoped CRDs** - When multiple similar CRDs exist from the same group (e.g., "App" vs "AppClaim"), prefer namespace-scoped ones as they're more user-friendly and require fewer permissions
 - **Don't assume user knowledge** - Users may not know about available platforms/operators in their cluster
 - **Use exact identifiers** - Include full apiVersion and group to avoid ambiguity

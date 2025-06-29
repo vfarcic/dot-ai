@@ -477,11 +477,12 @@ export class ResourceRecommender {
     }
 
     if (schemas.length === 0) {
-      throw new Error(`Could not fetch schemas for any selected resources. Errors: ${errors.join(', ')}`);
+      throw new Error(`Could not fetch schemas for any selected resources. Candidates: ${candidates.map(c => c.kind).join(', ')}. Errors: ${errors.join(', ')}`);
     }
 
     if (errors.length > 0) {
       console.warn(`Some resources could not be analyzed: ${errors.join(', ')}`);
+      console.warn(`Successfully fetched schemas for: ${schemas.map(s => s.kind).join(', ')}`);
     }
 
     return schemas;
@@ -563,10 +564,32 @@ export class ResourceRecommender {
       const parsed = JSON.parse(jsonContent.trim());
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
-        const resources = solution.resourceIndexes.map((index: number) => schemas[index]).filter(Boolean);
+        const isDebugMode = process.env.APP_AGENT_DEBUG === 'true';
+        
+        if (isDebugMode) {
+          console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));
+          console.debug('DEBUG: solution.resourceIndexes type:', typeof solution.resourceIndexes);
+          console.debug('DEBUG: solution.resourceIndexes value:', solution.resourceIndexes);
+        }
+        
+        const resourcesWithIndex = solution.resourceIndexes.map((index: number) => ({ index, schema: schemas[index] }));
+        const resources = resourcesWithIndex.filter((r: any) => r.schema).map((r: any) => r.schema);
         
         if (resources.length === 0) {
-          throw new Error(`Invalid resource indexes: ${solution.resourceIndexes}`);
+          if (isDebugMode) {
+            console.debug('DEBUG: In error block, solution.resourceIndexes:', solution.resourceIndexes);
+            console.debug('DEBUG: In error block, resourcesWithIndex:', resourcesWithIndex);
+            console.debug('DEBUG: In error block, resources after filter:', resources);
+          }
+          
+          const debugInfo = {
+            requestedIndexes: solution.resourceIndexes,
+            availableSchemas: schemas.map((s, i) => ({ index: i, kind: s.kind })),
+            schemasCount: schemas.length,
+            resourceMapping: resourcesWithIndex.map((r: any) => ({ index: r.index, found: !!r.schema, kind: r.schema?.kind || 'undefined' })),
+            invalidIndexes: solution.resourceIndexes.filter((idx: number) => idx >= schemas.length || idx < 0)
+          };
+          throw new Error(`Invalid resource indexes: ${JSON.stringify(debugInfo, null, 2)}`);
         }
         
         return {
@@ -587,7 +610,11 @@ export class ResourceRecommender {
       return solutions.sort((a, b) => b.score - a.score);
       
     } catch (error) {
-      throw new Error(`Failed to parse AI solution response: ${error}`);
+      // Enhanced error message with more context
+      const errorMsg = `Failed to parse AI solution response: ${(error as Error).message}`;
+      const contextMsg = `\nAI Response (first 500 chars): "${aiResponse.substring(0, 500)}..."`;
+      const schemasMsg = `\nAvailable schemas: ${schemas.map(s => s.kind).join(', ')} (total: ${schemas.length})`;
+      throw new Error(errorMsg + contextMsg + schemasMsg);
     }
   }
 

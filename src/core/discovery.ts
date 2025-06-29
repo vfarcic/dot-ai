@@ -537,11 +537,15 @@ export class KubernetesDiscovery {
         );
       }
 
+      // Discover capabilities by analyzing related resources
+      const capabilities = await this.discoverCRDCapabilities(crd.name, crdDef);
+      const enhancedDescription = this.buildEnhancedDescription(crd.kind, schema?.description, capabilities);
+
       return {
         kind: crd.kind,
         version: version,
         group: crd.group || '',
-        description: schema?.description || `Custom Resource Definition for ${crd.kind}`,
+        description: enhancedDescription,
         fields
       };
     } catch (error) {
@@ -887,5 +891,171 @@ export class KubernetesDiscovery {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Discover what capabilities a CRD provides by analyzing related resources
+   */
+  private async discoverCRDCapabilities(crdName: string, crdDef: any): Promise<string[]> {
+    const capabilities: string[] = [];
+
+    try {
+      // Check if it's a Crossplane Claim
+      const categories = crdDef.spec?.names?.categories || [];
+      if (categories.includes('claim')) {
+        capabilities.push('Infrastructure Provisioning (Crossplane Claim)');
+        
+        // Try to find associated Compositions
+        const compositions = await this.discoverAssociatedCompositions(crdDef);
+        if (compositions.length > 0) {
+          for (const comp of compositions) {
+            const compCapabilities = await this.analyzeCompositionCapabilities(comp);
+            capabilities.push(...compCapabilities);
+          }
+        }
+      }
+
+      // Check owner references for insights
+      const ownerRefs = crdDef.metadata?.ownerReferences || [];
+      for (const ref of ownerRefs) {
+        if (ref.kind === 'CompositeResourceDefinition') {
+          capabilities.push('Composite Resource Management');
+        }
+        if (ref.kind === 'Configuration') {
+          capabilities.push(`Configuration Package: ${ref.name}`);
+        }
+      }
+
+      // Analyze additional printer columns for insights
+      const versions = crdDef.spec?.versions || [];
+      for (const version of versions) {
+        const columns = version.additionalPrinterColumns || [];
+        for (const column of columns) {
+          if (column.name.toLowerCase().includes('host')) {
+            capabilities.push('External Hosting/URL Management');
+          }
+          if (column.name.toLowerCase().includes('connection')) {
+            capabilities.push('Connection Secret Management');
+          }
+          if (column.name === 'READY' || column.name === 'SYNCED') {
+            capabilities.push('Resource Lifecycle Management');
+          }
+        }
+      }
+
+    } catch (error) {
+      console.warn(`Failed to discover capabilities for CRD ${crdName}:`, error);
+    }
+
+    return [...new Set(capabilities)]; // Remove duplicates
+  }
+
+  /**
+   * Find Compositions associated with this CRD
+   */
+  private async discoverAssociatedCompositions(crdDef: any): Promise<any[]> {
+    try {
+      const kind = crdDef.spec?.names?.kind;
+      if (!kind) return [];
+
+      // Get all compositions and find ones that match this CRD
+      const output = await this.executeKubectl(['get', 'compositions', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+      const compositionList = JSON.parse(output);
+      
+      return compositionList.items.filter((comp: any) => {
+        const claimNames = comp.spec?.compositeTypeRef?.kind;
+        return claimNames && claimNames.includes(kind.replace('Claim', ''));
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Analyze what resources a Composition creates
+   */
+  private async analyzeCompositionCapabilities(composition: any): Promise<string[]> {
+    const capabilities: string[] = [];
+
+    try {
+      const resources = composition.spec?.resources || [];
+      const pipeline = composition.spec?.pipeline || [];
+
+      // Analyze traditional resources
+      for (const resource of resources) {
+        const kind = resource.base?.kind;
+        if (kind) {
+          capabilities.push(`Creates ${kind} resources`);
+        }
+      }
+
+      // Analyze pipeline mode (modern Crossplane)
+      for (const step of pipeline) {
+        if (step.functionRef?.name === 'crossplane-contrib-function-kcl') {
+          // This is a KCL function - try to extract resource types from the source
+          const source = step.input?.spec?.source || '';
+          
+          // Look for common Kubernetes resource patterns
+          if (source.includes('kind = "Deployment"')) {
+            capabilities.push('Application Deployment with Health Checks');
+          }
+          if (source.includes('kind = "Service"')) {
+            capabilities.push('Kubernetes Service Management');
+          }
+          if (source.includes('kind = "Ingress"')) {
+            capabilities.push('Ingress/External Access Configuration');
+          }
+          if (source.includes('HorizontalPodAutoscaler')) {
+            capabilities.push('Auto-scaling Configuration');
+          }
+          if (source.includes('ExternalSecret')) {
+            capabilities.push('Secret Management Integration');
+          }
+          if (source.includes('repo.github')) {
+            capabilities.push('GitHub Repository Management');
+          }
+          if (source.includes('ci.yaml') || source.includes('github.com/workflows')) {
+            capabilities.push('CI/CD Pipeline Setup');
+          }
+          if (source.includes('image') && source.includes('tag')) {
+            capabilities.push('Container Image Management');
+          }
+        }
+      }
+
+      // Look for labels that indicate purpose
+      const labels = composition.metadata?.labels || {};
+      if (labels.type === 'backend') {
+        capabilities.push('Backend Application Platform');
+      }
+      if (labels.location === 'local') {
+        capabilities.push('Local Development Environment');
+      }
+
+    } catch (error) {
+      console.warn('Failed to analyze composition capabilities:', error);
+    }
+
+    return capabilities;
+  }
+
+  /**
+   * Build an enhanced description that includes discovered capabilities
+   */
+  private buildEnhancedDescription(kind: string, originalDescription: string, capabilities: string[]): string {
+    let description = originalDescription || `Custom Resource Definition for ${kind}`;
+    
+    if (capabilities.length > 0) {
+      description += `\n\nCapabilities:\n${capabilities.map(cap => `• ${cap}`).join('\n')}`;
+      
+      // Add a summary based on capabilities
+      if (capabilities.some(cap => cap.includes('Application Deployment')) && 
+          capabilities.some(cap => cap.includes('Auto-scaling')) &&
+          capabilities.some(cap => cap.includes('CI/CD'))) {
+        description += '\n\nThis is a comprehensive application platform that handles deployment, scaling, and CI/CD automation.';
+      }
+    }
+    
+    return description;
   }
 } 

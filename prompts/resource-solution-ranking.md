@@ -31,6 +31,15 @@ Consider:
 - Platform operators (Crossplane, Knative, etc.) that might offer better user experience
 - User experience - simpler declarative approaches often score higher than complex multi-resource solutions
 
+## CRD Preference Guidelines
+
+When evaluating CRDs vs standard Kubernetes resources:
+- **Prefer CRDs with matching capabilities**: If a CRD's listed capabilities directly address the user's specific needs, it should score higher than manually combining multiple standard resources
+- **Favor purpose-built solutions**: CRDs designed for specific use cases should score higher than generic resource combinations when the use case aligns
+- **Value comprehensive functionality**: A single CRD that handles multiple related concerns (deployment + networking + scaling) should score higher than manually orchestrating separate resources for the same outcome
+- **Consider operational simplicity**: CRDs that provide intuitive, domain-specific interfaces should be preferred over complex multi-resource configurations
+- **Match scope to intent**: Only prefer CRDs when their documented capabilities genuinely align with what the user is trying to achieve
+
 ## Response Format
 
 ```json
