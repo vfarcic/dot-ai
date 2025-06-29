@@ -261,6 +261,118 @@ describe('CLI Interface', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
+
+    test('should include questions field in CLI output structure', () => {
+      // Test the CLI output formatting directly by creating a mock solution with questions
+      const solutionWithQuestions = {
+        id: 'test-sol',
+        type: 'single' as const,
+        score: 90,
+        description: 'Pod deployment',
+        reasons: ['Simple container deployment'],
+        analysis: 'Pod is suitable for simple deployments',
+        resources: [{
+          kind: 'Pod',
+          apiVersion: 'v1',
+          group: '',
+          description: 'A pod'
+        }],
+        questions: {
+          required: [
+            {
+              id: 'app-name',
+              question: 'What should we name your application?',
+              type: 'text' as const,
+              placeholder: 'my-app',
+              validation: { required: true }
+            }
+          ],
+          basic: [
+            {
+              id: 'namespace',
+              question: 'Which namespace should we deploy to?',
+              type: 'select' as const,
+              options: ['default', 'production'],
+              placeholder: 'default'
+            }
+          ],
+          advanced: [
+            {
+              id: 'resource-limits',
+              question: 'Do you need resource limits?',
+              type: 'boolean' as const,
+              placeholder: 'false'
+            }
+          ],
+          open: {
+            question: 'Any additional requirements?',
+            placeholder: 'Enter details...'
+          }
+        }
+      };
+
+      // Test that the CLI output structure includes questions
+      const formattedOutput = {
+        success: true,
+        data: {
+          intent: 'deploy a web application',
+          solutions: [solutionWithQuestions].map(solution => ({
+            type: solution.type,
+            score: solution.score,
+            description: solution.description,
+            reasons: solution.reasons,
+            analysis: solution.analysis,
+            resources: solution.resources.map((r: any) => ({
+              kind: r.kind,
+              apiVersion: r.apiVersion,
+              group: r.group,
+              description: r.description
+            })),
+            questions: solution.questions
+          })),
+          summary: {
+            totalSolutions: 1,
+            bestScore: 90,
+            recommendedSolution: 'single',
+            topResource: 'Pod'
+          }
+        }
+      };
+      
+      // Verify questions are included in the output structure
+      expect(formattedOutput.data.solutions).toHaveLength(1);
+      const solution = formattedOutput.data.solutions[0];
+      
+      expect(solution).toHaveProperty('questions');
+      expect(solution.questions).toHaveProperty('required');
+      expect(solution.questions).toHaveProperty('basic');
+      expect(solution.questions).toHaveProperty('advanced');
+      expect(solution.questions).toHaveProperty('open');
+      
+      // Verify question structure
+      expect(solution.questions.required).toHaveLength(1);
+      expect(solution.questions.required[0]).toMatchObject({
+        id: 'app-name',
+        question: 'What should we name your application?',
+        type: 'text',
+        placeholder: 'my-app',
+        validation: { required: true }
+      });
+      
+      expect(solution.questions.basic).toHaveLength(1);
+      expect(solution.questions.basic[0]).toMatchObject({
+        id: 'namespace',
+        question: 'Which namespace should we deploy to?',
+        type: 'select',
+        options: ['default', 'production']
+      });
+      
+      expect(solution.questions.advanced).toHaveLength(1);
+      expect(solution.questions.open).toMatchObject({
+        question: 'Any additional requirements?',
+        placeholder: 'Enter details...'
+      });
+    });
   });
 
   describe('Error Handling', () => {

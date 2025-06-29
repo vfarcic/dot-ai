@@ -356,7 +356,8 @@ export class CliInterface {
               apiVersion: r.apiVersion,
               group: r.group,
               description: r.description
-            }))
+            })),
+            questions: solution.questions
           })),
           summary: {
             totalSolutions: solutions.length,
