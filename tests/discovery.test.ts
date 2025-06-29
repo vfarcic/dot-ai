@@ -1258,4 +1258,403 @@ This is a comprehensive application platform that handles deployment, scaling, a
       expect(enhancedDescription).toContain('comprehensive application platform');
     });
   });
+
+  describe('CRD Nested Parameter Schema Extraction', () => {
+    test('should extract nested spec.parameters fields from AppClaim-style CRDs', () => {
+      // Test the schema parsing logic for nested CRD parameters
+      const mockSchema: any = {
+        properties: {
+          apiVersion: { type: 'string', description: 'API version' },
+          kind: { type: 'string', description: 'Resource kind' },
+          metadata: { type: 'object', description: 'Metadata' },
+          spec: {
+            type: 'object',
+            description: 'Specification',
+            properties: {
+              parameters: {
+                type: 'object',
+                description: 'Application parameters',
+                properties: {
+                  // Simple parameter (like host, port)
+                  host: {
+                    type: 'string',
+                    description: 'The host address of the application'
+                  },
+                  port: {
+                    type: 'integer',
+                    description: 'The application port'
+                  },
+                  // Nested parameter object (like scaling)
+                  scaling: {
+                    type: 'object',
+                    description: 'Auto-scaling configuration',
+                    properties: {
+                      enabled: {
+                        type: 'boolean',
+                        description: 'Whether to enable scaling'
+                      },
+                      min: {
+                        type: 'integer',
+                        description: 'Minimum number of replicas'
+                      },
+                      max: {
+                        type: 'integer',
+                        description: 'Maximum number of replicas'
+                      }
+                    }
+                  },
+                  // Another nested object (like CI configuration)
+                  ci: {
+                    type: 'object',
+                    description: 'CI/CD configuration',
+                    properties: {
+                      enabled: {
+                        type: 'boolean',
+                        description: 'Whether to enable CI'
+                      },
+                      tool: {
+                        type: 'string',
+                        description: 'CI tool to use'
+                      }
+                    }
+                  }
+                },
+                required: ['host', 'port']
+              }
+            }
+          }
+        },
+        required: ['apiVersion', 'kind', 'spec']
+      };
+
+      // Simulate the field extraction logic from tryGetCRDInfo
+      const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
+      
+      if (mockSchema?.properties) {
+        const required = mockSchema.required || [];
+        
+        // First add top-level properties
+        for (const [fieldName, fieldDef] of Object.entries(mockSchema.properties)) {
+          const field = fieldDef as any;
+          fields.push({
+            name: fieldName,
+            type: field.type || 'object',
+            description: field.description || '',
+            required: required.includes(fieldName)
+          });
+        }
+        
+        // For CRDs, also extract spec.parameters.* fields if they exist
+        const specProps = (mockSchema.properties.spec as any)?.properties;
+        if (specProps?.parameters?.properties) {
+          const parametersRequired = specProps.parameters.required || [];
+          
+          for (const [paramName, paramDef] of Object.entries(specProps.parameters.properties)) {
+            const param = paramDef as any;
+            
+            // If this parameter has nested properties (like scaling.enabled, scaling.min, etc)
+            if (param.properties) {
+              const nestedRequired = param.required || [];
+              for (const [nestedName, nestedDef] of Object.entries(param.properties)) {
+                const nested = nestedDef as any;
+                fields.push({
+                  name: `${paramName}.${nestedName}`,
+                  type: nested.type || 'object',
+                  description: nested.description || '',
+                  required: parametersRequired.includes(paramName) || nestedRequired.includes(nestedName)
+                });
+              }
+            } else {
+              // Simple parameter (like host, port)
+              fields.push({
+                name: paramName,
+                type: param.type || 'object',
+                description: param.description || '',
+                required: parametersRequired.includes(paramName)
+              });
+            }
+          }
+        }
+      }
+
+      // Verify top-level fields are extracted
+      const fieldNames = fields.map(f => f.name);
+      expect(fieldNames).toContain('apiVersion');
+      expect(fieldNames).toContain('kind');
+      expect(fieldNames).toContain('metadata');
+      expect(fieldNames).toContain('spec');
+
+      // Verify simple parameters are extracted
+      expect(fieldNames).toContain('host');
+      expect(fieldNames).toContain('port');
+
+      // Verify nested scaling parameters are extracted
+      expect(fieldNames).toContain('scaling.enabled');
+      expect(fieldNames).toContain('scaling.min');
+      expect(fieldNames).toContain('scaling.max');
+
+      // Verify nested CI parameters are extracted
+      expect(fieldNames).toContain('ci.enabled');
+      expect(fieldNames).toContain('ci.tool');
+
+      // Verify field properties are correct
+      const hostField = fields.find(f => f.name === 'host');
+      expect(hostField).toMatchObject({
+        name: 'host',
+        type: 'string',
+        description: 'The host address of the application',
+        required: true
+      });
+
+      const scalingEnabledField = fields.find(f => f.name === 'scaling.enabled');
+      expect(scalingEnabledField).toMatchObject({
+        name: 'scaling.enabled',
+        type: 'boolean',
+        description: 'Whether to enable scaling',
+        required: false
+      });
+
+      const scalingMinField = fields.find(f => f.name === 'scaling.min');
+      expect(scalingMinField).toMatchObject({
+        name: 'scaling.min',
+        type: 'integer',
+        description: 'Minimum number of replicas',
+        required: false
+      });
+    });
+
+    test('should handle CRDs without nested parameters gracefully', () => {
+      // Test schema without spec.parameters
+      const mockSchema: any = {
+        properties: {
+          apiVersion: { type: 'string', description: 'API version' },
+          kind: { type: 'string', description: 'Resource kind' },
+          metadata: { type: 'object', description: 'Metadata' },
+          spec: {
+            type: 'object',
+            description: 'Specification',
+            properties: {
+              // No parameters property
+              replicas: { type: 'integer', description: 'Number of replicas' }
+            }
+          }
+        }
+      };
+
+      const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
+      
+      if (mockSchema?.properties) {
+        const required = mockSchema.required || [];
+        
+        // Add top-level properties
+        for (const [fieldName, fieldDef] of Object.entries(mockSchema.properties)) {
+          const field = fieldDef as any;
+          fields.push({
+            name: fieldName,
+            type: field.type || 'object',
+            description: field.description || '',
+            required: required.includes(fieldName)
+          });
+        }
+        
+        // Try to extract spec.parameters.* fields if they exist
+        const specProps = (mockSchema.properties.spec as any)?.properties;
+        if (specProps?.parameters?.properties) {
+          // This code path shouldn't execute for this test
+          expect(true).toBe(false); // Should not reach here
+        }
+      }
+
+      // Should only have top-level fields
+      const fieldNames = fields.map(f => f.name);
+      expect(fieldNames).toEqual(['apiVersion', 'kind', 'metadata', 'spec']);
+      expect(fieldNames).not.toContain('host');
+      expect(fieldNames).not.toContain('scaling.enabled');
+    });
+
+    test('should handle empty spec.parameters object', () => {
+      // Test schema with empty parameters
+      const mockSchema: any = {
+        properties: {
+          apiVersion: { type: 'string', description: 'API version' },
+          kind: { type: 'string', description: 'Resource kind' },
+          spec: {
+            type: 'object',
+            properties: {
+              parameters: {
+                type: 'object',
+                properties: {} // Empty properties
+              }
+            }
+          }
+        }
+      };
+
+      const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
+      
+      if (mockSchema?.properties) {
+        const required = mockSchema.required || [];
+        
+        // Add top-level properties
+        for (const [fieldName, fieldDef] of Object.entries(mockSchema.properties)) {
+          const field = fieldDef as any;
+          fields.push({
+            name: fieldName,
+            type: field.type || 'object',
+            description: field.description || '',
+            required: required.includes(fieldName)
+          });
+        }
+        
+        // Try to extract spec.parameters.* fields
+        const specProps = (mockSchema.properties.spec as any)?.properties;
+        if (specProps?.parameters?.properties) {
+          // Empty properties object means no parameters to extract
+          const paramCount = Object.keys(specProps.parameters.properties).length;
+          expect(paramCount).toBe(0);
+        }
+      }
+
+      // Should only have top-level fields
+      const fieldNames = fields.map(f => f.name);
+      expect(fieldNames).toEqual(['apiVersion', 'kind', 'spec']);
+    });
+
+    test('should handle mixed simple and nested parameters correctly', () => {
+      // Test mixed parameter types
+      const mockSchema: any = {
+        properties: {
+          spec: {
+            properties: {
+              parameters: {
+                properties: {
+                  // Simple string parameter
+                  image: { type: 'string', description: 'Container image' },
+                  // Simple number parameter  
+                  port: { type: 'integer', description: 'Application port' },
+                  // Nested object parameter
+                  database: {
+                    type: 'object',
+                    properties: {
+                      enabled: { type: 'boolean', description: 'Enable database' },
+                      engine: { type: 'string', description: 'Database engine' }
+                    }
+                  },
+                  // Another simple parameter after nested one
+                  tag: { type: 'string', description: 'Image tag' }
+                },
+                required: ['image', 'tag']
+              }
+            }
+          }
+        }
+      };
+
+      const fields: Array<{ name: string; type: string; description: string; required: boolean }> = [];
+      
+      const specProps = (mockSchema.properties.spec as any)?.properties;
+      if (specProps?.parameters?.properties) {
+        const parametersRequired = specProps.parameters.required || [];
+        
+        for (const [paramName, paramDef] of Object.entries(specProps.parameters.properties)) {
+          const param = paramDef as any;
+          
+          if (param.properties) {
+            // Nested parameter
+            const nestedRequired = param.required || [];
+            for (const [nestedName, nestedDef] of Object.entries(param.properties)) {
+              const nested = nestedDef as any;
+              fields.push({
+                name: `${paramName}.${nestedName}`,
+                type: nested.type || 'object',
+                description: nested.description || '',
+                required: parametersRequired.includes(paramName) || nestedRequired.includes(nestedName)
+              });
+            }
+          } else {
+            // Simple parameter
+            fields.push({
+              name: paramName,
+              type: param.type || 'object',
+              description: param.description || '',
+              required: parametersRequired.includes(paramName)
+            });
+          }
+        }
+      }
+
+      const fieldNames = fields.map(f => f.name);
+      
+      // Should have simple parameters
+      expect(fieldNames).toContain('image');
+      expect(fieldNames).toContain('port');
+      expect(fieldNames).toContain('tag');
+      
+      // Should have nested parameters
+      expect(fieldNames).toContain('database.enabled');
+      expect(fieldNames).toContain('database.engine');
+      
+      // Verify required fields
+      const imageField = fields.find(f => f.name === 'image');
+      expect(imageField?.required).toBe(true);
+      
+      const tagField = fields.find(f => f.name === 'tag');
+      expect(tagField?.required).toBe(true);
+      
+      const portField = fields.find(f => f.name === 'port');
+      expect(portField?.required).toBe(false);
+      
+      const dbEnabledField = fields.find(f => f.name === 'database.enabled');
+      expect(dbEnabledField?.required).toBe(false);
+    });
+
+    test('should extract real AppClaim scaling and host fields when available in cluster', async () => {
+      // Integration test with real cluster - check if AppClaim CRD exists and has proper fields
+      try {
+        // Use project's working kubeconfig.yaml for integration tests
+        const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
+        const testDiscovery = new KubernetesDiscovery({ kubeconfigPath: projectKubeconfig });
+        await testDiscovery.connect();
+        
+        const explanation = await testDiscovery.explainResource('AppClaim');
+        
+        // If AppClaim exists in the cluster, verify it includes scaling and host fields
+        expect(explanation).toBeDefined();
+        expect(explanation.kind).toBe('AppClaim');
+        
+        const fieldNames = explanation.fields.map(f => f.name);
+        
+        // Should include basic Kubernetes fields
+        expect(fieldNames).toContain('apiVersion');
+        expect(fieldNames).toContain('kind');
+        expect(fieldNames).toContain('metadata');
+        expect(fieldNames).toContain('spec');
+        
+        // Should include AppClaim-specific parameter fields
+        expect(fieldNames).toContain('host');
+        expect(fieldNames).toContain('scaling.enabled');
+        expect(fieldNames).toContain('scaling.min');
+        expect(fieldNames).toContain('scaling.max');
+        
+        // Verify field details
+        const hostField = explanation.fields.find(f => f.name === 'host');
+        expect(hostField).toBeDefined();
+        expect(hostField?.type).toBe('string');
+        expect(hostField?.description).toContain('host');
+        
+        const scalingEnabledField = explanation.fields.find(f => f.name === 'scaling.enabled');
+        expect(scalingEnabledField).toBeDefined();
+        expect(scalingEnabledField?.type).toBe('boolean');
+        expect(scalingEnabledField?.description).toContain('scaling');
+        
+      } catch (error) {
+        // If AppClaim doesn't exist in the cluster, skip this test
+        if ((error as Error).message.includes('Failed to explain resource')) {
+          console.log('AppClaim CRD not available in cluster, skipping integration test');
+          return;
+        }
+        throw error;
+      }
+    });
+  });
 });

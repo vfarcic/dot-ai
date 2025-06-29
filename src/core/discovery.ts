@@ -517,6 +517,7 @@ export class KubernetesDiscovery {
       if (schema?.properties) {
         const required = schema.required || [];
         
+        // First add top-level properties
         for (const [fieldName, fieldDef] of Object.entries(schema.properties)) {
           const field = fieldDef as any;
           fields.push({
@@ -525,6 +526,39 @@ export class KubernetesDiscovery {
             description: field.description || '',
             required: required.includes(fieldName)
           });
+        }
+        
+        // For CRDs, also extract spec.parameters.* fields if they exist
+        // This is where AppClaim and similar CRDs store their configuration
+        const specProps = (schema.properties.spec as any)?.properties;
+        if (specProps?.parameters?.properties) {
+          const parametersRequired = specProps.parameters.required || [];
+          
+          for (const [paramName, paramDef] of Object.entries(specProps.parameters.properties)) {
+            const param = paramDef as any;
+            
+            // If this parameter has nested properties (like scaling.enabled, scaling.min, etc)
+            if (param.properties) {
+              const nestedRequired = param.required || [];
+              for (const [nestedName, nestedDef] of Object.entries(param.properties)) {
+                const nested = nestedDef as any;
+                fields.push({
+                  name: `${paramName}.${nestedName}`,
+                  type: nested.type || 'object',
+                  description: nested.description || '',
+                  required: parametersRequired.includes(paramName) || nestedRequired.includes(nestedName)
+                });
+              }
+            } else {
+              // Simple parameter (like host, port)
+              fields.push({
+                name: paramName,
+                type: param.type || 'object',
+                description: param.description || '',
+                required: parametersRequired.includes(paramName)
+              });
+            }
+          }
         }
       }
 
