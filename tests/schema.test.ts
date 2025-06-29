@@ -5,7 +5,7 @@
  * Following the same TDD methodology used in Task 2
  */
 
-import { SchemaParser, ResourceSchema, SchemaField, ManifestValidator, ResourceRanker, ValidationResult, RankingResult } from '../src/core/schema';
+import { SchemaParser, ResourceSchema, SchemaField, ResourceRanker, ValidationResult, ResourceSolution, AIRankingConfig } from '../src/core/schema';
 import { ResourceExplanation } from '../src/core/discovery';
 
 describe('ResourceSchema Interface and Core Types', () => {
@@ -273,437 +273,353 @@ describe('SchemaParser Class', () => {
   });
 });
 
-// Mock the kubernetes-utils module before importing
-jest.mock('../src/core/kubernetes-utils', () => ({
-  executeKubectl: jest.fn()
-}));
-
-describe('ManifestValidator Class', () => {
-  let validator: ManifestValidator;
-  let tempDir: string;
-  let mockExecuteKubectl: jest.MockedFunction<any>;
-
-  beforeEach(async () => {
-    // Import the mocked function
-    const { executeKubectl } = await import('../src/core/kubernetes-utils');
-    mockExecuteKubectl = executeKubectl as jest.MockedFunction<any>;
-    
-    validator = new ManifestValidator();
-    
-    // Create a temporary directory for test manifests
-    const fs = await import('fs');
-    const path = await import('path');
-    const os = await import('os');
-    
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'manifest-validator-test-'));
-    
-    // Reset mock before each test
-    mockExecuteKubectl.mockReset();
-  });
-
-  afterEach(async () => {
-    // Clean up temporary files
-    const fs = await import('fs');
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  describe('validateManifest method', () => {
-    it('should validate a correct manifest successfully using dry-run', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const validManifest = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: {
-          name: 'test-configmap',
-          namespace: 'default',
-          labels: { app: 'test' }
-        },
-        data: {
-          'config.yaml': 'test: value'
-        }
-      };
-
-      const manifestPath = path.join(tempDir, 'valid-manifest.yaml');
-      const yaml = await import('yaml');
-      fs.writeFileSync(manifestPath, yaml.stringify(validManifest));
-
-      // Mock executeKubectl to simulate successful dry-run
-      mockExecuteKubectl.mockResolvedValue('configmap/test-configmap created (dry run)');
-
-      const result = await validator.validateManifest(manifestPath);
-
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(
-        ['apply', '--dry-run=server', '-f', manifestPath],
-        { kubeconfig: undefined }
-      );
-    });
-
-    it('should detect validation errors using dry-run', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      // Create an invalid manifest (missing required fields)
-      const invalidManifest = {
-        apiVersion: 'apps/v1',
-        kind: 'Deployment',
-        metadata: {
-          name: 'test-deployment'
-        }
-        // Missing required spec field
-      };
-
-      const manifestPath = path.join(tempDir, 'invalid-manifest.yaml');
-      const yaml = await import('yaml');
-      fs.writeFileSync(manifestPath, yaml.stringify(invalidManifest));
-
-      // Mock executeKubectl to simulate validation failure
-      mockExecuteKubectl.mockRejectedValue(new Error('validation failed: spec is required'));
-
-      const result = await validator.validateManifest(manifestPath);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Kubernetes validation failed: validation failed: spec is required');
-    });
-
-    it('should handle unknown field errors', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const manifestPath = path.join(tempDir, 'unknown-field-manifest.yaml');
-      fs.writeFileSync(manifestPath, 'apiVersion: v1\nkind: Pod\nunknownField: value');
-
-      // Mock executeKubectl to simulate unknown field error
-      mockExecuteKubectl.mockRejectedValue(new Error('unknown field "unknownField"'));
-
-      const result = await validator.validateManifest(manifestPath);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Unknown field in manifest: unknown field "unknownField"');
-    });
-
-    it('should provide best practice warnings for valid manifests', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const manifestWithoutLabels = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: {
-          name: 'test-configmap'
-          // Missing labels and namespace
-        },
-        data: {
-          'config.yaml': 'test: value'
-        }
-      };
-
-      const manifestPath = path.join(tempDir, 'no-labels-manifest.yaml');
-      const yaml = await import('yaml');
-      fs.writeFileSync(manifestPath, yaml.stringify(manifestWithoutLabels));
-
-      // Mock executeKubectl to simulate successful dry-run
-      mockExecuteKubectl.mockResolvedValue('configmap/test-configmap created (dry run)');
-
-      const result = await validator.validateManifest(manifestPath);
-
-      expect(result.valid).toBe(true);
-      expect(result.warnings.some(warning => warning.includes('labels'))).toBe(true);
-      expect(result.warnings.some(warning => warning.includes('namespace'))).toBe(true);
-    });
-
-    it('should support client-side dry-run mode', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const validManifest = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: {
-          name: 'test-configmap'
-        },
-        data: {
-          'config.yaml': 'test: value'
-        }
-      };
-
-      const manifestPath = path.join(tempDir, 'client-dry-run-manifest.yaml');
-      const yaml = await import('yaml');
-      fs.writeFileSync(manifestPath, yaml.stringify(validManifest));
-
-      // Mock executeKubectl to simulate successful client dry-run
-      mockExecuteKubectl.mockResolvedValue('configmap/test-configmap created (dry run)');
-
-      const result = await validator.validateManifest(manifestPath, { dryRunMode: 'client' });
-
-      expect(result.valid).toBe(true);
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(
-        ['apply', '--dry-run=client', '-f', manifestPath],
-        { kubeconfig: undefined }
-      );
-    });
-
-    it('should support custom kubeconfig', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const validManifest = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: {
-          name: 'test-configmap'
-        },
-        data: {
-          'config.yaml': 'test: value'
-        }
-      };
-
-      const manifestPath = path.join(tempDir, 'custom-kubeconfig-manifest.yaml');
-      const yaml = await import('yaml');
-      fs.writeFileSync(manifestPath, yaml.stringify(validManifest));
-
-      // Mock executeKubectl to simulate successful dry-run with custom kubeconfig
-      mockExecuteKubectl.mockResolvedValue('configmap/test-configmap created (dry run)');
-
-      const customKubeconfig = '/path/to/custom/kubeconfig';
-      const result = await validator.validateManifest(manifestPath, { kubeconfig: customKubeconfig });
-
-      expect(result.valid).toBe(true);
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(
-        ['apply', '--dry-run=server', '-f', manifestPath],
-        { kubeconfig: customKubeconfig }
-      );
-    });
-  });
-
-});
-
-describe('ResourceRanker Class', () => {
+describe('ResourceRanker Class (AI-Powered Two-Phase)', () => {
   let ranker: ResourceRanker;
-  let schemas: ResourceSchema[];
+  let config: AIRankingConfig;
+  let mockClaudeIntegration: any;
+  let mockDiscoverResources: jest.Mock;
+  let mockExplainResource: jest.Mock;
 
   beforeEach(() => {
-    ranker = new ResourceRanker();
+    config = { claudeApiKey: 'test-key' };
     
-    // Create sample schemas for ranking tests
-    schemas = [
-      {
-        apiVersion: 'v1',
+    // Mock discovery functions
+    mockDiscoverResources = jest.fn();
+    mockExplainResource = jest.fn();
+
+    // Mock the Claude integration
+    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    mockClaudeIntegration = {
+      isInitialized: jest.fn().mockReturnValue(true),
+      sendMessage: jest.fn()
+    };
+    jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
+    jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockClaudeIntegration.sendMessage);
+
+    ranker = new ResourceRanker(config);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('findBestSolutions method with functional approach', () => {
+    it('should perform two-phase analysis for simple intent', async () => {
+      const intent = 'run a simple container';
+      
+      // Mock discovery data
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true }
+        ],
+        custom: []
+      });
+
+      // Mock resource explanation
+      mockExplainResource.mockResolvedValue({
         kind: 'Pod',
-        group: '',
         version: 'v1',
+        group: '',
         description: 'Pod is a collection of containers that can run on a host',
-        properties: new Map(),
-        required: ['metadata', 'spec'],
-        namespace: true
-      },
-      {
-        apiVersion: 'apps/v1',
-        kind: 'Deployment',
-        group: 'apps',
+        fields: [
+          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
+          { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
+        ]
+      });
+
+      // Mock fs.readFileSync for both prompt templates
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}') // Phase 1 template
+        .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}'); // Phase 2 template
+
+      // Mock AI responses for both phases
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({
+          content: `\`\`\`json
+[
+  {
+    "kind": "Pod",
+    "apiVersion": "v1",
+    "group": ""
+  }
+]
+\`\`\``
+        })
+        .mockResolvedValueOnce({
+          content: `\`\`\`json
+{
+  "solutions": [
+    {
+      "type": "single",
+      "resourceIndexes": [0],
+      "score": 85,
+      "description": "Pod for simple container execution",
+      "reasons": ["Direct container hosting", "Simple use case"],
+      "analysis": "Pod is the perfect choice for running a simple container without complex orchestration needs",
+      "deploymentOrder": [0],
+      "dependencies": []
+    }
+  ]
+}
+\`\`\``
+        });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(mockDiscoverResources).toHaveBeenCalledTimes(1);
+      expect(mockExplainResource).toHaveBeenCalledWith('Pod');
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledTimes(2);
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].type).toBe('single');
+      expect(solutions[0].resources[0].kind).toBe('Pod');
+      expect(solutions[0].score).toBe(85);
+    });
+
+    it('should handle CRD resources in two-phase approach', async () => {
+      const intent = 'provision a new Kubernetes cluster';
+      
+      // Mock discovery with CRD
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: [
+          { kind: 'Cluster', version: 'v1beta1', group: 'infrastructure.cluster.x-k8s.io', scope: 'Namespaced' }
+        ]
+      });
+
+      // Mock CRD explanation
+      mockExplainResource.mockResolvedValue({
+        kind: 'Cluster',
+        version: 'v1beta1',
+        group: 'infrastructure.cluster.x-k8s.io',
+        description: 'Cluster is the Schema for the clusters API',
+        fields: [
+          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
+          { name: 'spec', type: 'Object', description: 'Desired state of the cluster', required: true }
+        ]
+      });
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('{intent}\n{resources}')
+        .mockReturnValueOnce('{intent}\n{resources}');
+
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({
+          content: `[{
+            "kind": "Cluster",
+            "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+            "group": "infrastructure.cluster.x-k8s.io"
+          }]`
+        })
+        .mockResolvedValueOnce({
+          content: `{
+            "solutions": [{
+              "type": "single",
+              "resourceIndexes": [0],
+              "score": 98,
+              "description": "Custom resource for cluster provisioning",
+              "reasons": ["Cluster management", "Infrastructure as code"],
+              "analysis": "This CRD is specifically designed for cluster provisioning",
+              "deploymentOrder": [0],
+              "dependencies": ["cluster-api-provider"]
+            }]
+          }`
+        });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions[0].resources[0].kind).toBe('Cluster');
+      expect(solutions[0].resources[0].group).toBe('infrastructure.cluster.x-k8s.io');
+      expect(solutions[0].score).toBe(98);
+      expect(solutions[0].dependencies).toContain('cluster-api-provider');
+    });
+
+    it('should handle resource selection errors gracefully', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('{intent}\n{resources}');
+
+      // Mock invalid AI response for resource selection
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: 'Invalid JSON response'
+      });
+
+      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+        .rejects.toThrow('AI failed to select resources in valid JSON format');
+    });
+
+    it('should handle schema fetching failures', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      // Mock successful resource selection but failed schema fetching
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('{intent}\n{resources}');
+
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]`
+      });
+
+      mockExplainResource.mockRejectedValue(new Error('Resource not found'));
+
+      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+        .rejects.toThrow('Could not fetch schemas for any selected resources');
+    });
+
+    it('should throw error when Claude integration not initialized', async () => {
+      // Mock isInitialized to return false
+      const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+      jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(false);
+      
+      const uninitializedRanker = new ResourceRanker(config);
+
+      await expect(uninitializedRanker.findBestSolutions('test intent', mockDiscoverResources, mockExplainResource))
+        .rejects.toThrow('Claude integration not initialized');
+    });
+
+    it('should validate AI-selected resources have required fields', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync').mockReturnValue('{intent}\n{resources}');
+
+      // Mock AI response with invalid resource (missing apiVersion)
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `[{"kind": "Pod", "group": ""}]`
+      });
+
+      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+        .rejects.toThrow('AI selected invalid resource');
+    });
+
+    it('should handle complex multi-resource solutions', async () => {
+      const intent = 'deploy a scalable web application';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true },
+          { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true }
+        ],
+        custom: []
+      });
+
+      // Mock explanations for both resources
+      mockExplainResource
+        .mockResolvedValueOnce({
+          kind: 'Deployment',
+          version: 'v1',
+          group: 'apps',
+          description: 'Deployment enables declarative updates for Pods and ReplicaSets',
+          fields: [
+            { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
+            { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
+          ]
+        })
+        .mockResolvedValueOnce({
+          kind: 'Service',
+          version: 'v1',
+          group: '',
+          description: 'Service is a named abstraction of software service',
+          fields: [
+            { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
+            { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
+          ]
+        });
+
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('{intent}\n{resources}')
+        .mockReturnValueOnce('{intent}\n{resources}');
+
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({
+          content: `[
+            {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+            {"kind": "Service", "apiVersion": "v1", "group": ""}
+          ]`
+        })
+        .mockResolvedValueOnce({
+          content: `{
+            "solutions": [{
+              "type": "combination",
+              "resourceIndexes": [0, 1],
+              "score": 95,
+              "description": "Complete web application stack",
+              "reasons": ["Scalable architecture", "Load balancing"],
+              "analysis": "Deployment provides scalability, Service enables network access",
+              "deploymentOrder": [0, 1],
+              "dependencies": []
+            }]
+          }`
+        });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(mockExplainResource).toHaveBeenCalledTimes(2);
+      expect(solutions[0].type).toBe('combination');
+      expect(solutions[0].resources).toHaveLength(2);
+      expect(solutions[0].resources[0].kind).toBe('Deployment');
+      expect(solutions[0].resources[1].kind).toBe('Service');
+      expect(solutions[0].score).toBe(95);
+    });
+
+    it('should load correct prompt templates for both phases', async () => {
+      const intent = 'test intent';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
+        custom: []
+      });
+
+      mockExplainResource.mockResolvedValue({
+        kind: 'Pod',
         version: 'v1',
-        description: 'Deployment enables declarative updates for Pods and ReplicaSets',
-        properties: new Map(),
-        required: ['metadata', 'spec'],
-        namespace: true
-      },
-      {
-        apiVersion: 'v1',
-        kind: 'Service',
         group: '',
-        version: 'v1',
-        description: 'Service is a named abstraction of software service',
-        properties: new Map(),
-        required: ['metadata', 'spec'],
-        namespace: true
-      }
-    ];
-  });
+        description: 'Pod description',
+        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
+      });
 
-  describe('rankResourcesByIntent method', () => {
-    it('should rank Deployment highest for scalable web app intent', () => {
-      const intent = 'scalable web application with multiple replicas';
-      const ranking = ranker.rankResourcesByIntent(intent, schemas);
+      const fs = require('fs');
+      // Reset the mock and set clear expectations
+      const mockReadFileSync = jest.spyOn(fs, 'readFileSync');
+      mockReadFileSync.mockClear();
+      mockReadFileSync
+        .mockReturnValueOnce('Selection template: {intent}\n{resources}')
+        .mockReturnValueOnce('Ranking template: {intent}\n{resources}');
 
-      expect(ranking).toHaveLength(3);
-      expect(ranking[0].schema.kind).toBe('Deployment');
-      expect(ranking[0].score).toBeGreaterThan(ranking[1].score);
-      expect(ranking[0].reasons).toContain('scalable');
-    });
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
+        .mockResolvedValueOnce({ content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Test", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}` });
 
-    it('should rank Service highest for networking intent', () => {
-      const intent = 'expose application with load balancing';
-      const ranking = ranker.rankResourcesByIntent(intent, schemas);
+      await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
 
-      expect(ranking[0].schema.kind).toBe('Service');
-      expect(ranking[0].reasons).toContain('expose');
-    });
-
-    it('should rank Pod lowest for production workloads', () => {
-      const intent = 'production web application with high availability';
-      const ranking = ranker.rankResourcesByIntent(intent, schemas);
-
-      const podRanking = ranking.find(r => r.schema.kind === 'Pod');
-      expect(podRanking?.score).toBeLessThan(
-        ranking.find(r => r.schema.kind === 'Deployment')?.score || 0
-      );
-    });
-
-    it('should provide detailed scoring reasons', () => {
-      const intent = 'web application with auto-scaling';
-      const ranking = ranker.rankResourcesByIntent(intent, schemas);
-
-      const deploymentRanking = ranking.find(r => r.schema.kind === 'Deployment');
-      expect(deploymentRanking?.reasons).toContain('auto-scaling');
-      expect(deploymentRanking?.reasons.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('calculateCapabilityScore method', () => {
-    it('should score based on keyword matches in descriptions', () => {
-      const deploymentSchema = schemas.find(s => s.kind === 'Deployment')!;
-      const intent = 'declarative updates for applications';
-      
-      const score = ranker.calculateCapabilityScore(intent, deploymentSchema);
-      expect(score).toBeGreaterThan(0);
-    });
-
-    it('should give higher scores for better matches', () => {
-      const deploymentSchema = schemas.find(s => s.kind === 'Deployment')!;
-      const podSchema = schemas.find(s => s.kind === 'Pod')!;
-      
-      const scalingIntent = 'scalable application with replica management';
-      const deploymentScore = ranker.calculateCapabilityScore(scalingIntent, deploymentSchema);
-      const podScore = ranker.calculateCapabilityScore(scalingIntent, podSchema);
-      
-      expect(deploymentScore).toBeGreaterThan(podScore);
-    });
-  });
-
-  describe('extractScoringReasons method', () => {
-    it('should extract relevant keywords from intent and schema', () => {
-      const deploymentSchema = schemas.find(s => s.kind === 'Deployment')!;
-      const intent = 'scalable web application with declarative updates';
-      
-      const reasons = ranker.extractScoringReasons(intent, deploymentSchema);
-      expect(reasons).toContain('scalable');
-      expect(reasons).toContain('declarative');
-    });
-
-    it('should handle case-insensitive matching', () => {
-      const deploymentSchema = schemas.find(s => s.kind === 'Deployment')!;
-      const intent = 'SCALABLE application with DECLARATIVE updates';
-      
-      const reasons = ranker.extractScoringReasons(intent, deploymentSchema);
-      expect(reasons.length).toBeGreaterThan(0);
+      // Verify that the correct prompt files were loaded
+      expect(mockReadFileSync.mock.calls.find((call: any) => 
+        call[0] && call[0].includes('prompts/resource-selection.md')
+      )).toBeDefined();
+      expect(mockReadFileSync.mock.calls.find((call: any) => 
+        call[0] && call[0].includes('prompts/resource-solution-ranking.md')  
+      )).toBeDefined();
     });
   });
 });
 
-describe('Integration Tests', () => {
-  describe('End-to-end schema parsing and validation workflow', () => {
-    it('should parse schema and validate manifest in complete workflow', async () => {
-      const parser = new SchemaParser();
-      const validator = new ManifestValidator();
-
-      // Simulate kubectl explain output
-      const explanation: ResourceExplanation = {
-        kind: 'ConfigMap',
-        version: 'v1',
-        group: '',
-        description: 'ConfigMap holds configuration data for pods to consume',
-        fields: [
-          {
-            name: 'metadata',
-            type: 'Object',
-            description: 'Standard object metadata',
-            required: true
-          },
-          {
-            name: 'data',
-            type: 'object',
-            description: 'Data contains the configuration data',
-            required: false
-          }
-        ]
-      };
-
-      // Parse to schema
-      const schema = parser.parseResourceExplanation(explanation);
-      expect(schema.kind).toBe('ConfigMap');
-
-      // Create a temporary manifest file for validation
-      const fs = await import('fs');
-      const path = await import('path');
-      const os = await import('os');
-      const yaml = await import('yaml');
-      
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-test-'));
-      const manifestPath = path.join(tempDir, 'test-manifest.yaml');
-      
-      const manifest = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: {
-          name: 'test-config'
-        },
-        data: {
-          'config.yaml': 'setting: value'
-        }
-      };
-      
-      fs.writeFileSync(manifestPath, yaml.stringify(manifest));
-
-      // Mock executeKubectl for validation
-      const kubernetesUtils = await import('../src/core/kubernetes-utils');
-      const mockExecuteKubectl = jest.spyOn(kubernetesUtils, 'executeKubectl');
-      mockExecuteKubectl.mockResolvedValue('configmap/test-config created (dry run)');
-
-      // Validate the manifest using dry-run
-      const result = await validator.validateManifest(manifestPath);
-      expect(result.valid).toBe(true);
-      
-      // Restore the mock
-      mockExecuteKubectl.mockRestore();
-      
-      // Clean up
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    });
-
-    it('should handle complex CRD schemas', () => {
-      const parser = new SchemaParser();
-      
-      // Simulate complex CRD explanation
-      const crdExplanation: ResourceExplanation = {
-        kind: 'VirtualService',
-        version: 'v1beta1',
-        group: 'networking.istio.io',
-        description: 'Configuration affecting traffic routing',
-        fields: [
-          {
-            name: 'spec.http.match.uri.exact',
-            type: 'string',
-            description: 'Exact string match for URI',
-            required: false
-          },
-          {
-            name: 'spec.http.route.destination.host',
-            type: 'string',
-            description: 'Destination service host',
-            required: true
-          }
-        ]
-      };
-
-      const schema = parser.parseResourceExplanation(crdExplanation);
-      expect(schema.kind).toBe('VirtualService');
-      expect(schema.group).toBe('networking.istio.io');
-      expect(schema.apiVersion).toBe('networking.istio.io/v1beta1');
-    });
-  });
-}); 

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-configmap-integration
+  namespace: default
+  labels:
+    app: test-integration
+    test-type: integration
+data:
+  config.yaml: |
+    setting: value
+    environment: test
+  app.properties: |
+    debug=true
+    port=8080

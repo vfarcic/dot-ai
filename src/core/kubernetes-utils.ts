@@ -141,7 +141,9 @@ export class ErrorClassifier {
   }
 
   private static isKubeconfigError(message: string): boolean {
-    return /context.*does not exist|kubeconfig|config.*not found|invalid.*config|no Auth Provider/i.test(message);
+    // Be more specific - don't match "path does not exist" errors which are about manifest files
+    return /context.*does not exist|kubeconfig.*not found|invalid.*kubeconfig|config.*not found|no Auth Provider/i.test(message) && 
+           !/the path.*does not exist/.test(message);
   }
 
   private static isVersionCompatibilityError(message: string): boolean {

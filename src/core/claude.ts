@@ -70,6 +70,28 @@ export class ClaudeIntegration {
       // Add message to conversation history
       this.conversationHistory.push({ role: 'user', content: message });
 
+      // Use real Claude API if we have a real API key, otherwise fall back to mocks
+      if (this.apiKey.startsWith('sk-ant-') && this.client) {
+        // Make real API call to Claude
+        const completion = await this.client.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: message }]
+        });
+
+        const content = completion.content[0].type === 'text' ? completion.content[0].text : '';
+        const response: ClaudeResponse = {
+          content,
+          usage: {
+            input_tokens: completion.usage.input_tokens,
+            output_tokens: completion.usage.output_tokens
+          }
+        };
+
+        this.conversationHistory.push({ role: 'assistant', content: response.content });
+        return response;
+      }
+
       // For testing purposes, return mock responses
       if (message.toLowerCase().includes('deploy a web application')) {
         const response: ClaudeResponse = {
@@ -92,7 +114,7 @@ export class ClaudeIntegration {
         return response;
       }
 
-      // Default response
+      // Default mock response
       const response: ClaudeResponse = {
         content: 'I understand you want help with Kubernetes deployment. Could you provide more specific details about what you\'d like to deploy?',
         usage: { input_tokens: message.length / 4, output_tokens: 20 }

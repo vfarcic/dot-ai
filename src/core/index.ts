@@ -26,7 +26,7 @@ export class AppAgent {
   public readonly schema: {
     parser: SchemaParser;
     validator: ManifestValidator;
-    ranker: ResourceRanker;
+    ranker: ResourceRanker | null;
     parseResource: (resourceName: string) => Promise<any>;
     validateManifest: (manifestPath: string) => Promise<any>;
     rankResources: (intent: string) => Promise<any>;
@@ -47,7 +47,9 @@ export class AppAgent {
     // Initialize schema components
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
-    const ranker = new ResourceRanker();
+    const ranker = config.anthropicApiKey ? 
+      new ResourceRanker({ claudeApiKey: config.anthropicApiKey }) : 
+      null;
     
     this.schema = {
       parser,
@@ -68,11 +70,15 @@ export class AppAgent {
         };
       },
       rankResources: async (intent: string) => {
-        // This would get available schemas and rank them
-        // For now, return a mock implementation
-        return [
-          { resource: 'Deployment', score: 0.95, reason: 'Perfect match for web server deployment' }
-        ];
+        if (!ranker) {
+          throw new Error('ResourceRanker not available. ANTHROPIC_API_KEY is required for AI-powered ranking.');
+        }
+        
+        // Create discovery functions
+        const discoverResourcesFn = () => this.discovery.discoverResources();
+        const explainResourceFn = (resource: string) => this.discovery.explainResource(resource);
+        
+        return await ranker.findBestSolutions(intent, discoverResourcesFn, explainResourceFn);
       }
     };
   }

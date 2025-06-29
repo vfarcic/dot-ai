@@ -10,6 +10,7 @@ import {
   executeKubectl, 
   KubectlConfig 
 } from './kubernetes-utils';
+import { ClaudeIntegration } from './claude';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -49,10 +50,24 @@ export interface ValidationResult {
   warnings: string[];
 }
 
-export interface RankingResult {
-  schema: ResourceSchema;
+export interface ResourceSolution {
+  type: 'single' | 'combination';
+  resources: ResourceSchema[];
   score: number;
+  description: string;
   reasons: string[];
+  analysis: string;
+  deploymentOrder: number[];
+  dependencies: string[];
+}
+
+export interface AIRankingConfig {
+  claudeApiKey: string;
+}
+
+export interface DiscoveryFunctions {
+  discoverResources: () => Promise<any>;
+  explainResource: (resource: string) => Promise<any>;
 }
 
 /**
@@ -285,117 +300,184 @@ export class ManifestValidator {
 }
 
 /**
- * ResourceRanker ranks resources based on user intent and capabilities
+ * ResourceRanker determines which resources best meet user needs using AI
  */
 export class ResourceRanker {
-  /**
-   * Rank resources by how well they match user intent
-   */
-  rankResourcesByIntent(intent: string, schemas: ResourceSchema[]): RankingResult[] {
-    const rankings: RankingResult[] = [];
+  private claudeIntegration: ClaudeIntegration;
+  private config: AIRankingConfig;
 
-    for (const schema of schemas) {
-      const score = this.calculateCapabilityScore(intent, schema);
-      const reasons = this.extractScoringReasons(intent, schema);
-      
-      rankings.push({
-        schema,
-        score,
-        reasons
-      });
-    }
-
-    // Sort by score descending
-    return rankings.sort((a, b) => b.score - a.score);
+  constructor(config: AIRankingConfig) {
+    this.config = config;
+    this.claudeIntegration = new ClaudeIntegration(config.claudeApiKey);
   }
 
   /**
-   * Calculate capability score based on intent matching
+   * Find the best resource solution(s) for user intent using two-phase analysis
    */
-  calculateCapabilityScore(intent: string, schema: ResourceSchema): number {
-    let score = 0;
-    const intentLower = intent.toLowerCase();
-    const description = schema.description.toLowerCase();
-    const kind = schema.kind.toLowerCase();
+  async findBestSolutions(
+    intent: string, 
+    discoverResources: () => Promise<any>,
+    explainResource: (resource: string) => Promise<any>
+  ): Promise<ResourceSolution[]> {
+    if (!this.claudeIntegration.isInitialized()) {
+      throw new Error('Claude integration not initialized. API key required for AI-powered resource ranking.');
+    }
 
-    // Keyword scoring
-    const keywords = {
-      // Deployment-related keywords
-      'scalable': kind === 'deployment' ? 10 : 0,
-      'replica': kind === 'deployment' ? 8 : 0,
-      'declarative': description.includes('declarative') ? 5 : 0,
-      'update': description.includes('update') ? 3 : 0,
-      
-      // Service-related keywords
-      'expose': kind === 'service' ? 10 : 0,
-      'load': kind === 'service' ? 8 : 0,
-      'network': kind === 'service' ? 6 : 0,
-      'traffic': kind === 'service' ? 5 : 0,
-      
-      // Pod-related keywords (typically lower score for production)
-      'container': kind === 'pod' ? 3 : 0,
-      'simple': kind === 'pod' ? 2 : 0,
-      
-      // Auto-scaling keywords
-      'auto-scaling': kind === 'deployment' ? 8 : 0,
-      'scaling': kind === 'deployment' ? 6 : 0,
-      
-      // Production keywords (favor higher-level abstractions)
-      'production': kind === 'deployment' ? 5 : kind === 'pod' ? -3 : 0,
-      'availability': kind === 'deployment' ? 4 : 0
-    };
+    try {
+      // Phase 1: Get lightweight resource list and let AI select candidates
+      const resourceMap = await discoverResources();
+      const allResources = [...resourceMap.resources, ...resourceMap.custom];
+      const candidates = await this.selectResourceCandidates(intent, allResources);
 
-    // Add scores for matching keywords
-    for (const [keyword, points] of Object.entries(keywords)) {
-      if (intentLower.includes(keyword)) {
-        score += points;
+      // Phase 2: Fetch detailed schemas for selected candidates and rank
+      const schemas = await this.fetchDetailedSchemas(candidates, explainResource);
+      return await this.rankWithDetailedSchemas(intent, schemas);
+    } catch (error) {
+      throw new Error(`AI-powered resource solution analysis failed: ${error}`);
+    }
+  }
+
+  /**
+   * Phase 1: AI selects promising resource candidates from lightweight list
+   */
+  private async selectResourceCandidates(intent: string, resources: any[]): Promise<any[]> {
+    const resourceSummary = resources.map((resource, index) => 
+      `${index}: ${resource.kind} (${resource.apiVersion || (resource.group ? `${resource.group}/${resource.version}` : resource.version)})
+   Group: ${resource.group || 'core'}
+   Namespaced: ${resource.namespaced || resource.scope === 'Namespaced'}`
+    ).join('\n\n');
+
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(process.cwd(), 'prompts', 'resource-selection.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    const selectionPrompt = template
+      .replace('{intent}', intent)
+      .replace('{resources}', resourceSummary);
+
+    const response = await this.claudeIntegration.sendMessage(selectionPrompt);
+    
+    try {
+      // Extract JSON from response
+      const jsonMatch = response.content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || [null, response.content];
+      const jsonContent = jsonMatch[1] || response.content;
+      const selectedResources = JSON.parse(jsonContent);
+      
+      if (!Array.isArray(selectedResources)) {
+        throw new Error('AI response is not an array');
       }
-    }
-
-    // Base scores by resource type
-    const baseScores: { [key: string]: number } = {
-      'deployment': 5,
-      'service': 5,
-      'configmap': 3,
-      'secret': 3,
-      'pod': 1 // Lower base score for direct pod usage
-    };
-
-    score += baseScores[kind] || 0;
-
-    return Math.max(0, score);
-  }
-
-  /**
-   * Extract reasons for scoring
-   */
-  extractScoringReasons(intent: string, schema: ResourceSchema): string[] {
-    const reasons: string[] = [];
-    const intentLower = intent.toLowerCase();
-    const description = schema.description.toLowerCase();
-    const kind = schema.kind.toLowerCase();
-
-    // Check for keyword matches
-    const reasonKeywords = [
-      'scalable', 'replica', 'declarative', 'update', 'expose', 
-      'load', 'network', 'traffic', 'auto-scaling', 'scaling',
-      'production', 'availability', 'container'
-    ];
-
-    for (const keyword of reasonKeywords) {
-      if (intentLower.includes(keyword)) {
-        if ((keyword === 'scalable' || keyword === 'replica') && kind === 'deployment') {
-          reasons.push(keyword);
-        } else if (keyword === 'expose' && kind === 'service') {
-          reasons.push(keyword);
-        } else if (description.includes(keyword)) {
-          reasons.push(keyword);
-        } else if (intentLower.includes(keyword)) {
-          reasons.push(keyword);
+      
+      // Validate that each resource has required fields
+      for (const resource of selectedResources) {
+        if (!resource.kind || !resource.apiVersion) {
+          throw new Error(`AI selected invalid resource: ${JSON.stringify(resource)}`);
         }
       }
+      
+      return selectedResources;
+    } catch (error) {
+      throw new Error(`AI failed to select resources in valid JSON format. Error: ${(error as Error).message}. AI response: "${response.content.substring(0, 200)}..."`);
+    }
+  }
+
+  /**
+   * Phase 2: Fetch detailed schemas for selected candidates
+   */
+  private async fetchDetailedSchemas(candidates: any[], explainResource: (resource: string) => Promise<any>): Promise<ResourceSchema[]> {
+    const schemas: ResourceSchema[] = [];
+    const parser = new SchemaParser();
+    const errors: string[] = [];
+
+    for (const resource of candidates) {
+      try {
+        const explanation = await explainResource(resource.kind);
+        const schema = parser.parseResourceExplanation(explanation);
+        schemas.push(schema);
+      } catch (error) {
+        errors.push(`${resource.kind}: ${(error as Error).message}`);
+      }
     }
 
-    return [...new Set(reasons)]; // Remove duplicates
+    if (schemas.length === 0) {
+      throw new Error(`Could not fetch schemas for any selected resources. Errors: ${errors.join(', ')}`);
+    }
+
+    if (errors.length > 0) {
+      console.warn(`Some resources could not be analyzed: ${errors.join(', ')}`);
+    }
+
+    return schemas;
+  }
+
+  /**
+   * Phase 3: Rank resources with detailed schema information
+   */
+  private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[]): Promise<ResourceSolution[]> {
+    const prompt = await this.loadPromptTemplate(intent, schemas);
+    const response = await this.claudeIntegration.sendMessage(prompt);
+    return this.parseAISolutionResponse(response.content, schemas);
+  }
+
+  /**
+   * Load and format prompt template from file
+   */
+  private async loadPromptTemplate(intent: string, schemas: ResourceSchema[]): Promise<string> {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(process.cwd(), 'prompts', 'resource-solution-ranking.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    // Format resources for the prompt
+    const resourcesText = schemas.map((schema, index) => 
+      `${index}: ${schema.kind} (${schema.apiVersion})
+   Group: ${schema.group || 'core'}
+   Description: ${schema.description}
+   Namespaced: ${schema.namespace}`
+    ).join('\n\n');
+    
+    return template
+      .replace('{intent}', intent)
+      .replace('{resources}', resourcesText);
+  }
+
+  /**
+   * Parse AI response into solution results
+   */
+  private parseAISolutionResponse(aiResponse: string, schemas: ResourceSchema[]): ResourceSolution[] {
+    try {
+      // Extract JSON from AI response (may be wrapped in markdown)
+      const jsonMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || [null, aiResponse];
+      const jsonContent = jsonMatch[1] || aiResponse;
+      
+      const parsed = JSON.parse(jsonContent);
+      
+      const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
+        const resources = solution.resourceIndexes.map((index: number) => schemas[index]).filter(Boolean);
+        
+        if (resources.length === 0) {
+          throw new Error(`Invalid resource indexes: ${solution.resourceIndexes}`);
+        }
+        
+        return {
+          type: solution.type,
+          resources,
+          score: solution.score,
+          description: solution.description,
+          reasons: solution.reasons || [],
+          analysis: solution.analysis || '',
+          deploymentOrder: solution.deploymentOrder || solution.resourceIndexes,
+          dependencies: solution.dependencies || []
+        };
+      });
+
+      // Sort by score descending
+      return solutions.sort((a, b) => b.score - a.score);
+      
+    } catch (error) {
+      throw new Error(`Failed to parse AI solution response: ${error}`);
+    }
   }
 } 

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-no-best-practices
+  # Missing labels and namespace - should trigger warnings
+data:
+  config.yaml: |
+    setting: value

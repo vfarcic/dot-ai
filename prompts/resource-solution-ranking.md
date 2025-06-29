@@ -1,0 +1,57 @@
+# Resource Solution Ranking Prompt
+
+You are a Kubernetes expert helping to determine which resource(s) best meet a user's needs.
+
+## User Intent
+{intent}
+
+## Available Resources
+{resources}
+
+## Instructions
+
+Analyze the user's intent and determine the best solution(s). This could be:
+- A single resource that fully addresses the need
+- A combination of resources that work together to create a complete solution
+- Multiple alternative approaches ranked by effectiveness
+
+For each solution, provide:
+1. A score from 0-100 for how well it meets the user's needs
+2. Specific reasons why this solution addresses the intent
+3. Whether it's a single resource or combination, and why
+4. Any dependencies or deployment considerations
+5. Production readiness and best practices
+
+Consider:
+- Semantic meaning and typical use cases
+- Resource relationships and dependencies
+- Complete end-to-end solutions vs partial solutions
+- Production patterns and best practices
+- Custom Resource Definitions (CRDs) and their purposes
+
+## Response Format
+
+```json
+{
+  "solutions": [
+    {
+      "type": "single|combination",
+      "resourceIndexes": [0],
+      "score": 85,
+      "description": "Brief description of this solution",
+      "reasons": ["reason1", "reason2"],
+      "analysis": "Detailed explanation of why this solution meets the user's needs",
+      "deploymentOrder": [0],
+      "dependencies": ["external dependency if any"]
+    }
+  ]
+}
+```
+
+## Scoring Guidelines
+
+- **90-100**: Complete solution, fully addresses user needs
+- **70-89**: Good solution, addresses most needs with minor gaps
+- **50-69**: Partial solution, addresses some needs but requires additional work
+- **30-49**: Incomplete solution, only peripherally addresses needs
+- **0-29**: Poor fit, doesn't meaningfully address the user's intent

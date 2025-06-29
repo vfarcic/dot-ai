@@ -9,7 +9,7 @@ import { AppAgent } from '../core';
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import Table from 'cli-table3';
-import { SchemaParser, ManifestValidator } from '../core/schema';
+import { SchemaParser, ManifestValidator, ResourceRanker, AIRankingConfig } from '../core/schema';
 
 export interface CliResult {
   success: boolean;
@@ -105,11 +105,13 @@ export class CliInterface {
     // Schema command
     this.program
       .command('schema')
-      .description('Parse and display resource schema information')
+      .description('Parse and display resource schema information with AI-powered ranking')
       .option('--resource <name>', 'Resource name to get schema for (e.g., deployment, pod)')
       .option('--api-version <version>', 'API version (e.g., apps/v1, v1). If not specified, will show available versions')
       .option('--list-versions', 'List all available API versions for the resource')
       .option('--validate <file>', 'Validate a YAML manifest file against the resource schema')
+      .option('--rank', 'Enable AI-powered resource ranking and recommendation')
+      .option('--intent <description>', 'Describe your intent for AI-powered resource recommendations (required with --rank)')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
         const result = await this.executeCommand('schema', options);
@@ -200,7 +202,7 @@ export class CliInterface {
       case 'learn':
         return [...commonOptions, 'pattern'];
       case 'schema':
-        return [...commonOptions, 'resource', 'api-version', 'list-versions', 'validate'];
+        return [...commonOptions, 'resource', 'api-version', 'list-versions', 'validate', 'rank', 'intent'];
       default:
         return commonOptions;
     }
@@ -546,6 +548,71 @@ export class CliInterface {
             })
           }
         };
+      }
+
+      // Handle ranking if --rank option is provided (before resource validation)
+      if (options.rank) {
+        if (!options.intent) {
+          return {
+            success: false,
+            error: 'Intent must be specified with --intent when using --rank option'
+          };
+        }
+
+        // Get Claude API key from environment
+        const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+        if (!claudeApiKey) {
+          return {
+            success: false,
+            error: 'ANTHROPIC_API_KEY environment variable must be set for AI-powered resource ranking'
+          };
+        }
+
+        try {
+          // Initialize AI-powered ResourceRanker
+          const rankingConfig: AIRankingConfig = { claudeApiKey };
+          const ranker = new ResourceRanker(rankingConfig);
+
+          // Create discovery functions
+          const discoverResourcesFn = () => this.appAgent.discovery.discoverResources();
+          const explainResourceFn = (resource: string) => this.appAgent.discovery.explainResource(resource);
+
+          // Find best solutions for the user intent using functional approach
+          const solutions = await ranker.findBestSolutions(options.intent, discoverResourcesFn, explainResourceFn);
+
+          return {
+            success: true,
+            data: {
+              intent: options.intent,
+              solutions: solutions.map(solution => ({
+                type: solution.type,
+                score: solution.score,
+                description: solution.description,
+                reasons: solution.reasons,
+                analysis: solution.analysis,
+                resources: solution.resources.map(r => ({
+                  kind: r.kind,
+                  apiVersion: r.apiVersion,
+                  group: r.group,
+                  description: r.description
+                })),
+                deploymentOrder: solution.deploymentOrder,
+                dependencies: solution.dependencies
+              })),
+              summary: {
+                totalSolutions: solutions.length,
+                bestScore: solutions[0]?.score || 0,
+                recommendedSolution: solutions[0]?.type || 'none',
+                topResource: solutions[0]?.resources[0]?.kind || 'none'
+              }
+            }
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: `AI-powered ranking failed: ${(error as Error).message}`
+          };
+        }
       }
 
       // Handle regular schema parsing
