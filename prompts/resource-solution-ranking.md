@@ -47,17 +47,27 @@ When evaluating CRDs vs standard Kubernetes resources:
   "solutions": [
     {
       "type": "single|combination",
-      "resourceIndexes": [0],
+      "resources": [
+        {
+          "kind": "Deployment",
+          "apiVersion": "apps/v1",
+          "group": "apps"
+        }
+      ],
       "score": 85,
       "description": "Brief description of this solution",
       "reasons": ["reason1", "reason2"],
       "analysis": "Detailed explanation of why this solution meets the user's needs",
-      "deploymentOrder": [0],
       "dependencies": ["external dependency if any"]
     }
   ]
 }
 ```
+
+For each resource in the `resources` array, provide:
+- `kind`: The resource type (e.g., "Deployment", "Service", "AppClaim")
+- `apiVersion`: The API version (e.g., "apps/v1", "v1")
+- `group`: The API group (empty string for core resources, e.g., "apps", "devopstoolkit.live")
 
 ## Scoring Guidelines
 

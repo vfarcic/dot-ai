@@ -366,12 +366,11 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
   "solutions": [
     {
       "type": "single",
-      "resourceIndexes": [0],
+      "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
       "score": 85,
       "description": "Pod for simple container execution",
       "reasons": ["Direct container hosting", "Simple use case"],
       "analysis": "Pod is the perfect choice for running a simple container without complex orchestration needs",
-      "deploymentOrder": [0],
       "dependencies": []
     }
   ]
@@ -452,13 +451,12 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
           content: `{
             "solutions": [{
               "type": "single",
-              "resourceIndexes": [0],
+              "resources": [{"kind": "Cluster", "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "group": "infrastructure.cluster.x-k8s.io"}],
               "score": 98,
               "description": "Custom resource for cluster provisioning",
               "reasons": ["Cluster management", "Infrastructure as code"],
               "analysis": "This CRD is specifically designed for cluster provisioning",
-              "deploymentOrder": [0],
-              "dependencies": ["cluster-api-provider"]
+                      "dependencies": ["cluster-api-provider"]
             }]
           }`
         });
@@ -594,12 +592,11 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
           content: `{
             "solutions": [{
               "type": "combination",
-              "resourceIndexes": [0, 1],
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}, {"kind": "Service", "apiVersion": "v1", "group": ""}],
               "score": 95,
               "description": "Complete web application stack",
               "reasons": ["Scalable architecture", "Load balancing"],
               "analysis": "Deployment provides scalability, Service enables network access",
-              "deploymentOrder": [0, 1],
               "dependencies": []
             }]
           }`
@@ -641,7 +638,7 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
       mockClaudeIntegration.sendMessage
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
-        .mockResolvedValueOnce({ content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Test", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}` });
+        .mockResolvedValueOnce({ content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Test", "reasons": [], "analysis": "", "dependencies": []}]}` });
 
       await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
 
@@ -733,10 +730,9 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
             "type": "combination",
             "score": 95,
             "description": "Complete app deployment with AppClaim",
-            "resourceIndexes": [1],
+            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}],
             "reasons": ["AppClaim provides simple app deployment"],
             "analysis": "AppClaim simplifies application deployment",
-            "deploymentOrder": [1],
             "dependencies": []
           }]
         }`
@@ -801,11 +797,10 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
             "type": "single",
             "score": 80,
             "description": "Test resource solution",
-            "resourceIndexes": [0],
+            "resources": [{"kind": "TestResource", "apiVersion": "v1", "group": ""}],
             "reasons": ["TestResource for testing"],
             "analysis": "Basic test resource",
-            "deploymentOrder": [0],
-            "dependencies": []
+                  "dependencies": []
           }]
         }`
       });
@@ -867,19 +862,17 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
             "type": "single",
             "score": 90,
             "description": "Simple application deployment using AppClaim",
-            "resourceIndexes": [2],
+            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}],
             "reasons": ["AppClaim provides declarative app deployment", "Higher-level abstraction"],
             "analysis": "AppClaim offers simpler deployment",
-            "deploymentOrder": [2],
             "dependencies": []
           }, {
             "type": "combination", 
             "score": 80,
             "description": "Traditional Kubernetes deployment",
-            "resourceIndexes": [0, 1],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}, {"kind": "Service", "apiVersion": "v1", "group": ""}],
             "reasons": ["Standard Kubernetes pattern"],
             "analysis": "Traditional approach",
-            "deploymentOrder": [0, 1],
             "dependencies": []
           }]
         }`
@@ -1075,13 +1068,12 @@ describe('Question Generation and Dynamic Discovery', () => {
           content: `{
             "solutions": [{
               "type": "single",
-              "resourceIndexes": [0],
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
               "score": 85,
               "description": "Simple deployment",
               "reasons": ["Basic web app"],
               "analysis": "Perfect for simple apps",
-              "deploymentOrder": [0],
-              "dependencies": []
+                      "dependencies": []
             }]
           }`
         })
@@ -1155,7 +1147,7 @@ describe('Question Generation and Dynamic Discovery', () => {
       mockClaudeIntegration.sendMessage
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
         .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "dependencies": []}]}`
         })
         .mockResolvedValueOnce({
           content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "fallback", "placeholder": "fallback"}}`
@@ -1196,7 +1188,7 @@ describe('Question Generation and Dynamic Discovery', () => {
       mockClaudeIntegration.sendMessage
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
         .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "dependencies": []}]}`
         })
         .mockRejectedValueOnce(new Error('AI service unavailable'));
 
@@ -1232,7 +1224,7 @@ describe('Question Generation and Dynamic Discovery', () => {
       mockClaudeIntegration.sendMessage
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
         .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resourceIndexes": [0], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "deploymentOrder": [0], "dependencies": []}]}`
+          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "dependencies": []}]}`
         })
         .mockResolvedValueOnce({
           content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
@@ -1286,7 +1278,7 @@ These resources should work well.`
     "type": "single",
     "score": 90,
     "description": "Pod for basic deployment",
-    "resourceIndexes": [0],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
     "reasons": ["Pod handles the deployment"],
     "analysis": "Simple pod deployment"
   }]
@@ -1339,7 +1331,7 @@ Some additional text after the JSON array.`
     "type": "single",
     "score": 85,
     "description": "Pod solution",
-    "resourceIndexes": [0],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
     "reasons": ["Pod works"],
     "analysis": "Basic analysis"
   }]
@@ -1452,7 +1444,7 @@ describe('Enhanced Error Handling and Debugging', () => {
         content: `{
           "solutions": [{
             "type": "single",
-            "resourceIndexes": [5, 10],
+            "resources": [{"kind": "NonExistent", "apiVersion": "v1", "group": ""}],
             "score": 90,
             "description": "Invalid solution",
             "reasons": ["test"],
@@ -1467,7 +1459,7 @@ describe('Enhanced Error Handling and Debugging', () => {
       });
 
       await expect(recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
-        .rejects.toThrow(/Invalid resource indexes/);
+        .rejects.toThrow(/No matching resources found/);
     });
 
     it('should include AI response context in error messages', async () => {
@@ -1604,7 +1596,7 @@ describe('Enhanced Error Handling and Debugging', () => {
         content: `{
           "solutions": [{
             "type": "single",
-            "resourceIndexes": [0],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
             "score": 90,
             "description": "Pod solution",
             "reasons": ["test"],

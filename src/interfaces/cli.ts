@@ -357,7 +357,6 @@ export class CliInterface {
               group: r.group,
               description: r.description
             })),
-            deploymentOrder: solution.deploymentOrder,
             dependencies: solution.dependencies
           })),
           summary: {

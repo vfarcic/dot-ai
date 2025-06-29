@@ -82,7 +82,6 @@ export interface ResourceSolution {
   description: string;
   reasons: string[];
   analysis: string;
-  deploymentOrder: number[];
   dependencies: string[];
   questions: QuestionGroup;
 }
@@ -568,28 +567,43 @@ export class ResourceRecommender {
         
         if (isDebugMode) {
           console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));
-          console.debug('DEBUG: solution.resourceIndexes type:', typeof solution.resourceIndexes);
-          console.debug('DEBUG: solution.resourceIndexes value:', solution.resourceIndexes);
         }
         
-        const resourcesWithIndex = solution.resourceIndexes.map((index: number) => ({ index, schema: schemas[index] }));
-        const resources = resourcesWithIndex.filter((r: any) => r.schema).map((r: any) => r.schema);
+        // Find matching schemas for the requested resources
+        const resources: ResourceSchema[] = [];
+        const notFound: any[] = [];
+        
+        for (const requestedResource of solution.resources || []) {
+          const matchingSchema = schemas.find(schema => 
+            schema.kind === requestedResource.kind &&
+            schema.apiVersion === requestedResource.apiVersion &&
+            schema.group === requestedResource.group
+          );
+          
+          if (matchingSchema) {
+            resources.push(matchingSchema);
+          } else {
+            notFound.push(requestedResource);
+          }
+        }
         
         if (resources.length === 0) {
           if (isDebugMode) {
-            console.debug('DEBUG: In error block, solution.resourceIndexes:', solution.resourceIndexes);
-            console.debug('DEBUG: In error block, resourcesWithIndex:', resourcesWithIndex);
-            console.debug('DEBUG: In error block, resources after filter:', resources);
+            console.debug('DEBUG: No matching resources found');
+            console.debug('DEBUG: Requested resources:', solution.resources);
+            console.debug('DEBUG: Available schemas:', schemas.map(s => ({ kind: s.kind, apiVersion: s.apiVersion, group: s.group })));
           }
           
           const debugInfo = {
-            requestedIndexes: solution.resourceIndexes,
-            availableSchemas: schemas.map((s, i) => ({ index: i, kind: s.kind })),
-            schemasCount: schemas.length,
-            resourceMapping: resourcesWithIndex.map((r: any) => ({ index: r.index, found: !!r.schema, kind: r.schema?.kind || 'undefined' })),
-            invalidIndexes: solution.resourceIndexes.filter((idx: number) => idx >= schemas.length || idx < 0)
+            requestedResources: solution.resources || [],
+            notFoundResources: notFound,
+            availableSchemas: schemas.map(s => ({ kind: s.kind, apiVersion: s.apiVersion, group: s.group }))
           };
-          throw new Error(`Invalid resource indexes: ${JSON.stringify(debugInfo, null, 2)}`);
+          throw new Error(`No matching resources found: ${JSON.stringify(debugInfo, null, 2)}`);
+        }
+        
+        if (notFound.length > 0 && isDebugMode) {
+          console.debug('DEBUG: Some resources not found:', notFound);
         }
         
         return {
@@ -600,7 +614,6 @@ export class ResourceRecommender {
           description: solution.description,
           reasons: solution.reasons || [],
           analysis: solution.analysis || '',
-          deploymentOrder: solution.deploymentOrder || solution.resourceIndexes,
           dependencies: solution.dependencies || [],
           questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } }
         };
