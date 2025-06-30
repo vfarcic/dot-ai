@@ -1,3 +1,69 @@
+# App-Agent Project - Claude Code Integration Guide
+
+## Project Overview
+
+**App-Agent** is an intelligent Kubernetes application deployment agent that discovers cluster capabilities and provides AI-powered recommendations for deploying applications using available resources.
+
+### Core Features
+- **Cluster Discovery**: Automatically discovers Kubernetes resources and custom operators
+- **AI Recommendations**: Get intelligent deployment recommendations based on your intent
+- **Solution Enhancement**: Process open-ended user requirements to enhance configurations
+- **Operator Integration**: Leverages custom operators like Crossplane, ArgoCD when available
+
+### Key Commands
+
+```bash
+# Core app-agent commands
+node dist/cli.js discover                           # Discover cluster resources
+node dist/cli.js recommend --intent "description"   # Get AI-powered recommendations  
+node dist/cli.js enhance --solution solution.json   # Enhance solutions with user requirements
+node dist/cli.js explain Pod                        # Get detailed resource schema
+node dist/cli.js fingerprint                        # Analyze cluster capabilities
+
+# Development commands
+npm test                                            # Run all tests
+npm run build                                       # Build the project
+npm run mcp:start                                   # Start MCP server
+```
+
+### Project Structure
+
+```
+src/
+├── core/
+│   ├── discovery.ts      # Cluster discovery engine
+│   ├── schema.ts         # Resource schema parsing & AI recommendations
+│   ├── claude.ts         # Claude AI integration
+│   └── ...
+├── interfaces/
+│   ├── cli.ts           # CLI interface
+│   └── mcp.ts           # MCP server interface
+└── ...
+
+docs/                    # All documentation
+tests/                   # Comprehensive test suite (349+ tests)
+prompts/                 # AI prompt templates
+```
+
+### Testing & Development
+
+- **Run tests**: `npm test` (349+ tests across 10 suites)
+- **Build**: `npm run build`
+- **Manual testing**: Use real cluster with `node dist/cli.js discover`
+- **Documentation**: See `docs/` directory for complete guides
+
+### Environment Setup
+
+```bash
+# Required for AI features
+export ANTHROPIC_API_KEY=your_api_key_here
+
+# Optional: Custom kubeconfig
+export KUBECONFIG=/path/to/kubeconfig.yaml
+```
+
+---
+
 # Task Master AI - Claude Code Integration Guide
 
 ## Essential Commands

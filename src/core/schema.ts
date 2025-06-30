@@ -70,6 +70,7 @@ export interface Question {
     pattern?: string;
   };
   resourceMapping?: ResourceMapping | ResourceMapping[];
+  answer?: any;
 }
 
 export interface QuestionGroup {
@@ -79,6 +80,7 @@ export interface QuestionGroup {
   open: {
     question: string;
     placeholder: string;
+    answer?: string;
   };
 }
 
@@ -776,6 +778,279 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
           placeholder: "e.g., specific security requirements, performance needs, existing infrastructure constraints..."
         }
       };
+    }
+  }
+}
+
+/**
+ * SolutionEnhancer processes open-ended user responses to complete missing question answers
+ * and generate new questions for additional resource capabilities
+ */
+export class SolutionEnhancer {
+  private claudeIntegration: ClaudeIntegration;
+  private config: AIRankingConfig;
+
+  constructor(config: AIRankingConfig) {
+    this.config = config;
+    this.claudeIntegration = new ClaudeIntegration(config.claudeApiKey);
+  }
+
+  /**
+   * Enhance a solution by analyzing open user response and completing/adding questions
+   */
+  async enhanceSolution(
+    currentSolution: ResourceSolution,
+    openResponse: string,
+    availableResources: any,
+    explainResource: (resource: string) => Promise<any>
+  ): Promise<ResourceSolution> {
+    if (!this.claudeIntegration.isInitialized()) {
+      throw new Error('Claude integration not initialized. API key required for AI-powered solution enhancement.');
+    }
+
+    try {
+      // Phase 1: Analyze what resources are needed
+      const analysisResult = await this.analyzeResourceNeeds(currentSolution, openResponse, availableResources);
+      
+      if (analysisResult.approach === 'capability_gap') {
+        throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
+      }
+
+      // Phase 2: Fetch detailed schemas and enhance
+      const detailedSchemas = await this.fetchRequiredSchemas(currentSolution, analysisResult, explainResource);
+      
+      // Load enhancement prompt template with detailed schemas
+      const prompt = await this.loadEnhancementPrompt(currentSolution, openResponse, detailedSchemas, analysisResult);
+      
+      // Get AI analysis of what needs to be enhanced
+      const response = await this.claudeIntegration.sendMessage(prompt);
+      const enhancementData = this.parseEnhancementResponse(response.content);
+
+      // Apply the enhancements to the solution
+      return this.applyEnhancements(currentSolution, enhancementData);
+    } catch (error) {
+      throw new Error(`Solution enhancement failed: ${error}`);
+    }
+  }
+
+  /**
+   * Phase 1: Analyze what resources are needed for the user request
+   */
+  private async analyzeResourceNeeds(
+    currentSolution: ResourceSolution,
+    openResponse: string,
+    availableResources: any
+  ): Promise<any> {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(process.cwd(), 'prompts', 'resource-analysis.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    // Extract just resource types for analysis
+    const availableResourceTypes = [...availableResources.resources, ...availableResources.custom]
+      .map((r: any) => r.kind);
+    
+    const analysisPrompt = template
+      .replace('{current_solution}', JSON.stringify(currentSolution, null, 2))
+      .replace('{user_request}', openResponse)
+      .replace('{available_resource_types}', JSON.stringify(availableResourceTypes, null, 2));
+
+    const response = await this.claudeIntegration.sendMessage(analysisPrompt);
+    return this.parseEnhancementResponse(response.content);
+  }
+
+  /**
+   * Phase 2: Fetch schemas only for the resources we need
+   */
+  private async fetchRequiredSchemas(
+    currentSolution: ResourceSolution,
+    analysisResult: any,
+    explainResource: (resource: string) => Promise<any>
+  ): Promise<any[]> {
+    const parser = new SchemaParser();
+    const detailedSchemas = [];
+
+    // Always fetch schemas for current solution resources
+    for (const resource of currentSolution.resources) {
+      try {
+        const explanation = await explainResource(resource.kind);
+        const schema = parser.parseResourceExplanation(explanation);
+        detailedSchemas.push({
+          kind: resource.kind,
+          apiVersion: resource.apiVersion,
+          group: resource.group,
+          schema: schema,
+          explanation: explanation
+        });
+      } catch (error) {
+        console.warn(`Failed to fetch detailed schema for ${resource.kind}: ${error}`);
+      }
+    }
+
+    // If additional resources are suggested, fetch their schemas too
+    if (analysisResult.approach === 'add_resources' && analysisResult.suggestedResources) {
+      for (const resourceKind of analysisResult.suggestedResources) {
+        try {
+          const explanation = await explainResource(resourceKind);
+          const schema = parser.parseResourceExplanation(explanation);
+          detailedSchemas.push({
+            kind: resourceKind,
+            apiVersion: schema.apiVersion,
+            group: schema.group,
+            schema: schema,
+            explanation: explanation
+          });
+        } catch (error) {
+          console.warn(`Failed to fetch detailed schema for suggested resource ${resourceKind}: ${error}`);
+        }
+      }
+    }
+
+    return detailedSchemas;
+  }
+
+  /**
+   * Load and format the enhancement prompt template
+   */
+  private async loadEnhancementPrompt(
+    currentSolution: ResourceSolution,
+    openResponse: string,
+    detailedSchemas: any[],
+    analysisResult: any
+  ): Promise<string> {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(process.cwd(), 'prompts', 'solution-enhancement.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    return template
+      .replace('{current_solution}', JSON.stringify(currentSolution, null, 2))
+      .replace('{open_response}', openResponse)
+      .replace('{detailed_schemas}', JSON.stringify(detailedSchemas, null, 2))
+      .replace('{analysis_result}', JSON.stringify(analysisResult, null, 2));
+  }
+
+  /**
+   * Parse AI response for enhancement data
+   */
+  private parseEnhancementResponse(aiResponse: string): any {
+    try {
+      // Extract JSON from AI response (may be wrapped in markdown)
+      let jsonContent = aiResponse;
+      
+      // Try to find JSON wrapped in code blocks
+      const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      } else {
+        // Try to find JSON that starts with { and find the matching closing }
+        const startIndex = aiResponse.indexOf('{');
+        if (startIndex !== -1) {
+          let braceCount = 0;
+          let endIndex = startIndex;
+          
+          for (let i = startIndex; i < aiResponse.length; i++) {
+            if (aiResponse[i] === '{') braceCount++;
+            if (aiResponse[i] === '}') braceCount--;
+            if (braceCount === 0) {
+              endIndex = i;
+              break;
+            }
+          }
+          
+          if (braceCount === 0) {
+            jsonContent = aiResponse.substring(startIndex, endIndex + 1);
+          }
+        }
+      }
+      
+      return JSON.parse(jsonContent.trim());
+    } catch (error) {
+      throw new Error(`Failed to parse AI enhancement response: ${(error as Error).message}. AI response: "${aiResponse.substring(0, 200)}..."`);
+    }
+  }
+
+  /**
+   * Apply enhancement data to the current solution
+   */
+  private applyEnhancements(currentSolution: ResourceSolution, enhancementData: any): ResourceSolution {
+    // Create a deep copy of the solution to avoid mutations
+    const enhancedSolution: ResourceSolution = JSON.parse(JSON.stringify(currentSolution));
+    
+    // Handle error cases
+    if (enhancementData.error) {
+      throw new Error(`Enhancement capability gap: ${enhancementData.message}`);
+    }
+
+    // Apply missing answers to existing questions
+    if (enhancementData.missingAnswers && enhancementData.missingAnswers.length > 0) {
+      this.applyMissingAnswers(enhancedSolution.questions, enhancementData.missingAnswers);
+    }
+
+    // Add new questions with answers if provided
+    if (enhancementData.newQuestions && enhancementData.newQuestions.length > 0) {
+      this.addNewQuestions(enhancedSolution.questions, enhancementData.newQuestions);
+    }
+
+    // Add additional resources if provided
+    if (enhancementData.additionalResources && enhancementData.additionalResources.length > 0) {
+      enhancedSolution.resources.push(...enhancementData.additionalResources);
+      enhancedSolution.type = 'combination'; // Multiple resources = combination
+    }
+
+    // Clear the open question answer since it has been processed (empty string signals ready for new input)
+    enhancedSolution.questions.open.answer = "";
+
+    return enhancedSolution;
+  }
+
+  /**
+   * Apply missing answers to existing questions
+   */
+  private applyMissingAnswers(questions: QuestionGroup, missingAnswers: any[]): void {
+    for (const answer of missingAnswers) {
+      // Find and update the question in the appropriate category
+      this.updateQuestionAnswer(questions.required, answer.questionId, answer.suggestedValue);
+      this.updateQuestionAnswer(questions.basic, answer.questionId, answer.suggestedValue);
+      this.updateQuestionAnswer(questions.advanced, answer.questionId, answer.suggestedValue);
+    }
+  }
+
+  /**
+   * Add new questions with answers to the appropriate category
+   */
+  private addNewQuestions(questions: QuestionGroup, newQuestions: any[]): void {
+    for (const newQuestion of newQuestions) {
+      const question: Question = {
+        id: newQuestion.id,
+        question: newQuestion.question,
+        type: newQuestion.type,
+        placeholder: newQuestion.placeholder,
+        validation: newQuestion.validation,
+        resourceMapping: newQuestion.resourceMapping,
+        answer: newQuestion.answer
+      };
+
+      // Add to appropriate category based on priority
+      if (newQuestion.category === 'required') {
+        questions.required.push(question);
+      } else if (newQuestion.category === 'advanced') {
+        questions.advanced.push(question);
+      } else {
+        questions.basic.push(question); // default to basic
+      }
+    }
+  }
+
+  /**
+   * Update a specific question's answer in a question array
+   */
+  private updateQuestionAnswer(questionArray: Question[], questionId: string, answer: any): void {
+    const question = questionArray.find(q => q.id === questionId);
+    if (question) {
+      question.answer = answer;
     }
   }
 } 
