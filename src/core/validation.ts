@@ -276,7 +276,7 @@ export class MCPToolSchemas {
     properties: {
       intent: {
         type: 'string',
-        description: 'High-level description of what you want to deploy',
+        description: 'What the user wants to deploy, create, run, or setup on Kubernetes (based on their description). Ask the user to describe their application first, then use their response here. Examples: "deploy a web application", "create a database cluster", "run my Node.js API", "setup a Redis cache", "launch a microservice", "build a CI/CD pipeline", "deploy a WordPress site", "create a monitoring stack", "run a Python Flask app", "setup MongoDB", "deploy a React frontend", "create a load balancer"',
         minLength: 1,
         maxLength: 1000
       }

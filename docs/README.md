@@ -12,6 +12,8 @@ This directory contains comprehensive documentation for App-Agent.
 
 - **[Architecture Overview](design.md)** - Technical design, core principles, and system architecture
 - **[Discovery Engine](discovery-engine.md)** - Detailed cluster discovery and resource analysis
+- **[Error Handling](error-handling.md)** - Comprehensive error handling and logging system
+- **[Function Registration](function-registration.md)** - Dynamic tool registration system for MCP tools
 - **[Project Context](CONTEXT.md)** - Project background and context information
 - **[Original Inspiration](ORIGINAL_INSPIRATION.md)** - The original concept that inspired this project
 
@@ -29,6 +31,7 @@ This directory contains comprehensive documentation for App-Agent.
 ### For Contributors  
 - Read the [Development Guide](DEVELOPMENT.md) for setup and contribution guidelines
 - Review [Architecture Overview](design.md) to understand the system design
+- Study [Function Registration](function-registration.md) to understand the MCP tool system
 - Use [Manual Testing Guide](MANUAL_TESTING.md) for comprehensive validation procedures
 - Check [Next Steps](NEXT_STEPS.md) for planned features and improvements
 
@@ -47,6 +50,8 @@ docs/
 ├── MANUAL_TESTING.md      # Comprehensive manual testing procedures
 ├── design.md              # Technical architecture
 ├── discovery-engine.md    # Cluster discovery details
+├── error-handling.md      # Error handling system
+├── function-registration.md # Dynamic tool registration
 ├── CONTEXT.md             # Project background
 ├── NEXT_STEPS.md          # Future roadmap
 ├── ORIGINAL_INSPIRATION.md # Initial concept

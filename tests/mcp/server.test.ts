@@ -12,12 +12,31 @@ describe('MCP Server Entry Point', () => {
   const projectRoot = process.cwd();
   const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
   
+  // Helper function to wait for file to exist (handles race conditions during parallel test execution)
+  const waitForFile = (filePath: string, timeoutMs: number = 5000): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      const checkFile = () => {
+        if (fs.existsSync(filePath)) {
+          resolve(true);
+        } else if (Date.now() - startTime < timeoutMs) {
+          setTimeout(checkFile, 100); // Check every 100ms
+        } else {
+          resolve(false);
+        }
+      };
+      checkFile();
+    });
+  };
+  
   describe('Server Module', () => {
-    test('should exist as built file', () => {
-      expect(fs.existsSync(serverPath)).toBe(true);
+    test('should exist as built file', async () => {
+      const fileExists = await waitForFile(serverPath);
+      expect(fileExists).toBe(true);
     });
 
-    test('should be executable file', () => {
+    test('should be executable file', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
       const stats = fs.statSync(serverPath);
       expect(stats.isFile()).toBe(true);
     });
@@ -56,14 +75,16 @@ describe('MCP Server Entry Point', () => {
   });
 
   describe('Server Structure', () => {
-    test('should have proper shebang for Node.js execution', () => {
+    test('should have proper shebang for Node.js execution', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should start with Node.js shebang
       expect(content.startsWith('#!/usr/bin/env node')).toBe(true);
     });
 
-    test('should import required dependencies', () => {
+    test('should import required dependencies', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should import MCPServer and AppAgent (compiled JS format)
@@ -71,7 +92,8 @@ describe('MCP Server Entry Point', () => {
       expect(content).toContain('index_js_1.AppAgent');
     });
 
-    test('should contain main function with server configuration', () => {
+    test('should contain main function with server configuration', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should have main function and server configuration
@@ -81,7 +103,8 @@ describe('MCP Server Entry Point', () => {
       expect(content).toContain('Universal Kubernetes application deployment agent');
     });
 
-    test('should have error handling and graceful shutdown', () => {
+    test('should have error handling and graceful shutdown', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should have error handling

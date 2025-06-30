@@ -22,6 +22,7 @@ import {
   ConsoleLogger,
   Logger 
 } from '../core/error-handling';
+import { ToolRegistry, ToolContext, initializeTools } from '../tools';
 
 export interface MCPServerConfig {
   name: string;
@@ -36,10 +37,15 @@ export class MCPServer {
   private initialized: boolean = false;
   private logger: Logger;
   private requestIdCounter: number = 0;
+  private toolRegistry: ToolRegistry;
 
   constructor(appAgent: AppAgent, config: MCPServerConfig) {
     this.appAgent = appAgent;
     this.logger = new ConsoleLogger('MCPServer');
+    
+    // Initialize tool registry with all available tools
+    this.toolRegistry = initializeTools();
+    
     this.server = new Server(
       {
         name: config.name,
@@ -55,28 +61,29 @@ export class MCPServer {
     this.logger.info('Initializing MCP Server', {
       name: config.name,
       version: config.version,
-      author: config.author
+      author: config.author,
+      registeredTools: this.toolRegistry.getStats().totalTools
     });
 
     this.setupToolHandlers();
   }
 
   private setupToolHandlers(): void {
-    // Register list tools handler - only expose actually implemented features
+    // Register list tools handler - dynamically get tools from registry
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const toolDefinitions = this.toolRegistry.getToolDefinitions();
+      
+      this.logger.debug('Listing available tools', {
+        toolCount: toolDefinitions.length,
+        tools: toolDefinitions.map(t => t.name)
+      });
+
       return {
-        tools: [
-          {
-            name: 'recommend',
-            description: 'Get AI-powered Kubernetes resource recommendations based on deployment intent',
-            inputSchema: MCPToolSchemas.RECOMMEND_INPUT
-          },
-          {
-            name: 'enhance_solution',
-            description: 'Process open-ended user requirements to enhance and customize deployment solutions',
-            inputSchema: MCPToolSchemas.ENHANCE_SOLUTION_INPUT
-          }
-        ]
+        tools: toolDefinitions.map(def => ({
+          name: def.name,
+          description: def.description,
+          inputSchema: def.inputSchema
+        }))
       };
     });
 
@@ -108,30 +115,37 @@ export class MCPServer {
             );
           }
 
-          // Function dispatch - only implemented tools
-          switch (name) {
-            case 'recommend':
-              return await this.handleRecommend(args, requestId);
-            case 'enhance_solution':
-              return await this.handleEnhanceSolution(args, requestId);
-            default:
-              throw ErrorHandler.createError(
-                ErrorCategory.MCP_PROTOCOL,
-                ErrorSeverity.MEDIUM,
-                `Unknown tool: ${name}`,
-                {
-                  operation: 'tool_dispatch',
-                  component: 'MCPServer',
-                  requestId,
-                  input: { name, availableTools: ['recommend', 'enhance_solution'] },
-                  suggestedActions: [
-                    'Use one of the available tools: recommend, enhance_solution',
-                    'Check the tool name for typos',
-                    'Verify the MCP client is using the correct tool names'
-                  ]
-                }
-              );
+          // Dynamic tool dispatch through registry
+          if (!this.toolRegistry.isToolAvailable(name)) {
+            const availableTools = this.toolRegistry.getEnabledTools().map(t => t.definition.name);
+            throw ErrorHandler.createError(
+              ErrorCategory.MCP_PROTOCOL,
+              ErrorSeverity.MEDIUM,
+              `Unknown or disabled tool: ${name}`,
+              {
+                operation: 'tool_dispatch',
+                component: 'MCPServer',
+                requestId,
+                input: { name, availableTools },
+                suggestedActions: [
+                  `Use one of the available tools: ${availableTools.join(', ')}`,
+                  'Check the tool name for typos',
+                  'Verify the MCP client is using the correct tool names',
+                  'Ensure the tool is enabled in the registry'
+                ]
+              }
+            );
           }
+
+          // Create tool context
+          const toolContext: ToolContext = {
+            requestId,
+            logger: this.logger,
+            appAgent: this.appAgent
+          };
+
+          // Execute tool through registry
+          return await this.toolRegistry.executeTool(name, args, toolContext);
         },
         {
           operation: 'mcp_tool_request',

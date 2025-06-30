@@ -932,7 +932,7 @@
             "id": 5,
             "title": "Setup function registration system",
             "description": "Create dynamic function registration mechanism for MCP tools and resources",
-            "status": "pending",
+            "status": "in-progress",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1663,7 +1663,7 @@
     ],
     "metadata": {
       "created": "2025-06-28T00:17:46.251Z",
-      "updated": "2025-06-30T15:25:12.159Z",
+      "updated": "2025-06-30T15:26:36.472Z",
       "description": "Tasks for master context"
     }
   }
