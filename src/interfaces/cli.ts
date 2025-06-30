@@ -326,8 +326,8 @@ export class CliInterface {
 
   private async handleRecommendCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      // Get Claude API key from environment
-      const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+      // Get Claude API key from AppAgent
+      const claudeApiKey = this.ensureAppAgent().getAnthropicApiKey();
       if (!claudeApiKey) {
         return {
           success: false,
@@ -407,8 +407,8 @@ export class CliInterface {
 
   private async handleEnhanceCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      // Get Claude API key from environment
-      const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+      // Get Claude API key from AppAgent
+      const claudeApiKey = this.ensureAppAgent().getAnthropicApiKey();
       if (!claudeApiKey) {
         return {
           success: false,

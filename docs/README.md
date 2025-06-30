@@ -6,6 +6,7 @@ This directory contains comprehensive documentation for App-Agent.
 
 - **[API Reference](API.md)** - Complete API documentation, TypeScript interfaces, and programmatic usage examples
 - **[Development Guide](DEVELOPMENT.md)** - Architecture, contributing guidelines, testing, and development workflow
+- **[Manual Testing Guide](MANUAL_TESTING.md)** - Comprehensive step-by-step manual testing procedures with expected results
 
 ## Design Documentation
 
@@ -28,6 +29,7 @@ This directory contains comprehensive documentation for App-Agent.
 ### For Contributors  
 - Read the [Development Guide](DEVELOPMENT.md) for setup and contribution guidelines
 - Review [Architecture Overview](design.md) to understand the system design
+- Use [Manual Testing Guide](MANUAL_TESTING.md) for comprehensive validation procedures
 - Check [Next Steps](NEXT_STEPS.md) for planned features and improvements
 
 ### For Understanding the Project
@@ -42,6 +44,7 @@ docs/
 ├── README.md              # This index file
 ├── API.md                 # Complete API documentation
 ├── DEVELOPMENT.md         # Development and contributing guide
+├── MANUAL_TESTING.md      # Comprehensive manual testing procedures
 ├── design.md              # Technical architecture
 ├── discovery-engine.md    # Cluster discovery details
 ├── CONTEXT.md             # Project background

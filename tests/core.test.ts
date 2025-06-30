@@ -360,4 +360,80 @@ describe('Claude Integration Module', () => {
       expect(patterns).toContainEqual(expect.objectContaining(interaction));
     });
   });
+
+  describe('Centralized Configuration Management', () => {
+    const originalKubeconfig = process.env.KUBECONFIG;
+    const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    afterEach(() => {
+      // Restore original environment variables
+      if (originalKubeconfig) {
+        process.env.KUBECONFIG = originalKubeconfig;
+      } else {
+        delete process.env.KUBECONFIG;
+      }
+
+      if (originalAnthropicKey) {
+        process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+      } else {
+        delete process.env.ANTHROPIC_API_KEY;
+      }
+    });
+
+    test('should read ANTHROPIC_API_KEY from environment when not provided in config', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-api-key-from-env';
+      delete process.env.KUBECONFIG;
+
+      const appAgent = new AppAgent();
+      
+      // Use the public getter to verify API key was read from environment
+      expect(appAgent.getAnthropicApiKey()).toBe('test-api-key-from-env');
+    });
+
+    test('should use provided config values over environment variables', () => {
+      process.env.KUBECONFIG = '/env/kubeconfig.yaml';
+      process.env.ANTHROPIC_API_KEY = 'env-api-key';
+
+      const appAgent = new AppAgent({
+        kubernetesConfig: '/override/kubeconfig.yaml',
+        anthropicApiKey: 'override-api-key'
+      });
+      
+      // Should use the provided config values, not environment
+      expect(appAgent.getAnthropicApiKey()).toBe('override-api-key');
+    });
+
+    test('should handle missing environment variables gracefully', () => {
+      delete process.env.KUBECONFIG;
+      delete process.env.ANTHROPIC_API_KEY;
+
+      const appAgent = new AppAgent();
+      
+      expect(appAgent.getAnthropicApiKey()).toBeUndefined();
+    });
+
+    test('should provide public getter for API key', () => {
+      const appAgent = new AppAgent({
+        anthropicApiKey: 'test-getter-key'
+      });
+      
+      expect(appAgent.getAnthropicApiKey()).toBe('test-getter-key');
+    });
+
+    test('should return undefined when no API key is available', () => {
+      delete process.env.ANTHROPIC_API_KEY;
+      
+      const appAgent = new AppAgent();
+      
+      expect(appAgent.getAnthropicApiKey()).toBeUndefined();
+    });
+
+    test('should validate configuration and reject empty API key', () => {
+      expect(() => {
+        new AppAgent({
+          anthropicApiKey: ''
+        });
+      }).toThrow('Invalid configuration: Empty API key provided');
+    });
+  });
 }); 

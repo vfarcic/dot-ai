@@ -1,5 +1,40 @@
 # App-Agent Project - Claude Code Integration Guide
 
+## ⚠️ MANDATORY TASK COMPLETION CHECKLIST ⚠️
+
+**🔴 BEFORE MARKING ANY TASK/SUBTASK AS COMPLETE:**
+
+□ **Tests Written**: Write tests for new functionality (can be after implementation)
+□ **All Tests Pass**: Run `npm test` - ALL 351+ tests must pass  
+□ **No Test Failures**: Fix any failing tests before proceeding
+□ **CLAUDE.md Updated**: Update this file if new features/commands/structure added
+
+**❌ TASK IS NOT COMPLETE IF:**
+- Any tests are failing
+- New code lacks test coverage  
+- You haven't run `npm test` to verify
+
+## PERMANENT INSTRUCTIONS
+
+**CRITICAL DEVELOPMENT RULES - NEVER OVERRIDE:**
+
+1. **Always Write Tests**: When making code changes, you MUST write or update tests to validate the changes
+2. **Always Run All Tests**: Before marking any task as complete, run `npm test` to ensure all tests pass  
+3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing - fix all test failures first
+4. **Test-Driven Validation**: Changes are only considered successful when validated by passing tests
+5. **Always Update CLAUDE.md**: After finishing any task, check if CLAUDE.md needs updates to reflect new features, commands, structure changes, or documentation
+
+## 🛑 TESTING REMINDERS
+
+- **Current test suite**: 351+ tests across 10 suites - maintain this standard
+- **Implementation flow**: Code → Tests → `npm test` → Mark complete
+- **Pattern matching**: Look at `tests/schema.test.ts`, `tests/cli.test.ts` for testing patterns
+- **Test organization**: Mirror source code structure - tests should be organized using the same naming convention as the code they're testing
+  - `src/core/schema.ts` → `tests/core/schema.test.ts`
+  - `src/interfaces/cli.ts` → `tests/interfaces/cli.test.ts`
+  - `src/mcp/server.ts` → `tests/mcp/server.test.ts`
+  - Keep integration tests separate in `tests/integration/`
+
 ## Project Overview
 
 **App-Agent** is an intelligent Kubernetes application deployment agent that discovers cluster capabilities and provides AI-powered recommendations for deploying applications using available resources.
@@ -47,9 +82,16 @@ prompts/                 # AI prompt templates
 
 ### Testing & Development
 
-- **Run tests**: `npm test` (349+ tests across 10 suites)
+**MANDATORY TESTING WORKFLOW:**
+- **Always write tests** for code changes before considering work complete
+- **Always run all tests** with `npm test` before marking tasks as done
+- **Never mark task complete** if any tests are failing
+- **Always check CLAUDE.md** after task completion for needed updates
+
+**Commands:**
+- **Run tests**: `npm test` (351+ tests across 10 suites)
 - **Build**: `npm run build`
-- **Manual testing**: Use real cluster with `node dist/cli.js discover`
+- **Manual testing**: Follow comprehensive guide at `docs/MANUAL_TESTING.md`
 - **Documentation**: See `docs/` directory for complete guides
 
 ### Environment Setup

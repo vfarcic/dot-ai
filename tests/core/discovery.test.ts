@@ -11,8 +11,8 @@ import {
   MemorySystem, 
   WorkflowEngine, 
   ClaudeIntegration 
-} from '../src/core';
-import { ErrorClassifier, buildKubectlCommand, executeKubectl } from '../src/core/kubernetes-utils';
+} from '../../src/core';
+import { ErrorClassifier, buildKubectlCommand, executeKubectl } from '../../src/core/kubernetes-utils';
 import * as path from 'path';
 
 describe('Core Module Structure', () => {

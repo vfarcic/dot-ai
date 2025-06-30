@@ -1,48 +1,152 @@
-# Kubernetes Application Management - Dual Mode Agent
+# App-Agent Architecture & Design
+
+## Current Implementation Status
+
+**🟢 IMPLEMENTED**: Resource Schema Parser & Validator with AI-powered recommendations
+**🟡 IN PROGRESS**: CLI interface with core discovery and enhancement features  
+**🔴 PLANNED**: MCP Mode, Manifest Generation, Deployment Engine, Governance System
 
 ## Overview
 
-A Kubernetes application deployment agent that can operate in two modes:
-1. **Direct Agent Mode**: Standalone CLI tool that interacts directly with users
-2. **MCP Mode**: Model Context Protocol server with embedded agent intelligence
+App-Agent is an intelligent Kubernetes application deployment agent designed to operate in two modes:
 
-Both modes share the same core intelligence powered by Claude Code SDK, implementing an evolved version of the discovery-driven workflow originally inspired by the `manage-app.md` prompt (see `ORIGINAL_INSPIRATION.md` for the full starting point).
+1. **✅ CLI Mode** (Current): Standalone command-line tool with AI-powered recommendations
+2. **🔄 MCP Mode** (Planned): Model Context Protocol server for external agent integration
 
-## Architecture
+The system implements a discovery-driven workflow powered by Claude AI, evolved from the original inspiration in `ORIGINAL_INSPIRATION.md`.
+
+## External Agent Integration Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ExternalAgent as External Agent<br/>(Claude Code, Cursor, etc.)
+    participant AppAgent as App-Agent<br/>(Our System)
+    participant K8s as Kubernetes Cluster
+
+    User->>ExternalAgent: "Deploy a web app with auto-scaling"
+    
+    Note over ExternalAgent,AppAgent: Phase 1: Get Recommendations
+    ExternalAgent->>AppAgent: recommend --intent "web app with auto-scaling"
+    AppAgent->>K8s: Discover resources & schemas
+    K8s-->>AppAgent: CRDs + Standard resources
+    AppAgent->>AppAgent: AI analysis & ranking
+    AppAgent-->>ExternalAgent: Complete solution with questions
+    
+    Note over ExternalAgent,User: Phase 2: Gather Requirements
+    ExternalAgent->>User: Present categorized questions<br/>(required, basic, advanced)
+    User-->>ExternalAgent: Answer questions + open requirements
+    ExternalAgent->>ExternalAgent: Process answers into solution JSON
+    
+    Note over ExternalAgent,AppAgent: Phase 3: Enhancement (Optional)
+    ExternalAgent->>AppAgent: enhance --solution solution.json<br/>(with open: "handle 1000 req/sec")
+    AppAgent->>AppAgent: AI processes open requirements
+    AppAgent-->>ExternalAgent: Enhanced solution with completed answers
+    
+    Note over ExternalAgent,AppAgent: Phase 4: Generation (Planned)
+    ExternalAgent->>AppAgent: generate --solution enhanced-solution.json
+    AppAgent->>AppAgent: Create manifests from questions + schemas
+    AppAgent-->>ExternalAgent: Kubernetes YAML manifests
+    
+    Note over ExternalAgent,K8s: Phase 5: Deployment (Planned)
+    ExternalAgent->>AppAgent: deploy --manifests manifests/
+    AppAgent->>K8s: kubectl apply with monitoring
+    K8s-->>AppAgent: Deployment status
+    AppAgent-->>ExternalAgent: Success/failure with details
+    ExternalAgent-->>User: "✅ App deployed successfully"
+```
+
+### Key Design Principles for External Agents
+
+1. **🔄 Stateless Operations**: Each command is self-contained
+2. **📄 Complete Data Transfer**: Solutions include all necessary schemas and mappings  
+3. **🔀 Flexible Workflow**: Agents can skip or repeat steps as needed
+4. **🎯 Progressive Enhancement**: Iterative refinement through enhancement cycles
+5. **🔍 Transparent Process**: All AI reasoning and schema analysis is visible
+
+## Current Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   App Agent Core                           │
-│              (Powered by Claude Code SDK)                  │
+│                   App-Agent Core                           │
+│              (Powered by Claude AI)                        │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              Agent Intelligence                     │   │
-│  │  • Dynamic cluster discovery (CRDs + core K8s)    │   │
-│  │  • Strategy selection (ANY discovered resources)   │   │
-│  │  • Manifest generation from schemas                │   │
-│  │  • Memory-enhanced learning                        │   │
-│  │  • Workflow orchestration                          │   │
+│  │           ✅ IMPLEMENTED COMPONENTS                 │   │
+│  │                                                     │   │
+│  │  🔍 KubernetesDiscovery                            │   │
+│  │    • Cluster resource discovery (CRDs + K8s)       │   │
+│  │    • Schema introspection with kubectl explain     │   │
+│  │    • Dynamic capability detection                  │   │
+│  │                                                     │   │
+│  │  🤖 ResourceRecommender (AI-Powered)              │   │
+│  │    • Two-phase analysis (selection + ranking)      │   │
+│  │    • Standard + CRD resource support               │   │
+│  │    • Context-aware solution scoring                │   │
+│  │                                                     │   │
+│  │  ⚡ SolutionEnhancer                               │   │
+│  │    • Open-ended requirement processing             │   │
+│  │    • Dynamic question generation                   │   │
+│  │    • Iterative solution refinement                 │   │
+│  │                                                     │   │
+│  │  📋 SchemaParser & ManifestValidator               │   │
+│  │    • kubectl explain output parsing                │   │
+│  │    • Dry-run manifest validation                   │   │
+│  │    • Field constraint extraction                   │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│  Dual Output Modes:                                        │
 │  ┌─────────────────────┐    ┌─────────────────────────┐   │
-│  │   Direct CLI Mode   │    │      MCP Mode           │   │
+│  │  ✅ CLI Interface   │    │  🔄 MCP Mode (Planned) │   │
 │  │                     │    │                         │   │
-│  │ • Direct user Q&A   │    │ • Structured guidance   │   │
-│  │ • Terminal output   │    │ • JSON responses        │   │
-│  │ • Session mgmt      │    │ • Agent orchestration  │   │
+│  │ • recommend command │    │ • External agent API   │   │
+│  │ • enhance command   │    │ • JSON-based protocol  │   │
+│  │ • Help system       │    │ • Stateless design     │   │
+│  │ • Progress tracking │    │ • Tool integration     │   │
 │  └─────────────────────┘    └─────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Principles
 
-1. **Discovery-Driven**: Works in any cluster by discovering CRDs and core K8s resources
-2. **Resource-Agnostic**: Can deploy using ANY available Kubernetes resources (examples: AppClaim, CloudRun, Knative, ArgoCD, standard K8s, etc.)
-3. **Memory-Enhanced**: Learns from successful deployments and failures  
-4. **Dual Interface**: Same intelligence, two interaction patterns
-5. **Zero Hard-coding**: No assumptions about cluster platforms or specific CRDs
-6. **Workflow Guidance**: Always tells users/agents what to do next
+1. **✅ Discovery-Driven**: Works in any cluster by discovering CRDs and core K8s resources
+2. **✅ Resource-Agnostic**: Recommends ANY available Kubernetes resources (AppClaim, CloudRun, Knative, standard K8s, etc.)
+3. **🔄 Memory-Enhanced**: (Planned) Learn from successful deployments and failures  
+4. **🔄 Dual Interface**: (Planned) Same intelligence, multiple interaction patterns
+5. **✅ Zero Hard-coding**: No assumptions about cluster platforms or specific CRDs
+6. **✅ AI-Powered**: Uses Claude for intelligent resource selection and enhancement
+
+## Current Implementation Details
+
+### File Structure
+```
+src/
+├── core/
+│   ├── discovery.ts        # ✅ KubernetesDiscovery class
+│   ├── schema.ts          # ✅ ResourceRecommender, SolutionEnhancer, SchemaParser
+│   ├── claude.ts          # ✅ Claude AI integration
+│   ├── index.ts           # ✅ Core module exports
+│   └── kubernetes-utils.ts # ✅ Shared kubectl utilities
+├── interfaces/
+│   ├── cli.ts             # ✅ CLI interface and commands
+│   └── mcp.ts             # 🔄 MCP server (planned)
+└── cli.ts                 # ✅ Main CLI entry point
+
+tests/                     # ✅ 351+ comprehensive tests
+docs/                     # ✅ Complete documentation
+prompts/                  # ✅ AI prompt templates
+```
+
+### Current Commands
+```bash
+# ✅ Available now
+node dist/cli.js --help                           # Help system (no cluster required)
+node dist/cli.js recommend --intent "description" # AI-powered recommendations  
+node dist/cli.js enhance --solution solution.json # Solution enhancement
+
+# 🔄 Planned
+node dist/cli.js generate --solution solution.json # Manifest generation
+node dist/cli.js deploy --manifests manifests/     # Deployment execution
+```
 
 ## Universal Extensibility
 
@@ -58,11 +162,11 @@ Both modes share the same core intelligence powered by Claude Code SDK, implemen
 
 > The agent learns the schema of ANY discovered CRD through `kubectl explain` and generates appropriate manifests. No updates needed for new platforms!
 
-## Governance & Guardrails
+## 🔄 Governance & Guardrails (Planned - Task 9)
 
 🗣️ **Plain English governance - no YAML required:**
 
-The agent understands organizational policies written in natural language and applies them throughout the deployment process.
+*Planned feature:* The agent will understand organizational policies written in natural language and apply them throughout the deployment process.
 
 ### Policy Template Examples
 
@@ -184,57 +288,136 @@ Encrypt all data at rest and in transit.
 | **Use Case** | Standalone deployment tool | Integration with other AI agents |
 | **Complexity** | Simple CLI usage | Requires MCP-aware agent |
 
-## Workflow (Both Modes)
+## Current Workflow
 
-### 1. Cluster Discovery
-```bash
-# Discover Custom Resource Definitions
-kubectl get crd | grep -E "(app|application|deploy|service|function|job|aws|gcp|azure|cloudrun|lambda|container|crossplane)"
+### 1. ✅ Cluster Discovery (Implemented)
+The KubernetesDiscovery class automatically discovers:
 
-# Discover core Kubernetes resources and capabilities
-kubectl api-resources --verbs=create --output=name | grep -E "(deployments|services|ingresses|jobs|cronjobs|configmaps|secrets)"
+```typescript
+// Discover CRDs with comprehensive metadata
+const crds = await discovery.discoverCRDs();
 
-# Check for specific resource availability and versions
-kubectl explain deployment
-kubectl explain service  
-kubectl explain ingress
-kubectl explain horizontalpodautoscaler
+// Get all API resources
+const resources = await discovery.getAPIResources();
 
-# Discover API versions
-kubectl api-versions | grep -E "(apps|networking|autoscaling|batch)"
+// Analyze resource schemas
+const schema = await discovery.explainResource('Deployment');
 
-# Check cluster capabilities
-kubectl get nodes -o wide
-kubectl get ingressclass
-kubectl get storageclass
+// Dynamic capability detection
+const clusterOptions = await discovery.discoverClusterOptions();
+// Returns: namespaces, storageClasses, ingressClasses, nodeLabels
 ```
 
-### 2. Strategy Selection
-Based on discovered resources (CRDs + core K8s) - **system adapts to ANY available resources**:
+**Current Discovery Features:**
+- ✅ CRD discovery with schema analysis
+- ✅ Standard K8s resource enumeration  
+- ✅ Dynamic cluster capability detection
+- ✅ Schema introspection via kubectl explain
+- ✅ Namespace/storage/ingress discovery
 
-**High-Level Platform CRDs** (examples of what might be discovered):
-- **AppClaim CRD**: Use DevOpsToolkit composite resources
-- **CloudRunService CRD**: Use GCP serverless deployment  
-- **KnativeService CRD**: Use Knative serverless
-- **Lambda Function CRD**: Use AWS Lambda functions
-- **ContainerApp CRD**: Use Azure Container Apps
-- **Application CRD**: Use ArgoCD Applications
-- **ClusterApp CRD**: Use custom platform abstractions
-- **_Any other CRDs_**: System discovers and uses their schemas
+### 2. ✅ AI-Powered Resource Selection (Implemented)
+ResourceRecommender uses two-phase AI analysis:
 
-**Core Kubernetes Resources** (standard fallback):
-- **apps/v1 Deployment + v1 Service**: Basic workload deployment
-- **networking.k8s.io/v1 Ingress**: External access (check IngressClass)
-- **autoscaling/v2 HorizontalPodAutoscaler**: Auto-scaling capability
-- **batch/v1 Job**: For job-type workloads
-- **batch/v1 CronJob**: For scheduled workloads
+```typescript
+// Phase 1: AI selects promising candidates from lightweight resource list
+const candidates = await recommender.selectResourceCandidates(intent, allResources);
 
-**Dynamic Capability Matrix** (discovered per cluster):
-- **Auto-scaling**: HPA available + metrics-server running
-- **External Access**: Ingress + IngressClass configured
-- **Storage**: StorageClass available for persistent volumes
-- **Secrets Management**: Core secrets vs external secret operators
-- **Custom Capabilities**: Any additional features from discovered CRDs
+// Phase 2: Fetch detailed schemas and rank with AI
+const schemas = await recommender.fetchDetailedSchemas(candidates, explainResource);
+const solutions = await recommender.rankWithDetailedSchemas(intent, schemas);
+```
+
+**Current Resource Support:**
+- ✅ **CRDs**: AppClaim, CloudRun, Knative, Crossplane, ArgoCD, custom resources
+- ✅ **Standard K8s**: Deployment, Service, Ingress, HPA, Job, CronJob
+- ✅ **Mixed scenarios**: AI recommends both standard + custom resources
+- ✅ **Ranking**: Scores solutions based on intent match and capabilities
+
+### 3. ✅ Dynamic Question Generation (Implemented)
+Questions are generated based on resource schemas and user intent:
+
+```typescript
+// Generate contextual questions
+const questions = await recommender.generateQuestionsWithAI(solution, intent, clusterOptions);
+
+// Returns categorized questions:
+// - required: Essential for basic functionality
+// - basic: Common configuration options  
+// - advanced: Power user optimizations
+// - open: Free-form requirement capture
+```
+
+**Current Question Features:**
+- ✅ Schema-driven question generation
+- ✅ Dynamic cluster options (real namespaces, storage classes)
+- ✅ Progressive disclosure (required → basic → advanced)
+- ✅ Open-ended requirement capture
+- ✅ ResourceMapping for manifest generation
+
+### 4. ✅ Solution Enhancement (Implemented)  
+SolutionEnhancer processes open-ended user requirements:
+
+```typescript
+// User adds requirements: "I need auto-scaling for 1000 requests/sec"
+const enhanced = await enhancer.enhanceSolution(solution, openResponse, resources, explainResource);
+
+// Results in:
+// - Completed missing question answers
+// - New questions for additional capabilities
+// - Enhanced configuration based on requirements
+```
+
+**Current Enhancement Features:**
+- ✅ Open-ended requirement processing
+- ✅ Automatic question completion
+- ✅ Dynamic capability expansion
+- ✅ Iterative enhancement support
+- ✅ Stateless design for external agents
+
+## 🔄 Planned Features
+
+### Manifest Generation (Task 7)
+```bash
+# Generate Kubernetes manifests from completed solutions
+node dist/cli.js generate --solution enhanced-solution.json --output manifests/
+
+# Features planned:
+# - Schema-based manifest population
+# - Resource dependency ordering
+# - Best practice application
+# - Multi-format output (YAML, JSON)
+```
+
+### Deployment Engine (Task 8)
+```bash
+# Deploy generated manifests with monitoring
+node dist/cli.js deploy --manifests manifests/ --watch
+
+# Features planned:
+# - kubectl apply with progress tracking
+# - Resource readiness monitoring
+# - Rollback capabilities
+# - Success/failure learning
+```
+
+### Memory & Learning System (Task 4)
+```typescript
+// Learn from deployment outcomes
+await memory.storePattern(solution, outcome, clusterFingerprint);
+await memory.storeLessons(deployment, lessons);
+
+// Apply learned patterns
+const patterns = await memory.getSimilarPatterns(currentSolution);
+```
+
+### MCP Server Mode (Task 10-14)
+```typescript
+// MCP functions for external agents
+const server = new MCPServer();
+server.addTool('recommend_resources', recommendHandler);
+server.addTool('enhance_solution', enhanceHandler);
+server.addTool('generate_manifests', generateHandler);
+```
 
 > **Note**: The system is completely extensible - it will work with ANY Kubernetes resources (CRDs or core) available in your cluster. The examples above are just common patterns.
 

@@ -1,5 +1,5 @@
-import { CliInterface } from '../src/interfaces/cli';
-import { AppAgent } from '../src/core';
+import { CliInterface } from '../../src/interfaces/cli';
+import { AppAgent } from '../../src/core';
 import { jest } from '@jest/globals';
 
 describe('CLI Interface', () => {
@@ -11,6 +11,7 @@ describe('CLI Interface', () => {
     mockAppAgent = {
       initialize: jest.fn(),
       isInitialized: jest.fn(),
+      getAnthropicApiKey: jest.fn(),
       discovery: {
         connect: jest.fn(),
         isConnected: jest.fn(),
@@ -312,10 +313,7 @@ describe('CLI Interface', () => {
 
     test('should execute enhance command successfully', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      // Mock environment variable
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock file system
       const mockFs = {
@@ -350,13 +348,6 @@ describe('CLI Interface', () => {
         output: 'json'
       });
       
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
-      
       // The command should fail due to mocked AI integration but structure should be correct
       expect(mockAppAgent.initialize).toHaveBeenCalled();
       // Note: The command will fail early due to mocked SolutionEnhancer, so discovery may not be called
@@ -384,10 +375,7 @@ describe('CLI Interface', () => {
 
     test('should handle enhance command failure when solution file missing', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      // Mock environment variable
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock file system to throw error
       const mockFs = {
@@ -401,23 +389,13 @@ describe('CLI Interface', () => {
         solution: '/path/to/missing.json' 
       });
       
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
-      
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to read solution file');
     });
 
     test('should handle enhance command failure when no open response', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      // Mock environment variable
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Use require to mock fs at runtime for this specific test
       const fs = require('fs');
@@ -441,11 +419,6 @@ describe('CLI Interface', () => {
       
       // Restore mocks
       fs.readFileSync = originalReadFileSync;
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
       
       expect(result.success).toBe(false);
       expect(result.error).toContain('No open response found in solution file');
@@ -794,10 +767,7 @@ describe('CLI Interface', () => {
 
     test('should show progress indicators during recommend command', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      // Mock environment variable
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock a slow AI operation to test progress
       const mockFindBestSolutions = jest.fn().mockImplementation(() => 
@@ -805,20 +775,13 @@ describe('CLI Interface', () => {
       );
       
       // Mock the ResourceRecommender constructor and methods
-      jest.doMock('../src/core/schema', () => ({
+      jest.doMock('../../src/core/schema', () => ({
         ResourceRecommender: jest.fn().mockImplementation(() => ({
           findBestSolutions: mockFindBestSolutions
         }))
       }));
 
       await cli.executeCommand('recommend', { intent: 'deploy a web application' });
-      
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
       
       // Verify progress messages were shown
       expect(process.stderr.write).toHaveBeenCalledWith(expect.stringContaining('🔍 Analyzing your intent'));
@@ -836,13 +799,11 @@ describe('CLI Interface', () => {
       });
 
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockResolvedValue([]);
-      jest.doMock('../src/core/schema', () => ({
+      jest.doMock('../../src/core/schema', () => ({
         ResourceRecommender: jest.fn().mockImplementation(() => ({
           findBestSolutions: mockFindBestSolutions
         }))
@@ -850,40 +811,24 @@ describe('CLI Interface', () => {
 
       await cli.executeCommand('recommend', { intent: 'deploy a web application' });
       
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
-      
       // Progress should not be shown in non-TTY mode
       expect(process.stderr.write).not.toHaveBeenCalledWith(expect.stringContaining('🔍 Analyzing'));
     });
 
     test('should clear progress indicators on error', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock an error during recommendation
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockRejectedValue(new Error('AI service unavailable'));
-      jest.doMock('../src/core/schema', () => ({
+      jest.doMock('../../src/core/schema', () => ({
         ResourceRecommender: jest.fn().mockImplementation(() => ({
           findBestSolutions: mockFindBestSolutions
         }))
       }));
 
       const result = await cli.executeCommand('recommend', { intent: 'deploy a web application' });
-      
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
       
       // Should return error result
       expect(result.success).toBe(false);
@@ -895,16 +840,14 @@ describe('CLI Interface', () => {
 
     test('should show elapsed time during long operations', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock a longer operation to trigger time display
       const mockFindBestSolutions = jest.fn().mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve([]), 3500))
       );
       
-      jest.doMock('../src/core/schema', () => ({
+      jest.doMock('../../src/core/schema', () => ({
         ResourceRecommender: jest.fn().mockImplementation(() => ({
           findBestSolutions: mockFindBestSolutions
         }))
@@ -919,13 +862,6 @@ describe('CLI Interface', () => {
       // Complete the command
       await commandPromise;
       
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
-      
       // Should show progress with elapsed time (the timer may not execute in test environment)
       // Just verify that progress was shown during the long operation
       expect(process.stderr.write).toHaveBeenCalledWith(expect.stringContaining('🤖 AI'));
@@ -933,9 +869,7 @@ describe('CLI Interface', () => {
 
     test('should handle progress display with different message types', async () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-key';
+      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockImplementation(() => 
@@ -956,20 +890,13 @@ describe('CLI Interface', () => {
         }]), 100))
       );
       
-      jest.doMock('../src/core/schema', () => ({
+      jest.doMock('../../src/core/schema', () => ({
         ResourceRecommender: jest.fn().mockImplementation(() => ({
           findBestSolutions: mockFindBestSolutions
         }))
       }));
 
       await cli.executeCommand('recommend', { intent: 'deploy a web application' });
-      
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
       
       // Should show different progress phases
       expect(process.stderr.write).toHaveBeenCalledWith(expect.stringContaining('🔍 Analyzing your intent'));

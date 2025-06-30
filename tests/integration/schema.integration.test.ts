@@ -5,8 +5,8 @@
  * These tests use actual kubectl commands and cluster validation
  */
 
-import { ManifestValidator, SchemaParser, ValidationResult } from '../src/core/schema';
-import { ResourceExplanation } from '../src/core/discovery';
+import { ManifestValidator, SchemaParser, ValidationResult } from '../../src/core/schema';
+import { ResourceExplanation } from '../../src/core/discovery';
 
 describe('Schema Integration Tests', () => {
   describe('ManifestValidator with Real Cluster', () => {

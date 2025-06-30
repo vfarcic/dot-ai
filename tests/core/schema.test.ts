@@ -5,8 +5,8 @@
  * Following the same TDD methodology used in Task 2
  */
 
-import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, SolutionEnhancer, ValidationResult, ResourceSolution, AIRankingConfig, Question, QuestionGroup, ClusterOptions } from '../src/core/schema';
-import { ResourceExplanation } from '../src/core/discovery';
+import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, SolutionEnhancer, ValidationResult, ResourceSolution, AIRankingConfig, Question, QuestionGroup, ClusterOptions } from '../../src/core/schema';
+import { ResourceExplanation } from '../../src/core/discovery';
 
 describe('ResourceSchema Interface and Core Types', () => {
   describe('ResourceSchema interface', () => {
@@ -288,7 +288,7 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
     mockExplainResource = jest.fn();
 
     // Mock the Claude integration
-    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
     mockClaudeIntegration = {
       isInitialized: jest.fn().mockReturnValue(true),
       sendMessage: jest.fn()
@@ -330,7 +330,7 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
       // Mock kubectl for cluster discovery
       const mockExecuteKubectl = jest.fn();
-      jest.doMock('../src/core/kubernetes-utils', () => ({
+      jest.doMock('../../src/core/kubernetes-utils', () => ({
         executeKubectl: mockExecuteKubectl
       }));
       
@@ -510,7 +510,7 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
     it('should throw error when Claude integration not initialized', async () => {
       // Mock isInitialized to return false
-      const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+      const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
       jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(false);
       
       const uninitializedRanker = new ResourceRecommender(config);
@@ -918,7 +918,7 @@ describe('Question Generation and Dynamic Discovery', () => {
     mockExplainResource = jest.fn();
 
     // Mock the Claude integration
-    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
     mockClaudeIntegration = {
       isInitialized: jest.fn().mockReturnValue(true),
       sendMessage: jest.fn()
@@ -1025,7 +1025,7 @@ describe('Question Generation and Dynamic Discovery', () => {
 
       // Mock kubectl commands for cluster discovery
       const mockExecuteKubectl = jest.fn();
-      jest.doMock('../src/core/kubernetes-utils', () => ({
+      jest.doMock('../../src/core/kubernetes-utils', () => ({
         executeKubectl: mockExecuteKubectl
       }));
 
@@ -1128,7 +1128,7 @@ describe('Question Generation and Dynamic Discovery', () => {
 
       // Mock kubectl failures
       const mockExecuteKubectl = jest.fn().mockRejectedValue(new Error('kubectl not found'));
-      jest.doMock('../src/core/kubernetes-utils', () => ({
+      jest.doMock('../../src/core/kubernetes-utils', () => ({
         executeKubectl: mockExecuteKubectl
       }));
 
@@ -1168,7 +1168,7 @@ describe('Question Generation and Dynamic Discovery', () => {
       });
 
       const mockExecuteKubectl = jest.fn().mockResolvedValue('default');
-      jest.doMock('../src/core/kubernetes-utils', () => ({
+      jest.doMock('../../src/core/kubernetes-utils', () => ({
         executeKubectl: mockExecuteKubectl
       }));
 
@@ -1390,7 +1390,7 @@ describe('Enhanced Error Handling and Debugging', () => {
     mockExplainResource = jest.fn();
 
     // Mock the Claude integration
-    const ClaudeIntegration = require('../src/core/claude').ClaudeIntegration;
+    const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
     mockClaudeIntegration = {
       isInitialized: jest.fn().mockReturnValue(true),
       sendMessage: jest.fn()

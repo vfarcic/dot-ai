@@ -1,1 +1,0 @@
-Retrieve and process all information from the `memory` MCP knowledge graph to guide our session. Do not update memory without me asking you to do so explicitly.

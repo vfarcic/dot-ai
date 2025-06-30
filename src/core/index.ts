@@ -34,21 +34,25 @@ export class AppAgent {
 
   constructor(config: CoreConfig = {}) {
     this.validateConfig(config);
-    this.config = config;
+    // Centralize environment variable reading
+    this.config = {
+      kubernetesConfig: config.kubernetesConfig || process.env.KUBECONFIG,
+      anthropicApiKey: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY
+    };
     
     // Initialize modules
     this.discovery = new KubernetesDiscovery({ 
-      kubeconfigPath: config.kubernetesConfig 
+      kubeconfigPath: this.config.kubernetesConfig 
     });
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
-    this.claude = new ClaudeIntegration(config.anthropicApiKey || 'test-key');
+    this.claude = new ClaudeIntegration(this.config.anthropicApiKey || 'test-key');
     
     // Initialize schema components
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
-    const ranker = config.anthropicApiKey ? 
-      new ResourceRecommender({ claudeApiKey: config.anthropicApiKey }) : 
+    const ranker = this.config.anthropicApiKey ? 
+      new ResourceRecommender({ claudeApiKey: this.config.anthropicApiKey }) : 
       null;
     
     this.schema = {
@@ -109,6 +113,10 @@ export class AppAgent {
 
   getVersion(): string {
     return '0.1.0';
+  }
+
+  getAnthropicApiKey(): string | undefined {
+    return this.config.anthropicApiKey;
   }
 }
 
