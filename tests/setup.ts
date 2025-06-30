@@ -14,50 +14,15 @@ global.console = {
   debug: jest.fn()
 };
 
-// Smart filesystem mocks that return real content for existing files
-// but provide fallbacks for non-existent files
-const fs = jest.requireActual('fs');
-
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  writeFileSync: jest.fn(),
-  mkdirSync: jest.fn(),
-  readdirSync: jest.fn((path: string) => {
-    try {
-      return fs.readdirSync(path);
-    } catch {
-      return [];
-    }
-  }),
-  existsSync: jest.fn((path: string) => {
-    try {
-      return fs.existsSync(path);
-    } catch {
-      return false;
-    }
-  }),
-  readFileSync: jest.fn((path: string, encoding?: any) => {
-    try {
-      return fs.readFileSync(path, encoding);
-    } catch {
-      // Return appropriate default for missing files
-      if (path.includes('package.json')) {
-        return JSON.stringify({ name: 'test-package', version: '1.0.0' });
-      }
-      if (path.includes('.yml') || path.includes('.yaml')) {
-        return 'name: test\n';
-      }
-      return '';
-    }
-  })
-}));
+// Filesystem mocks removed - tests should use real filesystem
+// Individual tests can mock fs operations if needed for specific test cases
 
 // Increase test timeout for integration tests
 jest.setTimeout(30000);
 
 // Suppress specific warnings that are expected in test environment
 const originalWarn = console.warn;
-console.warn = (...args) => {
+console.warn = (...args: any[]) => {
   // Suppress specific ts-jest warnings that don't affect functionality
   if (typeof args[0] === 'string' && args[0].includes('ts-jest')) {
     return;

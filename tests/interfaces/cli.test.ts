@@ -377,20 +377,24 @@ describe('CLI Interface', () => {
       mockAppAgent.initialize.mockResolvedValue(undefined);
       mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
       
-      // Mock file system to throw error
-      const mockFs = {
-        readFileSync: jest.fn().mockImplementation(() => {
+      // Mock fs module directly since CLI uses dynamic import
+      const originalFs = require('fs');
+      const mockReadFileSync = jest.spyOn(originalFs, 'readFileSync')
+        .mockImplementation(() => {
           throw new Error('ENOENT: no such file or directory');
-        })
-      };
-      jest.doMock('fs', () => mockFs);
+        });
 
-      const result = await cli.executeCommand('enhance', { 
-        solution: '/path/to/missing.json' 
-      });
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to read solution file');
+      try {
+        const result = await cli.executeCommand('enhance', { 
+          solution: '/path/to/missing.json' 
+        });
+        
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Failed to read solution file');
+      } finally {
+        // Restore original implementation
+        mockReadFileSync.mockRestore();
+      }
     });
 
     test('should handle enhance command failure when no open response', async () => {

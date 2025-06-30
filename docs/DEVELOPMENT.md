@@ -87,6 +87,7 @@ Current coverage: **69%+ overall** with **349+ tests** across 10 test suites, in
 - **ESLint**: Follow existing linting rules
 - **Testing**: Write tests for new functionality
 - **Documentation**: Update docs for API changes
+- **Error Handling**: Follow patterns in [Error Handling Guide](error-handling.md)
 
 ## Contributing
 

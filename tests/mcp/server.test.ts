@@ -9,17 +9,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 describe('MCP Server Entry Point', () => {
+  const projectRoot = process.cwd();
+  const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
   
   describe('Server Module', () => {
     test('should exist as built file', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       expect(fs.existsSync(serverPath)).toBe(true);
     });
 
     test('should be executable file', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       const stats = fs.statSync(serverPath);
       expect(stats.isFile()).toBe(true);
     });
@@ -59,8 +57,6 @@ describe('MCP Server Entry Point', () => {
 
   describe('Server Structure', () => {
     test('should have proper shebang for Node.js execution', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should start with Node.js shebang
@@ -68,8 +64,6 @@ describe('MCP Server Entry Point', () => {
     });
 
     test('should import required dependencies', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should import MCPServer and AppAgent (compiled JS format)
@@ -78,8 +72,6 @@ describe('MCP Server Entry Point', () => {
     });
 
     test('should contain main function with server configuration', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should have main function and server configuration
@@ -90,8 +82,6 @@ describe('MCP Server Entry Point', () => {
     });
 
     test('should have error handling and graceful shutdown', () => {
-      const projectRoot = path.join(__dirname, '..', '..');
-      const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should have error handling

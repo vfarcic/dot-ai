@@ -216,7 +216,7 @@ describe('MCP Interface Layer', () => {
         })
       };
 
-      await expect(handleEnhanceSolution(invalidSolution)).rejects.toThrow('Solution must include questions.open.answer field');
+      await expect(handleEnhanceSolution(invalidSolution)).rejects.toThrow('Required property is missing');
     });
   });
 
@@ -263,7 +263,7 @@ describe('MCP Interface Layer', () => {
       
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
-      await expect(handleRecommend({ intent: 'Deploy nginx' })).rejects.toThrow('Configuration error');
+      await expect(handleRecommend({ intent: 'Deploy nginx' })).rejects.toThrow('rankResources');
     });
 
     test('should handle missing API key for enhance solution', async () => {

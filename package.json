@@ -12,6 +12,7 @@
     "./mcp": "./dist/mcp/server.js"
   },
   "scripts": {
+    "pretest": "tsc --sourceMap false",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
