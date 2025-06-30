@@ -79,9 +79,11 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       const rankingConfig: AIRankingConfig = { claudeApiKey };
       const recommender = new ResourceRecommender(rankingConfig);
 
-      // Get available resources and explanations
-      logger.debug('Discovering cluster resources', { requestId });
-      const availableResources = await appAgent.discovery.discoverResources();
+      // Create discovery functions
+      const discoverResourcesFn = async () => {
+        logger.debug('Discovering cluster resources', { requestId });
+        return await appAgent.discovery.discoverResources();
+      };
 
       const explainResourceFn = async (resource: string) => {
         logger.debug(`Explaining resource: ${resource}`, { requestId });
@@ -92,7 +94,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       logger.debug('Generating recommendations with AI', { requestId });
       const solutions = await recommender.findBestSolutions(
         args.intent,
-        availableResources,
+        discoverResourcesFn,
         explainResourceFn
       );
 

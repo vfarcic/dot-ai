@@ -78,9 +78,9 @@ export class AppAgent {
           throw new Error('ResourceRanker not available. ANTHROPIC_API_KEY is required for AI-powered ranking.');
         }
         
-        // Create discovery functions
-        const discoverResourcesFn = () => this.discovery.discoverResources();
-        const explainResourceFn = (resource: string) => this.discovery.explainResource(resource);
+        // Create discovery functions with proper binding
+        const discoverResourcesFn = async () => await this.discovery.discoverResources();
+        const explainResourceFn = async (resource: string) => await this.discovery.explainResource(resource);
         
         return await ranker.findBestSolutions(intent, discoverResourcesFn, explainResourceFn);
       }

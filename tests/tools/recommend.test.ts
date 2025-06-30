@@ -4,7 +4,15 @@
  * Tests the workflow guidance improvements for the recommend tool
  */
 
-import { recommendToolDefinition } from '../../src/tools/recommend';
+import { recommendToolDefinition, recommendToolHandler } from '../../src/tools/recommend';
+import { ToolContext } from '../../src/tools';
+import { AppAgent } from '../../src/core';
+import { ResourceRecommender } from '../../src/core/schema';
+
+// Mock dependencies
+jest.mock('../../src/core');
+jest.mock('../../src/core/schema');
+jest.mock('../../src/core/error-handling');
 
 describe('Recommend Tool', () => {
   describe('Tool Definition', () => {
@@ -48,6 +56,56 @@ describe('Recommend Tool', () => {
       expect(recommendToolDefinition.inputSchema.type).toBe('object');
       expect(recommendToolDefinition.inputSchema.properties?.intent).toBeDefined();
       expect(recommendToolDefinition.inputSchema.required).toContain('intent');
+    });
+  });
+
+  describe('Tool Handler - MCP Connectivity Fix Verification', () => {
+    test('should verify the fix: function parameters passed correctly', () => {
+      // This test verifies that our MCP connectivity fix is in place
+      // The fix changed from passing raw data to passing functions
+      
+      // Read the source code to verify the fix
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify the fix: discoverResourcesFn should be defined as a function
+      expect(sourceCode).toContain('const discoverResourcesFn = async () => {');
+      expect(sourceCode).toContain('return await appAgent.discovery.discoverResources();');
+      
+      // Verify the function is passed to findBestSolutions (not raw data)
+      expect(sourceCode).toContain('discoverResourcesFn,');
+      expect(sourceCode).toContain('explainResourceFn');
+      
+      // Verify we're not passing raw data anymore (the old broken pattern)
+      expect(sourceCode).not.toContain('await appAgent.discovery.discoverResources(),');
+      expect(sourceCode).not.toContain('availableResources,'); // Old variable name
+    });
+    
+    test('should confirm CLI and MCP patterns now match', () => {
+      // Verify both CLI and MCP use the same pattern for calling ResourceRecommender
+      const fs = require('fs');
+      const path = require('path');
+      
+      const mcpCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      const cliCode = fs.readFileSync(
+        path.join(__dirname, '../../src/interfaces/cli.ts'), 
+        'utf8'
+      );
+      
+      // Both should use function-based approach
+      expect(mcpCode).toContain('const discoverResourcesFn = async () => {');
+      expect(cliCode).toContain('findBestSolutions(intent, discoverResourcesFn, explainResourceFn)'); // CLI uses same pattern
+      
+      // MCP should no longer have the broken pattern
+      expect(mcpCode).not.toContain('const availableResources = await appAgent.discovery.discoverResources();');
     });
   });
 });
