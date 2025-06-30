@@ -29,11 +29,11 @@ export interface CliConfig {
 }
 
 export class CliInterface {
-  private appAgent: AppAgent;
+  private appAgent?: AppAgent;
   private program: Command;
   private config: CliConfig;
 
-  constructor(appAgent: AppAgent, config: CliConfig = {}) {
+  constructor(appAgent?: AppAgent, config: CliConfig = {}) {
     this.appAgent = appAgent;
     this.config = config;
     this.program = new Command();
@@ -45,6 +45,17 @@ export class CliInterface {
       .option('--verbose', 'Enable verbose output globally');
     
     this.setupCommands();
+  }
+
+  setAppAgent(appAgent: AppAgent): void {
+    this.appAgent = appAgent;
+  }
+
+  private ensureAppAgent(): AppAgent {
+    if (!this.appAgent) {
+      throw new Error('Cluster connection required. Please ensure your kubeconfig is valid and cluster is accessible.');
+    }
+    return this.appAgent;
   }
 
   private setupCommands(): void {
@@ -207,7 +218,7 @@ export class CliInterface {
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
       // Always ensure AppAgent is initialized for command execution
-      await this.appAgent.initialize();
+      await this.ensureAppAgent().initialize();
 
       switch (command) {
         case 'deploy':
@@ -234,12 +245,12 @@ export class CliInterface {
 
   private async handleDeployCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const workflowId = await this.appAgent.workflow.initializeWorkflow({
+      const workflowId = await this.ensureAppAgent().workflow.initializeWorkflow({
         appName: options.app,
         requirements: options.requirements
       });
 
-      const phase = this.appAgent.workflow.getCurrentPhase();
+      const phase = this.ensureAppAgent().workflow.getCurrentPhase();
 
       const result: CliResult = {
         success: true,
@@ -252,7 +263,7 @@ export class CliInterface {
 
       // Handle interactive mode
       if (options.interactive) {
-        const claudeResponse = await this.appAgent.claude.processUserInput(
+        const claudeResponse = await this.ensureAppAgent().claude.processUserInput(
           `Starting deployment for ${options.app}. Requirements: ${options.requirements || 'none provided'}`
         );
         
@@ -273,7 +284,7 @@ export class CliInterface {
 
   private async handleStatusCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const phase = this.appAgent.workflow.getCurrentPhase();
+      const phase = this.ensureAppAgent().workflow.getCurrentPhase();
       
       return {
         success: true,
@@ -293,7 +304,7 @@ export class CliInterface {
 
   private async handleLearnCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const recommendations = await this.appAgent.memory.getRecommendations(
+      const recommendations = await this.ensureAppAgent().memory.getRecommendations(
         options.pattern || 'deployment',
         {}
       );
@@ -334,12 +345,12 @@ export class CliInterface {
       // Create discovery functions with progress callbacks
       const discoverResourcesFn = async () => {
         this.showProgress('🔍 Discovering available Kubernetes resources...');
-        return await this.appAgent.discovery.discoverResources();
+        return await this.ensureAppAgent().discovery.discoverResources();
       };
       
       const explainResourceFn = async (resource: string) => {
         this.showProgress(`📋 Analyzing ${resource} schema and capabilities...`);
-        return await this.appAgent.discovery.explainResource(resource);
+        return await this.ensureAppAgent().discovery.explainResource(resource);
       };
 
       this.showProgress('🤖 AI is selecting the best resources for your intent...');
@@ -435,13 +446,13 @@ export class CliInterface {
       const enhancer = new SolutionEnhancer(rankingConfig);
 
       // Get available resources for context
-      const availableResources = await this.appAgent.discovery.discoverResources();
+      const availableResources = await this.ensureAppAgent().discovery.discoverResources();
 
       this.showProgress('🤖 AI is enhancing your solution...');
 
       // Create explainResource function
       const explainResourceFn = async (resource: string) => {
-        return await this.appAgent.discovery.explainResource(resource);
+        return await this.ensureAppAgent().discovery.explainResource(resource);
       };
 
       // Enhance the solution
@@ -473,9 +484,9 @@ export class CliInterface {
 
   async continueWorkflow(workflowId: string, input: { responses: Record<string, any> }): Promise<CliResult> {
     try {
-      await this.appAgent.workflow.transitionTo('Validation');
+      await this.ensureAppAgent().workflow.transitionTo('Validation');
       
-      const claudeResponse = await this.appAgent.claude.processUserInput(
+      const claudeResponse = await this.ensureAppAgent().claude.processUserInput(
         `Continue workflow ${workflowId} with responses: ${JSON.stringify(input.responses)}`
       );
 

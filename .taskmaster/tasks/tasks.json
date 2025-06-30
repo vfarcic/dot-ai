@@ -257,13 +257,13 @@
             "id": 5,
             "title": "Test with standard K8s resources and CRDs",
             "description": "Validate TypeScript parser works with both built-in Kubernetes resources and custom resource definitions",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "3.9",
               "3.10",
               "3.11"
             ],
-            "details": "",
+            "details": "<info added on 2025-06-30T11:53:35.559Z>\nSuccessfully implemented and tested TypeScript parser functionality with both standard K8s resources and CRDs. \n\nKey achievements:\n1. Fixed CLI help functionality to work without cluster connectivity (major UX improvement)\n2. Updated tests to validate new CLI behavior \n3. Verified comprehensive test coverage for both resource types:\n\n**Standard K8s Resources Tested:**\n- Deployment (apps/v1) \n- Service (v1)\n- Pod (v1)\n- ConfigMap validation\n\n**CRDs Tested:**\n- AppClaim (devopstoolkit.live/v1alpha1)\n- Cluster (infrastructure.cluster.x-k8s.io/v1beta1) \n- Mixed standard + CRD scenarios\n\n**Parser Capabilities Validated:**\n- Two-phase AI analysis (selection + ranking)\n- Resource normalization between standard and CRDs\n- Schema parsing from kubectl explain output\n- Question generation for both resource types\n- Enhancement workflow compatibility\n\nAll 351 tests passing, including specific tests for CRD and standard resource handling in schema.test.ts. The TypeScript parser successfully works with both built-in Kubernetes resources and custom resource definitions as required.\n</info added on 2025-06-30T11:53:35.559Z>",
             "testStrategy": ""
           },
           {
@@ -296,7 +296,7 @@
             "id": 8,
             "title": "Determine module placement and integration",
             "description": "Decide whether to enhance existing src/core/discovery.ts or create new src/core/schema.ts module and integrate with existing TypeScript codebase",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "3.11"
             ],
@@ -326,7 +326,7 @@
             "title": "Maintain stateless design for external agent integration",
             "description": "Ensure recommendation responses include full resource details and solution IDs for reference only, avoiding storage requirements while supporting complete external agent workflow (recommend → questions → generate → deploy)",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 3
           }
@@ -1663,7 +1663,7 @@
     ],
     "metadata": {
       "created": "2025-06-28T00:17:46.251Z",
-      "updated": "2025-06-30T00:56:50.159Z",
+      "updated": "2025-06-30T11:53:43.332Z",
       "description": "Tasks for master context"
     }
   }

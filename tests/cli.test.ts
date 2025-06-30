@@ -77,6 +77,25 @@ describe('CLI Interface', () => {
       const commands = cli.getSubcommands();
       expect(commands).toContain('enhance');
     });
+
+    test('should work without appAgent for help commands', () => {
+      // Test that CLI can be instantiated without appAgent
+      const helpCli = new CliInterface();
+      expect(helpCli).toBeDefined();
+      expect(helpCli.getCommands()).toContain('app-agent');
+      expect(helpCli.getSubcommands()).toContain('recommend');
+    });
+
+    test('should require appAgent for non-help commands', async () => {
+      // Test that commands requiring cluster access fail gracefully without appAgent
+      const helpCli = new CliInterface();
+      
+      const result = await helpCli.executeCommand('recommend', { intent: 'test' });
+      expect(result.success).toBe(false);
+      // The exact error message may be transformed by handleError method
+      expect(result.error).toBeDefined();
+      expect(typeof result.error).toBe('string');
+    });
   });
 
   describe('Help Text Generation', () => {
