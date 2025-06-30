@@ -185,13 +185,13 @@ describe('MCP Interface Layer', () => {
     test('should require intent parameter for recommend', async () => {
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
-      await expect(handleRecommend({})).rejects.toThrow('Intent is required');
+      await expect(handleRecommend({})).rejects.toThrow('Invalid parameters for tool \'recommend\'');
     });
 
     test('should require solution_data for enhance_solution', async () => {
       const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
       
-      await expect(handleEnhanceSolution({})).rejects.toThrow('Solution data is required');
+      await expect(handleEnhanceSolution({})).rejects.toThrow('Invalid parameters for tool \'enhance_solution\'');
     });
 
     test('should require valid JSON for enhance_solution', async () => {

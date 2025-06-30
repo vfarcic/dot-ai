@@ -14,6 +14,7 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 import { AppAgent } from '../core/index.js';
+import { SchemaValidator, MCPToolSchemas } from '../core/validation';
 
 export interface MCPServerConfig {
   name: string;
@@ -52,30 +53,12 @@ export class MCPServer {
           {
             name: 'recommend',
             description: 'Get AI-powered Kubernetes resource recommendations based on deployment intent',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                intent: {
-                  type: 'string',
-                  description: 'High-level description of what you want to deploy (e.g., "web application with database")'
-                }
-              },
-              required: ['intent']
-            }
+            inputSchema: MCPToolSchemas.RECOMMEND_INPUT
           },
           {
             name: 'enhance_solution',
             description: 'Process open-ended user requirements to enhance and customize deployment solutions',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                solution_data: {
-                  type: 'string',
-                  description: 'JSON string containing the solution to enhance (must include questions.open.answer field)'
-                }
-              },
-              required: ['solution_data']
-            }
+            inputSchema: MCPToolSchemas.ENHANCE_SOLUTION_INPUT
           }
         ]
       };
@@ -125,13 +108,8 @@ export class MCPServer {
   private async handleRecommend(args: any): Promise<{ content: { type: string; text: string }[] }> {
     await this.ensureInitialized();
 
-    // Validate required parameters
-    if (!args.intent || typeof args.intent !== 'string') {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Intent is required and must be a string describing what you want to deploy'
-      );
-    }
+    // Validate input parameters using schema
+    SchemaValidator.validateToolInput('recommend', args, MCPToolSchemas.RECOMMEND_INPUT);
 
     // Use the actual implemented recommend functionality
     const solutions = await this.appAgent.schema.rankResources(args.intent);
@@ -142,19 +120,19 @@ export class MCPServer {
       timestamp: new Date().toISOString()
     };
 
-    return this.formatResponse(result);
+    const response = this.formatResponse(result);
+    
+    // Validate output response
+    SchemaValidator.validateToolOutput('recommend', response, MCPToolSchemas.MCP_RESPONSE_OUTPUT);
+    
+    return response;
   }
 
   private async handleEnhanceSolution(args: any): Promise<{ content: { type: string; text: string }[] }> {
     await this.ensureInitialized();
 
-    // Validate required parameters
-    if (!args.solution_data || typeof args.solution_data !== 'string') {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Solution data is required and must be a JSON string'
-      );
-    }
+    // Validate input parameters using schema
+    SchemaValidator.validateToolInput('enhance_solution', args, MCPToolSchemas.ENHANCE_SOLUTION_INPUT);
 
     // Parse the solution data
     let solutionObj;
@@ -167,7 +145,17 @@ export class MCPServer {
       );
     }
 
-    // Validate that the solution has the required open response
+    // Validate the parsed solution data structure
+    try {
+      SchemaValidator.validate(solutionObj, MCPToolSchemas.SOLUTION_DATA, 'solution_data');
+    } catch (validationError) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Invalid solution data structure: ${validationError}`
+      );
+    }
+
+    // Additional validation for required open response
     if (!solutionObj.questions?.open?.answer) {
       throw new McpError(
         ErrorCode.InvalidParams,
@@ -205,7 +193,12 @@ export class MCPServer {
       timestamp: new Date().toISOString()
     };
 
-    return this.formatResponse(result);
+    const response = this.formatResponse(result);
+    
+    // Validate output response
+    SchemaValidator.validateToolOutput('enhance_solution', response, MCPToolSchemas.MCP_RESPONSE_OUTPUT);
+    
+    return response;
   }
 
   private async ensureInitialized(): Promise<void> {
