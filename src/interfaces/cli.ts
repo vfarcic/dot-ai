@@ -177,6 +177,37 @@ export class CliInterface {
         this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
+    // Answer Question command
+    this.program
+      .command('answer-question')
+      .description('Process user answers and return remaining questions or completion status')
+      .requiredOption('--solution-id <id>', 'Solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)')
+      .requiredOption('--session-dir <path>', 'Directory containing solution files')
+      .requiredOption('--answers <json>', 'User answers as JSON object')
+      .option('--done', 'Set when providing final open question answer', false)
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
+        // Parse answers JSON
+        try {
+          options.answers = JSON.parse(options.answers);
+        } catch (error) {
+          console.error('Error: Invalid JSON in --answers parameter');
+          process.exit(1);
+        }
+        
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
+        const result = await this.executeCommand('answerQuestion', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
+      });
+
     // REMOVED: enhance command - moved to legacy reference
     // See src/legacy/tools/enhance-solution.ts for reference implementation
   }
@@ -267,6 +298,8 @@ export class CliInterface {
         return [...commonOptions, 'intent', 'session-dir'];
       case 'chooseSolution':
         return [...commonOptions, 'solution-id', 'session-dir'];
+      case 'answerQuestion':
+        return [...commonOptions, 'solution-id', 'session-dir', 'answers', 'done'];
       // REMOVED: enhance command
       default:
         return commonOptions;
@@ -276,7 +309,7 @@ export class CliInterface {
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
       // Only initialize AppAgent for commands that need cluster access
-      if (command !== 'chooseSolution') {
+      if (command !== 'chooseSolution' && command !== 'answerQuestion') {
         await this.ensureAppAgent().initialize();
       }
 
@@ -291,6 +324,8 @@ export class CliInterface {
           return await this.handleRecommendCommand(options);
         case 'chooseSolution':
           return await this.handleChooseSolutionCommand(options);
+        case 'answerQuestion':
+          return await this.handleAnswerQuestionCommand(options);
         // REMOVED: enhance command
         default:
           return {
@@ -515,6 +550,72 @@ export class CliInterface {
     }
   }
 
+  private async handleAnswerQuestionCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      // Show progress for file operations
+      this.showProgress('📝 Processing answers and updating solution...');
+
+      // Create tool context for the answerQuestion tool
+      const toolContext: ToolContext = {
+        requestId: `cli-${Date.now()}`,
+        logger: {
+          debug: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          info: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          warn: (message: string, meta?: any) => {
+            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          error: (message: string, meta?: any) => {
+            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          fatal: (message: string, meta?: any) => {
+            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
+          }
+        },
+        appAgent: this.appAgent || null
+      };
+
+      // Prepare arguments for the answerQuestion tool
+      const toolArgs = {
+        solutionId: options.solutionId,
+        sessionDir: options.sessionDir,
+        answers: options.answers,
+        done: options.done || false
+      };
+
+      // Execute the answerQuestion tool through the registry
+      const result = await this.toolRegistry.executeTool('answerQuestion', toolArgs, toolContext);
+
+      this.showProgress('✅ Answers processed successfully!');
+      // Small delay to show completion message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.clearProgress();
+
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
+      return {
+        success: true,
+        data: responseData
+      };
+    } catch (error) {
+      // Give a moment for user to see progress before clearing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.clearProgress(); // Clear progress indicators on error
+      return {
+        success: false,
+        error: `Answer question failed: ${(error as Error).message}`
+      };
+    }
+  }
+
   // REMOVED: handleEnhanceCommand method - moved to legacy reference
   // See src/legacy/tools/enhance-solution.ts for reference implementation
 
@@ -685,10 +786,12 @@ export class CliInterface {
     const { recommendToolDefinition, recommendToolHandler } = require('../tools/recommend');
     const { canHelpToolDefinition, canHelpToolHandler } = require('../tools/can-help');
     const { chooseSolutionToolDefinition, chooseSolutionToolHandler } = require('../tools/choose-solution');
+    const { answerQuestionToolDefinition, answerQuestionToolHandler } = require('../tools/answer-question');
     
     registry.registerTool(recommendToolDefinition, recommendToolHandler);
     registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
     registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
+    registry.registerTool(answerQuestionToolDefinition, answerQuestionToolHandler);
     
     return registry;
   }

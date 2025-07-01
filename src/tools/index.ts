@@ -12,6 +12,7 @@ import { recommendToolDefinition, recommendToolHandler } from './recommend';
 // import { enhanceSolutionToolDefinition, enhanceSolutionToolHandler } from './enhance-solution'; // MOVED TO LEGACY
 import { canHelpToolDefinition, canHelpToolHandler } from './can-help';
 import { chooseSolutionToolDefinition, chooseSolutionToolHandler } from './choose-solution';
+import { answerQuestionToolDefinition, answerQuestionToolHandler } from './answer-question';
 
 /**
  * Register all available tools with the registry
@@ -31,6 +32,9 @@ export function registerAllTools(registry: ToolRegistry = defaultToolRegistry): 
     
     // Register chooseSolution tool
     registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
+    
+    // Register answerQuestion tool
+    registry.registerTool(answerQuestionToolDefinition, answerQuestionToolHandler);
     
     const stats = registry.getStats();
     logger.info('All tools registered successfully', {

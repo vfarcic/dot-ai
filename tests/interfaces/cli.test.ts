@@ -288,6 +288,107 @@ describe('CLI Interface', () => {
       expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
 
+    test('should execute answerQuestion command', async () => {
+      // Mock successful tool execution
+      const mockExecuteTool = jest.fn() as jest.MockedFunction<any>;
+      const mockResult = {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            status: 'questions_remaining',
+            solutionId: 'sol_2025-01-01T123456_abcdef',
+            questions: {
+              required: [{
+                id: 'port',
+                question: 'What port does your application listen on?',
+                type: 'number'
+              }]
+            },
+            answeredQuestions: 1,
+            totalQuestions: 4
+          })
+        }]
+      };
+      mockExecuteTool.mockResolvedValue(mockResult);
+
+      const mockToolRegistry = { executeTool: mockExecuteTool } as any;
+
+      // Replace the tool registry in CLI instance
+      (cli as any).toolRegistry = mockToolRegistry;
+      
+      const result = await cli.executeCommand('answerQuestion', {
+        solutionId: 'sol_2025-01-01T123456_abcdef',
+        sessionDir: '/tmp/test',
+        answers: { name: 'my-app' }
+      });
+      
+      expect(result.success).toBe(true);
+      expect(result.data.status).toBe('questions_remaining');
+      expect(result.data.solutionId).toBe('sol_2025-01-01T123456_abcdef');
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'answerQuestion',
+        {
+          solutionId: 'sol_2025-01-01T123456_abcdef',
+          sessionDir: '/tmp/test',
+          answers: { name: 'my-app' },
+          done: false
+        },
+        expect.any(Object)
+      );
+    });
+
+    test('should execute answerQuestion command with done=true', async () => {
+      // Mock successful completion
+      const mockExecuteTool = jest.fn() as jest.MockedFunction<any>;
+      const mockResult = {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            status: 'ready_for_enhancement',
+            solutionId: 'sol_2025-01-01T123456_abcdef',
+            message: 'Solution configuration complete',
+            hasOpenAnswer: true
+          })
+        }]
+      };
+      mockExecuteTool.mockResolvedValue(mockResult);
+
+      const mockToolRegistry = { executeTool: mockExecuteTool } as any;
+
+      (cli as any).toolRegistry = mockToolRegistry;
+      
+      const result = await cli.executeCommand('answerQuestion', {
+        solutionId: 'sol_2025-01-01T123456_abcdef',
+        sessionDir: '/tmp/test',
+        answers: { open: 'I need high availability' },
+        done: true
+      });
+      
+      expect(result.success).toBe(true);
+      expect(result.data.status).toBe('ready_for_enhancement');
+      expect(result.data.hasOpenAnswer).toBe(true);
+    });
+
+    test('should handle answerQuestion tool failure', async () => {
+      const mockExecuteTool = jest.fn() as jest.MockedFunction<any>;
+      const mockError = new Error('Validation failed');
+      mockExecuteTool.mockRejectedValue(mockError);
+      const mockToolRegistry = { executeTool: mockExecuteTool } as any;
+
+      (cli as any).toolRegistry = mockToolRegistry;
+      
+      const result = await cli.executeCommand('answerQuestion', {
+        solutionId: 'invalid-id',
+        sessionDir: '/tmp/test',
+        answers: {}
+      });
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Answer question failed');
+    });
+
     // REMOVED: enhance command execution test - moved to legacy
 
     // REMOVED: enhance command API key test - moved to legacy
@@ -883,6 +984,44 @@ describe('CLI Interface', () => {
       
       expect(validOptions).toContain('solution-id');
       expect(validOptions).toContain('session-dir');
+    });
+  });
+
+  describe('Answer Question Command', () => {
+    test('should include answerQuestion in quiet tool registry', () => {
+      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      const registry = quietCli['toolRegistry'];
+      
+      const answerQuestionTool = registry.getTool('answerQuestion');
+      expect(answerQuestionTool).toBeDefined();
+      expect(answerQuestionTool!.definition.name).toBe('answerQuestion');
+      expect(answerQuestionTool!.definition.category).toBe('ai-recommendations');
+    });
+
+    test('should validate answer-question command options', () => {
+      const validOptions = cli['getValidOptionsForCommand']('answerQuestion');
+      
+      expect(validOptions).toContain('solution-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('answers');
+      expect(validOptions).toContain('done');
+      expect(validOptions).toContain('output');
+      expect(validOptions).toContain('verbose');
+    });
+
+    test('should include answer-question in subcommands', () => {
+      const subcommands = cli.getSubcommands();
+      expect(subcommands).toContain('answer-question');
+    });
+
+    test('should validate solution-id and answers format in CLI args', () => {
+      // Test that the CLI would properly validate parameters
+      // This is handled by the tool itself, but CLI should pass it through
+      const validOptions = cli['getValidOptionsForCommand']('answerQuestion');
+      
+      expect(validOptions).toContain('solution-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('answers');
     });
   });
 }); 
