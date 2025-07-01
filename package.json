@@ -12,7 +12,7 @@
     "./mcp": "./dist/mcp/server.js"
   },
   "scripts": {
-    "pretest": "tsc --sourceMap false",
+    "pretest": "npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -30,7 +30,7 @@
     "start:mcp": "node dist/mcp/server.js",
     "lint": "eslint src/ --ext .ts",
     "format": "prettier --write src/",
-    "ci": "npm run lint && npm run ci:test && npm run ci:build && npm run ci:security",
+    "ci": "npm run lint && npm run ci:build && npm run ci:test && npm run ci:security",
     "ci:test": "npm run test",
     "ci:build": "npm run build:prod",
     "ci:security": "npm audit --audit-level moderate",

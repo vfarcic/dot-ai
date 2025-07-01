@@ -121,6 +121,31 @@ export class SchemaValidator {
     }
   }
 
+  /**
+   * Validate solution data with enhanced open question enforcement
+   */
+  static validateSolutionData(solutionData: any): ValidationError[] {
+    const errors = this.validate(solutionData, MCPToolSchemas.SOLUTION_DATA, 'solution_data');
+    
+    // Add enhanced validation for open question answers
+    if (solutionData?.questions?.open?.answer !== undefined) {
+      const answer = solutionData.questions.open.answer;
+      
+      if (typeof answer === 'string') {
+        const trimmed = answer.trim();
+        if (trimmed === '') {
+          errors.push({
+            path: 'solution_data.questions.open.answer',
+            message: 'Open question answer cannot be empty. Use "none" or "n/a" if no requirements.',
+            value: answer
+          });
+        }
+      }
+    }
+    
+    return errors;
+  }
+
   private static getJsonType(value: any): string {
     if (value === null) return 'null';
     if (Array.isArray(value)) return 'array';
@@ -326,7 +351,6 @@ export class MCPToolSchemas {
   static readonly SOLUTION_DATA: JSONSchema = {
     type: 'object',
     properties: {
-      id: { type: 'string' },
       type: { type: 'string', enum: ['single', 'multi', 'enhanced'] },
       score: { type: 'number', minimum: 0, maximum: 100 },
       description: { type: 'string', minLength: 1 },
@@ -338,7 +362,11 @@ export class MCPToolSchemas {
             properties: {
               question: { type: 'string' },
               placeholder: { type: 'string' },
-              answer: { type: 'string', minLength: 1 }
+              answer: { 
+                type: 'string',
+                minLength: 1,
+                description: 'User response to the open question. Can be "none", "n/a", or any meaningful response. Empty strings are not allowed.'
+              }
             },
             required: ['answer']
           }

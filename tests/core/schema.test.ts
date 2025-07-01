@@ -1193,40 +1193,8 @@ describe('Question Generation and Dynamic Discovery', () => {
   });
 
   describe('Solution ID generation', () => {
-    it('should generate unique solution IDs', async () => {
-      const intent = 'test intent';
-      
-      mockDiscoverResources.mockResolvedValue({
-        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
-        custom: []
-      });
-
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
-      });
-
-      const fs = require('fs');
-      jest.spyOn(fs, 'readFileSync').mockReturnValue('template');
-
-      mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
-        .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": ""}]}`
-        })
-        .mockResolvedValueOnce({
-          content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
-        });
-
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
-
-      expect(solutions).toHaveLength(1);
-      expect(solutions[0].id).toBeDefined();
-      expect(solutions[0].id).toMatch(/^sol-\d+-[a-z0-9]+$/);
-    });
+    // NOTE: The id field has been removed from ResourceSolution objects
+    // This test has been removed as solution IDs are no longer generated
   });
 
   describe('JSON Response Parsing', () => {
@@ -1626,7 +1594,6 @@ describe('SolutionEnhancer', () => {
     };
     
     mockSolution = {
-      id: 'test-solution',
       type: 'single',
       resources: [{
         apiVersion: 'v1',
@@ -1649,12 +1616,7 @@ describe('SolutionEnhancer', () => {
             question: 'What should we name your application?',
             type: 'text',
             placeholder: 'my-app',
-            validation: { required: true },
-            resourceMapping: {
-              resourceKind: 'Pod',
-              apiVersion: 'v1',
-              fieldPath: 'metadata.name'
-            }
+            validation: { required: true }
           }
         ],
         basic: [],
@@ -1714,7 +1676,7 @@ describe('SolutionEnhancer', () => {
     });
 
     test('should handle basic enhancement request', async () => {
-      // Mock Claude integration for this test
+      // Mock Claude integration for single-pass architecture
       const mockClaudeIntegration = {
         isInitialized: jest.fn().mockReturnValue(true),
         sendMessage: jest.fn()
@@ -1728,26 +1690,40 @@ describe('SolutionEnhancer', () => {
           })
           .mockResolvedValueOnce({
             content: JSON.stringify({
-              missingAnswers: [
-                {
-                  questionId: 'app-name',
-                  suggestedValue: 'my-scalable-app'
+              enhancedSolution: {
+                type: 'single',
+                resources: [{
+                  apiVersion: 'v1',
+                  kind: 'Pod',
+                  group: '',
+                  version: 'v1',
+                  description: 'Pod resource',
+                  properties: new Map(),
+                  required: [],
+                  namespace: true
+                }],
+                score: 92,
+                description: 'High-performance Pod deployment with optimized CPU resources',
+                reasons: ['Basic container deployment'],
+                analysis: 'This solution provides CPU-optimized Pod deployment for high performance workloads',
+                questions: {
+                  required: [
+                    {
+                      id: 'app-name',
+                      question: 'What should we name your application?',
+                      type: 'text',
+                      placeholder: 'my-app',
+                      validation: { required: true }
+                    }
+                  ],
+                  basic: [],
+                  advanced: [],
+                  open: {
+                    question: 'Any additional requirements?',
+                    placeholder: 'Enter specific requirements...'
+                  }
                 }
-              ],
-              newQuestions: [
-                {
-                  id: 'cpu-limit',
-                  question: 'What CPU limit do you need?',
-                  type: 'text',
-                  placeholder: '500m',
-                  resourceMapping: {
-                    resourceKind: 'Pod',
-                    apiVersion: 'v1',
-                    fieldPath: 'spec.containers[0].resources.limits.cpu'
-                  },
-                  answer: '1000m'
-                }
-              ]
+              }
             })
           })
       };
@@ -1763,14 +1739,16 @@ describe('SolutionEnhancer', () => {
       );
 
       expect(enhancedSolution).toBeDefined();
-      expect(enhancedSolution.id).toBe(mockSolution.id);
-      expect(enhancedSolution.questions.required[0].answer).toBe('my-scalable-app');
-      expect(enhancedSolution.questions.open.answer).toBe("");
+      // NOTE: id field has been removed from ResourceSolution objects
       
-      // Check that new question was added
-      const cpuQuestion = enhancedSolution.questions.basic.find(q => q.id === 'cpu-limit');
-      expect(cpuQuestion).toBeDefined();
-      expect(cpuQuestion?.answer).toBe('1000m');
+      // In single-pass architecture, we enhance the solution content, not questions
+      expect(enhancedSolution.description).toBe('High-performance Pod deployment with optimized CPU resources');
+      expect(enhancedSolution.analysis).toBe('This solution provides CPU-optimized Pod deployment for high performance workloads');
+      expect(enhancedSolution.score).toBe(92);
+      
+      // Questions remain unchanged in single-pass architecture  
+      expect(enhancedSolution.questions.open.answer).toBeUndefined(); // Original mock had no answer
+      expect(enhancedSolution.questions.required[0].answer).toBeUndefined(); // No modification of existing questions
     });
 
     test('should handle capability gap scenario', async () => {
@@ -1828,7 +1806,6 @@ describe('SolutionEnhancer', () => {
       );
 
       // Verify core properties are preserved
-      expect(enhancedSolution.id).toBe(mockSolution.id);
       expect(enhancedSolution.type).toBe(mockSolution.type);
       expect(enhancedSolution.score).toBe(mockSolution.score);
       expect(enhancedSolution.description).toBe(mockSolution.description);

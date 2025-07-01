@@ -98,11 +98,15 @@ describe('MCP Interface Layer', () => {
         ...mockAppAgent.schema,
         rankResources: jest.fn().mockResolvedValue([
           {
-            id: 'test-solution',
             type: 'single',
             score: 85,
             description: 'Deploy with Pod and Service',
-            resources: [{ kind: 'Pod' }, { kind: 'Service' }],
+            reasons: ['Pod handles application logic', 'Service provides load balancing'],
+            analysis: 'This solution provides a basic deployment pattern',
+            resources: [
+              { kind: 'Pod', apiVersion: 'v1', group: '', description: 'Basic pod resource' },
+              { kind: 'Service', apiVersion: 'v1', group: '', description: 'Load balancing service' }
+            ],
             questions: { required: [], basic: [], advanced: [], open: {} }
           }
         ])
@@ -119,10 +123,44 @@ describe('MCP Interface Layer', () => {
       expect(result.content).toHaveLength(1);
       const responseData = JSON.parse(result.content[0].text);
       
+      // Validate top-level response structure
       expect(responseData).toEqual(expect.objectContaining({
         intent: 'Deploy a web application with load balancing',
         solutions: expect.any(Array),
+        agentInstructions: expect.objectContaining({
+          questionFlow: 'sequential',
+          instruction: expect.any(String),
+          nextSteps: expect.any(String)
+        }),
         timestamp: expect.any(String)
+      }));
+
+      // Validate that solutions array has proper structure
+      expect(responseData.solutions).toHaveLength(1);
+      const solution = responseData.solutions[0];
+      
+      // Validate complete solution structure including missing fields
+      expect(solution).toEqual(expect.objectContaining({
+        type: 'single',
+        score: 85,
+        description: 'Deploy with Pod and Service',
+        reasons: expect.arrayContaining(['Pod handles application logic', 'Service provides load balancing']),
+        analysis: 'This solution provides a basic deployment pattern', // This field should be present
+        resources: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'Pod',
+            apiVersion: 'v1',
+            group: '',
+            description: 'Basic pod resource'
+          }),
+          expect.objectContaining({
+            kind: 'Service', 
+            apiVersion: 'v1',
+            group: '',
+            description: 'Load balancing service'
+          })
+        ]), // This field should be present
+        questions: expect.any(Object)
       }));
 
       expect(mockAppAgent.schema.rankResources).toHaveBeenCalledWith('Deploy a web application with load balancing');
@@ -185,19 +223,31 @@ describe('MCP Interface Layer', () => {
     test('should require intent parameter for recommend', async () => {
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
-      await expect(handleRecommend({})).rejects.toThrow('Invalid parameters for tool \'recommend\'');
+      const result = await handleRecommend({});
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('Invalid parameters for tool \'recommend\'');
     });
 
     test('should require solution_data for enhance_solution', async () => {
       const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
       
-      await expect(handleEnhanceSolution({})).rejects.toThrow('Invalid parameters for tool \'enhance_solution\'');
+      const result = await handleEnhanceSolution({});
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('Invalid parameters for tool \'enhance_solution\'');
     });
 
     test('should require valid JSON for enhance_solution', async () => {
       const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
       
-      await expect(handleEnhanceSolution({ solution_data: 'invalid json' })).rejects.toThrow('Solution data must be valid JSON');
+      const result = await handleEnhanceSolution({ solution_data: 'invalid json' });
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('Solution data must be valid JSON');
     });
 
     test('should require open answer in solution for enhance_solution', async () => {
@@ -216,7 +266,11 @@ describe('MCP Interface Layer', () => {
         })
       };
 
-      await expect(handleEnhanceSolution(invalidSolution)).rejects.toThrow('Required property is missing');
+      const result = await handleEnhanceSolution(invalidSolution);
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('Required property is missing');
     });
   });
 
@@ -255,7 +309,11 @@ describe('MCP Interface Layer', () => {
       
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
-      await expect(handleRecommend({ intent: 'Deploy nginx' })).rejects.toThrow('AI service unavailable');
+      const result = await handleRecommend({ intent: 'Deploy nginx' });
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('AI service unavailable');
     });
 
     test('should handle initialization errors', async () => {
@@ -263,7 +321,11 @@ describe('MCP Interface Layer', () => {
       
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
-      await expect(handleRecommend({ intent: 'Deploy nginx' })).rejects.toThrow('rankResources');
+      const result = await handleRecommend({ intent: 'Deploy nginx' });
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('Cannot read properties of undefined');
     });
 
     test('should handle missing API key for enhance solution', async () => {
@@ -278,7 +340,11 @@ describe('MCP Interface Layer', () => {
         })
       };
 
-      await expect(handleEnhanceSolution(validSolution)).rejects.toThrow('ANTHROPIC_API_KEY environment variable must be set');
+      const result = await handleEnhanceSolution(validSolution);
+      expect(result.content).toHaveLength(1);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
+      expect(responseData.error.message).toContain('ANTHROPIC_API_KEY environment variable must be set');
       
       // Restore mock
       mockAppAgent.getAnthropicApiKey.mockReturnValue('test-api-key');
@@ -384,10 +450,15 @@ describe('MCP Interface Layer', () => {
       mockAppAgent.schema = {
         ...mockAppAgent.schema,
         rankResources: jest.fn().mockResolvedValue([{
-          id: 'test',
           type: 'single',
           score: 80,
-          description: 'Test solution'
+          description: 'Test solution',
+          reasons: ['Test reason'],
+          analysis: 'Test analysis',
+          resources: [
+            { kind: 'Pod', apiVersion: 'v1', group: '', description: 'Test pod' }
+          ],
+          questions: { required: [], basic: [], advanced: [], open: {} }
         }])
       };
 

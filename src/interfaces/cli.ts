@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import { AppAgent } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
-import { ResourceRecommender, SolutionEnhancer, AIRankingConfig } from '../core/schema';
+import { ResourceRecommender, SolutionEnhancer, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
 
 export interface CliResult {
   success: boolean;
@@ -75,6 +75,11 @@ export class CliInterface {
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .option('--verbose', 'Enable verbose output')
       .action(async (options) => {
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
         const result = await this.executeCommand('deploy', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
@@ -86,6 +91,11 @@ export class CliInterface {
       .option('--deployment <id>', 'Deployment/workflow ID to check')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
         const result = await this.executeCommand('status', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
@@ -97,6 +107,11 @@ export class CliInterface {
       .option('--pattern <type>', 'Filter by pattern type')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
         const result = await this.executeCommand('learn', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
@@ -108,6 +123,11 @@ export class CliInterface {
       .requiredOption('--intent <description>', 'Describe what you want to deploy or accomplish')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
         const result = await this.executeCommand('recommend', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
@@ -119,6 +139,11 @@ export class CliInterface {
       .requiredOption('--solution <path>', 'Path to solution JSON file containing open.answer field')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options) => {
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
         const result = await this.executeCommand('enhance', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
@@ -370,29 +395,7 @@ export class CliInterface {
 
       return {
         success: true,
-        data: {
-          intent: options.intent,
-          solutions: solutions.map(solution => ({
-            type: solution.type,
-            score: solution.score,
-            description: solution.description,
-            reasons: solution.reasons,
-            analysis: solution.analysis,
-            resources: solution.resources.map((r: any) => ({
-              kind: r.kind,
-              apiVersion: r.apiVersion,
-              group: r.group,
-              description: r.description
-            })),
-            questions: solution.questions
-          })),
-          summary: {
-            totalSolutions: solutions.length,
-            bestScore: solutions[0]?.score || 0,
-            recommendedSolution: solutions[0]?.type || 'none',
-            topResource: solutions[0]?.resources[0]?.kind || 'none'
-          }
-        }
+        data: formatRecommendationResponse(options.intent, solutions, false)
       };
     } catch (error) {
       // Give a moment for user to see progress before clearing
@@ -430,14 +433,19 @@ export class CliInterface {
         };
       }
 
-      // Extract open response from the solution JSON
-      const openResponse = solutionData.questions?.open?.answer;
-      if (!openResponse) {
+      // Validate solution data structure including open question enforcement
+      const { SchemaValidator } = await import('../core/validation');
+      const validationErrors = SchemaValidator.validateSolutionData(solutionData);
+      if (validationErrors.length > 0) {
+        const errorMessages = validationErrors.map(e => `${e.path}: ${e.message}`).join('; ');
         return {
           success: false,
-          error: 'No open response found in solution file. Please add an "answer" field to the "open" question.'
+          error: `Invalid solution data: ${errorMessages}`
         };
       }
+
+      // Extract open response from the solution JSON (guaranteed to exist after validation)
+      const openResponse = solutionData.questions.open.answer;
 
       this.showProgress('🔍 Analyzing enhancement request...');
 

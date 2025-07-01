@@ -33,10 +33,7 @@ export class InstructionLoader {
       
       return content;
     } catch (error) {
-      // Fallback to basic instruction if file not found
-      const fallback = `Tool: ${toolName}\n\nPlease ask the user to describe their requirements before using this tool.`;
-      this.instructionCache.set(toolName, fallback);
-      return fallback;
+      throw new Error(`Missing instruction file for tool '${toolName}': prompts/tool-instructions/${toolName}.md`);
     }
   }
 

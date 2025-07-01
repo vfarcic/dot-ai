@@ -5,7 +5,7 @@
 import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
 import { MCPToolSchemas, SchemaValidator } from '../core/validation';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig } from '../core/schema';
+import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
 import { InstructionLoader } from '../core/instruction-loader';
 
 export const recommendToolDefinition: ToolDefinition = {
@@ -104,17 +104,8 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
         topScore: solutions[0]?.score
       });
 
-      // Format response for MCP
-      const response = {
-        intent: args.intent,
-        solutions: solutions.map(solution => ({
-          type: solution.type,
-          score: solution.score,
-          description: solution.description,
-          reasons: solution.reasons,
-          questions: solution.questions
-        }))
-      };
+      // Use shared formatting function
+      const response = formatRecommendationResponse(args.intent, solutions, true);
 
       // Validate output
       SchemaValidator.validateToolOutput('recommend', { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }, MCPToolSchemas.MCP_RESPONSE_OUTPUT);

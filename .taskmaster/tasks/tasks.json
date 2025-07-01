@@ -329,6 +329,15 @@
             "status": "done",
             "dependencies": [],
             "parentTaskId": 3
+          },
+          {
+            "id": 12,
+            "title": "Implement Single-Pass Architecture with Resource-Driven Questions",
+            "description": "Redesign the core recommendation and enhancement system to support single-pass interactions with resource-driven question generation. This architectural change affects both CLI and MCP interfaces that share these core functions.",
+            "details": "Implement the following architectural improvements:\n\n1. **Single-Pass Interaction Design**: Eliminate multi-call enhancement flows. The workflow becomes: recommend() → collect ALL answers → enhance_solution() → final result.\n\n2. **Open Question Enforcement**: Require explicit answers to open questions, allowing \"none\" or \"n/a\" responses. Update validation to enforce questions.open.answer is present and non-empty.\n\n3. **Resource-Driven Question Generation**: Generate questions dynamically from CRD schemas instead of hardcoded questions. Each resource type (Deployment, Service, AppClaim, etc.) contributes questions based on its actual schema properties.\n\n4. **Question Consolidation for Multi-Resource Solutions**: When solutions contain multiple resources (e.g., Deployment + Service + Ingress), intelligently consolidate questions. For example, consolidate containerPort + service.port + ingress.servicePort into a single \"application-port\" question.\n\n5. **Simplified Validation**: Remove state management complexity from enhance_solution. The function should expect complete solutions with all answers provided and validate accordingly.\n\nThese changes make the system more agent-friendly with clear boundaries and complete information gathering in single interactions. Both CLI and MCP interfaces will benefit from this improved architecture.",
+            "status": "in-progress",
+            "dependencies": [],
+            "parentTaskId": 3
           }
         ]
       },
@@ -420,7 +429,8 @@
         "status": "pending",
         "dependencies": [
           3,
-          4
+          4,
+          "3.12"
         ],
         "priority": "high",
         "details": "Create src/cli/cli.ts with CLI class using commander library for command structure. Implement interactive session management with: 1) Conversational workflow for application deployment, 2) Q&A system for gathering deployment requirements, 3) Progress tracking and user guidance, 4) Integration with discovery engine and memory system for internal use. Commands: app-agent deploy, app-agent status, app-agent learn, app-agent recommend (with --intent and optional --output options). Discovery functionality is used internally by these commands rather than as a standalone command. Use Claude Code SDK for natural language processing and intelligent responses through TypeScript implementation. ResourceRecommender class provides AI-powered resource recommendations.",
@@ -886,7 +896,8 @@
         "description": "Initialize the Model Context Protocol server with TypeScript and establish basic function framework",
         "status": "in-progress",
         "dependencies": [
-          1
+          1,
+          "3.12"
         ],
         "priority": "high",
         "details": "Create MCP server in TypeScript using standard MCP protocol implementation. Setup server.ts with: 1) MCP protocol handlers, 2) JSON schema validation for all functions, 3) Error handling patterns, 4) Function registration system. Implement base MCPServer class with methods for handling MCP requests, function dispatch, and response formatting. Configure TypeScript build process and development environment.",
@@ -1663,7 +1674,7 @@
     ],
     "metadata": {
       "created": "2025-06-28T00:17:46.251Z",
-      "updated": "2025-06-30T15:26:36.472Z",
+      "updated": "2025-06-30T20:41:08.597Z",
       "description": "Tasks for master context"
     }
   }

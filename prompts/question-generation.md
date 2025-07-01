@@ -53,44 +53,27 @@ Question types available:
 - `boolean`: Yes/no question
 - `number`: Numeric input
 
-## Resource Mapping Requirements
+## Question Design for Manifest Generation
 
-**CRITICAL**: Each question must include a `resourceMapping` field that specifies exactly where the user's answer should be applied in the Kubernetes manifests.
+**IMPORTANT**: Questions should be designed to collect semantic answers that the manifest generator can intelligently apply to the appropriate resource fields. Focus on user-friendly question IDs and clear descriptions.
 
-### Single Resource Mapping
-For questions that apply to one resource field:
-```json
-"resourceMapping": {
-  "resourceKind": "Deployment",
-  "apiVersion": "apps/v1", 
-  "group": "apps",
-  "fieldPath": "spec.template.spec.containers[0].image"
-}
-```
+### Question ID Guidelines
+- Use semantic IDs that describe what the answer represents: `app-name`, `app-port`, `namespace`, `replicas`
+- Avoid resource-specific IDs like `deployment-name` or `service-port` 
+- Use consolidation-friendly IDs when the same answer applies to multiple resources
+- Examples:
+  - `app-name` (applies to metadata.name across all resources)
+  - `app-port` (applies to containerPort, service port, ingress port)
+  - `namespace` (applies to metadata.namespace across all resources)
+  - `replicas` (applies to spec.replicas in Deployment)
 
-### Multiple Resource Mapping  
-For questions that apply to multiple resources (like namespace):
-```json
-"resourceMapping": [
-  {
-    "resourceKind": "Deployment",
-    "apiVersion": "apps/v1",
-    "group": "apps", 
-    "fieldPath": "metadata.namespace"
-  },
-  {
-    "resourceKind": "Service",
-    "apiVersion": "v1",
-    "fieldPath": "metadata.namespace"
-  }
-]
-```
+### Semantic Consolidation
+When multiple resources need the same information, create a single question with a consolidated ID:
+- **Instead of**: `deployment-port`, `service-port`, `ingress-port`
+- **Use**: `app-port` (manifest generator will apply to all relevant port fields)
 
-### Field Path Format
-- Use dot notation for nested fields: `"spec.template.spec.containers[0].image"`
-- Use array indices for specific array elements: `"spec.containers[0].ports[0].containerPort"`
-- For metadata fields: `"metadata.name"`, `"metadata.namespace"`, `"metadata.labels"`
-- Match the exact resource schema structure provided
+- **Instead of**: `deployment-name`, `service-name` 
+- **Use**: `app-name` (manifest generator will apply to all resource names)
 
 ## Response Format
 
@@ -111,12 +94,6 @@ Return your response as JSON in this exact format:
         "max": 100,
         "pattern": "^[a-z0-9-]+$"
       },
-      "resourceMapping": {
-        "resourceKind": "Deployment",
-        "apiVersion": "apps/v1",
-        "group": "apps",
-        "fieldPath": "spec.template.spec.containers[0].image"
-      }
     }
   ],
   "basic": [
@@ -135,7 +112,6 @@ Return your response as JSON in this exact format:
 ## Important Notes
 
 - **CRITICAL**: Only ask questions about properties explicitly defined in the provided resource schemas
-- **MANDATORY**: Every question must include accurate `resourceMapping` with correct fieldPath
 - Generate as many questions as needed for the solution complexity
 - Focus on questions that actually affect the generated manifests based on the actual schema
 - Avoid asking for information that can be reasonably defaulted
@@ -144,5 +120,5 @@ Return your response as JSON in this exact format:
 - Use the provided cluster options to populate select questions with real values
 - Consider real-world usage patterns and common configurations
 - Ensure question IDs are unique and descriptive
+- Use semantic question IDs that consolidate related fields (e.g., `app-port` instead of separate port questions)
 - Validation rules should match Kubernetes constraints where applicable
-- Field paths must match the exact resource schema structure - verify against the provided resource details

@@ -1154,7 +1154,6 @@ describe('CRD Capability Discovery Enhancements', () => {
         requestedIndexes: [5, 10],
         availableSchemas: [{ index: 0, kind: 'Pod' }],
         schemasCount: 1,
-        resourceMapping: [{ index: 5, found: false, kind: 'undefined' }],
         invalidIndexes: [5, 10]
       };
       

@@ -329,7 +329,6 @@ describe('Schema Validation System', () => {
 
     test('should validate solution data structure', () => {
       const validSolution = {
-        id: 'test-solution',
         type: 'single',
         score: 85,
         description: 'Test solution',
@@ -502,6 +501,154 @@ describe('Schema Validation System', () => {
       const errors = SchemaValidator.validate({ name: 'test', optional_field: 'not a number' }, schema);
       expect(errors).toHaveLength(1);
       expect(errors[0].path).toBe('root.optional_field');
+    });
+  });
+
+  describe('Open Question Enforcement', () => {
+    describe('validateSolutionData method', () => {
+      test('should accept valid solution with meaningful open answer', () => {
+        const validSolution = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...',
+              answer: 'I need high availability and load balancing'
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(validSolution);
+        expect(errors).toEqual([]);
+      });
+
+      test('should accept "none" as valid open answer', () => {
+        const solutionWithNone = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...',
+              answer: 'none'
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionWithNone);
+        expect(errors).toEqual([]);
+      });
+
+      test('should accept "n/a" as valid open answer', () => {
+        const solutionWithNA = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...',
+              answer: 'n/a'
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionWithNA);
+        expect(errors).toEqual([]);
+      });
+
+      test('should reject empty string as open answer', () => {
+        const solutionWithEmpty = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...',
+              answer: ''
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionWithEmpty);
+        expect(errors.length).toBeGreaterThanOrEqual(1);
+        
+        // Should have at least one error about empty answer
+        const emptyAnswerError = errors.find(e => e.message.includes('Open question answer cannot be empty'));
+        expect(emptyAnswerError).toBeDefined();
+        expect(emptyAnswerError!.path).toBe('solution_data.questions.open.answer');
+        expect(emptyAnswerError!.message).toContain('Use "none" or "n/a"');
+      });
+
+      test('should reject whitespace-only string as open answer', () => {
+        const solutionWithWhitespace = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...',
+              answer: '   \t\n   '
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionWithWhitespace);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('solution_data.questions.open.answer');
+        expect(errors[0].message).toContain('Open question answer cannot be empty');
+      });
+
+      test('should reject missing answer field', () => {
+        const solutionMissingAnswer = {
+          type: 'single',
+          description: 'Test solution',
+          questions: {
+            open: {
+              question: 'Any requirements?',
+              placeholder: 'Enter details...'
+              // Missing answer field
+            }
+          }
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionMissingAnswer);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('solution_data.questions.open.answer');
+        expect(errors[0].message).toBe('Required property is missing');
+      });
+
+      test('should handle solution without questions field', () => {
+        const solutionWithoutQuestions = {
+          type: 'single',
+          description: 'Test solution'
+        };
+
+        const errors = SchemaValidator.validateSolutionData(solutionWithoutQuestions);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('solution_data.questions');
+        expect(errors[0].message).toBe('Required property is missing');
+      });
+
+      test('should accept mixed case variations of "none" and "n/a"', () => {
+        const testCases = ['None', 'NONE', 'N/A', 'n/A', 'N/a'];
+        
+        testCases.forEach(answer => {
+          const solution = {
+            type: 'single',
+            description: 'Test solution',
+            questions: {
+              open: {
+                question: 'Any requirements?',
+                answer: answer
+              }
+            }
+          };
+
+          const errors = SchemaValidator.validateSolutionData(solution);
+          expect(errors).toEqual([]);
+        });
+      });
     });
   });
 });

@@ -57,6 +57,17 @@ export interface ResourceMapping {
   fieldPath: string;
 }
 
+// Simple answer structure for manifest generation
+export interface AnswerSet {
+  [questionId: string]: any;
+}
+
+// Enhanced solution for single-pass workflow
+export interface EnhancedSolution extends ResourceSolution {
+  answers: AnswerSet;
+  openAnswer: string;
+}
+
 export interface Question {
   id: string;
   question: string;
@@ -68,9 +79,10 @@ export interface Question {
     min?: number;
     max?: number;
     pattern?: string;
+    message?: string;
   };
-  resourceMapping?: ResourceMapping | ResourceMapping[];
   answer?: any;
+  // Note: resourceMapping removed - manifest generator handles field mapping
 }
 
 export interface QuestionGroup {
@@ -85,7 +97,6 @@ export interface QuestionGroup {
 }
 
 export interface ResourceSolution {
-  id: string;
   type: 'single' | 'combination';
   resources: ResourceSchema[];
   score: number;
@@ -616,7 +627,6 @@ export class ResourceRecommender {
         }
         
         return {
-          id: `sol-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           type: solution.type,
           resources,
           score: solution.score,
@@ -766,7 +776,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       
       return questions as QuestionGroup;
     } catch (error) {
-      console.warn(`Failed to generate AI questions for solution ${solution.id}: ${error}`);
+      console.warn(`Failed to generate AI questions for solution: ${error}`);
       
       // Fallback to basic open question
       return {
@@ -973,7 +983,7 @@ export class SolutionEnhancer {
   }
 
   /**
-   * Apply enhancement data to the current solution
+   * Apply enhancement data to the current solution (simplified for single-pass architecture)
    */
   private applyEnhancements(currentSolution: ResourceSolution, enhancementData: any): ResourceSolution {
     // Create a deep copy of the solution to avoid mutations
@@ -984,73 +994,63 @@ export class SolutionEnhancer {
       throw new Error(`Enhancement capability gap: ${enhancementData.message}`);
     }
 
-    // Apply missing answers to existing questions
-    if (enhancementData.missingAnswers && enhancementData.missingAnswers.length > 0) {
-      this.applyMissingAnswers(enhancedSolution.questions, enhancementData.missingAnswers);
+    // In single-pass architecture, the AI returns a complete enhanced solution
+    if (enhancementData.enhancedSolution) {
+      // Replace with the complete AI-enhanced solution 
+      return enhancementData.enhancedSolution as ResourceSolution;
     }
 
-    // Add new questions with answers if provided
-    if (enhancementData.newQuestions && enhancementData.newQuestions.length > 0) {
-      this.addNewQuestions(enhancedSolution.questions, enhancementData.newQuestions);
-    }
-
-    // Add additional resources if provided
-    if (enhancementData.additionalResources && enhancementData.additionalResources.length > 0) {
-      enhancedSolution.resources.push(...enhancementData.additionalResources);
-      enhancedSolution.type = 'combination'; // Multiple resources = combination
-    }
-
-    // Clear the open question answer since it has been processed (empty string signals ready for new input)
-    enhancedSolution.questions.open.answer = "";
+    // SINGLE-PASS: Keep the open question answer as provided - no state clearing
+    // The user provided a complete answer and we've processed it into an enhanced solution
 
     return enhancedSolution;
   }
 
-  /**
-   * Apply missing answers to existing questions
-   */
-  private applyMissingAnswers(questions: QuestionGroup, missingAnswers: any[]): void {
-    for (const answer of missingAnswers) {
-      // Find and update the question in the appropriate category
-      this.updateQuestionAnswer(questions.required, answer.questionId, answer.suggestedValue);
-      this.updateQuestionAnswer(questions.basic, answer.questionId, answer.suggestedValue);
-      this.updateQuestionAnswer(questions.advanced, answer.questionId, answer.suggestedValue);
+}
+
+/**
+ * Shared utility function to format recommendation responses consistently
+ * between CLI and MCP interfaces
+ */
+export function formatRecommendationResponse(
+  intent: string,
+  solutions: ResourceSolution[],
+  includeTimestamp: boolean = true
+): any {
+  const formattedSolutions = solutions.map(solution => ({
+    type: solution.type,
+    score: solution.score,
+    description: solution.description,
+    reasons: solution.reasons,
+    analysis: solution.analysis,
+    resources: solution.resources.map(r => ({
+      kind: r.kind,
+      apiVersion: r.apiVersion,
+      group: r.group,
+      description: r.description
+    })),
+    questions: solution.questions
+  }));
+
+  const response: any = {
+    intent,
+    solutions: formattedSolutions,
+    agentInstructions: {
+      questionFlow: "sequential",
+      instruction: "Ask questions one by one, starting with required fields. Wait for each answer before asking the next question. After collecting all required answers, ask if the user wants to configure optional settings.",
+      nextSteps: "Once you have the required information, use the enhance_solution tool with the collected answers to generate the final manifest."
+    },
+    summary: {
+      totalSolutions: solutions.length,
+      bestScore: solutions[0]?.score || 0,
+      recommendedSolution: solutions[0]?.type || 'none',
+      topResource: solutions[0]?.resources[0]?.kind || 'none'
     }
+  };
+
+  if (includeTimestamp) {
+    response.timestamp = new Date().toISOString();
   }
 
-  /**
-   * Add new questions with answers to the appropriate category
-   */
-  private addNewQuestions(questions: QuestionGroup, newQuestions: any[]): void {
-    for (const newQuestion of newQuestions) {
-      const question: Question = {
-        id: newQuestion.id,
-        question: newQuestion.question,
-        type: newQuestion.type,
-        placeholder: newQuestion.placeholder,
-        validation: newQuestion.validation,
-        resourceMapping: newQuestion.resourceMapping,
-        answer: newQuestion.answer
-      };
-
-      // Add to appropriate category based on priority
-      if (newQuestion.category === 'required') {
-        questions.required.push(question);
-      } else if (newQuestion.category === 'advanced') {
-        questions.advanced.push(question);
-      } else {
-        questions.basic.push(question); // default to basic
-      }
-    }
-  }
-
-  /**
-   * Update a specific question's answer in a question array
-   */
-  private updateQuestionAnswer(questionArray: Question[], questionId: string, answer: any): void {
-    const question = questionArray.find(q => q.id === questionId);
-    if (question) {
-      question.answer = answer;
-    }
-  }
+  return response;
 } 

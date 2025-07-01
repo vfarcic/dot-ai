@@ -67,6 +67,28 @@ describe('InstructionLoader', () => {
       expect(instructions.length).toBeGreaterThan(500); // Should be detailed
     });
 
+    test('should return detailed instructions for enhance-solution tool', () => {
+      const instructions = InstructionLoader.loadInstructions('enhance-solution');
+      
+      expect(instructions).toContain('Solution Enhancement with AI');
+      expect(instructions).toContain('solution_data parameter must be a JSON string');
+      expect(instructions.length).toBeGreaterThan(300); // Should be detailed
+    });
+
+    test('should return detailed instructions for can-help tool', () => {
+      const instructions = InstructionLoader.loadInstructions('can-help');
+      
+      expect(instructions).toContain('Check if App-Agent Can Help');
+      expect(instructions).toContain('WHEN TO USE THIS TOOL');
+      expect(instructions.length).toBeGreaterThan(300); // Should be detailed
+    });
+
+    test('should throw error for missing instruction file', () => {
+      expect(() => {
+        InstructionLoader.loadInstructions('nonexistent-tool');
+      }).toThrow('Missing instruction file for tool \'nonexistent-tool\': prompts/tool-instructions/nonexistent-tool.md');
+    });
+
     test('should cache instructions separately from descriptions', () => {
       const instructions = InstructionLoader.loadInstructions('recommend');
       const description = InstructionLoader.loadDescription('recommend');

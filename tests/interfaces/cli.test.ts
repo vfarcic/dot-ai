@@ -425,13 +425,13 @@ describe('CLI Interface', () => {
       fs.readFileSync = originalReadFileSync;
       
       expect(result.success).toBe(false);
-      expect(result.error).toContain('No open response found in solution file');
+      expect(result.error).toContain('Invalid solution data');
+      expect(result.error).toContain('Required property is missing');
     });
 
     test('should include questions field in CLI output structure', () => {
       // Test the CLI output formatting directly by creating a mock solution with questions
       const solutionWithQuestions = {
-        id: 'test-sol',
         type: 'single' as const,
         score: 90,
         description: 'Pod deployment',
@@ -450,12 +450,7 @@ describe('CLI Interface', () => {
               question: 'What should we name your application?',
               type: 'text' as const,
               placeholder: 'my-app',
-              validation: { required: true },
-              resourceMapping: {
-                resourceKind: 'Pod',
-                apiVersion: 'v1',
-                fieldPath: 'metadata.name'
-              }
+              validation: { required: true }
             }
           ],
           basic: [
@@ -464,12 +459,7 @@ describe('CLI Interface', () => {
               question: 'Which namespace should we deploy to?',
               type: 'select' as const,
               options: ['default', 'production'],
-              placeholder: 'default',
-              resourceMapping: {
-                resourceKind: 'Pod',
-                apiVersion: 'v1',
-                fieldPath: 'metadata.namespace'
-              }
+              placeholder: 'default'
             }
           ],
           advanced: [
@@ -477,12 +467,7 @@ describe('CLI Interface', () => {
               id: 'resource-limits',
               question: 'Do you need resource limits?',
               type: 'boolean' as const,
-              placeholder: 'false',
-              resourceMapping: {
-                resourceKind: 'Pod',
-                apiVersion: 'v1',
-                fieldPath: 'spec.containers[0].resources.limits'
-              }
+              placeholder: 'false'
             }
           ],
           open: {
@@ -537,12 +522,7 @@ describe('CLI Interface', () => {
         question: 'What should we name your application?',
         type: 'text',
         placeholder: 'my-app',
-        validation: { required: true },
-        resourceMapping: {
-          resourceKind: 'Pod',
-          apiVersion: 'v1',
-          fieldPath: 'metadata.name'
-        }
+        validation: { required: true }
       });
       
       expect(solution.questions.basic).toHaveLength(1);
@@ -550,24 +530,14 @@ describe('CLI Interface', () => {
         id: 'namespace',
         question: 'Which namespace should we deploy to?',
         type: 'select',
-        options: ['default', 'production'],
-        resourceMapping: {
-          resourceKind: 'Pod',
-          apiVersion: 'v1',
-          fieldPath: 'metadata.namespace'
-        }
+        options: ['default', 'production']
       });
       
       expect(solution.questions.advanced).toHaveLength(1);
       expect(solution.questions.advanced[0]).toMatchObject({
         id: 'resource-limits',
         question: 'Do you need resource limits?',
-        type: 'boolean',
-        resourceMapping: {
-          resourceKind: 'Pod',
-          apiVersion: 'v1',
-          fieldPath: 'spec.containers[0].resources.limits'
-        }
+        type: 'boolean'
       });
       
       expect(solution.questions.open).toMatchObject({
@@ -878,7 +848,6 @@ describe('CLI Interface', () => {
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve([{
-          id: 'test-sol',
           type: 'single',
           score: 80,
           description: 'Test solution',

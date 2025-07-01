@@ -15,6 +15,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { AppAgent } from '../core/index';
 import { SchemaValidator, MCPToolSchemas } from '../core/validation';
+import { formatRecommendationResponse } from '../core/schema';
 import { 
   ErrorHandler, 
   ErrorCategory, 
@@ -163,8 +164,9 @@ export class MCPServer {
 
 
   private async handleRecommend(args: any, requestId: string): Promise<{ content: { type: string; text: string }[] }> {
-    return await ErrorHandler.withErrorHandling(
-      async () => {
+    try {
+      return await ErrorHandler.withErrorHandling(
+        async () => {
         this.logger.debug('Handling recommend request', { requestId, intent: args?.intent });
 
         await this.ensureInitialized();
@@ -200,11 +202,8 @@ export class MCPServer {
         // Use the actual implemented recommend functionality
         const solutions = await this.appAgent.schema.rankResources(args.intent);
 
-        const result = {
-          intent: args.intent,
-          solutions: solutions,
-          timestamp: new Date().toISOString()
-        };
+        // Use shared formatting function
+        const result = formatRecommendationResponse(args.intent, solutions, true);
 
         const response = this.formatResponse(result);
         
@@ -248,11 +247,26 @@ export class MCPServer {
         retryCount: 1 // Allow one retry for AI service calls
       }
     );
+    } catch (error: any) {
+      // Convert McpError to proper error response
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: {
+              code: error.code || -32603,
+              message: error.message || 'Internal error'
+            }
+          }, null, 2)
+        }]
+      };
+    }
   }
 
   private async handleEnhanceSolution(args: any, requestId: string): Promise<{ content: { type: string; text: string }[] }> {
-    return await ErrorHandler.withErrorHandling(
-      async () => {
+    try {
+      return await ErrorHandler.withErrorHandling(
+        async () => {
         this.logger.debug('Handling enhance_solution request', { requestId });
 
         await this.ensureInitialized();
@@ -304,9 +318,9 @@ export class MCPServer {
           );
         }
 
-        // Validate the parsed solution data structure
+        // Validate the parsed solution data structure with enhanced open question enforcement
         try {
-          const validationErrors = SchemaValidator.validate(solutionObj, MCPToolSchemas.SOLUTION_DATA, 'solution_data');
+          const validationErrors = SchemaValidator.validateSolutionData(solutionObj);
           if (validationErrors.length > 0) {
             const errorMessages = validationErrors.map(e => `${e.path}: ${e.message}`).join('; ');
             throw new Error(`Validation failed: ${errorMessages}`);
@@ -439,6 +453,20 @@ export class MCPServer {
         retryCount: 1 // Allow one retry for AI service calls
       }
     );
+    } catch (error: any) {
+      // Convert McpError to proper error response
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: {
+              code: error.code || -32603,
+              message: error.message || 'Internal error'
+            }
+          }, null, 2)
+        }]
+      };
+    }
   }
 
   private generateRequestId(): string {
