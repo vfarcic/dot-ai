@@ -9,6 +9,7 @@ import { AppAgent } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
 import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
+import { ToolRegistry, ToolContext, initializeTools, registerAllTools } from '../tools';
 
 export interface CliResult {
   success: boolean;
@@ -26,23 +27,29 @@ export interface ParsedArguments {
 export interface CliConfig {
   defaultOutput?: string;
   verboseMode?: boolean;
+  outputFile?: string;
+  quietMode?: boolean;
 }
 
 export class CliInterface {
   private appAgent?: AppAgent;
   private program: Command;
   private config: CliConfig;
+  private toolRegistry: ToolRegistry;
 
   constructor(appAgent?: AppAgent, config: CliConfig = {}) {
     this.appAgent = appAgent;
     this.config = config;
     this.program = new Command();
+    this.toolRegistry = this.initializeToolsQuietly();
     this.program.name('app-agent').description('AI-powered Kubernetes deployment agent');
     
     // Add global options that apply to all commands
     this.program
       .option('--kubeconfig <path>', 'Path to kubeconfig file (overrides KUBECONFIG env var and default location)')
-      .option('--verbose', 'Enable verbose output globally');
+      .option('--verbose', 'Enable verbose output globally')
+      .option('--output-file <path>', 'Write clean formatted output to file (respects --output format)')
+      .option('--quiet', 'Suppress tool registration and info logs');
     
     this.setupCommands();
   }
@@ -74,14 +81,18 @@ export class CliInterface {
       .option('--interactive', 'Enable interactive mode with questions')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .option('--verbose', 'Enable verbose output')
-      .action(async (options) => {
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
         // Validate output format
         if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
           console.error('Error: Invalid output format. Supported: json, yaml, table');
           process.exit(1);
         }
         const result = await this.executeCommand('deploy', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
     // Status command
@@ -90,14 +101,18 @@ export class CliInterface {
       .description('Check deployment status')
       .option('--deployment <id>', 'Deployment/workflow ID to check')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .action(async (options) => {
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
         // Validate output format
         if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
           console.error('Error: Invalid output format. Supported: json, yaml, table');
           process.exit(1);
         }
         const result = await this.executeCommand('status', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
     // Learn command
@@ -106,14 +121,18 @@ export class CliInterface {
       .description('Show learned deployment patterns and recommendations')
       .option('--pattern <type>', 'Filter by pattern type')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .action(async (options) => {
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
         // Validate output format
         if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
           console.error('Error: Invalid output format. Supported: json, yaml, table');
           process.exit(1);
         }
         const result = await this.executeCommand('learn', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
     // Recommend command
@@ -121,15 +140,41 @@ export class CliInterface {
       .command('recommend')
       .description('Get AI-powered Kubernetes resource recommendations based on your intent')
       .requiredOption('--intent <description>', 'Describe what you want to deploy or accomplish')
+      .option('--session-dir <path>', 'Directory to store solution files (defaults to APP_AGENT_SESSION_DIR env var)')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .action(async (options) => {
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
         // Validate output format
         if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
           console.error('Error: Invalid output format. Supported: json, yaml, table');
           process.exit(1);
         }
         const result = await this.executeCommand('recommend', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
+      });
+
+    // Choose Solution command
+    this.program
+      .command('choose-solution')
+      .description('Select a solution by ID and return its questions for configuration')
+      .requiredOption('--solution-id <id>', 'Solution ID to choose (e.g., sol_2025-07-01T154349_1e1e242592ff)')
+      .requiredOption('--session-dir <path>', 'Directory containing solution files')
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
+        const result = await this.executeCommand('chooseSolution', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
     // REMOVED: enhance command - moved to legacy reference
@@ -219,7 +264,9 @@ export class CliInterface {
       case 'learn':
         return [...commonOptions, 'pattern'];
       case 'recommend':
-        return [...commonOptions, 'intent'];
+        return [...commonOptions, 'intent', 'session-dir'];
+      case 'chooseSolution':
+        return [...commonOptions, 'solution-id', 'session-dir'];
       // REMOVED: enhance command
       default:
         return commonOptions;
@@ -228,8 +275,10 @@ export class CliInterface {
 
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
-      // Always ensure AppAgent is initialized for command execution
-      await this.ensureAppAgent().initialize();
+      // Only initialize AppAgent for commands that need cluster access
+      if (command !== 'chooseSolution') {
+        await this.ensureAppAgent().initialize();
+      }
 
       switch (command) {
         case 'deploy':
@@ -240,6 +289,8 @@ export class CliInterface {
           return await this.handleLearnCommand(options);
         case 'recommend':
           return await this.handleRecommendCommand(options);
+        case 'chooseSolution':
+          return await this.handleChooseSolutionCommand(options);
         // REMOVED: enhance command
         default:
           return {
@@ -336,51 +387,58 @@ export class CliInterface {
 
   private async handleRecommendCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      // Get Claude API key from AppAgent
-      const claudeApiKey = this.ensureAppAgent().getAnthropicApiKey();
-      if (!claudeApiKey) {
-        return {
-          success: false,
-          error: 'ANTHROPIC_API_KEY environment variable must be set for AI-powered resource recommendations'
-        };
-      }
-
       // Show progress for long-running AI operations
       this.showProgress('🔍 Analyzing your intent and discovering cluster resources...');
 
-      // Initialize AI-powered ResourceRecommender
-      const rankingConfig: AIRankingConfig = { claudeApiKey };
-      const recommender = new ResourceRecommender(rankingConfig);
-
-      // Create discovery functions with progress callbacks
-      const discoverResourcesFn = async () => {
-        this.showProgress('🔍 Discovering available Kubernetes resources...');
-        return await this.ensureAppAgent().discovery.discoverResources();
+      // Create tool context for the recommend tool
+      const toolContext: ToolContext = {
+        requestId: `cli-${Date.now()}`,
+        logger: {
+          debug: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          info: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          warn: (message: string, meta?: any) => {
+            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          error: (message: string, meta?: any) => {
+            console.error(`ERROR: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          fatal: (message: string, meta?: any) => {
+            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
+          }
+        },
+        appAgent: this.ensureAppAgent()
       };
-      
-      const explainResourceFn = async (resource: string) => {
-        this.showProgress(`📋 Analyzing ${resource} schema and capabilities...`);
-        return await this.ensureAppAgent().discovery.explainResource(resource);
+
+      // Prepare arguments for the recommend tool including session directory
+      const toolArgs = {
+        intent: options.intent,
+        sessionDir: options.sessionDir // This will be passed to our tool's getSessionDirectory function
       };
 
-      this.showProgress('🤖 AI is selecting the best resources for your intent...');
+      this.showProgress('🤖 AI is analyzing resources and generating solutions...');
 
-      // Find best solutions for the user intent using functional approach
-      const solutions = await this.findBestSolutionsWithProgress(
-        recommender, 
-        options.intent, 
-        discoverResourcesFn, 
-        explainResourceFn
-      );
+      // Execute the recommend tool through the registry
+      const result = await this.toolRegistry.executeTool('recommend', toolArgs, toolContext);
 
       this.showProgress('✅ Recommendation complete!');
       // Small delay to show completion message
       await new Promise(resolve => setTimeout(resolve, 500));
       this.clearProgress();
 
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
       return {
         success: true,
-        data: formatRecommendationResponse(options.intent, solutions, false)
+        data: responseData
       };
     } catch (error) {
       // Give a moment for user to see progress before clearing
@@ -389,6 +447,70 @@ export class CliInterface {
       return {
         success: false,
         error: `AI-powered recommendations failed: ${(error as Error).message}`
+      };
+    }
+  }
+
+  private async handleChooseSolutionCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      // Show progress for file operations
+      this.showProgress('📋 Loading solution and extracting questions...');
+
+      // Create tool context for the chooseSolution tool
+      const toolContext: ToolContext = {
+        requestId: `cli-${Date.now()}`,
+        logger: {
+          debug: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          info: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          warn: (message: string, meta?: any) => {
+            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          error: (message: string, meta?: any) => {
+            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          fatal: (message: string, meta?: any) => {
+            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
+          }
+        },
+        appAgent: this.appAgent || null
+      };
+
+      // Prepare arguments for the chooseSolution tool
+      const toolArgs = {
+        solutionId: options.solutionId,
+        sessionDir: options.sessionDir
+      };
+
+      // Execute the chooseSolution tool through the registry
+      const result = await this.toolRegistry.executeTool('chooseSolution', toolArgs, toolContext);
+
+      this.showProgress('✅ Solution selected successfully!');
+      // Small delay to show completion message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.clearProgress();
+
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
+      return {
+        success: true,
+        data: responseData
+      };
+    } catch (error) {
+      // Give a moment for user to see progress before clearing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.clearProgress(); // Clear progress indicators on error
+      return {
+        success: false,
+        error: `Choose solution failed: ${(error as Error).message}`
       };
     }
   }
@@ -499,13 +621,76 @@ export class CliInterface {
     return table.toString();
   }
 
-  private outputResult(result: CliResult, format: string): void {
+  private outputResult(result: CliResult, format: string, outputFile?: string): void {
     const output = this.formatOutput(result, format);
-    process.stdout.write(`${output}\n`);
+    
+    if (outputFile) {
+      // Write clean output to file
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Ensure directory exists
+      const dir = path.dirname(outputFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      fs.writeFileSync(outputFile, output);
+    } else {
+      // Write to stdout
+      process.stdout.write(`${output}\n`);
+    }
     
     if (!result.success) {
       process.exit(1);
     }
+  }
+
+  /**
+   * Process global options and update config
+   */
+  private processGlobalOptions(options: Record<string, any>): void {
+    if (options.verbose !== undefined) {
+      this.config.verboseMode = options.verbose;
+    }
+    if (options.outputFile !== undefined) {
+      this.config.outputFile = options.outputFile;
+    }
+    if (options.quiet !== undefined) {
+      this.config.quietMode = options.quiet;
+    }
+  }
+
+  /**
+   * Initialize tools with appropriate logging level
+   */
+  private initializeToolsQuietly(): ToolRegistry {
+    // Create a quiet logger that only logs errors
+    const quietLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: (message: string, error?: Error) => {
+        console.error(`ERROR: ${message}`, error ? error.message : '');
+      },
+      fatal: (message: string, error?: Error) => {
+        console.error(`FATAL: ${message}`, error ? error.message : '');
+      }
+    };
+
+    // Create registry with quiet logger
+    const registry = new ToolRegistry({ logger: quietLogger });
+    
+    // Register tools manually (avoiding the registerAllTools function that has its own logger)
+    const { recommendToolDefinition, recommendToolHandler } = require('../tools/recommend');
+    const { canHelpToolDefinition, canHelpToolHandler } = require('../tools/can-help');
+    const { chooseSolutionToolDefinition, chooseSolutionToolHandler } = require('../tools/choose-solution');
+    
+    registry.registerTool(recommendToolDefinition, recommendToolHandler);
+    registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
+    registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
+    
+    return registry;
   }
 
   private handleError(error: any, _command: string): CliResult {

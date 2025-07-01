@@ -14,8 +14,15 @@ describe('MCP Interface Layer', () => {
         connect: jest.fn().mockResolvedValue(undefined),
         isConnected: jest.fn().mockReturnValue(true),
         discoverResources: jest.fn().mockResolvedValue({
-          core: ['Pod', 'Service', 'ConfigMap', 'Secret'],
-          apps: ['Deployment', 'StatefulSet', 'DaemonSet'],
+          resources: [
+            { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
+            { kind: 'Service', apiVersion: 'v1', group: '', namespaced: true },
+            { kind: 'ConfigMap', apiVersion: 'v1', group: '', namespaced: true },
+            { kind: 'Secret', apiVersion: 'v1', group: '', namespaced: true },
+            { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true },
+            { kind: 'StatefulSet', apiVersion: 'apps/v1', group: 'apps', namespaced: true },
+            { kind: 'DaemonSet', apiVersion: 'apps/v1', group: 'apps', namespaced: true }
+          ],
           custom: []
         }),
         getClusterInfo: jest.fn().mockResolvedValue({ 
@@ -92,74 +99,73 @@ describe('MCP Interface Layer', () => {
 
   describe('Tool Handler Functionality', () => {
 
-    test('should handle recommend tool execution', async () => {
-      // Mock the schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
-        rankResources: jest.fn().mockResolvedValue([
-          {
-            type: 'single',
-            score: 85,
-            description: 'Deploy with Pod and Service',
-            reasons: ['Pod handles application logic', 'Service provides load balancing'],
-            analysis: 'This solution provides a basic deployment pattern',
-            resources: [
-              { kind: 'Pod', apiVersion: 'v1', group: '', description: 'Basic pod resource' },
-              { kind: 'Service', apiVersion: 'v1', group: '', description: 'Load balancing service' }
-            ],
-            questions: { required: [], basic: [], advanced: [], open: {} }
-          }
-        ])
+    test('should require session directory for recommend tool', async () => {
+      // Test that recommend tool fails without session directory
+      const toolContext = {
+        requestId: 'test-request-123',
+        logger: (mcpServer as any).logger,
+        appAgent: mockAppAgent
       };
-
-      const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
       const intentSpec = {
         intent: 'Deploy a web application with load balancing'
       };
 
-      const result = await handleRecommend(intentSpec);
+      // Ensure no session directory is set
+      const originalEnv = process.env.APP_AGENT_SESSION_DIR;
+      delete process.env.APP_AGENT_SESSION_DIR;
       
-      expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
+      try {
+        await (mcpServer as any).toolRegistry.executeTool('recommend', intentSpec, toolContext);
+        fail('Expected recommend tool to fail without session directory');
+      } catch (error: any) {
+        expect(error.message).toContain('Session directory must be specified');
+        expect(error.message).toContain('APP_AGENT_SESSION_DIR');
+      }
       
-      // Validate top-level response structure
-      expect(responseData).toEqual(expect.objectContaining({
-        intent: 'Deploy a web application with load balancing',
-        solutions: expect.any(Array),
-        agentInstructions: expect.any(String),
-        timestamp: expect.any(String)
-      }));
+      // Restore environment
+      if (originalEnv) {
+        process.env.APP_AGENT_SESSION_DIR = originalEnv;
+      }
+    });
 
-      // Validate that solutions array has proper structure
-      expect(responseData.solutions).toHaveLength(1);
-      const solution = responseData.solutions[0];
+    test('should validate recommend tool requires API key', async () => {
+      // Test that recommend tool fails without API key
+      mockAppAgent.getAnthropicApiKey.mockReturnValue(null);
       
-      // Validate complete solution structure including missing fields
-      expect(solution).toEqual(expect.objectContaining({
-        type: 'single',
-        score: 85,
-        description: 'Deploy with Pod and Service',
-        reasons: expect.arrayContaining(['Pod handles application logic', 'Service provides load balancing']),
-        analysis: 'This solution provides a basic deployment pattern', // This field should be present
-        resources: expect.arrayContaining([
-          expect.objectContaining({
-            kind: 'Pod',
-            apiVersion: 'v1',
-            group: '',
-            description: 'Basic pod resource'
-          }),
-          expect.objectContaining({
-            kind: 'Service', 
-            apiVersion: 'v1',
-            group: '',
-            description: 'Load balancing service'
-          })
-        ]), // This field should be present
-        questions: expect.any(Object)
-      }));
+      const toolContext = {
+        requestId: 'test-request-123',
+        logger: (mcpServer as any).logger,
+        appAgent: mockAppAgent
+      };
+      
+      const intentSpec = {
+        intent: 'Deploy a web application with load balancing'
+      };
 
-      expect(mockAppAgent.schema.rankResources).toHaveBeenCalledWith('Deploy a web application with load balancing');
+      // Set environment variable for session directory
+      const originalEnv = process.env.APP_AGENT_SESSION_DIR;
+      process.env.APP_AGENT_SESSION_DIR = '/tmp/test-sessions';
+      
+      // Create test session directory
+      const fs = require('fs');
+      if (!fs.existsSync('/tmp/test-sessions')) {
+        fs.mkdirSync('/tmp/test-sessions', { recursive: true });
+      }
+      
+      try {
+        await (mcpServer as any).toolRegistry.executeTool('recommend', intentSpec, toolContext);
+        fail('Expected recommend tool to fail without API key');
+      } catch (error: any) {
+        expect(error.message).toContain('ANTHROPIC_API_KEY environment variable must be set');
+      }
+      
+      // Restore environment
+      if (originalEnv) {
+        process.env.APP_AGENT_SESSION_DIR = originalEnv;
+      } else {
+        delete process.env.APP_AGENT_SESSION_DIR;
+      }
     });
 
     // REMOVED: enhance_solution tool test - moved to legacy reference

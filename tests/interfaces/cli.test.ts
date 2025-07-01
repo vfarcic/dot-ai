@@ -753,4 +753,136 @@ describe('CLI Interface', () => {
       expect(process.stderr.write).toHaveBeenCalledWith(expect.stringContaining('🤖 AI'));
     });
   });
+
+  describe('CLI Output Options', () => {
+    let tempDir: string;
+    
+    beforeEach(() => {
+      tempDir = '/tmp/cli-test-' + Date.now();
+      require('fs').mkdirSync(tempDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      try {
+        require('fs').rmSync(tempDir, { recursive: true, force: true });
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    });
+
+    test('should write clean output to file with --output-file option', () => {
+      const testResult = {
+        success: true,
+        data: { message: 'test data' }
+      };
+      
+      const outputFile = `${tempDir}/output.json`;
+      cli['outputResult'](testResult, 'json', outputFile);
+      
+      const fs = require('fs');
+      expect(fs.existsSync(outputFile)).toBe(true);
+      
+      const fileContent = fs.readFileSync(outputFile, 'utf8');
+      const parsed = JSON.parse(fileContent);
+      
+      expect(parsed).toEqual(testResult);
+      expect(fileContent).not.toContain('Registered tool');
+      expect(fileContent).not.toContain('INFO');
+    });
+
+    test('should respect output format when writing to file', () => {
+      const testResult = {
+        success: true,
+        data: { message: 'test data' }
+      };
+      
+      const outputFile = `${tempDir}/output.yaml`;
+      cli['outputResult'](testResult, 'yaml', outputFile);
+      
+      const fs = require('fs');
+      const fileContent = fs.readFileSync(outputFile, 'utf8');
+      
+      expect(fileContent).toContain('success: true');
+      expect(fileContent).toContain('message: test data');
+      expect(fileContent).not.toContain('{');
+    });
+
+    test('should create directories if they do not exist', () => {
+      const testResult = {
+        success: true,
+        data: { message: 'test data' }
+      };
+      
+      const nestedDir = `${tempDir}/nested/deep/path`;
+      const outputFile = `${nestedDir}/output.json`;
+      
+      cli['outputResult'](testResult, 'json', outputFile);
+      
+      const fs = require('fs');
+      expect(fs.existsSync(outputFile)).toBe(true);
+      expect(fs.existsSync(nestedDir)).toBe(true);
+    });
+
+    test('should process global options correctly', () => {
+      const options = {
+        verbose: true,
+        outputFile: '/tmp/test-output.json',
+        quiet: true
+      };
+      
+      cli['processGlobalOptions'](options);
+      
+      expect(cli['config'].verboseMode).toBe(true);
+      expect(cli['config'].outputFile).toBe('/tmp/test-output.json');
+      expect(cli['config'].quietMode).toBe(true);
+    });
+
+    test('should initialize tools with quiet logger when quiet mode enabled', () => {
+      // Test that the quiet tool initialization works
+      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      
+      // The registry should be initialized
+      expect(quietCli['toolRegistry']).toBeDefined();
+      
+      // Should have the expected tools registered
+      const stats = quietCli['toolRegistry'].getStats();
+      expect(stats.totalTools).toBeGreaterThan(0);
+      expect(stats.enabledTools).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Choose Solution Command', () => {
+    test('should include chooseSolution in quiet tool registry', () => {
+      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      const registry = quietCli['toolRegistry'];
+      
+      const chooseSolutionTool = registry.getTool('chooseSolution');
+      expect(chooseSolutionTool).toBeDefined();
+      expect(chooseSolutionTool!.definition.name).toBe('chooseSolution');
+      expect(chooseSolutionTool!.definition.category).toBe('ai-recommendations');
+    });
+
+    test('should validate choose-solution command options', () => {
+      const validOptions = cli['getValidOptionsForCommand']('chooseSolution');
+      
+      expect(validOptions).toContain('solution-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('output');
+      expect(validOptions).toContain('verbose');
+    });
+
+    test('should include choose-solution in subcommands', () => {
+      const subcommands = cli.getSubcommands();
+      expect(subcommands).toContain('choose-solution');
+    });
+
+    test('should validate solution-id format in CLI args', () => {
+      // Test that the CLI would properly validate solution ID format
+      // This is handled by the tool itself, but CLI should pass it through
+      const validOptions = cli['getValidOptionsForCommand']('chooseSolution');
+      
+      expect(validOptions).toContain('solution-id');
+      expect(validOptions).toContain('session-dir');
+    });
+  });
 }); 

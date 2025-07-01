@@ -5,8 +5,12 @@
 import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
 import { MCPToolSchemas, SchemaValidator } from '../core/validation';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
+import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse, ResourceSolution } from '../core/schema';
 import { InstructionLoader } from '../core/instruction-loader';
+import { ClaudeIntegration } from '../core/claude';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 export const recommendToolDefinition: ToolDefinition = {
   name: 'recommend',
@@ -18,6 +22,174 @@ export const recommendToolDefinition: ToolDefinition = {
   tags: ['kubernetes', 'ai', 'deployment', 'recommendations', 'deploy', 'create', 'run', 'setup', 'launch', 'app', 'application', 'service', 'database', 'api', 'microservice', 'web', 'container'],
   instructions: InstructionLoader.loadInstructions('recommend') // Keep detailed instructions for agents
 };
+
+/**
+ * Validate intent meaningfulness using AI
+ */
+async function validateIntentWithAI(intent: string, claudeIntegration: any): Promise<void> {
+  try {
+    // Load prompt template
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(process.cwd(), 'prompts', 'intent-validation.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    // Replace template variables
+    const validationPrompt = template.replace('{intent}', intent);
+    
+    // Send to Claude for validation
+    const response = await claudeIntegration.sendMessage(validationPrompt);
+    
+    // Parse JSON response with robust error handling
+    let jsonContent = response.content;
+    
+    // Try to find JSON object wrapped in code blocks
+    const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1];
+    } else {
+      // Try to find JSON object that starts with { and find the matching closing }
+      const startIndex = response.content.indexOf('{');
+      if (startIndex !== -1) {
+        let braceCount = 0;
+        let endIndex = startIndex;
+        
+        for (let i = startIndex; i < response.content.length; i++) {
+          if (response.content[i] === '{') braceCount++;
+          if (response.content[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            endIndex = i;
+            break;
+          }
+        }
+        
+        if (braceCount === 0) {
+          jsonContent = response.content.substring(startIndex, endIndex + 1);
+        }
+      }
+    }
+    
+    const validation = JSON.parse(jsonContent.trim());
+    
+    // Validate response structure
+    if (typeof validation.isSpecific !== 'boolean' || 
+        typeof validation.reason !== 'string' ||
+        !Array.isArray(validation.suggestions)) {
+      throw new Error('AI response has invalid structure');
+    }
+    
+    // If intent is not specific enough, throw error with suggestions
+    if (!validation.isSpecific) {
+      const suggestions = validation.suggestions.length 
+        ? validation.suggestions.map((s: string) => `• ${s}`).join('\n')
+        : '• Include specific technology (Node.js, PostgreSQL, React, etc.)\n• Describe the purpose or function\n• Add context about requirements';
+      
+      throw new Error(
+        `Intent needs more specificity: ${validation.reason}\n\n` +
+        `Suggestions to improve your intent:\n${suggestions}\n\n` +
+        `Original intent: "${intent}"`
+      );
+    }
+    
+  } catch (error) {
+    // If it's our validation error, re-throw it
+    if (error instanceof Error && error.message.includes('Intent needs more specificity')) {
+      throw error;
+    }
+    
+    // For other errors (AI service issues, JSON parsing, etc.), 
+    // continue without blocking the user - log the issue but don't fail
+    console.warn('Intent validation failed, continuing with original intent:', error);
+    return;
+  }
+}
+
+/**
+ * Get session directory from CLI args or environment variable
+ * CLI parameter takes precedence over environment variable
+ */
+function getSessionDirectory(args: any): string {
+  const sessionDir = args.sessionDir || process.env.APP_AGENT_SESSION_DIR;
+  
+  if (!sessionDir) {
+    throw new Error(
+      'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+    );
+  }
+  
+  return sessionDir;
+}
+
+/**
+ * Validate session directory exists and is writable
+ */
+function validateSessionDirectory(sessionDir: string): void {
+  try {
+    // Check if directory exists
+    if (!fs.existsSync(sessionDir)) {
+      throw new Error(`Session directory does not exist: ${sessionDir}`);
+    }
+    
+    // Check if it's actually a directory
+    const stats = fs.statSync(sessionDir);
+    if (!stats.isDirectory()) {
+      throw new Error(`Session path is not a directory: ${sessionDir}`);
+    }
+    
+    // Test write permissions by creating and deleting a test file
+    const testFile = path.join(sessionDir, '.write-test-' + Date.now());
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+    
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Session directory does not exist')) {
+      throw error;
+    }
+    if (error instanceof Error && error.message.includes('Session path is not a directory')) {
+      throw error;
+    }
+    throw new Error(`Session directory is not writable: ${sessionDir}. Error: ${error}`);
+  }
+}
+
+/**
+ * Generate unique solution ID with timestamp and random component
+ */
+function generateSolutionId(): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T');
+  const dateTime = timestamp[0] + 'T' + timestamp[1].substring(0, 6);
+  const randomHex = crypto.randomBytes(6).toString('hex');
+  return `sol_${dateTime}_${randomHex}`;
+}
+
+/**
+ * Write solution data to file atomically (temp file + rename)
+ */
+function writeSolutionFile(sessionDir: string, solutionId: string, solutionData: any): void {
+  const fileName = `${solutionId}.json`;
+  const filePath = path.join(sessionDir, fileName);
+  const tempPath = filePath + '.tmp';
+  
+  try {
+    // Write to temporary file first
+    fs.writeFileSync(tempPath, JSON.stringify(solutionData, null, 2));
+    
+    // Atomically rename to final location
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    // Clean up temp file if it exists
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
+    
+    throw new Error(`Failed to write solution file ${fileName}: ${error}`);
+  }
+}
 
 export const recommendToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
   const { requestId, logger, appAgent } = context;
@@ -69,11 +241,67 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
         );
       }
 
+      // Validate session directory configuration
+      let sessionDir: string;
+      try {
+        sessionDir = getSessionDirectory(args);
+        validateSessionDirectory(sessionDir);
+        logger.debug('Session directory validated', { requestId, sessionDir });
+      } catch (error) {
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          `Session directory validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          {
+            operation: 'session_directory_validation',
+            component: 'RecommendTool',
+            requestId,
+            suggestedActions: [
+              'Ensure session directory exists and is writable',
+              'Set --session-dir parameter or APP_AGENT_SESSION_DIR environment variable',
+              'Check directory permissions'
+            ]
+          },
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
+
       logger.info('Starting resource recommendation process', {
         requestId,
         intent: args.intent,
         hasApiKey: !!claudeApiKey
       });
+
+      // Validate intent specificity with AI before expensive resource discovery
+      logger.debug('Validating intent specificity', { requestId, intent: args.intent });
+      try {
+        const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+        await validateIntentWithAI(args.intent, claudeIntegration);
+        logger.debug('Intent validation passed', { requestId });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Intent needs more specificity')) {
+          // This is a validation error that should be returned to the user
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.MEDIUM,
+            error.message,
+            {
+              operation: 'intent_validation',
+              component: 'RecommendTool',
+              requestId,
+              input: { intent: args.intent },
+              suggestedActions: [
+                'Provide more specific details about your deployment',
+                'Include technology stack information',
+                'Describe the purpose or function of what you want to deploy'
+              ]
+            },
+            error
+          );
+        }
+        // For other errors, log but continue (don't block user due to AI service issues)
+        logger.warn('Intent validation failed, continuing with recommendation', { requestId, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
 
       // Initialize AI-powered ResourceRecommender
       const rankingConfig: AIRankingConfig = { claudeApiKey };
@@ -104,8 +332,86 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
         topScore: solutions[0]?.score
       });
 
-      // Use shared formatting function
-      const response = formatRecommendationResponse(args.intent, solutions, true);
+      // Create solution files and build response
+      const solutionSummaries = [];
+      const timestamp = new Date().toISOString();
+
+      // Limit to top 5 solutions (respecting quality thresholds from AI ranking)
+      const topSolutions = solutions.slice(0, 5);
+
+      for (const solution of topSolutions) {
+        const solutionId = generateSolutionId();
+        
+        // Create complete solution file with all data
+        const solutionFileData = {
+          solutionId,
+          intent: args.intent,
+          type: solution.type,
+          score: solution.score,
+          description: solution.description,
+          reasons: solution.reasons,
+          analysis: solution.analysis,
+          resources: solution.resources.map(r => ({
+            kind: r.kind,
+            apiVersion: r.apiVersion,
+            group: r.group,
+            description: r.description
+          })),
+          questions: solution.questions,
+          answers: {}, // Empty initially - will be filled by answerQuestion tool
+          timestamp
+        };
+
+        // Write solution to file
+        try {
+          writeSolutionFile(sessionDir, solutionId, solutionFileData);
+          logger.debug('Solution file created', { requestId, solutionId, fileName: `${solutionId}.json` });
+        } catch (error) {
+          throw ErrorHandler.createError(
+            ErrorCategory.STORAGE,
+            ErrorSeverity.HIGH,
+            `Failed to store solution file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            {
+              operation: 'solution_file_creation',
+              component: 'RecommendTool',
+              requestId,
+              input: { solutionId },
+              suggestedActions: [
+                'Check session directory write permissions',
+                'Ensure sufficient disk space',
+                'Verify session directory is accessible'
+              ]
+            },
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
+
+        // Add to response summary (decision-making data only)
+        solutionSummaries.push({
+          solutionId,
+          type: solution.type,
+          score: solution.score,
+          description: solution.description,
+          primaryResources: solution.resources.slice(0, 3).map(r => r.kind),
+          reasons: solution.reasons,
+          analysis: solution.analysis
+        });
+      }
+
+      // Build new response format
+      const response = {
+        intent: args.intent,
+        solutions: solutionSummaries,
+        nextAction: "Call chooseSolution with your preferred solutionId",
+        guidance: "Review solutions and select one by calling chooseSolution(solutionId)",
+        timestamp
+      };
+
+      logger.info('Solution files created and response prepared', {
+        requestId,
+        solutionCount: solutionSummaries.length,
+        sessionDir
+      });
 
       // Validate output
       SchemaValidator.validateToolOutput('recommend', { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }, MCPToolSchemas.MCP_RESPONSE_OUTPUT);

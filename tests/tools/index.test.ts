@@ -9,6 +9,7 @@ import { registerAllTools, getToolRegistry, initializeTools } from '../../src/to
 import { recommendToolDefinition } from '../../src/tools/recommend';
 // import { enhanceSolutionToolDefinition } from '../../src/tools/enhance-solution'; // MOVED TO LEGACY
 import { canHelpToolDefinition } from '../../src/tools/can-help';
+import { chooseSolutionToolDefinition } from '../../src/tools/choose-solution';
 
 describe('Tool Registration Integration', () => {
   let registry: ToolRegistry;
@@ -22,11 +23,12 @@ describe('Tool Registration Integration', () => {
       registerAllTools(registry);
 
       const allTools = registry.getAllTools();
-      expect(allTools).toHaveLength(2); // Updated: removed enhance_solution tool
+      expect(allTools).toHaveLength(3); // Updated: added chooseSolution tool
 
       const toolNames = allTools.map(t => t.definition.name);
       expect(toolNames).toContain('recommend');
       expect(toolNames).toContain('can_help');
+      expect(toolNames).toContain('chooseSolution');
       // REMOVED: enhance_solution tool check - moved to legacy
     });
 
@@ -46,7 +48,7 @@ describe('Tool Registration Integration', () => {
 
       const stats = registry.getStats();
       expect(stats.categories).toEqual({
-        'ai-recommendations': 1,  // recommend tool
+        'ai-recommendations': 2,  // recommend + chooseSolution tools
         'discovery': 1           // can_help tool
       });
       // REMOVED: solution-enhancement category - moved to legacy
@@ -58,7 +60,7 @@ describe('Tool Registration Integration', () => {
       const initializedRegistry = initializeTools();
       
       expect(initializedRegistry).toBeInstanceOf(ToolRegistry);
-      expect(initializedRegistry.getAllTools()).toHaveLength(2); // Updated: removed enhance_solution tool
+      expect(initializedRegistry.getAllTools()).toHaveLength(3); // Updated: added chooseSolution tool
     });
 
     test('should return the default registry', () => {
@@ -90,6 +92,16 @@ describe('Tool Registration Integration', () => {
       expect(canHelpToolDefinition.version).toBe('1.0.0');
       expect(canHelpToolDefinition.category).toBe('discovery');
       expect(canHelpToolDefinition.tags).toContain('help');
+    });
+
+    test('chooseSolution tool should have valid schema structure', () => {
+      expect(chooseSolutionToolDefinition.name).toBe('chooseSolution');
+      expect(chooseSolutionToolDefinition.description).toContain('Select a solution');
+      expect(chooseSolutionToolDefinition.inputSchema).toBeDefined();
+      expect(chooseSolutionToolDefinition.inputSchema.type).toBe('object');
+      expect(chooseSolutionToolDefinition.version).toBe('1.0.0');
+      expect(chooseSolutionToolDefinition.category).toBe('ai-recommendations');
+      expect(chooseSolutionToolDefinition.tags).toContain('kubernetes');
     });
   });
 

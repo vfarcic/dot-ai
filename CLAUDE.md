@@ -61,6 +61,64 @@ npm run build                                       # Build the project
 npm run mcp:start                                   # Start MCP server
 ```
 
+## AI Prompt Management 🤖
+
+**CRITICAL DEVELOPMENT RULE: NEVER hard-code AI prompts in source code**
+
+All AI prompts are stored as markdown files in the `prompts/` directory and loaded dynamically:
+
+### Prompt File Structure
+```
+prompts/
+├── intent-validation.md        # Validates user intent specificity
+├── resource-selection.md       # AI resource candidate selection
+├── resource-solution-ranking.md # AI resource ranking/scoring
+├── question-generation.md      # Generate configuration questions
+├── solution-enhancement.md     # Enhance solutions with requirements
+├── resource-analysis.md        # Analyze resource capabilities
+└── tool-instructions/          # Agent instructions for tools
+    ├── recommend.md           # User interaction requirements
+    ├── enhance-solution.md    # Enhancement tool instructions
+    ├── can-help.md           # Can-help tool instructions
+    └── recommendation-workflow.md # Workflow instructions
+```
+
+### Loading Pattern (ALWAYS USE THIS)
+```typescript
+// Load prompt template from file
+const fs = await import('fs');
+const path = await import('path');
+
+const promptPath = path.join(process.cwd(), 'prompts', 'your-prompt.md');
+const template = fs.readFileSync(promptPath, 'utf8');
+
+// Replace template variables
+const finalPrompt = template
+  .replace('{variable1}', value1)
+  .replace('{variable2}', value2);
+
+// Send to AI
+const response = await claudeIntegration.sendMessage(finalPrompt);
+```
+
+### Template Variables
+- Use `{variableName}` format in markdown files
+- Replace with `.replace('{variableName}', actualValue)`
+- Keep prompts readable and maintainable
+
+### Why File-Based Prompts?
+- **Version control**: Track prompt changes in git
+- **Collaboration**: Non-technical team members can edit prompts  
+- **Testing**: Easy to test different prompt variations
+- **Maintainability**: Separate concerns (logic vs. prompts)
+- **Consistency**: Standardized approach across all AI features
+
+### Adding New AI Features
+1. **Create prompt file**: `prompts/your-feature.md`
+2. **Use template variables**: `{intent}`, `{context}`, etc.
+3. **Load in code**: Follow the standard loading pattern above
+4. **Never hardcode**: Always load from file system
+
 ### Project Structure
 
 ```

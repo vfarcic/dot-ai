@@ -13,6 +13,7 @@ import { ResourceRecommender } from '../../src/core/schema';
 jest.mock('../../src/core');
 jest.mock('../../src/core/schema');
 jest.mock('../../src/core/error-handling');
+jest.mock('../../src/core/claude');
 
 describe('Recommend Tool', () => {
   describe('Tool Definition', () => {
@@ -106,6 +107,96 @@ describe('Recommend Tool', () => {
       
       // MCP should no longer have the broken pattern
       expect(mcpCode).not.toContain('const availableResources = await appAgent.discovery.discoverResources();');
+    });
+  });
+
+  describe('Intent Validation', () => {
+    test('should include intent validation in source code', () => {
+      // Verify intent validation is implemented in the source
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Check that validation function exists
+      expect(sourceCode).toContain('async function validateIntentWithAI');
+      expect(sourceCode).toContain('intent-validation.md');
+      
+      // Check that validation is called in the handler
+      expect(sourceCode).toContain('await validateIntentWithAI(args.intent, claudeIntegration)');
+      expect(sourceCode).toContain('Intent needs more specificity');
+    });
+
+    test('should validate prompt file exists', () => {
+      const fs = require('fs');
+      const path = require('path');
+      
+      const promptPath = path.join(__dirname, '../../prompts/intent-validation.md');
+      expect(fs.existsSync(promptPath)).toBe(true);
+      
+      const promptContent = fs.readFileSync(promptPath, 'utf8');
+      expect(promptContent).toContain('Intent Validation for Kubernetes Deployment Recommendations');
+      expect(promptContent).toContain('{intent}');
+      expect(promptContent).toContain('isSpecific');
+      expect(promptContent).toContain('suggestions');
+    });
+
+    test('should handle AI validation gracefully on service failures', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify error handling continues on AI service issues  
+      expect(sourceCode).toContain('console.warn(\'Intent validation failed, continuing with original intent:\', error);');
+      expect(sourceCode).toContain('logger.warn(\'Intent validation failed, continuing with recommendation\'');
+    });
+
+    test('should validate proper error structure for vague intents', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Check that validation errors are properly structured
+      expect(sourceCode).toContain('ErrorCategory.VALIDATION');
+      expect(sourceCode).toContain('ErrorSeverity.MEDIUM');
+      expect(sourceCode).toContain('intent_validation');
+      expect(sourceCode).toContain('Provide more specific details about your deployment');
+    });
+
+    test('should include ClaudeIntegration import', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      expect(sourceCode).toContain('import { ClaudeIntegration } from \'../core/claude\'');
+    });
+
+    test('should validate before expensive resource discovery', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Validation should happen before ResourceRecommender initialization
+      const validationIndex = sourceCode.indexOf('await validateIntentWithAI');
+      const recommenderIndex = sourceCode.indexOf('new ResourceRecommender');
+      
+      expect(validationIndex).toBeGreaterThan(-1);
+      expect(recommenderIndex).toBeGreaterThan(-1);
+      expect(validationIndex).toBeLessThan(recommenderIndex);
     });
   });
 });

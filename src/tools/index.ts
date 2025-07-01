@@ -11,6 +11,7 @@ import { ConsoleLogger } from '../core/error-handling';
 import { recommendToolDefinition, recommendToolHandler } from './recommend';
 // import { enhanceSolutionToolDefinition, enhanceSolutionToolHandler } from './enhance-solution'; // MOVED TO LEGACY
 import { canHelpToolDefinition, canHelpToolHandler } from './can-help';
+import { chooseSolutionToolDefinition, chooseSolutionToolHandler } from './choose-solution';
 
 /**
  * Register all available tools with the registry
@@ -27,6 +28,9 @@ export function registerAllTools(registry: ToolRegistry = defaultToolRegistry): 
     
     // Register can_help tool
     registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
+    
+    // Register chooseSolution tool
+    registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
     
     const stats = registry.getStats();
     logger.info('All tools registered successfully', {

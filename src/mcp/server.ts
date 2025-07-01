@@ -12,6 +12,57 @@ import { AppAgent } from '../core/index.js';
 
 async function main() {
   try {
+    // Validate required environment variables
+    process.stderr.write('Validating MCP server configuration...\n');
+    
+    // Check session directory configuration
+    const sessionDir = process.env.APP_AGENT_SESSION_DIR;
+    if (!sessionDir) {
+      process.stderr.write('FATAL: APP_AGENT_SESSION_DIR environment variable is required\n');
+      process.stderr.write('Configuration:\n');
+      process.stderr.write('- Set APP_AGENT_SESSION_DIR in .mcp.json env section\n');
+      process.stderr.write('- Example: "APP_AGENT_SESSION_DIR": "/tmp/app-agent-sessions"\n');
+      process.stderr.write('- Ensure the directory exists and is writable\n');
+      process.exit(1);
+    }
+    
+    // Validate session directory exists and is writable
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      // Check if directory exists
+      if (!fs.existsSync(sessionDir)) {
+        process.stderr.write(`FATAL: Session directory does not exist: ${sessionDir}\n`);
+        process.stderr.write('Solution: Create the directory or update APP_AGENT_SESSION_DIR\n');
+        process.exit(1);
+      }
+      
+      // Check if it's actually a directory
+      const stat = fs.statSync(sessionDir);
+      if (!stat.isDirectory()) {
+        process.stderr.write(`FATAL: Session directory path is not a directory: ${sessionDir}\n`);
+        process.stderr.write('Solution: Use a valid directory path in APP_AGENT_SESSION_DIR\n');
+        process.exit(1);
+      }
+      
+      // Test write permissions
+      const testFile = path.join(sessionDir, '.mcp-test-write');
+      try {
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile);
+        process.stderr.write(`Session directory validated: ${sessionDir}\n`);
+      } catch (writeError) {
+        process.stderr.write(`FATAL: Session directory is not writable: ${sessionDir}\n`);
+        process.stderr.write('Solution: Fix directory permissions or use a different directory\n');
+        process.exit(1);
+      }
+      
+    } catch (error) {
+      process.stderr.write(`FATAL: Session directory validation failed: ${error}\n`);
+      process.exit(1);
+    }
+
     // Initialize AppAgent - it will read KUBECONFIG and ANTHROPIC_API_KEY from environment
     const appAgent = new AppAgent();
 

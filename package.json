@@ -13,10 +13,11 @@
   },
   "scripts": {
     "pretest": "npm run build",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:integration": "KUBECONFIG=./kubeconfig.yaml jest",
+    "test": "jest --silent",
+    "test:verbose": "jest --verbose",
+    "test:watch": "jest --watch --silent",
+    "test:coverage": "jest --coverage --silent",
+    "test:integration": "KUBECONFIG=./kubeconfig.yaml jest --silent",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "build": "tsc --sourceMap false",
@@ -85,6 +86,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
+    "silent": false,
+    "verbose": false,
     "roots": [
       "<rootDir>/src",
       "<rootDir>/tests"
