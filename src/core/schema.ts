@@ -11,6 +11,7 @@ import {
   KubectlConfig 
 } from './kubernetes-utils';
 import { ClaudeIntegration } from './claude';
+import { InstructionLoader } from './instruction-loader';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -1035,11 +1036,7 @@ export function formatRecommendationResponse(
   const response: any = {
     intent,
     solutions: formattedSolutions,
-    agentInstructions: {
-      questionFlow: "sequential",
-      instruction: "Ask questions one by one, starting with required fields. Wait for each answer before asking the next question. After collecting all required answers, ask if the user wants to configure optional settings.",
-      nextSteps: "Once you have the required information, use the enhance_solution tool with the collected answers to generate the final manifest."
-    },
+    agentInstructions: InstructionLoader.loadInstructions('recommendation-workflow'),
     summary: {
       totalSolutions: solutions.length,
       bestScore: solutions[0]?.score || 0,

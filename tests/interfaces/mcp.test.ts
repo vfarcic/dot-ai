@@ -127,11 +127,7 @@ describe('MCP Interface Layer', () => {
       expect(responseData).toEqual(expect.objectContaining({
         intent: 'Deploy a web application with load balancing',
         solutions: expect.any(Array),
-        agentInstructions: expect.objectContaining({
-          questionFlow: 'sequential',
-          instruction: expect.any(String),
-          nextSteps: expect.any(String)
-        }),
+        agentInstructions: expect.any(String),
         timestamp: expect.any(String)
       }));
 

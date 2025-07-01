@@ -10,6 +10,10 @@ Deploy, create, run, or setup applications on Kubernetes with AI-powered recomme
 1. Ask: "What type of application do you want to deploy?"
 2. Wait for user response describing their specific application
 3. Use their exact description as the "intent" parameter
+4. **Present ALL available solutions** to the user with their scores and descriptions
+5. **Ask the user to choose** their preferred approach before proceeding
+6. Ask configuration questions sequentially, starting with required fields
+7. Use the enhance_solution tool with the selected solution and collected answers
 
 ### Examples of Required User Interaction:
 

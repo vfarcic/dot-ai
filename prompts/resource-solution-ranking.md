@@ -37,6 +37,7 @@ When evaluating CRDs vs standard Kubernetes resources:
 - **Favor purpose-built solutions**: CRDs designed for specific use cases should score higher than generic resource combinations when the use case aligns
 - **Value comprehensive functionality**: A single CRD that handles multiple related concerns (deployment + networking + scaling) should score higher than manually orchestrating separate resources for the same outcome
 - **Consider operational simplicity**: CRDs that provide intuitive, domain-specific interfaces should be preferred over complex multi-resource configurations
+- **Give preference to platform abstractions**: For application deployment scenarios, purpose-built CRDs with comprehensive application platform features should be weighted more favorably than basic resources requiring manual orchestration
 - **Match scope to intent**: Only prefer CRDs when their documented capabilities genuinely align with what the user is trying to achieve
 
 ## Response Format
