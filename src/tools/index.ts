@@ -9,7 +9,7 @@ import { ConsoleLogger } from '../core/error-handling';
 
 // Import tool definitions and handlers
 import { recommendToolDefinition, recommendToolHandler } from './recommend';
-import { enhanceSolutionToolDefinition, enhanceSolutionToolHandler } from './enhance-solution';
+// import { enhanceSolutionToolDefinition, enhanceSolutionToolHandler } from './enhance-solution'; // MOVED TO LEGACY
 import { canHelpToolDefinition, canHelpToolHandler } from './can-help';
 
 /**
@@ -23,7 +23,7 @@ export function registerAllTools(registry: ToolRegistry = defaultToolRegistry): 
     registry.registerTool(recommendToolDefinition, recommendToolHandler);
     
     // Register enhance_solution tool
-    registry.registerTool(enhanceSolutionToolDefinition, enhanceSolutionToolHandler);
+    // registry.registerTool(enhanceSolutionToolDefinition, enhanceSolutionToolHandler); // MOVED TO LEGACY
     
     // Register can_help tool
     registry.registerTool(canHelpToolDefinition, canHelpToolHandler);

@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import { AppAgent } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
-import { ResourceRecommender, SolutionEnhancer, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
+import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
 
 export interface CliResult {
   success: boolean;
@@ -132,21 +132,8 @@ export class CliInterface {
         this.outputResult(result, options.output || this.config.defaultOutput || 'json');
       });
 
-    // Enhance command
-    this.program
-      .command('enhance')
-      .description('Enhance a solution by processing open-ended user response from solution JSON file')
-      .requiredOption('--solution <path>', 'Path to solution JSON file containing open.answer field')
-      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .action(async (options) => {
-        // Validate output format
-        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
-          console.error('Error: Invalid output format. Supported: json, yaml, table');
-          process.exit(1);
-        }
-        const result = await this.executeCommand('enhance', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json');
-      });
+    // REMOVED: enhance command - moved to legacy reference
+    // See src/legacy/tools/enhance-solution.ts for reference implementation
   }
 
   getCommands(): string[] {
@@ -233,8 +220,7 @@ export class CliInterface {
         return [...commonOptions, 'pattern'];
       case 'recommend':
         return [...commonOptions, 'intent'];
-      case 'enhance':
-        return [...commonOptions, 'solution'];
+      // REMOVED: enhance command
       default:
         return commonOptions;
     }
@@ -254,8 +240,7 @@ export class CliInterface {
           return await this.handleLearnCommand(options);
         case 'recommend':
           return await this.handleRecommendCommand(options);
-        case 'enhance':
-          return await this.handleEnhanceCommand(options);
+        // REMOVED: enhance command
         default:
           return {
             success: false,
@@ -408,87 +393,8 @@ export class CliInterface {
     }
   }
 
-  private async handleEnhanceCommand(options: Record<string, any>): Promise<CliResult> {
-    try {
-      // Get Claude API key from AppAgent
-      const claudeApiKey = this.ensureAppAgent().getAnthropicApiKey();
-      if (!claudeApiKey) {
-        return {
-          success: false,
-          error: 'ANTHROPIC_API_KEY environment variable must be set for AI-powered solution enhancement'
-        };
-      }
-
-      // Read the solution file
-      const fs = await import('fs');
-      let solutionData: any;
-      
-      try {
-        const solutionContent = fs.readFileSync(options.solution, 'utf8');
-        solutionData = JSON.parse(solutionContent);
-      } catch (error) {
-        return {
-          success: false,
-          error: `Failed to read solution file: ${(error as Error).message}`
-        };
-      }
-
-      // Validate solution data structure including open question enforcement
-      const { SchemaValidator } = await import('../core/validation');
-      const validationErrors = SchemaValidator.validateSolutionData(solutionData);
-      if (validationErrors.length > 0) {
-        const errorMessages = validationErrors.map(e => `${e.path}: ${e.message}`).join('; ');
-        return {
-          success: false,
-          error: `Invalid solution data: ${errorMessages}`
-        };
-      }
-
-      // Extract open response from the solution JSON (guaranteed to exist after validation)
-      const openResponse = solutionData.questions.open.answer;
-
-      this.showProgress('🔍 Analyzing enhancement request...');
-
-      // Initialize SolutionEnhancer
-      const rankingConfig: AIRankingConfig = { claudeApiKey };
-      const enhancer = new SolutionEnhancer(rankingConfig);
-
-      // Get available resources for context
-      const availableResources = await this.ensureAppAgent().discovery.discoverResources();
-
-      this.showProgress('🤖 AI is enhancing your solution...');
-
-      // Create explainResource function
-      const explainResourceFn = async (resource: string) => {
-        return await this.ensureAppAgent().discovery.explainResource(resource);
-      };
-
-      // Enhance the solution
-      const enhancedSolution = await enhancer.enhanceSolution(
-        solutionData,
-        openResponse,
-        availableResources,
-        explainResourceFn
-      );
-
-      this.showProgress('✅ Enhancement complete!');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      this.clearProgress();
-
-      return {
-        success: true,
-        data: enhancedSolution,
-        _rawFormat: true  // Special flag for raw output
-      };
-    } catch (error) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      this.clearProgress();
-      return {
-        success: false,
-        error: `Solution enhancement failed: ${(error as Error).message}`
-      };
-    }
-  }
+  // REMOVED: handleEnhanceCommand method - moved to legacy reference
+  // See src/legacy/tools/enhance-solution.ts for reference implementation
 
   async continueWorkflow(workflowId: string, input: { responses: Record<string, any> }): Promise<CliResult> {
     try {
@@ -511,7 +417,7 @@ export class CliInterface {
   }
 
   formatOutput(result: CliResult, format: string): string {
-    // Handle raw format for enhance command (return just the data without CLI wrapper)
+    // Handle raw format for commands that need it
     const isRawFormat = (result as any)._rawFormat;
     if (isRawFormat) {
       switch (format) {

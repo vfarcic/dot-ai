@@ -1,12 +1,30 @@
 /**
- * Enhance Solution Tool - Process open-ended user requirements to enhance deployment solutions
+ * LEGACY: Enhance Solution Tool - Reference Implementation
+ * 
+ * This file contains the original enhance_solution tool that was replaced by
+ * the stateful session-based architecture. It is preserved here for reference
+ * during development of the new conversational tools.
+ * 
+ * MOVED FROM: src/tools/enhance-solution.ts
+ * REPLACED BY: Stateful session tools (chooseSolution, answerQuestion)
+ * 
+ * KEY PATTERNS TO REFERENCE:
+ * - Input validation logic (lines 29-50)
+ * - Claude API key checking (lines 52-70)
+ * - Solution data parsing and validation (lines 72-97)
+ * - Open response extraction and validation (lines 99-118)
+ * - Error handling with detailed context (throughout)
+ * - Integration with SolutionEnhancer class (lines 126-146)
+ * 
+ * DO NOT REGISTER OR USE THIS TOOL IN ACTIVE MCP/CLI
  */
 
-import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
-import { MCPToolSchemas, SchemaValidator } from '../core/validation';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { SolutionEnhancer, AIRankingConfig } from '../core/schema';
-import { InstructionLoader } from '../core/instruction-loader';
+import { ToolDefinition, ToolHandler, ToolContext } from '../../core/tool-registry';
+import { MCPToolSchemas, SchemaValidator } from '../../core/validation';
+import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../../core/error-handling';
+import { SolutionEnhancer } from '../core/solution-enhancer';
+import { AIRankingConfig } from '../../core/schema';
+import { InstructionLoader } from '../../core/instruction-loader';
 
 export const enhanceSolutionToolDefinition: ToolDefinition = {
   name: 'enhance_solution',

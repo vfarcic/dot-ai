@@ -7,7 +7,7 @@
 import { ToolRegistry } from '../../src/core/tool-registry';
 import { registerAllTools, getToolRegistry, initializeTools } from '../../src/tools';
 import { recommendToolDefinition } from '../../src/tools/recommend';
-import { enhanceSolutionToolDefinition } from '../../src/tools/enhance-solution';
+// import { enhanceSolutionToolDefinition } from '../../src/tools/enhance-solution'; // MOVED TO LEGACY
 import { canHelpToolDefinition } from '../../src/tools/can-help';
 
 describe('Tool Registration Integration', () => {
@@ -22,12 +22,12 @@ describe('Tool Registration Integration', () => {
       registerAllTools(registry);
 
       const allTools = registry.getAllTools();
-      expect(allTools).toHaveLength(3);
+      expect(allTools).toHaveLength(2); // Updated: removed enhance_solution tool
 
       const toolNames = allTools.map(t => t.definition.name);
       expect(toolNames).toContain('recommend');
-      expect(toolNames).toContain('enhance_solution');
       expect(toolNames).toContain('can_help');
+      // REMOVED: enhance_solution tool check - moved to legacy
     });
 
     test('should register recommend tool with correct definition', () => {
@@ -39,24 +39,17 @@ describe('Tool Registration Integration', () => {
       expect(recommendTool!.enabled).toBe(true);
     });
 
-    test('should register enhance_solution tool with correct definition', () => {
-      registerAllTools(registry);
-
-      const enhanceTool = registry.getTool('enhance_solution');
-      expect(enhanceTool).toBeDefined();
-      expect(enhanceTool!.definition).toEqual(enhanceSolutionToolDefinition);
-      expect(enhanceTool!.enabled).toBe(true);
-    });
+    // REMOVED: enhance_solution tool registration test - moved to legacy
 
     test('should have tools in correct categories', () => {
       registerAllTools(registry);
 
       const stats = registry.getStats();
       expect(stats.categories).toEqual({
-        'ai-recommendations': 1,
-        'ai-enhancement': 1,
-        'discovery': 1
+        'ai-recommendations': 1,  // recommend tool
+        'discovery': 1           // can_help tool
       });
+      // REMOVED: solution-enhancement category - moved to legacy
     });
   });
 
@@ -65,7 +58,7 @@ describe('Tool Registration Integration', () => {
       const initializedRegistry = initializeTools();
       
       expect(initializedRegistry).toBeInstanceOf(ToolRegistry);
-      expect(initializedRegistry.getAllTools()).toHaveLength(3);
+      expect(initializedRegistry.getAllTools()).toHaveLength(2); // Updated: removed enhance_solution tool
     });
 
     test('should return the default registry', () => {
@@ -87,15 +80,7 @@ describe('Tool Registration Integration', () => {
       expect(recommendToolDefinition.tags).toContain('kubernetes');
     });
 
-    test('enhance_solution tool should have valid schema structure', () => {
-      expect(enhanceSolutionToolDefinition.name).toBe('enhance_solution');
-      expect(enhanceSolutionToolDefinition.description).toContain('Customize, optimize');
-      expect(enhanceSolutionToolDefinition.inputSchema).toBeDefined();
-      expect(enhanceSolutionToolDefinition.inputSchema.type).toBe('object');
-      expect(enhanceSolutionToolDefinition.version).toBe('1.0.0');
-      expect(enhanceSolutionToolDefinition.category).toBe('ai-enhancement');
-      expect(enhanceSolutionToolDefinition.tags).toContain('kubernetes');
-    });
+    // REMOVED: enhance_solution schema test - moved to legacy
 
     test('can_help tool should have valid schema structure', () => {
       expect(canHelpToolDefinition.name).toBe('can_help');

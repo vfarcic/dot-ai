@@ -74,10 +74,7 @@ describe('CLI Interface', () => {
       expect(commands).toContain('recommend');
     });
 
-    test('should have enhance subcommand', () => {
-      const commands = cli.getSubcommands();
-      expect(commands).toContain('enhance');
-    });
+    // REMOVED: enhance subcommand test - moved to legacy
 
     test('should work without appAgent for help commands', () => {
       // Test that CLI can be instantiated without appAgent
@@ -108,15 +105,10 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('status');
       expect(helpText).toContain('learn');
       expect(helpText).toContain('recommend');
-      expect(helpText).toContain('enhance');
+      // REMOVED: enhance help text check - moved to legacy
     });
 
-    test('should provide enhance command help', async () => {
-      const helpText = await cli.getCommandHelp('enhance');
-      expect(helpText).toContain('Enhance a solution by processing open-ended user response');
-      expect(helpText).toContain('--solution');
-      expect(helpText).toContain('--output');
-    });
+    // REMOVED: enhance command help test - moved to legacy
 
     test('should provide deploy command help', async () => {
       const helpText = await cli.getCommandHelp('deploy');
@@ -185,22 +177,7 @@ describe('CLI Interface', () => {
       expect(parsed.options.intent).toBeUndefined();
     });
 
-    test('should parse enhance command with solution option', async () => {
-      const args = ['enhance', '--solution', '/path/to/solution.json', '--output', 'json'];
-      const parsed = await cli.parseArguments(args);
-      
-      expect(parsed.command).toBe('enhance');
-      expect(parsed.options.solution).toBe('/path/to/solution.json');
-      expect(parsed.options.output).toBe('json');
-    });
-
-    test('should handle enhance command without solution option', async () => {
-      const args = ['enhance']; // Missing --solution
-      const parsed = await cli.parseArguments(args);
-      
-      expect(parsed.command).toBe('enhance');
-      expect(parsed.options.solution).toBeUndefined();
-    });
+    // REMOVED: enhance command parsing tests - moved to legacy
   });
 
   describe('Command Execution', () => {
@@ -311,123 +288,13 @@ describe('CLI Interface', () => {
       expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
 
-    test('should execute enhance command successfully', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
-      
-      // Mock file system
-      const mockFs = {
-        readFileSync: jest.fn().mockReturnValue(JSON.stringify({
-          type: 'single',
-          score: 80,
-          description: 'Test solution',
-          questions: {
-            open: {
-              answer: 'I need it to handle 10x traffic'
-            }
-          }
-        }))
-      };
-      jest.doMock('fs', () => mockFs);
+    // REMOVED: enhance command execution test - moved to legacy
 
-      // Mock discovery methods
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
-        resources: [],
-        custom: []
-      });
-      mockAppAgent.discovery.explainResource.mockResolvedValue({
-        kind: 'Test',
-        version: 'v1',
-        group: '',
-        description: 'Test resource',
-        fields: []
-      });
-      
-      const result = await cli.executeCommand('enhance', { 
-        solution: '/path/to/solution.json',
-        output: 'json'
-      });
-      
-      // The command should fail due to mocked AI integration but structure should be correct
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      // Note: The command will fail early due to mocked SolutionEnhancer, so discovery may not be called
-    });
+    // REMOVED: enhance command API key test - moved to legacy
 
-    test('should handle enhance command failure when no API key', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      
-      // Ensure no API key is set
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      delete process.env.ANTHROPIC_API_KEY;
+    // REMOVED: enhance command file missing test - moved to legacy
 
-      const result = await cli.executeCommand('enhance', { 
-        solution: '/path/to/solution.json' 
-      });
-      
-      // Restore environment
-      if (originalEnv) {
-        process.env.ANTHROPIC_API_KEY = originalEnv;
-      }
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
-    });
-
-    test('should handle enhance command failure when solution file missing', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
-      
-      // Mock fs module directly since CLI uses dynamic import
-      const originalFs = require('fs');
-      const mockReadFileSync = jest.spyOn(originalFs, 'readFileSync')
-        .mockImplementation(() => {
-          throw new Error('ENOENT: no such file or directory');
-        });
-
-      try {
-        const result = await cli.executeCommand('enhance', { 
-          solution: '/path/to/missing.json' 
-        });
-        
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('Failed to read solution file');
-      } finally {
-        // Restore original implementation
-        mockReadFileSync.mockRestore();
-      }
-    });
-
-    test('should handle enhance command failure when no open response', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
-      
-      // Use require to mock fs at runtime for this specific test
-      const fs = require('fs');
-      const originalReadFileSync = fs.readFileSync;
-      fs.readFileSync = jest.fn().mockReturnValue(JSON.stringify({
-        type: 'single',
-        score: 80,
-        description: 'Test solution',
-        questions: {
-          open: {
-            question: 'Any requirements?',
-            placeholder: 'Enter details...'
-            // Missing answer field
-          }
-        }
-      }));
-
-      const result = await cli.executeCommand('enhance', { 
-        solution: '/path/to/solution.json' 
-      });
-      
-      // Restore mocks
-      fs.readFileSync = originalReadFileSync;
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid solution data');
-      expect(result.error).toContain('Required property is missing');
-    });
+    // REMOVED: enhance command no open response test - moved to legacy
 
     test('should include questions field in CLI output structure', () => {
       // Test the CLI output formatting directly by creating a mock solution with questions

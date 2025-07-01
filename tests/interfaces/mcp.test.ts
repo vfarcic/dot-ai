@@ -162,59 +162,8 @@ describe('MCP Interface Layer', () => {
       expect(mockAppAgent.schema.rankResources).toHaveBeenCalledWith('Deploy a web application with load balancing');
     });
 
-    test('should handle enhance_solution tool execution', async () => {
-      // Mock environment variable
-      const originalEnv = process.env.ANTHROPIC_API_KEY;
-      process.env.ANTHROPIC_API_KEY = 'test-api-key';
-
-      const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
-      
-      const solutionData = {
-        solution_data: JSON.stringify({
-          type: 'single',
-          description: 'Simple deployment',
-          questions: {
-            open: {
-              answer: 'I need high availability and auto-scaling'
-            }
-          }
-        })
-      };
-
-      // Mock the SolutionEnhancer import
-      const mockEnhancer = {
-        enhanceSolution: jest.fn().mockResolvedValue({
-          type: 'enhanced',
-          description: 'High availability deployment with auto-scaling',
-          resources: [{ kind: 'Deployment' }, { kind: 'HorizontalPodAutoscaler' }]
-        })
-      };
-
-      // Mock the dynamic import
-      jest.doMock('../../src/core/schema', () => ({
-        SolutionEnhancer: jest.fn().mockImplementation(() => mockEnhancer)
-      }));
-
-      try {
-        const result = await handleEnhanceSolution(solutionData);
-        
-        expect(result.content).toHaveLength(1);
-        const responseData = JSON.parse(result.content[0].text);
-        
-        expect(responseData).toEqual(expect.objectContaining({
-          user_response: 'I need high availability and auto-scaling',
-          enhanced_solution: expect.any(Object),
-          timestamp: expect.any(String)
-        }));
-      } finally {
-        // Restore environment
-        if (originalEnv) {
-          process.env.ANTHROPIC_API_KEY = originalEnv;
-        } else {
-          delete process.env.ANTHROPIC_API_KEY;
-        }
-      }
-    });
+    // REMOVED: enhance_solution tool test - moved to legacy reference
+    // See src/legacy/tools/enhance-solution.ts for reference implementation
 
     test('should require intent parameter for recommend', async () => {
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
@@ -226,48 +175,11 @@ describe('MCP Interface Layer', () => {
       expect(responseData.error.message).toContain('Invalid parameters for tool \'recommend\'');
     });
 
-    test('should require solution_data for enhance_solution', async () => {
-      const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
-      
-      const result = await handleEnhanceSolution({});
-      expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toBeDefined();
-      expect(responseData.error.message).toContain('Invalid parameters for tool \'enhance_solution\'');
-    });
+    // REMOVED: enhance_solution validation test - moved to legacy reference
 
-    test('should require valid JSON for enhance_solution', async () => {
-      const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
-      
-      const result = await handleEnhanceSolution({ solution_data: 'invalid json' });
-      expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toBeDefined();
-      expect(responseData.error.message).toContain('Solution data must be valid JSON');
-    });
+    // REMOVED: enhance_solution JSON validation test - moved to legacy reference
 
-    test('should require open answer in solution for enhance_solution', async () => {
-      const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
-      
-      const invalidSolution = {
-        solution_data: JSON.stringify({
-          type: 'single',
-          description: 'Simple deployment',
-          questions: {
-            open: {
-              question: 'Any requirements?'
-              // Missing answer field
-            }
-          }
-        })
-      };
-
-      const result = await handleEnhanceSolution(invalidSolution);
-      expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toBeDefined();
-      expect(responseData.error.message).toContain('Required property is missing');
-    });
+    // REMOVED: enhance_solution answer validation test - moved to legacy reference
   });
 
   describe('Initialization and State Management', () => {
@@ -324,27 +236,7 @@ describe('MCP Interface Layer', () => {
       expect(responseData.error.message).toContain('Cannot read properties of undefined');
     });
 
-    test('should handle missing API key for enhance solution', async () => {
-      // Mock the AppAgent to return no API key
-      mockAppAgent.getAnthropicApiKey.mockReturnValue(undefined);
-
-      const handleEnhanceSolution = (mcpServer as any).handleEnhanceSolution.bind(mcpServer);
-
-      const validSolution = {
-        solution_data: JSON.stringify({
-          questions: { open: { answer: 'test response' } }
-        })
-      };
-
-      const result = await handleEnhanceSolution(validSolution);
-      expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toBeDefined();
-      expect(responseData.error.message).toContain('ANTHROPIC_API_KEY environment variable must be set');
-      
-      // Restore mock
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-api-key');
-    });
+    // REMOVED: enhance_solution API key test - moved to legacy reference
   });
 
   describe('MCP Protocol Compliance', () => {
