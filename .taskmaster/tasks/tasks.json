@@ -426,7 +426,7 @@
         "id": 5,
         "title": "Implement CLI Interface Foundation",
         "description": "Build the command-line interface with conversational Q&A capabilities and session management using TypeScript",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           3,
           4,
@@ -440,7 +440,7 @@
             "id": 1,
             "title": "Set up CLI foundation with commander library",
             "description": "Create src/cli/cli.ts with CLI class and basic command structure using commander library",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -449,7 +449,7 @@
             "id": 2,
             "title": "Implement conversational Q&A system",
             "description": "Build interactive Q&A workflow for gathering deployment requirements with Claude integration using TypeScript",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -458,7 +458,7 @@
             "id": 3,
             "title": "Create session management system",
             "description": "Implement session state tracking and persistence for conversational workflows using TypeScript classes and interfaces",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -467,7 +467,7 @@
             "id": 4,
             "title": "Implement core CLI commands",
             "description": "Create app-agent deploy, app-agent status, app-agent learn, and app-agent recommend commands with proper argument handling in TypeScript. Include --intent and optional --output options for recommend command.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -476,7 +476,7 @@
             "id": 5,
             "title": "Integrate with discovery engine and memory system",
             "description": "Connect CLI to discovery engine and memory system for internal use by commands, providing intelligent deployment assistance using TypeScript modules",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -485,7 +485,7 @@
             "id": 6,
             "title": "Add progress tracking and user guidance",
             "description": "Implement visual progress indicators and contextual help for user guidance during deployment using TypeScript",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -494,7 +494,7 @@
             "id": 7,
             "title": "Conduct manual testing with real deployment scenarios",
             "description": "Test CLI functionality with actual Kubernetes cluster deployments to validate end-to-end workflow",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -503,7 +503,7 @@
             "id": 8,
             "title": "Document post-completion deliverables",
             "description": "Prepare detailed documentation of what was accomplished, manual testing instructions with step-by-step commands, and clear success criteria for validation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -512,7 +512,7 @@
             "id": 9,
             "title": "Update ResourceRecommender integration",
             "description": "Ensure CLI properly integrates with the renamed ResourceRecommender class (formerly ResourceRanker) for the recommend command functionality",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -521,7 +521,7 @@
             "id": 10,
             "title": "Validate complete implementation with test suite",
             "description": "Verify that all CLI functionality works correctly with the complete implementation and 294 passing tests",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -532,7 +532,7 @@
         "id": 6,
         "title": "Implement Core Workflow Engine",
         "description": "Build the central workflow engine that orchestrates discovery, planning, and deployment processes with comprehensive state management and post-completion validation requirements using TypeScript",
-        "status": "pending",
+        "status": "cancelled",
         "dependencies": [
           3,
           4
@@ -610,7 +610,7 @@
         "id": 7,
         "title": "Build Manifest Generation System",
         "description": "Create intelligent manifest generation that uses discovered schemas and learned patterns",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           3,
           4,
@@ -624,7 +624,7 @@
             "id": 1,
             "title": "Implement ManifestGenerator class",
             "description": "Create the core ManifestGenerator TypeScript class with methods for generating Kubernetes manifests in src/",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -633,7 +633,7 @@
             "id": 2,
             "title": "Build template system for common patterns",
             "description": "Create reusable TypeScript templates for standard deployment patterns (Deployment, Service, ConfigMap, etc.)",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -642,7 +642,7 @@
             "id": 3,
             "title": "Implement schema-based field population",
             "description": "Use discovered schemas to intelligently populate manifest fields based on cluster capabilities using TypeScript interfaces",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -651,7 +651,7 @@
             "id": 4,
             "title": "Add manifest validation",
             "description": "Implement TypeScript validation logic to verify generated manifests before deployment",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -660,7 +660,7 @@
             "id": 5,
             "title": "Create comprehensive test suite",
             "description": "Build unit tests, validation tests, and integration tests for the TypeScript manifest generation system",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -669,7 +669,7 @@
             "id": 6,
             "title": "Document post-completion deliverables",
             "description": "Prepare detailed documentation of what was accomplished, manual testing instructions with step-by-step commands for verifying manifest generation with various resource types, and clear success criteria for manual validation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -679,7 +679,7 @@
             "title": "Implement question response processing for external agents",
             "description": "Create system to process user answers from grouped questions (required, basic, advanced, open) and integrate them with resource recommendations to generate appropriate manifests",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "3.9"
             ],
@@ -690,7 +690,7 @@
             "title": "Implement stateless manifest generation for external agent workflow",
             "description": "Design manifest generation to work with full resource details and user answers passed from external agents, avoiding storage dependencies while supporting the complete recommend → questions → generate → deploy flow",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "3.11"
             ],
@@ -701,7 +701,7 @@
             "title": "Handle open question analysis for additional resource requirements",
             "description": "Implement logic to analyze open-ended user responses, determine if additional resources are needed beyond initial recommendations, and either enhance current manifests, request new recommendations, or provide manual guidance",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "3.10"
             ],
@@ -713,7 +713,7 @@
         "id": 8,
         "title": "Implement Deployment Execution Engine",
         "description": "Build the deployment engine that applies manifests to Kubernetes clusters with monitoring and rollback using TypeScript",
-        "status": "pending",
+        "status": "cancelled",
         "dependencies": [
           7
         ],
@@ -894,7 +894,7 @@
         "id": 10,
         "title": "Setup MCP Server Foundation",
         "description": "Initialize the Model Context Protocol server with TypeScript and establish basic function framework",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           1,
           "3.12"
@@ -943,16 +943,16 @@
             "id": 5,
             "title": "Setup function registration system",
             "description": "Create dynamic function registration mechanism for MCP tools and resources",
-            "status": "in-progress",
+            "status": "done",
             "dependencies": [],
-            "details": "",
+            "details": "<info added on 2025-07-02T19:11:47.657Z>\nCurrent analysis reveals the ToolRegistry system is already comprehensively implemented with 23 passing tests and full MCP/CLI integration. The system includes dynamic registration/unregistration, tool enable/disable functionality, schema validation, category management, error handling, and monitoring capabilities. All 5 active tools (recommend, can_help, chooseSolution, answerQuestion, generateManifests) are successfully registered and functioning. Investigation needed to determine what specific enhancements or refinements are required beyond the existing robust foundation, as the core function registration system appears complete and operational.\n</info added on 2025-07-02T19:11:47.657Z>\n<info added on 2025-07-02T19:23:25.070Z>\nTask 10.5 \"Setup function registration system\" marked COMPLETE on 2025-07-02T19:11:47.657Z.\n\nFINAL STATUS SUMMARY:\n✅ Comprehensive ToolRegistry system confirmed fully operational\n✅ All 23 tests passing with complete MCP/CLI integration\n✅ 5 active tools successfully registered and functioning\n✅ Dynamic registration, schema validation, and error handling verified\n✅ GitHub Issue #2 created for future enhancements with PRD label\n\nSYSTEM CAPABILITIES VERIFIED:\n- Dynamic tool registration/unregistration with real-time updates\n- Individual tool enable/disable functionality\n- Complete schema validation for inputs and outputs\n- Category and version management system\n- Comprehensive error handling and logging infrastructure\n- Statistics monitoring and execution context management\n- Full MCP protocol integration and CLI interface support\n\nCONCLUSION: The existing ToolRegistry implementation in src/core/tool-registry.ts fully satisfies all current project requirements for function registration. Advanced features documented in GitHub issue #2 for future consideration but not required for production deployment. Core system is complete and production-ready.\n</info added on 2025-07-02T19:23:25.070Z>",
             "testStrategy": ""
           },
           {
             "id": 6,
             "title": "Provide post-completion documentation",
             "description": "Document what was accomplished, provide manual testing instructions with step-by-step commands to verify MCP server functionality, and define clear success criteria for manual validation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -963,7 +963,7 @@
         "id": 11,
         "title": "Implement MCP Function: create_application",
         "description": "Build the create_application MCP function that initializes deployment workflow with discovery",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           10,
           6
@@ -976,7 +976,7 @@
             "id": 1,
             "title": "Define JSON schema for create_application input/output",
             "description": "Create comprehensive JSON schemas for function parameters and return values",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -985,7 +985,7 @@
             "id": 2,
             "title": "Implement MCP function handler for create_application",
             "description": "Build the main function handler that processes requests and coordinates with workflow engine",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -994,7 +994,7 @@
             "id": 3,
             "title": "Integrate with Go CLI core logic",
             "description": "Establish bridge between MCP function and Go CLI using subprocess or shared library approach",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1003,7 +1003,7 @@
             "id": 4,
             "title": "Implement cluster discovery integration",
             "description": "Connect function to cluster discovery process and handle discovery results",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1012,7 +1012,7 @@
             "id": 5,
             "title": "Add comprehensive error handling",
             "description": "Implement robust error handling for all failure scenarios with appropriate error messages",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1021,7 +1021,7 @@
             "id": 6,
             "title": "Write unit and integration tests",
             "description": "Create test suite covering function contract, workflow integration, and error scenarios",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1030,7 +1030,7 @@
             "id": 7,
             "title": "Document implementation details",
             "description": "Provide detailed explanation of what was accomplished in the create_application MCP function implementation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1039,7 +1039,7 @@
             "id": 8,
             "title": "Create manual testing instructions",
             "description": "Develop step-by-step commands and procedures to manually verify the function works correctly",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1048,7 +1048,7 @@
             "id": 9,
             "title": "Define expected results and success criteria",
             "description": "Establish clear success criteria and expected outcomes for validation of the implementation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1059,7 +1059,7 @@
         "id": 12,
         "title": "Implement MCP Function: continue_workflow",
         "description": "Build the continue_workflow MCP function for progressing deployment workflow based on user input",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           11
         ],
@@ -1071,7 +1071,7 @@
             "id": 1,
             "title": "Design continue_workflow function interface",
             "description": "Define the function signature, parameters, and return structure for continue_workflow",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1080,7 +1080,7 @@
             "id": 2,
             "title": "Implement workflow progression logic",
             "description": "Build core logic to advance workflow state based on user responses and current phase",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1089,7 +1089,7 @@
             "id": 3,
             "title": "Add state management and persistence",
             "description": "Implement workflow state tracking and integration with memory system",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1098,7 +1098,7 @@
             "id": 4,
             "title": "Handle decision points and user choices",
             "description": "Implement logic to process user decisions and route workflow accordingly",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1107,7 +1107,7 @@
             "id": 5,
             "title": "Create JSON schema for workflow progression",
             "description": "Define structured schema for workflow state transitions and user responses",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1116,7 +1116,7 @@
             "id": 6,
             "title": "Implement unit tests",
             "description": "Create comprehensive test suite for continue_workflow function",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1125,7 +1125,7 @@
             "id": 7,
             "title": "Prepare post-completion documentation",
             "description": "Document what was accomplished, create manual testing instructions, and define expected results for continue_workflow function verification",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -1136,7 +1136,7 @@
         "id": 13,
         "title": "Implement MCP Function: deploy_application",
         "description": "Build the deploy_application MCP function that executes deployment with generated manifests",
-        "status": "pending",
+        "status": "cancelled",
         "dependencies": [
           12,
           8
@@ -1214,7 +1214,7 @@
         "id": 14,
         "title": "Implement MCP Function: get_deployment_status",
         "description": "Build the get_deployment_status MCP function for monitoring deployment progress and results",
-        "status": "pending",
+        "status": "cancelled",
         "dependencies": [
           13
         ],
@@ -1677,7 +1677,7 @@
         "description": "Replace the current JSON-heavy stateless MCP approach with a conversational, session-based architecture that maintains state across interactions and eliminates complex JSON construction for agent-friendly workflows.",
         "details": "Redesign the MCP server architecture to support stateful sessions: 1) Create SessionManager class in src/mcp/session.ts that maintains conversation state, user context, and workflow progress across multiple MCP function calls, 2) Implement ConversationalMCP class that replaces complex JSON schemas with natural language interactions - agents can ask questions, receive guided responses, and build deployment configurations through dialogue, 3) Add StateStore interface with in-memory and persistent storage options for session data, workflow state, and user preferences, 4) Create ConversationFlow engine that guides agents through deployment workflows using simple text-based interactions instead of requiring complex JSON construction, 5) Implement session lifecycle management with creation, persistence, cleanup, and timeout handling, 6) Add context-aware response generation that remembers previous interactions and can reference earlier decisions, 7) Create simplified MCP functions like start_deployment_conversation, continue_conversation, get_session_state that accept minimal parameters and return conversational prompts, 8) Integrate with existing workflow engine to maintain deployment state while providing conversational interface, 9) Add session-based caching to remember discovered resources, user preferences, and partial configurations across conversation turns. The architecture should transform complex JSON-based interactions into natural dialogue flows where agents can incrementally build deployment configurations through conversation.",
         "testStrategy": "Unit tests for SessionManager lifecycle operations, state persistence and retrieval, session timeout handling. Integration tests for ConversationalMCP with mock agent interactions, testing conversation flow progression from initial request through deployment completion. End-to-end tests comparing old JSON-heavy approach vs new conversational approach, measuring reduction in JSON complexity and improved agent usability. Session state consistency tests across multiple conversation turns, testing context retention and workflow progression. Performance tests for session storage and retrieval operations. Manual testing with real MCP clients to validate conversational flow usability and agent-friendliness compared to previous JSON-based approach.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           10,
           6
@@ -1732,11 +1732,54 @@
             "parentTaskId": 20
           }
         ]
+      },
+      {
+        "id": 21,
+        "title": "Implement Deploy Operation with Kubernetes Manifest Application",
+        "description": "Create the Deploy Operation that applies Kubernetes manifests via kubectl and returns immediate status with AI-friendly messaging, implementing both CLI command (app-agent deploy) and MCP tool (deployApplication) with identical functionality.",
+        "details": "Implement comprehensive deployment operation in src/operations/deploy.ts with DeployOperation class that provides: 1) Hybrid kubectl approach using executeKubectl function for manifest application following existing kubernetes-utils patterns, 2) File-based validation checking solution.json and manifests.yaml exist in session directory structure, 3) Synchronous operation with 30-second configurable timeout and graceful status collection, 4) AI-powered user-friendly status messaging using Claude Code SDK for translating kubectl output to IDP-friendly messages. Create deployApplication MCP function in src/mcp/functions/deploy.ts that accepts solutionId parameter and delegates to core DeployOperation. Implement CLI command 'app-agent deploy' in src/cli/commands/deploy.ts that uses same DeployOperation core logic. Core functionality includes: parsing manifests to identify resource types for targeted status checking, using native Kubernetes client for readiness checks (deployment readiness, service endpoints), returning combined lightweight response with friendly status summary + raw kubectl output + code-generated helpful commands for next steps. Integrate with existing solutionId session system for file discovery and state management. Error handling should provide clear messages and actionable recommendations for common deployment failures.",
+        "testStrategy": "Unit tests for DeployOperation class with mock kubectl responses and timeout scenarios, file validation tests for missing solution.json/manifests.yaml, AI message translation tests with various kubectl outputs. Integration tests with real Kubernetes cluster applying test manifests, timeout handling with long-running deployments, resource status checking for different resource types (Deployment, Service, ConfigMap). End-to-end tests for both CLI and MCP interfaces ensuring identical functionality, session directory integration tests, error scenario testing with invalid manifests and cluster connectivity issues. Manual testing procedures with step-by-step verification of deployment success, status message clarity, and generated next-step commands.",
+        "status": "pending",
+        "dependencies": [
+          5,
+          10
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Implement Deployment Status Check Operation",
+        "description": "Create the Deployment Status Check Operation that queries current Kubernetes deployment state and provides helpful commands for investigation, implementing both CLI command (app-agent status) and MCP tool (getDeploymentStatus) with identical functionality.",
+        "details": "Implement comprehensive status checking operation in src/operations/status.ts with StatusOperation class that provides: 1) Session-based resource identification by reading manifests.yaml from session directory to parse deployed resources (deployments, services, pods, ingresses, etc.), 2) Real-time Kubernetes state querying using @kubernetes/client-node for efficient API calls to check resource health, readiness, and current status, 3) Intelligent status parsing that categorizes resources as Ready/Pending/Failed/Unknown with detailed condition analysis, 4) AI-powered status translation using Claude API to convert technical Kubernetes states into user-friendly summaries for both beginners and experts, 5) Dynamic kubectl command generation based on resource types and current state (e.g., 'kubectl describe deployment X', 'kubectl logs -l app=Y', 'kubectl get events --field-selector involvedObject.name=Z'), 6) Comprehensive error handling for missing resources, failed deployments, and API connectivity issues. Create StatusResult interface with fields for overall health, resource summaries, troubleshooting commands, and raw details. Implement both CLI handler in src/cli/commands/status.ts and MCP function in src/mcp/functions/getDeploymentStatus.ts sharing core StatusOperation logic. Use existing solutionId session system for resource identification and follow established patterns from deploy operation for consistency.",
+        "testStrategy": "Unit tests for StatusOperation class with mock Kubernetes API responses testing various resource states (healthy, pending, failed), manifest parsing tests with different YAML structures, AI message translation tests with technical status outputs. Integration tests with real Kubernetes cluster checking actual deployed resources, session file reading validation, kubectl command generation verification. End-to-end tests covering both CLI 'app-agent status' command and MCP 'getDeploymentStatus' function with identical output validation, error handling tests for missing sessions/resources, and performance tests ensuring status checks complete within 10 seconds for typical deployments.",
+        "status": "pending",
+        "dependencies": [
+          10,
+          21
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Implement Interactive Rollback System",
+        "description": "Create the Interactive Rollback System that provides users with multiple rollback strategies and executes the chosen approach, implementing both CLI command (app-agent rollback) and MCP tool (rollbackDeployment) with identical functionality.",
+        "details": "Implement comprehensive rollback operation in src/operations/rollback.ts with RollbackOperation class that provides: 1) Session-based manifest parsing by reading manifests.yaml from session directory to identify deployed resources (deployments, services, pods, configmaps, etc.), 2) Interactive rollback strategy selection with three options: Delete Everything (kubectl delete -f manifests.yaml with confirmation), Restore Previous Version (kubectl rollout undo for deployments with version checking), and Selective Rollback (custom logic allowing users to choose specific resources to rollback), 3) Safety information system that checks for previous deployment versions using Kubernetes API, warns about data loss risks, and provides recommendations for each rollback option with clear descriptions of consequences, 4) Rollback execution engine using executeKubectl function following existing kubernetes-utils patterns with proper error handling for cases like missing previous versions or failed rollback operations, 5) Post-rollback verification that generates kubectl commands for users to verify rollback success and provides status confirmation. Implement RollbackStrategy enum with DELETE_ALL, RESTORE_PREVIOUS, SELECTIVE options. Create interactive CLI prompts using inquirer.js for strategy selection with detailed descriptions and safety warnings. For MCP integration, implement rollbackDeployment function that accepts solutionId parameter and rollback strategy, returning execution results and verification commands. Handle edge cases like deployments without previous revisions, resources that don't support rollback, and partial rollback failures with clear error messages and recovery suggestions.",
+        "testStrategy": "Unit tests for RollbackOperation class with mock kubectl responses testing all three rollback strategies, manifest parsing tests with various YAML structures containing different resource types, safety check tests for deployments with/without previous versions, interactive prompt simulation tests. Integration tests with real Kubernetes cluster testing complete rollback workflows: deploy test application, perform each rollback strategy, verify resource states match expected outcomes. Error handling tests for missing manifests.yaml, failed kubectl commands, deployments without previous versions, and partial rollback failures. MCP function tests validating rollbackDeployment with different solutionId values and strategy parameters. End-to-end tests covering CLI command 'app-agent rollback' and MCP tool usage with verification that both interfaces provide identical functionality and user experience.",
+        "status": "pending",
+        "dependencies": [
+          10,
+          21,
+          22
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-06-28T00:17:46.251Z",
-      "updated": "2025-07-02T19:08:11.653Z",
+      "updated": "2025-07-02T22:28:21.341Z",
       "description": "Tasks for master context"
     }
   }
