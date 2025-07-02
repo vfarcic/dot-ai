@@ -208,6 +208,27 @@ export class CliInterface {
         this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
+    // Generate Manifests command
+    this.program
+      .command('generate-manifests')
+      .description('Generate Kubernetes manifests from solution configuration using AI')
+      .requiredOption('--solution-id <id>', 'Solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)')
+      .requiredOption('--session-dir <path>', 'Directory containing solution files')
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
+        const result = await this.executeCommand('generateManifests', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
+      });
+
     // REMOVED: enhance command - moved to legacy reference
     // See src/legacy/tools/enhance-solution.ts for reference implementation
   }
@@ -300,6 +321,8 @@ export class CliInterface {
         return [...commonOptions, 'solution-id', 'session-dir'];
       case 'answerQuestion':
         return [...commonOptions, 'solution-id', 'session-dir', 'answers', 'done'];
+      case 'generateManifests':
+        return [...commonOptions, 'solution-id', 'session-dir'];
       // REMOVED: enhance command
       default:
         return commonOptions;
@@ -309,7 +332,7 @@ export class CliInterface {
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
       // Only initialize AppAgent for commands that need cluster access
-      if (command !== 'chooseSolution' && command !== 'answerQuestion') {
+      if (command !== 'chooseSolution' && command !== 'answerQuestion' && command !== 'generateManifests') {
         await this.ensureAppAgent().initialize();
       }
 
@@ -326,6 +349,8 @@ export class CliInterface {
           return await this.handleChooseSolutionCommand(options);
         case 'answerQuestion':
           return await this.handleAnswerQuestionCommand(options);
+        case 'generateManifests':
+          return await this.handleGenerateManifestsCommand(options);
         // REMOVED: enhance command
         default:
           return {
@@ -616,6 +641,70 @@ export class CliInterface {
     }
   }
 
+  private async handleGenerateManifestsCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      // Show progress for manifest generation
+      this.showProgress('🤖 Generating Kubernetes manifests with AI...');
+
+      // Create tool context for the generateManifests tool
+      const toolContext: ToolContext = {
+        requestId: `cli-${Date.now()}`,
+        logger: {
+          debug: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          info: (message: string, meta?: any) => {
+            if (this.config.verboseMode) {
+              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
+            }
+          },
+          warn: (message: string, meta?: any) => {
+            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          error: (message: string, meta?: any) => {
+            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
+          },
+          fatal: (message: string, meta?: any) => {
+            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
+          }
+        },
+        appAgent: this.appAgent || null
+      };
+
+      // Prepare arguments for the generateManifests tool
+      const toolArgs = {
+        solutionId: options.solutionId,
+        sessionDir: options.sessionDir
+      };
+
+      // Execute the generateManifests tool through the registry
+      const result = await this.toolRegistry.executeTool('generateManifests', toolArgs, toolContext);
+
+      this.showProgress('✅ Manifests generated successfully!');
+      // Small delay to show completion message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.clearProgress();
+
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
+      return {
+        success: true,
+        data: responseData
+      };
+    } catch (error) {
+      // Give a moment for user to see progress before clearing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.clearProgress(); // Clear progress indicators on error
+      return {
+        success: false,
+        error: `Manifest generation failed: ${(error as Error).message}`
+      };
+    }
+  }
+
   // REMOVED: handleEnhanceCommand method - moved to legacy reference
   // See src/legacy/tools/enhance-solution.ts for reference implementation
 
@@ -787,11 +876,13 @@ export class CliInterface {
     const { canHelpToolDefinition, canHelpToolHandler } = require('../tools/can-help');
     const { chooseSolutionToolDefinition, chooseSolutionToolHandler } = require('../tools/choose-solution');
     const { answerQuestionToolDefinition, answerQuestionToolHandler } = require('../tools/answer-question');
+    const { generateManifestsToolDefinition, generateManifestsToolHandler } = require('../tools/generate-manifests');
     
     registry.registerTool(recommendToolDefinition, recommendToolHandler);
     registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
     registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
     registry.registerTool(answerQuestionToolDefinition, answerQuestionToolHandler);
+    registry.registerTool(generateManifestsToolDefinition, generateManifestsToolHandler);
     
     return registry;
   }

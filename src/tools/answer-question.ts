@@ -5,6 +5,7 @@
 import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
 import { MCPToolSchemas, SchemaValidator } from '../core/validation';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import { ClaudeIntegration } from '../core/claude';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -286,6 +287,184 @@ function getRemainingQuestions(solution: any): any[] {
 }
 
 /**
+ * Phase 1: Analyze what resources are needed for the user request
+ */
+async function analyzeResourceNeeds(
+  currentSolution: any,
+  openResponse: string,
+  context: ToolContext
+): Promise<any> {
+  const promptPath = path.join(process.cwd(), 'prompts', 'resource-analysis.md');
+  const template = fs.readFileSync(promptPath, 'utf8');
+  
+  // Get available resources from solution or use defaults
+  const availableResources = currentSolution.availableResources || {
+    resources: [],
+    custom: []
+  };
+  
+  // Extract resource types for analysis
+  const availableResourceTypes = [
+    ...(availableResources.resources || []),
+    ...(availableResources.custom || [])
+  ].map((r: any) => r.kind || r);
+  
+  const analysisPrompt = template
+    .replace('{current_solution}', JSON.stringify(currentSolution, null, 2))
+    .replace('{user_request}', openResponse)
+    .replace('{available_resource_types}', JSON.stringify(availableResourceTypes, null, 2));
+
+  // Initialize Claude integration
+  const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
+  const claudeIntegration = new ClaudeIntegration(apiKey);
+  
+  context.logger.info('Analyzing resource needs for open question', {
+    openResponse,
+    availableResourceCount: availableResourceTypes.length
+  });
+  
+  const response = await claudeIntegration.sendMessage(analysisPrompt);
+  return parseEnhancementResponse(response.content);
+}
+
+/**
+ * Phase 2: Apply enhancements based on analysis result
+ */
+async function applySolutionEnhancement(
+  solution: any,
+  openResponse: string,
+  analysisResult: any,
+  context: ToolContext
+): Promise<any> {
+  if (analysisResult.approach === 'capability_gap') {
+    throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
+  }
+  
+  if (analysisResult.approach === 'complete_existing_questions') {
+    // Auto-populate existing questions based on user requirements
+    context.logger.info('Auto-populating existing questions based on requirements', {
+      approach: analysisResult.approach,
+      reasoning: analysisResult.reasoning
+    });
+    
+    return autoPopulateQuestions(solution, openResponse, analysisResult, context);
+  }
+  
+  if (analysisResult.approach === 'add_resources') {
+    // Add new resources and their questions
+    context.logger.info('Adding new resources to solution', {
+      approach: analysisResult.approach,
+      suggestedResources: analysisResult.suggestedResources
+    });
+    
+    return addResourcesAndQuestions(solution, openResponse, analysisResult, context);
+  }
+  
+  // Default: no changes needed
+  return solution;
+}
+
+/**
+ * Auto-populate existing questions based on user requirements
+ */
+async function autoPopulateQuestions(
+  solution: any,
+  openResponse: string,
+  analysisResult: any,
+  context: ToolContext
+): Promise<any> {
+  const promptPath = path.join(process.cwd(), 'prompts', 'solution-enhancement.md');
+  const template = fs.readFileSync(promptPath, 'utf8');
+  
+  const enhancementPrompt = template
+    .replace('{current_solution}', JSON.stringify(solution, null, 2))
+    .replace('{detailed_schemas}', JSON.stringify(solution.schemas || {}, null, 2))
+    .replace('{analysis_result}', JSON.stringify(analysisResult, null, 2))
+    .replace('{open_response}', openResponse);
+
+  const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
+  const claudeIntegration = new ClaudeIntegration(apiKey);
+  
+  const response = await claudeIntegration.sendMessage(enhancementPrompt);
+  const enhancementData = parseEnhancementResponse(response.content);
+  
+  if (enhancementData.enhancedSolution) {
+    return enhancementData.enhancedSolution;
+  }
+  
+  return solution;
+}
+
+/**
+ * Add new resources and their questions to the solution
+ */
+async function addResourcesAndQuestions(
+  solution: any,
+  openResponse: string,
+  analysisResult: any,
+  context: ToolContext
+): Promise<any> {
+  // For now, implement basic resource addition
+  // This would need more sophisticated question generation for new resources
+  context.logger.warn('Resource addition not fully implemented yet', {
+    suggestedResources: analysisResult.suggestedResources
+  });
+  
+  // TODO: Implement full resource addition with question generation
+  return solution;
+}
+
+/**
+ * Parse AI response (handles both JSON and text responses)
+ */
+function parseEnhancementResponse(content: string): any {
+  try {
+    // Try to extract JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    // If no JSON found, return error
+    throw new Error('No valid JSON found in AI response');
+  } catch (error) {
+    throw new Error(`Failed to parse AI response: ${error}`);
+  }
+}
+
+/**
+ * Enhance solution with AI analysis of open question
+ */
+async function enhanceSolutionWithOpenAnswer(
+  solution: any,
+  openAnswer: string,
+  context: ToolContext
+): Promise<any> {
+  try {
+    context.logger.info('Starting AI enhancement of solution', {
+      solutionId: solution.solutionId,
+      openAnswer
+    });
+    
+    // Phase 1: Analyze what resources are needed
+    const analysisResult = await analyzeResourceNeeds(solution, openAnswer, context);
+    
+    // Phase 2: Apply enhancements based on analysis
+    const enhancedSolution = await applySolutionEnhancement(solution, openAnswer, analysisResult, context);
+    
+    context.logger.info('AI enhancement completed', {
+      approach: analysisResult.approach,
+      changed: enhancedSolution !== solution
+    });
+    
+    return enhancedSolution;
+  } catch (error) {
+    context.logger.error('Solution enhancement failed', error as Error);
+    throw error;
+  }
+}
+
+/**
  * Answer Question Tool Handler
  */
 export const answerQuestionToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
@@ -475,51 +654,109 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         }
       }
       
+      // Save solution with structured answers first
+      try {
+        saveSolutionFile(solution, args.solutionId, sessionDir);
+        logger.info('Solution updated with structured answers', { 
+          solutionId: args.solutionId,
+          structuredAnswers: Object.keys(args.answers).filter(k => k !== 'open' && k !== 'openResponse')
+        });
+      } catch (error) {
+        throw ErrorHandler.createError(
+          ErrorCategory.STORAGE,
+          ErrorSeverity.HIGH,
+          'Failed to save solution file with structured answers',
+          {
+            operation: 'solution_file_saving',
+            component: 'AnswerQuestionTool',
+            requestId,
+            suggestedActions: [
+              'Check session directory write permissions',
+              'Ensure adequate disk space',
+              'Verify solution JSON is valid'
+            ]
+          }
+        );
+      }
+
       // Handle completion flow (done=true)
       if (args.done) {
         // Save open question answer if provided
         const openAnswer = args.answers.open || args.answers.openResponse;
         if (openAnswer && solution.questions.open) {
           solution.questions.open.answer = openAnswer;
-        }
-        
-        // Save solution and return completion status
-        try {
+          
+          // Save solution with open answer first, before AI enhancement
           saveSolutionFile(solution, args.solutionId, sessionDir);
-          logger.info('Solution completed and saved', { 
+          logger.info('Solution saved with open answer', { 
             solutionId: args.solutionId,
             hasOpenAnswer: !!openAnswer
           });
-        } catch (error) {
-          throw ErrorHandler.createError(
-            ErrorCategory.STORAGE,
-            ErrorSeverity.HIGH,
-            'Failed to save solution file',
-            {
-              operation: 'solution_file_saving',
-              component: 'AnswerQuestionTool',
-              requestId,
-              suggestedActions: [
-                'Check session directory write permissions',
-                'Ensure adequate disk space',
-                'Verify solution JSON is valid'
-              ]
+          
+          // Enhance solution with AI analysis of open question
+          try {
+            logger.info('Starting AI enhancement based on open question', {
+              solutionId: args.solutionId,
+              openAnswer
+            });
+            
+            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, context);
+            
+            // Save enhanced solution
+            saveSolutionFile(solution, args.solutionId, sessionDir);
+            logger.info('Enhanced solution saved', { 
+              solutionId: args.solutionId,
+              hasOpenAnswer: !!openAnswer
+            });
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            // Check if this is a capability gap error (should fail the entire operation)
+            if (errorMessage.includes('Enhancement capability gap') || errorMessage.includes('capability_gap')) {
+              logger.error('Capability gap detected, failing operation', error as Error);
+              throw error; // Re-throw capability gap errors to fail the entire operation
             }
-          );
+            
+            // For other errors (AI service issues, parsing errors), continue with original solution
+            logger.error('AI enhancement failed due to service issue, continuing with original solution', error as Error);
+            // Continue with solution that has the open answer saved
+          }
+        }
+        
+        // Extract all user answers for handoff
+        const userAnswers: Record<string, any> = {};
+        
+        // Extract from all question categories
+        const questionCategories = ['required', 'basic', 'advanced'];
+        for (const category of questionCategories) {
+          const questions = solution.questions[category] || [];
+          for (const question of questions) {
+            if (question.answer !== undefined && question.answer !== null) {
+              userAnswers[question.id] = question.answer;
+            }
+          }
+        }
+        
+        // Include open answer if provided
+        if (openAnswer) {
+          userAnswers.open = openAnswer;
         }
         
         const response = {
-          status: 'ready_for_enhancement',
+          status: 'ready_for_manifest_generation',
           solutionId: args.solutionId,
-          message: openAnswer 
-            ? 'Solution configuration complete with additional requirements. Ready for enhancement processing.'
-            : 'Solution configuration complete. Ready for manifest generation.',
+          message: 'Solution configuration complete. All resources and answers assembled.',
+          solutionData: {
+            primaryResources: solution.resources || [],
+            type: solution.type || 'single',
+            description: solution.description || '',
+            userAnswers: userAnswers,
+            hasOpenRequirements: !!openAnswer
+          },
+          nextAction: 'generateManifests',
+          guidance: `AGENT INSTRUCTIONS: Solution configuration is complete. Now call the generateManifests tool with solutionId "${args.solutionId}" to generate the final Kubernetes manifests. This will process any open requirements and create deployment-ready YAML.`,
           answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
           totalQuestions: allQuestions.length,
-          hasOpenAnswer: !!openAnswer,
-          nextAction: openAnswer
-            ? 'Additional requirements will be processed to enhance the solution'
-            : 'Solution is ready for manifest generation',
           timestamp: new Date().toISOString()
         };
         

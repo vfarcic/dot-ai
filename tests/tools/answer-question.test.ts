@@ -394,9 +394,13 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('ready_for_enhancement');
-      expect(response.hasOpenAnswer).toBe(false);
-      expect(response.nextAction).toContain('manifest generation');
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.guidance).toContain('call the generateManifests tool');
+      expect(response.guidance).toContain(TEST_SOLUTION_ID);
+      expect(response.solutionData).toBeDefined();
+      expect(response.solutionData.hasOpenRequirements).toBe(false);
+      expect(response.solutionData.userAnswers).toBeDefined();
     });
 
     test('should complete with open answer when done=true', async () => {
@@ -412,9 +416,12 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('ready_for_enhancement');
-      expect(response.hasOpenAnswer).toBe(true);
-      expect(response.nextAction).toContain('Additional requirements will be processed to enhance');
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.guidance).toContain('call the generateManifests tool');
+      expect(response.solutionData).toBeDefined();
+      expect(response.solutionData.hasOpenRequirements).toBe(true);
+      expect(response.solutionData.userAnswers.open).toBe('I need high availability with load balancing');
     });
 
     test('should support openResponse as alternative to open', async () => {
@@ -430,7 +437,74 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.hasOpenAnswer).toBe(true);
+      expect(response.solutionData.hasOpenRequirements).toBe(true);
+      expect(response.solutionData.userAnswers.open).toBe('I need Redis caching');
+    });
+
+    test('should assemble all user answers from all question categories', async () => {
+      const context = createMockToolContext();
+      
+      // Set up solution with answers in different categories
+      const solutionWithAnswers = {
+        ...TEST_SOLUTION,
+        questions: {
+          ...TEST_SOLUTION.questions,
+          required: [
+            {
+              id: 'name',
+              question: 'App name?',
+              type: 'text',
+              answer: 'my-app'
+            },
+            {
+              id: 'image',
+              question: 'Container image?',
+              type: 'text',
+              answer: 'nginx:latest'
+            }
+          ],
+          basic: [
+            {
+              id: 'port',
+              question: 'Port?',
+              type: 'number',
+              answer: 8080
+            }
+          ],
+          advanced: [
+            {
+              id: 'replicas',
+              question: 'Replicas?',
+              type: 'number',
+              answer: 3
+            }
+          ]
+        }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithAnswers));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'make it scalable'
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      // Verify all answers are assembled correctly
+      expect(response.solutionData.userAnswers.name).toBe('my-app');
+      expect(response.solutionData.userAnswers.image).toBe('nginx:latest');
+      expect(response.solutionData.userAnswers.port).toBe(8080);
+      expect(response.solutionData.userAnswers.replicas).toBe(3);
+      expect(response.solutionData.userAnswers.open).toBe('make it scalable');
+      
+      // Verify solution metadata is included
+      expect(response.solutionData.primaryResources).toBeDefined();
+      expect(response.solutionData.type).toBe('single');
+      expect(response.solutionData.description).toBeDefined();
     });
   });
 
@@ -618,6 +692,173 @@ describe('Answer Question Tool Handler', () => {
       }, context)).rejects.toMatchObject({
         message: expect.stringContaining('Answer validation failed')
       });
+    });
+  });
+
+  describe('AI Enhancement Functionality', () => {
+    test('should trigger enhancement workflow with done=true and open answer', async () => {
+      const context = createMockToolContext();
+      
+      // Required questions already answered
+      const solutionWithRequiredAnswers = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequiredAnswers));
+
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'Make it scalable and production-ready'
+        },
+        done: true
+      }, context);
+
+      const response = JSON.parse(result.content[0].text);
+      
+      // Should reach completion status
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.solutionData.userAnswers).toHaveProperty('open', 'Make it scalable and production-ready');
+      expect(response.nextAction).toBe('generateManifests');
+      
+      // Should log enhancement attempt (even if it fails due to mock limitations)
+      expect(context.logger.info).toHaveBeenCalledWith(
+        'Starting AI enhancement based on open question',
+        expect.objectContaining({
+          solutionId: TEST_SOLUTION_ID,
+          openAnswer: 'Make it scalable and production-ready'
+        })
+      );
+    });
+
+    test('should process structured answers before AI enhancement attempt', async () => {
+      const context = createMockToolContext();
+      
+      // Track writeFileSync calls to verify order
+      const writeFileCalls: Array<{ path: string; content: string }> = [];
+      mockFs.writeFileSync.mockImplementation((filePath, content) => {
+        writeFileCalls.push({
+          path: filePath as string,
+          content: content as string
+        });
+      });
+
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          replicas: 5, // Structured answer
+          open: 'Make it production-ready' // Open answer
+        },
+        done: true
+      }, context);
+
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.solutionData.userAnswers).toHaveProperty('replicas', 5);
+      expect(response.solutionData.userAnswers).toHaveProperty('open', 'Make it production-ready');
+      
+      // Verify solution was saved at least once (after structured answers)
+      expect(writeFileCalls.length).toBeGreaterThanOrEqual(1);
+      expect(context.logger.info).toHaveBeenCalledWith(
+        'Solution updated with structured answers',
+        expect.objectContaining({
+          solutionId: TEST_SOLUTION_ID,
+          structuredAnswers: ['replicas']
+        })
+      );
+    });
+
+    test('should handle AI enhancement errors gracefully', async () => {
+      const context = createMockToolContext();
+      
+      // Mock prompt file reading to fail (simulating AI service unavailable)
+      mockFs.readFileSync.mockImplementation((filePath: any, options?: any): any => {
+        if (typeof filePath === 'string' && filePath.includes('resource-analysis.md')) {
+          throw new Error('Prompt file not found');
+        }
+        return JSON.stringify(TEST_SOLUTION);
+      });
+
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'Make it production-ready'
+        },
+        done: true
+      }, context);
+
+      const response = JSON.parse(result.content[0].text);
+      
+      // Should continue with original solution despite AI failure
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.solutionData.userAnswers).toHaveProperty('open', 'Make it production-ready');
+      
+      // Should log the AI enhancement failure
+      expect(context.logger.error).toHaveBeenCalledWith(
+        'AI enhancement failed due to service issue, continuing with original solution',
+        expect.any(Error)
+      );
+    });
+
+    test('should save solution with open answer regardless of AI enhancement result', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution file
+      const originalSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(originalSolution));
+
+      // Track what gets written to solution file
+      let savedSolution: any;
+      mockFs.writeFileSync.mockImplementation((filePath, content) => {
+        if (typeof filePath === 'string' && filePath.includes(TEST_SOLUTION_ID) && typeof content === 'string' && content.startsWith('{')) {
+          savedSolution = JSON.parse(content);
+        }
+      });
+
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'Add monitoring capabilities'
+        },
+        done: true
+      }, context);
+
+      // Verify the solution was saved with the open answer
+      expect(savedSolution).toBeDefined();
+      expect(savedSolution.questions.open.answer).toBe('Add monitoring capabilities');
+      
+      // Verify the response indicates completion and contains the open answer
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.solutionData.userAnswers.open).toBe('Add monitoring capabilities');
+    });
+
+    test('should include enhancement workflow guidance in completion response', async () => {
+      const context = createMockToolContext();
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'Make it highly available'
+        },
+        done: true
+      }, context);
+
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.guidance).toContain('AGENT INSTRUCTIONS');
+      expect(response.guidance).toContain('generateManifests tool');
+      expect(response.guidance).toContain(TEST_SOLUTION_ID);
+      expect(response.nextAction).toBe('generateManifests');
     });
   });
 });

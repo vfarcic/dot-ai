@@ -11,6 +11,7 @@ import { recommendToolDefinition } from '../../src/tools/recommend';
 import { canHelpToolDefinition } from '../../src/tools/can-help';
 import { chooseSolutionToolDefinition } from '../../src/tools/choose-solution';
 import { answerQuestionToolDefinition } from '../../src/tools/answer-question';
+import { generateManifestsToolDefinition } from '../../src/tools/generate-manifests';
 
 describe('Tool Registration Integration', () => {
   let registry: ToolRegistry;
@@ -24,13 +25,14 @@ describe('Tool Registration Integration', () => {
       registerAllTools(registry);
 
       const allTools = registry.getAllTools();
-      expect(allTools).toHaveLength(4); // Updated: added chooseSolution and answerQuestion tools
+      expect(allTools).toHaveLength(5); // Updated: added chooseSolution, answerQuestion, and generateManifests tools
 
       const toolNames = allTools.map(t => t.definition.name);
       expect(toolNames).toContain('recommend');
       expect(toolNames).toContain('can_help');
       expect(toolNames).toContain('chooseSolution');
       expect(toolNames).toContain('answerQuestion');
+      expect(toolNames).toContain('generateManifests');
       // REMOVED: enhance_solution tool check - moved to legacy
     });
 
@@ -50,7 +52,7 @@ describe('Tool Registration Integration', () => {
 
       const stats = registry.getStats();
       expect(stats.categories).toEqual({
-        'ai-recommendations': 3,  // recommend + chooseSolution + answerQuestion tools
+        'ai-recommendations': 4,  // recommend + chooseSolution + answerQuestion + generateManifests tools
         'discovery': 1           // can_help tool
       });
       // REMOVED: solution-enhancement category - moved to legacy
@@ -62,7 +64,7 @@ describe('Tool Registration Integration', () => {
       const initializedRegistry = initializeTools();
       
       expect(initializedRegistry).toBeInstanceOf(ToolRegistry);
-      expect(initializedRegistry.getAllTools()).toHaveLength(4); // Updated: added chooseSolution and answerQuestion tools
+      expect(initializedRegistry.getAllTools()).toHaveLength(5); // Updated: added chooseSolution, answerQuestion, and generateManifests tools
     });
 
     test('should return the default registry', () => {
@@ -116,6 +118,19 @@ describe('Tool Registration Integration', () => {
       expect(answerQuestionToolDefinition.tags).toContain('kubernetes');
       expect(answerQuestionToolDefinition.inputSchema.required).toContain('solutionId');
       expect(answerQuestionToolDefinition.inputSchema.required).toContain('answers');
+    });
+
+    test('generateManifests tool should have valid schema structure', () => {
+      expect(generateManifestsToolDefinition.name).toBe('generateManifests');
+      expect(generateManifestsToolDefinition.description).toContain('Generate final Kubernetes manifests');
+      expect(generateManifestsToolDefinition.inputSchema).toBeDefined();
+      expect(generateManifestsToolDefinition.inputSchema.type).toBe('object');
+      expect(generateManifestsToolDefinition.version).toBe('1.0.0');
+      expect(generateManifestsToolDefinition.category).toBe('ai-recommendations');
+      expect(generateManifestsToolDefinition.tags).toContain('kubernetes');
+      expect(generateManifestsToolDefinition.tags).toContain('manifests');
+      expect(generateManifestsToolDefinition.tags).toContain('ai');
+      expect(generateManifestsToolDefinition.inputSchema.required).toContain('solutionId');
     });
   });
 

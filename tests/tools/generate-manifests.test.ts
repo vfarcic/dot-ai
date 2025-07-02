@@ -1,0 +1,398 @@
+/**
+ * Tests for Generate Manifests Tool
+ */
+
+import { generateManifestsToolHandler } from '../../src/tools/generate-manifests';
+import { ToolContext } from '../../src/core/tool-registry';
+import * as fs from 'fs';
+
+// Mock fs module
+jest.mock('fs');
+const mockFs = fs as jest.Mocked<typeof fs>;
+
+// Mock AppAgent for schema retrieval tests
+const mockAppAgent = {
+  initialize: jest.fn(),
+  discovery: {
+    explainResource: jest.fn()
+  }
+};
+
+jest.mock('../../src/core/index', () => ({
+  AppAgent: jest.fn(() => mockAppAgent)
+}));
+
+// Mock Claude integration  
+const mockClaudeIntegration = {
+  sendMessage: jest.fn()
+};
+
+jest.mock('../../src/core/claude', () => ({
+  ClaudeIntegration: jest.fn(() => mockClaudeIntegration)
+}));
+
+// Mock child process for kubectl commands
+jest.mock('child_process', () => ({
+  spawn: jest.fn()
+}));
+
+// Mock yaml library
+jest.mock('js-yaml', () => ({
+  loadAll: jest.fn(),
+  dump: jest.fn()
+}));
+
+const mockLogger = {
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  fatal: jest.fn()
+};
+
+const mockContext: ToolContext = {
+  requestId: 'test-request',
+  logger: mockLogger,
+  appAgent: null
+};
+
+describe('Generate Manifests Tool', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Reset environment
+    delete process.env.APP_AGENT_SESSION_DIR;
+  });
+
+  describe('Input Validation', () => {
+    it('should validate solution ID format', async () => {
+      const args = {
+        solutionId: 'invalid-format'
+      };
+
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Invalid solution ID format');
+    });
+
+    it('should require session directory from environment or args', async () => {
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Session directory not configured');
+    });
+
+    it('should accept session directory from args', async () => {
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        sessionDir: '/nonexistent/path'
+      };
+
+      // Should fail on directory validation, not on session dir config
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Session directory does not exist');
+    });
+
+    it('should accept session directory from environment', async () => {
+      process.env.APP_AGENT_SESSION_DIR = '/nonexistent/path';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      // Should fail on directory validation, not on session dir config
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Session directory does not exist');
+    });
+  });
+
+  describe('Tool Definition Schema', () => {
+    it('should have valid MCP tool definition', () => {
+      const { generateManifestsToolDefinition } = require('../../src/tools/generate-manifests');
+      
+      expect(generateManifestsToolDefinition.name).toBe('generateManifests');
+      expect(generateManifestsToolDefinition.description).toContain('Generate final Kubernetes manifests');
+      expect(generateManifestsToolDefinition.inputSchema.required).toContain('solutionId');
+      expect(generateManifestsToolDefinition.category).toBe('ai-recommendations');
+      expect(generateManifestsToolDefinition.tags).toContain('ai');
+      expect(generateManifestsToolDefinition.tags).toContain('manifests');
+      expect(generateManifestsToolDefinition.version).toBe('1.0.0');
+    });
+
+    it('should have solution ID pattern validation', () => {
+      const { generateManifestsToolDefinition } = require('../../src/tools/generate-manifests');
+      
+      const pattern = generateManifestsToolDefinition.inputSchema.properties.solutionId.pattern;
+      expect(pattern).toBe('^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$');
+    });
+  });
+
+  describe('Logging and Error Reporting', () => {
+    it('should log meaningful error messages', async () => {
+      const args = {
+        solutionId: 'invalid-format'
+      };
+
+      try {
+        await generateManifestsToolHandler(args, mockContext);
+      } catch (error) {
+        // Should throw validation error before logging execution error
+        expect(error).toBeDefined();
+      }
+    });
+
+    it('should handle tool execution context properly', async () => {
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      try {
+        await generateManifestsToolHandler(args, mockContext);
+      } catch (error) {
+        // Should fail with session directory error, not context error
+        expect((error as Error).message).toContain('Session directory not configured');
+      }
+    });
+  });
+
+  describe('Schema Retrieval Functionality', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      
+      // Setup basic file system mocks
+      mockFs.existsSync.mockImplementation((path: any) => {
+        if (typeof path === 'string') {
+          if (path.includes('/test/session')) return true;
+          if (path.includes('sol_2025-01-01T120000_abc123def456.json')) return true;
+          if (path.includes('.yaml')) return true; // Allow yaml file writes
+        }
+        return false;
+      });
+      
+      mockFs.statSync.mockReturnValue({ isDirectory: () => true } as any);
+      mockFs.readdirSync.mockReturnValue([]);
+      mockFs.writeFileSync.mockImplementation(() => {});
+      mockFs.renameSync.mockImplementation(() => {});
+      mockFs.unlinkSync.mockImplementation(() => {});
+      
+      // Mock Claude AI to return valid YAML
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `apiVersion: devopstoolkit.live/v1alpha1
+kind: AppClaim
+metadata:
+  name: test-webapp
+  namespace: default
+spec:
+  namespace: default
+  image: nginx:latest
+  tag: latest
+  port: 80
+  host: test-webapp.local`
+      });
+      
+      // Mock yaml parsing to succeed
+      const yaml = require('js-yaml');
+      yaml.loadAll.mockImplementation(() => {}); // No errors = valid YAML
+      
+      // Mock kubectl dry-run to succeed
+      const { spawn } = require('child_process');
+      const mockSpawn = {
+        stdout: { on: jest.fn((event, cb) => event === 'data' ? cb('') : null) },
+        stderr: { on: jest.fn((event, cb) => event === 'data' ? cb('') : null) },
+        on: jest.fn((event, cb) => event === 'close' ? cb(0) : null) // Exit code 0 = success
+      };
+      spawn.mockReturnValue(mockSpawn);
+    });
+
+    it('should retrieve schemas for all resources in solution', async () => {
+      // Mock solution with AppClaim resource
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        resources: [
+          {
+            kind: 'AppClaim',
+            apiVersion: 'devopstoolkit.live/v1alpha1',
+            group: 'devopstoolkit.live'
+          }
+        ],
+        questions: { required: [], basic: [], advanced: [], open: {} }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
+      
+      // Mock schema explanation
+      const mockExplanation = {
+        kind: 'AppClaim',
+        group: 'devopstoolkit.live',
+        version: 'v1alpha1',
+        fields: [
+          { name: 'apiVersion', type: 'string', description: 'API version', required: true },
+          { name: 'kind', type: 'string', description: 'Resource kind', required: true },
+          { name: 'metadata.name', type: 'string', description: 'Resource name', required: true },
+          { name: 'spec.namespace', type: 'string', description: 'Target namespace', required: false }
+        ]
+      };
+      
+      mockAppAgent.discovery.explainResource.mockResolvedValue(mockExplanation);
+      
+      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      // This should succeed now that we have schema retrieval
+      const result = await generateManifestsToolHandler(args, mockContext);
+      
+      // Verify schema retrieval was attempted
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('AppClaim');
+      
+      // Verify the result contains manifest data
+      expect(result.content).toBeDefined();
+      expect(result.content[0].type).toBe('text');
+      
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.solutionId).toBe('sol_2025-01-01T120000_abc123def456');
+    });
+
+    it('should handle multiple resources in solution', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        resources: [
+          {
+            kind: 'Deployment',
+            apiVersion: 'apps/v1',
+            group: 'apps'
+          },
+          {
+            kind: 'Service', 
+            apiVersion: 'v1',
+            group: ''
+          }
+        ],
+        questions: { required: [], basic: [], advanced: [], open: {} }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
+      
+      // Mock different explanations for each resource
+      mockAppAgent.discovery.explainResource
+        .mockResolvedValueOnce({ kind: 'Deployment', fields: [{ name: 'spec.replicas', type: 'integer' }] })
+        .mockResolvedValueOnce({ kind: 'Service', fields: [{ name: 'spec.ports', type: 'array' }] });
+      
+      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      await generateManifestsToolHandler(args, mockContext);
+      
+      // Should call explainResource for each resource type
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledTimes(2);
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('Deployment');
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('Service');
+    });
+
+    it('should handle schema retrieval errors gracefully', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        resources: [
+          {
+            kind: 'UnknownResource',
+            apiVersion: 'example.com/v1',
+            group: 'example.com'
+          }
+        ],
+        questions: { required: [], basic: [], advanced: [], open: {} }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
+      
+      // Mock schema retrieval failure
+      mockAppAgent.discovery.explainResource.mockRejectedValue(new Error('Resource not found in cluster'));
+      
+      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Failed to retrieve schema for UnknownResource');
+      
+      // Should have attempted schema retrieval
+      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('UnknownResource');
+      
+      // Should have logged the error
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to retrieve schema for resource',
+        expect.any(Error),
+        expect.objectContaining({
+          resource: expect.objectContaining({ kind: 'UnknownResource' })
+        })
+      );
+    });
+
+    it('should handle solutions with no resources', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        resources: [], // No resources
+        questions: { required: [], basic: [], advanced: [], open: {} }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
+      
+      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      const result = await generateManifestsToolHandler(args, mockContext);
+      
+      // Should not attempt schema retrieval
+      expect(mockAppAgent.discovery.explainResource).not.toHaveBeenCalled();
+      
+      // Should log warning about no resources
+      expect(mockLogger.warn).toHaveBeenCalledWith('No resources found in solution for schema retrieval');
+      
+      // Should still complete successfully
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+    });
+
+    it('should fail fast when AppAgent initialization fails', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        resources: [
+          {
+            kind: 'AppClaim',
+            apiVersion: 'devopstoolkit.live/v1alpha1',
+            group: 'devopstoolkit.live'
+          }
+        ],
+        questions: { required: [], basic: [], advanced: [], open: {} }
+      };
+      
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
+      
+      // Mock AppAgent initialization failure
+      mockAppAgent.initialize.mockRejectedValue(new Error('Cluster connection failed'));
+      
+      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      await expect(generateManifestsToolHandler(args, mockContext))
+        .rejects.toThrow('Failed to retrieve resource schemas');
+      
+      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith('Schema retrieval failed', expect.any(Error));
+    });
+  });
+});
