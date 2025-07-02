@@ -295,11 +295,14 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
         : 'Call answerQuestion with solutionId and answers to configure the solution';
       
       const response = {
-        status: 'solution_selected',
+        status: 'stage_questions',
         solutionId: solution.solutionId,
-        questions: solution.questions,
-        nextAction,
-        guidance: '🛑 NEVER auto-fill answers - Present these questions to the user and wait for their responses before calling answerQuestion with their provided values.',
+        currentStage: 'required',
+        questions: solution.questions.required || [],
+        nextStage: 'basic',
+        message: 'Please provide the required configuration for your application.',
+        nextAction: 'answerQuestion',
+        guidance: 'Answer questions in this stage or skip to proceed to the next stage. Do NOT try to generate manifests yet.',
         timestamp: new Date().toISOString()
       };
       

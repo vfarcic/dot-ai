@@ -175,7 +175,10 @@ describe('Choose Solution Tool', () => {
         const result = await chooseSolutionToolHandler(args, mockContext);
         expect(result.content[0].type).toBe('text');
         const response = JSON.parse(result.content[0].text);
-        expect(response.status).toBe('solution_selected');
+        expect(response.status).toBe('stage_questions');
+        expect(response.currentStage).toBe('required');
+        expect(response.nextStage).toBe('basic');
+        expect(response.nextAction).toBe('answerQuestion');
         expect(response.solutionId).toBe(solutionId);
       });
 
@@ -226,7 +229,10 @@ describe('Choose Solution Tool', () => {
       const response = JSON.parse(result.content[0].text);
       
       expect(response.error).toBeFalsy();
-      expect(response.status).toBe('solution_selected');
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.nextAction).toBe('answerQuestion');
     });
   });
 
@@ -283,7 +289,10 @@ describe('Choose Solution Tool', () => {
       const response = JSON.parse(result.content[0].text);
       
       expect(response.error).toBeFalsy();
-      expect(response.status).toBe('solution_selected');
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.nextAction).toBe('answerQuestion');
     });
   });
 
@@ -389,11 +398,14 @@ describe('Choose Solution Tool', () => {
       const result = await chooseSolutionToolHandler(args, mockContext);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('solution_selected');
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.nextAction).toBe('answerQuestion');
       expect(response.solutionId).toBe(solutionId);
-      expect(response.questions).toEqual(solutionData.questions);
+      expect(response.questions).toEqual(solutionData.questions.required);
       expect(response.nextAction).toContain('answerQuestion');
-      expect(response.guidance).toContain('NEVER auto-fill answers');
+      expect(response.guidance).toContain('Answer questions in this stage');
       expect(response.timestamp).toBeDefined();
     });
 
@@ -420,12 +432,12 @@ describe('Choose Solution Tool', () => {
       const result = await chooseSolutionToolHandler(args, mockContext);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('solution_selected');
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.nextAction).toBe('answerQuestion');
       expect(response.solutionId).toBe(solutionId);
-      expect(response.questions.required).toEqual([]);
-      expect(response.questions.basic).toEqual([]);
-      expect(response.questions.advanced).toEqual([]);
-      expect(response.questions.open).toEqual({});
+      expect(response.questions).toEqual([]);
     });
 
     test('should log appropriate debug and info messages', async () => {

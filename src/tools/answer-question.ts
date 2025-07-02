@@ -21,53 +21,61 @@ export const answerQuestionToolDefinition: ToolDefinition = {
         description: 'The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)',
         pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
       },
+      stage: {
+        type: 'string',
+        description: 'The configuration stage being addressed',
+        enum: ['required', 'basic', 'advanced', 'open']
+      },
       answers: {
         type: 'object',
-        description: 'User answers to configuration questions',
-      },
-      done: {
-        type: 'boolean',
-        description: 'Set to true ONLY when user explicitly signals completion (e.g., "proceed", "ready to generate", "that\'s all my requirements"). Do NOT set to true based on technical details alone.'
+        description: 'User answers to configuration questions for the specified stage',
       }
     },
-    required: ['solutionId', 'answers']
+    required: ['solutionId', 'stage', 'answers']
   },
   outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: `Process user answers to solution questions using GROUP-BY-GROUP flow. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.
+  instructions: `Process user answers using STAGE-BASED workflow. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.
 
 🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
 • NEVER auto-fill answers with assumed values or defaults
 • NEVER answer questions on behalf of the user
 • ALWAYS present questions to the user and wait for their responses
 • ONLY call this tool with answers the user explicitly provided
-• Present questions one group at a time, wait for user input before proceeding
+• Use explicit stage parameter to indicate which configuration stage is being addressed
+• ANTI-CASCADE: When user says "skip", only skip the CURRENT stage - never skip multiple stages at once
 
 USAGE:
+• Set stage parameter: "required", "basic", "advanced", or "open"
 • Structure answers by question ID: {"port": 8080, "namespace": "default"}
-• Use "open" field for additional requirements: {"open": "need SSL certificates"}  
-• Set done=true only when user explicitly says "proceed" or "ready"
-• If open question exists, it MUST be answered before completion (use "N/A" if no requirements)
+• For open stage use "open" field: {"open": "need SSL certificates"} or {"open": "N/A"}
+• Stage parameter enforces proper workflow progression
 
-GROUP-BY-GROUP FLOW:
-• Tool now returns questions ONE GROUP AT A TIME to enforce proper progression
-• Response status "group_questions" = Present current group questions to user
-• Check "currentGroup" field: "required", "basic", "advanced", or "open"
-• Required questions MUST be completed before basic questions are shown
-• Basic and advanced groups are optional - user can skip
-• Progress through: required → basic → advanced → open → complete
+STAGE-BASED FLOW:
+• Tool validates stage transitions and returns single-stage questions only
+• required → basic → advanced → open (triggers manifest generation)
+• Response status "stage_questions" = Present current stage questions to user
+• Response status "stage_error" = Invalid stage transition or validation error
+• Response status "ready_for_manifest_generation" = Completion (open stage done)
 
 AGENT WORKFLOW ENFORCEMENT:
-• Present questions from current group only (don't overwhelm user)
+• Present questions from current stage only (single stage at a time)
 • ASK user for each answer - DO NOT assume or auto-fill values
-• For optional groups (basic/advanced): Ask user if they want to configure or skip
-• Guide user through one group at a time for better UX
-• Use progress field to show completion status to user
+• For optional stages (basic/advanced): Ask user if they want to configure or skip
+• Use explicit stage parameter to indicate user intent (skip = empty answers)
 • WAIT for user responses before calling answerQuestion tool
+• Completion happens when open stage is completed
+• CRITICAL ANTI-CASCADE: Each "skip" applies to ONE stage only - still present each remaining stage individually
 
-The server validates completeness and will return errors for invalid patterns.`
+STAGE TRANSITIONS:
+• Can skip basic or advanced stages by providing empty answers: {"stage": "basic", "answers": {}}
+• Cannot skip required stage - must provide at least one answer
+• Open stage completion triggers manifest generation automatically
+• IMPORTANT: Each stage skip requires separate user interaction - never cascade multiple skips
+
+The server validates stage transitions and will return errors for invalid workflow.`
 };
 
 // CLI Tool Definition - sessionDir required as parameter
@@ -87,53 +95,61 @@ export const answerQuestionCLIDefinition: ToolDefinition = {
         description: 'Session directory containing solution files (required)',
         minLength: 1
       },
+      stage: {
+        type: 'string',
+        description: 'The configuration stage being addressed',
+        enum: ['required', 'basic', 'advanced', 'open']
+      },
       answers: {
         type: 'object',
-        description: 'User answers to configuration questions',
-      },
-      done: {
-        type: 'boolean',
-        description: 'Set to true ONLY when user explicitly signals completion (e.g., "proceed", "ready to generate", "that\'s all my requirements"). Do NOT set to true based on technical details alone.'
+        description: 'User answers to configuration questions for the specified stage',
       }
     },
-    required: ['solutionId', 'sessionDir', 'answers']
+    required: ['solutionId', 'sessionDir', 'stage', 'answers']
   },
   outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: `Process user answers to solution questions using GROUP-BY-GROUP flow. Both solutionId and sessionDir are required parameters.
+  instructions: `Process user answers using STAGE-BASED workflow. Both solutionId and sessionDir are required parameters.
 
 🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
 • NEVER auto-fill answers with assumed values or defaults
 • NEVER answer questions on behalf of the user
 • ALWAYS present questions to the user and wait for their responses
 • ONLY call this tool with answers the user explicitly provided
-• Present questions one group at a time, wait for user input before proceeding
+• Use explicit stage parameter to indicate which configuration stage is being addressed
+• ANTI-CASCADE: When user says "skip", only skip the CURRENT stage - never skip multiple stages at once
 
 USAGE:
+• Set stage parameter: "required", "basic", "advanced", or "open"
 • Structure answers by question ID: {"port": 8080, "namespace": "default"}
-• Use "open" field for additional requirements: {"open": "need SSL certificates"}  
-• Set done=true only when user explicitly says "proceed" or "ready"
-• If open question exists, it MUST be answered before completion (use "N/A" if no requirements)
+• For open stage use "open" field: {"open": "need SSL certificates"} or {"open": "N/A"}
+• Stage parameter enforces proper workflow progression
 
-GROUP-BY-GROUP FLOW:
-• Tool now returns questions ONE GROUP AT A TIME to enforce proper progression
-• Response status "group_questions" = Present current group questions to user
-• Check "currentGroup" field: "required", "basic", "advanced", or "open"
-• Required questions MUST be completed before basic questions are shown
-• Basic and advanced groups are optional - user can skip
-• Progress through: required → basic → advanced → open → complete
+STAGE-BASED FLOW:
+• Tool validates stage transitions and returns single-stage questions only
+• required → basic → advanced → open (triggers manifest generation)
+• Response status "stage_questions" = Present current stage questions to user
+• Response status "stage_error" = Invalid stage transition or validation error
+• Response status "ready_for_manifest_generation" = Completion (open stage done)
 
 AGENT WORKFLOW ENFORCEMENT:
-• Present questions from current group only (don't overwhelm user)
+• Present questions from current stage only (single stage at a time)
 • ASK user for each answer - DO NOT assume or auto-fill values
-• For optional groups (basic/advanced): Ask user if they want to configure or skip
-• Guide user through one group at a time for better UX
-• Use progress field to show completion status to user
+• For optional stages (basic/advanced): Ask user if they want to configure or skip
+• Use explicit stage parameter to indicate user intent (skip = empty answers)
 • WAIT for user responses before calling answerQuestion tool
+• Completion happens when open stage is completed
+• CRITICAL ANTI-CASCADE: Each "skip" applies to ONE stage only - still present each remaining stage individually
 
-The server validates completeness and will return errors for invalid patterns.`
+STAGE TRANSITIONS:
+• Can skip basic or advanced stages by providing empty answers: {"stage": "basic", "answers": {}}
+• Cannot skip required stage - must provide at least one answer
+• Open stage completion triggers manifest generation automatically
+• IMPORTANT: Each stage skip requires separate user interaction - never cascade multiple skips
+
+The server validates stage transitions and will return errors for invalid workflow.`
 };
 
 /**
@@ -290,6 +306,177 @@ function validateAnswer(answer: any, question: any): string | null {
 }
 
 /**
+ * Get anti-cascade agent instructions for stage responses
+ */
+function getAgentInstructions(stage: Stage): string {
+  switch (stage) {
+    case 'required':
+      return 'CRITICAL: Present these required questions to the user. All must be answered before proceeding.';
+    case 'basic':
+      return 'CRITICAL: Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.';
+    case 'advanced':
+      return 'CRITICAL: Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.';
+    case 'open':
+      return 'CRITICAL: This is the final configuration stage. Present these questions to the user. Use "N/A" only if user explicitly states no additional requirements.';
+    default:
+      return 'Present questions to the user and wait for their response.';
+  }
+}
+
+/**
+ * Stage validation and progression logic
+ */
+type Stage = 'required' | 'basic' | 'advanced' | 'open';
+
+interface StageState {
+  currentStage: Stage;
+  nextStage: Stage | null;
+  hasQuestions: boolean;
+  isComplete: boolean;
+}
+
+/**
+ * Determine current stage based on solution state
+ */
+function getCurrentStage(solution: any): StageState {
+  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
+  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
+  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
+  const hasOpen = !!solution.questions.open;
+
+  // Check completion status
+  const requiredComplete = !hasRequired || solution.questions.required.every((q: any) => q.answer !== undefined);
+  const basicComplete = !hasBasic || solution.questions.basic.every((q: any) => q.answer !== undefined);
+  const advancedComplete = !hasAdvanced || solution.questions.advanced.every((q: any) => q.answer !== undefined);
+  const openComplete = !hasOpen || solution.questions.open.answer !== undefined;
+
+  // Determine current stage
+  if (!requiredComplete) {
+    return {
+      currentStage: 'required',
+      nextStage: hasBasic ? 'basic' : 'open',
+      hasQuestions: true,
+      isComplete: false
+    };
+  }
+  
+  if (!basicComplete) {
+    return {
+      currentStage: 'basic',
+      nextStage: hasAdvanced ? 'advanced' : 'open',
+      hasQuestions: true,
+      isComplete: false
+    };
+  }
+  
+  if (!advancedComplete) {
+    return {
+      currentStage: 'advanced', 
+      nextStage: 'open',
+      hasQuestions: true,
+      isComplete: false
+    };
+  }
+  
+  if (!openComplete) {
+    return {
+      currentStage: 'open',
+      nextStage: null,
+      hasQuestions: hasOpen,
+      isComplete: false
+    };
+  }
+
+  // All stages complete
+  return {
+    currentStage: 'open',
+    nextStage: null,
+    hasQuestions: false,
+    isComplete: true
+  };
+}
+
+/**
+ * Validate stage transition is allowed
+ */
+function validateStageTransition(currentStage: Stage, requestedStage: Stage): { valid: boolean; error?: string } {
+  const validTransitions: Record<Stage, Stage[]> = {
+    'required': ['basic', 'open'],
+    'basic': ['advanced', 'open'],
+    'advanced': ['open'],
+    'open': []
+  };
+
+  if (currentStage === requestedStage) {
+    return { valid: true }; // Same stage is always valid
+  }
+
+  const allowedNext = validTransitions[currentStage] || [];
+  if (!allowedNext.includes(requestedStage)) {
+    return {
+      valid: false,
+      error: `Cannot transition from '${currentStage}' to '${requestedStage}'. Valid options: ${allowedNext.join(', ')}`
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Get questions for a specific stage
+ */
+function getQuestionsForStage(solution: any, stage: Stage): any[] {
+  switch (stage) {
+    case 'required':
+      return solution.questions.required || [];
+    case 'basic':
+      return solution.questions.basic || [];
+    case 'advanced':
+      return solution.questions.advanced || [];
+    case 'open':
+      return solution.questions.open ? [solution.questions.open] : [];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Get stage-specific message
+ */
+function getStageMessage(stage: Stage): string {
+  switch (stage) {
+    case 'required':
+      return 'Please answer the required configuration questions.';
+    case 'basic':
+      return 'Would you like to configure basic settings?';
+    case 'advanced':
+      return 'Would you like to configure advanced features?';
+    case 'open':
+      return 'Any additional requirements or constraints?';
+    default:
+      return 'Configuration stage unknown.';
+  }
+}
+
+/**
+ * Get stage-specific guidance
+ */
+function getStageGuidance(stage: Stage): string {
+  switch (stage) {
+    case 'required':
+      return 'All required questions must be answered to proceed.';
+    case 'basic':
+      return 'Answer questions in this stage or skip to proceed to the advanced stage. Do NOT try to generate manifests yet.';
+    case 'advanced':
+      return 'Answer questions in this stage or skip to proceed to the open stage. Do NOT try to generate manifests yet.';
+    case 'open':
+      return 'Use "N/A" if you have no additional requirements. Complete this stage before generating manifests. IMPORTANT: This is the final configuration stage - do not skip.';
+    default:
+      return 'Please provide answers for this stage.';
+  }
+}
+
+/**
  * Get session directory from environment or arguments
  */
 function getSessionDirectory(args: any, context: ToolContext): string {
@@ -322,31 +509,6 @@ function getSessionDirectory(args: any, context: ToolContext): string {
   return envSessionDir;
 }
 
-/**
- * Check if this is the first call (no existing answers)
- */
-function isFirstCall(solution: any): boolean {
-  const allQuestions = [
-    ...(solution.questions.required || []),
-    ...(solution.questions.basic || []),
-    ...(solution.questions.advanced || [])
-  ];
-  
-  return !allQuestions.some(q => q.answer !== undefined);
-}
-
-/**
- * Get remaining unanswered questions
- */
-function getRemainingQuestions(solution: any): any[] {
-  const allQuestions = [
-    ...(solution.questions.required || []),
-    ...(solution.questions.basic || []),
-    ...(solution.questions.advanced || [])
-  ];
-  
-  return allQuestions.filter(q => q.answer === undefined);
-}
 
 /**
  * Phase 1: Analyze what resources are needed for the user request
@@ -526,169 +688,6 @@ async function enhanceSolutionWithOpenAnswer(
   }
 }
 
-/**
- * Get current question group state and determine next group to present
- */
-function getQuestionGroupState(solution: any): {
-  hasRequired: boolean;
-  hasBasic: boolean;
-  hasAdvanced: boolean;
-  hasOpen: boolean;
-  requiredComplete: boolean;
-  basicComplete: boolean;
-  advancedComplete: boolean;
-  openComplete: boolean;
-  currentGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
-  nextGroup?: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
-  completedGroups: string[];
-  progress: string;
-} {
-  // Check what groups exist
-  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
-  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
-  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
-  const hasOpen = !!solution.questions.open;
-
-  // Check completion status
-  const requiredComplete = !hasRequired || solution.questions.required.every((q: any) => q.answer !== undefined);
-  const basicComplete = !hasBasic || solution.questions.basic.every((q: any) => q.answer !== undefined);
-  const advancedComplete = !hasAdvanced || solution.questions.advanced.every((q: any) => q.answer !== undefined);
-  const openComplete = !hasOpen || solution.questions.open.answer !== undefined;
-
-  // Determine current group based on what's incomplete
-  let currentGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
-  let nextGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete' | undefined;
-  
-  if (!requiredComplete) {
-    currentGroup = 'required';
-    nextGroup = hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : (hasOpen ? 'open' : 'complete'));
-  } else if (!basicComplete) {
-    currentGroup = 'basic';
-    nextGroup = hasAdvanced ? 'advanced' : (hasOpen ? 'open' : 'complete');
-  } else if (!advancedComplete) {
-    currentGroup = 'advanced';
-    nextGroup = hasOpen ? 'open' : 'complete';
-  } else if (!openComplete) {
-    currentGroup = 'open';
-    nextGroup = 'complete';
-  } else {
-    currentGroup = 'complete';
-  }
-
-  // Build completed groups list
-  const completedGroups: string[] = [];
-  if (requiredComplete && hasRequired) completedGroups.push('required');
-  if (basicComplete && hasBasic) completedGroups.push('basic');
-  if (advancedComplete && hasAdvanced) completedGroups.push('advanced');
-  if (openComplete && hasOpen) completedGroups.push('open');
-
-  // Calculate progress
-  const totalGroups = [hasRequired, hasBasic, hasAdvanced, hasOpen].filter(Boolean).length;
-  const progress = `${completedGroups.length} of ${totalGroups} groups complete`;
-
-  return {
-    hasRequired,
-    hasBasic,
-    hasAdvanced,
-    hasOpen,
-    requiredComplete,
-    basicComplete,
-    advancedComplete,
-    openComplete,
-    currentGroup,
-    nextGroup,
-    completedGroups,
-    progress
-  };
-}
-
-/**
- * Validate staged completion - ensures progression through all question groups
- */
-function validateStagedCompletion(solution: any, answers: any): {
-  hasError: boolean;
-  error?: string;
-  message?: string;
-  guidance?: string;
-  currentStage?: string;
-  nextStage?: string;
-} {
-  // Check what groups have questions
-  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
-  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
-  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
-  const hasOpen = solution.questions.open;
-
-  // Check what groups have been addressed
-  const requiredAnswered = hasRequired ? solution.questions.required.some((q: any) => q.answer !== undefined) : true;
-  const basicAnswered = hasBasic ? solution.questions.basic.some((q: any) => q.answer !== undefined) : true;
-  const advancedAnswered = hasAdvanced ? solution.questions.advanced.some((q: any) => q.answer !== undefined) : true;
-  const openAnswered = hasOpen ? (answers.open || answers.openResponse) : true;
-
-  // Check if trying to skip groups by answering multiple at once without progression
-  const answerIds = Object.keys(answers).filter(k => k !== 'open' && k !== 'openResponse');
-  const requiredIds = (solution.questions.required || []).map((q: any) => q.id);
-  const basicIds = (solution.questions.basic || []).map((q: any) => q.id);
-  const advancedIds = (solution.questions.advanced || []).map((q: any) => q.id);
-
-  const answeringRequired = answerIds.some(id => requiredIds.includes(id));
-  const answeringBasic = answerIds.some(id => basicIds.includes(id));
-  const answeringAdvanced = answerIds.some(id => advancedIds.includes(id));
-
-  // Enforce staged progression during active answering
-  if (!requiredAnswered && (answeringBasic || answeringAdvanced)) {
-    return {
-      hasError: true,
-      error: 'Must complete required questions before proceeding to basic or advanced questions.',
-      message: 'Required questions must be addressed first.',
-      guidance: 'Answer at least one required question, then proceed to basic questions, or set done=false to continue configuration.',
-      currentStage: 'required',
-      nextStage: 'basic'
-    };
-  }
-
-  if (hasBasic && !basicAnswered && answeringAdvanced) {
-    return {
-      hasError: true,
-      error: 'Must address basic questions before proceeding to advanced questions.',
-      message: 'Basic questions must be considered before advanced questions.',
-      guidance: 'Answer at least one basic question or explicitly skip basic questions by setting done=false and proceeding.',
-      currentStage: 'basic',
-      nextStage: 'advanced'
-    };
-  }
-
-  // Check completion requirements - only required questions are mandatory
-  if (hasRequired && !requiredAnswered) {
-    return {
-      hasError: true,
-      error: 'Required questions must be addressed before completion.',
-      message: 'Cannot complete without addressing required questions.',
-      guidance: 'Answer at least one required question or set done=false to continue configuration.',
-      currentStage: 'required',
-      nextStage: hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : 'open')
-    };
-  }
-
-  // Basic and advanced questions are optional for completion
-  // But we enforce that if you provide an open answer without addressing optional groups,
-  // it should be intentional (either N/A for defaults, or a real requirement that explains the skip)
-  // This maintains the original flexibility while encouraging consideration of all options
-
-  if (hasOpen && !openAnswered) {
-    return {
-      hasError: true,
-      error: 'Open question must be answered before completion. Use "N/A" if no additional requirements.',
-      message: 'Cannot complete without answering the open question.',
-      guidance: 'Provide an answer to the open question, use "N/A" if no additional requirements, or set done=false to continue configuration.',
-      currentStage: 'open',
-      nextStage: 'completion'
-    };
-  }
-
-  // All validations passed
-  return { hasError: false };
-}
 
 /**
  * Answer Question Tool Handler
@@ -701,8 +700,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
       logger.debug('Handling answerQuestion request', { 
         requestId, 
         solutionId: args?.solutionId,
-        answerCount: Object.keys(args?.answers || {}).length,
-        done: args?.done
+        stage: args?.stage,
+        answerCount: Object.keys(args?.answers || {}).length
       });
 
       // Determine interface type and validate accordingly
@@ -799,8 +798,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         solution = loadSolutionFile(args.solutionId, sessionDir);
         logger.debug('Solution file loaded successfully', { 
           solutionId: args.solutionId,
-          hasQuestions: !!solution.questions,
-          isFirstCall: isFirstCall(solution)
+          hasQuestions: !!solution.questions
         });
       } catch (error) {
         throw ErrorHandler.createError(
@@ -821,23 +819,52 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         );
       }
       
-      // Validate answers against question schemas
+      // Stage-based validation and workflow
+      const stageState = getCurrentStage(solution);
+      
+      // Validate stage transition
+      const transitionResult = validateStageTransition(stageState.currentStage, args.stage as Stage);
+      if (!transitionResult.valid) {
+        const response = {
+          status: 'stage_error',
+          solutionId: args.solutionId,
+          error: 'invalid_transition',
+          expected: stageState.currentStage,
+          received: args.stage,
+          message: transitionResult.error,
+          nextStage: stageState.nextStage,
+          timestamp: new Date().toISOString()
+        };
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(response, null, 2)
+            }
+          ]
+        };
+      }
+
+      // Validate answers against questions for the requested stage
+      const stageQuestions = getQuestionsForStage(solution, args.stage as Stage);
       const validationErrors: string[] = [];
-      const allQuestions = [
-        ...(solution.questions.required || []),
-        ...(solution.questions.basic || []),
-        ...(solution.questions.advanced || [])
-      ];
       
       for (const [questionId, answer] of Object.entries(args.answers)) {
-        // Skip open question validation (handled separately)
-        if (questionId === 'open' || questionId === 'openResponse') {
+        // For open stage, handle special case since open question doesn't have 'id' property
+        if (args.stage === 'open') {
+          // Only allow 'open' as the question ID for open stage
+          if (questionId !== 'open') {
+            validationErrors.push(`Unknown question ID '${questionId}' for stage '${args.stage}'. Open stage only accepts 'open' as question ID.`);
+            continue;
+          }
+          // Skip further validation for open stage as it doesn't follow Question interface
           continue;
         }
         
-        const question = allQuestions.find(q => q.id === questionId);
+        const question = stageQuestions.find(q => q.id === questionId);
         if (!question) {
-          validationErrors.push(`Unknown question ID: ${questionId}`);
+          validationErrors.push(`Unknown question ID '${questionId}' for stage '${args.stage}'`);
           continue;
         }
         
@@ -848,50 +875,65 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
       }
       
       if (validationErrors.length > 0) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          'Answer validation failed',
-          {
-            operation: 'answer_validation',
-            component: 'AnswerQuestionTool',
-            requestId,
-            input: { validationErrors },
-            suggestedActions: [
-              'Fix the validation errors listed above',
-              'Check question requirements and constraints',
-              'Ensure answer types match question types (string, number, boolean)',
-              'Verify required questions have non-empty values'
-            ]
-          }
-        );
+        const response = {
+          status: 'stage_error',
+          solutionId: args.solutionId,
+          error: 'validation_failed',
+          validationErrors,
+          currentStage: args.stage,
+          message: 'Answer validation failed for stage questions',
+          timestamp: new Date().toISOString()
+        };
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(response, null, 2)
+            }
+          ]
+        };
       }
       
-      // Update solution with answers
-      for (const [questionId, answer] of Object.entries(args.answers)) {
-        // Skip open question (handled separately)
-        if (questionId === 'open' || questionId === 'openResponse') {
-          continue;
+      // Update solution with answers for the current stage
+      if (args.stage === 'open') {
+        // Handle open question
+        const openAnswer = args.answers.open;
+        if (openAnswer && solution.questions.open) {
+          solution.questions.open.answer = openAnswer;
+        }
+      } else {
+        // Handle structured questions
+        for (const [questionId, answer] of Object.entries(args.answers)) {
+          const question = stageQuestions.find(q => q.id === questionId);
+          if (question) {
+            question.answer = answer;
+          }
         }
         
-        const question = allQuestions.find(q => q.id === questionId);
-        if (question) {
-          question.answer = answer;
+        // If empty answers provided for skippable stage, mark all questions as skipped
+        if (Object.keys(args.answers).length === 0 && (args.stage === 'basic' || args.stage === 'advanced')) {
+          for (const question of stageQuestions) {
+            if (question.answer === undefined) {
+              question.answer = null; // Mark as explicitly skipped
+            }
+          }
         }
       }
       
-      // Save solution with structured answers first
+      // Save solution with answers
       try {
         saveSolutionFile(solution, args.solutionId, sessionDir);
-        logger.info('Solution updated with structured answers', { 
+        logger.info('Solution updated with stage answers', { 
           solutionId: args.solutionId,
-          structuredAnswers: Object.keys(args.answers).filter(k => k !== 'open' && k !== 'openResponse')
+          stage: args.stage,
+          answerCount: Object.keys(args.answers).length
         });
       } catch (error) {
         throw ErrorHandler.createError(
           ErrorCategory.STORAGE,
           ErrorSeverity.HIGH,
-          'Failed to save solution file with structured answers',
+          'Failed to save solution file',
           {
             operation: 'solution_file_saving',
             component: 'AnswerQuestionTool',
@@ -905,60 +947,12 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         );
       }
 
-      // Handle completion flow (done=true)
-      if (args.done) {
-        // Staged validation: ensure progression through all question groups
-        const stagedValidationResult = validateStagedCompletion(solution, args.answers);
-        if (stagedValidationResult.hasError) {
-          const remainingQuestions = getRemainingQuestions(solution);
-          const response = {
-            status: 'validation_error',
-            solutionId: args.solutionId,
-            error: stagedValidationResult.error,
-            questions: {
-              required: remainingQuestions.filter(q => 
-                solution.questions.required?.some((rq: any) => rq.id === q.id)
-              ),
-              basic: remainingQuestions.filter(q => 
-                solution.questions.basic?.some((bq: any) => bq.id === q.id)
-              ),
-              advanced: remainingQuestions.filter(q => 
-                solution.questions.advanced?.some((aq: any) => aq.id === q.id)
-              ),
-              open: solution.questions.open
-            },
-            message: stagedValidationResult.message,
-            guidance: stagedValidationResult.guidance,
-            currentStage: stagedValidationResult.currentStage,
-            nextStage: stagedValidationResult.nextStage,
-            answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
-            totalQuestions: allQuestions.length,
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(response, null, 2)
-              }
-            ]
-          };
-        }
+      // Handle open stage completion (triggers manifest generation)
+      if (args.stage === 'open') {
+        const openAnswer = args.answers.open;
         
-        // Save open question answer if provided
-        const openAnswer = args.answers.open || args.answers.openResponse;
-        if (openAnswer && solution.questions.open) {
-          solution.questions.open.answer = openAnswer;
-          
-          // Save solution with open answer first, before AI enhancement
-          saveSolutionFile(solution, args.solutionId, sessionDir);
-          logger.info('Solution saved with open answer', { 
-            solutionId: args.solutionId,
-            hasOpenAnswer: !!openAnswer
-          });
-          
-          // Enhance solution with AI analysis of open question
+        // Enhance solution with AI analysis if open answer provided
+        if (openAnswer && openAnswer !== 'N/A') {
           try {
             logger.info('Starting AI enhancement based on open question', {
               solutionId: args.solutionId,
@@ -984,7 +978,6 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
             
             // For other errors (AI service issues, parsing errors), continue with original solution
             logger.error('AI enhancement failed due to service issue, continuing with original solution', error as Error);
-            // Continue with solution that has the open answer saved
           }
         }
         
@@ -1010,18 +1003,17 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         const response = {
           status: 'ready_for_manifest_generation',
           solutionId: args.solutionId,
-          message: `${solution.primaryResources?.join(' + ') || 'Application'} configuration complete. Ready to generate deployment manifests.`,
+          message: `Configuration complete. Ready to generate deployment manifests.`,
           solutionData: {
             primaryResources: solution.resources || [],
             type: solution.type || 'single',
             description: solution.description || '',
             userAnswers: userAnswers,
-            hasOpenRequirements: !!openAnswer
+            hasOpenRequirements: !!(openAnswer && openAnswer !== 'N/A')
           },
           nextAction: 'generateManifests',
           guidance: 'Configuration complete. Ready to generate Kubernetes manifests for deployment.',
-          answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
-          totalQuestions: allQuestions.length,
+          agentInstructions: 'All configuration stages are now complete. You may proceed to generate Kubernetes manifests using the generateManifests tool.',
           timestamp: new Date().toISOString()
         };
         
@@ -1035,108 +1027,22 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         };
       }
       
-      // Regular flow: save answers and return remaining questions
-      try {
-        saveSolutionFile(solution, args.solutionId, sessionDir);
-        logger.debug('Solution updated with new answers', { 
-          solutionId: args.solutionId,
-          answeredCount: Object.keys(args.answers).length
-        });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.STORAGE,
-          ErrorSeverity.HIGH,
-          'Failed to save solution file',
-          {
-            operation: 'solution_file_saving',
-            component: 'AnswerQuestionTool',
-            requestId,
-            suggestedActions: [
-              'Check session directory write permissions',
-              'Ensure adequate disk space',
-              'Verify solution JSON is valid'
-            ]
-          }
-        );
-      }
+      // Regular stage flow: determine next stage and return questions
+      const newStageState = getCurrentStage(solution);
       
-      // Use group-by-group flow logic
-      const groupState = getQuestionGroupState(solution);
-      
-      // Return group-based response
-      if (groupState.currentGroup === 'complete') {
-        // All groups complete - this shouldn't happen here as completion is handled earlier
-        const response = {
-          status: 'ready_for_manifest_generation',
-          solutionId: args.solutionId,
-          message: 'All configuration complete. Ready to generate manifests.',
-          timestamp: new Date().toISOString()
-        };
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
-        };
-      }
-      
-      // Return current group questions
-      let currentQuestions: any[];
-      let groupName: string;
-      let message: string;
-      let nextAction: string;
-      
-      switch (groupState.currentGroup) {
-        case 'required':
-          currentQuestions = solution.questions.required || [];
-          groupName = 'Required';
-          message = 'Please answer the required configuration questions.';
-          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}` : 'complete';
-          break;
-        case 'basic':
-          currentQuestions = solution.questions.basic || [];
-          groupName = 'Basic';
-          message = 'Would you like to configure basic settings (port, hostname)?';
-          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}_or_skip` : 'complete_or_skip';
-          break;
-        case 'advanced':
-          currentQuestions = solution.questions.advanced || [];
-          groupName = 'Advanced';
-          message = 'Would you like to configure advanced features (scaling, CI/CD)?';
-          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}_or_skip` : 'complete_or_skip';
-          break;
-        case 'open':
-          currentQuestions = [];
-          groupName = 'Requirements';
-          message = 'Any additional requirements or constraints?';
-          nextAction = 'complete';
-          break;
-        default:
-          currentQuestions = [];
-          groupName = 'Unknown';
-          message = 'Configuration state unclear.';
-          nextAction = 'complete';
-      }
+      // If stage is complete, move to next stage
+      const nextStageQuestions = getQuestionsForStage(solution, newStageState.currentStage);
       
       const response = {
-        status: 'group_questions',
+        status: 'stage_questions',
         solutionId: args.solutionId,
-        currentGroup: groupState.currentGroup,
-        groupName,
-        completedGroups: groupState.completedGroups,
-        progress: groupState.progress,
-        questions: currentQuestions,
-        open: groupState.currentGroup === 'open' ? solution.questions.open : undefined,
-        message,
-        nextAction,
-        guidance: groupState.currentGroup === 'required' 
-          ? 'All required questions must be answered to proceed.'
-          : groupState.currentGroup === 'open'
-          ? 'Use "N/A" if you have no additional requirements.'
-          : 'Answer questions in this group or skip to proceed to the next group.',
+        currentStage: newStageState.currentStage,
+        questions: nextStageQuestions,
+        nextStage: newStageState.nextStage,
+        message: getStageMessage(newStageState.currentStage),
+        guidance: getStageGuidance(newStageState.currentStage),
+        agentInstructions: getAgentInstructions(newStageState.currentStage),
+        nextAction: 'answerQuestion',
         timestamp: new Date().toISOString()
       };
       
@@ -1148,134 +1054,6 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
           }
         ]
       };
-      
-      // Legacy first call handling (keeping for reference but shouldn't be reached)
-      const firstCall = isFirstCall(solution) && !Object.keys(args.answers).some(key => 
-        allQuestions.find(q => q.id === key)?.answer !== undefined
-      );
-      
-      if (firstCall) {
-        // First call: always return open question regardless of completeness
-        const response = {
-          status: 'questions_remaining',
-          solutionId: args.solutionId,
-          questions: {
-            open: solution.questions.open
-          },
-          message: `Setting up ${solution.primaryResources?.[0] || 'application'} deployment. Any additional requirements (storage, security, networking, etc.)?`,
-          guidance: 'You can provide additional requirements or constraints, or proceed with current defaults.',
-          answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
-          totalQuestions: allQuestions.length,
-          timestamp: new Date().toISOString()
-        };
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
-        };
-      } else {
-        // Subsequent calls: return remaining questions
-        const remainingQuestions = getRemainingQuestions(solution);
-        
-        // Check if only required questions need to be answered for open question
-        const requiredQuestions = solution.questions.required || [];
-        const unansweredRequired = requiredQuestions.filter((q: any) => q.answer === undefined);
-        
-        if (unansweredRequired.length === 0 && remainingQuestions.length > 0) {
-          // All required questions answered, but optional questions remain
-          // Show open question alongside remaining optional questions
-          const remainingByCategory = {
-            required: [],
-            basic: remainingQuestions.filter((q: any) => 
-              (solution.questions.basic || []).some((bq: any) => bq.id === q.id)
-            ),
-            advanced: remainingQuestions.filter((q: any) => 
-              (solution.questions.advanced || []).some((aq: any) => aq.id === q.id)
-            ),
-            open: solution.questions.open
-          };
-          
-          const response = {
-            status: 'questions_remaining',
-            solutionId: args.solutionId,
-            questions: remainingByCategory,
-            message: `Core ${solution.primaryResources?.[0] || 'application'} setup complete! ${remainingQuestions.length} optional settings available for fine-tuning.`,
-            guidance: 'You can: (1) Answer specific optional questions, (2) Provide additional requirements, (3) Proceed with current configuration, or (4) Do both optional questions and requirements.',
-            answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
-            totalQuestions: allQuestions.length,
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(response, null, 2)
-              }
-            ]
-          };
-        } else if (remainingQuestions.length === 0) {
-          // All structured questions answered, return only open question
-          const response = {
-            status: 'questions_remaining',
-            solutionId: args.solutionId,
-            questions: {
-              open: solution.questions.open
-            },
-            message: `${solution.primaryResources?.[0] || 'Application'} configuration ready! Any final requirements before generating manifests?`,
-            guidance: 'You can provide additional requirements or constraints, or proceed directly to manifest generation.',
-            answeredQuestions: allQuestions.length,
-            totalQuestions: allQuestions.length,
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(response, null, 2)
-              }
-            ]
-          };
-        } else {
-          // Return remaining questions grouped by category
-          const remainingByCategory = {
-            required: remainingQuestions.filter(q => 
-              solution.questions.required?.some((rq: any) => rq.id === q.id)
-            ),
-            basic: remainingQuestions.filter(q => 
-              solution.questions.basic?.some((bq: any) => bq.id === q.id)
-            ),
-            advanced: remainingQuestions.filter(q => 
-              solution.questions.advanced?.some((aq: any) => aq.id === q.id)
-            )
-          };
-          
-          const response = {
-            status: 'questions_remaining',
-            solutionId: args.solutionId,
-            questions: remainingByCategory,
-            message: `${remainingQuestions.length} required settings need values to complete ${solution.primaryResources?.[0] || 'application'} configuration.`,
-            guidance: 'Please answer the remaining questions to continue configuration.',
-            answeredQuestions: allQuestions.length - remainingQuestions.length,
-            totalQuestions: allQuestions.length,
-            timestamp: new Date().toISOString()
-          };
-          
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(response, null, 2)
-              }
-            ]
-          };
-        }
-      }
     },
     {
       operation: 'answer_question',

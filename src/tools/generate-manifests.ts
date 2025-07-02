@@ -15,7 +15,7 @@ import { spawn } from 'child_process';
 // MCP Tool Definition - sessionDir configured via environment
 export const generateManifestsToolDefinition: ToolDefinition = {
   name: 'generateManifests',
-  description: 'Generate final Kubernetes manifests from configured solution data and user requirements using AI',
+  description: 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -31,13 +31,13 @@ export const generateManifestsToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'manifests', 'deployment', 'yaml', 'ai'],
-  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
+  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
 };
 
 // CLI Tool Definition - sessionDir required as parameter
 export const generateManifestsCLIDefinition: ToolDefinition = {
   name: 'generateManifests',
-  description: 'Generate final Kubernetes manifests from configured solution data and user requirements using AI',
+  description: 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -58,7 +58,7 @@ export const generateManifestsCLIDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'manifests', 'deployment', 'yaml', 'ai'],
-  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. Use --session-dir parameter to specify session directory.'
+  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Use --session-dir parameter to specify session directory.'
 };
 
 interface ValidationResult {

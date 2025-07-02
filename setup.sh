@@ -36,9 +36,27 @@ fi
 echo "🧹 Cleaning up any existing cluster..."
 kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
 
-# Create new kind cluster with kubeconfig in current directory
-echo "🏗️  Creating kind cluster..."
-kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG_PATH"
+# Create new kind cluster with kubeconfig and nginx Ingress support
+echo "🏗️  Creating kind cluster with nginx Ingress support..."
+cat <<EOF | kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG_PATH" --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
 
 # Verify cluster is ready
 echo "✅ Verifying cluster is ready..."
@@ -52,14 +70,34 @@ kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
 # Install Crossplane
 echo "🔧 Installing Crossplane..."
 helm repo add crossplane-stable https://charts.crossplane.io/stable 2>/dev/null || true
+helm repo add crossplane-preview https://charts.crossplane.io/preview
 helm repo update
-helm install crossplane crossplane-stable/crossplane --namespace crossplane-system --create-namespace --kubeconfig "$KUBECONFIG_PATH" --wait
+helm install crossplane crossplane-preview/crossplane \
+    --namespace crossplane-system --create-namespace \
+    --set args='{"--enable-usages"}' --devel \
+    --kubeconfig "$KUBECONFIG_PATH" --wait
 
 # Apply Crossplane RBAC and providers
 echo "🔐 Setting up Crossplane RBAC and providers..."
 kubectl apply -f tests/fixtures/crossplane-rbac.yaml --kubeconfig "$KUBECONFIG_PATH"
 kubectl apply -f tests/fixtures/crossplane-providers.yaml --kubeconfig "$KUBECONFIG_PATH"
 kubectl apply -f tests/fixtures/crossplane-app-configuration.yaml --kubeconfig "$KUBECONFIG_PATH"
+
+# Install nginx Ingress Controller
+echo "🌐 Installing nginx Ingress Controller..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml --kubeconfig "$KUBECONFIG_PATH"
+
+# Wait for nginx Ingress Controller to be ready
+echo "⏳ Waiting for nginx Ingress Controller to be ready..."
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=300s --kubeconfig "$KUBECONFIG_PATH"
+
+# Create namespaces
+echo "🏗️  Creating namespaces..."
+kubectl create namespace a-team --kubeconfig "$KUBECONFIG_PATH"
+kubectl create namespace b-team --kubeconfig "$KUBECONFIG_PATH"
 
 echo "🎉 Kubernetes cluster setup complete!"
 echo "📁 Kubeconfig saved to: $KUBECONFIG_PATH"

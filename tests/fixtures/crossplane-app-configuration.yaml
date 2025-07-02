@@ -3,4 +3,4 @@ kind: Configuration
 metadata:
   name: crossplane-app
 spec:
-  package: xpkg.upbound.io/devops-toolkit/dot-application:v0.7.41
+  package: xpkg.upbound.io/devops-toolkit/dot-application:v3.0.15

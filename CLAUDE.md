@@ -5,7 +5,7 @@
 **🔴 BEFORE MARKING ANY TASK/SUBTASK AS COMPLETE:**
 
 □ **Tests Written**: Write tests for new functionality (can be after implementation)
-□ **All Tests Pass**: Run `npm test` - ALL 351+ tests must pass  
+□ **All Tests Pass**: Run `npm test` - ALL 562+ tests must pass  
 □ **No Test Failures**: Fix any failing tests before proceeding
 □ **CLAUDE.md Updated**: Update this file if new features/commands/structure added
 
@@ -26,7 +26,7 @@
 
 ## 🛑 TESTING REMINDERS
 
-- **Current test suite**: 351+ tests across 10 suites - maintain this standard
+- **Current test suite**: 562+ tests across 21 suites - maintain this standard
 - **Implementation flow**: Code → Tests → `npm test` → Mark complete
 - **Pattern matching**: Look at `tests/schema.test.ts`, `tests/cli.test.ts` for testing patterns
 - **Test organization**: Mirror source code structure - tests should be organized using the same naming convention as the code they're testing
