@@ -3,15 +3,17 @@
 ## Current Implementation Status
 
 **🟢 IMPLEMENTED**: Resource Schema Parser & Validator with AI-powered recommendations
-**🟡 IN PROGRESS**: CLI interface with core discovery and enhancement features  
-**🔴 PLANNED**: MCP Mode, Manifest Generation, Deployment Engine, Governance System
+**🟢 IMPLEMENTED**: Stage-based MCP workflow with conversational deployment
+**🟢 IMPLEMENTED**: AI-powered manifest generation with validation
+**🟡 IN PROGRESS**: CLI interface with core discovery features  
+**🔴 PLANNED**: Deployment Engine, Governance System
 
 ## Overview
 
 App-Agent is an intelligent Kubernetes application deployment agent designed to operate in two modes:
 
 1. **✅ CLI Mode** (Current): Standalone command-line tool with AI-powered recommendations
-2. **🔄 MCP Mode** (Planned): Model Context Protocol server for external agent integration
+2. **✅ MCP Mode** (Implemented): Model Context Protocol server for conversational deployment workflow
 
 The system implements a discovery-driven workflow powered by Claude AI, evolved from the original inspiration in `ORIGINAL_INSPIRATION.md`.
 
@@ -33,20 +35,30 @@ sequenceDiagram
     AppAgent->>AppAgent: AI analysis & ranking
     AppAgent-->>ExternalAgent: Complete solution with questions
     
-    Note over ExternalAgent,User: Phase 2: Gather Requirements
-    ExternalAgent->>User: Present categorized questions<br/>(required, basic, advanced)
-    User-->>ExternalAgent: Answer questions + open requirements
-    ExternalAgent->>ExternalAgent: Process answers into solution JSON
+    Note over ExternalAgent,User: Phase 2: Choose Solution
+    ExternalAgent->>User: Present ranked solutions with scores/descriptions
+    User-->>ExternalAgent: Select preferred solution
+    ExternalAgent->>AppAgent: chooseSolution(selectedSolutionId)
+    AppAgent-->>ExternalAgent: Configuration questions by stage
     
-    Note over ExternalAgent,AppAgent: Phase 3: Enhancement (Optional)
-    ExternalAgent->>AppAgent: enhance --solution solution.json<br/>(with open: "handle 1000 req/sec")
-    AppAgent->>AppAgent: AI processes open requirements
-    AppAgent-->>ExternalAgent: Enhanced solution with completed answers
+    Note over ExternalAgent,User: Phase 3: Progressive Configuration
+    ExternalAgent->>User: Present required questions
+    User-->>ExternalAgent: Provide required answers
+    ExternalAgent->>AppAgent: answerQuestion(stage="required", answers)
+    ExternalAgent->>User: Present basic questions (optional)
+    User-->>ExternalAgent: Provide basic answers or skip
+    ExternalAgent->>AppAgent: answerQuestion(stage="basic", answers)
+    ExternalAgent->>User: Present advanced questions (optional)
+    User-->>ExternalAgent: Provide advanced answers or skip
+    ExternalAgent->>AppAgent: answerQuestion(stage="advanced", answers)
+    ExternalAgent->>User: Ask for open requirements
+    User-->>ExternalAgent: "handle 1000 req/sec with SSL"
+    ExternalAgent->>AppAgent: answerQuestion(stage="open", answers)
     
-    Note over ExternalAgent,AppAgent: Phase 4: Generation (Planned)
-    ExternalAgent->>AppAgent: generate --solution enhanced-solution.json
-    AppAgent->>AppAgent: Create manifests from questions + schemas
-    AppAgent-->>ExternalAgent: Kubernetes YAML manifests
+    Note over ExternalAgent,AppAgent: Phase 4: Manifest Generation
+    ExternalAgent->>AppAgent: generateManifests(solutionId)
+    AppAgent->>AppAgent: AI creates complete manifests<br/>with additional resources for open requirements
+    AppAgent-->>ExternalAgent: Production-ready Kubernetes YAML
     
     Note over ExternalAgent,K8s: Phase 5: Deployment (Planned)
     ExternalAgent->>AppAgent: deploy --manifests manifests/
@@ -58,51 +70,51 @@ sequenceDiagram
 
 ### Key Design Principles for External Agents
 
-1. **🔄 Stateless Operations**: Each command is self-contained
+1. **🔄 Session-Based State**: Stateful workflow managed via solutionId
 2. **📄 Complete Data Transfer**: Solutions include all necessary schemas and mappings  
-3. **🔀 Flexible Workflow**: Agents can skip or repeat steps as needed
-4. **🎯 Progressive Enhancement**: Iterative refinement through enhancement cycles
+3. **🔀 Flexible Workflow**: Agents can skip optional stages as needed
+4. **🎯 Progressive Disclosure**: Stage-based configuration (required → basic → advanced → open)
 5. **🔍 Transparent Process**: All AI reasoning and schema analysis is visible
 
 ## Current Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   App-Agent Core                           │
-│              (Powered by Claude AI)                        │
+┌────────────────────────────────────────────────────────────┐
+│                    App-Agent Core                          │
+│               (Powered by Claude AI)                       │
+│                                                            │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │            ✅ IMPLEMENTED COMPONENTS                  │ │
+│  │                                                       │ │
+│  │  🔍 KubernetesDiscovery                              │ │
+│  │    • Cluster resource discovery (CRDs + K8s)         │ │
+│  │    • Schema introspection with kubectl explain       │ │
+│  │    • Dynamic capability detection                    │ │
+│  │                                                       │ │
+│  │  🤖 ResourceRecommender (AI-Powered)                │ │
+│  │    • Two-phase analysis (selection + ranking)        │ │
+│  │    • Standard + CRD resource support                 │ │
+│  │    • Context-aware solution scoring                  │ │
+│  │                                                       │ │
+│  │  ⚡ Stage-Based Workflow Tools                       │ │
+│  │    • Progressive question disclosure                 │ │
+│  │    • Session state management                        │ │
+│  │    • AI-powered manifest generation                  │ │
+│  │                                                       │ │
+│  │  📋 SchemaParser & ManifestValidator                 │ │
+│  │    • kubectl explain output parsing                  │ │
+│  │    • Dry-run manifest validation                     │ │
+│  │    • Field constraint extraction                     │ │
+│  └───────────────────────────────────────────────────────┘ │
 │                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │           ✅ IMPLEMENTED COMPONENTS                 │   │
-│  │                                                     │   │
-│  │  🔍 KubernetesDiscovery                            │   │
-│  │    • Cluster resource discovery (CRDs + K8s)       │   │
-│  │    • Schema introspection with kubectl explain     │   │
-│  │    • Dynamic capability detection                  │   │
-│  │                                                     │   │
-│  │  🤖 ResourceRecommender (AI-Powered)              │   │
-│  │    • Two-phase analysis (selection + ranking)      │   │
-│  │    • Standard + CRD resource support               │   │
-│  │    • Context-aware solution scoring                │   │
-│  │                                                     │   │
-│  │  ⚡ SolutionEnhancer                               │   │
-│  │    • Open-ended requirement processing             │   │
-│  │    • Dynamic question generation                   │   │
-│  │    • Iterative solution refinement                 │   │
-│  │                                                     │   │
-│  │  📋 SchemaParser & ManifestValidator               │   │
-│  │    • kubectl explain output parsing                │   │
-│  │    • Dry-run manifest validation                   │   │
-│  │    • Field constraint extraction                   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌─────────────────────┐    ┌─────────────────────────┐   │
-│  │  ✅ CLI Interface   │    │  🔄 MCP Mode (Planned) │   │
-│  │                     │    │                         │   │
-│  │ • recommend command │    │ • External agent API   │   │
-│  │ • enhance command   │    │ • JSON-based protocol  │   │
-│  │ • Help system       │    │ • Stateless design     │   │
-│  │ • Progress tracking │    │ • Tool integration     │   │
-│  └─────────────────────┘    └─────────────────────────┘   │
+│  ┌─────────────────────┐    ┌───────────────────────────┐ │
+│  │  ✅ CLI Interface   │    │  ✅ MCP Mode (Current)    │ │
+│  │                     │    │                           │ │
+│  │ • recommend command │    │ • Stage-based workflow   │ │
+│  │ • discover command  │    │ • Session management     │ │
+│  │ • Help system       │    │ • Tool integration       │ │
+│  │ • Progress tracking │    │ • Manifest generation    │ │
+│  └─────────────────────┘    └───────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -113,7 +125,7 @@ sequenceDiagram
 3. **🔄 Memory-Enhanced**: (Planned) Learn from successful deployments and failures  
 4. **🔄 Dual Interface**: (Planned) Same intelligence, multiple interaction patterns
 5. **✅ Zero Hard-coding**: No assumptions about cluster platforms or specific CRDs
-6. **✅ AI-Powered**: Uses Claude for intelligent resource selection and enhancement
+6. **✅ AI-Powered**: Uses Claude for intelligent resource selection and manifest generation
 
 ## Current Implementation Details
 
@@ -122,29 +134,39 @@ sequenceDiagram
 src/
 ├── core/
 │   ├── discovery.ts        # ✅ KubernetesDiscovery class
-│   ├── schema.ts          # ✅ ResourceRecommender, SolutionEnhancer, SchemaParser
+│   ├── schema.ts          # ✅ ResourceRecommender, SchemaParser (SolutionEnhancer moved to /src/legacy/)
 │   ├── claude.ts          # ✅ Claude AI integration
 │   ├── index.ts           # ✅ Core module exports
 │   └── kubernetes-utils.ts # ✅ Shared kubectl utilities
 ├── interfaces/
 │   ├── cli.ts             # ✅ CLI interface and commands
-│   └── mcp.ts             # 🔄 MCP server (planned)
+│   └── mcp.ts             # ✅ MCP server (implemented)
+├── tools/                 # ✅ MCP workflow tools
+│   ├── recommend.ts       # ✅ AI-powered recommendations
+│   ├── choose-solution.ts # ✅ Solution selection handler
+│   ├── answer-question.ts # ✅ Stage-based configuration
+│   └── generate-manifests.ts # ✅ AI manifest generation
 └── cli.ts                 # ✅ Main CLI entry point
 
-tests/                     # ✅ 351+ comprehensive tests
+tests/                     # ✅ 565+ comprehensive tests
 docs/                     # ✅ Complete documentation
 prompts/                  # ✅ AI prompt templates
 ```
 
 ### Current Commands
 ```bash
-# ✅ Available now
+# ✅ Available now  
 node dist/cli.js --help                           # Help system (no cluster required)
 node dist/cli.js recommend --intent "description" # AI-powered recommendations  
-node dist/cli.js enhance --solution solution.json # Solution enhancement
+npm run mcp:start                                 # Start MCP server for full workflow
+
+# ✅ MCP Tools (for interactive deployment)
+# recommend({ intent: "description" })            # Get AI recommendations
+# chooseSolution({ solutionId: "sol_..." })       # Select solution and get questions  
+# answerQuestion({ stage: "required", answers })  # Progressive configuration
+# generateManifests({ solutionId: "sol_..." })    # AI-generated Kubernetes YAML
 
 # 🔄 Planned
-node dist/cli.js generate --solution solution.json # Manifest generation
 node dist/cli.js deploy --manifests manifests/     # Deployment execution
 ```
 
@@ -354,38 +376,43 @@ const questions = await recommender.generateQuestionsWithAI(solution, intent, cl
 - ✅ Open-ended requirement capture
 - ✅ ResourceMapping for manifest generation
 
-### 4. ✅ Solution Enhancement (Implemented)  
-SolutionEnhancer processes open-ended user requirements:
+### 4. ✅ Stage-Based Configuration (Implemented)  
+Progressive question answering through MCP tools:
 
 ```typescript
-// User adds requirements: "I need auto-scaling for 1000 requests/sec"
-const enhanced = await enhancer.enhanceSolution(solution, openResponse, resources, explainResource);
+// Stage-based workflow through MCP tools:
+// 1. answerQuestion({ stage: "required", answers: {...} })
+// 2. answerQuestion({ stage: "basic", answers: {...} })  
+// 3. answerQuestion({ stage: "advanced", answers: {...} })
+// 4. answerQuestion({ stage: "open", answers: { "open": "auto-scaling for 1000 requests/sec" } })
+// 5. generateManifests({ solutionId: "sol_..." })
 
 // Results in:
-// - Completed missing question answers
-// - New questions for additional capabilities
-// - Enhanced configuration based on requirements
+// - Session-based state management via solutionId
+// - Progressive disclosure of configuration options
+// - AI-generated manifests with additional resources for open requirements
 ```
 
-**Current Enhancement Features:**
-- ✅ Open-ended requirement processing
-- ✅ Automatic question completion
-- ✅ Dynamic capability expansion
-- ✅ Iterative enhancement support
-- ✅ Stateless design for external agents
+**Current Stage-Based Features:**
+- ✅ Progressive question disclosure (required → basic → advanced → open)
+- ✅ Session state management via solutionId
+- ✅ Open-ended requirement processing in final stage
+- ✅ AI-powered manifest generation with validation
+- ✅ Support for skipping optional stages
 
 ## 🔄 Planned Features
 
-### Manifest Generation (Task 7)
-```bash
-# Generate Kubernetes manifests from completed solutions
-node dist/cli.js generate --solution enhanced-solution.json --output manifests/
+### ✅ Manifest Generation (Implemented)
+```typescript
+// AI-generated manifests via MCP tool
+generateManifests({ solutionId: "sol_..." })
 
-# Features planned:
-# - Schema-based manifest population
-# - Resource dependency ordering
-# - Best practice application
-# - Multi-format output (YAML, JSON)
+// Implemented features:
+// ✅ Schema-aware AI generation (no templates)
+// ✅ Dynamic resource addition based on open requirements
+// ✅ kubectl dry-run validation with retry loop
+// ✅ Support for any CRD type (AppClaim, Crossplane, etc.)
+// ✅ Production-ready YAML output
 ```
 
 ### Deployment Engine (Task 8)
@@ -410,13 +437,15 @@ await memory.storeLessons(deployment, lessons);
 const patterns = await memory.getSimilarPatterns(currentSolution);
 ```
 
-### MCP Server Mode (Task 10-14)
+### ✅ MCP Server Mode (Implemented)
 ```typescript
-// MCP functions for external agents
+// MCP tools for external agents (stage-based workflow)
 const server = new MCPServer();
-server.addTool('recommend_resources', recommendHandler);
-server.addTool('enhance_solution', enhanceHandler);
-server.addTool('generate_manifests', generateHandler);
+server.addTool('recommend', recommendHandler);
+server.addTool('chooseSolution', chooseSolutionHandler);
+server.addTool('answerQuestion', answerQuestionHandler);
+server.addTool('generateManifests', generateManifestsHandler);
+server.addTool('can_help', canHelpHandler);
 ```
 
 > **Note**: The system is completely extensible - it will work with ANY Kubernetes resources (CRDs or core) available in your cluster. The examples above are just common patterns.

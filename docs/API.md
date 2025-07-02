@@ -26,12 +26,14 @@ const podSchema = await discovery.explainResource('Pod');
 console.log(`Pod has ${podSchema.fields.length} fields`);
 ```
 
-### AI-Powered Recommendations
+### AI-Powered Recommendations (Legacy - Use MCP Tools)
+
+**Note: Direct programmatic access is available but the recommended approach is via MCP tools for conversational workflows.**
 
 ```typescript
-import { ResourceRecommender, SolutionEnhancer } from './src/core/schema';
+import { ResourceRecommender } from './src/core/schema';
 
-// Get AI-powered resource recommendations
+// Get AI-powered resource recommendations (legacy approach)
 const recommender = new ResourceRecommender({ claudeApiKey: 'your-key' });
 const solutions = await recommender.findBestSolutions(
   'deploy a web application with scaling',
@@ -42,16 +44,8 @@ const solutions = await recommender.findBestSolutions(
 console.log(`Found ${solutions.length} solutions`);
 console.log(`Best solution: ${solutions[0].description} (score: ${solutions[0].score})`);
 
-// Enhance solution with user requirements
-const enhancer = new SolutionEnhancer({ claudeApiKey: 'your-key' });
-const enhancedSolution = await enhancer.enhanceSolution(
-  solutions[0], 
-  'I need it to handle 10x traffic',
-  await discovery.discoverResources(),
-  (resource) => discovery.explainResource(resource)
-);
-
-console.log('Enhanced solution with scaling configuration');
+// For interactive deployment, use MCP tools:
+// recommend → chooseSolution → answerQuestion → generateManifests
 ```
 
 ## TypeScript Interfaces
@@ -107,19 +101,17 @@ interface ResourceSolution {
 }
 ```
 
-### Solution Enhancement
+### Stage-Based Workflow (Current)
 
 ```typescript
-class SolutionEnhancer {
-  constructor(config: AIRankingConfig)
-  
-  async enhanceSolution(
-    currentSolution: ResourceSolution,
-    openResponse: string,
-    availableResources: any,
-    explainResource: (resource: string) => Promise<any>
-  ): Promise<ResourceSolution>
-}
+// New stage-based workflow via MCP tools:
+// 1. recommend: Get solutions
+// 2. chooseSolution: Select preferred solution  
+// 3. answerQuestion: Progressive configuration (required → basic → advanced → open)
+// 4. generateManifests: AI-generated Kubernetes YAML
+
+// Legacy SolutionEnhancer (see /src/legacy/ directory for reference)
+```
 
 interface QuestionGroup {
   required: Question[];
@@ -251,11 +243,19 @@ await mcpServer.start();
 
 ### MCP Tools Available
 
+**Stage-Based Deployment Workflow:**
+- `recommend`: AI-powered resource recommendations based on intent
+- `chooseSolution`: Select a solution and get configuration questions
+- `answerQuestion`: Answer configuration questions progressively by stage
+- `generateManifests`: Generate final Kubernetes YAML manifests
+
+**Cluster Discovery:**
 - `discover_resources`: Discover all cluster resources
 - `explain_resource`: Get detailed resource schema
-- `recommend_resources`: AI-powered resource recommendations  
-- `enhance_solution`: Process user requirements to enhance configurations
 - `fingerprint_cluster`: Analyze cluster capabilities
+
+**Utility:**
+- `can_help`: Check if App-Agent can assist with a request
 
 ## Error Handling
 
@@ -293,142 +293,131 @@ if (results.custom.length === 0) {
 // Continue with available resources
 ```
 
-## Enhancement Workflow
+## Stage-Based Deployment Workflow
 
-### Solution Enhancement Process
+### Interactive Deployment Process
 
-The enhancement workflow allows users to provide open-ended requirements that are processed to complete missing configuration values and add new capabilities to existing solutions.
+The new stage-based workflow provides a conversational approach to application deployment through progressive question answering.
 
-#### Step 1: Get Initial Solution
-
-```bash
-# Get AI recommendations
-node dist/cli.js recommend --intent "deploy a web application" > solution.json
-```
-
-#### Step 2: Add User Requirements
-
-Edit the solution.json file to add your specific requirements to the `open.answer` field:
-
-```json
-{
-  "type": "single",
-  "score": 85,
-  "description": "AppClaim deployment for web application",
-  "questions": {
-    "required": [
-      {
-        "id": "app-name", 
-        "question": "What should we name your application?",
-        "type": "text",
-        "resourceMapping": {
-          "resourceKind": "AppClaim",
-          "apiVersion": "apiextensions.crossplane.io/v1",
-          "fieldPath": "metadata.name"
-        }
-        // Note: No "answer" field yet
-      }
-    ],
-    "open": {
-      "question": "Any additional requirements?",
-      "placeholder": "Enter details...",
-      "answer": "I need this to handle 1000 requests per second with PostgreSQL database and auto-scaling"
-    }
-  }
-}
-```
-
-#### Step 3: Enhance the Solution
+#### Step 1: Get AI Recommendations
 
 ```bash
-# Process the user requirements
-node dist/cli.js enhance --solution solution.json > enhanced-solution.json
+# Start MCP server
+npm run mcp:start
+
+# Use MCP tools for conversational workflow
+# recommend: Get AI-powered deployment recommendations
 ```
 
-#### Step 4: Review Enhanced Configuration
+**MCP Tool**: `recommend`
+```typescript
+// Via MCP client (Claude Code, Cursor, etc.)
+recommend({
+  intent: "deploy a web application with database"
+})
+// Returns: Array of ranked solutions with scores and descriptions
+```
 
-The enhanced solution will have:
-- Completed answers for existing questions
-- New questions for capabilities identified from user requirements  
-- All new questions automatically answered based on user intent
-- Open field cleared (ready for next enhancement cycle)
+#### Step 2: Choose Solution
 
-```json
-{
-  "type": "single", 
-  "score": 85,
-  "description": "AppClaim deployment for web application",
-  "questions": {
-    "required": [
-      {
-        "id": "app-name",
-        "question": "What should we name your application?", 
-        "type": "text",
-        "answer": "high-performance-web-app",
-        "resourceMapping": {
-          "resourceKind": "AppClaim",
-          "apiVersion": "apiextensions.crossplane.io/v1", 
-          "fieldPath": "metadata.name"
-        }
-      }
-    ],
-    "basic": [
-      {
-        "id": "enable-scaling",
-        "question": "Should auto-scaling be enabled?",
-        "type": "boolean",
-        "answer": true,
-        "resourceMapping": {
-          "resourceKind": "AppClaim",
-          "apiVersion": "apiextensions.crossplane.io/v1",
-          "fieldPath": "spec.parameters.scaling.enabled"
-        }
-      },
-      {
-        "id": "min-replicas", 
-        "question": "What is the minimum number of replicas?",
-        "type": "number",
-        "answer": 3,
-        "resourceMapping": {
-          "resourceKind": "AppClaim",
-          "apiVersion": "apiextensions.crossplane.io/v1",
-          "fieldPath": "spec.parameters.scaling.minReplicas"
-        }
-      }
-    ],
-    "advanced": [
-      {
-        "id": "database-type",
-        "question": "What type of database should be provisioned?",
-        "type": "select",
-        "options": ["postgresql", "mysql", "redis"],
-        "answer": "postgresql",
-        "resourceMapping": {
-          "resourceKind": "AppClaim", 
-          "apiVersion": "apiextensions.crossplane.io/v1",
-          "fieldPath": "spec.parameters.database.engine"
-        }
-      }
-    ],
-    "open": {
-      "question": "Any additional requirements?",
-      "placeholder": "Enter details...",
-      "answer": ""  // Cleared after processing
-    }
+```typescript
+// Select your preferred solution
+chooseSolution({
+  solutionId: "sol_2025-07-01T123456_abc123def456"
+})
+// Returns: Configuration questions for the selected solution
+```
+
+#### Step 3: Progressive Configuration
+
+Answer questions in stages to build your deployment configuration:
+
+**Required Stage:**
+```typescript
+answerQuestion({
+  solutionId: "sol_2025-07-01T123456_abc123def456",
+  stage: "required",
+  answers: {
+    "name": "my-web-app",
+    "namespace": "production",
+    "image": "nginx:1.21",
+    "replicas": 3
   }
-}
+})
 ```
 
-### Iterative Enhancement
+**Basic Stage:**
+```typescript
+answerQuestion({
+  solutionId: "sol_2025-07-01T123456_abc123def456", 
+  stage: "basic",
+  answers: {
+    "port": 8080,
+    "service-type": "ClusterIP",
+    "storage-size": "10Gi"
+  }
+})
+```
 
-The enhancement process can be repeated multiple times:
+**Advanced Stage:**
+```typescript
+answerQuestion({
+  solutionId: "sol_2025-07-01T123456_abc123def456",
+  stage: "advanced", 
+  answers: {
+    "scaling-enabled": true,
+    "resource-requests-cpu": "500m",
+    "resource-requests-memory": "512Mi"
+  }
+})
+```
 
-1. Add new requirements to the `open.answer` field
-2. Run `enhance` command again
-3. AI analyzes new requirements and adds/updates configuration
-4. Review the updated solution
+**Open Requirements:**
+```typescript
+answerQuestion({
+  solutionId: "sol_2025-07-01T123456_abc123def456",
+  stage: "open",
+  answers: {
+    "open": "I need PostgreSQL database with 1000 RPS capacity and SSL termination"
+  }
+})
+```
 
-This allows for iterative refinement of the deployment configuration.
+#### Step 4: Generate Manifests
+
+```typescript
+generateManifests({
+  solutionId: "sol_2025-07-01T123456_abc123def456"
+})
+// Returns: Production-ready Kubernetes YAML manifests
+```
+
+### Benefits of Stage-Based Approach
+
+**Progressive Disclosure:**
+- Questions presented in logical order (required → basic → advanced → open)
+- Users can skip stages they don't need to configure
+- No overwhelming JSON construction required
+
+**Better Error Recovery:**
+- Clear guidance at each stage
+- Validation happens per stage
+- Easy to retry with corrections
+
+**Conversational Flow:**
+- Natural interaction pattern
+- AI can provide context and suggestions
+- Supports iterative refinement through open requirements
+
+### Session Management
+
+Each deployment session is identified by a unique `solutionId` that maintains state across the workflow:
+
+```typescript
+// Session data stored in APP_AGENT_SESSION_DIR
+// Contains solution configuration, answers, and generated manifests
+// Enables resuming interrupted workflows
+```
 
 ## Environment Configuration
 

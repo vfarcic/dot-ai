@@ -7,7 +7,7 @@
 - **Discovery Engine** (`src/core/discovery.ts`): Comprehensive Kubernetes cluster discovery and analysis
 - **AI Integration** (`src/core/claude.ts`): Claude AI integration for intelligent application construction  
 - **Schema Parser** (`src/core/schema.ts`): Resource schema parsing, validation, and AI-powered recommendations
-- **Solution Enhancer** (`src/core/schema.ts`): Processes open-ended user requirements to enhance configurations
+- **Stage-Based Workflow Tools** (`src/tools/`): MCP tools for progressive configuration (recommend, chooseSolution, answerQuestion, generateManifests)
 - **Memory System** (`src/core/memory.ts`): Persistent memory for learning and context retention
 - **Workflow Engine** (`src/core/workflow.ts`): Orchestrates the application construction process
 - **CLI Interface** (`src/interfaces/cli.ts`): Command-line interface for direct usage
@@ -68,7 +68,7 @@ npm test -- --coverage
 npm test -- tests/core.test.ts
 
 # Run tests matching pattern
-npm test -- --testNamePattern="enhance"
+npm test -- --testNamePattern="generateManifests"
 ```
 
 ### Test Coverage
@@ -79,7 +79,7 @@ The project maintains comprehensive test coverage:
 - **TDD Tests**: Error handling and graceful degradation scenarios
 - **Manual Validation**: CLI output verification and data structure validation
 
-Current coverage: **69%+ overall** with **349+ tests** across 10 test suites, including comprehensive tests for the new enhancement functionality.
+Current coverage: **69%+ overall** with **565+ tests** across 21 test suites, including comprehensive tests for the stage-based workflow functionality.
 
 ### Code Quality
 
@@ -169,20 +169,35 @@ DEBUG=app-agent:* node dist/cli.js discover
 # Specific module debugging
 DEBUG=app-agent:discovery node dist/cli.js discover
 DEBUG=app-agent:schema node dist/cli.js recommend --intent "test"
+
+# MCP server debugging
+DEBUG=app-agent:* npm run mcp:start
 ```
 
 ## Performance Considerations
 
 - **Resource Discovery**: Can be slow in large clusters with many CRDs
 - **AI Operations**: Network latency affects recommendation speed
+- **Session Management**: generateManifests can take 30-45 seconds for complex deployments
 - **Memory Usage**: Large cluster discoveries may consume significant memory
+- **MCP Server**: Designed for persistent connection with multiple tool calls
 - **Caching**: Consider implementing caching for repeated operations
 
 ## Roadmap
 
+- [x] **Stage-Based Workflow**: Completed conversational deployment via MCP tools
+- [x] **AI-Generated Manifests**: Schema-aware YAML generation with validation
 - [ ] **Enhanced AI Integration**: More sophisticated application construction strategies
 - [ ] **Multi-Cluster Support**: Discovery and deployment across multiple clusters
 - [ ] **Operator Marketplace**: Integration with operator catalogs and marketplaces
 - [ ] **Visual Interface**: Web-based cluster visualization and application designer
 - [ ] **GitOps Integration**: Automated deployment pipeline integration
 - [ ] **Policy Engine**: Security and compliance policy validation
+
+## Legacy Code
+
+Legacy components are archived in `/src/legacy/` directory:
+- **Solution Enhancer** (`src/legacy/core/solution-enhancer.ts`): Original JSON-based enhancement approach
+- **Enhance Tool** (`src/legacy/tools/enhance-solution.ts`): CLI enhancement command
+
+These are kept for reference and can be safely removed after 6 months of new architecture stability.

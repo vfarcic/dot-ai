@@ -36,8 +36,8 @@ node dist/cli.js discover
 # Get AI recommendations for your application
 node dist/cli.js recommend --intent "deploy a web application with database"
 
-# Enhance recommendations with specific requirements
-node dist/cli.js enhance --solution solution.json
+# Interactive deployment workflow available via MCP tools
+# See docs/API.md for MCP integration examples
 ```
 
 ### Set up AI Features (Optional)
@@ -66,32 +66,32 @@ node dist/cli.js recommend --intent "deploy a web application that can scale"
 # Returns: Ranked solutions using your cluster's best resources
 ```
 
-### 3. Refine with Requirements
-Enhance recommendations by describing additional requirements in plain English.
+### 3. Interactive Deployment
+Use MCP tools for conversational deployment workflow with progressive question answering.
 
 ```bash
-# Solution file contains questions with an "open" field where you add requirements
-node dist/cli.js enhance --solution solution.json
-# AI analyzes your requirements and completes missing configuration
+# Via MCP server integration (recommended)
+npm run mcp:start
+# Interactive workflow: recommend → chooseSolution → answerQuestion → generateManifests
 ```
 
 ## Example Workflow
 
 ```bash
-# 1. See what's available
+# 1. See what's available in your cluster
 node dist/cli.js discover --output table
 
-# 2. Get recommendations  
-node dist/cli.js recommend --intent "deploy a microservice with database" > solution.json
+# 2. Start MCP server for interactive deployment
+npm run mcp:start
 
-# 3. Add your specific requirements to the solution.json file:
-#    "open": { "answer": "needs to handle 1000 requests/sec, use PostgreSQL" }
+# 3. Use MCP tools for conversational workflow:
+#    - recommend: Get AI-powered deployment recommendations
+#    - chooseSolution: Select your preferred solution
+#    - answerQuestion: Answer configuration questions progressively
+#    - generateManifests: Generate final Kubernetes YAML
 
-# 4. Enhance the solution
-node dist/cli.js enhance --solution solution.json > final-solution.json
-
-# 5. Review the final configuration with all questions answered
-cat final-solution.json
+# 4. Deploy the generated manifests
+kubectl apply -f generated-manifests.yaml
 ```
 
 ## Available Commands
@@ -104,7 +104,7 @@ app-agent fingerprint [--detailed]
 
 # AI-powered recommendations
 app-agent recommend --intent "DESCRIPTION" [--output FORMAT]
-app-agent enhance --solution PATH [--output FORMAT]
+# Note: Interactive deployment via MCP tools (see MCP Server section)
 
 # Resource management  
 app-agent apply CONFIG [--namespace NS]

@@ -40,11 +40,20 @@ Generate production-ready Kubernetes YAML manifests from the complete solution c
    - If user provided open requirements, analyze their specific needs
    - Use available cluster resources to fulfill those requirements intelligently
    - Make enhancement decisions based on actual cluster capabilities
+   - **CRITICAL**: Add any additional resources needed to fulfill open requirements:
+     * **Hostname/Domain access** → Add Ingress resource with appropriate rules
+     * **External configuration** → Add ConfigMap resources
+     * **Secrets/credentials** → Add Secret resources
+     * **SSL/TLS requirements** → Add TLS configuration to Ingress
+     * **Persistent storage needs** → Add PersistentVolumeClaim resources
+     * **Network policies** → Add NetworkPolicy resources
+     * **Resource limits** → Add ResourceQuota or LimitRange resources
 
 5. **Generate Appropriate Manifests**:
    - Create manifests for the selected resource types
+   - **IMPORTANT**: Include any additional supporting resources needed to fulfill open requirements
    - Use correct API versions and schemas from the solution data
-   - Include all necessary supporting resources
+   - Ensure all resources work together to meet user's complete requirements
 
 ### For Retry Attempts:
 If this is a retry (previous attempt and error details provided above):

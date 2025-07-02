@@ -46,7 +46,7 @@ node dist/cli.js -h
 
 # Test command-specific help
 node dist/cli.js recommend --help
-node dist/cli.js enhance --help
+node dist/cli.js discover --help
 ```
 
 **Expected Results:**
@@ -198,63 +198,68 @@ KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy a databas
 - [ ] Table output displays key information clearly
 - [ ] All formats contain essential data
 
-## 4. Solution Enhancement Tests
+## 4. MCP Server Workflow Tests
 
-### Test 4.1: Basic Enhancement Workflow
+### Test 4.1: Basic MCP Workflow
 
 ```bash
-# Step 1: Get initial recommendation
-KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy a web application" --output json > solution.json
+# Step 1: Start MCP server
+npm run mcp:start
 
-# Step 2: Add user requirements to solution.json
-# Edit the file to add: "open": {"question": "...", "placeholder": "...", "answer": "I need it to handle 1000 requests per second with auto-scaling"}
-
-# Step 3: Enhance the solution
-KUBECONFIG=kubeconfig.yaml node dist/cli.js enhance --solution solution.json --output json
+# Step 2: Connect MCP client (Claude Code, Cursor, etc.) and test workflow:
+# - recommend({ intent: "deploy a web application" })
+# - chooseSolution({ solutionId: "sol_..." })  
+# - answerQuestion({ solutionId: "sol_...", stage: "required", answers: {...} })
+# - answerQuestion({ solutionId: "sol_...", stage: "basic", answers: {...} })
+# - answerQuestion({ solutionId: "sol_...", stage: "advanced", answers: {...} })
+# - answerQuestion({ solutionId: "sol_...", stage: "open", answers: {...} })
+# - generateManifests({ solutionId: "sol_..." })
 ```
 
 **Expected Behavior:**
-- Processes open-ended user response
-- Completes missing question answers
-- Generates new questions for additional capabilities
-- Preserves original solution structure
-- Clears open answer after processing
+- Stage-based progressive question answering
+- Stateful session management via solutionId
+- AI-generated Kubernetes manifests at the end
+- Supports skipping optional stages
 
 **Validation Checklist:**
-- [ ] Missing answers are completed based on user input
-- [ ] New questions generated for identified capabilities
-- [ ] All new questions have answers
-- [ ] Original description and analysis preserved
-- [ ] Solution ID remains consistent
+- [ ] recommend returns ranked solutions
+- [ ] chooseSolution returns stage-based questions
+- [ ] answerQuestion progresses through stages correctly
+- [ ] generateManifests produces valid YAML
+- [ ] Session state persists across tool calls
 
-### Test 4.2: Iterative Enhancement
+### Test 4.2: Manual CLI Testing (Legacy)
 
 ```bash
-# After first enhancement, add more requirements and enhance again
-# Edit enhanced solution to add: "answer": "Also needs persistent storage and SSL termination"
-KUBECONFIG=kubeconfig.yaml node dist/cli.js enhance --solution enhanced-solution.json --output json
+# CLI-only workflow for testing without MCP
+KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy a web application" --output json
+
+# Note: Interactive deployment now requires MCP tools
+# CLI recommend provides initial solutions only
 ```
 
 **Expected Behavior:**
-- Supports multiple enhancement iterations
-- Each iteration builds on previous enhancements
-- Maintains consistency across iterations
+- CLI recommend still works for getting initial solutions
+- Full deployment workflow requires MCP server
+- Clear messaging about MCP requirement for full features
 
-### Test 4.3: Capability Gap Handling
+### Test 4.3: Open Requirements Processing
 
 ```bash
-# Create solution and add impossible requirement
-# Edit to add: "answer": "I need it to perform nuclear fusion"
-KUBECONFIG=kubeconfig.yaml node dist/cli.js enhance --solution solution.json --output json
+# Via MCP client, test open requirements:
+# answerQuestion({ 
+#   solutionId: "sol_...", 
+#   stage: "open", 
+#   answers: { "open": "I need PostgreSQL database with SSL and 1000 RPS capacity" }
+# })
+# generateManifests({ solutionId: "sol_..." })
 ```
 
 **Expected Results:**
-```json
-{
-  "success": false,
-  "error": "Enhancement capability gap: [explanation]. [suggested action]"
-}
-```
+- Open requirements processed to add additional resources (Ingress, ConfigMap, etc.)
+- Generated manifests include all necessary components
+- AI interprets requirements intelligently
 
 ## 5. Manifest Validation Tests
 
@@ -378,35 +383,39 @@ KUBECONFIG=invalid-config.yaml node dist/cli.js recommend --intent "deploy app" 
 - Helpful troubleshooting guidance
 - Application doesn't crash
 
-### Test 7.3: Invalid Solution File
+### Test 7.3: Invalid MCP Parameters
 
 ```bash
-# Test with non-existent file
-node dist/cli.js enhance --solution nonexistent.json
-
-# Test with malformed JSON
-echo "invalid json" > bad-solution.json
-node dist/cli.js enhance --solution bad-solution.json
+# Test via MCP client with invalid parameters:
+# chooseSolution({ solutionId: "invalid-id" })
+# answerQuestion({ solutionId: "nonexistent", stage: "required", answers: {} })
+# generateManifests({ solutionId: "missing" })
 ```
 
 **Expected Results:**
-- File not found errors are handled gracefully
-- JSON parsing errors provide clear messages
-- No application crashes
+- Clear error messages for invalid solution IDs
+- Validation errors for malformed parameters
+- Graceful handling of missing session data
+- No server crashes
 
 ## 8. Performance and Integration Tests
 
 ### Test 8.1: Response Time Validation
 
 ```bash
-# Measure execution time
+# Measure CLI execution time
 time KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy a complex microservices architecture" --output json
+
+# Test MCP server response times through client
+# - recommend should complete within 30 seconds
+# - answerQuestion should complete within 5 seconds
+# - generateManifests should complete within 45 seconds
 ```
 
 **Success Criteria:**
-- [ ] Recommendation completes within 30 seconds
-- [ ] Enhancement completes within 15 seconds
-- [ ] Progress indicators shown for long operations
+- [ ] CLI recommendation completes within 30 seconds
+- [ ] MCP generateManifests completes within 45 seconds
+- [ ] Other MCP tools respond within 5 seconds
 - [ ] No memory leaks or excessive resource usage
 
 ### Test 8.2: Large Cluster Handling
@@ -426,25 +435,29 @@ KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy using cus
 
 ## 9. Stateless Design Validation
 
-### Test 9.1: External Agent Workflow Simulation
+### Test 9.1: MCP Client Integration Simulation
 
 ```bash
-# Step 1: Get recommendation (simulate external agent)
-KUBECONFIG=kubeconfig.yaml node dist/cli.js recommend --intent "deploy web app" --output json > agent-solution.json
+# Step 1: Start MCP server
+npm run mcp:start
 
-# Step 2: Process solution (external agent would parse JSON)
-cat agent-solution.json | jq '.data.solutions[0].questions'
+# Step 2: Simulate external MCP client workflow
+# External AI agents (Claude Code, Cursor, etc.) would call:
+# - recommend({ intent: "deploy web app" })
+# - chooseSolution({ solutionId: "sol_..." })
+# - answerQuestion through all stages
+# - generateManifests({ solutionId: "sol_..." })
 
-# Step 3: Add answers and enhance (simulate user input processing)
-# Edit agent-solution.json to add user responses
-KUBECONFIG=kubeconfig.yaml node dist/cli.js enhance --solution agent-solution.json --output json
+# Step 3: Verify session state management
+# Check that solutionId maintains state across calls
+# Verify generated YAML includes all configuration
 ```
 
 **Validation:**
-- [ ] Complete solution object passed between steps
-- [ ] No server-side state required
-- [ ] All necessary data included for manifest generation
-- [ ] ResourceMapping preserved for field population
+- [ ] MCP tools maintain session state via solutionId
+- [ ] No server-side persistence required beyond session
+- [ ] Complete workflow from intent to manifests
+- [ ] Generated YAML reflects all user answers
 
 ## Success Criteria Summary
 
@@ -452,9 +465,9 @@ The Resource Schema Parser and Validator system is considered fully functional w
 
 ### Core Functionality
 1. **Schema Parsing Works** for both standard K8s resources and CRDs
-2. **AI Recommendations** provide relevant, ranked solutions
+2. **AI Recommendations** provide relevant, ranked solutions  
 3. **Question Generation** creates contextual, categorized questions
-4. **Solution Enhancement** processes user requirements iteratively
+4. **Stage-Based Workflow** supports progressive configuration via MCP tools
 5. **Manifest Validation** uses kubectl dry-run accurately
 
 ### Quality Requirements
@@ -462,7 +475,7 @@ The Resource Schema Parser and Validator system is considered fully functional w
 7. **Error Handling** is robust and user-friendly
 8. **Performance** meets acceptable response times
 9. **CLI Usability** provides clear help and validation
-10. **Stateless Design** supports external agent workflows
+10. **MCP Integration** supports external agent workflows via session management
 
 ### Integration
 11. **Dynamic Discovery** populates real cluster options
