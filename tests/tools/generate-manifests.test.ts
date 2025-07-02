@@ -220,18 +220,39 @@ spec:
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
-      // Mock schema explanation
-      const mockExplanation = {
-        kind: 'AppClaim',
-        group: 'devopstoolkit.live',
-        version: 'v1alpha1',
-        fields: [
-          { name: 'apiVersion', type: 'string', description: 'API version', required: true },
-          { name: 'kind', type: 'string', description: 'Resource kind', required: true },
-          { name: 'metadata.name', type: 'string', description: 'Resource name', required: true },
-          { name: 'spec.namespace', type: 'string', description: 'Target namespace', required: false }
-        ]
-      };
+      // Mock kubectl explain output as raw string
+      const mockExplanation = `GROUP:      devopstoolkit.live
+KIND:       AppClaim
+VERSION:    v1alpha1
+
+DESCRIPTION:
+     AppClaim resource for application deployment
+
+FIELDS:
+   apiVersion	<string>
+     APIVersion defines the versioned schema
+
+   kind	<string>
+     Kind is a string value representing the REST resource
+
+   metadata	<Object>
+     Standard object metadata
+
+   spec	<Object> -required-
+     
+     id	<string> -required-
+       ID of this application
+
+     parameters	<Object> -required-
+       
+       image	<string> -required-
+         The container image
+
+       port	<integer>
+         The application port
+
+       host	<string>
+         The host address of the application`;
       
       mockAppAgent.discovery.explainResource.mockResolvedValue(mockExplanation);
       
@@ -278,9 +299,27 @@ spec:
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
       // Mock different explanations for each resource
+      const deploymentExplanation = `GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+FIELDS:
+   spec	<Object>
+     replicas	<integer>
+       Number of desired pods`;
+
+      const serviceExplanation = `GROUP:      
+KIND:       Service
+VERSION:    v1
+
+FIELDS:
+   spec	<Object>
+     ports	<[]Object>
+       List of ports that are exposed`;
+
       mockAppAgent.discovery.explainResource
-        .mockResolvedValueOnce({ kind: 'Deployment', fields: [{ name: 'spec.replicas', type: 'integer' }] })
-        .mockResolvedValueOnce({ kind: 'Service', fields: [{ name: 'spec.ports', type: 'array' }] });
+        .mockResolvedValueOnce(deploymentExplanation)
+        .mockResolvedValueOnce(serviceExplanation);
       
       process.env.APP_AGENT_SESSION_DIR = '/test/session';
       

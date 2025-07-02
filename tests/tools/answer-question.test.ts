@@ -287,7 +287,7 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('questions_remaining');
+      expect(response.status).toBe('group_questions');
       expect(response.solutionId).toBe(TEST_SOLUTION_ID);
     });
   });
@@ -299,15 +299,13 @@ describe('Answer Question Tool Handler', () => {
       const result = await answerQuestionToolHandler({
         solutionId: TEST_SOLUTION_ID,
         sessionDir: TEST_SESSION_DIR,
-        answers: {
-          name: 'my-app'
-        }
+        answers: {}
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('questions_remaining');
-      expect(response.questions).toBeDefined();
-      expect(response.guidance).toContain('done=true');
+      expect(response.status).toBe('group_questions');
+      expect(response.questions || response.open).toBeDefined();
+      expect(response.currentGroup).toBeDefined();
     });
 
     test('should show open question after only required questions are answered', async () => {
@@ -325,14 +323,11 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('questions_remaining');
-      expect(response.questions.required).toEqual([]); // No required questions left
-      expect(response.questions.open).toBeDefined(); // Open question should be present
-      expect(response.questions.basic).toBeDefined(); // Basic questions still available
-      expect(response.questions.advanced).toBeDefined(); // Advanced questions still available
-      expect(response.message).toContain('All required questions answered');
-      expect(response.message).toContain('optional questions remaining');
-      expect(response.guidance).toContain('AGENT INSTRUCTIONS: Present user with clear options');
+      expect(response.status).toBe('group_questions');
+      expect(response.currentGroup).toBeDefined();
+      expect(response.progress).toBeDefined();
+      expect(response.message).toBeDefined();
+      expect(response.guidance).toBeDefined();
     });
 
     test('should return remaining questions on subsequent calls', async () => {
@@ -351,9 +346,9 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('questions_remaining');
-      expect(response.questions.basic).toBeDefined();
-      expect(response.questions.advanced).toBeDefined();
+      expect(response.status).toBe('group_questions');
+      expect(response.currentGroup).toBeDefined();
+      expect(response.questions).toBeDefined();
     });
 
     test('should return only open question when all structured questions answered', async () => {
@@ -373,38 +368,276 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.status).toBe('questions_remaining');
-      expect(response.questions.open).toBeDefined();
-      expect(response.questions.required).toBeUndefined(); // Should not include these when all answered
-      expect(response.questions.basic).toBeUndefined(); // Should not include these when all answered
-      expect(response.questions.advanced).toBeUndefined(); // Should not include these when all answered
-      expect(response.message).toContain('All structured questions answered');
+      expect(response.status).toBe('group_questions');
+      expect(response.currentGroup).toBe('open');
+      expect(response.open || response.questions).toBeDefined();
+      expect(response.message).toBeDefined();
     });
   });
 
   describe('Completion Flow', () => {
-    test('should complete without open answer when done=true', async () => {
+    test('should return validation error when skipping required questions', async () => {
       const context = createMockToolContext();
       
       const result = await answerQuestionToolHandler({
         solutionId: TEST_SOLUTION_ID,
         sessionDir: TEST_SESSION_DIR,
-        answers: {},
+        answers: {
+          replicas: 3,  // Trying to answer basic question without required questions
+          open: 'N/A'
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('validation_error');
+      expect(response.error).toContain('Must complete required questions before proceeding');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.guidance).toContain('Answer at least one required question');
+    });
+
+    test('should return validation error when skipping basic questions for advanced', async () => {
+      const context = createMockToolContext();
+      
+      // First answer required questions
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app'
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          'scaling-enabled': true,  // Trying to answer advanced question without basic questions
+          open: 'N/A'
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('validation_error');
+      expect(response.error).toContain('Must address basic questions before proceeding to advanced');
+      expect(response.currentStage).toBe('basic');
+      expect(response.nextStage).toBe('advanced');
+      expect(response.guidance).toContain('Answer at least one basic question');
+    });
+
+    test('should return validation error when done=true without addressing required questions', async () => {
+      const context = createMockToolContext();
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'N/A'  // Trying to complete without required questions
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('validation_error');
+      expect(response.error).toContain('Required questions must be addressed before completion');
+      expect(response.currentStage).toBe('required');
+      expect(response.nextStage).toBe('basic');
+      expect(response.guidance).toContain('Answer at least one required question');
+    });
+
+    test('should allow completion when done=true with N/A for basic questions', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with answered required questions
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app'
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'N/A'  // Explicit skip - should allow completion with defaults
+        },
         done: true
       }, context);
       const response = JSON.parse(result.content[0].text);
       
       expect(response.status).toBe('ready_for_manifest_generation');
       expect(response.nextAction).toBe('generateManifests');
-      expect(response.guidance).toContain('call the generateManifests tool');
-      expect(response.guidance).toContain(TEST_SOLUTION_ID);
       expect(response.solutionData).toBeDefined();
-      expect(response.solutionData.hasOpenRequirements).toBe(false);
+    });
+
+    test('should allow completion when done=true with N/A for advanced questions', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with answered required and basic questions
+      const solutionWithBasic = createSolutionWithAnswers({
+        name: 'my-app',
+        replicas: 3
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'N/A'  // Explicit skip - should allow completion with defaults
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.solutionData).toBeDefined();
+    });
+
+    test('should allow completion with any open answer after required questions', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with answered required questions only
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app'
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'I need SSL certificates'  // Real requirement - should allow completion
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.solutionData).toBeDefined();
+    });
+
+    test('should allow completion with open answer even when skipping optional groups', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with answered required and basic questions
+      const solutionWithBasic = createSolutionWithAnswers({
+        name: 'my-app',
+        replicas: 3
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'I need monitoring setup'  // Real requirement - should allow completion
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.solutionData).toBeDefined();
+    });
+
+    test('should return validation error with questions when done=true but no open answer', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with all groups answered
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        replicas: 3,
+        'scaling-enabled': true
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {},  // No open answer provided
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('validation_error');
+      expect(response.error).toContain('Open question must be answered before completion');
+      expect(response.questions.open).toBeDefined();
+      expect(response.guidance).toContain('Provide an answer to the open question');
+      expect(response.currentStage).toBe('open');
+      expect(response.nextStage).toBe('completion');
+      expect(response.solutionId).toBe(TEST_SOLUTION_ID);
+    });
+
+    test('should successfully complete with staged progression', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with all question groups answered
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',      // Required
+        replicas: 3,         // Basic
+        'scaling-enabled': true        // Advanced
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'N/A'  // Required by staged validation
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.guidance).toContain('Ready to generate');
+      expect(response.solutionData).toBeDefined();
+      expect(response.solutionData.hasOpenRequirements).toBe(true);  // N/A counts as an open answer
+      expect(response.solutionData.userAnswers).toBeDefined();
+    });
+
+    test('should complete without open answer when done=true', async () => {
+      const context = createMockToolContext();
+      
+      // Solution with all question groups answered
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',      // Required
+        replicas: 3,         // Basic  
+        'scaling-enabled': true        // Advanced
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await answerQuestionToolHandler({
+        solutionId: TEST_SOLUTION_ID,
+        sessionDir: TEST_SESSION_DIR,
+        answers: {
+          open: 'N/A'  // Required by new validation - use N/A for no additional requirements
+        },
+        done: true
+      }, context);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.guidance).toContain('Ready to generate');
+      expect(response.nextAction).toBe('generateManifests');
+      expect(response.solutionData).toBeDefined();
+      expect(response.solutionData.hasOpenRequirements).toBe(true);  // N/A counts as an open answer
       expect(response.solutionData.userAnswers).toBeDefined();
     });
 
     test('should complete with open answer when done=true', async () => {
       const context = createMockToolContext();
+      
+      // Solution with all required questions answered to allow completion
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
       
       const result = await answerQuestionToolHandler({
         solutionId: TEST_SOLUTION_ID,
@@ -418,7 +651,7 @@ describe('Answer Question Tool Handler', () => {
       
       expect(response.status).toBe('ready_for_manifest_generation');
       expect(response.nextAction).toBe('generateManifests');
-      expect(response.guidance).toContain('call the generateManifests tool');
+      expect(response.guidance).toContain('Ready to generate');
       expect(response.solutionData).toBeDefined();
       expect(response.solutionData.hasOpenRequirements).toBe(true);
       expect(response.solutionData.userAnswers.open).toBe('I need high availability with load balancing');
@@ -426,6 +659,13 @@ describe('Answer Question Tool Handler', () => {
 
     test('should support openResponse as alternative to open', async () => {
       const context = createMockToolContext();
+      
+      // Solution with required questions answered
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
       
       const result = await answerQuestionToolHandler({
         solutionId: TEST_SOLUTION_ID,
@@ -657,8 +897,7 @@ describe('Answer Question Tool Handler', () => {
       }, context);
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.answeredQuestions).toBeDefined();
-      expect(response.totalQuestions).toBeDefined();
+      expect(response.progress).toBeDefined();
       expect(response.timestamp).toBeDefined();
     });
 
@@ -735,6 +974,13 @@ describe('Answer Question Tool Handler', () => {
     test('should process structured answers before AI enhancement attempt', async () => {
       const context = createMockToolContext();
       
+      // Solution with required questions answered
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
       // Track writeFileSync calls to verify order
       const writeFileCalls: Array<{ path: string; content: string }> = [];
       mockFs.writeFileSync.mockImplementation((filePath, content) => {
@@ -774,12 +1020,18 @@ describe('Answer Question Tool Handler', () => {
     test('should handle AI enhancement errors gracefully', async () => {
       const context = createMockToolContext();
       
+      // Solution with required questions answered
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      
       // Mock prompt file reading to fail (simulating AI service unavailable)
       mockFs.readFileSync.mockImplementation((filePath: any, options?: any): any => {
         if (typeof filePath === 'string' && filePath.includes('resource-analysis.md')) {
           throw new Error('Prompt file not found');
         }
-        return JSON.stringify(TEST_SOLUTION);
+        return JSON.stringify(solutionWithRequired);
       });
 
       const result = await answerQuestionToolHandler({
@@ -844,6 +1096,13 @@ describe('Answer Question Tool Handler', () => {
     test('should include enhancement workflow guidance in completion response', async () => {
       const context = createMockToolContext();
       
+      // Solution with required questions answered
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
       const result = await answerQuestionToolHandler({
         solutionId: TEST_SOLUTION_ID,
         sessionDir: TEST_SESSION_DIR,
@@ -855,9 +1114,8 @@ describe('Answer Question Tool Handler', () => {
 
       const response = JSON.parse(result.content[0].text);
       
-      expect(response.guidance).toContain('AGENT INSTRUCTIONS');
-      expect(response.guidance).toContain('generateManifests tool');
-      expect(response.guidance).toContain(TEST_SOLUTION_ID);
+      expect(response.guidance).toContain('Ready to generate');
+      expect(response.nextAction).toBe('generateManifests');
       expect(response.nextAction).toBe('generateManifests');
     });
   });

@@ -13,6 +13,13 @@
 
 Analyze the user's request and determine if the current solution can fulfill it or if additional resources are needed.
 
+### STEP 0: Handle No-Requirements Cases
+If the user request is any of: "N/A", "no requirements", "none", "nothing", "no", or similar variations:
+- This indicates the user has no additional requirements beyond current configuration
+- ALWAYS respond with: `{"canHandle": true, "approach": "complete_existing_questions", "reasoning": "User specified no additional requirements beyond current configuration"}`
+- Do NOT proceed to capability gap analysis in these cases
+- Skip all other steps and return the success response immediately
+
 ### STEP 1: Analyze Current Solution Capabilities
 - Review the current solution's resources and their capabilities
 - Check if missing question answers can fulfill the user's request
@@ -59,6 +66,15 @@ If existing resources are high-level controllers that fully manage pod/deploymen
   "canHandle": true,
   "approach": "complete_existing_questions",
   "reasoning": "AppClaim supports scaling via spec.scaling.enabled/min/max fields"
+}
+```
+
+### If user has no additional requirements ("N/A", "none", etc.):
+```json
+{
+  "canHandle": true,
+  "approach": "complete_existing_questions",
+  "reasoning": "User specified no additional requirements beyond current configuration"
 }
 ```
 

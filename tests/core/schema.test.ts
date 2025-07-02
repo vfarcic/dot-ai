@@ -318,17 +318,20 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
         custom: []
       });
 
-      // Mock resource explanation
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod is a collection of containers that can run on a host',
-        fields: [
-          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
-          { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
-        ]
-      });
+      // Mock resource explanation - now returns kubectl explain string format
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod is a collection of containers that can run on a host
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior`);
 
       // Mock kubectl for cluster discovery
       const mockExecuteKubectl = jest.fn();
@@ -424,16 +427,19 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
       });
 
       // Mock CRD explanation
-      mockExplainResource.mockResolvedValue({
-        kind: 'Cluster',
-        version: 'v1beta1',
-        group: 'infrastructure.cluster.x-k8s.io',
-        description: 'Cluster is the Schema for the clusters API',
-        fields: [
-          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
-          { name: 'spec', type: 'Object', description: 'Desired state of the cluster', required: true }
-        ]
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      infrastructure.cluster.x-k8s.io
+KIND:       Cluster
+VERSION:    v1beta1
+
+DESCRIPTION:
+     Cluster is the Schema for the clusters API
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Desired state of the cluster`);
 
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
@@ -554,26 +560,32 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
       // Mock explanations for both resources
       mockExplainResource
-        .mockResolvedValueOnce({
-          kind: 'Deployment',
-          version: 'v1',
-          group: 'apps',
-          description: 'Deployment enables declarative updates for Pods and ReplicaSets',
-          fields: [
-            { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
-            { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
-          ]
-        })
-        .mockResolvedValueOnce({
-          kind: 'Service',
-          version: 'v1',
-          group: '',
-          description: 'Service is a named abstraction of software service',
-          fields: [
-            { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
-            { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
-          ]
-        });
+        .mockResolvedValueOnce(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment enables declarative updates for Pods and ReplicaSets
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior`)
+        .mockResolvedValueOnce(`GROUP:      
+KIND:       Service
+VERSION:    v1
+
+DESCRIPTION:
+     Service is a named abstraction of software service
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior`);
 
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
@@ -618,13 +630,16 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       const fs = require('fs');
       // Reset the mock and set clear expectations
@@ -700,26 +715,32 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
       // Mock explanations for selected resources
       mockExplainResource
-        .mockResolvedValueOnce({
-          kind: 'Deployment',
-          version: 'v1',
-          group: 'apps',
-          description: 'Deployment manages pods',
-          fields: [
-            { name: 'metadata', type: 'Object', description: 'Standard metadata', required: true },
-            { name: 'spec', type: 'Object', description: 'Deployment spec', required: true }
-          ]
-        })
-        .mockResolvedValueOnce({
-          kind: 'AppClaim',
-          version: 'v1alpha1', 
-          group: 'devopstoolkit.live',
-          description: 'AppClaim for application deployment',
-          fields: [
-            { name: 'metadata', type: 'Object', description: 'Standard metadata', required: true },
-            { name: 'spec', type: 'Object', description: 'App specification', required: true }
-          ]
-        });
+        .mockResolvedValueOnce(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment manages pods
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard metadata
+
+   spec	<Object> -required-
+     Deployment spec`)
+        .mockResolvedValueOnce(`GROUP:      devopstoolkit.live
+KIND:       AppClaim
+VERSION:    v1alpha1
+
+DESCRIPTION:
+     AppClaim for application deployment
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard metadata
+
+   spec	<Object> -required-
+     App specification`);
 
       // Mock final AI ranking response
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -780,13 +801,16 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
         content: `[{"kind": "TestResource", "apiVersion": "v1", "group": ""}]`
       });
 
-      mockExplainResource.mockResolvedValueOnce({
-        kind: 'TestResource',
-        version: 'v1',
-        group: '',
-        description: 'Test resource',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValueOnce(`GROUP:      
+KIND:       TestResource
+VERSION:    v1
+
+DESCRIPTION:
+     Test resource
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
         content: `{
@@ -838,18 +862,36 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
 
       // Mock explanations
       mockExplainResource
-        .mockResolvedValueOnce({
-          kind: 'Deployment', version: 'v1', group: 'apps',
-          description: 'Deployment manages pods', fields: []
-        })
-        .mockResolvedValueOnce({
-          kind: 'Service', version: 'v1', group: '',
-          description: 'Service exposes apps', fields: []
-        })
-        .mockResolvedValueOnce({
-          kind: 'AppClaim', version: 'v1alpha1', group: 'devopstoolkit.live',
-          description: 'AppClaim provides simple app deployment', fields: []
-        });
+        .mockResolvedValueOnce(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment manages pods
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`)
+        .mockResolvedValueOnce(`GROUP:      
+KIND:       Service
+VERSION:    v1
+
+DESCRIPTION:
+     Service exposes apps
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`)
+        .mockResolvedValueOnce(`GROUP:      devopstoolkit.live
+KIND:       AppClaim
+VERSION:    v1alpha1
+
+DESCRIPTION:
+     AppClaim provides simple app deployment
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock ranking that prefers the simpler CRD approach
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1014,16 +1056,19 @@ describe('Question Generation and Dynamic Discovery', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Deployment',
-        version: 'v1',
-        group: 'apps',
-        description: 'Deployment enables declarative updates for Pods and ReplicaSets',
-        fields: [
-          { name: 'metadata', type: 'Object', description: 'Standard object metadata', required: true },
-          { name: 'spec', type: 'Object', description: 'Specification of the desired behavior', required: true }
-        ]
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment enables declarative updates for Pods and ReplicaSets
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior`);
 
       // Mock kubectl commands for cluster discovery
       const mockExecuteKubectl = jest.fn();
@@ -1120,13 +1165,16 @@ describe('Question Generation and Dynamic Discovery', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock kubectl failures
       const mockExecuteKubectl = jest.fn().mockRejectedValue(new Error('kubectl not found'));
@@ -1161,13 +1209,16 @@ describe('Question Generation and Dynamic Discovery', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: [{ name: 'metadata', type: 'Object', description: 'Metadata', required: true }]
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       const mockExecuteKubectl = jest.fn().mockResolvedValue('default');
       jest.doMock('../../src/core/kubernetes-utils', () => ({
@@ -1208,13 +1259,16 @@ describe('Question Generation and Dynamic Discovery', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock AI response for resource selection (phase 1) - needs to be an array
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1266,13 +1320,16 @@ These resources should work well.`
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock AI response for resource selection (phase 1) with extra text after
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1321,13 +1378,16 @@ This often happens when AI adds context after the JSON.`
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock AI response with malformed JSON in resource selection phase
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1387,13 +1447,16 @@ describe('Enhanced Error Handling and Debugging', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock resource selection returning valid resources
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1431,13 +1494,16 @@ describe('Enhanced Error Handling and Debugging', () => {
         custom: []
       });
 
-      mockExplainResource.mockResolvedValue({
-        kind: 'Pod',
-        version: 'v1',
-        group: '',
-        description: 'Pod description',
-        fields: []
-      });
+      mockExplainResource.mockResolvedValue(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
 
       // Mock resource selection
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1533,13 +1599,16 @@ describe('Enhanced Error Handling and Debugging', () => {
       // Mock explainResource to succeed for Pod but fail for Service
       mockExplainResource.mockImplementation((kind: string) => {
         if (kind === 'Pod') {
-          return Promise.resolve({
-            kind: 'Pod',
-            version: 'v1',
-            group: '',
-            description: 'Pod description',
-            fields: []
-          });
+          return Promise.resolve(`GROUP:      
+KIND:       Pod
+VERSION:    v1
+
+DESCRIPTION:
+     Pod description
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata`);
         }
         return Promise.reject(new Error('Service explanation failed'));
       });

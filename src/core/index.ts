@@ -60,9 +60,31 @@ export class AppAgent {
       validator,
       ranker,
       parseResource: async (resourceName: string) => {
-        // Get resource explanation from discovery
+        // Get raw resource explanation from discovery  
         const explanation = await this.discovery.explainResource(resourceName);
-        return parser.parseResourceExplanation(explanation);
+        
+        // Parse GROUP, KIND, VERSION from kubectl explain output
+        const lines = explanation.split('\n');
+        const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
+        const kindLine = lines.find((line: string) => line.startsWith('KIND:'));
+        const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
+        
+        const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
+        const kind = kindLine ? kindLine.replace('KIND:', '').trim() : resourceName;
+        const version = versionLine ? versionLine.replace('VERSION:', '').trim() : 'v1';
+        
+        // Build apiVersion from group and version
+        const apiVersion = group ? `${group}/${version}` : version;
+        
+        // Return raw explanation for AI processing
+        return { 
+          kind: kind,
+          rawExplanation: explanation,
+          apiVersion: apiVersion,
+          group: group,
+          description: explanation.split('\n').find((line: string) => line.startsWith('DESCRIPTION:'))?.replace('DESCRIPTION:', '').trim() || '',
+          properties: new Map() // Raw explanation contains all field info for AI
+        };
       },
       validateManifest: async (manifestPath: string) => {
         // This would read the manifest file and validate it

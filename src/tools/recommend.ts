@@ -403,7 +403,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
         intent: args.intent,
         solutions: solutionSummaries,
         nextAction: "Call chooseSolution with your preferred solutionId",
-        guidance: "Review solutions and select one by calling chooseSolution(solutionId)",
+        guidance: "🛑 NEVER choose automatically - Present ALL solutions to user and ask them to choose by calling chooseSolution(solutionId)",
         timestamp
       };
 

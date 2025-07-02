@@ -299,7 +299,7 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
         solutionId: solution.solutionId,
         questions: solution.questions,
         nextAction,
-        guidance: 'Answer required questions first, then proceed with basic and advanced questions as needed. Use done=true to signal completion of structured questions.',
+        guidance: '🛑 NEVER auto-fill answers - Present these questions to the user and wait for their responses before calling answerQuestion with their provided values.',
         timestamp: new Date().toISOString()
       };
       

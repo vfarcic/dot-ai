@@ -38,11 +38,12 @@ export interface ResourceSchema {
   apiVersion: string;
   kind: string;
   group: string;
-  version: string;
+  version?: string;
   description: string;
   properties: Map<string, SchemaField>;
-  required: string[];
-  namespace: boolean;
+  required?: string[];
+  namespace?: boolean;
+  rawExplanation?: string; // Raw kubectl explain output for AI processing
 }
 
 export interface ValidationResult {
@@ -489,7 +490,29 @@ export class ResourceRecommender {
     for (const resource of candidates) {
       try {
         const explanation = await explainResource(resource.kind);
-        const schema = parser.parseResourceExplanation(explanation);
+        
+        // Parse GROUP, KIND, VERSION from kubectl explain output
+        const lines = explanation.split('\n');
+        const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
+        const kindLine = lines.find((line: string) => line.startsWith('KIND:'));
+        const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
+        
+        const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
+        const kind = kindLine ? kindLine.replace('KIND:', '').trim() : resource.kind;
+        const version = versionLine ? versionLine.replace('VERSION:', '').trim() : 'v1';
+        
+        // Build apiVersion from group and version
+        const apiVersion = group ? `${group}/${version}` : version;
+        
+        // Create a simple schema with raw explanation for AI processing
+        const schema: ResourceSchema = {
+          kind: kind,
+          apiVersion: apiVersion,
+          group: group,
+          description: explanation.split('\n').find((line: string) => line.startsWith('DESCRIPTION:'))?.replace('DESCRIPTION:', '').trim() || '',
+          properties: new Map<string, SchemaField>(),
+          rawExplanation: explanation // Include raw explanation for AI
+        };
         schemas.push(schema);
       } catch (error) {
         errors.push(`${resource.kind}: ${(error as Error).message}`);
@@ -552,36 +575,8 @@ export class ResourceRecommender {
    */
   private parseAISolutionResponse(aiResponse: string, schemas: ResourceSchema[]): ResourceSolution[] {
     try {
-      // Extract JSON from AI response (may be wrapped in markdown)
-      let jsonContent = aiResponse;
-      
-      // First try to find JSON wrapped in code blocks
-      const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        jsonContent = codeBlockMatch[1];
-      } else {
-        // Try to find JSON that starts with { and find the matching closing }
-        const startIndex = aiResponse.indexOf('{');
-        if (startIndex !== -1) {
-          let braceCount = 0;
-          let endIndex = startIndex;
-          
-          for (let i = startIndex; i < aiResponse.length; i++) {
-            if (aiResponse[i] === '{') braceCount++;
-            if (aiResponse[i] === '}') braceCount--;
-            if (braceCount === 0) {
-              endIndex = i;
-              break;
-            }
-          }
-          
-          if (braceCount === 0) {
-            jsonContent = aiResponse.substring(startIndex, endIndex + 1);
-          }
-        }
-      }
-      
-      const parsed = JSON.parse(jsonContent.trim());
+      // Use robust JSON extraction
+      const parsed = this.extractJsonFromAIResponse(aiResponse);
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
         const isDebugMode = process.env.APP_AGENT_DEBUG === 'true';
@@ -719,6 +714,41 @@ export class ResourceRecommender {
   }
 
   /**
+   * Extract JSON object from AI response with robust parsing
+   */
+  private extractJsonFromAIResponse(aiResponse: string): any {
+    let jsonContent = aiResponse;
+    
+    // First try to find JSON wrapped in code blocks
+    const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1];
+    } else {
+      // Try to find JSON that starts with { and find the matching closing }
+      const startIndex = aiResponse.indexOf('{');
+      if (startIndex !== -1) {
+        let braceCount = 0;
+        let endIndex = startIndex;
+        
+        for (let i = startIndex; i < aiResponse.length; i++) {
+          if (aiResponse[i] === '{') braceCount++;
+          if (aiResponse[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            endIndex = i;
+            break;
+          }
+        }
+        
+        if (braceCount === 0) {
+          jsonContent = aiResponse.substring(startIndex, endIndex + 1);
+        }
+      }
+    }
+    
+    return JSON.parse(jsonContent.trim());
+  }
+
+  /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
   private async generateQuestionsWithAI(intent: string, solution: ResourceSolution): Promise<QuestionGroup> {
@@ -726,21 +756,31 @@ export class ResourceRecommender {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
 
-      // Format resource details for the prompt
+      // Format resource details for the prompt using raw explanation when available
       const resourceDetails = solution.resources.map(resource => {
-        const properties = Array.from(resource.properties.entries()).map(([key, field]) => {
-          const nestedFields = Array.from(field.nested.entries()).map(([nestedKey, nestedField]) => 
-            `    ${nestedKey}: ${nestedField.type} - ${nestedField.description}`
-          ).join('\n');
-          
-          return `  ${key}: ${field.type} - ${field.description}${field.required ? ' (required)' : ''}${nestedFields ? '\n' + nestedFields : ''}`;
-        }).join('\n');
-
-        return `${resource.kind} (${resource.apiVersion}):
+        if (resource.rawExplanation) {
+          // Use raw kubectl explain output for comprehensive field information
+          return `${resource.kind} (${resource.apiVersion}):
   Description: ${resource.description}
-  Required fields: ${resource.required.join(', ')}
+  
+  Complete Schema Information:
+${resource.rawExplanation}`;
+        } else {
+          // Fallback to properties map if raw explanation is not available
+          const properties = Array.from(resource.properties.entries()).map(([key, field]) => {
+            const nestedFields = Array.from(field.nested.entries()).map(([nestedKey, nestedField]) => 
+              `    ${nestedKey}: ${nestedField.type} - ${nestedField.description}`
+            ).join('\n');
+            
+            return `  ${key}: ${field.type} - ${field.description}${field.required ? ' (required)' : ''}${nestedFields ? '\n' + nestedFields : ''}`;
+          }).join('\n');
+
+          return `${resource.kind} (${resource.apiVersion}):
+  Description: ${resource.description}
+  Required fields: ${resource.required?.join(', ') || 'none specified'}
   Properties:
 ${properties}`;
+        }
       }).join('\n\n');
 
       // Format cluster options for the prompt
@@ -764,11 +804,8 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
 
       const response = await this.claudeIntegration.sendMessage(questionPrompt);
       
-      // Extract JSON from response
-      const jsonMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || [null, response.content];
-      const jsonContent = jsonMatch[1] || response.content;
-      
-      const questions = JSON.parse(jsonContent);
+      // Use robust JSON extraction
+      const questions = this.extractJsonFromAIResponse(response.content);
       
       // Validate the response structure
       if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {

@@ -203,7 +203,7 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
         
         context.logger.debug('Schema retrieved successfully', { 
           resourceKey,
-          fieldCount: explanation.fields.length 
+          schemaLength: explanation.length 
         });
         
       } catch (error) {

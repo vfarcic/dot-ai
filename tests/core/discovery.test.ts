@@ -679,47 +679,43 @@ describe('Kubernetes Discovery Module', () => {
 
     describe('Enhanced Resource Explanation', () => {
       test('should explain resource schema using kubectl explain', async () => {
-        // Test with real cluster - should return detailed resource explanation
+        // Test with real cluster - should return raw kubectl explain output
         const explanation = await discovery.explainResource('Pod');
         expect(explanation).toBeDefined();
-        expect(explanation.kind).toBe('Pod');
-        expect(explanation.version).toBe('v1');
-        expect(explanation.group).toBe('');
-        expect(explanation.fields).toBeInstanceOf(Array);
-        expect(explanation.fields.length).toBeGreaterThan(0);
+        expect(typeof explanation).toBe('string');
+        expect(explanation).toContain('KIND:');
+        expect(explanation).toContain('Pod');
+        expect(explanation).toContain('VERSION:');
+        expect(explanation).toContain('FIELDS:');
       });
 
       test('should provide detailed field information with types', async () => {
-        // Test field information with real cluster
+        // Test field information with real cluster - now in raw kubectl explain format
         const explanation = await discovery.explainResource('Pod');
-        expect(explanation.fields).toBeInstanceOf(Array);
-        expect(explanation.fields.length).toBeGreaterThan(0);
+        expect(typeof explanation).toBe('string');
+        expect(explanation.length).toBeGreaterThan(0);
         
-        // Should include standard Pod fields
-        const fieldNames = explanation.fields.map(f => f.name);
-        expect(fieldNames).toContain('apiVersion');
-        expect(fieldNames).toContain('kind');
-        expect(fieldNames).toContain('metadata');
+        // Should include standard Pod fields in the text output
+        expect(explanation).toContain('apiVersion');
+        expect(explanation).toContain('kind');
+        expect(explanation).toContain('metadata');
+        expect(explanation).toContain('spec');
         
-        // Each field should have required properties
-        explanation.fields.forEach(field => {
-          expect(field.name).toBeDefined();
-          expect(field.type).toBeDefined();
-          expect(typeof field.required).toBe('boolean');
-        });
+        // Should have field type information
+        expect(explanation).toMatch(/<string>/);
+        expect(explanation).toMatch(/<[A-Za-z]+>/); // Match any object type like <Object>, <ObjectMeta>, etc.
       });
 
       test('should support nested field explanation', async () => {
         // Test nested field explanation with real cluster
         const explanation = await discovery.explainResource('Pod', { field: 'spec' });
         expect(explanation).toBeDefined();
-        expect(explanation.kind).toBe('Pod');
-        expect(explanation.fields).toBeInstanceOf(Array);
-        expect(explanation.fields.length).toBeGreaterThan(0);
+        expect(typeof explanation).toBe('string');
+        expect(explanation.length).toBeGreaterThan(0);
         
-        // Should include spec-specific fields
-        const fieldNames = explanation.fields.map(f => f.name);
-        expect(fieldNames).toContain('containers');
+        // Should include spec-specific fields in text format
+        expect(explanation).toContain('containers');
+        expect(explanation).toContain('FIELDS:');
       });
 
       test('should handle custom resource explanation', async () => {
@@ -729,11 +725,13 @@ describe('Kubernetes Discovery Module', () => {
           const crd = crds[0];
           const explanation = await discovery.explainResource(crd.kind);
           expect(explanation).toBeDefined();
-          expect(explanation.kind).toBe(crd.kind);
+          expect(typeof explanation).toBe('string');
+          expect(explanation).toContain(crd.kind);
+          expect(explanation).toContain('KIND:');
         }
       });
 
-      test('should use JSON-based parsing for CRDs with proper group and description', async () => {
+      test('should use kubectl explain for CRDs with proper group and description', async () => {
         const crds = await discovery.discoverCRDs();
         
         if (crds.length > 0) {
@@ -741,34 +739,32 @@ describe('Kubernetes Discovery Module', () => {
           const explanation = await discovery.explainResource(crd.kind);
           
           expect(explanation).toBeDefined();
-          expect(explanation.kind).toBe(crd.kind);
-          expect(explanation.group).toBe(crd.group);
-          expect(explanation.description).toBeDefined();
-          expect(explanation.description).not.toBe('');
+          expect(typeof explanation).toBe('string');
+          expect(explanation).toContain(crd.kind);
+          expect(explanation).toContain(crd.group);
+          expect(explanation).toContain('DESCRIPTION:');
           
-          // Should have basic Kubernetes fields
-          const fieldNames = explanation.fields.map(f => f.name);
-          expect(fieldNames).toContain('apiVersion');
-          expect(fieldNames).toContain('kind');
-          expect(fieldNames).toContain('metadata');
+          // Should have basic Kubernetes fields in text format
+          expect(explanation).toContain('apiVersion');
+          expect(explanation).toContain('kind');
+          expect(explanation).toContain('metadata');
         }
       });
 
-      test('should use enhanced text parsing for standard resources with proper group extraction', async () => {
+      test('should use kubectl explain for standard resources with proper group extraction', async () => {
         const explanation = await discovery.explainResource('Deployment');
         
         expect(explanation).toBeDefined();
-        expect(explanation.kind).toBe('Deployment');
-        expect(explanation.group).toBe('apps');
-        expect(explanation.description).toBeDefined();
-        expect(explanation.description).not.toBe('');
-        expect(explanation.description).toContain('Deployment');
+        expect(typeof explanation).toBe('string');
+        expect(explanation).toContain('Deployment');
+        expect(explanation).toContain('GROUP:      apps');
+        expect(explanation).toContain('DESCRIPTION:');
+        expect(explanation).toContain('Deployment');
         
-        // Should have proper field structure
-        const fieldNames = explanation.fields.map(f => f.name);
-        expect(fieldNames).toContain('apiVersion');
-        expect(fieldNames).toContain('kind');
-        expect(fieldNames).toContain('metadata');
+        // Should have proper field structure in text format
+        expect(explanation).toContain('apiVersion');
+        expect(explanation).toContain('kind');
+        expect(explanation).toContain('metadata');
       });
 
       test('should handle invalid resource names gracefully', async () => {
@@ -1619,32 +1615,22 @@ This is a comprehensive application platform that handles deployment, scaling, a
         
         // If AppClaim exists in the cluster, verify it includes scaling and host fields
         expect(explanation).toBeDefined();
-        expect(explanation.kind).toBe('AppClaim');
-        
-        const fieldNames = explanation.fields.map(f => f.name);
+        expect(typeof explanation).toBe('string');
+        expect(explanation).toContain('KIND:       AppClaim');
         
         // Should include basic Kubernetes fields
-        expect(fieldNames).toContain('apiVersion');
-        expect(fieldNames).toContain('kind');
-        expect(fieldNames).toContain('metadata');
-        expect(fieldNames).toContain('spec');
+        expect(explanation).toContain('apiVersion');
+        expect(explanation).toContain('kind');
+        expect(explanation).toContain('metadata');
+        expect(explanation).toContain('spec');
         
         // Should include AppClaim-specific parameter fields
-        expect(fieldNames).toContain('host');
-        expect(fieldNames).toContain('scaling.enabled');
-        expect(fieldNames).toContain('scaling.min');
-        expect(fieldNames).toContain('scaling.max');
+        expect(explanation).toContain('host');
+        expect(explanation).toContain('scaling');
         
-        // Verify field details
-        const hostField = explanation.fields.find(f => f.name === 'host');
-        expect(hostField).toBeDefined();
-        expect(hostField?.type).toBe('string');
-        expect(hostField?.description).toContain('host');
-        
-        const scalingEnabledField = explanation.fields.find(f => f.name === 'scaling.enabled');
-        expect(scalingEnabledField).toBeDefined();
-        expect(scalingEnabledField?.type).toBe('boolean');
-        expect(scalingEnabledField?.description).toContain('scaling');
+        // Verify the explanation contains field information
+        expect(explanation).toContain('FIELDS:');
+        expect(explanation).toContain('DESCRIPTION:');
         
       } catch (error) {
         // If AppClaim doesn't exist in the cluster, skip this test

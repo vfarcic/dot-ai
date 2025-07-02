@@ -27,7 +27,7 @@ export const answerQuestionToolDefinition: ToolDefinition = {
       },
       done: {
         type: 'boolean',
-        description: 'Set to true when providing final open question answer'
+        description: 'Set to true ONLY when user explicitly signals completion (e.g., "proceed", "ready to generate", "that\'s all my requirements"). Do NOT set to true based on technical details alone.'
       }
     },
     required: ['solutionId', 'answers']
@@ -36,7 +36,38 @@ export const answerQuestionToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: 'Process user answers to solution questions. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
+  instructions: `Process user answers to solution questions using GROUP-BY-GROUP flow. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.
+
+🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
+• NEVER auto-fill answers with assumed values or defaults
+• NEVER answer questions on behalf of the user
+• ALWAYS present questions to the user and wait for their responses
+• ONLY call this tool with answers the user explicitly provided
+• Present questions one group at a time, wait for user input before proceeding
+
+USAGE:
+• Structure answers by question ID: {"port": 8080, "namespace": "default"}
+• Use "open" field for additional requirements: {"open": "need SSL certificates"}  
+• Set done=true only when user explicitly says "proceed" or "ready"
+• If open question exists, it MUST be answered before completion (use "N/A" if no requirements)
+
+GROUP-BY-GROUP FLOW:
+• Tool now returns questions ONE GROUP AT A TIME to enforce proper progression
+• Response status "group_questions" = Present current group questions to user
+• Check "currentGroup" field: "required", "basic", "advanced", or "open"
+• Required questions MUST be completed before basic questions are shown
+• Basic and advanced groups are optional - user can skip
+• Progress through: required → basic → advanced → open → complete
+
+AGENT WORKFLOW ENFORCEMENT:
+• Present questions from current group only (don't overwhelm user)
+• ASK user for each answer - DO NOT assume or auto-fill values
+• For optional groups (basic/advanced): Ask user if they want to configure or skip
+• Guide user through one group at a time for better UX
+• Use progress field to show completion status to user
+• WAIT for user responses before calling answerQuestion tool
+
+The server validates completeness and will return errors for invalid patterns.`
 };
 
 // CLI Tool Definition - sessionDir required as parameter
@@ -62,7 +93,7 @@ export const answerQuestionCLIDefinition: ToolDefinition = {
       },
       done: {
         type: 'boolean',
-        description: 'Set to true when providing final open question answer'
+        description: 'Set to true ONLY when user explicitly signals completion (e.g., "proceed", "ready to generate", "that\'s all my requirements"). Do NOT set to true based on technical details alone.'
       }
     },
     required: ['solutionId', 'sessionDir', 'answers']
@@ -71,7 +102,38 @@ export const answerQuestionCLIDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: 'Process user answers to solution questions. Both solutionId and sessionDir are required parameters.'
+  instructions: `Process user answers to solution questions using GROUP-BY-GROUP flow. Both solutionId and sessionDir are required parameters.
+
+🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
+• NEVER auto-fill answers with assumed values or defaults
+• NEVER answer questions on behalf of the user
+• ALWAYS present questions to the user and wait for their responses
+• ONLY call this tool with answers the user explicitly provided
+• Present questions one group at a time, wait for user input before proceeding
+
+USAGE:
+• Structure answers by question ID: {"port": 8080, "namespace": "default"}
+• Use "open" field for additional requirements: {"open": "need SSL certificates"}  
+• Set done=true only when user explicitly says "proceed" or "ready"
+• If open question exists, it MUST be answered before completion (use "N/A" if no requirements)
+
+GROUP-BY-GROUP FLOW:
+• Tool now returns questions ONE GROUP AT A TIME to enforce proper progression
+• Response status "group_questions" = Present current group questions to user
+• Check "currentGroup" field: "required", "basic", "advanced", or "open"
+• Required questions MUST be completed before basic questions are shown
+• Basic and advanced groups are optional - user can skip
+• Progress through: required → basic → advanced → open → complete
+
+AGENT WORKFLOW ENFORCEMENT:
+• Present questions from current group only (don't overwhelm user)
+• ASK user for each answer - DO NOT assume or auto-fill values
+• For optional groups (basic/advanced): Ask user if they want to configure or skip
+• Guide user through one group at a time for better UX
+• Use progress field to show completion status to user
+• WAIT for user responses before calling answerQuestion tool
+
+The server validates completeness and will return errors for invalid patterns.`
 };
 
 /**
@@ -465,6 +527,170 @@ async function enhanceSolutionWithOpenAnswer(
 }
 
 /**
+ * Get current question group state and determine next group to present
+ */
+function getQuestionGroupState(solution: any): {
+  hasRequired: boolean;
+  hasBasic: boolean;
+  hasAdvanced: boolean;
+  hasOpen: boolean;
+  requiredComplete: boolean;
+  basicComplete: boolean;
+  advancedComplete: boolean;
+  openComplete: boolean;
+  currentGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
+  nextGroup?: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
+  completedGroups: string[];
+  progress: string;
+} {
+  // Check what groups exist
+  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
+  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
+  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
+  const hasOpen = !!solution.questions.open;
+
+  // Check completion status
+  const requiredComplete = !hasRequired || solution.questions.required.every((q: any) => q.answer !== undefined);
+  const basicComplete = !hasBasic || solution.questions.basic.every((q: any) => q.answer !== undefined);
+  const advancedComplete = !hasAdvanced || solution.questions.advanced.every((q: any) => q.answer !== undefined);
+  const openComplete = !hasOpen || solution.questions.open.answer !== undefined;
+
+  // Determine current group based on what's incomplete
+  let currentGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete';
+  let nextGroup: 'required' | 'basic' | 'advanced' | 'open' | 'complete' | undefined;
+  
+  if (!requiredComplete) {
+    currentGroup = 'required';
+    nextGroup = hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : (hasOpen ? 'open' : 'complete'));
+  } else if (!basicComplete) {
+    currentGroup = 'basic';
+    nextGroup = hasAdvanced ? 'advanced' : (hasOpen ? 'open' : 'complete');
+  } else if (!advancedComplete) {
+    currentGroup = 'advanced';
+    nextGroup = hasOpen ? 'open' : 'complete';
+  } else if (!openComplete) {
+    currentGroup = 'open';
+    nextGroup = 'complete';
+  } else {
+    currentGroup = 'complete';
+  }
+
+  // Build completed groups list
+  const completedGroups: string[] = [];
+  if (requiredComplete && hasRequired) completedGroups.push('required');
+  if (basicComplete && hasBasic) completedGroups.push('basic');
+  if (advancedComplete && hasAdvanced) completedGroups.push('advanced');
+  if (openComplete && hasOpen) completedGroups.push('open');
+
+  // Calculate progress
+  const totalGroups = [hasRequired, hasBasic, hasAdvanced, hasOpen].filter(Boolean).length;
+  const progress = `${completedGroups.length} of ${totalGroups} groups complete`;
+
+  return {
+    hasRequired,
+    hasBasic,
+    hasAdvanced,
+    hasOpen,
+    requiredComplete,
+    basicComplete,
+    advancedComplete,
+    openComplete,
+    currentGroup,
+    nextGroup,
+    completedGroups,
+    progress
+  };
+}
+
+/**
+ * Validate staged completion - ensures progression through all question groups
+ */
+function validateStagedCompletion(solution: any, answers: any): {
+  hasError: boolean;
+  error?: string;
+  message?: string;
+  guidance?: string;
+  currentStage?: string;
+  nextStage?: string;
+} {
+  // Check what groups have questions
+  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
+  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
+  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
+  const hasOpen = solution.questions.open;
+
+  // Check what groups have been addressed
+  const requiredAnswered = hasRequired ? solution.questions.required.some((q: any) => q.answer !== undefined) : true;
+  const basicAnswered = hasBasic ? solution.questions.basic.some((q: any) => q.answer !== undefined) : true;
+  const advancedAnswered = hasAdvanced ? solution.questions.advanced.some((q: any) => q.answer !== undefined) : true;
+  const openAnswered = hasOpen ? (answers.open || answers.openResponse) : true;
+
+  // Check if trying to skip groups by answering multiple at once without progression
+  const answerIds = Object.keys(answers).filter(k => k !== 'open' && k !== 'openResponse');
+  const requiredIds = (solution.questions.required || []).map((q: any) => q.id);
+  const basicIds = (solution.questions.basic || []).map((q: any) => q.id);
+  const advancedIds = (solution.questions.advanced || []).map((q: any) => q.id);
+
+  const answeringRequired = answerIds.some(id => requiredIds.includes(id));
+  const answeringBasic = answerIds.some(id => basicIds.includes(id));
+  const answeringAdvanced = answerIds.some(id => advancedIds.includes(id));
+
+  // Enforce staged progression during active answering
+  if (!requiredAnswered && (answeringBasic || answeringAdvanced)) {
+    return {
+      hasError: true,
+      error: 'Must complete required questions before proceeding to basic or advanced questions.',
+      message: 'Required questions must be addressed first.',
+      guidance: 'Answer at least one required question, then proceed to basic questions, or set done=false to continue configuration.',
+      currentStage: 'required',
+      nextStage: 'basic'
+    };
+  }
+
+  if (hasBasic && !basicAnswered && answeringAdvanced) {
+    return {
+      hasError: true,
+      error: 'Must address basic questions before proceeding to advanced questions.',
+      message: 'Basic questions must be considered before advanced questions.',
+      guidance: 'Answer at least one basic question or explicitly skip basic questions by setting done=false and proceeding.',
+      currentStage: 'basic',
+      nextStage: 'advanced'
+    };
+  }
+
+  // Check completion requirements - only required questions are mandatory
+  if (hasRequired && !requiredAnswered) {
+    return {
+      hasError: true,
+      error: 'Required questions must be addressed before completion.',
+      message: 'Cannot complete without addressing required questions.',
+      guidance: 'Answer at least one required question or set done=false to continue configuration.',
+      currentStage: 'required',
+      nextStage: hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : 'open')
+    };
+  }
+
+  // Basic and advanced questions are optional for completion
+  // But we enforce that if you provide an open answer without addressing optional groups,
+  // it should be intentional (either N/A for defaults, or a real requirement that explains the skip)
+  // This maintains the original flexibility while encouraging consideration of all options
+
+  if (hasOpen && !openAnswered) {
+    return {
+      hasError: true,
+      error: 'Open question must be answered before completion. Use "N/A" if no additional requirements.',
+      message: 'Cannot complete without answering the open question.',
+      guidance: 'Provide an answer to the open question, use "N/A" if no additional requirements, or set done=false to continue configuration.',
+      currentStage: 'open',
+      nextStage: 'completion'
+    };
+  }
+
+  // All validations passed
+  return { hasError: false };
+}
+
+/**
  * Answer Question Tool Handler
  */
 export const answerQuestionToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
@@ -681,6 +907,45 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
 
       // Handle completion flow (done=true)
       if (args.done) {
+        // Staged validation: ensure progression through all question groups
+        const stagedValidationResult = validateStagedCompletion(solution, args.answers);
+        if (stagedValidationResult.hasError) {
+          const remainingQuestions = getRemainingQuestions(solution);
+          const response = {
+            status: 'validation_error',
+            solutionId: args.solutionId,
+            error: stagedValidationResult.error,
+            questions: {
+              required: remainingQuestions.filter(q => 
+                solution.questions.required?.some((rq: any) => rq.id === q.id)
+              ),
+              basic: remainingQuestions.filter(q => 
+                solution.questions.basic?.some((bq: any) => bq.id === q.id)
+              ),
+              advanced: remainingQuestions.filter(q => 
+                solution.questions.advanced?.some((aq: any) => aq.id === q.id)
+              ),
+              open: solution.questions.open
+            },
+            message: stagedValidationResult.message,
+            guidance: stagedValidationResult.guidance,
+            currentStage: stagedValidationResult.currentStage,
+            nextStage: stagedValidationResult.nextStage,
+            answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
+            totalQuestions: allQuestions.length,
+            timestamp: new Date().toISOString()
+          };
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(response, null, 2)
+              }
+            ]
+          };
+        }
+        
         // Save open question answer if provided
         const openAnswer = args.answers.open || args.answers.openResponse;
         if (openAnswer && solution.questions.open) {
@@ -745,7 +1010,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         const response = {
           status: 'ready_for_manifest_generation',
           solutionId: args.solutionId,
-          message: 'Solution configuration complete. All resources and answers assembled.',
+          message: `${solution.primaryResources?.join(' + ') || 'Application'} configuration complete. Ready to generate deployment manifests.`,
           solutionData: {
             primaryResources: solution.resources || [],
             type: solution.type || 'single',
@@ -754,7 +1019,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
             hasOpenRequirements: !!openAnswer
           },
           nextAction: 'generateManifests',
-          guidance: `AGENT INSTRUCTIONS: Solution configuration is complete. Now call the generateManifests tool with solutionId "${args.solutionId}" to generate the final Kubernetes manifests. This will process any open requirements and create deployment-ready YAML.`,
+          guidance: 'Configuration complete. Ready to generate Kubernetes manifests for deployment.',
           answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
           totalQuestions: allQuestions.length,
           timestamp: new Date().toISOString()
@@ -795,7 +1060,96 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         );
       }
       
-      // Determine what to return based on call sequence
+      // Use group-by-group flow logic
+      const groupState = getQuestionGroupState(solution);
+      
+      // Return group-based response
+      if (groupState.currentGroup === 'complete') {
+        // All groups complete - this shouldn't happen here as completion is handled earlier
+        const response = {
+          status: 'ready_for_manifest_generation',
+          solutionId: args.solutionId,
+          message: 'All configuration complete. Ready to generate manifests.',
+          timestamp: new Date().toISOString()
+        };
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(response, null, 2)
+            }
+          ]
+        };
+      }
+      
+      // Return current group questions
+      let currentQuestions: any[];
+      let groupName: string;
+      let message: string;
+      let nextAction: string;
+      
+      switch (groupState.currentGroup) {
+        case 'required':
+          currentQuestions = solution.questions.required || [];
+          groupName = 'Required';
+          message = 'Please answer the required configuration questions.';
+          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}` : 'complete';
+          break;
+        case 'basic':
+          currentQuestions = solution.questions.basic || [];
+          groupName = 'Basic';
+          message = 'Would you like to configure basic settings (port, hostname)?';
+          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}_or_skip` : 'complete_or_skip';
+          break;
+        case 'advanced':
+          currentQuestions = solution.questions.advanced || [];
+          groupName = 'Advanced';
+          message = 'Would you like to configure advanced features (scaling, CI/CD)?';
+          nextAction = groupState.nextGroup ? `continue_to_${groupState.nextGroup}_or_skip` : 'complete_or_skip';
+          break;
+        case 'open':
+          currentQuestions = [];
+          groupName = 'Requirements';
+          message = 'Any additional requirements or constraints?';
+          nextAction = 'complete';
+          break;
+        default:
+          currentQuestions = [];
+          groupName = 'Unknown';
+          message = 'Configuration state unclear.';
+          nextAction = 'complete';
+      }
+      
+      const response = {
+        status: 'group_questions',
+        solutionId: args.solutionId,
+        currentGroup: groupState.currentGroup,
+        groupName,
+        completedGroups: groupState.completedGroups,
+        progress: groupState.progress,
+        questions: currentQuestions,
+        open: groupState.currentGroup === 'open' ? solution.questions.open : undefined,
+        message,
+        nextAction,
+        guidance: groupState.currentGroup === 'required' 
+          ? 'All required questions must be answered to proceed.'
+          : groupState.currentGroup === 'open'
+          ? 'Use "N/A" if you have no additional requirements.'
+          : 'Answer questions in this group or skip to proceed to the next group.',
+        timestamp: new Date().toISOString()
+      };
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response, null, 2)
+          }
+        ]
+      };
+      
+      // Legacy first call handling (keeping for reference but shouldn't be reached)
       const firstCall = isFirstCall(solution) && !Object.keys(args.answers).some(key => 
         allQuestions.find(q => q.id === key)?.answer !== undefined
       );
@@ -808,8 +1162,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
           questions: {
             open: solution.questions.open
           },
-          message: 'Please provide any additional requirements or constraints for your deployment.',
-          guidance: 'AGENT INSTRUCTIONS: Ask the user for additional requirements or constraints. User can provide specific needs or say they want to proceed with defaults. Use done=true when user provides their answer or chooses to skip.',
+          message: `Setting up ${solution.primaryResources?.[0] || 'application'} deployment. Any additional requirements (storage, security, networking, etc.)?`,
+          guidance: 'You can provide additional requirements or constraints, or proceed with current defaults.',
           answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
           totalQuestions: allQuestions.length,
           timestamp: new Date().toISOString()
@@ -849,8 +1203,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
             status: 'questions_remaining',
             solutionId: args.solutionId,
             questions: remainingByCategory,
-            message: `All required questions answered. ${remainingQuestions.length} optional questions remaining.`,
-            guidance: 'AGENT INSTRUCTIONS: Present user with clear options: (1) Answer specific optional questions they care about, (2) Provide additional requirements via the open question, (3) Skip to completion with done=true, or (4) Do both optional questions AND open question. List a few key optional questions with "...plus X more available" to show there are more choices.',
+            message: `Core ${solution.primaryResources?.[0] || 'application'} setup complete! ${remainingQuestions.length} optional settings available for fine-tuning.`,
+            guidance: 'You can: (1) Answer specific optional questions, (2) Provide additional requirements, (3) Proceed with current configuration, or (4) Do both optional questions and requirements.',
             answeredQuestions: allQuestions.filter(q => q.answer !== undefined).length,
             totalQuestions: allQuestions.length,
             timestamp: new Date().toISOString()
@@ -872,8 +1226,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
             questions: {
               open: solution.questions.open
             },
-            message: 'All structured questions answered. Please provide any additional requirements.',
-            guidance: 'AGENT INSTRUCTIONS: Ask the user for any additional requirements or constraints via the open question. User can also choose to skip this and proceed directly. Use done=true when user provides their final answer or chooses to skip.',
+            message: `${solution.primaryResources?.[0] || 'Application'} configuration ready! Any final requirements before generating manifests?`,
+            guidance: 'You can provide additional requirements or constraints, or proceed directly to manifest generation.',
             answeredQuestions: allQuestions.length,
             totalQuestions: allQuestions.length,
             timestamp: new Date().toISOString()
@@ -905,8 +1259,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
             status: 'questions_remaining',
             solutionId: args.solutionId,
             questions: remainingByCategory,
-            message: `${remainingQuestions.length} questions remaining. Please provide answers to continue.`,
-            guidance: 'Answer remaining questions. Use done=true after providing final answers.',
+            message: `${remainingQuestions.length} required settings need values to complete ${solution.primaryResources?.[0] || 'application'} configuration.`,
+            guidance: 'Please answer the remaining questions to continue configuration.',
             answeredQuestions: allQuestions.length - remainingQuestions.length,
             totalQuestions: allQuestions.length,
             timestamp: new Date().toISOString()

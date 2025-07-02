@@ -393,7 +393,7 @@ describe('Choose Solution Tool', () => {
       expect(response.solutionId).toBe(solutionId);
       expect(response.questions).toEqual(solutionData.questions);
       expect(response.nextAction).toContain('answerQuestion');
-      expect(response.guidance).toContain('required questions first');
+      expect(response.guidance).toContain('NEVER auto-fill answers');
       expect(response.timestamp).toBeDefined();
     });
 
