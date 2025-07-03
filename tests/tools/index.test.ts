@@ -25,7 +25,7 @@ describe('Tool Registration Integration', () => {
       registerAllTools(registry);
 
       const allTools = registry.getAllTools();
-      expect(allTools).toHaveLength(5); // Updated: added chooseSolution, answerQuestion, and generateManifests tools
+      expect(allTools).toHaveLength(6); // Updated: added chooseSolution, answerQuestion, generateManifests, and deployManifests tools
 
       const toolNames = allTools.map(t => t.definition.name);
       expect(toolNames).toContain('recommend');
@@ -33,6 +33,7 @@ describe('Tool Registration Integration', () => {
       expect(toolNames).toContain('chooseSolution');
       expect(toolNames).toContain('answerQuestion');
       expect(toolNames).toContain('generateManifests');
+      expect(toolNames).toContain('deployManifests');
       // REMOVED: enhance_solution tool check - moved to legacy
     });
 
@@ -53,7 +54,8 @@ describe('Tool Registration Integration', () => {
       const stats = registry.getStats();
       expect(stats.categories).toEqual({
         'ai-recommendations': 4,  // recommend + chooseSolution + answerQuestion + generateManifests tools
-        'discovery': 1           // can_help tool
+        'discovery': 1,           // can_help tool
+        'deployment': 1           // deployManifests tool
       });
       // REMOVED: solution-enhancement category - moved to legacy
     });
@@ -64,7 +66,7 @@ describe('Tool Registration Integration', () => {
       const initializedRegistry = initializeTools();
       
       expect(initializedRegistry).toBeInstanceOf(ToolRegistry);
-      expect(initializedRegistry.getAllTools()).toHaveLength(5); // Updated: added chooseSolution, answerQuestion, and generateManifests tools
+      expect(initializedRegistry.getAllTools()).toHaveLength(6); // Updated: added chooseSolution, answerQuestion, generateManifests, and deployManifests tools
     });
 
     test('should return the default registry', () => {

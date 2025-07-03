@@ -184,6 +184,7 @@ export class CliInterface {
       .requiredOption('--solution-id <id>', 'Solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)')
       .requiredOption('--session-dir <path>', 'Directory containing solution files')
       .requiredOption('--answers <json>', 'User answers as JSON object')
+      .requiredOption('--stage <stage>', 'Configuration stage (required, basic, advanced, open)')
       .option('--done', 'Set when providing final open question answer', false)
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options, command) => {
@@ -226,6 +227,28 @@ export class CliInterface {
           process.exit(1);
         }
         const result = await this.executeCommand('generateManifests', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
+      });
+
+    // Deploy Manifests command
+    this.program
+      .command('deploy-manifests')
+      .description('Deploy Kubernetes manifests from generated solution')
+      .requiredOption('--solution-id <id>', 'Solution ID to deploy')
+      .requiredOption('--session-dir <path>', 'Session directory path')
+      .option('--timeout <seconds>', 'Deployment timeout in seconds', '30')
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
+        const result = await this.executeCommand('deployManifests', options);
         this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
@@ -320,9 +343,11 @@ export class CliInterface {
       case 'chooseSolution':
         return [...commonOptions, 'solution-id', 'session-dir'];
       case 'answerQuestion':
-        return [...commonOptions, 'solution-id', 'session-dir', 'answers', 'done'];
+        return [...commonOptions, 'solution-id', 'session-dir', 'stage', 'answers', 'done'];
       case 'generateManifests':
         return [...commonOptions, 'solution-id', 'session-dir'];
+      case 'deployManifests':
+        return [...commonOptions, 'solution-id', 'session-dir', 'timeout'];
       // REMOVED: enhance command
       default:
         return commonOptions;
@@ -351,6 +376,8 @@ export class CliInterface {
           return await this.handleAnswerQuestionCommand(options);
         case 'generateManifests':
           return await this.handleGenerateManifestsCommand(options);
+        case 'deployManifests':
+          return await this.handleDeployManifestsCommand(options);
         // REMOVED: enhance command
         default:
           return {
@@ -611,6 +638,7 @@ export class CliInterface {
       const toolArgs = {
         solutionId: options.solutionId,
         sessionDir: options.sessionDir,
+        stage: options.stage,
         answers: options.answers,
         done: options.done || false
       };
@@ -701,6 +729,48 @@ export class CliInterface {
       return {
         success: false,
         error: `Manifest generation failed: ${(error as Error).message}`
+      };
+    }
+  }
+
+  private async handleDeployManifestsCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      // Show progress for deployment
+      this.showProgress('🚀 Deploying Kubernetes manifests...');
+
+      // Import and use DeployOperation directly
+      const { DeployOperation } = await import('../core/deploy-operation');
+      const deployOp = new DeployOperation();
+
+      const sessionDir = options['session-dir'];
+
+      const deployOptions = {
+        solutionId: options['solution-id'],
+        sessionDir: sessionDir,
+        timeout: parseInt(options.timeout) || 30
+      };
+
+      const result = await deployOp.deploy(deployOptions);
+
+      this.clearProgress();
+
+      return {
+        success: result.success,
+        data: {
+          solutionId: result.solutionId,
+          manifestPath: result.manifestPath,
+          readinessTimeout: result.readinessTimeout,
+          message: result.message,
+          kubectlOutput: result.kubectlOutput
+        }
+      };
+    } catch (error) {
+      // Give a moment for user to see progress before clearing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.clearProgress(); // Clear progress indicators on error
+      return {
+        success: false,
+        error: `Manifest deployment failed: ${(error as Error).message}`
       };
     }
   }

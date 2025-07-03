@@ -651,4 +651,129 @@ describe('Schema Validation System', () => {
       });
     });
   });
+
+  describe('Deploy Manifests Schema', () => {
+    describe('DEPLOY_MANIFESTS_INPUT Schema', () => {
+      test('should validate valid deploy manifests input', () => {
+        const validInput = {
+          solutionId: 'sol_2025-01-01T120000_abc123def456',
+          sessionDir: '/path/to/sessions',
+          timeout: 60
+        };
+
+        const errors = SchemaValidator.validate(validInput, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toEqual([]);
+      });
+
+      test('should validate minimal required input', () => {
+        const minimalInput = {
+          solutionId: 'sol_2025-12-31T235959_fedcba987654',
+          sessionDir: '/sessions'
+        };
+
+        const errors = SchemaValidator.validate(minimalInput, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toEqual([]);
+      });
+
+      test('should reject invalid solution ID format', () => {
+        const invalidInput = {
+          solutionId: 'invalid-solution-id',
+          sessionDir: '/sessions'
+        };
+
+        const errors = SchemaValidator.validate(invalidInput, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('root.solutionId');
+        expect(errors[0].message).toContain('does not match pattern');
+      });
+
+      test('should reject missing required fields', () => {
+        const incompleteInput = {
+          timeout: 30
+        };
+
+        const errors = SchemaValidator.validate(incompleteInput, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors.length).toBeGreaterThanOrEqual(2);
+        
+        const paths = errors.map(e => e.path);
+        expect(paths).toContain('root.solutionId');
+        expect(paths).toContain('root.sessionDir');
+      });
+
+      test('should reject timeout values outside valid range', () => {
+        const inputWithInvalidTimeout = {
+          solutionId: 'sol_2025-01-01T120000_abc123def456',
+          sessionDir: '/sessions',
+          timeout: 700 // Above maximum of 600
+        };
+
+        const errors = SchemaValidator.validate(inputWithInvalidTimeout, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('root.timeout');
+        expect(errors[0].message).toContain('at most 600');
+      });
+
+      test('should reject negative timeout values', () => {
+        const inputWithNegativeTimeout = {
+          solutionId: 'sol_2025-01-01T120000_abc123def456',
+          sessionDir: '/sessions',
+          timeout: -10
+        };
+
+        const errors = SchemaValidator.validate(inputWithNegativeTimeout, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('root.timeout');
+        expect(errors[0].message).toContain('at least 1');
+      });
+
+      test('should reject empty session directory', () => {
+        const inputWithEmptySessionDir = {
+          solutionId: 'sol_2025-01-01T120000_abc123def456',
+          sessionDir: ''
+        };
+
+        const errors = SchemaValidator.validate(inputWithEmptySessionDir, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].path).toBe('root.sessionDir');
+        expect(errors[0].message).toContain('at least 1');
+      });
+    });
+
+    describe('getInputSchema for deployManifests', () => {
+      test('should return correct schema for deployManifests tool', () => {
+        const schema = MCPToolSchemas.getInputSchema('deployManifests');
+        expect(schema).toBe(MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        expect(schema.required).toContain('solutionId');
+        expect(schema.required).toContain('sessionDir');
+      });
+    });
+
+    describe('validateToolInput integration', () => {
+      test('should validate correct deploy manifests arguments', () => {
+        const validArgs = {
+          solutionId: 'sol_2025-01-01T120000_abc123def456',
+          sessionDir: '/test/sessions',
+          timeout: 45
+        };
+
+        expect(() => {
+          SchemaValidator.validateToolInput('deployManifests', validArgs, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        }).not.toThrow();
+      });
+
+      test('should throw McpError for invalid arguments', () => {
+        const invalidArgs = {
+          solutionId: 'bad-format',
+          sessionDir: '/sessions'
+        };
+
+        expect(() => {
+          SchemaValidator.validateToolInput('deployManifests', invalidArgs, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
+        }).toThrow(expect.objectContaining({
+          code: ErrorCode.InvalidParams,
+          message: expect.stringContaining('Invalid parameters for tool \'deployManifests\'')
+        }));
+      });
+    });
+  });
 });

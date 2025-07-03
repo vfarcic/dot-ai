@@ -322,6 +322,30 @@ export class MCPToolSchemas {
     required: ['solution_data']
   };
 
+  // Input schema for deploy manifests tool
+  static readonly DEPLOY_MANIFESTS_INPUT: JSONSchema = {
+    type: 'object',
+    properties: {
+      solutionId: {
+        type: 'string',
+        description: 'Solution ID to deploy (e.g., sol_2025-07-01T154349_1e1e242592ff)',
+        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
+      },
+      sessionDir: {
+        type: 'string',
+        description: 'Session directory path',
+        minLength: 1
+      },
+      timeout: {
+        type: 'number',
+        description: 'Deployment timeout in seconds (default: 30)',
+        minimum: 1,
+        maximum: 600
+      }
+    },
+    required: ['solutionId', 'sessionDir']
+  };
+
   // Output schema for MCP responses
   static readonly MCP_RESPONSE_OUTPUT: JSONSchema = {
     type: 'object',
@@ -386,6 +410,8 @@ export class MCPToolSchemas {
         return this.RECOMMEND_INPUT;
       case 'enhance_solution':
         return this.ENHANCE_SOLUTION_INPUT;
+      case 'deployManifests':
+        return this.DEPLOY_MANIFESTS_INPUT;
       default:
         throw new Error(`Unknown tool: ${toolName}`);
     }

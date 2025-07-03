@@ -14,6 +14,7 @@ import { canHelpToolDefinition, canHelpToolHandler } from './can-help';
 import { chooseSolutionToolDefinition, chooseSolutionToolHandler } from './choose-solution';
 import { answerQuestionToolDefinition, answerQuestionToolHandler } from './answer-question';
 import { generateManifestsToolDefinition, generateManifestsToolHandler } from './generate-manifests';
+import { deployManifestsToolDefinition, deployManifestsToolHandler } from './deploy-manifests';
 
 /**
  * Register all available tools with the registry
@@ -39,6 +40,9 @@ export function registerAllTools(registry: ToolRegistry = defaultToolRegistry): 
     
     // Register generateManifests tool
     registry.registerTool(generateManifestsToolDefinition, generateManifestsToolHandler);
+    
+    // Register deployManifests tool
+    registry.registerTool(deployManifestsToolDefinition, deployManifestsToolHandler);
     
     const stats = registry.getStats();
     logger.info('All tools registered successfully', {
