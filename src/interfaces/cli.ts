@@ -742,10 +742,10 @@ export class CliInterface {
       const { DeployOperation } = await import('../core/deploy-operation');
       const deployOp = new DeployOperation();
 
-      const sessionDir = options['session-dir'];
-
+      const sessionDir = options.sessionDir;
+      
       const deployOptions = {
-        solutionId: options['solution-id'],
+        solutionId: options.solutionId,
         sessionDir: sessionDir,
         timeout: parseInt(options.timeout) || 30
       };

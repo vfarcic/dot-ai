@@ -693,11 +693,10 @@ describe('Schema Validation System', () => {
         };
 
         const errors = SchemaValidator.validate(incompleteInput, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
-        expect(errors.length).toBeGreaterThanOrEqual(2);
+        expect(errors.length).toBeGreaterThanOrEqual(1);
         
         const paths = errors.map(e => e.path);
         expect(paths).toContain('root.solutionId');
-        expect(paths).toContain('root.sessionDir');
       });
 
       test('should reject timeout values outside valid range', () => {
@@ -726,17 +725,6 @@ describe('Schema Validation System', () => {
         expect(errors[0].message).toContain('at least 1');
       });
 
-      test('should reject empty session directory', () => {
-        const inputWithEmptySessionDir = {
-          solutionId: 'sol_2025-01-01T120000_abc123def456',
-          sessionDir: ''
-        };
-
-        const errors = SchemaValidator.validate(inputWithEmptySessionDir, MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
-        expect(errors).toHaveLength(1);
-        expect(errors[0].path).toBe('root.sessionDir');
-        expect(errors[0].message).toContain('at least 1');
-      });
     });
 
     describe('getInputSchema for deployManifests', () => {
@@ -744,7 +732,6 @@ describe('Schema Validation System', () => {
         const schema = MCPToolSchemas.getInputSchema('deployManifests');
         expect(schema).toBe(MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
         expect(schema.required).toContain('solutionId');
-        expect(schema.required).toContain('sessionDir');
       });
     });
 

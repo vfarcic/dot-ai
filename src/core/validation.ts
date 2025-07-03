@@ -331,11 +331,6 @@ export class MCPToolSchemas {
         description: 'Solution ID to deploy (e.g., sol_2025-07-01T154349_1e1e242592ff)',
         pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
       },
-      sessionDir: {
-        type: 'string',
-        description: 'Session directory path',
-        minLength: 1
-      },
       timeout: {
         type: 'number',
         description: 'Deployment timeout in seconds (default: 30)',
@@ -343,7 +338,7 @@ export class MCPToolSchemas {
         maximum: 600
       }
     },
-    required: ['solutionId', 'sessionDir']
+    required: ['solutionId']
   };
 
   // Output schema for MCP responses

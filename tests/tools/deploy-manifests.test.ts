@@ -95,7 +95,6 @@ describe('Deploy Manifests Tool', () => {
 
       expect(mockDeploy).toHaveBeenCalledWith({
         solutionId: validArgs.solutionId,
-        sessionDir: validArgs.sessionDir,
         timeout: validArgs.timeout
       });
 
@@ -174,7 +173,6 @@ describe('Deploy Manifests Tool', () => {
 
       expect(mockDeploy).toHaveBeenCalledWith({
         solutionId: validArgs.solutionId,
-        sessionDir: validArgs.sessionDir,
         timeout: 30 // Default timeout
       });
     });

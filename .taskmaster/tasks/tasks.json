@@ -1739,7 +1739,7 @@
         "description": "Create the Deploy Operation that applies Kubernetes manifests via kubectl and returns immediate status with AI-friendly messaging, implementing both CLI command (app-agent deploy) and MCP tool (deployApplication) with identical functionality.",
         "details": "Implement comprehensive deployment operation in src/operations/deploy.ts with DeployOperation class that provides: 1) Hybrid kubectl approach using executeKubectl function for manifest application following existing kubernetes-utils patterns, 2) File-based validation checking solution.json and manifests.yaml exist in session directory structure, 3) Synchronous operation with 30-second configurable timeout and graceful status collection, 4) AI-powered user-friendly status messaging using Claude Code SDK for translating kubectl output to IDP-friendly messages. Create deployApplication MCP function in src/mcp/functions/deploy.ts that accepts solutionId parameter and delegates to core DeployOperation. Implement CLI command 'app-agent deploy' in src/cli/commands/deploy.ts that uses same DeployOperation core logic. Core functionality includes: parsing manifests to identify resource types for targeted status checking, using native Kubernetes client for readiness checks (deployment readiness, service endpoints), returning combined lightweight response with friendly status summary + raw kubectl output + code-generated helpful commands for next steps. Integrate with existing solutionId session system for file discovery and state management. Error handling should provide clear messages and actionable recommendations for common deployment failures.",
         "testStrategy": "Unit tests for DeployOperation class with mock kubectl responses and timeout scenarios, file validation tests for missing solution.json/manifests.yaml, AI message translation tests with various kubectl outputs. Integration tests with real Kubernetes cluster applying test manifests, timeout handling with long-running deployments, resource status checking for different resource types (Deployment, Service, ConfigMap). End-to-end tests for both CLI and MCP interfaces ensuring identical functionality, session directory integration tests, error scenario testing with invalid manifests and cluster connectivity issues. Manual testing procedures with step-by-step verification of deployment success, status message clarity, and generated next-step commands.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           5,
           10
@@ -1779,7 +1779,7 @@
     ],
     "metadata": {
       "created": "2025-06-28T00:17:46.251Z",
-      "updated": "2025-07-03T10:41:20.103Z",
+      "updated": "2025-07-03T22:27:34.027Z",
       "description": "Tasks for master context"
     }
   }
