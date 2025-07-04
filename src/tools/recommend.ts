@@ -11,6 +11,7 @@ import { ClaudeIntegration } from '../core/claude';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { getAndValidateSessionDirectory } from '../core/session-utils';
 
 export const recommendToolDefinition: ToolDefinition = {
   name: 'recommend',
@@ -105,53 +106,6 @@ async function validateIntentWithAI(intent: string, claudeIntegration: any): Pro
   }
 }
 
-/**
- * Get session directory from CLI args or environment variable
- * CLI parameter takes precedence over environment variable
- */
-function getSessionDirectory(args: any): string {
-  const sessionDir = args.sessionDir || process.env.APP_AGENT_SESSION_DIR;
-  
-  if (!sessionDir) {
-    throw new Error(
-      'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
-    );
-  }
-  
-  return sessionDir;
-}
-
-/**
- * Validate session directory exists and is writable
- */
-function validateSessionDirectory(sessionDir: string): void {
-  try {
-    // Check if directory exists
-    if (!fs.existsSync(sessionDir)) {
-      throw new Error(`Session directory does not exist: ${sessionDir}`);
-    }
-    
-    // Check if it's actually a directory
-    const stats = fs.statSync(sessionDir);
-    if (!stats.isDirectory()) {
-      throw new Error(`Session path is not a directory: ${sessionDir}`);
-    }
-    
-    // Test write permissions by creating and deleting a test file
-    const testFile = path.join(sessionDir, '.write-test-' + Date.now());
-    fs.writeFileSync(testFile, 'test');
-    fs.unlinkSync(testFile);
-    
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Session directory does not exist')) {
-      throw error;
-    }
-    if (error instanceof Error && error.message.includes('Session path is not a directory')) {
-      throw error;
-    }
-    throw new Error(`Session directory is not writable: ${sessionDir}. Error: ${error}`);
-  }
-}
 
 /**
  * Generate unique solution ID with timestamp and random component
@@ -244,8 +198,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       // Validate session directory configuration
       let sessionDir: string;
       try {
-        sessionDir = getSessionDirectory(args);
-        validateSessionDirectory(sessionDir);
+        sessionDir = getAndValidateSessionDirectory(args, context, true); // requireWrite=true
         logger.debug('Session directory validated', { requestId, sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

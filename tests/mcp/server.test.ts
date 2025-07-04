@@ -13,7 +13,7 @@ describe('MCP Server Entry Point', () => {
   const serverPath = path.join(projectRoot, 'dist', 'mcp', 'server.js');
   
   // Helper function to wait for file to exist (handles race conditions during parallel test execution)
-  const waitForFile = (filePath: string, timeoutMs: number = 5000): Promise<boolean> => {
+  const waitForFile = (filePath: string, timeoutMs: number = 15000): Promise<boolean> => {
     return new Promise((resolve) => {
       const startTime = Date.now();
       const checkFile = () => {
@@ -28,6 +28,12 @@ describe('MCP Server Entry Point', () => {
       checkFile();
     });
   };
+
+  // Ensure build is complete before running any tests
+  beforeAll(async () => {
+    // Wait for build to complete (triggered by pretest hook)
+    await waitForFile(serverPath, 20000); // 20 second timeout for build
+  }, 25000); // Jest timeout for beforeAll
   
   describe('Server Module', () => {
     test('should exist as built file', async () => {

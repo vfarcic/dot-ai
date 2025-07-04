@@ -19,25 +19,34 @@ Validate that the current Taskmaster task is complete and ready for submission u
    - Check test file organization matches source code structure
    - If tests are missing, write them before proceeding
 
-4. **Run Full Test Suite**:
+4. **Update All Relevant Documentation**:
+   - **README.md**: CLI commands, workflow examples, installation steps
+   - **docs/API.md**: New interfaces, MCP tools, TypeScript examples
+   - **docs/MANUAL_TESTING.md**: Testing procedures for new functionality
+   - **docs/STAGE_BASED_API.md**: Workflow changes, API updates
+   - **docs/DEVELOPMENT.md**: Architecture updates, new components
+   - **Other docs**: Context, design, next steps as applicable
+   - Never skip documentation updates for new functionality
+
+5. **Run Full Test Suite**:
    - Execute `npm test` (unit tests) - ALL tests must pass
    - Execute `npm run test:integration` (integration tests) - ALL tests must pass
    - If any tests fail, fix them before proceeding
 
-5. **Mark Task Complete**:
+6. **Mark Task Complete**:
    - Use `mcp__taskmaster-ai__set_task_status` to mark task as complete
    - Update any subtasks that are also complete
 
-6. **Commit and Push Changes**:
+7. **Commit and Push Changes**:
    - Run `git status` to see all changes
    - Run `git diff` to review changes
    - Create a descriptive commit message referencing the task
    - Commit all changes with proper message format
    - Push changes to GitHub
 
-7. **Summary Report**:
+8. **Summary Report**:
    - Provide summary of what was completed
-   - List files modified and tests added
+   - List files modified, tests added, and documentation updated
    - Confirm task is marked as done in Taskmaster
    - Confirm changes are pushed to GitHub
 
@@ -45,6 +54,7 @@ Validate that the current Taskmaster task is complete and ready for submission u
 
 - ✅ Task requirements fully implemented
 - ✅ All new/modified code has test coverage
+- ✅ All relevant documentation updated
 - ✅ All unit tests pass (npm test)
 - ✅ All integration tests pass (npm run test:integration)
 - ✅ Task marked as done in Taskmaster
@@ -55,6 +65,7 @@ Validate that the current Taskmaster task is complete and ready for submission u
 - If task is not actually complete, provide specific feedback on what needs to be finished
 - If tests are failing, fix the failures before marking task as done
 - If critical functionality is missing tests, write tests before proceeding
+- If documentation is outdated or missing for new functionality, update all relevant docs
 - Never mark a task as done if any validation criteria are not met
 
 ## Notes:

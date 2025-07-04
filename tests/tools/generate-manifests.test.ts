@@ -79,7 +79,7 @@ describe('Generate Manifests Tool', () => {
       };
 
       await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Session directory not configured');
+        .rejects.toThrow('Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable');
     });
 
     it('should accept session directory from args', async () => {
@@ -150,7 +150,7 @@ describe('Generate Manifests Tool', () => {
         await generateManifestsToolHandler(args, mockContext);
       } catch (error) {
         // Should fail with session directory error, not context error
-        expect((error as Error).message).toContain('Session directory not configured');
+        expect((error as Error).message).toContain('Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable');
       }
     });
   });

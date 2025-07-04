@@ -1,167 +1,186 @@
 # App-Agent
 
-**Intelligent Kubernetes deployment made simple**
+**AI-powered Kubernetes deployment recommendations**
 
-Discover what's available in your cluster and get AI-powered recommendations for deploying your applications using the best resources for your needs.
+App-Agent discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster—from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
 
-## What is App-Agent?
+## Who is this for?
 
-App-Agent analyzes your Kubernetes cluster to understand what resources and operators are available, then uses AI to recommend the optimal way to deploy your applications. Whether you have a basic cluster or one with advanced operators like Crossplane or ArgoCD, App-Agent adapts to work with what you have.
+- **Developers**: Deploy applications without needing deep Kubernetes expertise
+- **AI Agents**: Integrate with Claude Code, Cursor, or VS Code for conversational deployments
+- **Platform Engineers**: *(Coming Soon)* Governance, policy enforcement, and organizational compliance features
 
-## Key Benefits
+## Key Features
 
-🔍 **Cluster-Aware**: Automatically discovers your cluster's capabilities  
-🤖 **AI-Powered**: Get intelligent deployment recommendations  
-⚡ **Zero Configuration**: Works with any Kubernetes cluster out of the box  
-🔧 **Operator-Friendly**: Leverages custom operators when available  
-📝 **Interactive**: Asks the right questions to refine your deployment
+🔍 **Smart Discovery**: Automatically finds all available resources and operators in your cluster  
+🤖 **AI Recommendations**: Get deployment suggestions tailored to your specific cluster setup  
+⚡ **Two Usage Modes**: Use directly via CLI or integrate with AI development tools  
+🔧 **Operator-Aware**: Leverages custom operators and CRDs when available  
+🚀 **Complete Workflow**: From discovery to deployment with automated Kubernetes integration
 
 ## Quick Start
+
+### Prerequisites
+- **Node.js 18+** and **kubectl** configured with cluster access
+- **Claude API key** (required for AI recommendations)
 
 ### Installation
 
 ```bash
-# Clone and install
 git clone https://github.com/your-org/app-agent.git
 cd app-agent
 npm install && npm run build
-```
 
-### Get Recommendations
-
-```bash
-# Discover what's in your cluster
-node dist/cli.js discover
-
-# Get AI recommendations for your application
-node dist/cli.js recommend --intent "deploy a web application with database"
-
-# Interactive deployment workflow available via MCP tools
-# See docs/API.md for MCP integration examples
-```
-
-### Set up AI Features (Optional)
-
-For AI-powered recommendations, add your Claude API key:
-
-```bash
+# Required: Set up Claude API key
 export ANTHROPIC_API_KEY=your_api_key_here
 ```
 
-## How It Works
+### Choose Your Usage Path
 
-### 1. Discover Your Cluster
-App-Agent scans your cluster to find all available resources - both standard Kubernetes resources and custom resources from operators.
+#### Option A: AI Agent Integration (Claude Code Example)
+Perfect for conversational deployments with AI agents:
 
-```bash
-node dist/cli.js discover
-# Shows: Deployments, Services, Pods, AppClaims, CloudRun, etc.
+1. **Create `.mcp.json` in your project:**
+```json
+{
+  "mcpServers": {
+    "app-agent": {
+      "command": "npm",
+      "args": ["run", "start:mcp"],
+      "cwd": "/path/to/app-agent",
+      "env": {
+        "ANTHROPIC_API_KEY": "your_key_here",
+        "APP_AGENT_SESSION_DIR": "./tmp/sessions",
+        "KUBECONFIG": "./configs/my-cluster.yaml"
+      }
+    }
+  }
+}
 ```
 
-### 2. Get AI Recommendations  
-Describe what you want to deploy and get intelligent recommendations based on what's actually available in your cluster.
+**Environment Variables:**
+- `ANTHROPIC_API_KEY`: Required for AI recommendations
+- `APP_AGENT_SESSION_DIR`: Required session directory (supports relative paths)
+- `KUBECONFIG`: Optional kubeconfig path (supports relative paths, defaults to `~/.kube/config`)
 
+2. **Start Claude Code with MCP enabled:**
 ```bash
-node dist/cli.js recommend --intent "deploy a web application that can scale"
-# Returns: Ranked solutions using your cluster's best resources
+# Create session directory (relative to app-agent cwd)
+mkdir -p tmp/sessions
+claude
 ```
 
-### 3. Interactive Deployment
-Use MCP tools for conversational deployment workflow with progressive question answering.
+3. **Use conversational workflow:**
 
-```bash
-# Via MCP server integration (recommended)
-npm run mcp:start
-# Interactive workflow: recommend → chooseSolution → answerQuestion → generateManifests
+**Example conversation with AI agent:**
+```
+User: I want to deploy a web application to my cluster
+
+Agent: I'll help you deploy a web application. Let me get recommendations based on your cluster.
+[Uses recommend tool]
+
+Agent: I found 3 options. Let's use Kubernetes Deployment + Service. 
+What's your application name and container image?
+
+User: App name is "myapp" and image is "nginx:latest"
+
+Agent: Perfect! Generating manifests and deploying now...
+[Uses chooseSolution, answerQuestion, generateManifests, deployManifests]
+
+Agent: ✅ Successfully deployed! Your application is running.
 ```
 
-## Example Workflow
+📖 **[Complete MCP Setup Guide →](docs/mcp-guide.md)** - Detailed configuration, troubleshooting, and examples
+
+#### Option B: Command Line Interface
+For scripting and direct usage:
 
 ```bash
-# 1. See what's available in your cluster
-node dist/cli.js discover --output table
+# 1. Get AI recommendations (includes cluster discovery)
+node dist/cli.js recommend --intent "deploy a web application" --session-dir ./tmp
 
-# 2. Start MCP server for interactive deployment
-npm run mcp:start
+# 2. Choose a solution
+node dist/cli.js choose-solution --solution-id sol_xxx --session-dir ./tmp
 
-# 3. Use MCP tools for conversational workflow:
-#    - recommend: Get AI-powered deployment recommendations
-#    - chooseSolution: Select your preferred solution
-#    - answerQuestion: Answer configuration questions progressively
-#    - generateManifests: Generate final Kubernetes YAML
+# 3. Configure step-by-step (all stages required)
+node dist/cli.js answer-question --solution-id sol_xxx --stage required --answers {...}
+node dist/cli.js answer-question --solution-id sol_xxx --stage basic --answers {}
+node dist/cli.js answer-question --solution-id sol_xxx --stage advanced --answers {}
+node dist/cli.js answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"}
 
-# 4. Deploy the generated manifests
-kubectl apply -f generated-manifests.yaml
+# 4. Generate manifests
+node dist/cli.js generate-manifests --solution-id sol_xxx --session-dir ./tmp
+
+# 5. Deploy to cluster
+node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 ```
 
-## Available Commands
-
-```bash
-# Discovery commands
-app-agent discover [--kubeconfig PATH] [--output FORMAT]
-app-agent explain RESOURCE [--field FIELD]
-app-agent fingerprint [--detailed]
-
-# AI-powered recommendations
-app-agent recommend --intent "DESCRIPTION" [--output FORMAT]
-# Note: Interactive deployment via MCP tools (see MCP Server section)
-
-# Resource management  
-app-agent apply CONFIG [--namespace NS]
-app-agent delete RESOURCE [--all]
-
-# Utility commands
-app-agent version
-app-agent help [COMMAND]
-```
-
-## Integration Options
-
-### MCP Server
-Use App-Agent as an MCP server for integration with AI tools and IDEs:
-
-```bash
-npm run mcp:start
-# Compatible with Cursor, Claude Code, and other MCP-enabled tools
-```
-
-### Programmatic Usage
-See the [API Documentation](docs/API.md) for TypeScript integration examples.
-
-## Prerequisites
-
-- **Node.js 18+**
-- **kubectl** configured with cluster access
-- **Claude API key** (optional, for AI features)
-
-## Configuration
-
-App-Agent automatically finds your kubeconfig file:
-1. Custom path via `--kubeconfig` flag
-2. `KUBECONFIG` environment variable  
-3. Default `~/.kube/config`
-
-```bash
-# Optional: Custom kubeconfig location
-export KUBECONFIG=/path/to/your/kubeconfig.yaml
-
-# Optional: Claude AI API key (for AI features)
-export ANTHROPIC_API_KEY=your_api_key_here
-```
+📖 **[Complete CLI Guide →](docs/cli-guide.md)** - Detailed command-line interface documentation
 
 ## Documentation
 
 📖 **[Complete Documentation Index](docs/README.md)** - Browse all available documentation
 
-### Key Documents
-- **[API Reference](docs/API.md)** - Programmatic usage and TypeScript interfaces
+```
+📚 App-Agent Documentation Map
+├── 🚀 Getting Started
+│   ├── CLI Guide ──────────────── Complete command-line usage
+│   └── MCP Integration Guide ──── AI tools (Claude Code, Cursor)
+│
+├── 👩‍💻 Development
+│   ├── API Reference ──────────── TypeScript interfaces & programmatic usage
+│   ├── Development Guide ─────── Contributing, setup, testing
+│   └── Manual Testing ────────── Testing procedures & examples
+│
+├── 🏗️ Architecture
+│   ├── Design Overview ───────── Technical design & principles
+│   ├── Stage-Based API ──────── Workflow stages & API design
+│   └── Discovery Engine ─────── Cluster resource discovery
+│
+├── 🤖 AI & Integration
+│   ├── Agent Patterns ───────── AI agent integration patterns
+│   ├── Error Handling ───────── Error management & debugging
+│   └── Function Registration ── Tool & function management
+│
+└── 📋 Reference
+    ├── Context & Background ──── Project context & inspiration
+    ├── Next Steps & Roadmap ──── Planned features & future vision
+    └── Complete Index ──────── Full documentation listing
+```
+
+### 🚀 Getting Started
+- **[CLI Guide](docs/cli-guide.md)** - Complete command-line usage, examples, and troubleshooting
+- **[MCP Integration Guide](docs/mcp-guide.md)** - Use with Claude Code, Cursor, and other AI tools
+
+### 👩‍💻 Development
+- **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
 - **[Development Guide](docs/DEVELOPMENT.md)** - Contributing, architecture, and testing
-- **[Architecture Overview](docs/design.md)** - Technical design and principles
+- **[Manual Testing Guide](docs/MANUAL_TESTING.md)** - Testing procedures and examples
+
+### 🏗️ Architecture
+- **[Design Overview](docs/design.md)** - Technical design, principles, and future vision
+- **[Stage-Based API](docs/STAGE_BASED_API.md)** - Workflow stages and API design
+- **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery architecture
+
+### 🤖 AI & Integration
+- **[Agent Integration](docs/AGENTS.md)** - AI agent patterns and integration
+- **[Error Handling](docs/error-handling.md)** - Error management and debugging
+- **[Function Registration](docs/function-registration.md)** - Tool and function management
+
+### 📋 Reference
+- **[Context Documentation](docs/CONTEXT.md)** - Project context and background
+- **[Next Steps](docs/NEXT_STEPS.md)** - Roadmap and planned features
+- **[Complete Documentation Index](docs/README.md)** - Full listing of all documentation
+
+**Quick Navigation:**
+- **New to App-Agent?** → Start with [CLI Guide](docs/cli-guide.md) or [MCP Guide](docs/mcp-guide.md)
+- **Building integrations?** → See [API Reference](docs/API.md)
+- **Contributing code?** → Read [Development Guide](docs/DEVELOPMENT.md)
+- **Understanding architecture?** → Check [Design Overview](docs/design.md)
 
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/your-org/app-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/app-agent/discussions)
 
 ## Contributing
 

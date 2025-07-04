@@ -248,7 +248,7 @@ The agent interprets policies contextually during each workflow step:
 
 **3. Interactive Enforcement:**
 ```
-$ app-agent deploy "web app with 10 replicas"
+$ app-agent recommend --intent "web app with 10 replicas"
 
 🛡️ Policy Check: Development limit is 3 replicas maximum.
    Would you like to:
@@ -524,14 +524,15 @@ The Direct Agent Mode provides a standalone CLI tool called `app-agent` that use
 # Install the CLI tool globally
 npm install -g app-agent
 
-# Deploy an application (starts interactive workflow)
-app-agent deploy
+# Get AI-powered deployment recommendations
+app-agent recommend --intent "web app with auto-scaling"
 
-# Deploy with initial context to guide discovery
-app-agent deploy "web app with auto-scaling"
+# Choose solution and configure step-by-step
+app-agent choose-solution --solution-id sol_xxx --session-dir ./tmp
 
-# Continue a previous session
-app-agent --continue
+# Generate and deploy manifests
+app-agent generate-manifests --solution-id sol_xxx --session-dir ./tmp
+app-agent deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 
 # Check status of a deployment
 app-agent status my-app
@@ -541,7 +542,7 @@ app-agent status my-app
 
 ### Example Interaction
 ```
-$ app-agent deploy "web app with auto-scaling"
+$ app-agent recommend --intent "web app with auto-scaling"
 
 🔍 Discovering cluster capabilities...
 ✅ Found: AppClaim (DevOpsToolkit), CloudRunService (GCP), Standard K8s

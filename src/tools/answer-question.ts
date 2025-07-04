@@ -8,6 +8,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { ClaudeIntegration } from '../core/claude';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getAndValidateSessionDirectory } from '../core/session-utils';
 
 // MCP Tool Definition - sessionDir configured via environment
 export const answerQuestionToolDefinition: ToolDefinition = {
@@ -152,37 +153,6 @@ STAGE TRANSITIONS:
 The server validates stage transitions and will return errors for invalid workflow.`
 };
 
-/**
- * Validate session directory exists and is writable
- */
-function validateSessionDirectory(sessionDir: string): void {
-  try {
-    // Check if directory exists
-    if (!fs.existsSync(sessionDir)) {
-      throw new Error(`Session directory does not exist: ${sessionDir}`);
-    }
-    
-    // Check if it's actually a directory
-    const stat = fs.statSync(sessionDir);
-    if (!stat.isDirectory()) {
-      throw new Error(`Session directory path is not a directory: ${sessionDir}`);
-    }
-    
-    // Check read permissions by attempting to read directory contents
-    fs.readdirSync(sessionDir);
-    
-    // Check write permissions by creating a temporary file
-    const testFile = path.join(sessionDir, '.write-test-' + Date.now());
-    fs.writeFileSync(testFile, 'test');
-    fs.unlinkSync(testFile);
-    
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('EACCES')) {
-      throw new Error(`Session directory is not readable/writable: ${sessionDir}`);
-    }
-    throw error;
-  }
-}
 
 /**
  * Validate solution ID format
@@ -476,38 +446,6 @@ function getStageGuidance(stage: Stage): string {
   }
 }
 
-/**
- * Get session directory from environment or arguments
- */
-function getSessionDirectory(args: any, context: ToolContext): string {
-  // For CLI interface, sessionDir is required as parameter
-  if (args.sessionDir) {
-    return args.sessionDir;
-  }
-  
-  // For MCP interface, sessionDir comes from environment
-  const envSessionDir = process.env.APP_AGENT_SESSION_DIR;
-  if (!envSessionDir) {
-    throw ErrorHandler.createError(
-      ErrorCategory.CONFIGURATION,
-      ErrorSeverity.CRITICAL,
-      'Session directory not configured. Set APP_AGENT_SESSION_DIR environment variable.',
-      {
-        operation: 'session_directory_configuration',
-        component: 'AnswerQuestionTool',
-        requestId: context.requestId,
-        suggestedActions: [
-          'Set APP_AGENT_SESSION_DIR environment variable in MCP configuration (.mcp.json)',
-          'Example: "APP_AGENT_SESSION_DIR": "/tmp/app-agent-sessions"',
-          'Ensure the directory exists and is writable',
-          'For CLI usage, provide --session-dir parameter'
-        ]
-      }
-    );
-  }
-  
-  return envSessionDir;
-}
 
 
 /**
@@ -763,16 +701,8 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
       // Get session directory from environment or arguments
       let sessionDir: string;
       try {
-        sessionDir = getSessionDirectory(args, context);
-        logger.debug('Session directory resolved', { sessionDir, interface: isCLI ? 'CLI' : 'MCP' });
-      } catch (error) {
-        throw error; // Re-throw the properly formatted error from getSessionDirectory
-      }
-      
-      // Validate session directory
-      try {
-        validateSessionDirectory(sessionDir);
-        logger.debug('Session directory validated', { sessionDir });
+        sessionDir = getAndValidateSessionDirectory(args, context, false); // requireWrite=false for reading
+        logger.debug('Session directory resolved and validated', { sessionDir, interface: isCLI ? 'CLI' : 'MCP' });
       } catch (error) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,

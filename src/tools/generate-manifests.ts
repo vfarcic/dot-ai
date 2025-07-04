@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
+import { getAndValidateSessionDirectory } from '../core/session-utils';
 
 // MCP Tool Definition - sessionDir configured via environment
 export const generateManifestsToolDefinition: ToolDefinition = {
@@ -81,28 +82,6 @@ interface ErrorContext {
   stdout?: string;
 }
 
-/**
- * Validate session directory exists and is accessible
- */
-function validateSessionDirectory(sessionDir: string): void {
-  try {
-    if (!fs.existsSync(sessionDir)) {
-      throw new Error(`Session directory does not exist: ${sessionDir}`);
-    }
-    
-    const stat = fs.statSync(sessionDir);
-    if (!stat.isDirectory()) {
-      throw new Error(`Session directory path is not a directory: ${sessionDir}`);
-    }
-    
-    fs.accessSync(sessionDir, fs.constants.R_OK | fs.constants.W_OK);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('EACCES')) {
-      throw new Error(`Session directory is not readable/writable: ${sessionDir}`);
-    }
-    throw error;
-  }
-}
 
 /**
  * Validate solution ID format
@@ -141,21 +120,6 @@ function loadSolutionFile(solutionId: string, sessionDir: string): any {
   }
 }
 
-/**
- * Get session directory from environment or arguments
- */
-function getSessionDirectory(args: any, context: ToolContext): string {
-  if (args.sessionDir) {
-    return args.sessionDir;
-  }
-  
-  const envSessionDir = process.env.APP_AGENT_SESSION_DIR;
-  if (!envSessionDir) {
-    throw new Error('Session directory not configured. Set APP_AGENT_SESSION_DIR environment variable or provide --session-dir parameter');
-  }
-  
-  return envSessionDir;
-}
 
 /**
  * Retrieve schemas for resources specified in the solution
@@ -411,8 +375,7 @@ export const generateManifestsToolHandler: ToolHandler = async (args, context: T
     
     // Validate inputs
     validateSolutionId(args.solutionId);
-    const sessionDir = getSessionDirectory(args, context);
-    validateSessionDirectory(sessionDir);
+    const sessionDir = getAndValidateSessionDirectory(args, context, true); // requireWrite=true for manifest generation
     
     // Load solution file
     const solution = loadSolutionFile(args.solutionId, sessionDir);

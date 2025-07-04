@@ -244,6 +244,75 @@ spec:
       });
     }, 10000);
 
+    it('should support relative session directory paths', async () => {
+      const solutionId = 'test-relative-path-solution';
+      
+      // Create a test directory structure with relative paths
+      const testRelativeDir = 'tmp/relative-test';
+      const testCwd = join(process.cwd(), 'tmp', 'deploy-relative-test');
+      const relativeSessionDir = './sessions';
+      const absoluteSessionDir = join(testCwd, 'sessions');
+      
+      // Create directories
+      await fs.mkdir(testCwd, { recursive: true });
+      await fs.mkdir(absoluteSessionDir, { recursive: true });
+      
+      const manifestPath = join(absoluteSessionDir, `${solutionId}.yaml`);
+      
+      // Create simple test manifest
+      const testManifest = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-relative-config
+  namespace: ${testNamespace}
+data:
+  path: "relative-test"
+`;
+      await fs.writeFile(manifestPath, testManifest);
+
+      try {
+        // Save original cwd and env
+        const originalCwd = process.cwd();
+        const originalEnv = process.env.APP_AGENT_SESSION_DIR;
+        
+        // Change to test directory and set relative path
+        process.chdir(testCwd);
+        process.env.APP_AGENT_SESSION_DIR = relativeSessionDir;
+        
+        // Test deploy with environment variable (simulating MCP behavior)
+        const result = await deployOp.deploy({
+          solutionId,
+          // Don't provide sessionDir - should use environment variable
+          timeout: 30
+        });
+        
+        expect(result.success).toBe(true);
+        expect(result.solutionId).toBe(solutionId);
+        expect(result.kubectlOutput).toContain('configmap/test-relative-config');
+        
+        // Verify resource was created
+        const { stdout } = await execAsync(`kubectl get configmap test-relative-config -n ${testNamespace} -o jsonpath='{.data.path}'`);
+        expect(stdout.trim()).toBe('relative-test');
+        
+        // Restore original state
+        process.chdir(originalCwd);
+        if (originalEnv) {
+          process.env.APP_AGENT_SESSION_DIR = originalEnv;
+        } else {
+          delete process.env.APP_AGENT_SESSION_DIR;
+        }
+        
+      } finally {
+        // Clean up test directories
+        try {
+          await fs.rm(testCwd, { recursive: true, force: true });
+        } catch (cleanupError) {
+          console.warn('Could not clean up test directory:', cleanupError);
+        }
+      }
+    }, 45000);
+
     it('should use custom timeout correctly', async () => {
       const solutionId = 'test-timeout-solution';
       const manifestPath = join(testDir, `${solutionId}.yaml`);

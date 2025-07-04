@@ -72,28 +72,6 @@ export class CliInterface {
       .version('1.0.0');
 
 
-    // Deploy command
-    this.program
-      .command('deploy')
-      .description('Start interactive deployment workflow')
-      .requiredOption('--app <name>', 'Application name to deploy')
-      .option('--requirements <text>', 'Application requirements description')
-      .option('--interactive', 'Enable interactive mode with questions')
-      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
-      .option('--verbose', 'Enable verbose output')
-      .action(async (options, command) => {
-        // Get global options from parent command
-        const globalOptions = command.parent?.opts() || {};
-        this.processGlobalOptions(globalOptions);
-        
-        // Validate output format
-        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
-          console.error('Error: Invalid output format. Supported: json, yaml, table');
-          process.exit(1);
-        }
-        const result = await this.executeCommand('deploy', options);
-        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
-      });
 
     // Status command
     this.program
@@ -316,9 +294,7 @@ export class CliInterface {
     }
 
     // Check required options
-    if (commandName === 'deploy' && !options.app) {
-      throw new Error('Missing required argument: --app');
-    }
+    // (no required option checks needed for current commands)
 
     return {
       command: commandName,
@@ -332,8 +308,6 @@ export class CliInterface {
     switch (command) {
       case 'discover':
         return [...commonOptions, 'cluster', 'remember'];
-      case 'deploy':
-        return [...commonOptions, 'app', 'requirements', 'interactive'];
       case 'status':
         return [...commonOptions, 'deployment'];
       case 'learn':
@@ -348,7 +322,7 @@ export class CliInterface {
         return [...commonOptions, 'solution-id', 'session-dir'];
       case 'deployManifests':
         return [...commonOptions, 'solution-id', 'session-dir', 'timeout'];
-      // REMOVED: enhance command
+      // REMOVED: enhance command, deploy command
       default:
         return commonOptions;
     }
@@ -362,8 +336,6 @@ export class CliInterface {
       }
 
       switch (command) {
-        case 'deploy':
-          return await this.handleDeployCommand(options);
         case 'status':
           return await this.handleStatusCommand(options);
         case 'learn':
@@ -378,7 +350,7 @@ export class CliInterface {
           return await this.handleGenerateManifestsCommand(options);
         case 'deployManifests':
           return await this.handleDeployManifestsCommand(options);
-        // REMOVED: enhance command
+        // REMOVED: enhance command, deploy command
         default:
           return {
             success: false,
@@ -391,44 +363,6 @@ export class CliInterface {
   }
 
 
-  private async handleDeployCommand(options: Record<string, any>): Promise<CliResult> {
-    try {
-      const workflowId = await this.ensureAppAgent().workflow.initializeWorkflow({
-        appName: options.app,
-        requirements: options.requirements
-      });
-
-      const phase = this.ensureAppAgent().workflow.getCurrentPhase();
-
-      const result: CliResult = {
-        success: true,
-        data: {
-          workflowId,
-          phase,
-          appName: options.app
-        }
-      };
-
-      // Handle interactive mode
-      if (options.interactive) {
-        const claudeResponse = await this.ensureAppAgent().claude.processUserInput(
-          `Starting deployment for ${options.app}. Requirements: ${options.requirements || 'none provided'}`
-        );
-        
-        result.data = {
-          ...result.data,
-          ...claudeResponse
-        };
-      }
-
-      return result;
-    } catch (error) {
-      return {
-        success: false,
-        error: `Deployment failed: ${(error as Error).message}`
-      };
-    }
-  }
 
   private async handleStatusCommand(options: Record<string, any>): Promise<CliResult> {
     try {

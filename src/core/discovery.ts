@@ -130,14 +130,16 @@ export class KubernetesDiscovery {
   private resolveKubeconfigPath(customPath?: string): string {
     // Priority 1: Custom path provided
     if (customPath) {
-      return customPath;
+      return path.isAbsolute(customPath) ? customPath : path.resolve(customPath);
     }
 
     // Priority 2: KUBECONFIG environment variable
     const envPath = process.env.KUBECONFIG;
     if (envPath) {
       // Handle multiple paths separated by colons (use first one)
-      return envPath.split(':')[0];
+      const kubeconfigPath = envPath.split(':')[0];
+      // Resolve relative paths against process.cwd()
+      return path.isAbsolute(kubeconfigPath) ? kubeconfigPath : path.resolve(kubeconfigPath);
     }
 
     // Priority 3: Default location

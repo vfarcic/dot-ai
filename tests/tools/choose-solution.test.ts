@@ -114,7 +114,7 @@ describe('Choose Solution Tool', () => {
         };
 
         await expect(chooseSolutionToolHandler(args, mockContext)).rejects.toMatchObject({
-          message: 'Session directory not configured. Set APP_AGENT_SESSION_DIR environment variable.'
+          message: 'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
         });
         
         // Restore environment variable
@@ -198,7 +198,7 @@ describe('Choose Solution Tool', () => {
         };
 
         await expect(chooseSolutionToolHandler(args, mockContext)).rejects.toMatchObject({
-          message: 'Session directory not configured. Set APP_AGENT_SESSION_DIR environment variable.'
+          message: 'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
         });
       });
     });
@@ -467,8 +467,8 @@ describe('Choose Solution Tool', () => {
         { solutionId: solutionId }
       );
       expect(mockContext.logger.debug).toHaveBeenCalledWith(
-        'Session directory validated',
-        { sessionDir: sessionDir }
+        'Session directory resolved and validated',
+        { sessionDir: sessionDir, interface: 'CLI' }
       );
       expect(mockContext.logger.debug).toHaveBeenCalledWith(
         'Solution file loaded successfully',

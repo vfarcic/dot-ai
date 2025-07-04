@@ -99,6 +99,7 @@ describe('MCP Interface Layer', () => {
 
   describe('Tool Handler Functionality', () => {
 
+
     test('should require session directory for recommend tool', async () => {
       // Test that recommend tool fails without session directory
       const toolContext = {
