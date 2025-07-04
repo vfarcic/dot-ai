@@ -29,7 +29,7 @@ describe('Choose Solution Tool', () => {
         error: jest.fn(),
         fatal: jest.fn()
       },
-      appAgent: null
+      dotAI: null
     };
   });
 
@@ -106,20 +106,20 @@ describe('Choose Solution Tool', () => {
 
       test('should reject missing sessionDir when environment variable not set', async () => {
         // Ensure environment variable is not set
-        const originalEnv = process.env.APP_AGENT_SESSION_DIR;
-        delete process.env.APP_AGENT_SESSION_DIR;
+        const originalEnv = process.env.DOT_AI_SESSION_DIR;
+        delete process.env.DOT_AI_SESSION_DIR;
         
         const args = {
           solutionId: 'sol_2025-07-01T154349_1e1e242592ff'
         };
 
         await expect(chooseSolutionToolHandler(args, mockContext)).rejects.toMatchObject({
-          message: 'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+          message: 'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
         });
         
         // Restore environment variable
         if (originalEnv !== undefined) {
-          process.env.APP_AGENT_SESSION_DIR = originalEnv;
+          process.env.DOT_AI_SESSION_DIR = originalEnv;
         }
       });
 
@@ -139,15 +139,15 @@ describe('Choose Solution Tool', () => {
       let originalEnv: string | undefined;
 
       beforeEach(() => {
-        originalEnv = process.env.APP_AGENT_SESSION_DIR;
-        process.env.APP_AGENT_SESSION_DIR = sessionDir;
+        originalEnv = process.env.DOT_AI_SESSION_DIR;
+        process.env.DOT_AI_SESSION_DIR = sessionDir;
       });
 
       afterEach(() => {
         if (originalEnv !== undefined) {
-          process.env.APP_AGENT_SESSION_DIR = originalEnv;
+          process.env.DOT_AI_SESSION_DIR = originalEnv;
         } else {
-          delete process.env.APP_AGENT_SESSION_DIR;
+          delete process.env.DOT_AI_SESSION_DIR;
         }
       });
 
@@ -191,14 +191,14 @@ describe('Choose Solution Tool', () => {
       });
 
       test('should fail when environment variable is not set', async () => {
-        delete process.env.APP_AGENT_SESSION_DIR;
+        delete process.env.DOT_AI_SESSION_DIR;
         
         const args = {
           solutionId: 'sol_2025-07-01T154349_1e1e242592ff'
         };
 
         await expect(chooseSolutionToolHandler(args, mockContext)).rejects.toMatchObject({
-          message: 'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+          message: 'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
         });
       });
     });

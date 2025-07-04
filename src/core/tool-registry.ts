@@ -29,7 +29,7 @@ export interface ToolDefinition {
 export interface ToolContext {
   requestId: string;
   logger: Logger;
-  appAgent: any; // Will be properly typed later
+  dotAI: any; // Will be properly typed later
   userId?: string;
   sessionId?: string;
 }

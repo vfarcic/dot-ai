@@ -6,7 +6,7 @@
 
 import { recommendToolDefinition, recommendToolHandler } from '../../src/tools/recommend';
 import { ToolContext } from '../../src/tools';
-import { AppAgent } from '../../src/core';
+import { DotAI } from '../../src/core';
 import { ResourceRecommender } from '../../src/core/schema';
 
 // Mock dependencies
@@ -75,14 +75,14 @@ describe('Recommend Tool', () => {
       
       // Verify the fix: discoverResourcesFn should be defined as a function
       expect(sourceCode).toContain('const discoverResourcesFn = async () => {');
-      expect(sourceCode).toContain('return await appAgent.discovery.discoverResources();');
+      expect(sourceCode).toContain('return await dotAI.discovery.discoverResources();');
       
       // Verify the function is passed to findBestSolutions (not raw data)
       expect(sourceCode).toContain('discoverResourcesFn,');
       expect(sourceCode).toContain('explainResourceFn');
       
       // Verify we're not passing raw data anymore (the old broken pattern)
-      expect(sourceCode).not.toContain('await appAgent.discovery.discoverResources(),');
+      expect(sourceCode).not.toContain('await dotAI.discovery.discoverResources(),');
       expect(sourceCode).not.toContain('availableResources,'); // Old variable name
     });
     
@@ -106,7 +106,7 @@ describe('Recommend Tool', () => {
       expect(cliCode).toContain('findBestSolutions(intent, discoverResourcesFn, explainResourceFn)'); // CLI uses same pattern
       
       // MCP should no longer have the broken pattern
-      expect(mcpCode).not.toContain('const availableResources = await appAgent.discovery.discoverResources();');
+      expect(mcpCode).not.toContain('const availableResources = await dotAI.discovery.discoverResources();');
     });
   });
 

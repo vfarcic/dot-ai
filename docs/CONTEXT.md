@@ -1,6 +1,6 @@
 # Quick Context for New Sessions
 
-## Project: App-Agent - Kubernetes Application Management
+## Project: DevOps AI Toolkit - Kubernetes Application Management
 
 **Core Concept**: Dual-mode AI agent (CLI + MCP) that deploys applications to ANY Kubernetes cluster through dynamic discovery.
 
@@ -9,8 +9,8 @@
 1. **Discovery-Driven**: No hardcoded platforms - discovers CRDs + core K8s resources via `kubectl explain`
 2. **Resource-Agnostic**: Works with ANY Kubernetes resources (AppClaim, CloudRun, Knative, standard K8s, custom CRDs, etc.)
 3. **Dual-Mode**: Same intelligence, two interfaces:
-   - **Direct Mode**: `app-agent` CLI for direct user interaction
-   - **MCP Mode**: `app-agent-mcp` server for AI agent integration
+   - **Direct Mode**: `dot-ai` CLI for direct user interaction
+   - **MCP Mode**: `dot-ai-mcp` server for AI agent integration
 4. **Claude Code SDK**: Powers both modes with intelligent conversation and JSON output
 5. **Memory-Enhanced**: Learns from deployments, stores lessons in JSON files
 

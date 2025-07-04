@@ -38,7 +38,7 @@ export const answerQuestionToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: `Process user answers using STAGE-BASED workflow. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.
+  instructions: `Process user answers using STAGE-BASED workflow. Session directory is configured via DOT_AI_SESSION_DIR environment variable.
 
 🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
 • NEVER auto-fill answers with assumed values or defaults
@@ -658,7 +658,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
           'Ensure sessionDir parameter is provided and points to existing directory'
         ];
         const mcpActions = [
-          'Ensure APP_AGENT_SESSION_DIR environment variable is set in MCP configuration'
+          'Ensure DOT_AI_SESSION_DIR environment variable is set in MCP configuration'
         ];
         
         throw ErrorHandler.createError(
@@ -716,7 +716,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
               'Ensure session directory exists and is writable',
               'Check directory permissions',
               'Verify the directory path is correct',
-              isCLI ? 'Use the same sessionDir that was used with chooseSolution' : 'Verify APP_AGENT_SESSION_DIR environment variable is correctly set'
+              isCLI ? 'Use the same sessionDir that was used with chooseSolution' : 'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
             ]
           }
         );

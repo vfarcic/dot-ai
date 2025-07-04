@@ -79,7 +79,7 @@ const createMockToolContext = (): ToolContext => ({
     error: jest.fn(),
     fatal: jest.fn()
   },
-  appAgent: null
+  dotAI: null
 });
 
 // Helper to create solution with answers
@@ -142,7 +142,7 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
     mockFs.readFileSync.mockReturnValue(JSON.stringify(TEST_SOLUTION));
     
     // Reset environment
-    process.env.APP_AGENT_SESSION_DIR = TEST_SESSION_DIR;
+    process.env.DOT_AI_SESSION_DIR = TEST_SESSION_DIR;
   });
 
   afterEach(() => {

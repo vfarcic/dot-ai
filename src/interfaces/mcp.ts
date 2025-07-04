@@ -1,7 +1,7 @@
 /**
- * Model Context Protocol (MCP) Interface for App-Agent
+ * Model Context Protocol (MCP) Interface for DevOps AI Toolkit
  * 
- * Provides MCP server capabilities that expose App-Agent functionality
+ * Provides MCP server capabilities that expose DevOps AI Toolkit functionality
  * to AI assistants like Claude through standardized protocol
  */
 
@@ -13,7 +13,7 @@ import {
   ListToolsRequestSchema,
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
-import { AppAgent } from '../core/index';
+import { DotAI } from '../core/index';
 import { SchemaValidator, MCPToolSchemas } from '../core/validation';
 import { formatRecommendationResponse } from '../core/schema';
 import { 
@@ -34,14 +34,14 @@ export interface MCPServerConfig {
 
 export class MCPServer {
   private server: Server;
-  private appAgent: AppAgent;
+  private dotAI: DotAI;
   private initialized: boolean = false;
   private logger: Logger;
   private requestIdCounter: number = 0;
   private toolRegistry: ToolRegistry;
 
-  constructor(appAgent: AppAgent, config: MCPServerConfig) {
-    this.appAgent = appAgent;
+  constructor(dotAI: DotAI, config: MCPServerConfig) {
+    this.dotAI = dotAI;
     this.logger = new ConsoleLogger('MCPServer');
     
     // Initialize tool registry with all available tools
@@ -142,7 +142,7 @@ export class MCPServer {
           const toolContext: ToolContext = {
             requestId,
             logger: this.logger,
-            appAgent: this.appAgent
+            dotAI: this.dotAI
           };
 
           // Execute tool through registry
@@ -200,7 +200,7 @@ export class MCPServer {
         });
 
         // Use the actual implemented recommend functionality
-        const solutions = await this.appAgent.schema.rankResources(args.intent);
+        const solutions = await this.dotAI.schema.rankResources(args.intent);
 
         // Use shared formatting function
         const result = formatRecommendationResponse(args.intent, solutions, true);
@@ -275,8 +275,8 @@ export class MCPServer {
       this.logger.info('Initializing MCP Server components');
       
       try {
-        await this.appAgent.initialize();
-        await this.appAgent.discovery.connect();
+        await this.dotAI.initialize();
+        await this.dotAI.discovery.connect();
         this.initialized = true;
         
         this.logger.info('MCP Server components initialized successfully');

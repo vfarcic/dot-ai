@@ -6,7 +6,7 @@ import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry'
 import { MCPToolSchemas, SchemaValidator } from '../core/validation';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { ClaudeIntegration } from '../core/claude';
-import { AppAgent } from '../core/index';
+import { DotAI } from '../core/index';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
@@ -32,7 +32,7 @@ export const generateManifestsToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'manifests', 'deployment', 'yaml', 'ai'],
-  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
+  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Session directory is configured via DOT_AI_SESSION_DIR environment variable.'
 };
 
 // CLI Tool Definition - sessionDir required as parameter
@@ -143,9 +143,9 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
       resources: resourceRefs.map((r: any) => `${r.kind}@${r.apiVersion}`)
     });
     
-    // Initialize AppAgent to get cluster connection (similar to how other tools do it)
-    const appAgent = new AppAgent();
-    await appAgent.initialize();
+    // Initialize DotAI to get cluster connection (similar to how other tools do it)
+    const dotAI = new DotAI();
+    await dotAI.initialize();
     
     const schemas: any = {};
     
@@ -156,7 +156,7 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
         context.logger.debug('Retrieving schema', { resourceKey });
         
         // Use discovery engine to explain the resource
-        const explanation = await appAgent.discovery.explainResource(resourceRef.kind);
+        const explanation = await dotAI.discovery.explainResource(resourceRef.kind);
         
         schemas[resourceKey] = {
           kind: resourceRef.kind,

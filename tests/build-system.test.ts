@@ -66,7 +66,7 @@ describe('Build System Validation (TDD)', () => {
 
   describe('CLI Binary Build Requirements', () => {
     test('should create executable CLI binary', () => {
-      const cliBinary = path.join(projectRoot, 'bin', 'app-agent.ts');
+      const cliBinary = path.join(projectRoot, 'bin', 'dot-ai.ts');
       expect(fs.existsSync(cliBinary)).toBe(true);
       
       // Check that binary is executable
@@ -82,7 +82,7 @@ describe('Build System Validation (TDD)', () => {
           cwd: projectRoot, 
           stdio: 'pipe' 
         });
-        expect(output.toString()).toContain('app-agent');
+        expect(output.toString()).toContain('dot-ai');
       }).not.toThrow();
     });
 
@@ -117,14 +117,14 @@ describe('Build System Validation (TDD)', () => {
 
     test('should validate MCP server dependencies are available', () => {
       const mcpServer = require(path.join(distDir, 'interfaces', 'mcp.js'));
-      const { AppAgent } = require(path.join(distDir, 'core', 'index.js'));
+      const { DotAI } = require(path.join(distDir, 'core', 'index.js'));
       
       expect(() => {
         // Use project's working kubeconfig.yaml for integration tests
         const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-        const appAgent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+        const dotAI = new DotAI({ kubernetesConfig: projectKubeconfig });
         const config = { name: 'test', version: '1.0.0', description: 'Test' };
-        const server = new mcpServer.MCPServer(appAgent, config);
+        const server = new mcpServer.MCPServer(dotAI, config);
         expect(server.getToolCount()).toBeGreaterThan(0);
       }).not.toThrow();
     });

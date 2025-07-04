@@ -1,5 +1,5 @@
 /**
- * Can Help Tool - Check if App-Agent can assist with deployment requests
+ * Can Help Tool - Check if DevOps AI Toolkit can assist with deployment requests
  */
 
 import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
@@ -38,7 +38,7 @@ const CAN_HELP_OUTPUT: JSONSchema = {
 
 export const canHelpToolDefinition: ToolDefinition = {
   name: 'can_help',
-  description: 'Check if App-Agent can help with your deployment, application creation, or infrastructure request. Use this when unsure if App-Agent is the right tool for: deploying apps, creating services, setting up databases, building infrastructure, running containers, or any Kubernetes-related tasks.',
+  description: 'Check if DevOps AI Toolkit can help with your deployment, application creation, or infrastructure request. Use this when unsure if DevOps AI Toolkit is the right tool for: deploying apps, creating services, setting up databases, building infrastructure, running containers, or any Kubernetes-related tasks.',
   inputSchema: CAN_HELP_INPUT,
   outputSchema: CAN_HELP_OUTPUT,
   version: '1.0.0',
@@ -51,7 +51,7 @@ export const canHelpToolHandler: ToolHandler = async (args: any, context: ToolCo
   
   logger.debug('Handling can_help request', { requestId, request: args?.request });
 
-  // Keywords that indicate App-Agent can help
+  // Keywords that indicate DevOps AI Toolkit can help
   const deploymentKeywords = [
     'deploy', 'create', 'run', 'setup', 'launch', 'build', 'install', 'start',
     'app', 'application', 'service', 'api', 'database', 'web', 'site', 'server',
@@ -68,9 +68,9 @@ export const canHelpToolHandler: ToolHandler = async (args: any, context: ToolCo
   let suggestedTool: string = '';
 
   if (canHelp) {
-    response = `🎯 **Yes, App-Agent can help!** 
+    response = `🎯 **Yes, DevOps AI Toolkit can help!** 
 
-Your request "${args.request}" appears to be related to deployment or application setup, which is exactly what App-Agent specializes in.
+Your request "${args.request}" appears to be related to deployment or application setup, which is exactly what DevOps AI Toolkit specializes in.
 
 **Recommended Workflow:**
 1. **First**, ask the user to describe in more detail what type of application they want to deploy
@@ -83,11 +83,11 @@ Your request "${args.request}" appears to be related to deployment or applicatio
     
     suggestedTool = 'recommend';
   } else {
-    response = `ℹ️ **App-Agent might not be the best fit**
+    response = `ℹ️ **DevOps AI Toolkit might not be the best fit**
 
 Your request "${args.request}" doesn't clearly indicate a deployment or application setup task.
 
-**App-Agent specializes in:**
+**DevOps AI Toolkit specializes in:**
 - Deploying applications to Kubernetes
 - Setting up databases and services  
 - Creating web applications and APIs

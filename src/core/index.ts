@@ -15,7 +15,7 @@ export interface CoreConfig {
   anthropicApiKey?: string;
 }
 
-export class AppAgent {
+export class DotAI {
   private config: CoreConfig;
   private initialized: boolean = false;
   
@@ -150,4 +150,4 @@ export { ClaudeIntegration } from './claude';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 
 // Default export
-export default AppAgent; 
+export default DotAI; 

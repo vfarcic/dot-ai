@@ -1,6 +1,6 @@
-# App-Agent MCP Integration Guide
+# DevOps AI Toolkit MCP Integration Guide
 
-**Complete guide for using App-Agent as an MCP (Model Context Protocol) server with AI development tools.**
+**Complete guide for using DevOps AI Toolkit as an MCP (Model Context Protocol) server with AI development tools.**
 
 ## Table of Contents
 
@@ -14,16 +14,16 @@
 
 ## Quick Start
 
-### 1. Install App-Agent
+### 1. Install DevOps AI Toolkit
 
 **Current Method: From Source**
 ```bash
-git clone https://github.com/your-org/app-agent.git
-cd app-agent
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 npm install && npm run build
 ```
 
-> **Coming Soon**: npm package distribution with `npm install -g app-agent` and `npx app-agent mcp`
+> **Coming Soon**: npm package distribution with `npm install -g dot-ai` and `npx dot-ai mcp`
 
 ### 2. Configure MCP Server
 
@@ -32,13 +32,13 @@ Create `.mcp.json` in your project:
 ```json
 {
   "mcpServers": {
-    "app-agent": {
+    "dot-ai": {
       "command": "npm",
       "args": ["run", "start:mcp"],
-      "cwd": "/path/to/app-agent",
+      "cwd": "/path/to/dot-ai",
       "env": {
         "ANTHROPIC_API_KEY": "your_anthropic_key_here",
-        "APP_AGENT_SESSION_DIR": "./tmp/sessions",
+        "DOT_AI_SESSION_DIR": "./tmp/sessions",
         "KUBECONFIG": "./configs/my-cluster.yaml"
       }
     }
@@ -46,7 +46,7 @@ Create `.mcp.json` in your project:
 }
 ```
 
-**Important**: Replace `/path/to/app-agent` with the actual path where you cloned the repository.
+**Important**: Replace `/path/to/dot-ai` with the actual path where you cloned the repository.
 
 ### 3. Start Your AI Tool
 
@@ -65,7 +65,7 @@ claude
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
 | `ANTHROPIC_API_KEY` | ✅ Yes | Claude API key for AI recommendations | `sk-ant-api03-...` |
-| `APP_AGENT_SESSION_DIR` | ✅ Yes | Session storage directory | `./tmp/sessions` |
+| `DOT_AI_SESSION_DIR` | ✅ Yes | Session storage directory | `./tmp/sessions` |
 | `KUBECONFIG` | ❌ Optional | Kubernetes config file path | `./configs/cluster.yaml` |
 
 ### Path Resolution
@@ -76,7 +76,7 @@ claude
 {
   "cwd": "/Users/you/projects/myapp",
   "env": {
-    "APP_AGENT_SESSION_DIR": "./tmp/sessions",     // → /Users/you/projects/myapp/tmp/sessions
+    "DOT_AI_SESSION_DIR": "./tmp/sessions",     // → /Users/you/projects/myapp/tmp/sessions
     "KUBECONFIG": "./k8s/config.yaml"             // → /Users/you/projects/myapp/k8s/config.yaml
   }
 }
@@ -87,7 +87,7 @@ claude
 ```json
 {
   "env": {
-    "APP_AGENT_SESSION_DIR": "/tmp/app-agent-sessions",
+    "DOT_AI_SESSION_DIR": "/tmp/dot-ai-sessions",
     "KUBECONFIG": "/Users/you/.kube/config"
   }
 }
@@ -101,13 +101,13 @@ claude
 ```json
 {
   "mcpServers": {
-    "app-agent": {
+    "dot-ai": {
       "command": "npm",
       "args": ["run", "start:mcp"],
-      "cwd": "/absolute/path/to/app-agent",
+      "cwd": "/absolute/path/to/dot-ai",
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
-        "APP_AGENT_SESSION_DIR": "./tmp/sessions"
+        "DOT_AI_SESSION_DIR": "./tmp/sessions"
       }
     }
   }
@@ -117,7 +117,7 @@ claude
 **Usage:**
 ```bash
 claude --mcp
-# Now you can use app-agent MCP tools directly in conversation
+# Now you can use dot-ai MCP tools directly in conversation
 ```
 
 ### Cursor
@@ -125,7 +125,7 @@ claude --mcp
 **Setup:**
 1. Open Cursor Settings
 2. Navigate to "MCP Servers"
-3. Add App-Agent configuration
+3. Add DevOps AI Toolkit configuration
 4. Restart Cursor
 
 ### VS Code
@@ -218,7 +218,7 @@ Use deployManifests to apply the configuration to the cluster
 ### Utility Tools
 
 #### `canHelp`
-Check if App-Agent can assist with your specific deployment request.
+Check if DevOps AI Toolkit can assist with your specific deployment request.
 
 **Usage:**
 ```
@@ -229,7 +229,7 @@ Use canHelp to check if you can deploy a microservice with database
 - `request` (required): Description of your deployment needs
 
 **Returns:**
-- Whether App-Agent can help
+- Whether DevOps AI Toolkit can help
 - Suggested approach or alternatives
 
 ## Workflow Examples
@@ -311,7 +311,7 @@ Agent: Deploying your complete stack now...
 
 3. **Test manual startup:**
    ```bash
-   cd /path/to/app-agent
+   cd /path/to/dot-ai
    npm run start:mcp
    # Should start without errors
    ```
@@ -380,22 +380,22 @@ Configure different MCP servers for different clusters:
 ```json
 {
   "mcpServers": {
-    "app-agent-prod": {
+    "dot-ai-prod": {
       "command": "npm",
       "args": ["run", "start:mcp"],
-      "cwd": "/path/to/app-agent",
+      "cwd": "/path/to/dot-ai",
       "env": {
         "KUBECONFIG": "./configs/prod-cluster.yaml",
-        "APP_AGENT_SESSION_DIR": "./tmp/prod-sessions"
+        "DOT_AI_SESSION_DIR": "./tmp/prod-sessions"
       }
     },
-    "app-agent-staging": {
+    "dot-ai-staging": {
       "command": "npm",
       "args": ["run", "start:mcp"],
-      "cwd": "/path/to/app-agent",
+      "cwd": "/path/to/dot-ai",
       "env": {
         "KUBECONFIG": "./configs/staging-cluster.yaml",
-        "APP_AGENT_SESSION_DIR": "./tmp/staging-sessions"
+        "DOT_AI_SESSION_DIR": "./tmp/staging-sessions"
       }
     }
   }
@@ -408,7 +408,7 @@ Configure different MCP servers for different clusters:
 ```json
 {
   "env": {
-    "APP_AGENT_SESSION_DIR": "./deployments/app-agent-sessions"
+    "DOT_AI_SESSION_DIR": "./deployments/dot-ai-sessions"
   }
 }
 ```
@@ -417,7 +417,7 @@ Configure different MCP servers for different clusters:
 ```json
 {
   "env": {
-    "APP_AGENT_SESSION_DIR": "/Users/you/.app-agent/sessions"
+    "DOT_AI_SESSION_DIR": "/Users/you/.dot-ai/sessions"
   }
 }
 ```

@@ -10,7 +10,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from './error-handling';
 export interface ToolContext {
   requestId: string;
   logger?: any;
-  appAgent?: any;
+  dotAI?: any;
 }
 
 /**
@@ -28,10 +28,10 @@ export function getSessionDirectory(args: any, context?: ToolContext): string {
   }
   
   // For MCP interface, sessionDir comes from environment
-  const envSessionDir = process.env.APP_AGENT_SESSION_DIR;
+  const envSessionDir = process.env.DOT_AI_SESSION_DIR;
   if (!envSessionDir) {
     throw new Error(
-      'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+      'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
     );
   }
   

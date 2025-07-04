@@ -58,7 +58,7 @@ export class InstructionLoader {
         description = 'Customize, optimize, modify, or enhance existing deployment solutions with AI-powered improvements based on user requirements.';
         break;
       case 'can_help':
-        description = 'Check if App-Agent can help with your deployment, application creation, or infrastructure request.';
+        description = 'Check if DevOps AI Toolkit can help with your deployment, application creation, or infrastructure request.';
         break;
       default:
         description = `${toolName} tool - please describe your requirements to get started.`;

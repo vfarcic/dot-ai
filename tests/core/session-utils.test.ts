@@ -19,16 +19,16 @@ describe('Session Utils', () => {
     
     // Save original state
     originalCwd = process.cwd();
-    originalEnv = process.env.APP_AGENT_SESSION_DIR;
+    originalEnv = process.env.DOT_AI_SESSION_DIR;
   });
 
   afterEach(() => {
     // Restore original state
     process.chdir(originalCwd);
     if (originalEnv) {
-      process.env.APP_AGENT_SESSION_DIR = originalEnv;
+      process.env.DOT_AI_SESSION_DIR = originalEnv;
     } else {
-      delete process.env.APP_AGENT_SESSION_DIR;
+      delete process.env.DOT_AI_SESSION_DIR;
     }
     
     // Clean up test directory
@@ -41,7 +41,7 @@ describe('Session Utils', () => {
 
   describe('getSessionDirectory', () => {
     it('should prefer CLI args over environment variable', () => {
-      process.env.APP_AGENT_SESSION_DIR = '/env/path';
+      process.env.DOT_AI_SESSION_DIR = '/env/path';
       const args = { sessionDir: '/cli/path' };
       
       const result = getSessionDirectory(args);
@@ -50,7 +50,7 @@ describe('Session Utils', () => {
     });
 
     it('should use environment variable when CLI args not provided', () => {
-      process.env.APP_AGENT_SESSION_DIR = '/env/path';
+      process.env.DOT_AI_SESSION_DIR = '/env/path';
       const args = {};
       
       const result = getSessionDirectory(args);
@@ -59,16 +59,16 @@ describe('Session Utils', () => {
     });
 
     it('should throw error when neither CLI args nor environment variable provided', () => {
-      delete process.env.APP_AGENT_SESSION_DIR;
+      delete process.env.DOT_AI_SESSION_DIR;
       const args = {};
       
       expect(() => getSessionDirectory(args)).toThrow(
-        'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+        'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
       );
     });
 
     it('should work with relative paths from environment variable', () => {
-      process.env.APP_AGENT_SESSION_DIR = './relative/path';
+      process.env.DOT_AI_SESSION_DIR = './relative/path';
       const args = {};
       
       const result = getSessionDirectory(args);
@@ -137,7 +137,7 @@ describe('Session Utils', () => {
 
   describe('getAndValidateSessionDirectory', () => {
     it('should get and validate session directory from environment variable', () => {
-      process.env.APP_AGENT_SESSION_DIR = testDir;
+      process.env.DOT_AI_SESSION_DIR = testDir;
       const args = {};
       
       const result = getAndValidateSessionDirectory(args, undefined, false);
@@ -146,7 +146,7 @@ describe('Session Utils', () => {
     });
 
     it('should get and validate session directory with write permissions', () => {
-      process.env.APP_AGENT_SESSION_DIR = testDir;
+      process.env.DOT_AI_SESSION_DIR = testDir;
       const args = {};
       
       const result = getAndValidateSessionDirectory(args, undefined, true);
@@ -165,7 +165,7 @@ describe('Session Utils', () => {
       
       // Change to test directory and set relative path
       process.chdir(testCwd);
-      process.env.APP_AGENT_SESSION_DIR = relativeSessionDir;
+      process.env.DOT_AI_SESSION_DIR = relativeSessionDir;
       
       const args = {};
       const result = getAndValidateSessionDirectory(args, undefined, true);
@@ -177,17 +177,17 @@ describe('Session Utils', () => {
     });
 
     it('should throw error when session directory not configured', () => {
-      delete process.env.APP_AGENT_SESSION_DIR;
+      delete process.env.DOT_AI_SESSION_DIR;
       const args = {};
       
       expect(() => getAndValidateSessionDirectory(args)).toThrow(
-        'Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable'
+        'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
       );
     });
 
     it('should throw error when session directory does not exist', () => {
       const nonExistentDir = path.join(testDir, 'does-not-exist');
-      process.env.APP_AGENT_SESSION_DIR = nonExistentDir;
+      process.env.DOT_AI_SESSION_DIR = nonExistentDir;
       const args = {};
       
       expect(() => getAndValidateSessionDirectory(args)).toThrow(
@@ -197,16 +197,16 @@ describe('Session Utils', () => {
   });
 
   describe('MCP cwd simulation', () => {
-    it('should work exactly like MCP server with cwd and relative APP_AGENT_SESSION_DIR', () => {
+    it('should work exactly like MCP server with cwd and relative DOT_AI_SESSION_DIR', () => {
       // Simulate MCP configuration:
       // {
       //   "mcpServers": {
-      //     "app-agent": {
+      //     "dot-ai": {
       //       "command": "npm",
       //       "args": ["run", "mcp:start"],
-      //       "cwd": "/path/to/app-agent",
+      //       "cwd": "/path/to/dot-ai",
       //       "env": {
-      //         "APP_AGENT_SESSION_DIR": "./tmp/sessions"
+      //         "DOT_AI_SESSION_DIR": "./tmp/sessions"
       //       }
       //     }
       //   }
@@ -222,7 +222,7 @@ describe('Session Utils', () => {
       
       // Change to MCP cwd and set relative environment variable
       process.chdir(mcpCwd);
-      process.env.APP_AGENT_SESSION_DIR = relativeSessionDir;
+      process.env.DOT_AI_SESSION_DIR = relativeSessionDir;
       
       // This simulates what happens when MCP tools are called
       const args = {}; // MCP tools don't get sessionDir as args

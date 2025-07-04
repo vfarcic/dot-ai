@@ -1,12 +1,12 @@
 # Task Done - Complete Task Validation and Submission
 
-Validate that the current Taskmaster task is complete and ready for submission using Taskmaster MCP tools.
+Validate that the current development task is complete and ready for submission.
 
 ## Steps:
 
 1. **Get Current Task**: 
-   - Use `mcp__taskmaster-ai__next_task` to identify the current task being worked on
-   - If no task in progress, ask user which task they want to mark as done
+   - Identify the current task being worked on from user context
+   - If unclear, ask user which task they want to validate as complete
 
 2. **Validate Task Completion**:
    - Review the task requirements and implementation details
@@ -34,7 +34,7 @@ Validate that the current Taskmaster task is complete and ready for submission u
    - If any tests fail, fix them before proceeding
 
 6. **Mark Task Complete**:
-   - Use `mcp__taskmaster-ai__set_task_status` to mark task as complete
+   - Update task status in your project management system
    - Update any subtasks that are also complete
 
 7. **Commit and Push Changes**:
@@ -47,7 +47,7 @@ Validate that the current Taskmaster task is complete and ready for submission u
 8. **Summary Report**:
    - Provide summary of what was completed
    - List files modified, tests added, and documentation updated
-   - Confirm task is marked as done in Taskmaster
+   - Confirm task is marked as done
    - Confirm changes are pushed to GitHub
 
 ## Validation Criteria:
@@ -57,7 +57,7 @@ Validate that the current Taskmaster task is complete and ready for submission u
 - ✅ All relevant documentation updated
 - ✅ All unit tests pass (npm test)
 - ✅ All integration tests pass (npm run test:integration)
-- ✅ Task marked as done in Taskmaster
+- ✅ Task marked as done
 - ✅ Changes committed and pushed to GitHub
 
 ## Exit Conditions:

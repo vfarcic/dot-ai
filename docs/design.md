@@ -1,4 +1,4 @@
-# App-Agent Architecture & Design
+# DevOps AI Toolkit Architecture & Design
 
 ## Current Implementation Status
 
@@ -10,7 +10,7 @@
 
 ## Overview
 
-App-Agent is an intelligent Kubernetes application deployment agent designed to operate in two modes:
+DevOps AI Toolkit is an intelligent Kubernetes application deployment agent designed to operate in two modes:
 
 1. **✅ CLI Mode** (Current): Standalone command-line tool with AI-powered recommendations
 2. **✅ MCP Mode** (Implemented): Model Context Protocol server for conversational deployment workflow
@@ -23,48 +23,48 @@ The system implements a discovery-driven workflow powered by Claude AI, evolved 
 sequenceDiagram
     participant User
     participant ExternalAgent as External Agent<br/>(Claude Code, Cursor, etc.)
-    participant AppAgent as App-Agent<br/>(Our System)
+    participant DotAI as DevOps AI Toolkit<br/>(Our System)
     participant K8s as Kubernetes Cluster
 
     User->>ExternalAgent: "Deploy a web app with auto-scaling"
     
-    Note over ExternalAgent,AppAgent: Phase 1: Get Recommendations
-    ExternalAgent->>AppAgent: recommend --intent "web app with auto-scaling"
-    AppAgent->>K8s: Discover resources & schemas
-    K8s-->>AppAgent: CRDs + Standard resources
-    AppAgent->>AppAgent: AI analysis & ranking
-    AppAgent-->>ExternalAgent: Complete solution with questions
+    Note over ExternalAgent,DotAI: Phase 1: Get Recommendations
+    ExternalAgent->>DotAI: recommend --intent "web app with auto-scaling"
+    DotAI->>K8s: Discover resources & schemas
+    K8s-->>DotAI: CRDs + Standard resources
+    DotAI->>DotAI: AI analysis & ranking
+    DotAI-->>ExternalAgent: Complete solution with questions
     
     Note over ExternalAgent,User: Phase 2: Choose Solution
     ExternalAgent->>User: Present ranked solutions with scores/descriptions
     User-->>ExternalAgent: Select preferred solution
-    ExternalAgent->>AppAgent: chooseSolution(selectedSolutionId)
-    AppAgent-->>ExternalAgent: Configuration questions by stage
+    ExternalAgent->>DotAI: chooseSolution(selectedSolutionId)
+    DotAI-->>ExternalAgent: Configuration questions by stage
     
     Note over ExternalAgent,User: Phase 3: Progressive Configuration
     ExternalAgent->>User: Present required questions
     User-->>ExternalAgent: Provide required answers
-    ExternalAgent->>AppAgent: answerQuestion(stage="required", answers)
+    ExternalAgent->>DotAI: answerQuestion(stage="required", answers)
     ExternalAgent->>User: Present basic questions (optional)
     User-->>ExternalAgent: Provide basic answers or skip
-    ExternalAgent->>AppAgent: answerQuestion(stage="basic", answers)
+    ExternalAgent->>DotAI: answerQuestion(stage="basic", answers)
     ExternalAgent->>User: Present advanced questions (optional)
     User-->>ExternalAgent: Provide advanced answers or skip
-    ExternalAgent->>AppAgent: answerQuestion(stage="advanced", answers)
+    ExternalAgent->>DotAI: answerQuestion(stage="advanced", answers)
     ExternalAgent->>User: Ask for open requirements
     User-->>ExternalAgent: "handle 1000 req/sec with SSL"
-    ExternalAgent->>AppAgent: answerQuestion(stage="open", answers)
+    ExternalAgent->>DotAI: answerQuestion(stage="open", answers)
     
-    Note over ExternalAgent,AppAgent: Phase 4: Manifest Generation
-    ExternalAgent->>AppAgent: generateManifests(solutionId)
-    AppAgent->>AppAgent: AI creates complete manifests<br/>with additional resources for open requirements
-    AppAgent-->>ExternalAgent: Production-ready Kubernetes YAML
+    Note over ExternalAgent,DotAI: Phase 4: Manifest Generation
+    ExternalAgent->>DotAI: generateManifests(solutionId)
+    DotAI->>DotAI: AI creates complete manifests<br/>with additional resources for open requirements
+    DotAI-->>ExternalAgent: Production-ready Kubernetes YAML
     
     Note over ExternalAgent,K8s: Phase 5: Deployment (Planned)
-    ExternalAgent->>AppAgent: deploy --manifests manifests/
-    AppAgent->>K8s: kubectl apply with monitoring
-    K8s-->>AppAgent: Deployment status
-    AppAgent-->>ExternalAgent: Success/failure with details
+    ExternalAgent->>DotAI: deploy --manifests manifests/
+    DotAI->>K8s: kubectl apply with monitoring
+    K8s-->>DotAI: Deployment status
+    DotAI-->>ExternalAgent: Success/failure with details
     ExternalAgent-->>User: "✅ App deployed successfully"
 ```
 
@@ -80,7 +80,7 @@ sequenceDiagram
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                    App-Agent Core                          │
+│                DevOps AI Toolkit Core                     │
 │               (Powered by Claude AI)                       │
 │                                                            │
 │  ┌───────────────────────────────────────────────────────┐ │
@@ -233,8 +233,8 @@ All applications must have monitoring enabled.
 **1. Policy Loading:**
 ```bash
 # Agent reads plain English policies
-app-agent config set governance.policy-files "./governance/*.txt"
-app-agent governance validate  # Checks if policies are understood
+dot-ai config set governance.policy-files "./governance/*.txt"
+dot-ai governance validate  # Checks if policies are understood
 ```
 
 **2. Runtime Application:**
@@ -248,7 +248,7 @@ The agent interprets policies contextually during each workflow step:
 
 **3. Interactive Enforcement:**
 ```
-$ app-agent recommend --intent "web app with 10 replicas"
+$ dot-ai recommend --intent "web app with 10 replicas"
 
 🛡️ Policy Check: Development limit is 3 replicas maximum.
    Would you like to:
@@ -264,9 +264,9 @@ Your choice [1]:
 **Starter Templates:**
 ```bash
 # Initialize with common templates
-app-agent governance init --template=startup
-app-agent governance init --template=enterprise  
-app-agent governance init --template=regulated-industry
+dot-ai governance init --template=startup
+dot-ai governance init --template=enterprise  
+dot-ai governance init --template=regulated-industry
 ```
 
 **Custom Templates:**
@@ -517,32 +517,32 @@ If user says: `"simple web app"` → Asks minimal questions, uses smart defaults
 
 ## Direct Agent Mode
 
-The Direct Agent Mode provides a standalone CLI tool called `app-agent` that users can install and run directly.
+The Direct Agent Mode provides a standalone CLI tool called `dot-ai` that users can install and run directly.
 
 ### Installation & Usage
 ```bash
 # Install the CLI tool globally
-npm install -g app-agent
+npm install -g dot-ai
 
 # Get AI-powered deployment recommendations
-app-agent recommend --intent "web app with auto-scaling"
+dot-ai recommend --intent "web app with auto-scaling"
 
 # Choose solution and configure step-by-step
-app-agent choose-solution --solution-id sol_xxx --session-dir ./tmp
+dot-ai choose-solution --solution-id sol_xxx --session-dir ./tmp
 
 # Generate and deploy manifests
-app-agent generate-manifests --solution-id sol_xxx --session-dir ./tmp
-app-agent deploy-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai generate-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 
 # Check status of a deployment
-app-agent status my-app
+dot-ai status my-app
 ```
 
-> **Note**: `app-agent` is the proposed CLI command name. Alternative names could be `kubectl-app-deploy`, `kube-app`, `k8s-app-agent`, etc.
+> **Note**: `dot-ai` is the proposed CLI command name. Alternative names could be `kubectl-app-deploy`, `kube-app`, `k8s-dot-ai`, etc.
 
 ### Example Interaction
 ```
-$ app-agent recommend --intent "web app with auto-scaling"
+$ dot-ai recommend --intent "web app with auto-scaling"
 
 🔍 Discovering cluster capabilities...
 ✅ Found: AppClaim (DevOpsToolkit), CloudRunService (GCP), Standard K8s
@@ -715,7 +715,7 @@ const final = await mcp.deploy_application({
 
 ## File Structure
 ```
-app-agent/
+dot-ai/
 ├── docs/                   # Documentation
 │   ├── design.md           # Architecture and workflow
 │   ├── CONTEXT.md          # Quick reference for new sessions
@@ -738,8 +738,8 @@ app-agent/
 ├── memory/                 # Lesson storage
 ├── config/                 # Configuration files
 └── bin/                    # CLI entry points
-    ├── app-agent           # Direct mode CLI executable
-    └── app-agent-mcp       # MCP server executable
+    ├── dot-ai           # Direct mode CLI executable
+    └── dot-ai-mcp       # MCP server executable
 ```
 
 ## Next Steps

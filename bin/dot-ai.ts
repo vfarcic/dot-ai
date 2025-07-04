@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { AppAgent } from '../dist/core/index.js';
+import { DotAI } from '../dist/core/index.js';
 import { CliInterface } from '../dist/interfaces/cli.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -11,12 +11,12 @@ const __dirname = dirname(__filename);
 /**
  * CLI Binary Entry Point
  * 
- * Sets up the App Agent and CLI interface for command line usage
+ * Sets up the DevOps AI Toolkit and CLI interface for command line usage
  */
 
 async function main() {
   try {
-    // Parse kubeconfig option early for AppAgent initialization
+    // Parse kubeconfig option early for DotAI initialization
     const kubeconfigIndex = process.argv.indexOf('--kubeconfig');
     let kubeconfigPath: string | undefined;
     
@@ -24,12 +24,12 @@ async function main() {
       kubeconfigPath = process.argv[kubeconfigIndex + 1];
     }
 
-    // Initialize the App Agent with kubeconfig if provided
-    const appAgent = new AppAgent(kubeconfigPath ? { kubernetesConfig: kubeconfigPath } : {});
-    await appAgent.initialize();
+    // Initialize the DevOps AI Toolkit with kubeconfig if provided
+    const dotAI = new DotAI(kubeconfigPath ? { kubernetesConfig: kubeconfigPath } : {});
+    await dotAI.initialize();
 
     // Create CLI interface
-    const cli = new CliInterface(appAgent);
+    const cli = new CliInterface(dotAI);
 
     // Run CLI with full process.argv (commander.js handles parsing)
     await cli.run(process.argv);

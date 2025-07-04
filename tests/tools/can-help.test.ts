@@ -1,34 +1,34 @@
 /**
  * Tests for Can Help Tool
  * 
- * Tests the discovery/routing functionality to determine if App-Agent can help
+ * Tests the discovery/routing functionality to determine if DevOps AI Toolkit can help
  */
 
 import { canHelpToolDefinition, canHelpToolHandler } from '../../src/tools/can-help';
 import { ToolContext } from '../../src/core/tool-registry';
 import { ConsoleLogger } from '../../src/core/error-handling';
-import { AppAgent } from '../../src/core';
+import { DotAI } from '../../src/core';
 
 describe('Can Help Tool', () => {
   let mockContext: ToolContext;
-  let mockAppAgent: AppAgent;
+  let mockDotAI: DotAI;
 
   beforeEach(() => {
-    mockAppAgent = {
+    mockDotAI = {
       getAnthropicApiKey: jest.fn().mockReturnValue('test-key')
     } as any;
 
     mockContext = {
       requestId: 'test-request-123',
       logger: new ConsoleLogger('CanHelpTest'),
-      appAgent: mockAppAgent
+      dotAI: mockDotAI
     };
   });
 
   describe('Tool Definition', () => {
     test('should have correct basic properties', () => {
       expect(canHelpToolDefinition.name).toBe('can_help');
-      expect(canHelpToolDefinition.description).toContain('Check if App-Agent');
+      expect(canHelpToolDefinition.description).toContain('Check if DevOps AI Toolkit');
       expect(canHelpToolDefinition.category).toBe('discovery');
       expect(canHelpToolDefinition.version).toBe('1.0.0');
     });
@@ -62,7 +62,7 @@ describe('Can Help Tool', () => {
       
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
       expect(result.content[0].text).toContain('recommend');
     });
 
@@ -72,7 +72,7 @@ describe('Can Help Tool', () => {
       const result = await canHelpToolHandler(args, mockContext);
       
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
     });
 
     test('should identify container requests as helpful', async () => {
@@ -81,7 +81,7 @@ describe('Can Help Tool', () => {
       const result = await canHelpToolHandler(args, mockContext);
       
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
     });
 
     test('should identify app creation requests as helpful', async () => {
@@ -90,7 +90,7 @@ describe('Can Help Tool', () => {
       const result = await canHelpToolHandler(args, mockContext);
       
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
     });
 
     test('should suggest alternatives for non-deployment requests', async () => {
@@ -100,7 +100,7 @@ describe('Can Help Tool', () => {
       
       expect(result.content).toHaveLength(1);
       expect(result.content[0].text).toContain('might not be the best fit');
-      expect(result.content[0].text).toContain('App-Agent specializes in');
+      expect(result.content[0].text).toContain('DevOps AI Toolkit specializes in');
     });
 
     test('should suggest alternatives for file editing requests', async () => {
@@ -128,7 +128,7 @@ describe('Can Help Tool', () => {
       const result = await canHelpToolHandler(args, mockContext);
       
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
     });
 
     test('should provide workflow guidance for deployment requests', async () => {
@@ -157,7 +157,7 @@ describe('Can Help Tool', () => {
       
       const result = await canHelpToolHandler(args, mockContext);
       
-      expect(result.content[0].text).toContain('Yes, App-Agent can help');
+      expect(result.content[0].text).toContain('Yes, DevOps AI Toolkit can help');
     });
   });
 });

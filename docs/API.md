@@ -194,10 +194,10 @@ interface ClusterFingerprint {
 
 ```typescript
 import { CliInterface } from './src/interfaces/cli';
-import { AppAgent } from './src/core';
+import { DotAI } from './src/core';
 
-const appAgent = new AppAgent();
-const cli = new CliInterface(appAgent);
+const dotAI = new DotAI();
+const cli = new CliInterface(dotAI);
 
 // Execute commands programmatically
 const result = await cli.executeCommand('discover', { 
@@ -255,7 +255,7 @@ await mcpServer.start();
 - `fingerprint_cluster`: Analyze cluster capabilities
 
 **Utility:**
-- `can_help`: Check if App-Agent can assist with a request
+- `can_help`: Check if DevOps AI Toolkit can assist with a request
 
 ## Error Handling
 
@@ -414,7 +414,7 @@ generateManifests({
 Each deployment session is identified by a unique `solutionId` that maintains state across the workflow:
 
 ```typescript
-// Session data stored in APP_AGENT_SESSION_DIR
+// Session data stored in DOT_AI_SESSION_DIR
 // Contains solution configuration, answers, and generated manifests
 // Enables resuming interrupted workflows
 ```
@@ -431,7 +431,7 @@ export KUBECONFIG=/path/to/your/kubeconfig.yaml
 export ANTHROPIC_API_KEY=your_api_key_here
 
 # Optional: Debug logging
-export DEBUG=app-agent:*
+export DEBUG=dot-ai:*
 ```
 
 ### Configuration Options

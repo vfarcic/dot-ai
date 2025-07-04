@@ -1,5 +1,5 @@
 /**
- * Comprehensive Error Handling System for App-Agent
+ * Comprehensive Error Handling System for DevOps AI Toolkit
  * 
  * Provides centralized error handling, logging, and context management
  * with support for MCP protocol, CLI operations, and core functionality.

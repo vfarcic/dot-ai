@@ -579,7 +579,7 @@ export class ResourceRecommender {
       const parsed = this.extractJsonFromAIResponse(aiResponse);
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
-        const isDebugMode = process.env.APP_AGENT_DEBUG === 'true';
+        const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
         
         if (isDebugMode) {
           console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));

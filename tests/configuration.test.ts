@@ -17,7 +17,7 @@ describe('Package.json Configuration', () => {
 
   describe('Basic Package Information', () => {
     test('should have correct package metadata', () => {
-      expect(packageJson.name).toBe('app-agent');
+      expect(packageJson.name).toBe('dot-ai');
       expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(packageJson.description).toContain('Kubernetes');
       expect(packageJson.description).toContain('CLI');
@@ -37,7 +37,7 @@ describe('Package.json Configuration', () => {
   describe('Entry Points and Exports', () => {
     test('should support both CLI and MCP entry points', () => {
       expect(packageJson.main).toBe('dist/index.js');
-      expect(packageJson.bin).toHaveProperty('app-agent');
+      expect(packageJson.bin).toHaveProperty('dot-ai');
       expect(packageJson.exports['.']).toBe('./dist/index.js');
       expect(packageJson.exports['./mcp']).toBe('./dist/mcp/server.js');
     });

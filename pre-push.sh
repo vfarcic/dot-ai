@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# pre-push.sh - Quality checklist automation for App-Agent
+# pre-push.sh - Quality checklist automation for DevOps AI Toolkit
 # Run this script before pushing to Git to ensure code quality
 
 set -e  # Exit on any error
 
-echo "🚀 Running pre-push quality checklist for App-Agent..."
+echo "🚀 Running pre-push quality checklist for DevOps AI Toolkit..."
 
 # Check for uncommitted changes
 if [ -n "$(git status --porcelain)" ]; then
@@ -53,6 +53,5 @@ echo "✅ All quality checks passed! Ready to push to Git."
 echo ""
 echo "📋 Remember to:"
 echo "   - Use meaningful commit messages"
-echo "   - Update task status in Taskmaster if completing work"
 echo "   - Document implementation details for major changes"
 echo "" 

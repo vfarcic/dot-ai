@@ -92,7 +92,7 @@ describe('Tool Registration Integration', () => {
 
     test('can_help tool should have valid schema structure', () => {
       expect(canHelpToolDefinition.name).toBe('can_help');
-      expect(canHelpToolDefinition.description).toContain('Check if App-Agent');
+      expect(canHelpToolDefinition.description).toContain('Check if DevOps AI Toolkit');
       expect(canHelpToolDefinition.inputSchema).toBeDefined();
       expect(canHelpToolDefinition.inputSchema.type).toBe('object');
       expect(canHelpToolDefinition.version).toBe('1.0.0');

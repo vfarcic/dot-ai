@@ -35,8 +35,8 @@ The discovery engine provides comprehensive, unfiltered data through well-define
 
 ```bash
 # Clone and install
-git clone https://github.com/your-org/app-agent.git
-cd app-agent
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 npm install
 
 # Build the project
@@ -131,14 +131,14 @@ Current coverage: **69%+ overall** with **565+ tests** across 21 test suites, in
 
 ```bash
 # Create test cluster
-kind create cluster --name app-agent-test
+kind create cluster --name dot-ai-test
 
 # Run integration tests
-export KUBECONFIG=$(kind get kubeconfig-path --name app-agent-test)
+export KUBECONFIG=$(kind get kubeconfig-path --name dot-ai-test)
 npm test -- tests/integration
 
 # Cleanup
-kind delete cluster --name app-agent-test
+kind delete cluster --name dot-ai-test
 ```
 
 ## Debugging
@@ -164,14 +164,14 @@ kind delete cluster --name app-agent-test
 
 ```bash
 # Enable verbose logging
-DEBUG=app-agent:* node dist/cli.js discover
+DEBUG=dot-ai:* node dist/cli.js discover
 
 # Specific module debugging
-DEBUG=app-agent:discovery node dist/cli.js discover
-DEBUG=app-agent:schema node dist/cli.js recommend --intent "test"
+DEBUG=dot-ai:discovery node dist/cli.js discover
+DEBUG=dot-ai:schema node dist/cli.js recommend --intent "test"
 
 # MCP server debugging
-DEBUG=app-agent:* npm run mcp:start
+DEBUG=dot-ai:* npm run mcp:start
 ```
 
 ## Performance Considerations

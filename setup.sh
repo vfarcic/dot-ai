@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# setup.sh - Kubernetes cluster setup for App-Agent development and testing
+# setup.sh - Kubernetes cluster setup for DevOps AI Toolkit development and testing
 # This script creates a kind cluster with kubeconfig in the current directory
 # and can be used both locally and in CI/CD environments
 
 set -e  # Exit on any error
 
 KUBECONFIG_PATH="$PWD/kubeconfig.yaml"
-CLUSTER_NAME="app-agent-test"
+CLUSTER_NAME="dot-ai-test"
 
-echo "🚀 Setting up Kubernetes cluster for App-Agent..."
+echo "🚀 Setting up Kubernetes cluster for DevOps AI Toolkit..."
 
 # Check if kind is available
 if ! command -v kind &> /dev/null; then

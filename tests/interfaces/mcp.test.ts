@@ -1,13 +1,13 @@
 import { MCPServer } from '../../src/interfaces/mcp';
-import { AppAgent } from '../../src/core/index';
+import { DotAI } from '../../src/core/index';
 
 describe('MCP Interface Layer', () => {
   let mcpServer: MCPServer;
-  let mockAppAgent: any;
+  let mockDotAI: any;
 
   beforeEach(() => {
     // Create comprehensive mock with proper Jest typing
-    mockAppAgent = {
+    mockDotAI = {
       initialize: jest.fn().mockResolvedValue(undefined),
       getAnthropicApiKey: jest.fn().mockReturnValue('test-api-key'),
       discovery: {
@@ -69,12 +69,12 @@ describe('MCP Interface Layer', () => {
     };
 
     const config = {
-      name: 'app-agent-test',
+      name: 'dot-ai-test',
       version: '1.0.0',
       description: 'Test MCP server for Kubernetes deployment agent'
     };
 
-    mcpServer = new MCPServer(mockAppAgent, config);
+    mcpServer = new MCPServer(mockDotAI, config);
   });
 
   describe('MCP Server Initialization', () => {
@@ -92,8 +92,8 @@ describe('MCP Interface Layer', () => {
       expect(toolCount).toBe(2);
     });
 
-    test('should accept AppAgent instance during construction', () => {
-      expect((mcpServer as any).appAgent).toBe(mockAppAgent);
+    test('should accept DotAI instance during construction', () => {
+      expect((mcpServer as any).dotAI).toBe(mockDotAI);
     });
   });
 
@@ -105,7 +105,7 @@ describe('MCP Interface Layer', () => {
       const toolContext = {
         requestId: 'test-request-123',
         logger: (mcpServer as any).logger,
-        appAgent: mockAppAgent
+        dotAI: mockDotAI
       };
       
       const intentSpec = {
@@ -113,31 +113,31 @@ describe('MCP Interface Layer', () => {
       };
 
       // Ensure no session directory is set
-      const originalEnv = process.env.APP_AGENT_SESSION_DIR;
-      delete process.env.APP_AGENT_SESSION_DIR;
+      const originalEnv = process.env.DOT_AI_SESSION_DIR;
+      delete process.env.DOT_AI_SESSION_DIR;
       
       try {
         await (mcpServer as any).toolRegistry.executeTool('recommend', intentSpec, toolContext);
         fail('Expected recommend tool to fail without session directory');
       } catch (error: any) {
         expect(error.message).toContain('Session directory must be specified');
-        expect(error.message).toContain('APP_AGENT_SESSION_DIR');
+        expect(error.message).toContain('DOT_AI_SESSION_DIR');
       }
       
       // Restore environment
       if (originalEnv) {
-        process.env.APP_AGENT_SESSION_DIR = originalEnv;
+        process.env.DOT_AI_SESSION_DIR = originalEnv;
       }
     });
 
     test('should validate recommend tool requires API key', async () => {
       // Test that recommend tool fails without API key
-      mockAppAgent.getAnthropicApiKey.mockReturnValue(null);
+      mockDotAI.getAnthropicApiKey.mockReturnValue(null);
       
       const toolContext = {
         requestId: 'test-request-123',
         logger: (mcpServer as any).logger,
-        appAgent: mockAppAgent
+        dotAI: mockDotAI
       };
       
       const intentSpec = {
@@ -145,8 +145,8 @@ describe('MCP Interface Layer', () => {
       };
 
       // Set environment variable for session directory
-      const originalEnv = process.env.APP_AGENT_SESSION_DIR;
-      process.env.APP_AGENT_SESSION_DIR = '/tmp/test-sessions';
+      const originalEnv = process.env.DOT_AI_SESSION_DIR;
+      process.env.DOT_AI_SESSION_DIR = '/tmp/test-sessions';
       
       // Create test session directory
       const fs = require('fs');
@@ -163,9 +163,9 @@ describe('MCP Interface Layer', () => {
       
       // Restore environment
       if (originalEnv) {
-        process.env.APP_AGENT_SESSION_DIR = originalEnv;
+        process.env.DOT_AI_SESSION_DIR = originalEnv;
       } else {
-        delete process.env.APP_AGENT_SESSION_DIR;
+        delete process.env.DOT_AI_SESSION_DIR;
       }
     });
 
@@ -198,8 +198,8 @@ describe('MCP Interface Layer', () => {
 
     test('should handle multiple tool calls with shared state', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([])
       };
 
@@ -209,16 +209,16 @@ describe('MCP Interface Layer', () => {
       await handleRecommend({ intent: 'Deploy database' });
 
       // Should only initialize once
-      expect(mockAppAgent.initialize).toHaveBeenCalledTimes(1);
-      expect(mockAppAgent.discovery.connect).toHaveBeenCalledTimes(1);
+      expect(mockDotAI.initialize).toHaveBeenCalledTimes(1);
+      expect(mockDotAI.discovery.connect).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('Error Handling', () => {
 
     test('should handle schema ranking errors', async () => {
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockRejectedValue(new Error('AI service unavailable'))
       };
       
@@ -232,7 +232,7 @@ describe('MCP Interface Layer', () => {
     });
 
     test('should handle initialization errors', async () => {
-      mockAppAgent.initialize.mockRejectedValueOnce(new Error('Configuration error'));
+      mockDotAI.initialize.mockRejectedValueOnce(new Error('Configuration error'));
       
       const handleRecommend = (mcpServer as any).handleRecommend.bind(mcpServer);
       
@@ -249,8 +249,8 @@ describe('MCP Interface Layer', () => {
   describe('MCP Protocol Compliance', () => {
     test('should return properly formatted MCP responses', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([])
       };
 
@@ -274,8 +274,8 @@ describe('MCP Interface Layer', () => {
 
     test('should handle all tool input schemas correctly', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([])
       };
 
@@ -300,8 +300,8 @@ describe('MCP Interface Layer', () => {
 
     test('should include timestamps in all responses', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([])
       };
 
@@ -321,14 +321,14 @@ describe('MCP Interface Layer', () => {
   });
 
   describe('Integration with Core Modules', () => {
-    test('should use same AppAgent instance as CLI interface', () => {
-      expect((mcpServer as any).appAgent).toBe(mockAppAgent);
+    test('should use same DotAI instance as CLI interface', () => {
+      expect((mcpServer as any).dotAI).toBe(mockDotAI);
     });
 
     test('should call core module methods with correct parameters', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([])
       };
 
@@ -337,13 +337,13 @@ describe('MCP Interface Layer', () => {
       await handleRecommend({ intent: 'nginx app deployment' });
 
       // Verify schema ranking calls
-      expect(mockAppAgent.schema.rankResources).toHaveBeenCalledWith('nginx app deployment');
+      expect(mockDotAI.schema.rankResources).toHaveBeenCalledWith('nginx app deployment');
     });
 
     test('should maintain consistent behavior across interface types', async () => {
       // Mock schema ranking functionality
-      mockAppAgent.schema = {
-        ...mockAppAgent.schema,
+      mockDotAI.schema = {
+        ...mockDotAI.schema,
         rankResources: jest.fn().mockResolvedValue([{
           type: 'single',
           score: 80,

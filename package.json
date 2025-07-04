@@ -1,11 +1,11 @@
 {
-  "name": "app-agent",
+  "name": "dot-ai",
   "version": "0.1.0",
   "description": "Universal Kubernetes application deployment agent with CLI and MCP interfaces",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "app-agent": "./dist/cli.js"
+    "dot-ai": "./dist/cli.js"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -51,7 +51,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vfarcic/app-agent.git"
+    "url": "https://github.com/vfarcic/dot-ai.git"
   },
   "engines": {
     "node": ">=18.0.0"

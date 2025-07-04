@@ -1,11 +1,11 @@
 /**
  * CLI Interface Module
  * 
- * Command-line interface for app-agent
+ * Command-line interface for dot-ai
  */
 
 import { Command } from 'commander';
-import { AppAgent } from '../core';
+import { DotAI } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
 import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
@@ -32,17 +32,17 @@ export interface CliConfig {
 }
 
 export class CliInterface {
-  private appAgent?: AppAgent;
+  private dotAI?: DotAI;
   private program: Command;
   private config: CliConfig;
   private toolRegistry: ToolRegistry;
 
-  constructor(appAgent?: AppAgent, config: CliConfig = {}) {
-    this.appAgent = appAgent;
+  constructor(dotAI?: DotAI, config: CliConfig = {}) {
+    this.dotAI = dotAI;
     this.config = config;
     this.program = new Command();
     this.toolRegistry = this.initializeToolsQuietly();
-    this.program.name('app-agent').description('AI-powered Kubernetes deployment agent');
+    this.program.name('dot-ai').description('AI-powered Kubernetes deployment agent');
     
     // Add global options that apply to all commands
     this.program
@@ -54,20 +54,20 @@ export class CliInterface {
     this.setupCommands();
   }
 
-  setAppAgent(appAgent: AppAgent): void {
-    this.appAgent = appAgent;
+  setDotAI(dotAI: DotAI): void {
+    this.dotAI = dotAI;
   }
 
-  private ensureAppAgent(): AppAgent {
-    if (!this.appAgent) {
+  private ensureDotAI(): DotAI {
+    if (!this.dotAI) {
       throw new Error('Cluster connection required. Please ensure your kubeconfig is valid and cluster is accessible.');
     }
-    return this.appAgent;
+    return this.dotAI;
   }
 
   private setupCommands(): void {
     this.program
-      .name('app-agent')
+      .name('dot-ai')
       .description('Kubernetes application deployment agent with AI-powered orchestration')
       .version('1.0.0');
 
@@ -118,7 +118,7 @@ export class CliInterface {
       .command('recommend')
       .description('Get AI-powered Kubernetes resource recommendations based on your intent')
       .requiredOption('--intent <description>', 'Describe what you want to deploy or accomplish')
-      .option('--session-dir <path>', 'Directory to store solution files (defaults to APP_AGENT_SESSION_DIR env var)')
+      .option('--session-dir <path>', 'Directory to store solution files (defaults to DOT_AI_SESSION_DIR env var)')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options, command) => {
         // Get global options from parent command
@@ -235,7 +235,7 @@ export class CliInterface {
   }
 
   getCommands(): string[] {
-    return ['app-agent'];
+    return ['dot-ai'];
   }
 
   getSubcommands(): string[] {
@@ -330,9 +330,9 @@ export class CliInterface {
 
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
-      // Only initialize AppAgent for commands that need cluster access
+      // Only initialize DotAI for commands that need cluster access
       if (command !== 'chooseSolution' && command !== 'answerQuestion' && command !== 'generateManifests') {
-        await this.ensureAppAgent().initialize();
+        await this.ensureDotAI().initialize();
       }
 
       switch (command) {
@@ -366,7 +366,7 @@ export class CliInterface {
 
   private async handleStatusCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const phase = this.ensureAppAgent().workflow.getCurrentPhase();
+      const phase = this.ensureDotAI().workflow.getCurrentPhase();
       
       return {
         success: true,
@@ -386,7 +386,7 @@ export class CliInterface {
 
   private async handleLearnCommand(options: Record<string, any>): Promise<CliResult> {
     try {
-      const recommendations = await this.ensureAppAgent().memory.getRecommendations(
+      const recommendations = await this.ensureDotAI().memory.getRecommendations(
         options.pattern || 'deployment',
         {}
       );
@@ -435,7 +435,7 @@ export class CliInterface {
             console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
           }
         },
-        appAgent: this.ensureAppAgent()
+        dotAI: this.ensureDotAI()
       };
 
       // Prepare arguments for the recommend tool including session directory
@@ -501,7 +501,7 @@ export class CliInterface {
             console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
           }
         },
-        appAgent: this.appAgent || null
+        dotAI: this.dotAI || null
       };
 
       // Prepare arguments for the chooseSolution tool
@@ -565,7 +565,7 @@ export class CliInterface {
             console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
           }
         },
-        appAgent: this.appAgent || null
+        dotAI: this.dotAI || null
       };
 
       // Prepare arguments for the answerQuestion tool
@@ -632,7 +632,7 @@ export class CliInterface {
             console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
           }
         },
-        appAgent: this.appAgent || null
+        dotAI: this.dotAI || null
       };
 
       // Prepare arguments for the generateManifests tool
@@ -714,9 +714,9 @@ export class CliInterface {
 
   async continueWorkflow(workflowId: string, input: { responses: Record<string, any> }): Promise<CliResult> {
     try {
-      await this.ensureAppAgent().workflow.transitionTo('Validation');
+      await this.ensureDotAI().workflow.transitionTo('Validation');
       
-      const claudeResponse = await this.ensureAppAgent().claude.processUserInput(
+      const claudeResponse = await this.ensureDotAI().claude.processUserInput(
         `Continue workflow ${workflowId} with responses: ${JSON.stringify(input.responses)}`
       );
 
@@ -900,7 +900,7 @@ export class CliInterface {
     if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('connection')) {
       errorMessage = 'Cannot connect to Kubernetes cluster. Check your kubeconfig and cluster status.';
     } else if (errorMessage.includes('Connection failed')) {
-      errorMessage = `Failed to initialize App Agent: ${errorMessage}`;
+      errorMessage = `Failed to initialize DevOps AI Toolkit: ${errorMessage}`;
     }
     
     return {

@@ -72,9 +72,9 @@ export class DeployOperation {
    * Get the manifest file path for the solution
    */
   private getManifestPath(options: DeployOptions): string {
-    const sessionDir = options.sessionDir || process.env.APP_AGENT_SESSION_DIR;
+    const sessionDir = options.sessionDir || process.env.DOT_AI_SESSION_DIR;
     if (!sessionDir) {
-      throw new Error('Session directory not configured. Set APP_AGENT_SESSION_DIR environment variable or provide sessionDir parameter.');
+      throw new Error('Session directory not configured. Set DOT_AI_SESSION_DIR environment variable or provide sessionDir parameter.');
     }
     
     return join(sessionDir, `${options.solutionId}.yaml`);

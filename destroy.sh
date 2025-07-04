@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# destroy.sh - Cleanup script for App-Agent Kubernetes cluster
+# destroy.sh - Cleanup script for DevOps AI Toolkit Kubernetes cluster
 # This script destroys the kind cluster and cleans up resources created by setup.sh
 
 set -e  # Exit on any error
 
 KUBECONFIG_PATH="$PWD/kubeconfig.yaml"
-CLUSTER_NAME="app-agent-test"
+CLUSTER_NAME="dot-ai-test"
 
-echo "🧹 Destroying App-Agent Kubernetes cluster..."
+echo "🧹 Destroying DevOps AI Toolkit Kubernetes cluster..."
 
 # Check if kind is available
 if ! command -v kind &> /dev/null; then

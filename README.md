@@ -1,8 +1,8 @@
-# App-Agent
+# DevOps AI Toolkit
 
 **AI-powered Kubernetes deployment recommendations**
 
-App-Agent discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster—from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
+DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster—from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
 
 ## Who is this for?
 
@@ -27,8 +27,8 @@ App-Agent discovers your cluster's capabilities and uses AI to recommend the opt
 ### Installation
 
 ```bash
-git clone https://github.com/your-org/app-agent.git
-cd app-agent
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 npm install && npm run build
 
 # Required: Set up Claude API key
@@ -44,13 +44,13 @@ Perfect for conversational deployments with AI agents:
 ```json
 {
   "mcpServers": {
-    "app-agent": {
+    "dot-ai": {
       "command": "npm",
       "args": ["run", "start:mcp"],
-      "cwd": "/path/to/app-agent",
+      "cwd": "/path/to/dot-ai",
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
-        "APP_AGENT_SESSION_DIR": "./tmp/sessions",
+        "DOT_AI_SESSION_DIR": "./tmp/sessions",
         "KUBECONFIG": "./configs/my-cluster.yaml"
       }
     }
@@ -60,12 +60,12 @@ Perfect for conversational deployments with AI agents:
 
 **Environment Variables:**
 - `ANTHROPIC_API_KEY`: Required for AI recommendations
-- `APP_AGENT_SESSION_DIR`: Required session directory (supports relative paths)
+- `DOT_AI_SESSION_DIR`: Required session directory (supports relative paths)
 - `KUBECONFIG`: Optional kubeconfig path (supports relative paths, defaults to `~/.kube/config`)
 
 2. **Start Claude Code with MCP enabled:**
 ```bash
-# Create session directory (relative to app-agent cwd)
+# Create session directory (relative to dot-ai cwd)
 mkdir -p tmp/sessions
 claude
 ```
@@ -122,7 +122,7 @@ node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 📖 **[Complete Documentation Index](docs/README.md)** - Browse all available documentation
 
 ```
-📚 App-Agent Documentation Map
+📚 DevOps AI Toolkit Documentation Map
 ├── 🚀 Getting Started
 │   ├── CLI Guide ──────────────── Complete command-line usage
 │   └── MCP Integration Guide ──── AI tools (Claude Code, Cursor)
@@ -173,14 +173,14 @@ node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 - **[Complete Documentation Index](docs/README.md)** - Full listing of all documentation
 
 **Quick Navigation:**
-- **New to App-Agent?** → Start with [CLI Guide](docs/cli-guide.md) or [MCP Guide](docs/mcp-guide.md)
+- **New to DevOps AI Toolkit?** → Start with [CLI Guide](docs/cli-guide.md) or [MCP Guide](docs/mcp-guide.md)
 - **Building integrations?** → See [API Reference](docs/API.md)
 - **Contributing code?** → Read [Development Guide](docs/DEVELOPMENT.md)
 - **Understanding architecture?** → Check [Design Overview](docs/design.md)
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/app-agent/issues)
+- **Issues**: [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
 
 ## Contributing
 
@@ -196,4 +196,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**App-Agent** - Making Kubernetes deployment intelligent and accessible for everyone.
+**DevOps AI Toolkit** - Making Kubernetes deployment intelligent and accessible for everyone.

@@ -1,14 +1,14 @@
 import { CliInterface } from '../../src/interfaces/cli';
-import { AppAgent } from '../../src/core';
+import { DotAI } from '../../src/core';
 import { jest } from '@jest/globals';
 
 describe('CLI Interface', () => {
   let cli: CliInterface;
-  let mockAppAgent: jest.Mocked<AppAgent>;
+  let mockDotAI: jest.Mocked<DotAI>;
 
   beforeEach(() => {
-    // Create mock AppAgent
-    mockAppAgent = {
+    // Create mock DotAI
+    mockDotAI = {
       initialize: jest.fn(),
       isInitialized: jest.fn(),
       getAnthropicApiKey: jest.fn(),
@@ -45,12 +45,12 @@ describe('CLI Interface', () => {
       }
     } as any;
 
-    cli = new CliInterface(mockAppAgent);
+    cli = new CliInterface(mockDotAI);
   });
 
   describe('Command Structure', () => {
-    test('should have main app-agent command', () => {
-      expect(cli.getCommands()).toContain('app-agent');
+    test('should have main dot-ai command', () => {
+      expect(cli.getCommands()).toContain('dot-ai');
     });
 
 
@@ -72,16 +72,16 @@ describe('CLI Interface', () => {
 
     // REMOVED: enhance subcommand test - moved to legacy
 
-    test('should work without appAgent for help commands', () => {
-      // Test that CLI can be instantiated without appAgent
+    test('should work without dotAI for help commands', () => {
+      // Test that CLI can be instantiated without dotAI
       const helpCli = new CliInterface();
       expect(helpCli).toBeDefined();
-      expect(helpCli.getCommands()).toContain('app-agent');
+      expect(helpCli.getCommands()).toContain('dot-ai');
       expect(helpCli.getSubcommands()).toContain('recommend');
     });
 
-    test('should require appAgent for non-help commands', async () => {
-      // Test that commands requiring cluster access fail gracefully without appAgent
+    test('should require dotAI for non-help commands', async () => {
+      // Test that commands requiring cluster access fail gracefully without dotAI
       const helpCli = new CliInterface();
       
       const result = await helpCli.executeCommand('recommend', { intent: 'test' });
@@ -95,7 +95,7 @@ describe('CLI Interface', () => {
   describe('Help Text Generation', () => {
     test('should provide main help text', async () => {
       const helpText = await cli.getHelp();
-      expect(helpText).toContain('app-agent');
+      expect(helpText).toContain('dot-ai');
       expect(helpText).toContain('Kubernetes application deployment agent');
       expect(helpText).toContain('status');
       expect(helpText).toContain('learn');
@@ -161,7 +161,7 @@ describe('CLI Interface', () => {
 
 
     test('should execute status command', async () => {
-      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Deployment');
+      mockDotAI.workflow.getCurrentPhase.mockReturnValue('Deployment');
 
       const result = await cli.executeCommand('status', { deployment: 'workflow-123' });
       
@@ -170,7 +170,7 @@ describe('CLI Interface', () => {
     });
 
     test('should execute learn command', async () => {
-      mockAppAgent.memory.getRecommendations.mockResolvedValue([
+      mockDotAI.memory.getRecommendations.mockResolvedValue([
         {
           suggestion: 'Use Deployment for web servers',
           confidence: 0.9,
@@ -180,14 +180,14 @@ describe('CLI Interface', () => {
 
       const result = await cli.executeCommand('learn', {});
       
-      expect(mockAppAgent.memory.getRecommendations).toHaveBeenCalled();
+      expect(mockDotAI.memory.getRecommendations).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('recommendations');
       expect(result.data.recommendations).toHaveLength(1);
     });
 
     test('should execute recommend command', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockDotAI.initialize.mockResolvedValue(undefined);
       
       // Mock environment variable
       const originalEnv = process.env.ANTHROPIC_API_KEY;
@@ -203,16 +203,16 @@ describe('CLI Interface', () => {
       }
       
       // The command should succeed but actual ranking will fail due to mocked API
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockDotAI.initialize).toHaveBeenCalled();
       // We can't easily test the full flow due to ResourceRanker instantiation
       // So we just verify the command structure is correct
     });
 
     test('should execute recommend command with output format', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockDotAI.initialize.mockResolvedValue(undefined);
       
       // Mock the discovery resources to return proper structure
-      mockAppAgent.discovery.discoverResources.mockResolvedValue({
+      mockDotAI.discovery.discoverResources.mockResolvedValue({
         resources: [],
         custom: []
       });
@@ -222,14 +222,14 @@ describe('CLI Interface', () => {
         output: 'json'
       });
       
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockDotAI.initialize).toHaveBeenCalled();
       expect(result.success).toBe(false);
       // Update expectation to match the actual error we get when Claude integration fails
       expect(result.error).toContain('ANTHROPIC_API_KEY environment variable must be set');
     });
 
     test('should handle recommend command failure when no API key', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
+      mockDotAI.initialize.mockResolvedValue(undefined);
       
       // Ensure no API key is set
       const originalEnv = process.env.ANTHROPIC_API_KEY;
@@ -485,7 +485,7 @@ describe('CLI Interface', () => {
 
   describe('Output Formatting', () => {
     test('should format JSON output correctly', async () => {
-      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
+      mockDotAI.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
       const result = await cli.executeCommand('status', { deployment: 'test-123' });
       const formatted = cli.formatOutput(result, 'json');
@@ -497,7 +497,7 @@ describe('CLI Interface', () => {
     });
 
     test('should format YAML output correctly', async () => {
-      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
+      mockDotAI.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
       const result = await cli.executeCommand('status', { deployment: 'test-123' });
       const formatted = cli.formatOutput(result, 'yaml');
@@ -527,11 +527,11 @@ describe('CLI Interface', () => {
 
 
     test('should use memory module for pattern retrieval', async () => {
-      mockAppAgent.memory.getRecommendations.mockResolvedValue([]);
+      mockDotAI.memory.getRecommendations.mockResolvedValue([]);
 
       await cli.executeCommand('learn', {});
       
-      expect(mockAppAgent.memory.getRecommendations).toHaveBeenCalled();
+      expect(mockDotAI.memory.getRecommendations).toHaveBeenCalled();
     });
 
   });
@@ -539,8 +539,8 @@ describe('CLI Interface', () => {
   describe('Interactive Features', () => {
 
     test('should handle user responses in workflow', async () => {
-      mockAppAgent.workflow.transitionTo.mockResolvedValue('Validation');
-      mockAppAgent.claude.processUserInput.mockResolvedValue({
+      mockDotAI.workflow.transitionTo.mockResolvedValue('Validation');
+      mockDotAI.claude.processUserInput.mockResolvedValue({
         phase: 'Validation',
         nextSteps: ['Review generated manifest']
       });
@@ -556,12 +556,12 @@ describe('CLI Interface', () => {
 
   describe('Configuration and Options', () => {
     test('should respect configuration file settings', async () => {
-      const configCli = new CliInterface(mockAppAgent, {
+      const configCli = new CliInterface(mockDotAI, {
         defaultOutput: 'yaml',
         verboseMode: true
       });
 
-      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
+      mockDotAI.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
       const result = await configCli.executeCommand('status', { deployment: 'test-123' });
       
@@ -570,7 +570,7 @@ describe('CLI Interface', () => {
     });
 
     test('should support verbose mode for detailed output', async () => {
-      mockAppAgent.workflow.getCurrentPhase.mockReturnValue('Discovery');
+      mockDotAI.workflow.getCurrentPhase.mockReturnValue('Discovery');
 
       const result = await cli.executeCommand('status', { deployment: 'test-123', verbose: true });
       
@@ -596,8 +596,8 @@ describe('CLI Interface', () => {
     });
 
     test('should show progress indicators during recommend command', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
+      mockDotAI.initialize.mockResolvedValue(undefined);
+      mockDotAI.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock a slow AI operation to test progress
       const mockFindBestSolutions = jest.fn().mockImplementation(() => 
@@ -628,8 +628,8 @@ describe('CLI Interface', () => {
         value: false
       });
 
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
+      mockDotAI.initialize.mockResolvedValue(undefined);
+      mockDotAI.getAnthropicApiKey.mockReturnValue('test-key');
       
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockResolvedValue([]);
@@ -646,8 +646,8 @@ describe('CLI Interface', () => {
     });
 
     test('should clear progress indicators on error', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
+      mockDotAI.initialize.mockResolvedValue(undefined);
+      mockDotAI.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock an error during recommendation
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
@@ -669,8 +669,8 @@ describe('CLI Interface', () => {
     });
 
     test('should show elapsed time during long operations', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
+      mockDotAI.initialize.mockResolvedValue(undefined);
+      mockDotAI.getAnthropicApiKey.mockReturnValue('test-key');
       
       // Mock a longer operation to trigger time display
       const mockFindBestSolutions = jest.fn().mockImplementation(() => 
@@ -698,8 +698,8 @@ describe('CLI Interface', () => {
     }, 10000); // Increase timeout for this test
 
     test('should handle progress display with different message types', async () => {
-      mockAppAgent.initialize.mockResolvedValue(undefined);
-      mockAppAgent.getAnthropicApiKey.mockReturnValue('test-key');
+      mockDotAI.initialize.mockResolvedValue(undefined);
+      mockDotAI.getAnthropicApiKey.mockReturnValue('test-key');
       
       const mockFindBestSolutions = jest.fn() as jest.MockedFunction<any>;
       mockFindBestSolutions.mockImplementation(() => 
@@ -828,7 +828,7 @@ describe('CLI Interface', () => {
 
     test('should initialize tools with quiet logger when quiet mode enabled', () => {
       // Test that the quiet tool initialization works
-      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      const quietCli = new CliInterface(mockDotAI, { quietMode: true });
       
       // The registry should be initialized
       expect(quietCli['toolRegistry']).toBeDefined();
@@ -842,7 +842,7 @@ describe('CLI Interface', () => {
 
   describe('Choose Solution Command', () => {
     test('should include chooseSolution in quiet tool registry', () => {
-      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      const quietCli = new CliInterface(mockDotAI, { quietMode: true });
       const registry = quietCli['toolRegistry'];
       
       const chooseSolutionTool = registry.getTool('chooseSolution');
@@ -877,7 +877,7 @@ describe('CLI Interface', () => {
 
   describe('Answer Question Command', () => {
     test('should include answerQuestion in quiet tool registry', () => {
-      const quietCli = new CliInterface(mockAppAgent, { quietMode: true });
+      const quietCli = new CliInterface(mockDotAI, { quietMode: true });
       const registry = quietCli['toolRegistry'];
       
       const answerQuestionTool = registry.getTool('answerQuestion');

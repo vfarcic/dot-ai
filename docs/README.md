@@ -1,6 +1,6 @@
-# App-Agent Documentation
+# DevOps AI Toolkit Documentation
 
-This directory contains comprehensive documentation for App-Agent.
+This directory contains comprehensive documentation for DevOps AI Toolkit.
 
 ## Core Documentation
 

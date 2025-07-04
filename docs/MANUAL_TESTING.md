@@ -527,7 +527,7 @@ The Resource Schema Parser and Validator system is considered fully functional w
 
 ```bash
 # Enable debug logging (if implemented)
-DEBUG=app-agent:* node dist/cli.js recommend --intent "test"
+DEBUG=dot-ai:* node dist/cli.js recommend --intent "test"
 
 # Check TypeScript compilation
 npx tsc --noEmit

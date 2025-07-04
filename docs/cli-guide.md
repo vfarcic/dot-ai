@@ -1,6 +1,6 @@
-# App-Agent CLI Guide
+# DevOps AI Toolkit CLI Guide
 
-**Complete command-line interface guide for App-Agent - AI-powered Kubernetes deployment recommendations.**
+**Complete command-line interface guide for DevOps AI Toolkit - AI-powered Kubernetes deployment recommendations.**
 
 ## Table of Contents
 
@@ -23,15 +23,15 @@
 
 **Current Method: From Source**
 ```bash
-git clone https://github.com/your-org/app-agent.git
-cd app-agent
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 npm install && npm run build
 
 # Required: Set up Claude API key
 export ANTHROPIC_API_KEY=your_api_key_here
 ```
 
-> **Coming Soon**: npm package distribution with `npm install -g app-agent`
+> **Coming Soon**: npm package distribution with `npm install -g dot-ai`
 
 ### Basic Usage
 
@@ -56,8 +56,8 @@ node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/app-agent.git
-cd app-agent
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 
 # Install dependencies and build
 npm install
@@ -86,15 +86,15 @@ Add to your `.bashrc` or `.zshrc` for convenience:
 
 ```bash
 # Create alias for easier usage
-alias app-agent='node /path/to/app-agent/dist/cli.js'
+alias dot-ai='node /path/to/dot-ai/dist/cli.js'
 
 # Add to PATH (after npm global install becomes available)
-export PATH="$PATH:/path/to/app-agent/dist"
+export PATH="$PATH:/path/to/dot-ai/dist"
 ```
 
 ## Core Workflow
 
-App-Agent uses a **stage-based workflow** that guides you through deployment configuration:
+DevOps AI Toolkit uses a **stage-based workflow** that guides you through deployment configuration:
 
 ### 1. Intent → Recommendations
 Describe what you want to deploy and get AI-powered recommendations based on your cluster capabilities.
@@ -463,7 +463,7 @@ node dist/cli.js status --verbose --output table
 
 ### Kubeconfig Management
 
-App-Agent automatically finds your kubeconfig file in this order:
+DevOps AI Toolkit automatically finds your kubeconfig file in this order:
 
 1. **Command line flag**: `--kubeconfig /path/to/config`
 2. **Environment variable**: `KUBECONFIG=/path/to/config`
@@ -494,10 +494,10 @@ node dist/cli.js recommend \
 
 **Shared sessions:**
 ```bash
-mkdir -p ~/.app-agent/sessions
+mkdir -p ~/.dot-ai/sessions
 node dist/cli.js recommend \
   --intent "deploy app" \
-  --session-dir ~/.app-agent/sessions
+  --session-dir ~/.dot-ai/sessions
 ```
 
 **Session directory structure:**
@@ -529,7 +529,7 @@ echo $ANTHROPIC_API_KEY
 #### Command Not Found
 
 **Symptoms:**
-- `app-agent: command not found`
+- `dot-ai: command not found`
 - `node: No such file or directory`
 
 **Solutions:**
@@ -539,10 +539,10 @@ node --version
 npm --version
 
 # Use full path if needed
-/path/to/app-agent/dist/cli.js --help
+/path/to/dot-ai/dist/cli.js --help
 
 # Build if not already built
-cd /path/to/app-agent
+cd /path/to/dot-ai
 npm run build
 ```
 
@@ -731,7 +731,7 @@ echo "Deployment completed successfully!"
 
 **GitHub Actions example:**
 ```yaml
-name: Deploy with App-Agent
+name: Deploy with DevOps AI Toolkit
 
 on:
   push:
@@ -751,7 +751,7 @@ jobs:
     - name: Setup kubectl
       uses: azure/setup-kubectl@v3
     
-    - name: Deploy with App-Agent
+    - name: Deploy with DevOps AI Toolkit
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         KUBECONFIG: ${{ github.workspace }}/kubeconfig
@@ -792,7 +792,7 @@ node dist/cli.js learn --output table | grep -i deployment
 
 ## See Also
 
-- [MCP Integration Guide](mcp-guide.md) - Use App-Agent with AI development tools
+- [MCP Integration Guide](mcp-guide.md) - Use DevOps AI Toolkit with AI development tools
 - [API Reference](API.md) - Programmatic usage and TypeScript interfaces
 - [Development Guide](DEVELOPMENT.md) - Contributing and architecture
 - [Manual Testing](manual-testing.md) - Testing procedures and examples

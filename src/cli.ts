@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { AppAgent } from './core/index.js';
+import { DotAI } from './core/index.js';
 import { CliInterface } from './interfaces/cli.js';
 
 function isHelpCommand(argv: string[]): boolean {
@@ -25,16 +25,16 @@ async function main() {
             ? process.argv[kubeconfigIndex + 1] 
             : undefined;
 
-        const appAgent = new AppAgent({
+        const dotAI = new DotAI({
             kubernetesConfig: kubeconfigPath
         });
-        await appAgent.initialize();
+        await dotAI.initialize();
 
         // Set the initialized agent and run the command
-        cli.setAppAgent(appAgent);
+        cli.setDotAI(dotAI);
         await cli.run(process.argv);
     } catch (error) {
-        process.stderr.write(`Failed to start App Agent CLI: ${(error as Error).message}\n`);
+        process.stderr.write(`Failed to start DevOps AI Toolkit CLI: ${(error as Error).message}\n`);
         
         // Provide troubleshooting guidance for cluster connection issues
         if ((error as Error).message.includes('No active cluster') || 

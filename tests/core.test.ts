@@ -6,7 +6,7 @@
  */
 
 import { 
-  AppAgent, 
+  DotAI, 
   KubernetesDiscovery, 
   MemorySystem, 
   WorkflowEngine, 
@@ -16,21 +16,21 @@ import { ErrorClassifier, buildKubectlCommand, executeKubectl } from '../src/cor
 import * as path from 'path';
 
 describe('Core Module Structure', () => {
-  describe('AppAgent Class', () => {
+  describe('DotAI Class', () => {
     test('should be constructible with configuration options', () => {
-      const agent = new AppAgent({
+      const agent = new DotAI({
         kubernetesConfig: '/path/to/kubeconfig',
         anthropicApiKey: 'test-key'
       });
       
-      expect(agent).toBeInstanceOf(AppAgent);
+      expect(agent).toBeInstanceOf(DotAI);
       expect(agent.getVersion()).toBe('0.1.0');
     });
 
     test('should provide access to all core modules', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       await agent.initialize();
       
       expect(agent.discovery).toBeInstanceOf(KubernetesDiscovery);
@@ -42,7 +42,7 @@ describe('Core Module Structure', () => {
     test('should handle initialization errors gracefully', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       
       // Mock the discovery connect method to fail
       jest.spyOn(agent.discovery, 'connect').mockRejectedValue(new Error('Connection failed'));
@@ -53,7 +53,7 @@ describe('Core Module Structure', () => {
 
     test('should provide configuration validation', () => {
       expect(() => {
-        new AppAgent({ anthropicApiKey: '' });
+        new DotAI({ anthropicApiKey: '' });
       }).toThrow('Invalid configuration');
     });
   });
@@ -62,7 +62,7 @@ describe('Core Module Structure', () => {
     test('should allow modules to communicate with each other', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       await agent.initialize();
       
       // Memory should be able to store discovery results
@@ -77,7 +77,7 @@ describe('Core Module Structure', () => {
     test('should handle module dependency failures', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       
       // Mock discovery connect to fail, but other modules should still initialize
       jest.spyOn(agent.discovery, 'connect').mockRejectedValue(new Error('Discovery failed'));
@@ -384,53 +384,53 @@ describe('Claude Integration Module', () => {
       process.env.ANTHROPIC_API_KEY = 'test-api-key-from-env';
       delete process.env.KUBECONFIG;
 
-      const appAgent = new AppAgent();
+      const dotAI = new DotAI();
       
       // Use the public getter to verify API key was read from environment
-      expect(appAgent.getAnthropicApiKey()).toBe('test-api-key-from-env');
+      expect(dotAI.getAnthropicApiKey()).toBe('test-api-key-from-env');
     });
 
     test('should use provided config values over environment variables', () => {
       process.env.KUBECONFIG = '/env/kubeconfig.yaml';
       process.env.ANTHROPIC_API_KEY = 'env-api-key';
 
-      const appAgent = new AppAgent({
+      const dotAI = new DotAI({
         kubernetesConfig: '/override/kubeconfig.yaml',
         anthropicApiKey: 'override-api-key'
       });
       
       // Should use the provided config values, not environment
-      expect(appAgent.getAnthropicApiKey()).toBe('override-api-key');
+      expect(dotAI.getAnthropicApiKey()).toBe('override-api-key');
     });
 
     test('should handle missing environment variables gracefully', () => {
       delete process.env.KUBECONFIG;
       delete process.env.ANTHROPIC_API_KEY;
 
-      const appAgent = new AppAgent();
+      const dotAI = new DotAI();
       
-      expect(appAgent.getAnthropicApiKey()).toBeUndefined();
+      expect(dotAI.getAnthropicApiKey()).toBeUndefined();
     });
 
     test('should provide public getter for API key', () => {
-      const appAgent = new AppAgent({
+      const dotAI = new DotAI({
         anthropicApiKey: 'test-getter-key'
       });
       
-      expect(appAgent.getAnthropicApiKey()).toBe('test-getter-key');
+      expect(dotAI.getAnthropicApiKey()).toBe('test-getter-key');
     });
 
     test('should return undefined when no API key is available', () => {
       delete process.env.ANTHROPIC_API_KEY;
       
-      const appAgent = new AppAgent();
+      const dotAI = new DotAI();
       
-      expect(appAgent.getAnthropicApiKey()).toBeUndefined();
+      expect(dotAI.getAnthropicApiKey()).toBeUndefined();
     });
 
     test('should validate configuration and reject empty API key', () => {
       expect(() => {
-        new AppAgent({
+        new DotAI({
           anthropicApiKey: ''
         });
       }).toThrow('Invalid configuration: Empty API key provided');

@@ -6,7 +6,7 @@
  */
 
 import { 
-  AppAgent, 
+  DotAI, 
   KubernetesDiscovery, 
   MemorySystem, 
   WorkflowEngine, 
@@ -16,21 +16,21 @@ import { ErrorClassifier, buildKubectlCommand, executeKubectl } from '../../src/
 import * as path from 'path';
 
 describe('Core Module Structure', () => {
-  describe('AppAgent Class', () => {
+  describe('DotAI Class', () => {
     test('should be constructible with configuration options', () => {
-      const agent = new AppAgent({
+      const agent = new DotAI({
         kubernetesConfig: '/path/to/kubeconfig',
         anthropicApiKey: 'test-key'
       });
       
-      expect(agent).toBeInstanceOf(AppAgent);
+      expect(agent).toBeInstanceOf(DotAI);
       expect(agent.getVersion()).toBe('0.1.0');
     });
 
     test('should provide access to all core modules', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       await agent.initialize();
       
       expect(agent.discovery).toBeInstanceOf(KubernetesDiscovery);
@@ -42,7 +42,7 @@ describe('Core Module Structure', () => {
     test('should handle initialization errors gracefully', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       
       // Mock the discovery connect method to fail
       jest.spyOn(agent.discovery, 'connect').mockRejectedValue(new Error('Connection failed'));
@@ -53,7 +53,7 @@ describe('Core Module Structure', () => {
 
     test('should provide configuration validation', () => {
       expect(() => {
-        new AppAgent({ anthropicApiKey: '' });
+        new DotAI({ anthropicApiKey: '' });
       }).toThrow('Invalid configuration');
     });
   });
@@ -62,7 +62,7 @@ describe('Core Module Structure', () => {
     test('should allow modules to communicate with each other', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       await agent.initialize();
       
       // Memory should be able to store discovery results
@@ -77,7 +77,7 @@ describe('Core Module Structure', () => {
     test('should handle module dependency failures', async () => {
       // Use project's working kubeconfig.yaml for integration tests
       const projectKubeconfig = path.join(process.cwd(), 'kubeconfig.yaml');
-      const agent = new AppAgent({ kubernetesConfig: projectKubeconfig });
+      const agent = new DotAI({ kubernetesConfig: projectKubeconfig });
       
       // Mock discovery connect to fail, but other modules should still initialize
       jest.spyOn(agent.discovery, 'connect').mockRejectedValue(new Error('Discovery failed'));
@@ -1159,20 +1159,20 @@ describe('CRD Capability Discovery Enhancements', () => {
     });
 
     test('should verify conditional debug logging logic', () => {
-      const originalEnv = process.env.APP_AGENT_DEBUG;
+      const originalEnv = process.env.DOT_AI_DEBUG;
       
       // Test debug mode detection
-      process.env.APP_AGENT_DEBUG = 'true';
-      expect(process.env.APP_AGENT_DEBUG === 'true').toBe(true);
+      process.env.DOT_AI_DEBUG = 'true';
+      expect(process.env.DOT_AI_DEBUG === 'true').toBe(true);
       
-      process.env.APP_AGENT_DEBUG = 'false';
-      expect(process.env.APP_AGENT_DEBUG === 'true').toBe(false);
+      process.env.DOT_AI_DEBUG = 'false';
+      expect(process.env.DOT_AI_DEBUG === 'true').toBe(false);
       
       // Restore
       if (originalEnv !== undefined) {
-        process.env.APP_AGENT_DEBUG = originalEnv;
+        process.env.DOT_AI_DEBUG = originalEnv;
       } else {
-        delete process.env.APP_AGENT_DEBUG;
+        delete process.env.DOT_AI_DEBUG;
       }
     });
 

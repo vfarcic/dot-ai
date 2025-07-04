@@ -2,7 +2,7 @@
 
 ## Overview
 
-The App-Agent implements a dynamic function registration system that allows MCP tools to be registered, discovered, and executed through a centralized registry. This system replaces the previous hardcoded approach with a flexible, extensible architecture.
+The DevOps AI Toolkit implements a dynamic function registration system that allows MCP tools to be registered, discovered, and executed through a centralized registry. This system replaces the previous hardcoded approach with a flexible, extensible architecture.
 
 ## Architecture
 
@@ -145,7 +145,7 @@ The registry integrates seamlessly with the MCP server:
 export class MCPServer {
   private toolRegistry: ToolRegistry;
 
-  constructor(appAgent: AppAgent, serverInfo: ServerInfo) {
+  constructor(dotAI: DotAI, serverInfo: ServerInfo) {
     this.toolRegistry = new ToolRegistry({
       logger: new ConsoleLogger('ToolRegistry'),
       enabledByDefault: true,
@@ -162,7 +162,7 @@ export class MCPServer {
     const toolContext: ToolContext = {
       requestId: generateRequestId(),
       logger: this.logger,
-      appAgent: this.appAgent
+      dotAI: this.dotAI
     };
 
     // Dynamic tool dispatch through registry
@@ -179,7 +179,7 @@ export class MCPServer {
 
 ## Error Handling
 
-The registry integrates with the App-Agent error handling system:
+The registry integrates with the DevOps AI Toolkit error handling system:
 
 ```typescript
 // Automatic error wrapping and logging
@@ -344,4 +344,4 @@ Common issues and solutions:
 
 ---
 
-*This documentation provides a comprehensive guide to the App-Agent function registration system, enabling developers to understand, use, and extend the dynamic tool architecture.*
+*This documentation provides a comprehensive guide to the DevOps AI Toolkit function registration system, enabling developers to understand, use, and extend the dynamic tool architecture.*

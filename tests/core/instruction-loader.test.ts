@@ -33,7 +33,7 @@ describe('InstructionLoader', () => {
     test('should return concise description for can_help tool', () => {
       const description = InstructionLoader.loadDescription('can_help');
       
-      expect(description).toContain('Check if App-Agent can help');
+      expect(description).toContain('Check if DevOps AI Toolkit can help');
       expect(description).toContain('deployment, application creation, or infrastructure');
       expect(description.length).toBeLessThan(200); // Should be concise
     });
@@ -78,7 +78,7 @@ describe('InstructionLoader', () => {
     test('should return detailed instructions for can-help tool', () => {
       const instructions = InstructionLoader.loadInstructions('can-help');
       
-      expect(instructions).toContain('Check if App-Agent Can Help');
+      expect(instructions).toContain('Check if DevOps AI Toolkit Can Help');
       expect(instructions).toContain('WHEN TO USE THIS TOOL');
       expect(instructions.length).toBeGreaterThan(300); // Should be detailed
     });

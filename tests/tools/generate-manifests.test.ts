@@ -10,8 +10,8 @@ import * as fs from 'fs';
 jest.mock('fs');
 const mockFs = fs as jest.Mocked<typeof fs>;
 
-// Mock AppAgent for schema retrieval tests
-const mockAppAgent = {
+// Mock DotAI for schema retrieval tests
+const mockDotAI = {
   initialize: jest.fn(),
   discovery: {
     explainResource: jest.fn()
@@ -19,7 +19,7 @@ const mockAppAgent = {
 };
 
 jest.mock('../../src/core/index', () => ({
-  AppAgent: jest.fn(() => mockAppAgent)
+  DotAI: jest.fn(() => mockDotAI)
 }));
 
 // Mock Claude integration  
@@ -53,14 +53,14 @@ const mockLogger = {
 const mockContext: ToolContext = {
   requestId: 'test-request',
   logger: mockLogger,
-  appAgent: null
+  dotAI: null
 };
 
 describe('Generate Manifests Tool', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset environment
-    delete process.env.APP_AGENT_SESSION_DIR;
+    delete process.env.DOT_AI_SESSION_DIR;
   });
 
   describe('Input Validation', () => {
@@ -79,7 +79,7 @@ describe('Generate Manifests Tool', () => {
       };
 
       await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable');
+        .rejects.toThrow('Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable');
     });
 
     it('should accept session directory from args', async () => {
@@ -94,7 +94,7 @@ describe('Generate Manifests Tool', () => {
     });
 
     it('should accept session directory from environment', async () => {
-      process.env.APP_AGENT_SESSION_DIR = '/nonexistent/path';
+      process.env.DOT_AI_SESSION_DIR = '/nonexistent/path';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -150,7 +150,7 @@ describe('Generate Manifests Tool', () => {
         await generateManifestsToolHandler(args, mockContext);
       } catch (error) {
         // Should fail with session directory error, not context error
-        expect((error as Error).message).toContain('Session directory must be specified via --session-dir parameter or APP_AGENT_SESSION_DIR environment variable');
+        expect((error as Error).message).toContain('Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable');
       }
     });
   });
@@ -254,9 +254,9 @@ FIELDS:
        host	<string>
          The host address of the application`;
       
-      mockAppAgent.discovery.explainResource.mockResolvedValue(mockExplanation);
+      mockDotAI.discovery.explainResource.mockResolvedValue(mockExplanation);
       
-      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -266,8 +266,8 @@ FIELDS:
       const result = await generateManifestsToolHandler(args, mockContext);
       
       // Verify schema retrieval was attempted
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('AppClaim');
+      expect(mockDotAI.initialize).toHaveBeenCalled();
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('AppClaim');
       
       // Verify the result contains manifest data
       expect(result.content).toBeDefined();
@@ -317,11 +317,11 @@ FIELDS:
      ports	<[]Object>
        List of ports that are exposed`;
 
-      mockAppAgent.discovery.explainResource
+      mockDotAI.discovery.explainResource
         .mockResolvedValueOnce(deploymentExplanation)
         .mockResolvedValueOnce(serviceExplanation);
       
-      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -330,9 +330,9 @@ FIELDS:
       await generateManifestsToolHandler(args, mockContext);
       
       // Should call explainResource for each resource type
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledTimes(2);
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('Deployment');
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('Service');
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledTimes(2);
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('Deployment');
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('Service');
     });
 
     it('should handle schema retrieval errors gracefully', async () => {
@@ -351,9 +351,9 @@ FIELDS:
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
       // Mock schema retrieval failure
-      mockAppAgent.discovery.explainResource.mockRejectedValue(new Error('Resource not found in cluster'));
+      mockDotAI.discovery.explainResource.mockRejectedValue(new Error('Resource not found in cluster'));
       
-      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -363,7 +363,7 @@ FIELDS:
         .rejects.toThrow('Failed to retrieve schema for UnknownResource');
       
       // Should have attempted schema retrieval
-      expect(mockAppAgent.discovery.explainResource).toHaveBeenCalledWith('UnknownResource');
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('UnknownResource');
       
       // Should have logged the error
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -384,7 +384,7 @@ FIELDS:
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
-      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -393,7 +393,7 @@ FIELDS:
       const result = await generateManifestsToolHandler(args, mockContext);
       
       // Should not attempt schema retrieval
-      expect(mockAppAgent.discovery.explainResource).not.toHaveBeenCalled();
+      expect(mockDotAI.discovery.explainResource).not.toHaveBeenCalled();
       
       // Should log warning about no resources
       expect(mockLogger.warn).toHaveBeenCalledWith('No resources found in solution for schema retrieval');
@@ -403,7 +403,7 @@ FIELDS:
       expect(response.success).toBe(true);
     });
 
-    it('should fail fast when AppAgent initialization fails', async () => {
+    it('should fail fast when DotAI initialization fails', async () => {
       const mockSolution = {
         solutionId: 'sol_2025-01-01T120000_abc123def456',
         resources: [
@@ -418,10 +418,10 @@ FIELDS:
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
-      // Mock AppAgent initialization failure
-      mockAppAgent.initialize.mockRejectedValue(new Error('Cluster connection failed'));
+      // Mock DotAI initialization failure
+      mockDotAI.initialize.mockRejectedValue(new Error('Cluster connection failed'));
       
-      process.env.APP_AGENT_SESSION_DIR = '/test/session';
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
       
       const args = {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
@@ -430,7 +430,7 @@ FIELDS:
       await expect(generateManifestsToolHandler(args, mockContext))
         .rejects.toThrow('Failed to retrieve resource schemas');
       
-      expect(mockAppAgent.initialize).toHaveBeenCalled();
+      expect(mockDotAI.initialize).toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith('Schema retrieval failed', expect.any(Error));
     });
   });

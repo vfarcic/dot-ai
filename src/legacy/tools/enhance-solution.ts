@@ -38,7 +38,7 @@ export const enhanceSolutionToolDefinition: ToolDefinition = {
 };
 
 export const enhanceSolutionToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  const { requestId, logger, appAgent } = context;
+  const { requestId, logger, dotAI } = context;
 
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -68,7 +68,7 @@ export const enhanceSolutionToolHandler: ToolHandler = async (args: any, context
       }
 
       // Check for Claude API key
-      const claudeApiKey = appAgent.getAnthropicApiKey();
+      const claudeApiKey = dotAI.getAnthropicApiKey();
       if (!claudeApiKey) {
         throw ErrorHandler.createError(
           ErrorCategory.AI_SERVICE,
@@ -147,11 +147,11 @@ export const enhanceSolutionToolHandler: ToolHandler = async (args: any, context
 
       // Get available resources for context
       logger.debug('Discovering cluster resources for enhancement context', { requestId });
-      const availableResources = await appAgent.discovery.discoverResources();
+      const availableResources = await dotAI.discovery.discoverResources();
 
       const explainResourceFn = async (resource: string) => {
         logger.debug(`Explaining resource for enhancement: ${resource}`, { requestId });
-        return await appAgent.discovery.explainResource(resource);
+        return await dotAI.discovery.explainResource(resource);
       };
 
       // Enhance the solution with AI

@@ -93,9 +93,9 @@ describe('MCP Server Entry Point', () => {
       await waitForFile(serverPath); // Ensure file exists first
       const content = fs.readFileSync(serverPath, 'utf8');
       
-      // Should import MCPServer and AppAgent (compiled JS format)
+      // Should import MCPServer and DotAI (compiled JS format)
       expect(content).toContain('mcp_js_1.MCPServer');
-      expect(content).toContain('index_js_1.AppAgent');
+      expect(content).toContain('index_js_1.DotAI');
     });
 
     test('should contain main function with server configuration', async () => {
@@ -104,7 +104,7 @@ describe('MCP Server Entry Point', () => {
       
       // Should have main function and server configuration
       expect(content).toContain('async function main()');
-      expect(content).toContain('name: \'app-agent\'');
+      expect(content).toContain('name: \'dot-ai\'');
       expect(content).toContain('version: \'0.1.0\'');
       expect(content).toContain('Universal Kubernetes application deployment agent');
     });
@@ -114,13 +114,13 @@ describe('MCP Server Entry Point', () => {
       const content = fs.readFileSync(serverPath, 'utf8');
       
       // Should have error handling
-      expect(content).toContain('Failed to start App-Agent MCP server');
+      expect(content).toContain('Failed to start DevOps AI Toolkit MCP server');
       expect(content).toContain('process.exit(1)');
       
       // Should have graceful shutdown handlers
       expect(content).toContain('SIGINT');
       expect(content).toContain('SIGTERM');
-      expect(content).toContain('Shutting down App-Agent MCP server');
+      expect(content).toContain('Shutting down DevOps AI Toolkit MCP server');
     });
   });
 });

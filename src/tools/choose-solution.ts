@@ -29,7 +29,7 @@ export const chooseSolutionToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'ai-recommendations',
   tags: ['kubernetes', 'configuration', 'questions', 'deployment'],
-  instructions: 'Select a solution by providing its solutionId to receive the configuration questions. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
+  instructions: 'Select a solution by providing its solutionId to receive the configuration questions. Session directory is configured via DOT_AI_SESSION_DIR environment variable.'
 };
 
 // CLI Tool Definition - sessionDir required as parameter
@@ -125,8 +125,8 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
           'Check that sessionDir is a non-empty string'
         ];
         const mcpActions = [
-          'Ensure APP_AGENT_SESSION_DIR environment variable is set in MCP configuration',
-          'Check that APP_AGENT_SESSION_DIR points to existing directory'
+          'Ensure DOT_AI_SESSION_DIR environment variable is set in MCP configuration',
+          'Check that DOT_AI_SESSION_DIR points to existing directory'
         ];
         
         throw ErrorHandler.createError(
@@ -184,7 +184,7 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
               'Ensure session directory exists and is readable',
               'Check directory permissions',
               'Verify the directory path is correct',
-              isCLI ? 'Use the same sessionDir that was used with the recommend tool' : 'Verify APP_AGENT_SESSION_DIR environment variable is correctly set'
+              isCLI ? 'Use the same sessionDir that was used with the recommend tool' : 'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
             ]
           }
         );

@@ -15,7 +15,7 @@ export const deployManifestsToolDefinition: ToolDefinition = {
   version: '1.0.0',
   category: 'deployment',
   tags: ['kubernetes', 'deploy', 'apply', 'manifests', 'kubectl'],
-  instructions: 'Deploy Kubernetes manifests from generated solution with kubectl apply --wait. Session directory is configured via APP_AGENT_SESSION_DIR environment variable.'
+  instructions: 'Deploy Kubernetes manifests from generated solution with kubectl apply --wait. Session directory is configured via DOT_AI_SESSION_DIR environment variable.'
 };
 
 export const deployManifestsToolHandler: ToolHandler = async (args: any, context: ToolContext) => {

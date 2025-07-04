@@ -1,6 +1,6 @@
 # Error Handling Patterns and Best Practices
 
-This document outlines the comprehensive error handling system implemented in the App-Agent MCP server.
+This document outlines the comprehensive error handling system implemented in the DevOps AI Toolkit MCP server.
 
 ## Overview
 
@@ -426,4 +426,4 @@ Set up alerts for:
    logger.error('Operation failed', error, additionalContext);
    ```
 
-This comprehensive error handling system ensures robust, maintainable, and observable error management throughout the App-Agent MCP server.
+This comprehensive error handling system ensures robust, maintainable, and observable error management throughout the DevOps AI Toolkit MCP server.

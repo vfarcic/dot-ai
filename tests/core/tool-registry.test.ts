@@ -203,7 +203,7 @@ describe('Tool Registry System', () => {
       mockContext = {
         requestId: 'test-request-123',
         logger: mockLogger,
-        appAgent: {} as any
+        dotAI: {} as any
       };
     });
 

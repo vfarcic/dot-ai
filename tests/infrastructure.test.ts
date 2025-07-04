@@ -14,9 +14,9 @@ describe('Test Infrastructure', () => {
     test('should have package.json with correct structure', () => {
       const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
       
-      expect(packageJson.name).toBe('app-agent');
+      expect(packageJson.name).toBe('dot-ai');
       expect(packageJson.main).toBe('dist/index.js');
-      expect(packageJson.bin).toHaveProperty('app-agent');
+      expect(packageJson.bin).toHaveProperty('dot-ai');
       expect(packageJson.exports['.']).toBeDefined();
       expect(packageJson.exports['./mcp']).toBeDefined();
     });
@@ -63,7 +63,7 @@ describe('Test Infrastructure', () => {
         { path: 'src/core/index.ts', shouldExist: false }, // Will be created
         { path: 'src/interfaces/cli.ts', shouldExist: false }, // Will be created
         { path: 'src/interfaces/mcp.ts', shouldExist: false }, // Will be created
-        { path: 'bin/app-agent', shouldExist: false } // Will be created
+        { path: 'bin/dot-ai', shouldExist: false } // Will be created
       ];
 
       expectedFiles.forEach(({ path: filePath, shouldExist }) => {

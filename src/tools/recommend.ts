@@ -146,7 +146,7 @@ function writeSolutionFile(sessionDir: string, solutionId: string, solutionData:
 }
 
 export const recommendToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  const { requestId, logger, appAgent } = context;
+  const { requestId, logger, dotAI } = context;
 
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -176,7 +176,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       }
 
       // Check for Claude API key
-      const claudeApiKey = appAgent.getAnthropicApiKey();
+      const claudeApiKey = dotAI.getAnthropicApiKey();
       if (!claudeApiKey) {
         throw ErrorHandler.createError(
           ErrorCategory.AI_SERVICE,
@@ -211,7 +211,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
             requestId,
             suggestedActions: [
               'Ensure session directory exists and is writable',
-              'Set --session-dir parameter or APP_AGENT_SESSION_DIR environment variable',
+              'Set --session-dir parameter or DOT_AI_SESSION_DIR environment variable',
               'Check directory permissions'
             ]
           },
@@ -263,12 +263,12 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       // Create discovery functions
       const discoverResourcesFn = async () => {
         logger.debug('Discovering cluster resources', { requestId });
-        return await appAgent.discovery.discoverResources();
+        return await dotAI.discovery.discoverResources();
       };
 
       const explainResourceFn = async (resource: string) => {
         logger.debug(`Explaining resource: ${resource}`, { requestId });
-        return await appAgent.discovery.explainResource(resource);
+        return await dotAI.discovery.explainResource(resource);
       };
 
       // Find best solutions for the user intent

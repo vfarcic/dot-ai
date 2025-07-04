@@ -1526,26 +1526,26 @@ FIELDS:
     });
 
     it('should handle conditional debug logging based on environment variable', () => {
-      const originalEnv = process.env.APP_AGENT_DEBUG;
+      const originalEnv = process.env.DOT_AI_DEBUG;
       
       // Test with debug enabled
-      process.env.APP_AGENT_DEBUG = 'true';
+      process.env.DOT_AI_DEBUG = 'true';
       
       const consoleSpy = jest.spyOn(console, 'debug').mockImplementation(() => {});
       
       // This would trigger debug logging if the error path is hit
       // For this test, we just verify the environment variable is read correctly
-      expect(process.env.APP_AGENT_DEBUG).toBe('true');
+      expect(process.env.DOT_AI_DEBUG).toBe('true');
       
       // Test with debug disabled
-      process.env.APP_AGENT_DEBUG = 'false';
-      expect(process.env.APP_AGENT_DEBUG).toBe('false');
+      process.env.DOT_AI_DEBUG = 'false';
+      expect(process.env.DOT_AI_DEBUG).toBe('false');
       
       // Restore original environment
       if (originalEnv !== undefined) {
-        process.env.APP_AGENT_DEBUG = originalEnv;
+        process.env.DOT_AI_DEBUG = originalEnv;
       } else {
-        delete process.env.APP_AGENT_DEBUG;
+        delete process.env.DOT_AI_DEBUG;
       }
       
       consoleSpy.mockRestore();

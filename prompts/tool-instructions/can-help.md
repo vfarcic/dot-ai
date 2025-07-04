@@ -1,18 +1,18 @@
 # Can Help Tool - User Interaction Requirements
 
-## 🤔 Check if App-Agent Can Help
+## 🤔 Check if DevOps AI Toolkit Can Help
 
-Check if App-Agent can help with your deployment, application creation, or infrastructure request.
+Check if DevOps AI Toolkit can help with your deployment, application creation, or infrastructure request.
 
 ### ✅ WHEN TO USE THIS TOOL:
 - User request is vague or unclear
-- Uncertain if App-Agent is appropriate for the task
+- Uncertain if DevOps AI Toolkit is appropriate for the task
 - Need to guide conversation toward specific requirements
 - Want to check capabilities before proceeding
 
 ### 🎯 PURPOSE:
 - Route vague requests to specific guidance
-- Explain App-Agent's capabilities
+- Explain DevOps AI Toolkit's capabilities
 - Guide users toward actionable descriptions
 - Prevent inappropriate tool usage
 
@@ -24,8 +24,8 @@ Check if App-Agent can help with your deployment, application creation, or infra
 - Examples: "create an app", "deploy something", "setup infrastructure"
 
 ### Tool Response:
-- **If App-Agent can help**: Provides guidance on next steps and recommends using the `recommend` tool with specific details
-- **If uncertain fit**: Explains App-Agent's capabilities and suggests how to be more specific
+- **If DevOps AI Toolkit can help**: Provides guidance on next steps and recommends using the `recommend` tool with specific details
+- **If uncertain fit**: Explains DevOps AI Toolkit's capabilities and suggests how to be more specific
 
 ### Example Workflow:
 1. User says: "create an app"
