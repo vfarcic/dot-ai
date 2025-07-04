@@ -2,18 +2,16 @@
  * Deploy Operation - Handles Kubernetes manifest deployment with readiness checking
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';
 import { ErrorHandler } from './error-handling';
-
-const execAsync = promisify(exec);
+import { executeKubectl, KubectlConfig } from './kubernetes-utils';
 
 export interface DeployOptions {
   solutionId: string;
   sessionDir?: string;
   timeout?: number;
+  kubeconfig?: string;
 }
 
 export interface DeployResult {
@@ -26,6 +24,14 @@ export interface DeployResult {
 }
 
 export class DeployOperation {
+  private kubectlConfig: KubectlConfig;
+
+  constructor(kubeconfig?: string) {
+    this.kubectlConfig = {
+      kubeconfig: kubeconfig || process.env.KUBECONFIG
+    };
+  }
+
   /**
    * Deploy Kubernetes manifests from generated solution
    */
@@ -37,8 +43,14 @@ export class DeployOperation {
         // Verify manifest file exists
         await this.verifyManifestExists(manifestPath);
 
+        // Update kubeconfig if provided in options
+        const kubectlConfig = {
+          ...this.kubectlConfig,
+          kubeconfig: options.kubeconfig || this.kubectlConfig.kubeconfig
+        };
+
         // Apply manifests with kubectl
-        const kubectlOutput = await this.applyManifests(manifestPath, options.timeout || 30);
+        const kubectlOutput = await this.applyManifests(manifestPath, options.timeout || 30, kubectlConfig);
 
         return {
           success: true,
@@ -82,19 +94,26 @@ export class DeployOperation {
   /**
    * Apply manifests using kubectl with readiness checking
    */
-  private async applyManifests(manifestPath: string, timeout: number): Promise<string> {
+  private async applyManifests(manifestPath: string, timeout: number, kubectlConfig: KubectlConfig): Promise<string> {
     try {
       // First, apply the manifests
-      const applyResult = await execAsync(`kubectl apply -f "${manifestPath}"`);
+      const applyResult = await executeKubectl(['apply', '-f', `"${manifestPath}"`], kubectlConfig);
       
       // Try to wait for deployments to be ready (ignore failures for other resource types)
       let waitOutput = '';
       try {
-        const waitResult = await execAsync(
-          `kubectl wait --for=condition=available deployments --all --timeout=${timeout}s --all-namespaces`,
-          { timeout: (timeout + 10) * 1000 } // Add 10 seconds buffer for kubectl command itself
-        );
-        waitOutput = `\n\nWait output:\n${waitResult.stdout}`;
+        const waitResult = await executeKubectl([
+          'wait', 
+          '--for=condition=available', 
+          'deployments', 
+          '--all', 
+          `--timeout=${timeout}s`, 
+          '--all-namespaces'
+        ], {
+          ...kubectlConfig,
+          timeout: (timeout + 10) * 1000 // Add 10 seconds buffer for kubectl command itself
+        });
+        waitOutput = `\n\nWait output:\n${waitResult}`;
       } catch (waitError: any) {
         // If no deployments found or wait fails, that's OK for ConfigMaps, Services, etc.
         if (waitError.message && waitError.message.includes('no matching resources found')) {
@@ -104,14 +123,10 @@ export class DeployOperation {
         }
       }
 
-      return `Apply output:\n${applyResult.stdout}${waitOutput}`;
+      return `Apply output:\n${applyResult}${waitOutput}`;
     } catch (error: any) {
-      // If kubectl commands fail, include the error in the output
-      const errorMessage = error.message || 'Unknown kubectl error';
-      const stderr = error.stderr || '';
-      const stdout = error.stdout || '';
-      
-      throw new Error(`kubectl command failed: ${errorMessage}\nStdout: ${stdout}\nStderr: ${stderr}`);
+      // executeKubectl already provides enhanced error messages
+      throw error;
     }
   }
 }
