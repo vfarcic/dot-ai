@@ -254,9 +254,6 @@ await mcpServer.start();
 - `explain_resource`: Get detailed resource schema
 - `fingerprint_cluster`: Analyze cluster capabilities
 
-**Utility:**
-- `can_help`: Check if DevOps AI Toolkit can assist with a request
-
 ## Error Handling
 
 ### Common Error Patterns

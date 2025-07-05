@@ -125,7 +125,8 @@ describe('Build System Validation (TDD)', () => {
         const dotAI = new DotAI({ kubernetesConfig: projectKubeconfig });
         const config = { name: 'test', version: '1.0.0', description: 'Test' };
         const server = new mcpServer.MCPServer(dotAI, config);
-        expect(server.getToolCount()).toBeGreaterThan(0);
+        expect(server).toBeDefined();
+        expect(server.isReady()).toBe(false); // Should not be ready until initialized
       }).not.toThrow();
     });
   });

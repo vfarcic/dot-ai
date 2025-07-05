@@ -9,7 +9,12 @@ import { DotAI } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
 import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
-import { ToolRegistry, ToolContext, initializeTools, registerAllTools } from '../tools';
+import { handleRecommendTool } from '../tools/recommend';
+import { handleChooseSolutionTool } from '../tools/choose-solution';
+import { handleAnswerQuestionTool } from '../tools/answer-question';
+import { handleGenerateManifestsTool } from '../tools/generate-manifests';
+import { handleDeployManifestsTool } from '../tools/deploy-manifests';
+import { Logger, ConsoleLogger } from '../core/error-handling';
 
 export interface CliResult {
   success: boolean;
@@ -35,13 +40,13 @@ export class CliInterface {
   private dotAI?: DotAI;
   private program: Command;
   private config: CliConfig;
-  private toolRegistry: ToolRegistry;
+  private logger: Logger;
 
   constructor(dotAI?: DotAI, config: CliConfig = {}) {
     this.dotAI = dotAI;
     this.config = config;
     this.program = new Command();
-    this.toolRegistry = this.initializeToolsQuietly();
+    this.logger = new ConsoleLogger('CLI');
     this.program.name('dot-ai').description('AI-powered Kubernetes deployment agent');
     
     // Add global options that apply to all commands
@@ -411,32 +416,6 @@ export class CliInterface {
       // Show progress for long-running AI operations
       this.showProgress('🔍 Analyzing your intent and discovering cluster resources...');
 
-      // Create tool context for the recommend tool
-      const toolContext: ToolContext = {
-        requestId: `cli-${Date.now()}`,
-        logger: {
-          debug: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          info: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          warn: (message: string, meta?: any) => {
-            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          error: (message: string, meta?: any) => {
-            console.error(`ERROR: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          fatal: (message: string, meta?: any) => {
-            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
-          }
-        },
-        dotAI: this.ensureDotAI()
-      };
 
       // Prepare arguments for the recommend tool including session directory
       const toolArgs = {
@@ -446,8 +425,9 @@ export class CliInterface {
 
       this.showProgress('🤖 AI is analyzing resources and generating solutions...');
 
-      // Execute the recommend tool through the registry
-      const result = await this.toolRegistry.executeTool('recommend', toolArgs, toolContext);
+      // Execute the recommend tool directly
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleRecommendTool(toolArgs, this.ensureDotAI(), this.logger, requestId);
 
       this.showProgress('✅ Recommendation complete!');
       // Small delay to show completion message
@@ -477,32 +457,6 @@ export class CliInterface {
       // Show progress for file operations
       this.showProgress('📋 Loading solution and extracting questions...');
 
-      // Create tool context for the chooseSolution tool
-      const toolContext: ToolContext = {
-        requestId: `cli-${Date.now()}`,
-        logger: {
-          debug: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          info: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          warn: (message: string, meta?: any) => {
-            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          error: (message: string, meta?: any) => {
-            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          fatal: (message: string, meta?: any) => {
-            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
-          }
-        },
-        dotAI: this.dotAI || null
-      };
 
       // Prepare arguments for the chooseSolution tool
       const toolArgs = {
@@ -510,8 +464,9 @@ export class CliInterface {
         sessionDir: options.sessionDir
       };
 
-      // Execute the chooseSolution tool through the registry
-      const result = await this.toolRegistry.executeTool('chooseSolution', toolArgs, toolContext);
+      // Execute the chooseSolution tool directly
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleChooseSolutionTool(toolArgs, null as any, this.logger, requestId);
 
       this.showProgress('✅ Solution selected successfully!');
       // Small delay to show completion message
@@ -541,32 +496,6 @@ export class CliInterface {
       // Show progress for file operations
       this.showProgress('📝 Processing answers and updating solution...');
 
-      // Create tool context for the answerQuestion tool
-      const toolContext: ToolContext = {
-        requestId: `cli-${Date.now()}`,
-        logger: {
-          debug: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          info: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          warn: (message: string, meta?: any) => {
-            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          error: (message: string, meta?: any) => {
-            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          fatal: (message: string, meta?: any) => {
-            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
-          }
-        },
-        dotAI: this.dotAI || null
-      };
 
       // Prepare arguments for the answerQuestion tool
       const toolArgs = {
@@ -577,8 +506,9 @@ export class CliInterface {
         done: options.done || false
       };
 
-      // Execute the answerQuestion tool through the registry
-      const result = await this.toolRegistry.executeTool('answerQuestion', toolArgs, toolContext);
+      // Execute the answerQuestion tool directly
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleAnswerQuestionTool(toolArgs, null as any, this.logger, requestId);
 
       this.showProgress('✅ Answers processed successfully!');
       // Small delay to show completion message
@@ -608,32 +538,6 @@ export class CliInterface {
       // Show progress for manifest generation
       this.showProgress('🤖 Generating Kubernetes manifests with AI...');
 
-      // Create tool context for the generateManifests tool
-      const toolContext: ToolContext = {
-        requestId: `cli-${Date.now()}`,
-        logger: {
-          debug: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`DEBUG: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          info: (message: string, meta?: any) => {
-            if (this.config.verboseMode) {
-              console.error(`INFO: ${message}`, meta ? JSON.stringify(meta) : '');
-            }
-          },
-          warn: (message: string, meta?: any) => {
-            console.error(`WARN: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          error: (message: string, meta?: any) => {
-            console.error(`ERROR: Tool execution failed: ${message}`, meta ? JSON.stringify(meta) : '');
-          },
-          fatal: (message: string, meta?: any) => {
-            console.error(`FATAL: ${message}`, meta ? JSON.stringify(meta) : '');
-          }
-        },
-        dotAI: this.dotAI || null
-      };
 
       // Prepare arguments for the generateManifests tool
       const toolArgs = {
@@ -641,8 +545,9 @@ export class CliInterface {
         sessionDir: options.sessionDir
       };
 
-      // Execute the generateManifests tool through the registry
-      const result = await this.toolRegistry.executeTool('generateManifests', toolArgs, toolContext);
+      // Execute the generateManifests tool directly
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleGenerateManifestsTool(toolArgs, this.dotAI!, this.logger, requestId);
 
       this.showProgress('✅ Manifests generated successfully!');
       // Small delay to show completion message
@@ -855,41 +760,6 @@ export class CliInterface {
     }
   }
 
-  /**
-   * Initialize tools with appropriate logging level
-   */
-  private initializeToolsQuietly(): ToolRegistry {
-    // Create a quiet logger that only logs errors
-    const quietLogger = {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: (message: string, error?: Error) => {
-        console.error(`ERROR: ${message}`, error ? error.message : '');
-      },
-      fatal: (message: string, error?: Error) => {
-        console.error(`FATAL: ${message}`, error ? error.message : '');
-      }
-    };
-
-    // Create registry with quiet logger
-    const registry = new ToolRegistry({ logger: quietLogger });
-    
-    // Register tools manually (avoiding the registerAllTools function that has its own logger)
-    const { recommendToolDefinition, recommendToolHandler } = require('../tools/recommend');
-    const { canHelpToolDefinition, canHelpToolHandler } = require('../tools/can-help');
-    const { chooseSolutionToolDefinition, chooseSolutionToolHandler } = require('../tools/choose-solution');
-    const { answerQuestionToolDefinition, answerQuestionToolHandler } = require('../tools/answer-question');
-    const { generateManifestsToolDefinition, generateManifestsToolHandler } = require('../tools/generate-manifests');
-    
-    registry.registerTool(recommendToolDefinition, recommendToolHandler);
-    registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
-    registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
-    registry.registerTool(answerQuestionToolDefinition, answerQuestionToolHandler);
-    registry.registerTool(generateManifestsToolDefinition, generateManifestsToolHandler);
-    
-    return registry;
-  }
 
   private handleError(error: any, _command: string): CliResult {
     this.clearProgress(); // Clear any progress indicators on error

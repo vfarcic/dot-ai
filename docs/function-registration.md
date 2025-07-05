@@ -1,347 +1,157 @@
-# Function Registration System
+# MCP Tool Architecture
 
 ## Overview
 
-The DevOps AI Toolkit implements a dynamic function registration system that allows MCP tools to be registered, discovered, and executed through a centralized registry. This system replaces the previous hardcoded approach with a flexible, extensible architecture.
+The DevOps AI Toolkit implements a clean, direct MCP tool architecture using the official MCP SDK patterns. Tools are registered directly with the MCP server using `McpServer.tool()` method, providing type safety and simplicity.
 
 ## Architecture
 
 ### Core Components
 
-1. **ToolRegistry** (`src/core/tool-registry.ts`)
-   - Central registry for all MCP tools
-   - Handles registration, validation, discovery, and execution
-   - Provides comprehensive statistics and management capabilities
+1. **Direct Tool Handlers** (`src/tools/`)
+   - Direct handler functions (e.g., `handleRecommendTool`)
+   - Tool metadata constants (e.g., `RECOMMEND_TOOL_NAME`, `RECOMMEND_TOOL_DESCRIPTION`)
+   - Zod schemas for MCP registration and validation
 
-2. **Tool Interfaces** (`src/core/tool-registry.ts`)
-   - `ToolDefinition`: Schema and metadata for tools
-   - `ToolHandler`: Function interface for tool execution
-   - `ToolContext`: Runtime context passed to tools
-   - `ToolRegistration`: Internal registry representation
+2. **MCP Server Integration** (`src/interfaces/mcp.ts`)
+   - Uses `McpServer.tool()` for direct tool registration
+   - No custom registry abstractions
+   - Follows official MCP SDK patterns
 
-3. **Tool Modules** (`src/tools/`)
-   - Individual tool implementations
-   - Separated definition and handler exports
-   - Self-contained with proper error handling
+3. **Session Management** (`src/core/session-utils.ts`)
+   - Environment-based configuration using `DOT_AI_SESSION_DIR`
+   - Consistent session directory resolution across all tools
 
-## Usage Patterns
+## Tool Structure
 
-### Basic Tool Registration
+### Tool Module Pattern
+
+Each tool exports:
 
 ```typescript
-import { ToolRegistry } from '../core/tool-registry';
+// Tool metadata
+export const RECOMMEND_TOOL_NAME = 'recommend';
+export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, run, or setup applications on Kubernetes with AI-powered recommendations';
 
-const registry = new ToolRegistry({
-  logger: myLogger,
-  enabledByDefault: true,
-  validateSchemas: true
-});
+// Zod schema for MCP validation
+export const RECOMMEND_TOOL_INPUT_SCHEMA = {
+  intent: z.string().min(1).max(1000).describe('What the user wants to deploy...')
+};
 
-// Register a tool
-registry.registerTool(toolDefinition, toolHandler);
-
-// Check availability
-if (registry.isToolAvailable('my_tool')) {
-  const result = await registry.executeTool('my_tool', args, context);
+// Direct handler function
+export async function handleRecommendTool(
+  args: { intent: string },
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
+  // Tool implementation
 }
 ```
 
-### Tool Definition Structure
+### MCP Registration
 
-```typescript
-const toolDefinition: ToolDefinition = {
-  name: 'recommend',
-  description: 'Generate deployment recommendations',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      intent: { 
-        type: 'string',
-        description: 'Deployment intent',
-        minLength: 1,
-        maxLength: 1000
-      }
-    },
-    required: ['intent']
-  },
-  outputSchema: {
-    type: 'object',
-    properties: {
-      content: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            type: { type: 'string', enum: ['text'] },
-            text: { type: 'string', minLength: 1 }
-          },
-          required: ['type', 'text']
-        }
-      }
-    },
-    required: ['content']
-  },
-  version: '1.0.0',
-  category: 'analysis',
-  tags: ['deployment', 'recommendation']
-};
-```
-
-### Tool Handler Implementation
-
-```typescript
-const toolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  try {
-    // Validate input
-    SchemaValidator.validateToolInput('recommend', args, toolDefinition.inputSchema);
-    
-    // Execute tool logic
-    const result = await performRecommendation(args.intent, context);
-    
-    // Validate output
-    SchemaValidator.validateToolOutput('recommend', result, toolDefinition.outputSchema!);
-    
-    return result;
-  } catch (error) {
-    context.logger.error(`Tool execution failed: recommend`, error);
-    throw error;
-  }
-};
-```
-
-### Modular Tool Structure
-
-Each tool should be implemented as a separate module:
-
-```
-src/tools/
-├── index.ts              # Central registration
-├── recommend.ts          # Recommendation tool
-├── enhance-solution.ts   # Solution enhancement tool
-└── new-tool.ts          # Future tools
-```
-
-Tool module pattern:
-```typescript
-// src/tools/my-tool.ts
-export const myToolDefinition: ToolDefinition = { /* ... */ };
-export const myToolHandler: ToolHandler = async (args, context) => { /* ... */ };
-
-// src/tools/index.ts
-import { myToolDefinition, myToolHandler } from './my-tool';
-
-export function registerAllTools(registry: ToolRegistry): void {
-  registry.registerTool(myToolDefinition, myToolHandler);
-  // Register other tools...
-}
-```
-
-## Integration with MCP Server
-
-The registry integrates seamlessly with the MCP server:
+Tools are registered directly with the MCP server:
 
 ```typescript
 // src/interfaces/mcp.ts
-export class MCPServer {
-  private toolRegistry: ToolRegistry;
-
-  constructor(dotAI: DotAI, serverInfo: ServerInfo) {
-    this.toolRegistry = new ToolRegistry({
-      logger: new ConsoleLogger('ToolRegistry'),
-      enabledByDefault: true,
-      validateSchemas: true
-    });
-    
-    // Initialize tools
-    initializeTools(this.toolRegistry);
+this.server.tool(
+  RECOMMEND_TOOL_NAME,
+  RECOMMEND_TOOL_DESCRIPTION,
+  RECOMMEND_TOOL_INPUT_SCHEMA,
+  async (args: any) => {
+    const requestId = this.generateRequestId();
+    return await handleRecommendTool(args, this.dotAI, this.logger, requestId);
   }
+);
+```
 
-  async handleCallTool(request: CallToolRequest): Promise<CallToolResult> {
-    const { name, arguments: args } = request.params;
-    
-    const toolContext: ToolContext = {
-      requestId: generateRequestId(),
-      logger: this.logger,
-      dotAI: this.dotAI
-    };
+## Available Tools
 
-    // Dynamic tool dispatch through registry
-    return await this.toolRegistry.executeTool(name, args, toolContext);
-  }
+1. **recommend** - AI-powered deployment recommendations
+2. **chooseSolution** - Select a solution and return configuration questions
+3. **answerQuestion** - Process user answers and manage configuration stages
+4. **generateManifests** - Generate Kubernetes manifests from completed solutions
+5. **deployManifests** - Deploy manifests with readiness checking
 
-  async handleListTools(): Promise<ListToolsResult> {
-    return {
-      tools: this.toolRegistry.getToolDefinitions()
-    };
-  }
-}
+## Configuration
+
+### Environment Variables
+
+- `DOT_AI_SESSION_DIR` - Directory for storing solution files
+- `ANTHROPIC_API_KEY` - Required for AI-powered features
+
+### CLI Parameters
+
+- `--session-dir <path>` - Override session directory (takes precedence over env var)
+- `--kubeconfig <path>` - Custom kubeconfig path
+
+## Usage Patterns
+
+### MCP Mode
+Tools automatically use `DOT_AI_SESSION_DIR` environment variable:
+
+```bash
+export DOT_AI_SESSION_DIR=/path/to/sessions
+# Tools will automatically use this directory
+```
+
+### CLI Mode
+CLI sets the environment variable before calling tools:
+
+```bash
+node dist/cli.js recommend --intent "deploy a web app" --session-dir /custom/path
 ```
 
 ## Error Handling
 
-The registry integrates with the DevOps AI Toolkit error handling system:
+All tools use the unified error handling system:
 
 ```typescript
-// Automatic error wrapping and logging
-try {
-  const result = await registry.executeTool(name, args, context);
-  return result;
-} catch (error) {
-  // Registry automatically logs errors and provides context
-  // Error is propagated with enhanced information
-  throw error;
-}
+return await ErrorHandler.withErrorHandling(
+  async () => {
+    // Tool logic
+  },
+  {
+    operation: 'tool_operation',
+    component: 'ToolName',
+    requestId,
+    input: args
+  }
+);
 ```
 
-## Validation
+## Testing
 
-Input and output validation is handled automatically:
-
-```typescript
-// Input validation before execution
-SchemaValidator.validateToolInput(toolName, args, inputSchema);
-
-// Output validation after execution
-SchemaValidator.validateToolOutput(toolName, result, outputSchema);
-```
-
-## Registry Management
-
-### Tool Lifecycle
+Tests use direct handler functions:
 
 ```typescript
-// Enable/disable tools at runtime
-registry.setToolEnabled('my_tool', false);
-
-// Check tool status
-const isAvailable = registry.isToolAvailable('my_tool');
-
-// Get tool information
-const tool = registry.getTool('my_tool');
-
-// Unregister tools
-registry.unregisterTool('my_tool');
-```
-
-### Statistics and Monitoring
-
-```typescript
-const stats = registry.getStats();
-// Returns:
-// {
-//   totalTools: 3,
-//   enabledTools: 2,
-//   disabledTools: 1,
-//   categories: { analysis: 2, utility: 1 }
-// }
+const result = await handleRecommendTool(
+  { intent: 'deploy web app' },
+  mockDotAI,
+  mockLogger,
+  'test-request-id'
+);
 ```
 
 ## Best Practices
 
-### Tool Design
+1. **Type Safety**: Use TypeScript interfaces for tool arguments
+2. **Schema Validation**: Define comprehensive Zod schemas
+3. **Error Context**: Provide detailed error context and suggested actions
+4. **Environment Config**: Use environment variables for session management
+5. **Direct Handlers**: Keep tools as pure functions without registry abstractions
 
-1. **Single Responsibility**: Each tool should have a clear, focused purpose
-2. **Schema Validation**: Always provide comprehensive input/output schemas
-3. **Error Handling**: Use proper error handling with context logging
-4. **Documentation**: Include clear descriptions and examples
+## Migration Benefits
 
-### Registry Usage
+The new architecture provides:
 
-1. **Centralized Registration**: Use `src/tools/index.ts` for all tool registration
-2. **Lazy Loading**: Tools are registered at startup, not dynamically loaded
-3. **Validation**: Enable schema validation in production environments
-4. **Monitoring**: Use registry statistics for monitoring and debugging
-
-### Testing
-
-1. **Unit Tests**: Test tool handlers independently
-2. **Integration Tests**: Test through registry execution
-3. **Schema Tests**: Validate schemas are properly defined
-4. **Error Tests**: Test error handling and edge cases
-
-## Migration from Hardcoded System
-
-The dynamic registration system maintains backward compatibility while providing these improvements:
-
-### Before (Hardcoded)
-```typescript
-// Static tool list
-private setupToolHandlers(): Tool[] {
-  return [
-    { name: 'recommend', description: '...' },
-    { name: 'enhance_solution', description: '...' }
-  ];
-}
-
-// Switch-based dispatch
-switch (name) {
-  case 'recommend':
-    return await this.handleRecommend(args);
-  case 'enhance_solution':
-    return await this.handleEnhanceSolution(args);
-}
-```
-
-### After (Dynamic Registry)
-```typescript
-// Dynamic tool discovery
-async handleListTools(): Promise<ListToolsResult> {
-  return { tools: this.toolRegistry.getToolDefinitions() };
-}
-
-// Registry-based dispatch
-async handleCallTool(request: CallToolRequest): Promise<CallToolResult> {
-  return await this.toolRegistry.executeTool(name, args, context);
-}
-```
-
-## Future Extensions
-
-The registry system supports:
-
-1. **Plugin Architecture**: Tools can be loaded from external modules
-2. **Runtime Registration**: Tools can be registered/unregistered dynamically
-3. **Conditional Tools**: Tools can be enabled based on environment or configuration
-4. **Tool Versioning**: Multiple versions of tools can coexist
-5. **Resource Management**: Tools can declare resource requirements
-
-## Configuration
-
-Registry configuration options:
-
-```typescript
-interface ToolRegistryOptions {
-  logger?: Logger;                  // Custom logger implementation
-  enabledByDefault?: boolean;       // Default enabled state for new tools
-  validateSchemas?: boolean;        // Enable/disable schema validation
-  maxConcurrentExecutions?: number; // Limit concurrent tool executions
-}
-```
-
-## Troubleshooting
-
-Common issues and solutions:
-
-### Tool Not Found
-- Verify tool is registered in `src/tools/index.ts`
-- Check tool name matches exactly (case-sensitive)
-- Ensure `initializeTools()` is called during startup
-
-### Schema Validation Errors
-- Verify input/output schemas are valid JSON Schema
-- Check required fields are properly defined
-- Ensure data types match schema definitions
-
-### Tool Execution Failures
-- Check tool handler implementation for errors
-- Verify context is properly passed to tool
-- Review error logs for specific failure details
-
-### Performance Issues
-- Monitor registry statistics for tool usage patterns
-- Consider disabling unused tools
-- Review tool handler efficiency
+- **Simplicity**: No custom registry abstractions
+- **Type Safety**: Direct TypeScript types, no `any` types
+- **Official Patterns**: Uses MCP SDK best practices
+- **Better Testing**: Tests verify actual functionality, not abstractions
+- **Reduced Complexity**: Eliminated 400+ lines of registry code
 
 ---
 
-*This documentation provides a comprehensive guide to the DevOps AI Toolkit function registration system, enabling developers to understand, use, and extend the dynamic tool architecture.*
+*This architecture provides a clean, maintainable foundation for MCP tool development using official SDK patterns.*

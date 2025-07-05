@@ -79,7 +79,6 @@ prompts/
 └── tool-instructions/          # Agent instructions for tools
     ├── recommend.md           # User interaction requirements
     ├── enhance-solution.md    # Enhancement tool instructions
-    ├── can-help.md           # Can-help tool instructions
     └── recommendation-workflow.md # Workflow instructions
 ```
 

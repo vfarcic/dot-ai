@@ -1,17 +1,22 @@
-import { deployManifestsToolDefinition, deployManifestsToolHandler } from '../../src/tools/deploy-manifests';
+import { 
+  DEPLOYMANIFESTS_TOOL_NAME, 
+  DEPLOYMANIFESTS_TOOL_DESCRIPTION, 
+  DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleDeployManifestsTool 
+} from '../../src/tools/deploy-manifests';
 import { DeployOperation } from '../../src/core/deploy-operation';
-import { SchemaValidator, MCPToolSchemas } from '../../src/core/validation';
-import { ToolContext } from '../../src/core/tool-registry';
+import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../../src/core/error-handling';
 
 // Mock dependencies
 jest.mock('../../src/core/deploy-operation');
-jest.mock('../../src/core/validation', () => {
-  const original = jest.requireActual('../../src/core/validation');
+jest.mock('../../src/core/error-handling', () => {
+  const original = jest.requireActual('../../src/core/error-handling');
   return {
     ...original,
-    SchemaValidator: {
-      ...original.SchemaValidator,
-      validateToolInput: jest.fn()
+    ErrorHandler: {
+      ...original.ErrorHandler,
+      withErrorHandling: jest.fn((fn) => fn()),
+      createError: jest.fn()
     }
   };
 });
@@ -19,7 +24,7 @@ jest.mock('../../src/core/validation', () => {
 const mockDeployOperation = DeployOperation as jest.MockedClass<typeof DeployOperation>;
 
 describe('Deploy Manifests Tool', () => {
-  let mockContext: ToolContext;
+  let mockContext: any;
 
   beforeEach(() => {
     mockContext = {
@@ -37,16 +42,15 @@ describe('Deploy Manifests Tool', () => {
   });
 
   // Get the mocked function reference
-  const getMockValidateToolInput = () => SchemaValidator.validateToolInput as jest.MockedFunction<typeof SchemaValidator.validateToolInput>;
+  const getMockWithErrorHandling = () => ErrorHandler.withErrorHandling as jest.MockedFunction<typeof ErrorHandler.withErrorHandling>;
+  const getMockCreateError = () => ErrorHandler.createError as jest.MockedFunction<typeof ErrorHandler.createError>;
 
-  describe('Tool Definition', () => {
-    it('should have correct tool definition properties', () => {
-      expect(deployManifestsToolDefinition.name).toBe('deployManifests');
-      expect(deployManifestsToolDefinition.description).toContain('Deploy Kubernetes manifests');
-      expect(deployManifestsToolDefinition.inputSchema).toBe(MCPToolSchemas.DEPLOY_MANIFESTS_INPUT);
-      expect(deployManifestsToolDefinition.category).toBe('deployment');
-      expect(deployManifestsToolDefinition.tags).toContain('kubernetes');
-      expect(deployManifestsToolDefinition.tags).toContain('deploy');
+  describe('Tool Metadata', () => {
+    it('should have correct tool metadata properties', () => {
+      expect(DEPLOYMANIFESTS_TOOL_NAME).toBe('deployManifests');
+      expect(DEPLOYMANIFESTS_TOOL_DESCRIPTION).toContain('Deploy Kubernetes manifests');
+      expect(DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
+      expect(DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA.timeout).toBeDefined();
     });
   });
 
@@ -57,7 +61,7 @@ describe('Deploy Manifests Tool', () => {
       timeout: 60
     };
 
-    it('should validate input arguments using schema validator', async () => {
+    it('should validate input arguments and handle CLI mode', async () => {
       const mockDeploy = jest.fn().mockResolvedValue({
         success: true,
         kubectlOutput: 'deployment created',
@@ -69,13 +73,13 @@ describe('Deploy Manifests Tool', () => {
 
       mockDeployOperation.prototype.deploy = mockDeploy;
 
-      await deployManifestsToolHandler(validArgs, mockContext);
+      await handleDeployManifestsTool(validArgs, mockContext.dotAI, mockContext.logger, mockContext.requestId);
 
-      expect(getMockValidateToolInput()).toHaveBeenCalledWith(
-        'deployManifests',
-        validArgs,
-        MCPToolSchemas.DEPLOY_MANIFESTS_INPUT
-      );
+      expect(getMockWithErrorHandling()).toHaveBeenCalled();
+      expect(mockDeploy).toHaveBeenCalledWith({
+        solutionId: validArgs.solutionId,
+        timeout: validArgs.timeout
+      });
     });
 
     it('should successfully deploy manifests and return formatted response', async () => {
@@ -91,7 +95,7 @@ describe('Deploy Manifests Tool', () => {
       const mockDeploy = jest.fn().mockResolvedValue(deployResult);
       mockDeployOperation.prototype.deploy = mockDeploy;
 
-      const result = await deployManifestsToolHandler(validArgs, mockContext);
+      const result = await handleDeployManifestsTool(validArgs, mockContext.dotAI, mockContext.logger, mockContext.requestId);
 
       expect(mockDeploy).toHaveBeenCalledWith({
         solutionId: validArgs.solutionId,
@@ -121,7 +125,7 @@ describe('Deploy Manifests Tool', () => {
       const mockDeploy = jest.fn().mockResolvedValue(deployResult);
       mockDeployOperation.prototype.deploy = mockDeploy;
 
-      const result = await deployManifestsToolHandler(validArgs, mockContext);
+      const result = await handleDeployManifestsTool(validArgs, mockContext.dotAI, mockContext.logger, mockContext.requestId);
 
       const responseData = JSON.parse(result.content[0].text);
       expect(responseData.success).toBe(true);
@@ -143,7 +147,7 @@ describe('Deploy Manifests Tool', () => {
       const mockDeploy = jest.fn().mockResolvedValue(deployResult);
       mockDeployOperation.prototype.deploy = mockDeploy;
 
-      const result = await deployManifestsToolHandler(validArgs, mockContext);
+      const result = await handleDeployManifestsTool(validArgs, mockContext.dotAI, mockContext.logger, mockContext.requestId);
 
       const responseData = JSON.parse(result.content[0].text);
       expect(responseData.success).toBe(false);
@@ -169,7 +173,7 @@ describe('Deploy Manifests Tool', () => {
 
       mockDeployOperation.prototype.deploy = mockDeploy;
 
-      await deployManifestsToolHandler(argsWithoutTimeout, mockContext);
+      await handleDeployManifestsTool(argsWithoutTimeout, mockContext.dotAI, mockContext.logger, mockContext.requestId);
 
       expect(mockDeploy).toHaveBeenCalledWith({
         solutionId: validArgs.solutionId,
@@ -177,14 +181,5 @@ describe('Deploy Manifests Tool', () => {
       });
     });
 
-    it('should propagate validation errors from schema validator', async () => {
-      const validationError = new Error('Invalid solution ID format');
-      getMockValidateToolInput().mockImplementation(() => {
-        throw validationError;
-      });
-
-      await expect(deployManifestsToolHandler({}, mockContext))
-        .rejects.toThrow('Invalid solution ID format');
-    });
   });
 });

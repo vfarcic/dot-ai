@@ -445,7 +445,6 @@ server.addTool('recommend', recommendHandler);
 server.addTool('chooseSolution', chooseSolutionHandler);
 server.addTool('answerQuestion', answerQuestionHandler);
 server.addTool('generateManifests', generateManifestsHandler);
-server.addTool('can_help', canHelpHandler);
 ```
 
 > **Note**: The system is completely extensible - it will work with ANY Kubernetes resources (CRDs or core) available in your cluster. The examples above are just common patterns.

@@ -5,23 +5,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from './error-handling';
-
-export interface ToolContext {
-  requestId: string;
-  logger?: any;
-  dotAI?: any;
-}
 
 /**
  * Get session directory from CLI args or environment variable
  * CLI parameter takes precedence over environment variable
  * 
  * @param args - Tool arguments that may contain sessionDir
- * @param context - Tool execution context (for MCP requests)
  * @returns Resolved session directory path (can be relative or absolute)
  */
-export function getSessionDirectory(args: any, context?: ToolContext): string {
+export function getSessionDirectory(args: any): string {
   // For CLI interface, sessionDir is required as parameter
   if (args.sessionDir) {
     return args.sessionDir;
@@ -95,12 +87,11 @@ export function validateSessionDirectory(sessionDir: string, requireWrite: boole
  * Get and validate session directory in one call
  * 
  * @param args - Tool arguments that may contain sessionDir
- * @param context - Tool execution context (for MCP requests)
  * @param requireWrite - Whether to test write permissions (default: false)
  * @returns Validated session directory path
  */
-export function getAndValidateSessionDirectory(args: any, context?: ToolContext, requireWrite: boolean = false): string {
-  const sessionDir = getSessionDirectory(args, context);
+export function getAndValidateSessionDirectory(args: any, requireWrite: boolean = false): string {
+  const sessionDir = getSessionDirectory(args);
   validateSessionDirectory(sessionDir, requireWrite);
   return sessionDir;
 }

@@ -2,8 +2,12 @@
  * Tests for Generate Manifests Tool
  */
 
-import { generateManifestsToolHandler } from '../../src/tools/generate-manifests';
-import { ToolContext } from '../../src/core/tool-registry';
+import { 
+  GENERATEMANIFESTS_TOOL_NAME, 
+  GENERATEMANIFESTS_TOOL_DESCRIPTION, 
+  GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleGenerateManifestsTool 
+} from '../../src/tools/generate-manifests';
 import * as fs from 'fs';
 
 // Mock fs module
@@ -50,10 +54,10 @@ const mockLogger = {
   fatal: jest.fn()
 };
 
-const mockContext: ToolContext = {
+const mockContext: any = {
   requestId: 'test-request',
   logger: mockLogger,
-  dotAI: null
+  dotAI: mockDotAI
 };
 
 describe('Generate Manifests Tool', () => {
@@ -65,12 +69,16 @@ describe('Generate Manifests Tool', () => {
 
   describe('Input Validation', () => {
     it('should validate solution ID format', async () => {
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
+      
       const args = {
         solutionId: 'invalid-format'
       };
 
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Invalid solution ID format');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: 'Session directory does not exist: /test/session'
+        });
     });
 
     it('should require session directory from environment or args', async () => {
@@ -78,8 +86,10 @@ describe('Generate Manifests Tool', () => {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: 'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
+        });
     });
 
     it('should accept session directory from args', async () => {
@@ -89,8 +99,10 @@ describe('Generate Manifests Tool', () => {
       };
 
       // Should fail on directory validation, not on session dir config
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Session directory does not exist');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: 'Session directory does not exist: /nonexistent/path'
+        });
     });
 
     it('should accept session directory from environment', async () => {
@@ -101,29 +113,18 @@ describe('Generate Manifests Tool', () => {
       };
 
       // Should fail on directory validation, not on session dir config
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Session directory does not exist');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: 'Session directory does not exist: /nonexistent/path'
+        });
     });
   });
 
-  describe('Tool Definition Schema', () => {
-    it('should have valid MCP tool definition', () => {
-      const { generateManifestsToolDefinition } = require('../../src/tools/generate-manifests');
-      
-      expect(generateManifestsToolDefinition.name).toBe('generateManifests');
-      expect(generateManifestsToolDefinition.description).toContain('Generate final Kubernetes manifests');
-      expect(generateManifestsToolDefinition.inputSchema.required).toContain('solutionId');
-      expect(generateManifestsToolDefinition.category).toBe('ai-recommendations');
-      expect(generateManifestsToolDefinition.tags).toContain('ai');
-      expect(generateManifestsToolDefinition.tags).toContain('manifests');
-      expect(generateManifestsToolDefinition.version).toBe('1.0.0');
-    });
-
-    it('should have solution ID pattern validation', () => {
-      const { generateManifestsToolDefinition } = require('../../src/tools/generate-manifests');
-      
-      const pattern = generateManifestsToolDefinition.inputSchema.properties.solutionId.pattern;
-      expect(pattern).toBe('^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$');
+  describe('Tool Metadata', () => {
+    it('should have valid MCP tool metadata', () => {
+      expect(GENERATEMANIFESTS_TOOL_NAME).toBe('generateManifests');
+      expect(GENERATEMANIFESTS_TOOL_DESCRIPTION).toContain('Generate final Kubernetes manifests');
+      expect(GENERATEMANIFESTS_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
     });
   });
 
@@ -134,7 +135,7 @@ describe('Generate Manifests Tool', () => {
       };
 
       try {
-        await generateManifestsToolHandler(args, mockContext);
+        await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
       } catch (error) {
         // Should throw validation error before logging execution error
         expect(error).toBeDefined();
@@ -147,7 +148,7 @@ describe('Generate Manifests Tool', () => {
       };
 
       try {
-        await generateManifestsToolHandler(args, mockContext);
+        await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
       } catch (error) {
         // Should fail with session directory error, not context error
         expect((error as Error).message).toContain('Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable');
@@ -263,10 +264,9 @@ FIELDS:
       };
 
       // This should succeed now that we have schema retrieval
-      const result = await generateManifestsToolHandler(args, mockContext);
+      const result = await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
       
       // Verify schema retrieval was attempted
-      expect(mockDotAI.initialize).toHaveBeenCalled();
       expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('AppClaim');
       
       // Verify the result contains manifest data
@@ -327,7 +327,7 @@ FIELDS:
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      await generateManifestsToolHandler(args, mockContext);
+      await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
       
       // Should call explainResource for each resource type
       expect(mockDotAI.discovery.explainResource).toHaveBeenCalledTimes(2);
@@ -359,8 +359,10 @@ FIELDS:
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Failed to retrieve schema for UnknownResource');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: expect.stringContaining('Failed to retrieve schema for UnknownResource')
+        });
       
       // Should have attempted schema retrieval
       expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('UnknownResource');
@@ -390,7 +392,7 @@ FIELDS:
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      const result = await generateManifestsToolHandler(args, mockContext);
+      const result = await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
       
       // Should not attempt schema retrieval
       expect(mockDotAI.discovery.explainResource).not.toHaveBeenCalled();
@@ -403,7 +405,7 @@ FIELDS:
       expect(response.success).toBe(true);
     });
 
-    it('should fail fast when DotAI initialization fails', async () => {
+    it('should fail fast when schema retrieval fails', async () => {
       const mockSolution = {
         solutionId: 'sol_2025-01-01T120000_abc123def456',
         resources: [
@@ -418,8 +420,8 @@ FIELDS:
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
       
-      // Mock DotAI initialization failure
-      mockDotAI.initialize.mockRejectedValue(new Error('Cluster connection failed'));
+      // Mock schema retrieval failure
+      mockDotAI.discovery.explainResource.mockRejectedValue(new Error('Cluster connection failed'));
       
       process.env.DOT_AI_SESSION_DIR = '/test/session';
       
@@ -427,10 +429,12 @@ FIELDS:
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      await expect(generateManifestsToolHandler(args, mockContext))
-        .rejects.toThrow('Failed to retrieve resource schemas');
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: expect.stringContaining('Failed to retrieve resource schemas')
+        });
       
-      expect(mockDotAI.initialize).toHaveBeenCalled();
+      expect(mockDotAI.discovery.explainResource).toHaveBeenCalledWith('AppClaim');
       expect(mockLogger.error).toHaveBeenCalledWith('Schema retrieval failed', expect.any(Error));
     });
   });

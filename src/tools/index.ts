@@ -1,76 +1,41 @@
 /**
- * Tool Registration Index
+ * Tool Exports Index
  * 
- * Centralized registration of all available MCP tools
+ * Centralized exports for all available tools (direct handlers)
  */
 
-import { ToolRegistry, defaultToolRegistry } from '../core/tool-registry';
-import { ConsoleLogger } from '../core/error-handling';
+// Export direct tool handlers for use in MCP server and CLI
+export { 
+  RECOMMEND_TOOL_NAME, 
+  RECOMMEND_TOOL_DESCRIPTION, 
+  RECOMMEND_TOOL_INPUT_SCHEMA,
+  handleRecommendTool
+} from './recommend';
 
-// Import tool definitions and handlers
-import { recommendToolDefinition, recommendToolHandler } from './recommend';
-// import { enhanceSolutionToolDefinition, enhanceSolutionToolHandler } from './enhance-solution'; // MOVED TO LEGACY
-import { canHelpToolDefinition, canHelpToolHandler } from './can-help';
-import { chooseSolutionToolDefinition, chooseSolutionToolHandler } from './choose-solution';
-import { answerQuestionToolDefinition, answerQuestionToolHandler } from './answer-question';
-import { generateManifestsToolDefinition, generateManifestsToolHandler } from './generate-manifests';
-import { deployManifestsToolDefinition, deployManifestsToolHandler } from './deploy-manifests';
+export { 
+  CHOOSESOLUTION_TOOL_NAME, 
+  CHOOSESOLUTION_TOOL_DESCRIPTION, 
+  CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
+  handleChooseSolutionTool
+} from './choose-solution';
 
-/**
- * Register all available tools with the registry
- */
-export function registerAllTools(registry: ToolRegistry = defaultToolRegistry): void {
-  const logger = new ConsoleLogger('ToolRegistration');
-  
-  try {
-    // Register recommend tool
-    registry.registerTool(recommendToolDefinition, recommendToolHandler);
-    
-    // Register enhance_solution tool
-    // registry.registerTool(enhanceSolutionToolDefinition, enhanceSolutionToolHandler); // MOVED TO LEGACY
-    
-    // Register can_help tool
-    registry.registerTool(canHelpToolDefinition, canHelpToolHandler);
-    
-    // Register chooseSolution tool
-    registry.registerTool(chooseSolutionToolDefinition, chooseSolutionToolHandler);
-    
-    // Register answerQuestion tool
-    registry.registerTool(answerQuestionToolDefinition, answerQuestionToolHandler);
-    
-    // Register generateManifests tool
-    registry.registerTool(generateManifestsToolDefinition, generateManifestsToolHandler);
-    
-    // Register deployManifests tool
-    registry.registerTool(deployManifestsToolDefinition, deployManifestsToolHandler);
-    
-    const stats = registry.getStats();
-    logger.info('All tools registered successfully', {
-      totalTools: stats.totalTools,
-      enabledTools: stats.enabledTools,
-      categories: stats.categories
-    });
-    
-  } catch (error) {
-    logger.error('Failed to register tools', error as Error);
-    throw error;
-  }
-}
+export { 
+  ANSWERQUESTION_TOOL_NAME, 
+  ANSWERQUESTION_TOOL_DESCRIPTION, 
+  ANSWERQUESTION_TOOL_INPUT_SCHEMA,
+  handleAnswerQuestionTool
+} from './answer-question';
 
-/**
- * Get the default configured tool registry
- */
-export function getToolRegistry(): ToolRegistry {
-  return defaultToolRegistry;
-}
+export { 
+  GENERATEMANIFESTS_TOOL_NAME, 
+  GENERATEMANIFESTS_TOOL_DESCRIPTION, 
+  GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleGenerateManifestsTool
+} from './generate-manifests';
 
-/**
- * Initialize tools with automatic registration
- */
-export function initializeTools(): ToolRegistry {
-  registerAllTools();
-  return defaultToolRegistry;
-}
-
-// Export tool registry types for external use
-export { ToolRegistry, ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
+export { 
+  DEPLOYMANIFESTS_TOOL_NAME, 
+  DEPLOYMANIFESTS_TOOL_DESCRIPTION, 
+  DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleDeployManifestsTool
+} from './deploy-manifests';

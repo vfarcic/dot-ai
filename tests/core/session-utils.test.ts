@@ -140,7 +140,7 @@ describe('Session Utils', () => {
       process.env.DOT_AI_SESSION_DIR = testDir;
       const args = {};
       
-      const result = getAndValidateSessionDirectory(args, undefined, false);
+      const result = getAndValidateSessionDirectory(args, false);
       
       expect(result).toBe(testDir);
     });
@@ -149,7 +149,7 @@ describe('Session Utils', () => {
       process.env.DOT_AI_SESSION_DIR = testDir;
       const args = {};
       
-      const result = getAndValidateSessionDirectory(args, undefined, true);
+      const result = getAndValidateSessionDirectory(args, true);
       
       expect(result).toBe(testDir);
     });
@@ -168,7 +168,7 @@ describe('Session Utils', () => {
       process.env.DOT_AI_SESSION_DIR = relativeSessionDir;
       
       const args = {};
-      const result = getAndValidateSessionDirectory(args, undefined, true);
+      const result = getAndValidateSessionDirectory(args, true);
       
       expect(result).toBe('./sessions');
       
@@ -228,7 +228,7 @@ describe('Session Utils', () => {
       const args = {}; // MCP tools don't get sessionDir as args
       const context = { requestId: 'mcp-test-123' };
       
-      const result = getAndValidateSessionDirectory(args, context, true);
+      const result = getAndValidateSessionDirectory(args, true);
       
       // Should return the relative path as configured
       expect(result).toBe('./tmp/sessions');

@@ -2,65 +2,26 @@
  * Generate Manifests Tool - AI-driven manifest generation with validation loop
  */
 
-import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
-import { MCPToolSchemas, SchemaValidator } from '../core/validation';
+import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
+import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 
-// MCP Tool Definition - sessionDir configured via environment
-export const generateManifestsToolDefinition: ToolDefinition = {
-  name: 'generateManifests',
-  description: 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      }
-    },
-    required: ['solutionId']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'manifests', 'deployment', 'yaml', 'ai'],
-  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Session directory is configured via DOT_AI_SESSION_DIR environment variable.'
+// Tool metadata for direct MCP registration
+export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
+export const GENERATEMANIFESTS_TOOL_DESCRIPTION = 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)';
+
+// Zod schema for MCP registration
+export const GENERATEMANIFESTS_TOOL_INPUT_SCHEMA = {
+  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)')
 };
 
-// CLI Tool Definition - sessionDir required as parameter
-export const generateManifestsCLIDefinition: ToolDefinition = {
-  name: 'generateManifests',
-  description: 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      },
-      sessionDir: {
-        type: 'string',
-        description: 'Session directory containing solution files (required for CLI)',
-        minLength: 1
-      }
-    },
-    required: ['solutionId', 'sessionDir']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'manifests', 'deployment', 'yaml', 'ai'],
-  instructions: 'Generate production-ready Kubernetes manifests using AI with validation loop. ONLY call this tool after ALL configuration stages are complete (status: ready_for_manifest_generation). Use --session-dir parameter to specify session directory.'
-};
 
 interface ValidationResult {
   success: boolean;
@@ -124,7 +85,7 @@ function loadSolutionFile(solutionId: string, sessionDir: string): any {
 /**
  * Retrieve schemas for resources specified in the solution
  */
-async function retrieveResourceSchemas(solution: any, context: ToolContext): Promise<any> {
+async function retrieveResourceSchemas(solution: any, dotAI: DotAI, logger: Logger): Promise<any> {
   try {
     // Extract resource references from solution
     const resourceRefs = (solution.resources || []).map((resource: any) => ({
@@ -134,18 +95,14 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
     }));
     
     if (resourceRefs.length === 0) {
-      context.logger.warn('No resources found in solution for schema retrieval');
+      logger.warn('No resources found in solution for schema retrieval');
       return {};
     }
     
-    context.logger.info('Retrieving schemas for solution resources', {
+    logger.info('Retrieving schemas for solution resources', {
       resourceCount: resourceRefs.length,
       resources: resourceRefs.map((r: any) => `${r.kind}@${r.apiVersion}`)
     });
-    
-    // Initialize DotAI to get cluster connection (similar to how other tools do it)
-    const dotAI = new DotAI();
-    await dotAI.initialize();
     
     const schemas: any = {};
     
@@ -153,7 +110,7 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
     for (const resourceRef of resourceRefs) {
       try {
         const resourceKey = `${resourceRef.kind}.${resourceRef.apiVersion}`;
-        context.logger.debug('Retrieving schema', { resourceKey });
+        logger.debug('Retrieving schema', { resourceKey });
         
         // Use discovery engine to explain the resource
         const explanation = await dotAI.discovery.explainResource(resourceRef.kind);
@@ -165,13 +122,13 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
           timestamp: new Date().toISOString()
         };
         
-        context.logger.debug('Schema retrieved successfully', { 
+        logger.debug('Schema retrieved successfully', { 
           resourceKey,
           schemaLength: explanation.length 
         });
         
       } catch (error) {
-        context.logger.error('Failed to retrieve schema for resource', error as Error, {
+        logger.error('Failed to retrieve schema for resource', error as Error, {
           resource: resourceRef
         });
         
@@ -180,14 +137,14 @@ async function retrieveResourceSchemas(solution: any, context: ToolContext): Pro
       }
     }
     
-    context.logger.info('All resource schemas retrieved successfully', {
+    logger.info('All resource schemas retrieved successfully', {
       schemaCount: Object.keys(schemas).length
     });
     
     return schemas;
     
   } catch (error) {
-    context.logger.error('Schema retrieval failed', error as Error);
+    logger.error('Schema retrieval failed', error as Error);
     throw new Error(`Failed to retrieve resource schemas: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -288,7 +245,8 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
  */
 async function generateManifestsWithAI(
   solution: any, 
-  context: ToolContext,
+  dotAI: DotAI,
+  logger: Logger,
   errorContext?: ErrorContext
 ): Promise<string> {
   
@@ -297,7 +255,7 @@ async function generateManifestsWithAI(
   const template = fs.readFileSync(promptPath, 'utf8');
   
   // Retrieve schemas for solution resources
-  const resourceSchemas = await retrieveResourceSchemas(solution, context);
+  const resourceSchemas = await retrieveResourceSchemas(solution, dotAI, logger);
   
   // Prepare template variables
   const solutionData = JSON.stringify(solution, null, 2);
@@ -325,7 +283,7 @@ ${errorContext.previousManifests}
     .replace('{error_details}', errorDetails);
   
   const isRetry = !!errorContext;
-  context.logger.info('Generating manifests with AI', {
+  logger.info('Generating manifests with AI', {
     isRetry,
     attempt: errorContext?.attempt,
     hasErrorContext: !!errorContext,
@@ -351,7 +309,7 @@ ${errorContext.previousManifests}
   // Clean up any leading/trailing whitespace
   manifestContent = manifestContent.trim();
   
-  context.logger.info('AI manifest generation completed', {
+  logger.info('AI manifest generation completed', {
     manifestLength: manifestContent.length,
     isRetry,
     solutionId: solution.solutionId
@@ -361,139 +319,193 @@ ${errorContext.previousManifests}
 }
 
 /**
- * Generate Manifests Tool Handler
+ * Direct MCP tool handler for generateManifests functionality
  */
-export const generateManifestsToolHandler: ToolHandler = async (args, context: ToolContext) => {
-  try {
-    const requestId = `gm-${Date.now()}`;
-    const maxAttempts = 10;
-    
-    context.logger.info('Starting AI-driven manifest generation', { 
-      solutionId: args.solutionId, 
-      requestId 
-    });
-    
-    // Validate inputs
-    validateSolutionId(args.solutionId);
-    const sessionDir = getAndValidateSessionDirectory(args, context, true); // requireWrite=true for manifest generation
-    
-    // Load solution file
-    const solution = loadSolutionFile(args.solutionId, sessionDir);
-    context.logger.info('Solution loaded successfully', { 
-      solutionId: args.solutionId,
-      hasQuestions: !!solution.questions,
-      primaryResources: solution.resources,
-      requestId
-    });
-    
-    // Prepare file path for manifests
-    const yamlPath = path.join(sessionDir, `${args.solutionId}.yaml`);
-    
-    // AI generation and validation loop
-    let lastError: ErrorContext | undefined;
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      context.logger.info('AI manifest generation attempt', { 
-        attempt, 
-        maxAttempts, 
-        isRetry: attempt > 1,
-        requestId 
-      });
+export async function handleGenerateManifestsTool(
+  args: { solutionId: string },
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
+  return await ErrorHandler.withErrorHandling(
+    async () => {
+      const maxAttempts = 10;
       
+      logger.debug('Handling generateManifests request', { 
+        requestId, 
+        solutionId: args?.solutionId 
+      });
+
+      // Input validation is handled automatically by MCP SDK with Zod schema
+      // args are already validated and typed when we reach this point
+      
+      // Get session directory from environment
+      let sessionDir: string;
       try {
-        // Generate manifests with AI
-        const manifests = await generateManifestsWithAI(
-          solution, 
-          context, 
-          lastError
+        sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true for manifest generation
+        logger.debug('Session directory resolved and validated', { sessionDir });
+      } catch (error) {
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          error instanceof Error ? error.message : 'Session directory validation failed',
+          {
+            operation: 'session_directory_validation',
+            component: 'GenerateManifestsTool',
+            requestId,
+            suggestedActions: [
+              'Ensure session directory exists and is writable',
+              'Check directory permissions',
+              'Verify the directory path is correct',
+              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+            ]
+          }
         );
-        
-        // Save manifests to file
-        fs.writeFileSync(yamlPath, manifests, 'utf8');
-        context.logger.info('Manifests saved to file', { yamlPath, attempt, requestId });
-        
-        // Save a copy of this attempt for debugging
-        const attemptPath = yamlPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
-        fs.writeFileSync(attemptPath, manifests, 'utf8');
-        context.logger.info('Saved manifest attempt for debugging', { 
+      }
+      
+      // Load solution file
+      let solution: any;
+      try {
+        solution = loadSolutionFile(args.solutionId, sessionDir);
+        logger.debug('Solution file loaded successfully', { 
+          solutionId: args.solutionId,
+          hasQuestions: !!solution.questions,
+          primaryResources: solution.resources
+        });
+      } catch (error) {
+        throw ErrorHandler.createError(
+          ErrorCategory.STORAGE,
+          ErrorSeverity.HIGH,
+          error instanceof Error ? error.message : 'Failed to load solution file',
+          {
+            operation: 'solution_file_load',
+            component: 'GenerateManifestsTool',
+            requestId,
+            input: { solutionId: args.solutionId, sessionDir },
+            suggestedActions: [
+              'Check that the solution ID is correct',
+              'Verify the solution file exists in the session directory',
+              'Ensure the solution was fully configured with all stages complete',
+              'List available solution files in the session directory'
+            ]
+          }
+        );
+      }
+      
+      // Prepare file path for manifests
+      const yamlPath = path.join(sessionDir, `${args.solutionId}.yaml`);
+      
+      // AI generation and validation loop
+      let lastError: ErrorContext | undefined;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        logger.info('AI manifest generation attempt', { 
           attempt, 
-          attemptPath,
+          maxAttempts, 
+          isRetry: attempt > 1,
           requestId 
         });
         
-        // Validate manifests
-        const validation = await validateManifests(yamlPath);
-        
-        if (validation.success) {
-          context.logger.info('Manifest validation successful', { 
+        try {
+          // Generate manifests with AI
+          const manifests = await generateManifestsWithAI(
+            solution, 
+            dotAI,
+            logger,
+            lastError
+          );
+          
+          // Save manifests to file
+          fs.writeFileSync(yamlPath, manifests, 'utf8');
+          logger.info('Manifests saved to file', { yamlPath, attempt, requestId });
+          
+          // Save a copy of this attempt for debugging
+          const attemptPath = yamlPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
+          fs.writeFileSync(attemptPath, manifests, 'utf8');
+          logger.info('Saved manifest attempt for debugging', { 
             attempt, 
-            yamlPath,
+            attemptPath,
             requestId 
           });
           
-          // Success! Return the validated manifests
-          const response = {
-            success: true,
-            status: 'manifests_generated',
-            solutionId: args.solutionId,
-            manifests: manifests,
-            yamlPath: yamlPath,
-            validationAttempts: attempt,
-            timestamp: new Date().toISOString()
+          // Validate manifests
+          const validation = await validateManifests(yamlPath);
+          
+          if (validation.success) {
+            logger.info('Manifest validation successful', { 
+              attempt, 
+              yamlPath,
+              requestId 
+            });
+            
+            // Success! Return the validated manifests
+            const response = {
+              success: true,
+              status: 'manifests_generated',
+              solutionId: args.solutionId,
+              manifests: manifests,
+              yamlPath: yamlPath,
+              validationAttempts: attempt,
+              timestamp: new Date().toISOString()
+            };
+            
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify(response, null, 2)
+              }]
+            };
+          }
+          
+          // Validation failed, prepare error context for next attempt
+          lastError = {
+            attempt,
+            previousManifests: manifests,
+            yamlSyntaxValid: validation.yamlSyntaxValid,
+            kubectlOutput: validation.kubectlOutput,
+            exitCode: validation.exitCode,
+            stderr: validation.stderr,
+            stdout: validation.stdout
           };
           
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }]
+          logger.warn('Manifest validation failed', {
+            attempt,
+            maxAttempts,
+            yamlSyntaxValid: validation.yamlSyntaxValid,
+            kubectlOutput: validation.kubectlOutput,
+            requestId
+          });
+          
+        } catch (error) {
+          logger.error('Error during manifest generation attempt', error as Error);
+          
+          // If this is the last attempt, throw the error
+          if (attempt === maxAttempts) {
+            throw error;
+          }
+          
+          // Prepare error context for retry
+          lastError = {
+            attempt,
+            previousManifests: lastError?.previousManifests || '',
+            yamlSyntaxValid: false,
+            kubectlOutput: error instanceof Error ? error.message : 'Unknown error',
+            exitCode: -1,
+            stderr: error instanceof Error ? error.message : 'Unknown error',
+            stdout: ''
           };
         }
-        
-        // Validation failed, prepare error context for next attempt
-        lastError = {
-          attempt,
-          previousManifests: manifests,
-          yamlSyntaxValid: validation.yamlSyntaxValid,
-          kubectlOutput: validation.kubectlOutput,
-          exitCode: validation.exitCode,
-          stderr: validation.stderr,
-          stdout: validation.stdout
-        };
-        
-        context.logger.warn('Manifest validation failed', {
-          attempt,
-          maxAttempts,
-          yamlSyntaxValid: validation.yamlSyntaxValid,
-          kubectlOutput: validation.kubectlOutput,
-          requestId
-        });
-        
-      } catch (error) {
-        context.logger.error('Error during manifest generation attempt', error as Error);
-        
-        // If this is the last attempt, throw the error
-        if (attempt === maxAttempts) {
-          throw error;
-        }
-        
-        // Prepare error context for retry
-        lastError = {
-          attempt,
-          previousManifests: lastError?.previousManifests || '',
-          yamlSyntaxValid: false,
-          kubectlOutput: error instanceof Error ? error.message : 'Unknown error',
-          exitCode: -1,
-          stderr: error instanceof Error ? error.message : 'Unknown error',
-          stdout: ''
-        };
       }
+      
+      // If we reach here, all attempts failed
+      throw new Error(`Failed to generate valid manifests after ${maxAttempts} attempts. Last error: ${lastError?.kubectlOutput}`);
+    },
+    {
+      operation: 'generate_manifests',
+      component: 'GenerateManifestsTool',
+      requestId,
+      input: args
     }
-    
-    // If we reach here, all attempts failed
-    throw new Error(`Failed to generate valid manifests after ${maxAttempts} attempts. Last error: ${lastError?.kubectlOutput}`);
-  } catch (error) {
-    context.logger.error('Generate manifests tool execution failed', error as Error);
-    throw error;
-  }
-};
+  );
+}
+

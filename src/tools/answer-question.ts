@@ -2,156 +2,26 @@
  * Answer Question Tool - Process user answers and return remaining questions
  */
 
-import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
-import { MCPToolSchemas, SchemaValidator } from '../core/validation';
+import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { ClaudeIntegration } from '../core/claude';
+import { DotAI } from '../core/index';
+import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 
-// MCP Tool Definition - sessionDir configured via environment
-export const answerQuestionToolDefinition: ToolDefinition = {
-  name: 'answerQuestion',
-  description: 'Process user answers and return remaining questions or completion status',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      },
-      stage: {
-        type: 'string',
-        description: 'The configuration stage being addressed',
-        enum: ['required', 'basic', 'advanced', 'open']
-      },
-      answers: {
-        type: 'object',
-        description: 'User answers to configuration questions for the specified stage',
-      }
-    },
-    required: ['solutionId', 'stage', 'answers']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: `Process user answers using STAGE-BASED workflow. Session directory is configured via DOT_AI_SESSION_DIR environment variable.
+// Tool metadata for direct MCP registration
+export const ANSWERQUESTION_TOOL_NAME = 'answerQuestion';
+export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return remaining questions or completion status';
 
-🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
-• NEVER auto-fill answers with assumed values or defaults
-• NEVER answer questions on behalf of the user
-• ALWAYS present questions to the user and wait for their responses
-• ONLY call this tool with answers the user explicitly provided
-• Use explicit stage parameter to indicate which configuration stage is being addressed
-• ANTI-CASCADE: When user says "skip", only skip the CURRENT stage - never skip multiple stages at once
-
-USAGE:
-• Set stage parameter: "required", "basic", "advanced", or "open"
-• Structure answers by question ID: {"port": 8080, "namespace": "default"}
-• For open stage use "open" field: {"open": "need SSL certificates"} or {"open": "N/A"}
-• Stage parameter enforces proper workflow progression
-
-STAGE-BASED FLOW:
-• Tool validates stage transitions and returns single-stage questions only
-• required → basic → advanced → open (triggers manifest generation)
-• Response status "stage_questions" = Present current stage questions to user
-• Response status "stage_error" = Invalid stage transition or validation error
-• Response status "ready_for_manifest_generation" = Completion (open stage done)
-
-AGENT WORKFLOW ENFORCEMENT:
-• Present questions from current stage only (single stage at a time)
-• ASK user for each answer - DO NOT assume or auto-fill values
-• For optional stages (basic/advanced): Ask user if they want to configure or skip
-• Use explicit stage parameter to indicate user intent (skip = empty answers)
-• WAIT for user responses before calling answerQuestion tool
-• Completion happens when open stage is completed
-• CRITICAL ANTI-CASCADE: Each "skip" applies to ONE stage only - still present each remaining stage individually
-
-STAGE TRANSITIONS:
-• Can skip basic or advanced stages by providing empty answers: {"stage": "basic", "answers": {}}
-• Cannot skip required stage - must provide at least one answer
-• Open stage completion triggers manifest generation automatically
-• IMPORTANT: Each stage skip requires separate user interaction - never cascade multiple skips
-
-The server validates stage transitions and will return errors for invalid workflow.`
+// Zod schema for MCP registration
+export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
+  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
+  stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
+  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage')
 };
 
-// CLI Tool Definition - sessionDir required as parameter
-export const answerQuestionCLIDefinition: ToolDefinition = {
-  name: 'answerQuestion',
-  description: 'Process user answers and return remaining questions or completion status',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      },
-      sessionDir: {
-        type: 'string',
-        description: 'Session directory containing solution files (required)',
-        minLength: 1
-      },
-      stage: {
-        type: 'string',
-        description: 'The configuration stage being addressed',
-        enum: ['required', 'basic', 'advanced', 'open']
-      },
-      answers: {
-        type: 'object',
-        description: 'User answers to configuration questions for the specified stage',
-      }
-    },
-    required: ['solutionId', 'sessionDir', 'stage', 'answers']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'configuration', 'answers', 'deployment'],
-  instructions: `Process user answers using STAGE-BASED workflow. Both solutionId and sessionDir are required parameters.
-
-🛑 CRITICAL AGENT INSTRUCTIONS - NEVER OVERRIDE:
-• NEVER auto-fill answers with assumed values or defaults
-• NEVER answer questions on behalf of the user
-• ALWAYS present questions to the user and wait for their responses
-• ONLY call this tool with answers the user explicitly provided
-• Use explicit stage parameter to indicate which configuration stage is being addressed
-• ANTI-CASCADE: When user says "skip", only skip the CURRENT stage - never skip multiple stages at once
-
-USAGE:
-• Set stage parameter: "required", "basic", "advanced", or "open"
-• Structure answers by question ID: {"port": 8080, "namespace": "default"}
-• For open stage use "open" field: {"open": "need SSL certificates"} or {"open": "N/A"}
-• Stage parameter enforces proper workflow progression
-
-STAGE-BASED FLOW:
-• Tool validates stage transitions and returns single-stage questions only
-• required → basic → advanced → open (triggers manifest generation)
-• Response status "stage_questions" = Present current stage questions to user
-• Response status "stage_error" = Invalid stage transition or validation error
-• Response status "ready_for_manifest_generation" = Completion (open stage done)
-
-AGENT WORKFLOW ENFORCEMENT:
-• Present questions from current stage only (single stage at a time)
-• ASK user for each answer - DO NOT assume or auto-fill values
-• For optional stages (basic/advanced): Ask user if they want to configure or skip
-• Use explicit stage parameter to indicate user intent (skip = empty answers)
-• WAIT for user responses before calling answerQuestion tool
-• Completion happens when open stage is completed
-• CRITICAL ANTI-CASCADE: Each "skip" applies to ONE stage only - still present each remaining stage individually
-
-STAGE TRANSITIONS:
-• Can skip basic or advanced stages by providing empty answers: {"stage": "basic", "answers": {}}
-• Cannot skip required stage - must provide at least one answer
-• Open stage completion triggers manifest generation automatically
-• IMPORTANT: Each stage skip requires separate user interaction - never cascade multiple skips
-
-The server validates stage transitions and will return errors for invalid workflow.`
-};
 
 
 /**
@@ -454,7 +324,7 @@ function getStageGuidance(stage: Stage): string {
 async function analyzeResourceNeeds(
   currentSolution: any,
   openResponse: string,
-  context: ToolContext
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   const promptPath = path.join(process.cwd(), 'prompts', 'resource-analysis.md');
   const template = fs.readFileSync(promptPath, 'utf8');
@@ -496,7 +366,7 @@ async function applySolutionEnhancement(
   solution: any,
   openResponse: string,
   analysisResult: any,
-  context: ToolContext
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   if (analysisResult.approach === 'capability_gap') {
     throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
@@ -533,7 +403,7 @@ async function autoPopulateQuestions(
   solution: any,
   openResponse: string,
   analysisResult: any,
-  context: ToolContext
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   const promptPath = path.join(process.cwd(), 'prompts', 'solution-enhancement.md');
   const template = fs.readFileSync(promptPath, 'utf8');
@@ -564,7 +434,7 @@ async function addResourcesAndQuestions(
   solution: any,
   openResponse: string,
   analysisResult: any,
-  context: ToolContext
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   // For now, implement basic resource addition
   // This would need more sophisticated question generation for new resources
@@ -600,7 +470,7 @@ function parseEnhancementResponse(content: string): any {
 async function enhanceSolutionWithOpenAnswer(
   solution: any,
   openAnswer: string,
-  context: ToolContext
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   try {
     context.logger.info('Starting AI enhancement of solution', {
@@ -628,11 +498,14 @@ async function enhanceSolutionWithOpenAnswer(
 
 
 /**
- * Answer Question Tool Handler
+ * Direct MCP tool handler for answerQuestion functionality
  */
-export const answerQuestionToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  const { requestId, logger } = context;
-
+export async function handleAnswerQuestionTool(
+  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, any> },
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
       logger.debug('Handling answerQuestion request', { 
@@ -642,67 +515,14 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
         answerCount: Object.keys(args?.answers || {}).length
       });
 
-      // Determine interface type and validate accordingly
-      const isCLI = !!args.sessionDir;
-      const schema = isCLI ? answerQuestionCLIDefinition.inputSchema : answerQuestionToolDefinition.inputSchema;
+      // Input validation is handled automatically by MCP SDK with Zod schema
+      // args are already validated and typed when we reach this point
       
-      // Validate input parameters using appropriate schema
-      try {
-        SchemaValidator.validateToolInput('answerQuestion', args, schema);
-      } catch (validationError) {
-        const baseActions = [
-          'Ensure solutionId parameter matches format: sol_YYYY-MM-DDTHHMMSS_hexstring',
-          'Ensure answers parameter is a valid object with question ID keys'
-        ];
-        const cliActions = [
-          'Ensure sessionDir parameter is provided and points to existing directory'
-        ];
-        const mcpActions = [
-          'Ensure DOT_AI_SESSION_DIR environment variable is set in MCP configuration'
-        ];
-        
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          'Invalid input parameters for answerQuestion tool',
-          {
-            operation: 'input_validation',
-            component: 'AnswerQuestionTool',
-            requestId,
-            input: args,
-            suggestedActions: isCLI ? [...baseActions, ...cliActions] : [...baseActions, ...mcpActions]
-          },
-          validationError as Error
-        );
-      }
-      
-      // Validate solution ID format
-      try {
-        validateSolutionId(args.solutionId);
-        logger.debug('Solution ID format validated', { solutionId: args.solutionId });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          error instanceof Error ? error.message : 'Invalid solution ID format',
-          {
-            operation: 'solution_id_validation',
-            component: 'AnswerQuestionTool',
-            requestId,
-            suggestedActions: [
-              'Use a valid solution ID from the chooseSolution tool response',
-              'Check the solution ID format: sol_YYYY-MM-DDTHHMMSS_hexstring',
-              'Ensure you have the complete solution ID including the timestamp and hex suffix'
-            ]
-          }
-        );
-      }
-      
-      // Get session directory from environment or arguments
+      // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, context, false); // requireWrite=false for reading
-        logger.debug('Session directory resolved and validated', { sessionDir, interface: isCLI ? 'CLI' : 'MCP' });
+        sessionDir = getAndValidateSessionDirectory(args, false); // requireWrite=false for reading
+        logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -716,7 +536,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
               'Ensure session directory exists and is writable',
               'Check directory permissions',
               'Verify the directory path is correct',
-              isCLI ? 'Use the same sessionDir that was used with chooseSolution' : 'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
             ]
           }
         );
@@ -889,7 +709,7 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
               openAnswer
             });
             
-            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, context);
+            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, { requestId, logger, dotAI });
             
             // Save enhanced solution
             saveSolutionFile(solution, args.solutionId, sessionDir);
@@ -992,4 +812,5 @@ export const answerQuestionToolHandler: ToolHandler = async (args: any, context:
       input: args
     }
   );
-};
+}
+

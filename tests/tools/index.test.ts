@@ -1,148 +1,111 @@
 /**
- * Tests for Tool Registration System Integration
+ * Tests for Tool Metadata and Integration
  * 
- * Tests the tool registration index and integration with actual tools
+ * Tests the tool metadata exports and their availability
  */
 
-import { ToolRegistry } from '../../src/core/tool-registry';
-import { registerAllTools, getToolRegistry, initializeTools } from '../../src/tools';
-import { recommendToolDefinition } from '../../src/tools/recommend';
-// import { enhanceSolutionToolDefinition } from '../../src/tools/enhance-solution'; // MOVED TO LEGACY
-import { canHelpToolDefinition } from '../../src/tools/can-help';
-import { chooseSolutionToolDefinition } from '../../src/tools/choose-solution';
-import { answerQuestionToolDefinition } from '../../src/tools/answer-question';
-import { generateManifestsToolDefinition } from '../../src/tools/generate-manifests';
+import { 
+  RECOMMEND_TOOL_NAME, 
+  RECOMMEND_TOOL_DESCRIPTION, 
+  RECOMMEND_TOOL_INPUT_SCHEMA,
+  handleRecommendTool 
+} from '../../src/tools/recommend';
 
-describe('Tool Registration Integration', () => {
-  let registry: ToolRegistry;
+import { 
+  CHOOSESOLUTION_TOOL_NAME, 
+  CHOOSESOLUTION_TOOL_DESCRIPTION, 
+  CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
+  handleChooseSolutionTool 
+} from '../../src/tools/choose-solution';
 
-  beforeEach(() => {
-    registry = new ToolRegistry();
-  });
+import { 
+  ANSWERQUESTION_TOOL_NAME, 
+  ANSWERQUESTION_TOOL_DESCRIPTION, 
+  ANSWERQUESTION_TOOL_INPUT_SCHEMA,
+  handleAnswerQuestionTool 
+} from '../../src/tools/answer-question';
 
-  describe('Tool Registration', () => {
-    test('should register all available tools', () => {
-      registerAllTools(registry);
+import { 
+  GENERATEMANIFESTS_TOOL_NAME, 
+  GENERATEMANIFESTS_TOOL_DESCRIPTION, 
+  GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleGenerateManifestsTool 
+} from '../../src/tools/generate-manifests';
 
-      const allTools = registry.getAllTools();
-      expect(allTools).toHaveLength(6); // Updated: added chooseSolution, answerQuestion, generateManifests, and deployManifests tools
+import { 
+  DEPLOYMANIFESTS_TOOL_NAME, 
+  DEPLOYMANIFESTS_TOOL_DESCRIPTION, 
+  DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
+  handleDeployManifestsTool 
+} from '../../src/tools/deploy-manifests';
 
-      const toolNames = allTools.map(t => t.definition.name);
+describe('Tool Integration', () => {
+
+  describe('Tool Metadata Availability', () => {
+    test('should have all required tool metadata available', () => {
+      const toolNames = [
+        RECOMMEND_TOOL_NAME,
+        CHOOSESOLUTION_TOOL_NAME,
+        ANSWERQUESTION_TOOL_NAME,
+        GENERATEMANIFESTS_TOOL_NAME,
+        DEPLOYMANIFESTS_TOOL_NAME
+      ];
+
+      expect(toolNames).toHaveLength(5);
       expect(toolNames).toContain('recommend');
-      expect(toolNames).toContain('can_help');
       expect(toolNames).toContain('chooseSolution');
       expect(toolNames).toContain('answerQuestion');
       expect(toolNames).toContain('generateManifests');
       expect(toolNames).toContain('deployManifests');
-      // REMOVED: enhance_solution tool check - moved to legacy
     });
 
-    test('should register recommend tool with correct definition', () => {
-      registerAllTools(registry);
+    test('should have all tool handlers available', () => {
+      const handlers = [
+        handleRecommendTool,
+        handleChooseSolutionTool,
+        handleAnswerQuestionTool,
+        handleGenerateManifestsTool,
+        handleDeployManifestsTool
+      ];
 
-      const recommendTool = registry.getTool('recommend');
-      expect(recommendTool).toBeDefined();
-      expect(recommendTool!.definition).toEqual(recommendToolDefinition);
-      expect(recommendTool!.enabled).toBe(true);
-    });
-
-    // REMOVED: enhance_solution tool registration test - moved to legacy
-
-    test('should have tools in correct categories', () => {
-      registerAllTools(registry);
-
-      const stats = registry.getStats();
-      expect(stats.categories).toEqual({
-        'ai-recommendations': 4,  // recommend + chooseSolution + answerQuestion + generateManifests tools
-        'discovery': 1,           // can_help tool
-        'deployment': 1           // deployManifests tool
+      handlers.forEach(handler => {
+        expect(typeof handler).toBe('function');
       });
-      // REMOVED: solution-enhancement category - moved to legacy
     });
   });
 
-  describe('Registry Initialization', () => {
-    test('should initialize tools and return registry', () => {
-      const initializedRegistry = initializeTools();
-      
-      expect(initializedRegistry).toBeInstanceOf(ToolRegistry);
-      expect(initializedRegistry.getAllTools()).toHaveLength(6); // Updated: added chooseSolution, answerQuestion, generateManifests, and deployManifests tools
+  describe('Tool Metadata Structure', () => {
+    test('recommend tool should have valid metadata', () => {
+      expect(RECOMMEND_TOOL_NAME).toBe('recommend');
+      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, run, or setup applications');
+      expect(RECOMMEND_TOOL_INPUT_SCHEMA.intent).toBeDefined();
     });
 
-    test('should return the default registry', () => {
-      const defaultRegistry = getToolRegistry();
-      
-      expect(defaultRegistry).toBeInstanceOf(ToolRegistry);
-      // Note: This may have tools if initializeTools was called elsewhere
-    });
-  });
-
-  describe('Tool Definitions Validation', () => {
-    test('recommend tool should have valid schema structure', () => {
-      expect(recommendToolDefinition.name).toBe('recommend');
-      expect(recommendToolDefinition.description).toContain('AI-powered');
-      expect(recommendToolDefinition.inputSchema).toBeDefined();
-      expect(recommendToolDefinition.inputSchema.type).toBe('object');
-      expect(recommendToolDefinition.version).toBe('1.0.0');
-      expect(recommendToolDefinition.category).toBe('ai-recommendations');
-      expect(recommendToolDefinition.tags).toContain('kubernetes');
+    test('chooseSolution tool should have valid metadata', () => {
+      expect(CHOOSESOLUTION_TOOL_NAME).toBe('chooseSolution');
+      expect(CHOOSESOLUTION_TOOL_DESCRIPTION).toContain('Select a solution');
+      expect(CHOOSESOLUTION_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
     });
 
-    // REMOVED: enhance_solution schema test - moved to legacy
-
-    test('can_help tool should have valid schema structure', () => {
-      expect(canHelpToolDefinition.name).toBe('can_help');
-      expect(canHelpToolDefinition.description).toContain('Check if DevOps AI Toolkit');
-      expect(canHelpToolDefinition.inputSchema).toBeDefined();
-      expect(canHelpToolDefinition.inputSchema.type).toBe('object');
-      expect(canHelpToolDefinition.version).toBe('1.0.0');
-      expect(canHelpToolDefinition.category).toBe('discovery');
-      expect(canHelpToolDefinition.tags).toContain('help');
+    test('answerQuestion tool should have valid metadata', () => {
+      expect(ANSWERQUESTION_TOOL_NAME).toBe('answerQuestion');
+      expect(ANSWERQUESTION_TOOL_DESCRIPTION).toContain('Process user answers');
+      expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
+      expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.stage).toBeDefined();
+      expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.answers).toBeDefined();
     });
 
-    test('chooseSolution tool should have valid schema structure', () => {
-      expect(chooseSolutionToolDefinition.name).toBe('chooseSolution');
-      expect(chooseSolutionToolDefinition.description).toContain('Select a solution');
-      expect(chooseSolutionToolDefinition.inputSchema).toBeDefined();
-      expect(chooseSolutionToolDefinition.inputSchema.type).toBe('object');
-      expect(chooseSolutionToolDefinition.version).toBe('1.0.0');
-      expect(chooseSolutionToolDefinition.category).toBe('ai-recommendations');
-      expect(chooseSolutionToolDefinition.tags).toContain('kubernetes');
+    test('generateManifests tool should have valid metadata', () => {
+      expect(GENERATEMANIFESTS_TOOL_NAME).toBe('generateManifests');
+      expect(GENERATEMANIFESTS_TOOL_DESCRIPTION).toContain('Generate final Kubernetes manifests');
+      expect(GENERATEMANIFESTS_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
     });
 
-    test('answerQuestion tool should have valid schema structure', () => {
-      expect(answerQuestionToolDefinition.name).toBe('answerQuestion');
-      expect(answerQuestionToolDefinition.description).toContain('Process user answers');
-      expect(answerQuestionToolDefinition.inputSchema).toBeDefined();
-      expect(answerQuestionToolDefinition.inputSchema.type).toBe('object');
-      expect(answerQuestionToolDefinition.version).toBe('1.0.0');
-      expect(answerQuestionToolDefinition.category).toBe('ai-recommendations');
-      expect(answerQuestionToolDefinition.tags).toContain('kubernetes');
-      expect(answerQuestionToolDefinition.inputSchema.required).toContain('solutionId');
-      expect(answerQuestionToolDefinition.inputSchema.required).toContain('answers');
-    });
-
-    test('generateManifests tool should have valid schema structure', () => {
-      expect(generateManifestsToolDefinition.name).toBe('generateManifests');
-      expect(generateManifestsToolDefinition.description).toContain('Generate final Kubernetes manifests');
-      expect(generateManifestsToolDefinition.inputSchema).toBeDefined();
-      expect(generateManifestsToolDefinition.inputSchema.type).toBe('object');
-      expect(generateManifestsToolDefinition.version).toBe('1.0.0');
-      expect(generateManifestsToolDefinition.category).toBe('ai-recommendations');
-      expect(generateManifestsToolDefinition.tags).toContain('kubernetes');
-      expect(generateManifestsToolDefinition.tags).toContain('manifests');
-      expect(generateManifestsToolDefinition.tags).toContain('ai');
-      expect(generateManifestsToolDefinition.inputSchema.required).toContain('solutionId');
-    });
-  });
-
-  describe('Error Handling', () => {
-    test('should handle registration errors gracefully', () => {
-      // Mock a tool with invalid schema to test error handling
-      const invalidRegistry = new ToolRegistry({ validateSchemas: true });
-      
-      // This should not throw during import, but might during execution
-      expect(() => registerAllTools(invalidRegistry)).not.toThrow();
+    test('deployManifests tool should have valid metadata', () => {
+      expect(DEPLOYMANIFESTS_TOOL_NAME).toBe('deployManifests');
+      expect(DEPLOYMANIFESTS_TOOL_DESCRIPTION).toContain('Deploy Kubernetes manifests');
+      expect(DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
+      expect(DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA.timeout).toBeDefined();
     });
   });
 });

@@ -2,61 +2,21 @@
  * Choose Solution Tool - Select a solution and return its questions
  */
 
-import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
-import { MCPToolSchemas, SchemaValidator } from '../core/validation';
+import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { InstructionLoader } from '../core/instruction-loader';
+import { DotAI } from '../core/index';
+import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 
-// MCP Tool Definition - sessionDir configured via environment
-export const chooseSolutionToolDefinition: ToolDefinition = {
-  name: 'chooseSolution',
-  description: 'Select a solution by ID and return its questions for configuration',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to choose (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      }
-    },
-    required: ['solutionId']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'configuration', 'questions', 'deployment'],
-  instructions: 'Select a solution by providing its solutionId to receive the configuration questions. Session directory is configured via DOT_AI_SESSION_DIR environment variable.'
-};
+// Tool metadata for direct MCP registration
+export const CHOOSESOLUTION_TOOL_NAME = 'chooseSolution';
+export const CHOOSESOLUTION_TOOL_DESCRIPTION = 'Select a solution by ID and return its questions for configuration';
 
-// CLI Tool Definition - sessionDir required as parameter
-export const chooseSolutionCLIDefinition: ToolDefinition = {
-  name: 'chooseSolution',
-  description: 'Select a solution by ID and return its questions for configuration',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      solutionId: {
-        type: 'string',
-        description: 'The solution ID to choose (e.g., sol_2025-07-01T154349_1e1e242592ff)',
-        pattern: '^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$'
-      },
-      sessionDir: {
-        type: 'string',
-        description: 'Session directory containing solution files (required)',
-        minLength: 1
-      }
-    },
-    required: ['solutionId', 'sessionDir']
-  },
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'configuration', 'questions', 'deployment'],
-  instructions: 'Select a solution by providing its solutionId and sessionDir to receive the configuration questions. Both solutionId and sessionDir are required parameters.'
+// Zod schema for MCP registration
+export const CHOOSESOLUTION_TOOL_INPUT_SCHEMA = {
+  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to choose (e.g., sol_2025-07-01T154349_1e1e242592ff)')
 };
 
 
@@ -92,85 +52,33 @@ function loadSolutionFile(solutionId: string, sessionDir: string): any {
     return solution;
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in solution file: ${solutionId}`);
+      throw new Error(`Invalid JSON in solution file: ${solutionId}. ${error.message}`);
     }
     throw error;
   }
 }
 
 /**
- * Choose Solution Tool Handler
+ * Direct MCP tool handler for chooseSolution functionality
  */
-export const chooseSolutionToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  const { requestId, logger } = context;
-
+export async function handleChooseSolutionTool(
+  args: { solutionId: string },
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
       logger.debug('Handling chooseSolution request', { requestId, solutionId: args?.solutionId });
 
-      // Determine interface type and validate accordingly
-      const isCLI = !!args.sessionDir;
-      const schema = isCLI ? chooseSolutionCLIDefinition.inputSchema : chooseSolutionToolDefinition.inputSchema;
+      // Input validation is handled automatically by MCP SDK with Zod schema
+      // args are already validated and typed when we reach this point
       
-      // Validate input parameters using appropriate schema
-      try {
-        SchemaValidator.validateToolInput('chooseSolution', args, schema);
-      } catch (validationError) {
-        const baseActions = [
-          'Ensure solutionId parameter matches format: sol_YYYY-MM-DDTHHMMSS_hexstring',
-          'Check that solutionId is a non-empty string'
-        ];
-        const cliActions = [
-          'Ensure sessionDir parameter is provided and points to existing directory',
-          'Check that sessionDir is a non-empty string'
-        ];
-        const mcpActions = [
-          'Ensure DOT_AI_SESSION_DIR environment variable is set in MCP configuration',
-          'Check that DOT_AI_SESSION_DIR points to existing directory'
-        ];
-        
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          'Invalid input parameters for chooseSolution tool',
-          {
-            operation: 'input_validation',
-            component: 'ChooseSolutionTool',
-            requestId,
-            input: args,
-            suggestedActions: isCLI ? [...baseActions, ...cliActions] : [...baseActions, ...mcpActions]
-          },
-          validationError as Error
-        );
-      }
-      
-      // Validate solution ID format
-      try {
-        validateSolutionId(args.solutionId);
-        logger.debug('Solution ID format validated', { solutionId: args.solutionId });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          error instanceof Error ? error.message : 'Invalid solution ID format',
-          {
-            operation: 'solution_id_validation',
-            component: 'ChooseSolutionTool',
-            requestId,
-            suggestedActions: [
-              'Use a valid solution ID from the recommend tool response',
-              'Check the solution ID format: sol_YYYY-MM-DDTHHMMSS_hexstring',
-              'Ensure you have the complete solution ID including the timestamp and hex suffix'
-            ]
-          }
-        );
-      }
-      
-      // Get session directory from environment or arguments
+      // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, context, false); // requireWrite=false
-        logger.debug('Session directory resolved and validated', { sessionDir, interface: isCLI ? 'CLI' : 'MCP' });
+        sessionDir = getAndValidateSessionDirectory(args, false); // requireWrite=false
+        logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -184,7 +92,7 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
               'Ensure session directory exists and is readable',
               'Check directory permissions',
               'Verify the directory path is correct',
-              isCLI ? 'Use the same sessionDir that was used with the recommend tool' : 'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
             ]
           }
         );
@@ -206,16 +114,17 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
         });
       } catch (error) {
         throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
+          ErrorCategory.STORAGE,
           ErrorSeverity.HIGH,
           error instanceof Error ? error.message : 'Failed to load solution file',
           {
-            operation: 'solution_file_loading',
+            operation: 'solution_file_load',
             component: 'ChooseSolutionTool',
             requestId,
+            input: { solutionId: args.solutionId, sessionDir },
             suggestedActions: [
-              'Verify the solution ID exists in the session directory',
-              'Check that the solution file is valid JSON',
+              'Check that the solution ID is correct',
+              'Verify the solution file exists in the session directory',
               'Ensure the solution was created by a recent recommend tool call',
               'List available solution files in the session directory'
             ]
@@ -224,10 +133,6 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
       }
       
       // Prepare response with solution details and questions
-      const nextAction = isCLI 
-        ? 'Call answerQuestion with solutionId, sessionDir, and answers to configure the solution'
-        : 'Call answerQuestion with solutionId and answers to configure the solution';
-      
       const response = {
         status: 'stage_questions',
         solutionId: solution.solutionId,
@@ -242,7 +147,6 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
       
       logger.info('Choose solution completed successfully', {
         solutionId: args.solutionId,
-        interface: isCLI ? 'CLI' : 'MCP',
         sessionDir,
         questionCategories: {
           required: solution.questions.required?.length || 0,
@@ -257,12 +161,10 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
       });
       
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(response, null, 2)
-          }
-        ]
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
       };
     },
     {
@@ -272,4 +174,5 @@ export const chooseSolutionToolHandler: ToolHandler = async (args: any, context:
       input: args
     }
   );
-};
+}
+

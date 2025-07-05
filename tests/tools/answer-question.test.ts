@@ -5,8 +5,12 @@
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
-import { answerQuestionToolHandler, answerQuestionToolDefinition, answerQuestionCLIDefinition } from '../../src/tools/answer-question';
-import { ToolContext } from '../../src/core/tool-registry';
+import { 
+  ANSWERQUESTION_TOOL_NAME, 
+  ANSWERQUESTION_TOOL_DESCRIPTION, 
+  ANSWERQUESTION_TOOL_INPUT_SCHEMA,
+  handleAnswerQuestionTool 
+} from '../../src/tools/answer-question';
 
 // Mock fs module
 jest.mock('fs');
@@ -70,7 +74,7 @@ const TEST_SOLUTION = {
   }
 };
 
-const createMockToolContext = (): ToolContext => ({
+const createMockToolContext = () => ({
   requestId: 'test-request-123',
   logger: {
     debug: jest.fn(),
@@ -79,7 +83,7 @@ const createMockToolContext = (): ToolContext => ({
     error: jest.fn(),
     fatal: jest.fn()
   },
-  dotAI: null
+  dotAI: {} as any // Mock DotAI object
 });
 
 // Helper to create solution with answers
@@ -103,19 +107,13 @@ const createSolutionWithAnswers = (answers: Record<string, any> = {}) => {
   return solution;
 };
 
-describe('Answer Question Tool Definition', () => {
-  test('should have correct MCP tool definition', () => {
-    expect(answerQuestionToolDefinition.name).toBe('answerQuestion');
-    expect(answerQuestionToolDefinition.inputSchema.required).toEqual(['solutionId', 'stage', 'answers']);
-    expect(answerQuestionToolDefinition.inputSchema.properties?.solutionId?.pattern).toBeDefined();
-    expect(answerQuestionToolDefinition.inputSchema.properties?.stage?.enum).toEqual(['required', 'basic', 'advanced', 'open']);
-  });
-
-  test('should have correct CLI tool definition', () => {
-    expect(answerQuestionCLIDefinition.name).toBe('answerQuestion');
-    expect(answerQuestionCLIDefinition.inputSchema.required).toEqual(['solutionId', 'sessionDir', 'stage', 'answers']);
-    expect(answerQuestionCLIDefinition.inputSchema.properties?.sessionDir).toBeDefined();
-    expect(answerQuestionCLIDefinition.inputSchema.properties?.stage?.enum).toEqual(['required', 'basic', 'advanced', 'open']);
+describe('Answer Question Tool Metadata', () => {
+  test('should have correct tool metadata', () => {
+    expect(ANSWERQUESTION_TOOL_NAME).toBe('answerQuestion');
+    expect(ANSWERQUESTION_TOOL_DESCRIPTION).toContain('Process user answers');
+    expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.solutionId).toBeDefined();
+    expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.stage).toBeDefined();
+    expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.answers).toBeDefined();
   });
 });
 
@@ -154,15 +152,14 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
     test('should handle required stage correctly', async () => {
       const context = createMockToolContext();
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'required',
         answers: {
           name: 'my-app',
           port: 8080  // Both required questions need to be answered
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
@@ -174,14 +171,13 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       const context = createMockToolContext();
       
       // Try to jump directly to advanced stage without completing required
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'advanced',
         answers: {
           'scaling-enabled': true
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_error');
@@ -202,14 +198,13 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       });
       mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'open',
         answers: {
           open: 'N/A'
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('ready_for_manifest_generation');
@@ -225,14 +220,13 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
     test('should validate answers against current stage questions only', async () => {
       const context = createMockToolContext();
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'required',
         answers: {
           replicas: 3 // Wrong stage - replicas is basic, not required  
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_error');
@@ -244,15 +238,14 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       const context = createMockToolContext();
       
       // Test required stage with some answers
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'required',
         answers: {
           name: 'my-app',
           port: 8080
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
@@ -273,14 +266,13 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       });
       mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'open',
         answers: {
           open: 'N/A'
         }
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('ready_for_manifest_generation');
@@ -297,12 +289,11 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       });
       mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'basic',
         answers: {} // Empty answers = skip stage
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
@@ -321,12 +312,11 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       });
       mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
       
-      const result = await answerQuestionToolHandler({
+      const result = await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'advanced',
         answers: {} // Empty answers = skip stage
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
@@ -354,12 +344,11 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
         }
       });
       
-      await answerQuestionToolHandler({
+      await handleAnswerQuestionTool({
         solutionId: TEST_SOLUTION_ID,
-        sessionDir: TEST_SESSION_DIR,
         stage: 'basic',
         answers: {} // Empty answers = skip stage
-      }, context);
+      }, context.dotAI, context.logger, context.requestId);
 
       // Check that writeFileSync was called for the solution file
       expect(mockFs.writeFileSync).toHaveBeenCalledWith(

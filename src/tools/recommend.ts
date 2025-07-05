@@ -2,27 +2,26 @@
  * Recommend Tool - AI-powered Kubernetes resource recommendations
  */
 
-import { ToolDefinition, ToolHandler, ToolContext } from '../core/tool-registry';
-import { MCPToolSchemas, SchemaValidator } from '../core/validation';
+import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse, ResourceSolution } from '../core/schema';
-import { InstructionLoader } from '../core/instruction-loader';
+import { ResourceRecommender, AIRankingConfig, ResourceSolution } from '../core/schema';
 import { ClaudeIntegration } from '../core/claude';
+import { DotAI } from '../core/index';
+import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 
-export const recommendToolDefinition: ToolDefinition = {
-  name: 'recommend',
-  description: InstructionLoader.loadDescription('recommend'),
-  inputSchema: MCPToolSchemas.RECOMMEND_INPUT,
-  outputSchema: MCPToolSchemas.MCP_RESPONSE_OUTPUT,
-  version: '1.0.0',
-  category: 'ai-recommendations',
-  tags: ['kubernetes', 'ai', 'deployment', 'recommendations', 'deploy', 'create', 'run', 'setup', 'launch', 'app', 'application', 'service', 'database', 'api', 'microservice', 'web', 'container'],
-  instructions: InstructionLoader.loadInstructions('recommend') // Keep detailed instructions for agents
+// Tool metadata for direct MCP registration
+export const RECOMMEND_TOOL_NAME = 'recommend';
+export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, run, or setup applications on Kubernetes with AI-powered recommendations. Ask the user to describe their application first, then use their response here.';
+
+// Zod schema for MCP registration
+export const RECOMMEND_TOOL_INPUT_SCHEMA = {
+  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, run, or setup on Kubernetes (based on their description). Ask the user to describe their application first, then use their response here. Examples: "deploy a web application", "create a database cluster", "run my Node.js API", "setup a Redis cache", "launch a microservice", "build a CI/CD pipeline", "deploy a WordPress site", "create a monitoring stack", "run a Python Flask app", "setup MongoDB", "deploy a React frontend", "create a load balancer"')
 };
+
 
 /**
  * Validate intent meaningfulness using AI
@@ -30,9 +29,6 @@ export const recommendToolDefinition: ToolDefinition = {
 async function validateIntentWithAI(intent: string, claudeIntegration: any): Promise<void> {
   try {
     // Load prompt template
-    const fs = await import('fs');
-    const path = await import('path');
-    
     const promptPath = path.join(process.cwd(), 'prompts', 'intent-validation.md');
     const template = fs.readFileSync(promptPath, 'utf8');
     
@@ -145,35 +141,21 @@ function writeSolutionFile(sessionDir: string, solutionId: string, solutionData:
   }
 }
 
-export const recommendToolHandler: ToolHandler = async (args: any, context: ToolContext) => {
-  const { requestId, logger, dotAI } = context;
-
+/**
+ * Direct MCP tool handler for recommend functionality
+ */
+export async function handleRecommendTool(
+  args: { intent: string },
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
       logger.debug('Handling recommend request', { requestId, intent: args?.intent });
 
-      // Validate input parameters using schema
-      try {
-        SchemaValidator.validateToolInput('recommend', args, recommendToolDefinition.inputSchema);
-      } catch (validationError) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          'Invalid input parameters for recommend tool',
-          {
-            operation: 'input_validation',
-            component: 'RecommendTool',
-            requestId,
-            input: args,
-            suggestedActions: [
-              'Provide a valid intent string',
-              'Check the intent parameter is not empty',
-              'Review the recommend tool documentation'
-            ]
-          },
-          validationError as Error
-        );
-      }
+      // Input validation is handled automatically by MCP SDK with Zod schema
+      // args are already validated and typed when we reach this point
 
       // Check for Claude API key
       const claudeApiKey = dotAI.getAnthropicApiKey();
@@ -198,7 +180,7 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
       // Validate session directory configuration
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, context, true); // requireWrite=true
+        sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true
         logger.debug('Session directory validated', { requestId, sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(
@@ -366,12 +348,10 @@ export const recommendToolHandler: ToolHandler = async (args: any, context: Tool
         sessionDir
       });
 
-      // Validate output
-      SchemaValidator.validateToolOutput('recommend', { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }, MCPToolSchemas.MCP_RESPONSE_OUTPUT);
 
       return {
         content: [{
-          type: 'text',
+          type: 'text' as const,
           text: JSON.stringify(response, null, 2)
         }]
       };
