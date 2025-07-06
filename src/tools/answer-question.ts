@@ -24,15 +24,6 @@ export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
 
 
 
-/**
- * Validate solution ID format
- */
-function validateSolutionId(solutionId: string): void {
-  const pattern = /^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/;
-  if (!pattern.test(solutionId)) {
-    throw new Error(`Invalid solution ID format: ${solutionId}. Expected format: sol_YYYY-MM-DDTHHMMSS_hexstring`);
-  }
-}
 
 /**
  * Load solution file by ID
@@ -104,7 +95,7 @@ function validateAnswer(answer: any, question: any): string | null {
   
   // Type validation
   switch (question.type) {
-    case 'number':
+    case 'number': {
       if (typeof answer !== 'number' && !(!isNaN(Number(answer)))) {
         return `${question.question} must be a number`;
       }
@@ -116,6 +107,7 @@ function validateAnswer(answer: any, question: any): string | null {
         return `${question.question} must be at most ${question.validation.max}`;
       }
       break;
+    }
       
     case 'text':
       if (typeof answer !== 'string') {
@@ -379,7 +371,7 @@ async function applySolutionEnhancement(
       reasoning: analysisResult.reasoning
     });
     
-    return autoPopulateQuestions(solution, openResponse, analysisResult, context);
+    return autoPopulateQuestions(solution, openResponse, analysisResult);
   }
   
   if (analysisResult.approach === 'add_resources') {
@@ -402,8 +394,7 @@ async function applySolutionEnhancement(
 async function autoPopulateQuestions(
   solution: any,
   openResponse: string,
-  analysisResult: any,
-  context: { requestId: string; logger: Logger; dotAI: DotAI }
+  analysisResult: any
 ): Promise<any> {
   const promptPath = path.join(process.cwd(), 'prompts', 'solution-enhancement.md');
   const template = fs.readFileSync(promptPath, 'utf8');

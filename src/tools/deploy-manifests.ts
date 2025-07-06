@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import { ErrorHandler } from '../core/error-handling';
 import { DeployOperation } from '../core/deploy-operation';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';

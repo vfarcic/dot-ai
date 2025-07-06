@@ -7,11 +7,9 @@
 
 import { ResourceExplanation } from './discovery';
 import { 
-  executeKubectl, 
-  KubectlConfig 
+  executeKubectl 
 } from './kubernetes-utils';
 import { ClaudeIntegration } from './claude';
-import { InstructionLoader } from './instruction-loader';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -299,7 +297,7 @@ export class ManifestValidator {
       const dryRunMode = config?.dryRunMode || 'server';
       const args = ['apply', '--dry-run=' + dryRunMode, '-f', manifestPath];
       
-      const result = await executeKubectl(args, { kubeconfig: config?.kubeconfig });
+      await executeKubectl(args, { kubeconfig: config?.kubeconfig });
       
       // If we get here, validation passed
       // kubectl dry-run will throw an error if validation fails
@@ -484,7 +482,6 @@ export class ResourceRecommender {
    */
   private async fetchDetailedSchemas(candidates: any[], explainResource: (resource: string) => Promise<any>): Promise<ResourceSchema[]> {
     const schemas: ResourceSchema[] = [];
-    const parser = new SchemaParser();
     const errors: string[] = [];
 
     for (const resource of candidates) {
@@ -830,45 +827,4 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
   }
 }
 
-/**
- * Shared utility function to format recommendation responses consistently
- * between CLI and MCP interfaces
- */
-export function formatRecommendationResponse(
-  intent: string,
-  solutions: ResourceSolution[],
-  includeTimestamp: boolean = true
-): any {
-  const formattedSolutions = solutions.map(solution => ({
-    type: solution.type,
-    score: solution.score,
-    description: solution.description,
-    reasons: solution.reasons,
-    analysis: solution.analysis,
-    resources: solution.resources.map(r => ({
-      kind: r.kind,
-      apiVersion: r.apiVersion,
-      group: r.group,
-      description: r.description
-    })),
-    questions: solution.questions
-  }));
-
-  const response: any = {
-    intent,
-    solutions: formattedSolutions,
-    agentInstructions: InstructionLoader.loadInstructions('recommendation-workflow'),
-    summary: {
-      totalSolutions: solutions.length,
-      bestScore: solutions[0]?.score || 0,
-      recommendedSolution: solutions[0]?.type || 'none',
-      topResource: solutions[0]?.resources[0]?.kind || 'none'
-    }
-  };
-
-  if (includeTimestamp) {
-    response.timestamp = new Date().toISOString();
-  }
-
-  return response;
-} 
+ 

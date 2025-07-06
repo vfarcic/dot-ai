@@ -28,7 +28,6 @@ export class DotAI {
     validator: ManifestValidator;
     ranker: ResourceRecommender | null;
     parseResource: (resourceName: string) => Promise<any>;
-    validateManifest: (manifestPath: string) => Promise<any>;
     rankResources: (intent: string) => Promise<any>;
   };
 
@@ -84,15 +83,6 @@ export class DotAI {
           group: group,
           description: explanation.split('\n').find((line: string) => line.startsWith('DESCRIPTION:'))?.replace('DESCRIPTION:', '').trim() || '',
           properties: new Map() // Raw explanation contains all field info for AI
-        };
-      },
-      validateManifest: async (manifestPath: string) => {
-        // This would read the manifest file and validate it
-        // For now, return a mock implementation
-        return {
-          valid: true,
-          errors: [],
-          warnings: []
         };
       },
       rankResources: async (intent: string) => {

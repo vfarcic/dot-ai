@@ -7,11 +7,8 @@
 import * as k8s from '@kubernetes/client-node';
 import * as path from 'path';
 import * as os from 'os';
-import { spawn } from 'child_process';
-import * as fs from 'fs';
 import { 
   executeKubectl, 
-  buildKubectlCommand, 
   KubectlConfig, 
   ErrorClassifier 
 } from './kubernetes-utils';

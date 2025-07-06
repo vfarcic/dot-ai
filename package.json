@@ -18,7 +18,7 @@
     "test:watch": "jest --watch --silent",
     "test:coverage": "jest --coverage --silent",
     "clean": "rm -rf dist",
-    "prebuild": "npm run clean",
+    "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",
     "build:prod": "npm run clean && tsc --sourceMap false --removeComments true",
     "build:dev": "tsc --sourceMap true",

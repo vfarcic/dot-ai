@@ -279,7 +279,7 @@ export class ErrorHandler {
       category,
       severity,
       message,
-      userMessage: this.getUserFriendlyMessage(category, message),
+      userMessage: this.getUserFriendlyMessage(category),
       technicalDetails: originalError?.message,
       context: fullContext,
       timestamp,
@@ -304,7 +304,7 @@ export class ErrorHandler {
    * Convert AppError to McpError for MCP protocol
    */
   static toMcpError(appError: AppError): McpError {
-    const errorCode = this.mapToMcpErrorCode(appError.category, appError.severity);
+    const errorCode = this.mapToMcpErrorCode(appError.category);
     const message = `${appError.message}${appError.technicalDetails ? ` - ${appError.technicalDetails}` : ''}`;
     
     return new McpError(errorCode, message);
@@ -425,7 +425,7 @@ export class ErrorHandler {
     return `${categoryCode}_${severityCode}_${timestamp}_${random}`;
   }
 
-  private static mapToMcpErrorCode(category: ErrorCategory, severity: ErrorSeverity): ErrorCode {
+  private static mapToMcpErrorCode(category: ErrorCategory): ErrorCode {
     switch (category) {
       case ErrorCategory.VALIDATION:
         return ErrorCode.InvalidParams;
@@ -480,7 +480,7 @@ export class ErrorHandler {
     return ErrorSeverity.LOW;
   }
 
-  private static getUserFriendlyMessage(category: ErrorCategory, message: string): string {
+  private static getUserFriendlyMessage(category: ErrorCategory): string {
     switch (category) {
       case ErrorCategory.KUBERNETES:
         return 'Unable to connect to Kubernetes cluster. Please check your kubeconfig and cluster connectivity.';
@@ -547,7 +547,7 @@ export class ErrorHandler {
       category,
       severity,
       message: error.message,
-      userMessage: this.getUserFriendlyMessage(category, error.message),
+      userMessage: this.getUserFriendlyMessage(category),
       technicalDetails: error.message,
       context,
       timestamp,

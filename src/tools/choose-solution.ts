@@ -20,15 +20,6 @@ export const CHOOSESOLUTION_TOOL_INPUT_SCHEMA = {
 };
 
 
-/**
- * Validate solution ID format
- */
-function validateSolutionId(solutionId: string): void {
-  const pattern = /^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/;
-  if (!pattern.test(solutionId)) {
-    throw new Error(`Invalid solution ID format: ${solutionId}. Expected format: sol_YYYY-MM-DDTHHMMSS_hexstring`);
-  }
-}
 
 /**
  * Load solution file by ID

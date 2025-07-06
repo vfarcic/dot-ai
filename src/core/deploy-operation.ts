@@ -2,7 +2,7 @@
  * Deploy Operation - Handles Kubernetes manifest deployment with readiness checking
  */
 
-import { readFile, access } from 'fs/promises';
+import { access } from 'fs/promises';
 import { join } from 'path';
 import { ErrorHandler } from './error-handling';
 import { executeKubectl, KubectlConfig } from './kubernetes-utils';
@@ -95,38 +95,33 @@ export class DeployOperation {
    * Apply manifests using kubectl with readiness checking
    */
   private async applyManifests(manifestPath: string, timeout: number, kubectlConfig: KubectlConfig): Promise<string> {
+    // First, apply the manifests
+    const applyResult = await executeKubectl(['apply', '-f', `"${manifestPath}"`], kubectlConfig);
+    
+    // Try to wait for deployments to be ready (ignore failures for other resource types)
+    let waitOutput = '';
     try {
-      // First, apply the manifests
-      const applyResult = await executeKubectl(['apply', '-f', `"${manifestPath}"`], kubectlConfig);
-      
-      // Try to wait for deployments to be ready (ignore failures for other resource types)
-      let waitOutput = '';
-      try {
-        const waitResult = await executeKubectl([
-          'wait', 
-          '--for=condition=available', 
-          'deployments', 
-          '--all', 
-          `--timeout=${timeout}s`, 
-          '--all-namespaces'
-        ], {
-          ...kubectlConfig,
-          timeout: (timeout + 10) * 1000 // Add 10 seconds buffer for kubectl command itself
-        });
-        waitOutput = `\n\nWait output:\n${waitResult}`;
-      } catch (waitError: any) {
-        // If no deployments found or wait fails, that's OK for ConfigMaps, Services, etc.
-        if (waitError.message && waitError.message.includes('no matching resources found')) {
-          waitOutput = '\n\nWait output: No deployments found to wait for (likely ConfigMaps, Services, etc.)';
-        } else {
-          waitOutput = `\n\nWait output: Warning - ${waitError.message}`;
-        }
+      const waitResult = await executeKubectl([
+        'wait', 
+        '--for=condition=available', 
+        'deployments', 
+        '--all', 
+        `--timeout=${timeout}s`, 
+        '--all-namespaces'
+      ], {
+        ...kubectlConfig,
+        timeout: (timeout + 10) * 1000 // Add 10 seconds buffer for kubectl command itself
+      });
+      waitOutput = `\n\nWait output:\n${waitResult}`;
+    } catch (waitError: any) {
+      // If no deployments found or wait fails, that's OK for ConfigMaps, Services, etc.
+      if (waitError.message && waitError.message.includes('no matching resources found')) {
+        waitOutput = '\n\nWait output: No deployments found to wait for (likely ConfigMaps, Services, etc.)';
+      } else {
+        waitOutput = `\n\nWait output: Warning - ${waitError.message}`;
       }
-
-      return `Apply output:\n${applyResult}${waitOutput}`;
-    } catch (error: any) {
-      // executeKubectl already provides enhanced error messages
-      throw error;
     }
+
+    return `Apply output:\n${applyResult}${waitOutput}`;
   }
 }

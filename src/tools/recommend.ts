@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig, ResourceSolution } from '../core/schema';
+import { ResourceRecommender, AIRankingConfig } from '../core/schema';
 import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
@@ -367,4 +367,4 @@ export async function handleRecommendTool(
       retryCount: 1
     }
   );
-};
+}

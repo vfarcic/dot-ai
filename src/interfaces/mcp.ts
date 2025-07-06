@@ -9,9 +9,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { DotAI } from '../core/index';
 import { 
-  ErrorHandler, 
-  ErrorCategory, 
-  ErrorSeverity, 
   ConsoleLogger,
   Logger 
 } from '../core/error-handling';

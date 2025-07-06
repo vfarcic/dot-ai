@@ -6,7 +6,6 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import * as k8s from '@kubernetes/client-node';
 
 const execAsync = promisify(exec);
 

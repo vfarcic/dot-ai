@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import { DotAI } from '../core';
 import * as yaml from 'js-yaml';
 import Table from 'cli-table3';
-import { ResourceRecommender, AIRankingConfig, formatRecommendationResponse } from '../core/schema';
+import { ResourceRecommender } from '../core/schema';
 import { handleRecommendTool } from '../tools/recommend';
 import { handleChooseSolutionTool } from '../tools/choose-solution';
 import { handleAnswerQuestionTool } from '../tools/answer-question';
@@ -429,9 +429,6 @@ export class CliInterface {
       const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const result = await handleRecommendTool(toolArgs, this.ensureDotAI(), this.logger, requestId);
 
-      this.showProgress('✅ Recommendation complete!');
-      // Small delay to show completion message
-      await new Promise(resolve => setTimeout(resolve, 500));
       this.clearProgress();
 
       // Parse the tool result
@@ -468,9 +465,6 @@ export class CliInterface {
       const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const result = await handleChooseSolutionTool(toolArgs, null as any, this.logger, requestId);
 
-      this.showProgress('✅ Solution selected successfully!');
-      // Small delay to show completion message
-      await new Promise(resolve => setTimeout(resolve, 500));
       this.clearProgress();
 
       // Parse the tool result
@@ -510,9 +504,6 @@ export class CliInterface {
       const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const result = await handleAnswerQuestionTool(toolArgs, null as any, this.logger, requestId);
 
-      this.showProgress('✅ Answers processed successfully!');
-      // Small delay to show completion message
-      await new Promise(resolve => setTimeout(resolve, 500));
       this.clearProgress();
 
       // Parse the tool result
@@ -549,9 +540,6 @@ export class CliInterface {
       const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const result = await handleGenerateManifestsTool(toolArgs, this.dotAI!, this.logger, requestId);
 
-      this.showProgress('✅ Manifests generated successfully!');
-      // Small delay to show completion message
-      await new Promise(resolve => setTimeout(resolve, 500));
       this.clearProgress();
 
       // Parse the tool result
@@ -577,35 +565,26 @@ export class CliInterface {
       // Show progress for deployment
       this.showProgress('🚀 Deploying Kubernetes manifests...');
 
-      // Import and use DeployOperation directly
-      const { DeployOperation } = await import('../core/deploy-operation');
-      const deployOp = new DeployOperation();
-
-      const sessionDir = options.sessionDir;
-      
-      const deployOptions = {
+      // Prepare arguments for the deployManifests tool
+      const toolArgs = {
         solutionId: options.solutionId,
-        sessionDir: sessionDir,
         timeout: parseInt(options.timeout) || 30
       };
 
-      const result = await deployOp.deploy(deployOptions);
+      // Execute the deployManifests tool directly
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleDeployManifestsTool(toolArgs, this.ensureDotAI(), this.logger, requestId);
 
       this.clearProgress();
 
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
       return {
-        success: result.success,
-        data: {
-          solutionId: result.solutionId,
-          manifestPath: result.manifestPath,
-          readinessTimeout: result.readinessTimeout,
-          message: result.message,
-          kubectlOutput: result.kubectlOutput
-        }
+        success: true,
+        data: responseData
       };
     } catch (error) {
-      // Give a moment for user to see progress before clearing
-      await new Promise(resolve => setTimeout(resolve, 1000));
       this.clearProgress(); // Clear progress indicators on error
       return {
         success: false,
