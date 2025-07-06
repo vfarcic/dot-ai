@@ -4,11 +4,9 @@
 
 ![DevOps AI Toolkit Logo](assets/images/logo.png)
 
-**AI-powered Kubernetes deployment recommendations**
-
 </div>
 
-DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster—from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
+DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster, from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
 
 ## Who is this for?
 
