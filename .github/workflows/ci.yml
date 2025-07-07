@@ -123,9 +123,18 @@ jobs:
         PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
         echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
         
-        # Auto-increment minor version
-        npm version minor --no-git-tag-version
-        NEW_VERSION=$(node -p "require('./package.json').version")
+        # Parse published version and increment minor version
+        MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
+        MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
+        PATCH=$(echo $PUBLISHED_VERSION | cut -d. -f3)
+        
+        # Increment minor version, reset patch to 0
+        NEW_MINOR=$((MINOR + 1))
+        NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+        
+        # Update package.json with new version
+        npm version $NEW_VERSION --no-git-tag-version
+        
         echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "Version incremented from $PUBLISHED_VERSION to $NEW_VERSION"
         echo "version-changed=true" >> $GITHUB_OUTPUT
