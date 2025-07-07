@@ -286,7 +286,7 @@ describe('Build System Validation (TDD)', () => {
       if (packageJson.files) {
         expect(Array.isArray(packageJson.files)).toBe(true);
         expect(packageJson.files).toContain('dist');
-        expect(packageJson.files).toContain('bin');
+        expect(packageJson.files).toContain('prompts');
       }
     });
 

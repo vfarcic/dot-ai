@@ -15,6 +15,8 @@ import { handleAnswerQuestionTool } from '../tools/answer-question';
 import { handleGenerateManifestsTool } from '../tools/generate-manifests';
 import { handleDeployManifestsTool } from '../tools/deploy-manifests';
 import { Logger, ConsoleLogger } from '../core/error-handling';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface CliResult {
   success: boolean;
@@ -70,11 +72,39 @@ export class CliInterface {
     return this.dotAI;
   }
 
+  private getPackageInfo(): { name: string; version: string } {
+    try {
+      const packagePath = join(__dirname, '../../package.json');
+      const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+      return { name: packageJson.name, version: packageJson.version };
+    } catch (error) {
+      return { name: '@vfarcic/dot-ai', version: '0.1.0' }; // fallback
+    }
+  }
+
   private setupCommands(): void {
+    const { name, version } = this.getPackageInfo();
+    
     this.program
       .name('dot-ai')
       .description('Kubernetes application deployment agent with AI-powered orchestration')
-      .version('1.0.0');
+      .version(version, '-v, --version', 'output the version number');
+
+    // Add custom help with installation and usage examples
+    this.program.addHelpText('after', `
+
+Installation:
+  npm install -g ${name}        Install globally
+  npx ${name} <command>         Run without installing
+
+Examples:
+  npx ${name} recommend --intent "deploy my Node.js app"
+  npx ${name} status --deployment my-app
+  npx ${name} learn --pattern microservice
+  
+For more help on specific commands, use:
+  npx ${name} help <command>
+`);
 
 
 
@@ -248,7 +278,23 @@ export class CliInterface {
   }
 
   async getHelp(): Promise<string> {
-    return this.program.helpInformation();
+    const { name } = this.getPackageInfo();
+    const basicHelp = this.program.helpInformation();
+    const customHelp = `
+
+Installation:
+  npm install -g ${name}        Install globally
+  npx ${name} <command>         Run without installing
+
+Examples:
+  npx ${name} recommend --intent "deploy my Node.js app"
+  npx ${name} status --deployment my-app
+  npx ${name} learn --pattern microservice
+  
+For more help on specific commands, use:
+  npx ${name} help <command>
+`;
+    return basicHelp + customHelp;
   }
 
   async getCommandHelp(commandName: string): Promise<string> {

@@ -17,7 +17,7 @@ describe('Package.json Configuration', () => {
 
   describe('Basic Package Information', () => {
     test('should have correct package metadata', () => {
-      expect(packageJson.name).toBe('dot-ai');
+      expect(packageJson.name).toBe('@vfarcic/dot-ai');
       expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(packageJson.description).toContain('Kubernetes');
       expect(packageJson.description).toContain('CLI');

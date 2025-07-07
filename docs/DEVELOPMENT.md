@@ -35,8 +35,8 @@ The discovery engine provides comprehensive, unfiltered data through well-define
 
 ```bash
 # Clone and install
-git clone https://github.com/vfarcic/dot-ai.git
-cd dot-ai
+git clone https://github.com/vfarcic/node dist/cli.js.git
+cd node dist/cli.js
 npm install
 
 # Build the project
@@ -131,14 +131,14 @@ Current coverage: **69%+ overall** with **565+ tests** across 21 test suites, in
 
 ```bash
 # Create test cluster
-kind create cluster --name dot-ai-test
+kind create cluster --name node dist/cli.js-test
 
 # Run integration tests
-export KUBECONFIG=$(kind get kubeconfig-path --name dot-ai-test)
+export KUBECONFIG=$(kind get kubeconfig-path --name node dist/cli.js-test)
 npm test -- tests/integration
 
 # Cleanup
-kind delete cluster --name dot-ai-test
+kind delete cluster --name node dist/cli.js-test
 ```
 
 ## Debugging
@@ -164,14 +164,14 @@ kind delete cluster --name dot-ai-test
 
 ```bash
 # Enable verbose logging
-DEBUG=dot-ai:* node dist/cli.js discover
+DEBUG=node dist/cli.js:* node dist/cli.js discover
 
 # Specific module debugging
-DEBUG=dot-ai:discovery node dist/cli.js discover
-DEBUG=dot-ai:schema node dist/cli.js recommend --intent "test"
+DEBUG=node dist/cli.js:discovery node dist/cli.js discover
+DEBUG=node dist/cli.js:schema node dist/cli.js recommend --intent "test"
 
 # MCP server debugging
-DEBUG=dot-ai:* npm run mcp:start
+DEBUG=node dist/cli.js:* npm run mcp:start
 ```
 
 ## Performance Considerations

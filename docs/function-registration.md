@@ -100,7 +100,7 @@ export DOT_AI_SESSION_DIR=/path/to/sessions
 CLI sets the environment variable before calling tools:
 
 ```bash
-node dist/cli.js recommend --intent "deploy a web app" --session-dir /custom/path
+dot-ai recommend --intent "deploy a web app" --session-dir /custom/path
 ```
 
 ## Error Handling

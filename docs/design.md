@@ -156,8 +156,8 @@ prompts/                  # ✅ AI prompt templates
 ### Current Commands
 ```bash
 # ✅ Available now  
-node dist/cli.js --help                           # Help system (no cluster required)
-node dist/cli.js recommend --intent "description" # AI-powered recommendations  
+dot-ai --help                           # Help system (no cluster required)
+dot-ai recommend --intent "description" # AI-powered recommendations  
 npm run mcp:start                                 # Start MCP server for full workflow
 
 # ✅ MCP Tools (for interactive deployment)
@@ -167,7 +167,7 @@ npm run mcp:start                                 # Start MCP server for full wo
 # generateManifests({ solutionId: "sol_..." })    # AI-generated Kubernetes YAML
 
 # 🔄 Planned
-node dist/cli.js deploy --manifests manifests/     # Deployment execution
+dot-ai deploy --manifests manifests/     # Deployment execution
 ```
 
 ## Universal Extensibility
@@ -418,7 +418,7 @@ generateManifests({ solutionId: "sol_..." })
 ### Deployment Engine (Task 8)
 ```bash
 # Deploy generated manifests with monitoring
-node dist/cli.js deploy --manifests manifests/ --watch
+dot-ai deploy --manifests manifests/ --watch
 
 # Features planned:
 # - kubectl apply with progress tracking

@@ -22,7 +22,8 @@ Validate that the current development task is complete and ready for submission.
 4. **Update All Relevant Documentation**:
    - **README.md**: CLI commands, workflow examples, installation steps
    - **docs/API.md**: New interfaces, MCP tools, TypeScript examples
-   - **docs/MANUAL_TESTING.md**: Testing procedures for new functionality
+   - **docs/cli-guide.md**: CLI usage examples and troubleshooting
+   - **docs/mcp-guide.md**: MCP integration and setup procedures
    - **docs/STAGE_BASED_API.md**: Workflow changes, API updates
    - **docs/DEVELOPMENT.md**: Architecture updates, new components
    - **Other docs**: Context, design, next steps as applicable

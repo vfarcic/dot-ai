@@ -14,28 +14,16 @@
 
 ## Quick Start
 
-### 1. Install DevOps AI Toolkit
+### 1. Configure MCP Server (Claude Code)
 
-**Current Method: From Source**
-```bash
-git clone https://github.com/vfarcic/dot-ai.git
-cd dot-ai
-npm install && npm run build
-```
-
-> **Coming Soon**: npm package distribution with `npm install -g dot-ai` and `npx dot-ai mcp`
-
-### 2. Configure MCP Server
-
-Create `.mcp.json` in your project:
+Create `.mcp.json` in your project for Claude Code:
 
 ```json
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npm",
-      "args": ["run", "start:mcp"],
-      "cwd": "/path/to/dot-ai",
+      "command": "npx",
+      "args": ["--package=@vfarcic/dot-ai", "npm", "run", "start:mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_anthropic_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
@@ -46,16 +34,11 @@ Create `.mcp.json` in your project:
 }
 ```
 
-**Important**: Replace `/path/to/dot-ai` with the actual path where you cloned the repository.
-
-### 3. Start Your AI Tool
+### 2. Start Claude Code
 
 ```bash
-# Claude Code
+# Start Claude Code with MCP enabled
 claude
-
-# Cursor (configure in settings)
-# VS Code (with MCP extension)
 ```
 
 ## Configuration
@@ -102,9 +85,8 @@ claude
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npm",
-      "args": ["run", "start:mcp"],
-      "cwd": "/absolute/path/to/dot-ai",
+      "command": "npx",
+      "args": ["--package=@vfarcic/dot-ai", "npm", "run", "start:mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions"

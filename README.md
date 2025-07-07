@@ -30,14 +30,19 @@ DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend
 
 ### Installation
 
+**For CLI usage:**
 ```bash
-git clone https://github.com/vfarcic/dot-ai.git
-cd dot-ai
-npm install && npm run build
+# Install globally for command-line usage
+npm install -g @vfarcic/dot-ai
 
 # Required: Set up Claude API key
 export ANTHROPIC_API_KEY=your_api_key_here
+
+# Verify installation
+dot-ai --version
 ```
+
+**For MCP/AI Agent usage:** No installation needed - uses npx automatically
 
 ### Choose Your Usage Path
 
@@ -49,9 +54,8 @@ Perfect for conversational deployments with AI agents:
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npm",
-      "args": ["run", "start:mcp"],
-      "cwd": "/path/to/dot-ai",
+      "command": "npx",
+      "args": ["--package=@vfarcic/dot-ai", "npm", "run", "start:mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
@@ -97,84 +101,92 @@ Agent: ✅ Successfully deployed! Your application is running.
 📖 **[Complete MCP Setup Guide →](docs/mcp-guide.md)** - Detailed configuration, troubleshooting, and examples
 
 #### Option B: Command Line Interface
-For scripting and direct usage:
+For scripting and direct usage (requires global installation):
 
 ```bash
 # 1. Get AI recommendations (includes cluster discovery)
-node dist/cli.js recommend --intent "deploy a web application" --session-dir ./tmp
+dot-ai recommend --intent "deploy a web application" --session-dir ./tmp
 
 # 2. Choose a solution
-node dist/cli.js choose-solution --solution-id sol_xxx --session-dir ./tmp
+dot-ai choose-solution --solution-id sol_xxx --session-dir ./tmp
 
 # 3. Configure step-by-step (all stages required)
-node dist/cli.js answer-question --solution-id sol_xxx --stage required --answers {...}
-node dist/cli.js answer-question --solution-id sol_xxx --stage basic --answers {}
-node dist/cli.js answer-question --solution-id sol_xxx --stage advanced --answers {}
-node dist/cli.js answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"}
+dot-ai answer-question --solution-id sol_xxx --stage required --answers {...}
+dot-ai answer-question --solution-id sol_xxx --stage basic --answers {}
+dot-ai answer-question --solution-id sol_xxx --stage advanced --answers {}
+dot-ai answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"}
 
 # 4. Generate manifests
-node dist/cli.js generate-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai generate-manifests --solution-id sol_xxx --session-dir ./tmp
 
 # 5. Deploy to cluster
-node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 ```
 
 📖 **[Complete CLI Guide →](docs/cli-guide.md)** - Detailed command-line interface documentation
 
+## Troubleshooting
+
+### Installation Issues
+
+**Package not found:**
+```bash
+# If you get "package not found" errors:
+npm cache clean --force
+npm install -g @vfarcic/dot-ai
+```
+
+**Permission errors on global install:**
+```bash
+# Use npm's recommended approach for global packages:
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+npm install -g @vfarcic/dot-ai
+```
+
+### CLI Issues
+
+**"dot-ai: command not found":**
+- Ensure global installation: `npm install -g @vfarcic/dot-ai`
+- Check PATH includes npm global bin: `npm config get prefix`
+- Verify installation: `npm list -g @vfarcic/dot-ai`
+
+### MCP Issues
+
+**MCP server won't start:**
+- Verify environment variables are set in `.mcp.json`
+- Check session directory exists and is writable
+- Ensure `ANTHROPIC_API_KEY` is valid
+
+**"No active cluster" errors:**
+- Verify kubectl connectivity: `kubectl cluster-info`
+- Check KUBECONFIG path in environment variables
+- Test cluster access: `kubectl get nodes`
+
 ## Documentation
 
-📖 **[Complete Documentation Index](docs/README.md)** - Browse all available documentation
-
-```
-📚 DevOps AI Toolkit Documentation Map
-├── 🚀 Getting Started
-│   ├── CLI Guide ──────────────── Complete command-line usage
-│   └── MCP Integration Guide ──── AI tools (Claude Code, Cursor)
-│
-├── 👩‍💻 Development
-│   ├── API Reference ──────────── TypeScript interfaces & programmatic usage
-│   ├── Development Guide ─────── Contributing, setup, testing
-│   └── Manual Testing ────────── Testing procedures & examples
-│
-├── 🏗️ Architecture
-│   ├── Design Overview ───────── Technical design & principles
-│   ├── Stage-Based API ──────── Workflow stages & API design
-│   └── Discovery Engine ─────── Cluster resource discovery
-│
-├── 🤖 AI & Integration
-│   ├── Agent Patterns ───────── AI agent integration patterns
-│   ├── Error Handling ───────── Error management & debugging
-│   └── Function Registration ── Tool & function management
-│
-└── 📋 Reference
-    ├── Context & Background ──── Project context & inspiration
-    ├── Next Steps & Roadmap ──── Planned features & future vision
-    └── Complete Index ──────── Full documentation listing
-```
-
 ### 🚀 Getting Started
-- **[CLI Guide](docs/cli-guide.md)** - Complete command-line usage, examples, and troubleshooting
-- **[MCP Integration Guide](docs/mcp-guide.md)** - Use with Claude Code, Cursor, and other AI tools
+- **[CLI Guide](docs/cli-guide.md)** - Complete command-line usage and examples
+- **[MCP Integration Guide](docs/mcp-guide.md)** - AI tools integration (Claude Code, Cursor)
 
-### 👩‍💻 Development
+### 👩‍💻 Development  
 - **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
-- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing, architecture, and testing
-- **[Manual Testing Guide](docs/MANUAL_TESTING.md)** - Testing procedures and examples
+- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing, setup, and testing
 
 ### 🏗️ Architecture
-- **[Design Overview](docs/design.md)** - Technical design, principles, and future vision
+- **[Design Overview](docs/design.md)** - Technical design and principles  
 - **[Stage-Based API](docs/STAGE_BASED_API.md)** - Workflow stages and API design
-- **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery architecture
+- **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery
 
 ### 🤖 AI & Integration
-- **[Agent Integration](docs/AGENTS.md)** - AI agent patterns and integration
 - **[Error Handling](docs/error-handling.md)** - Error management and debugging
 - **[Function Registration](docs/function-registration.md)** - Tool and function management
 
 ### 📋 Reference
-- **[Context Documentation](docs/CONTEXT.md)** - Project context and background
-- **[Next Steps](docs/NEXT_STEPS.md)** - Roadmap and planned features
-- **[Complete Documentation Index](docs/README.md)** - Full listing of all documentation
+- **[Context & Background](docs/CONTEXT.md)** - Project context and inspiration
+- **[Next Steps & Roadmap](docs/NEXT_STEPS.md)** - Planned features and future vision
 
 **Quick Navigation:**
 - **New to DevOps AI Toolkit?** → Start with [CLI Guide](docs/cli-guide.md) or [MCP Guide](docs/mcp-guide.md)

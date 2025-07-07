@@ -21,33 +21,33 @@
 
 ### Installation
 
-**Current Method: From Source**
+**Recommended Method: Global Install**
 ```bash
-git clone https://github.com/vfarcic/dot-ai.git
-cd dot-ai
-npm install && npm run build
+# Install globally from npm
+npm install -g @vfarcic/dot-ai
 
 # Required: Set up Claude API key
 export ANTHROPIC_API_KEY=your_api_key_here
-```
 
-> **Coming Soon**: npm package distribution with `npm install -g dot-ai`
+# Verify installation
+dot-ai --version
+```
 
 ### Basic Usage
 
 ```bash
 # 1. Get AI recommendations for your deployment
-node dist/cli.js recommend --intent "deploy a web application" --session-dir ./tmp
+dot-ai recommend --intent "deploy a web application" --session-dir ./tmp
 
 # 2. Choose a solution from the recommendations
-node dist/cli.js choose-solution --solution-id sol_xxx --session-dir ./tmp
+dot-ai choose-solution --solution-id sol_xxx --session-dir ./tmp
 
 # 3. Configure step-by-step with guided questions
-node dist/cli.js answer-question --solution-id sol_xxx --stage required --answers '{"name":"myapp"}' --session-dir ./tmp
+dot-ai answer-question --solution-id sol_xxx --stage required --answers '{"name":"myapp"}' --session-dir ./tmp
 
 # 4. Generate and deploy manifests
-node dist/cli.js generate-manifests --solution-id sol_xxx --session-dir ./tmp
-node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai generate-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 ```
 
 ## Installation
@@ -64,7 +64,7 @@ npm install
 npm run build
 
 # Verify installation
-node dist/cli.js --help
+dot-ai --help
 ```
 
 ### Environment Setup
@@ -124,7 +124,7 @@ Get AI-powered deployment recommendations based on your cluster capabilities.
 
 **Usage:**
 ```bash
-node dist/cli.js recommend --intent "DESCRIPTION" --session-dir ./tmp [OPTIONS]
+dot-ai recommend --intent "DESCRIPTION" --session-dir ./tmp [OPTIONS]
 ```
 
 **Required Arguments:**
@@ -141,13 +141,13 @@ node dist/cli.js recommend --intent "DESCRIPTION" --session-dir ./tmp [OPTIONS]
 **Examples:**
 ```bash
 # Simple web application
-node dist/cli.js recommend --intent "deploy a web application" --session-dir ./tmp
+dot-ai recommend --intent "deploy a web application" --session-dir ./tmp
 
 # Application with specific requirements
-node dist/cli.js recommend --intent "deploy a Node.js API with PostgreSQL database" --session-dir ./tmp
+dot-ai recommend --intent "deploy a Node.js API with PostgreSQL database" --session-dir ./tmp
 
 # Microservice with scaling requirements
-node dist/cli.js recommend --intent "deploy a microservice that can auto-scale" --session-dir ./tmp
+dot-ai recommend --intent "deploy a microservice that can auto-scale" --session-dir ./tmp
 ```
 
 #### `choose-solution`
@@ -155,7 +155,7 @@ Select a specific solution and get its configuration questions.
 
 **Usage:**
 ```bash
-node dist/cli.js choose-solution --solution-id ID --session-dir PATH [OPTIONS]
+dot-ai choose-solution --solution-id ID --session-dir PATH [OPTIONS]
 ```
 
 **Required Arguments:**
@@ -167,7 +167,7 @@ node dist/cli.js choose-solution --solution-id ID --session-dir PATH [OPTIONS]
 
 **Example:**
 ```bash
-node dist/cli.js choose-solution --solution-id sol_2025-01-01T123456_abcdef --session-dir ./tmp
+dot-ai choose-solution --solution-id sol_2025-01-01T123456_abcdef --session-dir ./tmp
 ```
 
 #### `answer-question`
@@ -175,7 +175,7 @@ Provide answers to configuration questions for your chosen solution.
 
 **Usage:**
 ```bash
-node dist/cli.js answer-question --solution-id ID --session-dir PATH --stage STAGE --answers JSON [OPTIONS]
+dot-ai answer-question --solution-id ID --session-dir PATH --stage STAGE --answers JSON [OPTIONS]
 ```
 
 **Required Arguments:**
@@ -191,28 +191,28 @@ node dist/cli.js answer-question --solution-id ID --session-dir PATH --stage STA
 **Examples:**
 ```bash
 # Required stage
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./tmp \
   --stage required \
   --answers '{"name":"myapp","image":"nginx:latest","port":80}'
 
 # Basic stage
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./tmp \
   --stage basic \
   --answers '{"namespace":"production","replicas":3}'
 
 # Advanced stage
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./tmp \
   --stage advanced \
   --answers '{"resourceLimits":true,"securityContext":true}'
 
 # Open stage (final step)
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./tmp \
   --stage open \
@@ -225,7 +225,7 @@ Generate final Kubernetes manifests from your configured solution.
 
 **Usage:**
 ```bash
-node dist/cli.js generate-manifests --solution-id ID --session-dir PATH [OPTIONS]
+dot-ai generate-manifests --solution-id ID --session-dir PATH [OPTIONS]
 ```
 
 **Required Arguments:**
@@ -234,7 +234,7 @@ node dist/cli.js generate-manifests --solution-id ID --session-dir PATH [OPTIONS
 
 **Example:**
 ```bash
-node dist/cli.js generate-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai generate-manifests --solution-id sol_xxx --session-dir ./tmp
 ```
 
 #### `deploy-manifests`
@@ -242,7 +242,7 @@ Deploy the generated manifests to your Kubernetes cluster.
 
 **Usage:**
 ```bash
-node dist/cli.js deploy-manifests --solution-id ID --session-dir PATH [OPTIONS]
+dot-ai deploy-manifests --solution-id ID --session-dir PATH [OPTIONS]
 ```
 
 **Required Arguments:**
@@ -256,10 +256,10 @@ node dist/cli.js deploy-manifests --solution-id ID --session-dir PATH [OPTIONS]
 **Examples:**
 ```bash
 # Deploy with default timeout
-node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp
 
 # Deploy with custom timeout
-node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./tmp --timeout 60
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp --timeout 60
 ```
 
 ### Utility Commands
@@ -269,7 +269,7 @@ Check deployment status and workflow information.
 
 **Usage:**
 ```bash
-node dist/cli.js status [OPTIONS]
+dot-ai status [OPTIONS]
 ```
 
 **Optional:**
@@ -278,7 +278,7 @@ node dist/cli.js status [OPTIONS]
 
 **Example:**
 ```bash
-node dist/cli.js status --deployment workflow-123
+dot-ai status --deployment workflow-123
 ```
 
 #### `learn`
@@ -286,7 +286,7 @@ Show learned deployment patterns and recommendations from previous deployments.
 
 **Usage:**
 ```bash
-node dist/cli.js learn [OPTIONS]
+dot-ai learn [OPTIONS]
 ```
 
 **Optional:**
@@ -296,10 +296,10 @@ node dist/cli.js learn [OPTIONS]
 **Examples:**
 ```bash
 # Show all learned patterns
-node dist/cli.js learn
+dot-ai learn
 
 # Show specific pattern type
-node dist/cli.js learn --pattern deployment
+dot-ai learn --pattern deployment
 ```
 
 ### Global Options
@@ -317,7 +317,7 @@ These options work with all commands:
 
 ```bash
 # 1. Get recommendations
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy an nginx web server" \
   --session-dir ./sessions
 
@@ -327,35 +327,35 @@ node dist/cli.js recommend \
 # etc.
 
 # 2. Choose the best solution
-node dist/cli.js choose-solution \
+dot-ai choose-solution \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions
 
 # Output shows configuration questions grouped by stage
 
 # 3. Answer required questions
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions \
   --stage required \
   --answers '{"name":"my-nginx","image":"nginx:latest","port":80}'
 
 # 4. Answer basic questions
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions \
   --stage basic \
   --answers '{"namespace":"default","replicas":2}'
 
 # 5. Skip advanced questions (or answer them)
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions \
   --stage advanced \
   --answers '{}'
 
 # 6. Final open question
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions \
   --stage open \
@@ -363,12 +363,12 @@ node dist/cli.js answer-question \
   --done
 
 # 7. Generate manifests
-node dist/cli.js generate-manifests \
+dot-ai generate-manifests \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions
 
 # 8. Deploy to cluster
-node dist/cli.js deploy-manifests \
+dot-ai deploy-manifests \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions
 ```
@@ -377,18 +377,18 @@ node dist/cli.js deploy-manifests \
 
 ```bash
 # 1. Get recommendations for complex application
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy a React frontend with Node.js API and PostgreSQL database" \
   --session-dir ./fullstack
 
 # 2. Choose solution (likely multiple resources)
-node dist/cli.js choose-solution \
+dot-ai choose-solution \
   --solution-id sol_xxx \
   --session-dir ./fullstack
 
 # 3. Configure each component
 # Frontend configuration
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./fullstack \
   --stage required \
@@ -403,7 +403,7 @@ node dist/cli.js answer-question \
   }'
 
 # Database configuration
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./fullstack \
   --stage basic \
@@ -415,7 +415,7 @@ node dist/cli.js answer-question \
   }'
 
 # Advanced settings
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./fullstack \
   --stage advanced \
@@ -427,7 +427,7 @@ node dist/cli.js answer-question \
   }'
 
 # Final requirements
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id sol_xxx \
   --session-dir ./fullstack \
   --stage open \
@@ -435,28 +435,28 @@ node dist/cli.js answer-question \
   --done
 
 # Generate and deploy
-node dist/cli.js generate-manifests --solution-id sol_xxx --session-dir ./fullstack
-node dist/cli.js deploy-manifests --solution-id sol_xxx --session-dir ./fullstack
+dot-ai generate-manifests --solution-id sol_xxx --session-dir ./fullstack
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./fullstack
 ```
 
 ### Example 3: Using Output Formats
 
 ```bash
 # Get recommendations in table format
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy Redis cache" \
   --session-dir ./redis \
   --output table
 
 # Save results to file
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy Redis cache" \
   --session-dir ./redis \
   --output yaml \
   --output-file ./redis-recommendations.yaml
 
 # Check status with verbose output
-node dist/cli.js status --verbose --output table
+dot-ai status --verbose --output table
 ```
 
 ## Configuration
@@ -472,14 +472,14 @@ DevOps AI Toolkit automatically finds your kubeconfig file in this order:
 **Examples:**
 ```bash
 # Use specific kubeconfig
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy app" \
   --session-dir ./tmp \
   --kubeconfig ./clusters/production.yaml
 
 # Set environment variable
 export KUBECONFIG=./clusters/staging.yaml
-node dist/cli.js recommend --intent "deploy app" --session-dir ./tmp
+dot-ai recommend --intent "deploy app" --session-dir ./tmp
 ```
 
 ### Session Directory Management
@@ -487,7 +487,7 @@ node dist/cli.js recommend --intent "deploy app" --session-dir ./tmp
 **Project-specific sessions:**
 ```bash
 mkdir -p ./deployments/sessions
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy app" \
   --session-dir ./deployments/sessions
 ```
@@ -495,7 +495,7 @@ node dist/cli.js recommend \
 **Shared sessions:**
 ```bash
 mkdir -p ~/.dot-ai/sessions
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy app" \
   --session-dir ~/.dot-ai/sessions
 ```
@@ -582,7 +582,7 @@ echo $KUBECONFIG
 ls -la ~/.kube/config
 
 # Use specific kubeconfig
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "test" \
   --session-dir ./tmp \
   --kubeconfig ./path/to/working/config.yaml
@@ -606,7 +606,7 @@ ls -la ./tmp/
 touch ./tmp/sessions/test-write && rm ./tmp/sessions/test-write
 
 # Use absolute path
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "test" \
   --session-dir "$(pwd)/sessions"
 ```
@@ -624,7 +624,7 @@ ls -la ./sessions/
 
 # Use exact solution ID from recommend output
 # Format: sol_YYYY-MM-DDTHHMISS_randomhash
-node dist/cli.js choose-solution \
+dot-ai choose-solution \
   --solution-id sol_2025-01-01T123456_abcdef \
   --session-dir ./sessions
 ```
@@ -633,7 +633,7 @@ node dist/cli.js choose-solution \
 
 ```bash
 # Enable verbose output for detailed logging
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "debug test" \
   --session-dir ./tmp \
   --verbose
@@ -653,7 +653,7 @@ cat ./tmp/sol_*/solution.json
 **Network timeouts:**
 ```bash
 # Increase timeout for deployment
-node dist/cli.js deploy-manifests \
+dot-ai deploy-manifests \
   --solution-id sol_xxx \
   --session-dir ./tmp \
   --timeout 120
@@ -674,7 +674,7 @@ INTENT="deploy nginx web server"
 echo "Starting automated deployment..."
 
 # Get recommendations
-RESULT=$(node dist/cli.js recommend \
+RESULT=$(dot-ai recommend \
   --intent "$INTENT" \
   --session-dir "$SESSION_DIR" \
   --output json)
@@ -684,31 +684,31 @@ SOLUTION_ID=$(echo "$RESULT" | jq -r '.data.solutions[0].id')
 echo "Using solution: $SOLUTION_ID"
 
 # Choose solution
-node dist/cli.js choose-solution \
+dot-ai choose-solution \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR" \
   --output json
 
 # Answer all questions with defaults/preset values
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR" \
   --stage required \
   --answers '{"name":"auto-nginx","image":"nginx:latest","port":80}'
 
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR" \
   --stage basic \
   --answers '{}'
 
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR" \
   --stage advanced \
   --answers '{}'
 
-node dist/cli.js answer-question \
+dot-ai answer-question \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR" \
   --stage open \
@@ -716,11 +716,11 @@ node dist/cli.js answer-question \
   --done
 
 # Generate and deploy
-node dist/cli.js generate-manifests \
+dot-ai generate-manifests \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR"
 
-node dist/cli.js deploy-manifests \
+dot-ai deploy-manifests \
   --solution-id "$SOLUTION_ID" \
   --session-dir "$SESSION_DIR"
 
@@ -765,13 +765,13 @@ jobs:
 ```bash
 # Production cluster
 export KUBECONFIG=./clusters/production.yaml
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy production app" \
   --session-dir ./sessions/prod
 
 # Staging cluster  
 export KUBECONFIG=./clusters/staging.yaml
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy staging app" \
   --session-dir ./sessions/staging
 ```
@@ -780,14 +780,14 @@ node dist/cli.js recommend \
 
 ```bash
 # Extract specific information with jq
-node dist/cli.js recommend \
+dot-ai recommend \
   --intent "deploy app" \
   --session-dir ./tmp \
   --output json | jq '.data.solutions[0].score'
 
 # Convert to different formats
-node dist/cli.js status --output yaml > status.yaml
-node dist/cli.js learn --output table | grep -i deployment
+dot-ai status --output yaml > status.yaml
+dot-ai learn --output table | grep -i deployment
 ```
 
 ## See Also

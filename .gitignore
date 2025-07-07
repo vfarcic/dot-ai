@@ -81,10 +81,13 @@ dev-debug.log
 *.sw?
 # OS specific
 
-# Task files
-# tasks.json
-# tasks/ 
-
 # Cursor
 .cursor/mcp.json
 .mcp.json
+
+# Task files
+# tasks.json
+# tasks/
+
+# Taskmaster
+.taskmaster/ 

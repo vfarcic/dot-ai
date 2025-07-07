@@ -973,4 +973,64 @@ describe('CLI Interface', () => {
       });
     });
   });
+
+  describe('Version Command', () => {
+    test('should return version from package.json', () => {
+      const packageInfo = cli['getPackageInfo']();
+      expect(packageInfo.name).toBe('@vfarcic/dot-ai');
+      expect(packageInfo.version).toMatch(/^\d+\.\d+\.\d+$/);
+    });
+
+    test('should handle missing package.json gracefully', () => {
+      // Test the fallback behavior by temporarily mocking fs.readFileSync
+      const originalReadFileSync = require('fs').readFileSync;
+      require('fs').readFileSync = jest.fn().mockImplementation(() => {
+        throw new Error('File not found');
+      });
+
+      const packageInfo = cli['getPackageInfo']();
+      expect(packageInfo.name).toBe('@vfarcic/dot-ai');
+      expect(packageInfo.version).toBe('0.1.0');
+
+      // Restore original function
+      require('fs').readFileSync = originalReadFileSync;
+    });
+
+    test('should include version in command setup', async () => {
+      const helpText = await cli.getHelp();
+      expect(helpText).toContain('-v, --version');
+      expect(helpText).toContain('output the version number');
+    });
+  });
+
+  describe('Enhanced Help System', () => {
+    test('should include npm installation instructions in help', async () => {
+      const helpText = await cli.getHelp();
+      expect(helpText).toContain('Installation:');
+      expect(helpText).toContain('npm install -g @vfarcic/dot-ai');
+      expect(helpText).toContain('npx @vfarcic/dot-ai <command>');
+    });
+
+    test('should include npx examples in help', async () => {
+      const helpText = await cli.getHelp();
+      expect(helpText).toContain('Examples:');
+      expect(helpText).toContain('npx @vfarcic/dot-ai recommend --intent');
+      expect(helpText).toContain('npx @vfarcic/dot-ai status --deployment');
+      expect(helpText).toContain('npx @vfarcic/dot-ai learn --pattern');
+    });
+
+    test('should include help command guidance', async () => {
+      const helpText = await cli.getHelp();
+      expect(helpText).toContain('For more help on specific commands, use:');
+      expect(helpText).toContain('npx @vfarcic/dot-ai help <command>');
+    });
+
+    test('should use scoped package name in help examples', async () => {
+      const helpText = await cli.getHelp();
+      // Should use the scoped package name throughout help text
+      expect(helpText).toContain('@vfarcic/dot-ai');
+      // Should not contain the old package name in installation instructions
+      expect(helpText).not.toContain('npm install -g dot-ai');
+    });
+  });
 }); 

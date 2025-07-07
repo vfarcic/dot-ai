@@ -14,7 +14,7 @@ describe('Test Infrastructure', () => {
     test('should have package.json with correct structure', () => {
       const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
       
-      expect(packageJson.name).toBe('dot-ai');
+      expect(packageJson.name).toBe('@vfarcic/dot-ai');
       expect(packageJson.main).toBe('dist/index.js');
       expect(packageJson.bin).toHaveProperty('dot-ai');
       expect(packageJson.exports['.']).toBeDefined();
@@ -223,7 +223,7 @@ describe('CI/CD Pipeline Infrastructure', () => {
       expect(stepNames.some((name: string) => name.toLowerCase().includes('test'))).toBe(true);
     });
 
-    it('should use kind cluster setup for real Kubernetes testing', () => {
+    test('should focus on unit testing without cluster setup', () => {
       const ciContent = readFileSync('.github/workflows/ci.yml', 'utf8');
       const ciWorkflow = yaml.parse(ciContent);
       
@@ -232,9 +232,9 @@ describe('CI/CD Pipeline Infrastructure', () => {
       
       const stepNames = testJob?.steps?.map((step: any) => step.name || step.uses) || [];
       
-      // Should have kind/kubectl setup
-      expect(stepNames.some((name: string) => name.toLowerCase().includes('kind'))).toBe(true);
-      expect(stepNames.some((name: string) => name.toLowerCase().includes('cluster'))).toBe(true);
+      // Should NOT have cluster setup since we use mocked tests
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('kind'))).toBe(false);
+      expect(stepNames.some((name: string) => name.toLowerCase().includes('cluster'))).toBe(false);
     });
 
     test('should use npm ci for efficient dependency installation', () => {
@@ -261,15 +261,15 @@ describe('CI/CD Pipeline Infrastructure', () => {
       }
     });
 
-    test('should include security audit in test job', () => {
-      expect(ciWorkflow?.jobs?.test).toBeDefined();
-      const testJob = ciWorkflow.jobs.test;
+    test('should have separate security job with dependency audit', () => {
+      expect(ciWorkflow?.jobs?.security).toBeDefined();
+      const securityJob = ciWorkflow.jobs.security;
       
-      const securityStep = testJob?.steps?.find((step: any) => 
-        step.name?.toLowerCase().includes('security') ||
-        step.run?.includes('npm run ci:security')
+      const auditStep = securityJob?.steps?.find((step: any) => 
+        step.name?.toLowerCase().includes('audit') ||
+        step.run?.includes('npm audit')
       );
-      expect(securityStep).toBeDefined();
+      expect(auditStep).toBeDefined();
     });
 
     test('should include CodeQL analysis job', () => {
@@ -287,11 +287,12 @@ describe('CI/CD Pipeline Infrastructure', () => {
       expect(codeqlAnalyzeStep).toBeDefined();
     });
 
-    test('should have proper permissions for security scanning', () => {
+    test('should have proper permissions for security scanning and publishing', () => {
       expect(ciWorkflow?.permissions).toBeDefined();
       expect(ciWorkflow.permissions.actions).toBe('read');
-      expect(ciWorkflow.permissions.contents).toBe('read');
+      expect(ciWorkflow.permissions.contents).toBe('write'); // Needed for publishing and tagging
       expect(ciWorkflow.permissions['security-events']).toBe('write');
+      expect(ciWorkflow.permissions['id-token']).toBe('write'); // Needed for npm publishing
     });
   });
 
@@ -388,7 +389,6 @@ describe('CI/CD Pipeline Infrastructure', () => {
       expect(packageJson.scripts['ci']).toBeDefined();
       expect(packageJson.scripts['ci:test']).toBeDefined();
       expect(packageJson.scripts['ci:build']).toBeDefined();
-      expect(packageJson.scripts['ci:security']).toBeDefined();
     });
 
     test('should have engines field for Node.js version', () => {

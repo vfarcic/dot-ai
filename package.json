@@ -1,5 +1,5 @@
 {
-  "name": "dot-ai",
+  "name": "@vfarcic/dot-ai",
   "version": "0.1.0",
   "description": "Universal Kubernetes application deployment agent with CLI and MCP interfaces",
   "main": "dist/index.js",
@@ -30,11 +30,12 @@
     "start:mcp": "node dist/mcp/server.js",
     "lint": "eslint src/ --ext .ts",
     "format": "prettier --write src/",
-    "ci": "npm run lint && npm run ci:build && npm run ci:test && npm run ci:security",
+    "ci": "npm run lint && npm run ci:build && npm run ci:test && npm audit --audit-level moderate",
     "ci:test": "npm run test",
     "ci:build": "npm run build:prod",
-    "ci:security": "npm audit --audit-level moderate",
-    "audit": "npm audit"
+    "audit": "npm audit",
+    "version:dev": "npm version patch --preid=devel --prerelease",
+    "version:prod": "npm version patch"
   },
   "keywords": [
     "kubernetes",
@@ -53,12 +54,19 @@
     "type": "git",
     "url": "https://github.com/vfarcic/dot-ai.git"
   },
+  "bugs": {
+    "url": "https://github.com/vfarcic/dot-ai/issues"
+  },
+  "homepage": "https://github.com/vfarcic/dot-ai#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
   "files": [
     "dist",
-    "bin",
+    "prompts",
     "README.md",
     "LICENSE"
   ],

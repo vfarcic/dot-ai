@@ -5,7 +5,8 @@ import { CliInterface } from './interfaces/cli.js';
 
 function isHelpCommand(argv: string[]): boolean {
     return argv.includes('--help') || argv.includes('-h') || 
-           argv.includes('help') || argv.length <= 2;
+           argv.includes('help') || argv.includes('--version') || 
+           argv.includes('-v') || argv.length <= 2;
 }
 
 async function main() {
@@ -13,7 +14,7 @@ async function main() {
         // Create CLI interface first (without cluster connection)
         const cli = new CliInterface();
         
-        // If it's a help command, run immediately without cluster
+        // If it's a help or version command, run immediately without cluster
         if (isHelpCommand(process.argv)) {
             await cli.run(process.argv);
             return;

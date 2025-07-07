@@ -472,8 +472,8 @@ Always validate discovery results manually:
 
 ```typescript
 // CLI validation
-node dist/cli.js discover --kubeconfig ./kubeconfig.yaml --output table
-node dist/cli.js discover --kubeconfig ./kubeconfig.yaml --output json
+dot-ai discover --kubeconfig ./kubeconfig.yaml --output table
+dot-ai discover --kubeconfig ./kubeconfig.yaml --output json
 
 // Programmatic validation
 const resources = await discovery.getAPIResources();

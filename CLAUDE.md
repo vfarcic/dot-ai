@@ -49,11 +49,11 @@
 
 ```bash
 # Core dot-ai commands
-node dist/cli.js discover                           # Discover cluster resources
-node dist/cli.js recommend --intent "description"   # Get AI-powered recommendations  
-node dist/cli.js enhance --solution solution.json   # Enhance solutions with user requirements
-node dist/cli.js explain Pod                        # Get detailed resource schema
-node dist/cli.js fingerprint                        # Analyze cluster capabilities
+dot-ai discover                           # Discover cluster resources
+dot-ai recommend --intent "description"   # Get AI-powered recommendations  
+dot-ai enhance --solution solution.json   # Enhance solutions with user requirements
+dot-ai explain Pod                        # Get detailed resource schema
+dot-ai fingerprint                        # Analyze cluster capabilities
 
 # Development commands
 npm test                                            # Run all tests
@@ -148,7 +148,7 @@ prompts/                 # AI prompt templates
 **Commands:**
 - **Run tests**: `npm test` (351+ tests across 10 suites)
 - **Build**: `npm run build`
-- **Manual testing**: Follow comprehensive guide at `docs/MANUAL_TESTING.md`
+- **Manual testing**: Follow examples in CLI and MCP guides
 - **Documentation**: See `docs/` directory for complete guides
 
 ### Environment Setup
