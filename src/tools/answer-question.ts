@@ -318,7 +318,7 @@ async function analyzeResourceNeeds(
   openResponse: string,
   context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
-  const promptPath = path.join(process.cwd(), 'prompts', 'resource-analysis.md');
+  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-analysis.md');
   const template = fs.readFileSync(promptPath, 'utf8');
   
   // Get available resources from solution or use defaults
@@ -396,7 +396,7 @@ async function autoPopulateQuestions(
   openResponse: string,
   analysisResult: any
 ): Promise<any> {
-  const promptPath = path.join(process.cwd(), 'prompts', 'solution-enhancement.md');
+  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'solution-enhancement.md');
   const template = fs.readFileSync(promptPath, 'utf8');
   
   const enhancementPrompt = template

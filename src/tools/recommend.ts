@@ -29,7 +29,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 async function validateIntentWithAI(intent: string, claudeIntegration: any): Promise<void> {
   try {
     // Load prompt template
-    const promptPath = path.join(process.cwd(), 'prompts', 'intent-validation.md');
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'intent-validation.md');
     const template = fs.readFileSync(promptPath, 'utf8');
     
     // Replace template variables

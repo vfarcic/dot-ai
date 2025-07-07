@@ -419,7 +419,7 @@ export class ResourceRecommender {
     const fs = await import('fs');
     const path = await import('path');
     
-    const promptPath = path.join(process.cwd(), 'prompts', 'resource-selection.md');
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
     const template = fs.readFileSync(promptPath, 'utf8');
     
     const selectionPrompt = template
@@ -551,7 +551,7 @@ export class ResourceRecommender {
     const fs = await import('fs');
     const path = await import('path');
     
-    const promptPath = path.join(process.cwd(), 'prompts', 'resource-solution-ranking.md');
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-solution-ranking.md');
     const template = fs.readFileSync(promptPath, 'utf8');
     
     // Format resources for the prompt
@@ -790,7 +790,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       const fs = await import('fs');
       const path = await import('path');
       
-      const promptPath = path.join(process.cwd(), 'prompts', 'question-generation.md');
+      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'question-generation.md');
       const template = fs.readFileSync(promptPath, 'utf8');
       
       const questionPrompt = template

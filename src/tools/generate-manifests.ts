@@ -242,7 +242,7 @@ async function generateManifestsWithAI(
 ): Promise<string> {
   
   // Load prompt template
-  const promptPath = path.join(process.cwd(), 'prompts', 'manifest-generation.md');
+  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'manifest-generation.md');
   const template = fs.readFileSync(promptPath, 'utf8');
   
   // Retrieve schemas for solution resources
