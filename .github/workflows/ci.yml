@@ -117,20 +117,18 @@ jobs:
     - name: Build project
       run: npm run build
     
-    - name: Check if version changed
+    - name: Auto-increment version and check for changes
       id: version-check
       run: |
-        CURRENT_VERSION=$(node -p "require('./package.json').version")
         PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
-        echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
         echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
-        if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
-          echo "version-changed=true" >> $GITHUB_OUTPUT
-          echo "Version changed from $PUBLISHED_VERSION to $CURRENT_VERSION"
-        else
-          echo "version-changed=false" >> $GITHUB_OUTPUT
-          echo "Version unchanged: $CURRENT_VERSION"
-        fi
+        
+        # Auto-increment minor version
+        npm version minor --no-git-tag-version
+        NEW_VERSION=$(node -p "require('./package.json').version")
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Version incremented from $PUBLISHED_VERSION to $NEW_VERSION"
+        echo "version-changed=true" >> $GITHUB_OUTPUT
     
     - name: Publish to npm
       if: steps.version-check.outputs.version-changed == 'true'
@@ -138,13 +136,16 @@ jobs:
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
-    - name: Create Git tag
+    - name: Commit version bump and create Git tag
       if: steps.version-check.outputs.version-changed == 'true'
       run: |
-        VERSION=$(node -p "require('./package.json').version")
+        VERSION=${{ steps.version-check.outputs.new-version }}
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        git add package.json
+        git commit -m "chore: bump version to $VERSION [skip ci]"
         git tag -a "v$VERSION" -m "Release version $VERSION"
+        git push origin main
         git push origin "v$VERSION"
     
     - name: Generate release notes
@@ -162,8 +163,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: v${{ steps.version-check.outputs.current-version }}
-        release_name: Release v${{ steps.version-check.outputs.current-version }}
+        tag_name: v${{ steps.version-check.outputs.new-version }}
+        release_name: Release v${{ steps.version-check.outputs.new-version }}
         body_path: RELEASE_NOTES.md
         draft: false
         prerelease: false
