@@ -21,6 +21,7 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",
+    "postbuild": "chmod +x dist/cli.js dist/mcp/server.js",
     "build:prod": "npm run clean && tsc --sourceMap false --removeComments true",
     "build:dev": "tsc --sourceMap true",
     "build:watch": "tsc --watch",
