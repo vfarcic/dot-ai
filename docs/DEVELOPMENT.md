@@ -26,25 +26,25 @@ The discovery engine provides comprehensive, unfiltered data through well-define
 ## Development Workflow
 
 ### Prerequisites
-- Node.js 18+
-- TypeScript
-- kubectl configured with cluster access
+- [DevBox](https://www.jetify.com/docs/devbox/installing_devbox) installed
 - Access to a Kubernetes cluster (local or remote)
 
 ### Setup
 
 ```bash
-# Clone and install
-git clone https://github.com/vfarcic/node dist/cli.js.git
-cd node dist/cli.js
-npm install
+# Clone the repository
+git clone https://github.com/vfarcic/dot-ai.git
+cd dot-ai
 
-# Build the project
+# Enter DevBox shell (installs all required tools)
+devbox shell
+
+# Install dependencies and build
+npm install
 npm run build
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
+# Set up test cluster (optional)
+./dot.nu setup
 ```
 
 ### Making Changes
@@ -130,15 +130,15 @@ Current coverage: **69%+ overall** with **565+ tests** across 21 test suites, in
 ### Local Testing with Kind
 
 ```bash
-# Create test cluster
-kind create cluster --name node dist/cli.js-test
+# Create test cluster using DevBox setup
+./dot.nu setup
 
 # Run integration tests
-export KUBECONFIG=$(kind get kubeconfig-path --name node dist/cli.js-test)
+export KUBECONFIG=kubeconfig.yaml
 npm test -- tests/integration
 
 # Cleanup
-kind delete cluster --name node dist/cli.js-test
+./dot.nu destroy
 ```
 
 ## Debugging

@@ -4,7 +4,9 @@
     "kind@0.29.0",
     "git@2.49.0",
     "teller@2.0.7",
-    "kubernetes-helm@3.18.3"
+    "kubernetes-helm@3.18.3",
+    "nushell@0.105.1",
+    "kubectl@1.33.2"
   ],
   "shell": {
     "init_hook": [],

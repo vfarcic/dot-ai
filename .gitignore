@@ -63,7 +63,7 @@ manifests/
 
 # Kubernetes
 *.kubeconfig
-kubeconfig.yaml
+kubeconfig*.yaml
 
 
 
