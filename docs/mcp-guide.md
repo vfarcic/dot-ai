@@ -23,7 +23,7 @@ Create `.mcp.json` in your project for Claude Code:
   "mcpServers": {
     "dot-ai": {
       "command": "npx",
-      "args": ["--package=@vfarcic/dot-ai", "npm", "run", "start:mcp"],
+      "args": ["-y", "--package=@vfarcic/dot-ai", "dot-ai-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_anthropic_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
@@ -86,7 +86,7 @@ claude
   "mcpServers": {
     "dot-ai": {
       "command": "npx",
-      "args": ["--package=@vfarcic/dot-ai", "npm", "run", "start:mcp"],
+      "args": ["-y", "--package=@vfarcic/dot-ai", "dot-ai-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions"
