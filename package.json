@@ -1,6 +1,6 @@
 {
   "name": "@vfarcic/dot-ai",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Universal Kubernetes application deployment agent with CLI and MCP interfaces",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
