@@ -104,23 +104,26 @@ Agent: ✅ Successfully deployed! Your application is running.
 For scripting and direct usage (requires global installation):
 
 ```bash
+# 0. Create session directory (required)
+mkdir -p tmp/sessions
+
 # 1. Get AI recommendations (includes cluster discovery)
-dot-ai recommend --intent "deploy a web application" --session-dir ./tmp
+dot-ai recommend --intent "deploy a web application" --session-dir tmp/sessions
 
 # 2. Choose a solution
-dot-ai choose-solution --solution-id sol_xxx --session-dir ./tmp
+dot-ai choose-solution --solution-id sol_xxx --session-dir tmp/sessions
 
 # 3. Configure step-by-step (all stages required)
-dot-ai answer-question --solution-id sol_xxx --stage required --answers {...}
-dot-ai answer-question --solution-id sol_xxx --stage basic --answers {}
-dot-ai answer-question --solution-id sol_xxx --stage advanced --answers {}
-dot-ai answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"}
+dot-ai answer-question --solution-id sol_xxx --stage required --answers {...} --session-dir tmp/sessions
+dot-ai answer-question --solution-id sol_xxx --stage basic --answers {} --session-dir tmp/sessions
+dot-ai answer-question --solution-id sol_xxx --stage advanced --answers {} --session-dir tmp/sessions
+dot-ai answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"} --session-dir tmp/sessions
 
 # 4. Generate manifests
-dot-ai generate-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai generate-manifests --solution-id sol_xxx --session-dir tmp/sessions
 
 # 5. Deploy to cluster
-dot-ai deploy-manifests --solution-id sol_xxx --session-dir ./tmp
+dot-ai deploy-manifests --solution-id sol_xxx --session-dir tmp/sessions
 ```
 
 📖 **[Complete CLI Guide →](docs/cli-guide.md)** - Detailed command-line interface documentation
