@@ -23,9 +23,13 @@ If no file path is provided, tests README.md by default.
 
 ## Assumptions
 
-- **Working environment**: Assumes development environment is set up and functional
-- **Skip setup sections**: Does not validate installation procedures or environment setup  
-- **Focus on active usage**: Validates commands, workflows, and claims users would encounter
+- **Prerequisites met**: All requirements mentioned in documentation are installed and configured
+- **Commands available**: All binaries/commands referenced in documentation are available in PATH
+- **Environment configured**: Environment variables and settings mentioned in documentation are properly set
+- **Working context**: Required directories, files, and access permissions exist per documentation
+- **Skip setup sections**: Does not validate installation procedures or environment setup
+- **Execute as documented**: Run commands exactly as shown in documentation
+- **Adapt dynamic values**: Replace placeholder values with actual outputs from previous commands
 
 ## Validation Categories
 
