@@ -794,5 +794,4 @@ dot-ai learn --output table | grep -i deployment
 
 - [MCP Integration Guide](mcp-guide.md) - Use DevOps AI Toolkit with AI development tools
 - [API Reference](API.md) - Programmatic usage and TypeScript interfaces
-- [Development Guide](DEVELOPMENT.md) - Contributing and architecture
-- [Manual Testing](manual-testing.md) - Testing procedures and examples
+- [Development Guide](DEVELOPMENT.md) - Contributing, architecture, and testing procedures

@@ -55,7 +55,7 @@ Perfect for conversational deployments with AI agents:
   "mcpServers": {
     "dot-ai": {
       "command": "npx",
-      "args": ["-y", "--package=@vfarcic/dot-ai", "dot-ai-mcp"],
+      "args": ["-y", "--package=@vfarcic/dot-ai@latest", "dot-ai-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
