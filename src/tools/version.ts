@@ -33,8 +33,8 @@ export function getVersionInfo(): VersionInfo {
   
   try {
     // Get the directory where this module is installed
-    // __dirname points to the compiled JS location, go up to find package.json
-    const mcpServerDir = join(__dirname, '..');
+    // __dirname points to the compiled JS location (dist/tools/), go up two levels to find package.json
+    const mcpServerDir = join(__dirname, '..', '..');
     const packageJsonPath = join(mcpServerDir, 'package.json');
     packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
   } catch (error) {
