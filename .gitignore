@@ -83,7 +83,7 @@ dev-debug.log
 
 # Cursor
 .cursor/mcp.json
-.mcp.json
+.mcp*.json*
 
 # Task files
 # tasks.json
