@@ -30,6 +30,7 @@ Consider:
 - Platform operators (Crossplane, Knative, etc.) that might offer better user experience
 - User experience - simpler declarative approaches often score higher than complex multi-resource solutions
 - **Schema-based capability analysis**: Examine the actual resource schema fields to determine what capabilities each resource truly supports
+- **Intent-solution alignment**: Ensure solutions directly fulfill the user's stated intent rather than just providing prerequisites or supporting infrastructure
 
 ## Schema-Based Capability Analysis
 
@@ -105,5 +106,5 @@ For each resource in the `resources` array, provide:
 - **90-100**: Complete solution, fully addresses user needs
 - **70-89**: Good solution, addresses most needs with minor gaps
 - **50-69**: Partial solution, addresses some needs but requires additional work
-- **30-49**: Incomplete solution, only peripherally addresses needs
+- **30-49**: Incomplete solution, only peripherally addresses needs (e.g., provides supporting infrastructure but not the primary functionality)
 - **0-29**: Poor fit, doesn't meaningfully address the user's intent
