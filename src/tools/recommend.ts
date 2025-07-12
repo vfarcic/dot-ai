@@ -338,7 +338,7 @@ export async function handleRecommendTool(
         intent: args.intent,
         solutions: solutionSummaries,
         nextAction: "Call chooseSolution with your preferred solutionId",
-        guidance: "🛑 NEVER choose automatically - Present ALL solutions to user and ask them to choose by calling chooseSolution(solutionId)",
+        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection.",
         timestamp
       };
 

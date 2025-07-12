@@ -88,6 +88,23 @@ describe('Recommend Tool', () => {
     });
   });
 
+  describe('Response Structure Validation', () => {
+    test('should include updated guidance text to prevent automatic solution selection', () => {
+      // Read the source code to verify guidance text
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify the updated guidance text is present
+      expect(sourceCode).toContain('🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose');
+      expect(sourceCode).toContain('DO NOT automatically call chooseSolution() without user input');
+      expect(sourceCode).toContain('Stop here and wait for user selection');
+    });
+  });
+
   describe('Intent Validation', () => {
     test('should include intent validation in source code', () => {
       // Verify intent validation is implemented in the source
