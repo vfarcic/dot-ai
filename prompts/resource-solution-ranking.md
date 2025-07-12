@@ -43,6 +43,7 @@ For each resource schema in the solution, examine field patterns that indicate c
 - **Nested structures**: Check for complex objects that suggest advanced functionality
 - **Reference patterns**: Identify fields that reference other resources or external systems
 - **Configuration options**: Note fields that allow customization relevant to the user's needs
+- **Capability precision**: Distinguish between similar but different capabilities (e.g., external connections vs direct integration, configuration vs execution, monitoring vs logging)
 
 ### Intent-Schema Matching Process
 1. **Extract keywords** from user intent (e.g., "storage", "network", "scale", "database", "monitor")
