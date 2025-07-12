@@ -29,16 +29,48 @@ Consider:
 - **Custom Resource Definitions (CRDs)** that may provide simpler, higher-level abstractions
 - Platform operators (Crossplane, Knative, etc.) that might offer better user experience
 - User experience - simpler declarative approaches often score higher than complex multi-resource solutions
+- **Schema-based capability analysis**: Examine the actual resource schema fields to determine what capabilities each resource truly supports
+
+## Schema-Based Capability Analysis
+
+**CRITICAL**: Before scoring any solution, analyze all resource schemas in that solution to determine actual capabilities:
+
+### Capability Detection Method
+For each resource schema in the solution, examine field patterns that indicate capabilities:
+- **Field names and types**: Look for schema fields whose names, descriptions, or types relate to the user's intent
+- **Nested structures**: Check for complex objects that suggest advanced functionality
+- **Reference patterns**: Identify fields that reference other resources or external systems
+- **Configuration options**: Note fields that allow customization relevant to the user's needs
+
+### Intent-Schema Matching Process
+1. **Extract keywords** from user intent (e.g., "storage", "network", "scale", "database", "monitor")
+2. **Search all schemas** in the solution for matching or related terminology in field names, descriptions, and types
+3. **Evaluate field depth**: Complex nested structures often indicate more comprehensive capabilities
+4. **Check for extension points**: Fields that allow custom configuration or references to external resources
+
+### Solution Scoring Based on Schema Analysis
+- **High relevance (80-100 points)**: Schemas contain multiple fields directly related to user intent
+- **Medium relevance (50-79 points)**: Schemas contain some fields that could support user intent
+- **Low relevance (20-49 points)**: Schemas have minimal or indirect support for user intent
+- **Reject (0-19 points)**: Schemas lack any fields related to user intent - DO NOT include these solutions
 
 ## CRD Preference Guidelines
 
 When evaluating CRDs vs standard Kubernetes resources:
-- **Prefer CRDs with matching capabilities**: If a CRD's listed capabilities directly address the user's specific needs, it should score higher than manually combining multiple standard resources
-- **Favor purpose-built solutions**: CRDs designed for specific use cases should score higher than generic resource combinations when the use case aligns
-- **Value comprehensive functionality**: A single CRD that handles multiple related concerns (deployment + networking + scaling) should score higher than manually orchestrating separate resources for the same outcome
+- **Prefer CRDs with matching capabilities**: If a CRD's schemas directly address the user's specific needs, it should score higher than manually combining multiple standard resources
+- **Favor purpose-built solutions**: CRDs designed for specific use cases should score higher than generic resource combinations when the use case aligns AND the schemas support the required capabilities
+- **Value comprehensive functionality**: A single CRD that handles multiple related concerns should score higher than manually orchestrating separate resources for the same outcome
 - **Consider operational simplicity**: CRDs that provide intuitive, domain-specific interfaces should be preferred over complex multi-resource configurations
 - **Give preference to platform abstractions**: For application deployment scenarios, purpose-built CRDs with comprehensive application platform features should be weighted more favorably than basic resources requiring manual orchestration
-- **Match scope to intent**: Only prefer CRDs when their documented capabilities genuinely align with what the user is trying to achieve
+- **Match scope to intent**: Only prefer CRDs when their schemas genuinely align with what the user is trying to achieve
+
+## Solution Filtering Rules
+
+**IMPORTANT**: To avoid rejecting all solutions:
+- **Be inclusive initially**: The resource selection phase should identify MORE potential candidates, not fewer
+- **Apply schema filtering here**: Only reject solutions where schemas completely lack relevant fields
+- **Provide alternatives**: If rejecting solutions, always provide at least 2-3 viable alternatives
+- **Explain rejections**: When scoring low, clearly explain which schema fields are missing
 
 ## Response Format
 

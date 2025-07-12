@@ -20,7 +20,7 @@ Select all resources that could be relevant for this intent. Consider:
 - Platform-specific resources (e.g., Crossplane, Knative, Istio, ArgoCD) that could simplify the deployment
 - **CRD Selection Priority**: If you see multiple CRDs from the same group with similar purposes (like "App" and "AppClaim"), include the namespace-scoped ones (marked as "Namespaced: true") rather than cluster-scoped ones, as they're more appropriate for application deployments
 
-Don't limit yourself - if the intent is complex, select as many resources as needed.
+Don't limit yourself - if the intent is complex, select as many resources as needed. **Be extra inclusive** - the detailed schema analysis phase will filter out inappropriate resources, so it's better to include more candidates initially.
 
 ## Response Format
 
