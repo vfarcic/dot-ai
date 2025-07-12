@@ -494,8 +494,8 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
     });
   });
 
-  describe('Agent Instructions Anti-Cascade Rule', () => {
-    test('should include anti-cascade rule in agent instructions for basic stage', async () => {
+  describe('Enhanced Agent Instructions Anti-Cascade Rule', () => {
+    test('should include comprehensive anti-cascade instructions for basic stage', async () => {
       const context = createMockToolContext();
       
       // Mock solution with required questions answered to get to basic stage
@@ -514,11 +514,15 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
       expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
-      expect(response.agentInstructions).toContain('only skip THAT specific stage');
-      expect(response.agentInstructions).toContain('NEVER automatically skip multiple stages');
+      expect(response.agentInstructions).toContain('MANDATORY CLIENT AGENT WORKFLOW');
+      expect(response.agentInstructions).toContain('STRICT BEHAVIORAL CONSTRAINTS');
+      expect(response.agentInstructions).toContain('NEVER call answerQuestion without receiving user input first');
+      expect(response.agentInstructions).toContain('DO NOT call answerQuestion automatically');
+      // After processing basic stage, we advance to advanced stage
+      expect(response.agentInstructions).toContain('STAGE: ADVANCED');
     });
 
-    test('should include anti-cascade rule in agent instructions for advanced stage', async () => {
+    test('should include comprehensive anti-cascade instructions for advanced stage', async () => {
       const context = createMockToolContext();
       
       // Mock solution with required and basic questions answered to get to advanced stage
@@ -538,11 +542,68 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.status).toBe('stage_questions');
       expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
-      expect(response.agentInstructions).toContain('only skip THAT specific stage');
-      expect(response.agentInstructions).toContain('NEVER automatically skip multiple stages');
+      expect(response.agentInstructions).toContain('MANDATORY CLIENT AGENT WORKFLOW');
+      expect(response.agentInstructions).toContain('STRICT BEHAVIORAL CONSTRAINTS');
+      expect(response.agentInstructions).toContain('NEVER assume what the user wants for subsequent stages');
+      // After processing advanced stage, we advance to open stage
+      expect(response.agentInstructions).toContain('STAGE: OPEN');
     });
 
-    test('should include anti-cascade rule in agent instructions for open stage', async () => {
+    test('should include workflow steps in correct order', async () => {
+      const context = createMockToolContext();
+      
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'basic',
+        answers: { replicas: 3 }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      const instructions = response.agentInstructions;
+      
+      // Check that workflow steps are in correct order
+      expect(instructions).toContain('1. Present these questions to the user in natural language');
+      expect(instructions).toContain('2. Wait for explicit user response');
+      expect(instructions).toContain('3. If user provides answers: call answerQuestion with their specific answers');
+      expect(instructions).toContain('4. If user says "skip": call answerQuestion with empty answers object ({})');
+      expect(instructions).toContain('5. NEVER call answerQuestion without receiving user input first');
+      expect(instructions).toContain('6. NEVER assume what the user wants for subsequent stages');
+    });
+
+    test('should include all behavioral constraints', async () => {
+      const context = createMockToolContext();
+      
+      const solutionWithBasic = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'advanced',
+        answers: { 'scaling-enabled': true }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      const instructions = response.agentInstructions;
+      
+      // Check all behavioral constraints are present
+      expect(instructions).toContain('DO NOT call answerQuestion automatically');
+      expect(instructions).toContain('DO NOT assume user wants to proceed to manifest generation');
+      expect(instructions).toContain('DO NOT call answerQuestion with empty open stage answers unless user explicitly provides them');
+      expect(instructions).toContain('DO NOT interpret "skip" as "automatically proceed to next stage"');
+      expect(instructions).toContain('MUST present each stage\'s questions individually and wait for user response');
+    });
+
+    test('should include correct stage-specific instructions for open stage', async () => {
       const context = createMockToolContext();
       
       // Mock solution with all previous questions answered to get to open stage
@@ -586,7 +647,67 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       expect(response.status).toBe('stage_questions');
       expect(response.currentStage).toBe('advanced'); // Should advance to next stage
       expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
-      expect(response.agentInstructions).toContain('Present these questions to the user and wait for their response');
+      expect(response.agentInstructions).toContain('Wait for explicit user response');
+    });
+
+    test('should provide clear instructions when advancing to open stage after skipping advanced', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required and basic questions answered, now on advanced stage
+      const solutionWithBasic = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'advanced',
+        answers: {} // Empty answers = skip advanced stage
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('open'); // Should advance to open stage
+      expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
+      expect(response.agentInstructions).toContain('DO NOT call answerQuestion with empty open stage answers unless user explicitly provides them');
+      expect(response.agentInstructions).toContain('STAGE: OPEN - Final configuration stage');
+      expect(response.agentInstructions).toContain('Present these questions to the user in natural language');
+      expect(response.agentInstructions).toContain('Wait for explicit user response');
+    });
+
+    test('should have enhanced anti-cascade instructions with all required components', async () => {
+      const context = createMockToolContext();
+      
+      // Test that enhanced instructions are present in responses
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'basic',
+        answers: { replicas: 3 }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      
+      // Verify all enhanced instruction components are present
+      expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
+      expect(response.agentInstructions).toContain('MANDATORY CLIENT AGENT WORKFLOW');
+      expect(response.agentInstructions).toContain('STRICT BEHAVIORAL CONSTRAINTS');
+      expect(response.agentInstructions).toContain('1. Present these questions to the user in natural language');
+      expect(response.agentInstructions).toContain('2. Wait for explicit user response');
+      expect(response.agentInstructions).toContain('DO NOT call answerQuestion automatically');
+      expect(response.agentInstructions).toContain('DO NOT call answerQuestion with empty open stage answers unless user explicitly provides them');
+      expect(response.agentInstructions).toContain('MUST present each stage\'s questions individually and wait for user response');
+      
+      // Should contain stage-specific instructions
+      expect(response.agentInstructions).toContain('STAGE:');
     });
   });
 });

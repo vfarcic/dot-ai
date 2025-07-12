@@ -138,23 +138,49 @@ function validateAnswer(answer: any, question: any): string | null {
 }
 
 /**
- * Get anti-cascade agent instructions for stage responses
+ * Get stage-specific instructions for different stages
+ */
+function getStageSpecificInstructions(stage: Stage): string {
+  switch (stage) {
+    case 'required':
+      return 'STAGE: REQUIRED - All questions must be answered before proceeding. No skipping allowed.';
+    case 'basic':
+      return 'STAGE: BASIC - These questions can be skipped. User can provide answers or say "skip" to proceed to advanced stage.';
+    case 'advanced':
+      return 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to open stage.';
+    case 'open':
+      return 'STAGE: OPEN - Final configuration stage. User can provide additional requirements or say "N/A" to proceed to manifest generation.';
+    default:
+      return 'STAGE: UNKNOWN - Present questions to the user and wait for their response.';
+  }
+}
+
+/**
+ * Get enhanced anti-cascade agent instructions for stage responses
  */
 function getAgentInstructions(stage: Stage): string {
   const antiCascadeRule = 'CRITICAL ANTI-CASCADE RULE: When user says "skip" for ANY stage, only skip THAT specific stage and present the NEXT stage questions to the user. NEVER automatically skip multiple stages in sequence.';
   
-  switch (stage) {
-    case 'required':
-      return `${antiCascadeRule} Present these required questions to the user. All must be answered before proceeding.`;
-    case 'basic':
-      return `${antiCascadeRule} Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.`;
-    case 'advanced':
-      return `${antiCascadeRule} Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.`;
-    case 'open':
-      return `${antiCascadeRule} This is the final configuration stage. Present these questions to the user and wait for their response. Use "N/A" only if user explicitly states no additional requirements.`;
-    default:
-      return `${antiCascadeRule} Present questions to the user and wait for their response.`;
-  }
+  const mandatoryWorkflow = `
+MANDATORY CLIENT AGENT WORKFLOW:
+1. Present these questions to the user in natural language
+2. Wait for explicit user response
+3. If user provides answers: call answerQuestion with their specific answers
+4. If user says "skip": call answerQuestion with empty answers object ({})
+5. NEVER call answerQuestion without receiving user input first
+6. NEVER assume what the user wants for subsequent stages`;
+
+  const strictConstraints = `
+STRICT BEHAVIORAL CONSTRAINTS:
+- DO NOT call answerQuestion automatically
+- DO NOT assume user wants to proceed to manifest generation
+- DO NOT call answerQuestion with empty open stage answers unless user explicitly provides them
+- DO NOT interpret "skip" as "automatically proceed to next stage"
+- MUST present each stage's questions individually and wait for user response`;
+
+  const stageSpecific = getStageSpecificInstructions(stage);
+  
+  return `${antiCascadeRule}\n${mandatoryWorkflow}\n${strictConstraints}\n\n${stageSpecific}`;
 }
 
 /**
