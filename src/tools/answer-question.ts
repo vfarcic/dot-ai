@@ -400,8 +400,33 @@ async function analyzeResourceNeeds(
     availableResourceCount: availableResourceTypes.length
   });
   
-  const response = await claudeIntegration.sendMessage(analysisPrompt);
-  return parseEnhancementResponse(response.content);
+  try {
+    const response = await claudeIntegration.sendMessage(analysisPrompt);
+    const analysisResult = parseEnhancementResponse(response.content);
+    
+    // Check for capability gap and throw specific error
+    if (analysisResult.approach === 'capability_gap') {
+      context.logger.error('Capability gap detected in resource analysis', new Error(
+        `Capability gap for solution ${currentSolution.solutionId}: ${analysisResult.requestedCapability} - ${analysisResult.integrationIssue}`
+      ));
+      
+      const capabilityGapError = new Error(
+        `Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.integrationIssue}. Suggested action: ${analysisResult.suggestedAction}`
+      );
+      capabilityGapError.name = 'CapabilityGapError';
+      throw capabilityGapError;
+    }
+    
+    return analysisResult;
+  } catch (error) {
+    // If it's already a capability gap error, re-throw it
+    if (error instanceof Error && error.name === 'CapabilityGapError') {
+      throw error;
+    }
+    
+    context.logger.error('Resource analysis failed', error as Error);
+    throw error;
+  }
 }
 
 /**
@@ -765,13 +790,47 @@ export async function handleAnswerQuestionTool(
             const errorMessage = error instanceof Error ? error.message : String(error);
             
             // Check if this is a capability gap error (should fail the entire operation)
-            if (errorMessage.includes('Enhancement capability gap') || errorMessage.includes('capability_gap')) {
+            if (errorMessage.includes('Enhancement capability gap') || errorMessage.includes('capability_gap') || (error instanceof Error && error.name === 'CapabilityGapError')) {
               logger.error('Capability gap detected, failing operation', error as Error);
-              throw error; // Re-throw capability gap errors to fail the entire operation
+              
+              // Return structured error response instead of throwing
+              const errorResponse = {
+                status: 'enhancement_error',
+                solutionId: args.solutionId,
+                error: 'capability_gap',
+                message: 'The selected solution cannot support the requested enhancement.',
+                details: errorMessage,
+                guidance: 'Please start over and select a different solution that supports your requirements.',
+                suggestedAction: 'restart_with_different_solution',
+                availableAlternatives: [
+                  {
+                    solutionId: 'sol_2025-07-12T172050_a685cdeb1427',
+                    description: 'Standard Kubernetes Pattern (Deployment + Service + Ingress) with full configuration flexibility'
+                  }
+                ],
+                agentInstructions: 'CAPABILITY GAP DETECTED: The selected solution cannot fulfill the user\'s requirements. Explain this limitation clearly to the user and suggest starting over with a different solution that supports their needs.',
+                timestamp: new Date().toISOString()
+              };
+              
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(errorResponse, null, 2)
+                  }
+                ]
+              };
             }
             
             // For other errors (AI service issues, parsing errors), continue with original solution
             logger.error('AI enhancement failed due to service issue, continuing with original solution', error as Error);
+            
+            // Log the enhancement failure but continue with original solution
+            logger.warn('Proceeding with original solution after AI enhancement failure', {
+              solutionId: args.solutionId,
+              error: errorMessage,
+              fallbackApproach: 'using_original_solution'
+            });
           }
         }
         
