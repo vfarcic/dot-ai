@@ -13,13 +13,13 @@ import { getAndValidateSessionDirectory } from '../core/session-utils';
 
 // Tool metadata for direct MCP registration
 export const ANSWERQUESTION_TOOL_NAME = 'answerQuestion';
-export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return remaining questions or completion status';
+export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return remaining questions or completion status. For open stage, use "open" as the answer key.';
 
 // Zod schema for MCP registration
 export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
   solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
   stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
-  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage')
+  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})')
 };
 
 
@@ -621,7 +621,7 @@ export async function handleAnswerQuestionTool(
         if (args.stage === 'open') {
           // Only allow 'open' as the question ID for open stage
           if (questionId !== 'open') {
-            validationErrors.push(`Unknown question ID '${questionId}' for stage '${args.stage}'. Open stage only accepts 'open' as question ID.`);
+            validationErrors.push(`Invalid question ID '${questionId}' for open stage. Use "open" as the key, e.g., {"open": "add persistent storage"}.`);
             continue;
           }
           // Skip further validation for open stage as it doesn't follow Question interface

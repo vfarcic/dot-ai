@@ -412,4 +412,85 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       expect(response.currentStage).toBe('advanced');
     });
   });
+
+  describe('Open Stage Answer Format Validation', () => {
+    test('should reject incorrect answer keys for open stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with all previous stages complete
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3,
+        'scaling-enabled': false
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'open',
+        answers: {
+          requirements: 'add storage to it' // Wrong key - should be 'open'
+        }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_error');
+      expect(response.error).toBe('validation_failed');
+      expect(response.validationErrors[0]).toContain('Invalid question ID \'requirements\' for open stage');
+      expect(response.validationErrors[0]).toContain('Use "open" as the key');
+    });
+
+    test('should reject "additional_requirements" key for open stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with all previous stages complete
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3,
+        'scaling-enabled': false
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'open',
+        answers: {
+          additional_requirements: 'add storage to it' // Wrong key - should be 'open'
+        }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_error');
+      expect(response.error).toBe('validation_failed');
+      expect(response.validationErrors[0]).toContain('Invalid question ID \'additional_requirements\' for open stage');
+      expect(response.validationErrors[0]).toContain('Use "open" as the key');
+    });
+
+    test('should accept correct "open" key for open stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with all previous stages complete
+      const completeSolution = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3,
+        'scaling-enabled': false
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(completeSolution));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'open',
+        answers: {
+          open: 'add storage to it' // Correct key
+        }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('ready_for_manifest_generation');
+      expect(response.solutionData.userAnswers.open).toBe('add storage to it');
+    });
+  });
 });
