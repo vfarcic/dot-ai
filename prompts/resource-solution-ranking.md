@@ -19,7 +19,7 @@ Analyze the user's intent and determine the best solution(s). This could be:
 
 **Capability Verification**: For each resource in your solution, examine its schema fields to verify it can fulfill the user's requirements. Do not assume capabilities that aren't explicitly present in the schema fields.
 
-**Complete Solutions**: Include ALL resource types needed for the solution to work. If your analysis mentions integration with other resources, include those resources in your resources array.
+**Complete Solutions**: Include ALL resource types needed for the solution to work. If your analysis mentions integration with other resources, include those resources in your resources array. For example, if a workload resource has built-in templates or references to other resource types, include those referenced resource types in your solution even if they're managed through the primary resource.
 
 **Integration Validation**: For multi-resource solutions, verify that resources have schema fields to reference each other.
 
