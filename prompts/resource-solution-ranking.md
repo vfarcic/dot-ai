@@ -15,22 +15,13 @@ Analyze the user's intent and determine the best solution(s). This could be:
 - A combination of resources that can actually integrate and work together to create a complete solution
 - Multiple alternative approaches ranked by effectiveness
 
-## MANDATORY Validation Process
+## Validation Requirements
 
-**STEP 1: Extract Intent Requirements**
-Parse the user intent and identify ALL requirements (e.g., "stateful application" + "persistent storage" + "accessible through Ingress").
+**Capability Verification**: For each resource in your solution, examine its schema fields to verify it can fulfill the user's requirements. Do not assume capabilities that aren't explicitly present in the schema fields.
 
-**STEP 2: Schema Analysis for Each Resource**
-For each resource in your solution, examine its schema fields to verify it can fulfill the requirements:
-- **Direct field matching**: Look for schema fields whose names directly relate to the requirements
-- **Integration capability**: Check if the resource has fields to integrate with other needed resources
-- **Reject false matches**: Do not assume capabilities that aren't explicitly present in the schema fields
+**Complete Solutions**: Include ALL resource types needed for the solution to work. If your analysis mentions integration with other resources, include those resources in your resources array.
 
-**STEP 3: Solution Completeness Check**
-Verify your solution addresses ALL requirements from Step 1. Incomplete solutions must score lower.
-
-**STEP 4: Combination Validation**
-For multi-resource solutions, verify integration compatibility by checking that resources have schema fields to reference each other.
+**Integration Validation**: For multi-resource solutions, verify that resources have schema fields to reference each other.
 
 ## Scoring Guidelines
 
