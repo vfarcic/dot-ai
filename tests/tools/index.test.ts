@@ -39,6 +39,13 @@ import {
   handleDeployManifestsTool 
 } from '../../src/tools/deploy-manifests';
 
+import { 
+  VERSION_TOOL_NAME, 
+  VERSION_TOOL_DESCRIPTION, 
+  VERSION_TOOL_INPUT_SCHEMA,
+  handleVersionTool 
+} from '../../src/tools/version';
+
 describe('Tool Integration', () => {
 
   describe('Tool Metadata Availability', () => {
@@ -48,15 +55,17 @@ describe('Tool Integration', () => {
         CHOOSESOLUTION_TOOL_NAME,
         ANSWERQUESTION_TOOL_NAME,
         GENERATEMANIFESTS_TOOL_NAME,
-        DEPLOYMANIFESTS_TOOL_NAME
+        DEPLOYMANIFESTS_TOOL_NAME,
+        VERSION_TOOL_NAME
       ];
 
-      expect(toolNames).toHaveLength(5);
+      expect(toolNames).toHaveLength(6);
       expect(toolNames).toContain('recommend');
       expect(toolNames).toContain('chooseSolution');
       expect(toolNames).toContain('answerQuestion');
       expect(toolNames).toContain('generateManifests');
       expect(toolNames).toContain('deployManifests');
+      expect(toolNames).toContain('version');
     });
 
     test('should have all tool handlers available', () => {
@@ -65,7 +74,8 @@ describe('Tool Integration', () => {
         handleChooseSolutionTool,
         handleAnswerQuestionTool,
         handleGenerateManifestsTool,
-        handleDeployManifestsTool
+        handleDeployManifestsTool,
+        handleVersionTool
       ];
 
       handlers.forEach(handler => {

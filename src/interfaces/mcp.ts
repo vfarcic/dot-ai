@@ -42,6 +42,12 @@ import {
   DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
   handleDeployManifestsTool 
 } from '../tools/deploy-manifests';
+import { 
+  VERSION_TOOL_NAME, 
+  VERSION_TOOL_DESCRIPTION, 
+  VERSION_TOOL_INPUT_SCHEMA,
+  handleVersionTool 
+} from '../tools/version';
 
 export interface MCPServerConfig {
   name: string;
@@ -147,6 +153,18 @@ export class MCPServer {
         return await handleDeployManifestsTool(args, this.dotAI, this.logger, requestId);
       }
     );
+
+    // Register version tool
+    this.server.tool(
+      VERSION_TOOL_NAME,
+      VERSION_TOOL_DESCRIPTION,
+      VERSION_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, { requestId });
+        return await handleVersionTool(args, this.logger, requestId);
+      }
+    );
     
     this.logger.info('Registered all tools with McpServer', { 
       tools: [
@@ -154,9 +172,10 @@ export class MCPServer {
         CHOOSESOLUTION_TOOL_NAME,
         ANSWERQUESTION_TOOL_NAME,
         GENERATEMANIFESTS_TOOL_NAME,
-        DEPLOYMANIFESTS_TOOL_NAME
+        DEPLOYMANIFESTS_TOOL_NAME,
+        VERSION_TOOL_NAME
       ],
-      totalTools: 5
+      totalTools: 6
     });
   }
 
