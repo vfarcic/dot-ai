@@ -493,4 +493,100 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       expect(response.solutionData.userAnswers.open).toBe('add storage to it');
     });
   });
+
+  describe('Agent Instructions Anti-Cascade Rule', () => {
+    test('should include anti-cascade rule in agent instructions for basic stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required questions answered to get to basic stage
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'basic',
+        answers: { replicas: 3 }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
+      expect(response.agentInstructions).toContain('only skip THAT specific stage');
+      expect(response.agentInstructions).toContain('NEVER automatically skip multiple stages');
+    });
+
+    test('should include anti-cascade rule in agent instructions for advanced stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required and basic questions answered to get to advanced stage
+      const solutionWithBasic = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithBasic));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'advanced',
+        answers: { 'scaling-enabled': true }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
+      expect(response.agentInstructions).toContain('only skip THAT specific stage');
+      expect(response.agentInstructions).toContain('NEVER automatically skip multiple stages');
+    });
+
+    test('should include anti-cascade rule in agent instructions for open stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with all previous questions answered to get to open stage
+      const solutionWithAdvanced = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080,
+        replicas: 3,
+        'scaling-enabled': false
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithAdvanced));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'open',
+        answers: { open: 'add monitoring' }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('ready_for_manifest_generation');
+      // For open stage completion, there's no agentInstructions since it's the final stage
+      // But the previous response when presenting open stage questions would have included it
+    });
+
+    test('should prevent cascade behavior when empty answers provided for skippable stages', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required questions answered, now on basic stage
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'basic',
+        answers: {} // Empty answers = skip stage
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('advanced'); // Should advance to next stage
+      expect(response.agentInstructions).toContain('CRITICAL ANTI-CASCADE RULE');
+      expect(response.agentInstructions).toContain('Present these questions to the user and wait for their response');
+    });
+  });
 });

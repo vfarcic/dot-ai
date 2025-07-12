@@ -141,17 +141,19 @@ function validateAnswer(answer: any, question: any): string | null {
  * Get anti-cascade agent instructions for stage responses
  */
 function getAgentInstructions(stage: Stage): string {
+  const antiCascadeRule = 'CRITICAL ANTI-CASCADE RULE: When user says "skip" for ANY stage, only skip THAT specific stage and present the NEXT stage questions to the user. NEVER automatically skip multiple stages in sequence.';
+  
   switch (stage) {
     case 'required':
-      return 'CRITICAL: Present these required questions to the user. All must be answered before proceeding.';
+      return `${antiCascadeRule} Present these required questions to the user. All must be answered before proceeding.`;
     case 'basic':
-      return 'CRITICAL: Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.';
+      return `${antiCascadeRule} Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.`;
     case 'advanced':
-      return 'CRITICAL: Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.';
+      return `${antiCascadeRule} Present these questions to the user and wait for their response. Do NOT skip this stage unless the user explicitly says to skip THIS specific stage.`;
     case 'open':
-      return 'CRITICAL: This is the final configuration stage. Present these questions to the user. Use "N/A" only if user explicitly states no additional requirements.';
+      return `${antiCascadeRule} This is the final configuration stage. Present these questions to the user and wait for their response. Use "N/A" only if user explicitly states no additional requirements.`;
     default:
-      return 'Present questions to the user and wait for their response.';
+      return `${antiCascadeRule} Present questions to the user and wait for their response.`;
   }
 }
 
@@ -327,7 +329,7 @@ function getStageGuidance(stage: Stage): string {
     case 'advanced':
       return 'Answer questions in this stage or skip to proceed to the open stage. Do NOT try to generate manifests yet.';
     case 'open':
-      return 'Use "N/A" if you have no additional requirements. Complete this stage before generating manifests. IMPORTANT: This is the final configuration stage - do not skip.';
+      return 'Use "N/A" if you have no additional requirements. Complete this stage before generating manifests.';
     default:
       return 'Please provide answers for this stage.';
   }
