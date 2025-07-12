@@ -78,38 +78,47 @@ describe('Version Tool', () => {
       const args = {};
       const result = await handleVersionTool(args, logger, requestId);
 
-      expect(result).toHaveProperty('status', 'success');
-      expect(result).toHaveProperty('versionInfo');
-      expect(result).toHaveProperty('timestamp');
+      expect(result).toHaveProperty('content');
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0]).toHaveProperty('type', 'text');
+      expect(result.content[0]).toHaveProperty('text');
 
-      expect(result.versionInfo).toHaveProperty('version');
-      expect(result.versionInfo).toHaveProperty('nodeVersion');
-      expect(result.versionInfo).toHaveProperty('platform');
-      expect(result.versionInfo).toHaveProperty('arch');
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData).toHaveProperty('status', 'success');
+      expect(responseData).toHaveProperty('versionInfo');
+      expect(responseData).toHaveProperty('timestamp');
+
+      expect(responseData.versionInfo).toHaveProperty('version');
+      expect(responseData.versionInfo).toHaveProperty('nodeVersion');
+      expect(responseData.versionInfo).toHaveProperty('platform');
+      expect(responseData.versionInfo).toHaveProperty('arch');
     });
 
     it('should return valid timestamp in response', async () => {
       const args = {};
       const result = await handleVersionTool(args, logger, requestId);
 
-      expect(() => new Date(result.timestamp)).not.toThrow();
-      expect(new Date(result.timestamp).toISOString()).toBe(result.timestamp);
+      const responseData = JSON.parse(result.content[0].text);
+      expect(() => new Date(responseData.timestamp)).not.toThrow();
+      expect(new Date(responseData.timestamp).toISOString()).toBe(responseData.timestamp);
     });
 
     it('should handle empty arguments', async () => {
       const args = {};
       const result = await handleVersionTool(args, logger, requestId);
 
-      expect(result.status).toBe('success');
-      expect(result.versionInfo).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.status).toBe('success');
+      expect(responseData.versionInfo).toBeDefined();
     });
 
     it('should handle null arguments', async () => {
       const args = null;
       const result = await handleVersionTool(args, logger, requestId);
 
-      expect(result.status).toBe('success');
-      expect(result.versionInfo).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.status).toBe('success');
+      expect(responseData.versionInfo).toBeDefined();
     });
   });
 });
