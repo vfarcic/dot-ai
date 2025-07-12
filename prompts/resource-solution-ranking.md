@@ -15,73 +15,32 @@ Analyze the user's intent and determine the best solution(s). This could be:
 - A combination of resources that can actually integrate and work together to create a complete solution
 - Multiple alternative approaches ranked by effectiveness
 
-For each solution, provide:
-1. A score from 0-100 for how well it meets the user's needs
-2. Specific reasons why this solution addresses the intent
-3. Whether it's a single resource or combination, and why
-4. Production readiness and best practices
+## MANDATORY Validation Process
 
-Consider:
-- Semantic meaning and typical use cases
-- Resource relationships and orchestration patterns
-- Complete end-to-end solutions vs partial solutions
-- Production patterns and best practices
-- **Custom Resource Definitions (CRDs)** that may provide simpler, higher-level abstractions
-- Platform operators (Crossplane, Knative, etc.) that might offer better user experience
-- User experience - simpler declarative approaches often score higher than complex multi-resource solutions
-- **Schema-based capability analysis**: Examine the actual resource schema fields to determine what capabilities each resource truly supports
-- **Intent-solution alignment**: Ensure solutions directly fulfill the user's stated intent rather than just providing prerequisites or supporting infrastructure
-- **Complete intent fulfillment**: Solutions must address ALL parts of the user's intent, not just some aspects
+**STEP 1: Extract Intent Requirements**
+Parse the user intent and identify ALL requirements (e.g., "stateful application" + "persistent storage" + "accessible through Ingress").
 
-## Schema-Based Capability Analysis
+**STEP 2: Schema Analysis for Each Resource**
+For each resource in your solution, examine its schema fields to verify it can fulfill the requirements:
+- **Direct field matching**: Look for schema fields whose names directly relate to the requirements
+- **Integration capability**: Check if the resource has fields to integrate with other needed resources
+- **Reject false matches**: Do not assume capabilities that aren't explicitly present in the schema fields
 
-**CRITICAL**: Before scoring any solution, analyze all resource schemas in that solution to determine actual capabilities:
+**STEP 3: Solution Completeness Check**
+Verify your solution addresses ALL requirements from Step 1. Incomplete solutions must score lower.
 
-### Capability Detection Method
-For each resource schema in the solution, examine field patterns that indicate capabilities:
-- **Field names and types**: Look for schema fields whose names, descriptions, or types relate to the user's intent
-- **Nested structures**: Check for complex objects that suggest advanced functionality
-- **Reference patterns**: Identify fields that reference other resources or external systems
-- **Configuration options**: Note fields that allow customization relevant to the user's needs
-- **Capability precision**: Distinguish between similar but different capabilities (e.g., external connections vs direct integration, configuration vs execution, monitoring vs logging)
+**STEP 4: Combination Validation**
+For multi-resource solutions, verify integration compatibility by checking that resources have schema fields to reference each other.
 
-### Intent-Schema Matching Process
-1. **Extract keywords** from user intent (e.g., "storage", "network", "scale", "database", "monitor")
-2. **Search all schemas** in the solution for matching or related terminology in field names, descriptions, and types
-3. **Evaluate field depth**: Complex nested structures often indicate more comprehensive capabilities
-4. **Check for extension points**: Fields that allow custom configuration or references to external resources
+## Scoring Guidelines
 
-### Solution Scoring Based on Schema Analysis
-- **High relevance (80-100 points)**: Schemas contain multiple fields directly related to user intent
-- **Medium relevance (50-79 points)**: Schemas contain some fields that could support user intent
-- **Low relevance (20-49 points)**: Schemas have minimal or indirect support for user intent
-- **Reject (0-19 points)**: Schemas lack any fields related to user intent - DO NOT include these solutions
+Score solutions based on completeness and schema validation:
 
-## CRD Preference Guidelines
-
-When evaluating CRDs vs standard Kubernetes resources:
-- **Prefer CRDs with matching capabilities**: If a CRD's schemas directly address the user's specific needs, it should score higher than manually combining multiple standard resources
-- **Favor purpose-built solutions**: CRDs designed for specific use cases should score higher than generic resource combinations when the use case aligns AND the schemas support the required capabilities
-- **Value comprehensive functionality**: A single CRD that handles multiple related concerns should score higher than manually orchestrating separate resources for the same outcome
-- **Consider operational simplicity**: CRDs that provide intuitive, domain-specific interfaces should be preferred over complex multi-resource configurations
-- **Give preference to platform abstractions**: For application deployment scenarios, purpose-built CRDs with comprehensive application platform features should be weighted more favorably than basic resources requiring manual orchestration
-- **Match scope to intent**: Only prefer CRDs when their schemas genuinely align with what the user is trying to achieve
-
-## Resource Combination Validation
-
-**CRITICAL**: When proposing combination solutions, verify schema-based integration compatibility:
-
-- **Check integration fields**: For combinations, ensure one resource has schema fields that can reference or integrate with the other resource
-- **Verify field compatibility**: Analyze schemas to confirm resources have compatible integration points before combining them
-- **Reject incompatible combinations**: Do not suggest combinations where resource schemas lack the necessary fields to work together
-
-## Solution Filtering Rules
-
-**IMPORTANT**: To avoid rejecting all solutions:
-- **Be inclusive initially**: The resource selection phase should identify MORE potential candidates, not fewer
-- **Apply schema filtering here**: Only reject solutions where schemas completely lack relevant fields
-- **Provide alternatives**: If rejecting solutions, always provide at least 2-3 viable alternatives
-- **Explain rejections**: When scoring low, clearly explain which schema fields are missing
+- **90-100**: Complete solution, schema fields directly support ALL requirements
+- **70-89**: Good solution, schema fields support most requirements with minor gaps
+- **50-69**: Partial solution, schema fields support some requirements but missing others
+- **30-49**: Incomplete solution, schema fields only partially support requirements
+- **0-29**: Poor fit, schema fields don't meaningfully support the requirements
 
 ## Response Format
 
@@ -100,21 +59,10 @@ When evaluating CRDs vs standard Kubernetes resources:
       "score": 85,
       "description": "Brief description of this solution",
       "reasons": ["reason1", "reason2"],
-      "analysis": "Detailed explanation of why this solution meets the user's needs"
+      "analysis": "Detailed explanation of schema analysis and why this solution meets the user's needs"
     }
   ]
 }
 ```
 
-For each resource in the `resources` array, provide:
-- `kind`: The resource type (e.g., "Deployment", "Service", "AppClaim")
-- `apiVersion`: The API version (e.g., "apps/v1", "v1")
-- `group`: The API group (empty string for core resources, e.g., "apps", "devopstoolkit.live")
-
-## Scoring Guidelines
-
-- **90-100**: Complete solution, fully addresses ALL aspects of user intent
-- **70-89**: Good solution, addresses most aspects of user intent with minor gaps
-- **50-69**: Partial solution, addresses some aspects of user intent but requires additional work
-- **30-49**: Incomplete solution, only addresses part of the user intent or provides supporting infrastructure without primary functionality
-- **0-29**: Poor fit, doesn't meaningfully address the user's intent
+**IMPORTANT**: In your analysis field, explicitly explain which schema fields enable each requirement from the user intent. If a requirement cannot be fulfilled by available schema fields, explain this and score accordingly.
