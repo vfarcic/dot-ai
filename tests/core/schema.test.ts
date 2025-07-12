@@ -893,6 +893,118 @@ FIELDS:
       expect(rankingCall).toContain('App (example.com/v1)');
     });
 
+    it('should score storage-only solutions lower than complete application solutions', async () => {
+      const intent = 'deploy a stateful application';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true },
+          { kind: 'PersistentVolumeClaim', apiVersion: 'v1', group: '', namespaced: true },
+          { kind: 'PersistentVolume', apiVersion: 'v1', group: '', namespaced: false }
+        ],
+        custom: []
+      });
+
+      // Mock detailed schema explanations
+      mockExplainResource
+        .mockResolvedValueOnce(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment enables declarative updates for Pods and ReplicaSets
+
+FIELDS:
+   spec.template.spec.volumes	<[]Object>
+     List of volumes that can be mounted by containers
+
+   spec.template.spec.containers[].volumeMounts	<[]Object>
+     Pod volumes to mount into the container's filesystem`)
+        .mockResolvedValueOnce(`GROUP:      
+KIND:       PersistentVolumeClaim
+VERSION:    v1
+
+DESCRIPTION:
+     PersistentVolumeClaim is a user's request for and claim to a persistent volume
+
+FIELDS:
+   spec.accessModes	<[]string>
+     AccessModes contains the desired access modes the volume should have
+
+   spec.resources.requests.storage	<string>
+     Storage amount requested`)
+        .mockResolvedValueOnce(`GROUP:      
+KIND:       PersistentVolume
+VERSION:    v1
+
+DESCRIPTION:
+     PersistentVolume is a storage resource in the cluster
+
+FIELDS:
+   spec.capacity.storage	<string>
+     Storage capacity of the volume
+
+   spec.accessModes	<[]string>
+     AccessModes contains all ways the volume can be mounted`);
+
+      // Mock resource selection response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+          {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": ""},
+          {"kind": "PersistentVolume", "apiVersion": "v1", "group": ""}
+        ]`
+      });
+
+      // Mock AI ranking response that should prefer complete application solution
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "combination",
+            "resources": [
+              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": ""}
+            ],
+            "score": 95,
+            "description": "Complete stateful application with persistent storage",
+            "reasons": ["Provides workload execution with persistent storage", "Complete application solution"],
+            "analysis": "Deployment runs the application workload and PVC provides persistent storage"
+          }, {
+            "type": "combination",
+            "resources": [
+              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": ""},
+              {"kind": "PersistentVolume", "apiVersion": "v1", "group": ""}
+            ],
+            "score": 35,
+            "description": "Persistent storage infrastructure only",
+            "reasons": ["Provides storage infrastructure but no application runtime"],
+            "analysis": "Only provides supporting storage infrastructure, missing the application component"
+          }]
+        }`
+      });
+
+      // Mock question generation
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(2);
+      
+      // Verify complete application solution scored higher than storage-only
+      expect(solutions[0].score).toBe(95);
+      expect(solutions[0].resources).toHaveLength(2);
+      expect(solutions[0].resources.find(r => r.kind === 'Deployment')).toBeDefined();
+      expect(solutions[0].resources.find(r => r.kind === 'PersistentVolumeClaim')).toBeDefined();
+      
+      expect(solutions[1].score).toBe(35); // Storage-only should score in the 30-49 range
+      expect(solutions[1].resources).toHaveLength(2);
+      expect(solutions[1].resources.find(r => r.kind === 'PersistentVolumeClaim')).toBeDefined();
+      expect(solutions[1].resources.find(r => r.kind === 'PersistentVolume')).toBeDefined();
+      expect(solutions[1].resources.find(r => r.kind === 'Deployment')).toBeUndefined();
+    });
+
     it('should handle CRDs without group in apiVersion format', async () => {
       const intent = 'test intent';
       
