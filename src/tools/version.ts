@@ -66,18 +66,28 @@ export async function handleVersionTool(
     logger.info('Version tool request completed', { requestId, version: versionInfo.version });
     
     return {
-      status: 'success',
-      versionInfo,
-      timestamp: new Date().toISOString()
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'success',
+          versionInfo,
+          timestamp: new Date().toISOString()
+        }, null, 2)
+      }]
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Version tool request failed', error as Error);
     
     return {
-      status: 'error',
-      error: errorMessage,
-      timestamp: new Date().toISOString()
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'error',
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        }, null, 2)
+      }]
     };
   }
 }
