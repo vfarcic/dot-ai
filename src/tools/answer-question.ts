@@ -231,23 +231,48 @@ function getCurrentStage(solution: any): StageState {
 /**
  * Validate stage transition is allowed
  */
-function validateStageTransition(currentStage: Stage, requestedStage: Stage): { valid: boolean; error?: string } {
-  const validTransitions: Record<Stage, Stage[]> = {
-    'required': ['basic', 'open'],
-    'basic': ['advanced', 'open'],
-    'advanced': ['open'],
-    'open': []
-  };
-
+function validateStageTransition(currentStage: Stage, requestedStage: Stage, solution: any): { valid: boolean; error?: string } {
+  // Allow processing the same stage (for answering or skipping)
   if (currentStage === requestedStage) {
-    return { valid: true }; // Same stage is always valid
+    return { valid: true };
   }
 
-  const allowedNext = validTransitions[currentStage] || [];
-  if (!allowedNext.includes(requestedStage)) {
+  // Determine the next stage based on what questions exist
+  let expectedNext: Stage | null = null;
+  
+  if (currentStage === 'required') {
+    if (solution.questions.basic && solution.questions.basic.length > 0) {
+      expectedNext = 'basic';
+    } else if (solution.questions.advanced && solution.questions.advanced.length > 0) {
+      expectedNext = 'advanced';
+    } else {
+      expectedNext = 'open';
+    }
+  } else if (currentStage === 'basic') {
+    if (solution.questions.advanced && solution.questions.advanced.length > 0) {
+      expectedNext = 'advanced';
+    } else {
+      expectedNext = 'open';
+    }
+  } else if (currentStage === 'advanced') {
+    expectedNext = 'open';
+  } else {
+    expectedNext = null; // open stage is final
+  }
+  
+  // If we're at the final stage, no transitions allowed
+  if (expectedNext === null) {
     return {
       valid: false,
-      error: `Cannot transition from '${currentStage}' to '${requestedStage}'. Valid options: ${allowedNext.join(', ')}`
+      error: `Cannot transition from '${currentStage}' stage. All stages completed.`
+    };
+  }
+
+  // Only allow transition to the immediate next stage
+  if (requestedStage !== expectedNext) {
+    return {
+      valid: false,
+      error: `Cannot skip to '${requestedStage}' stage. Must process '${expectedNext}' stage next. Use empty answers to skip the current stage.`
     };
   }
 
@@ -564,7 +589,7 @@ export async function handleAnswerQuestionTool(
       const stageState = getCurrentStage(solution);
       
       // Validate stage transition
-      const transitionResult = validateStageTransition(stageState.currentStage, args.stage as Stage);
+      const transitionResult = validateStageTransition(stageState.currentStage, args.stage as Stage, solution);
       if (!transitionResult.valid) {
         const response = {
           status: 'stage_error',

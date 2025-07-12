@@ -364,4 +364,52 @@ describe('Answer Question Tool Handler - Stage-Based Implementation', () => {
       }
     });
   });
+
+  describe('Stage Jumping Prevention', () => {
+    test('should prevent jumping from basic to open stage', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required questions answered, still on basic stage
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080  // Answer required questions to get to basic stage
+      });
+      // Basic questions are not answered yet (current stage is basic)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'open', // Try to jump to open from basic
+        answers: { open: 'add monitoring' }
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_error');
+      expect(response.error).toBe('invalid_transition');
+      expect(response.expected).toBe('basic');
+      expect(response.received).toBe('open');
+      expect(response.message).toContain('Must process \'advanced\' stage next');
+    });
+
+    test('should allow sequential stage progression', async () => {
+      const context = createMockToolContext();
+      
+      // Mock solution with required questions answered, now on basic stage
+      const solutionWithRequired = createSolutionWithAnswers({
+        name: 'my-app',
+        port: 8080  // Answer required questions to get to basic stage
+      });
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(solutionWithRequired));
+      
+      const result = await handleAnswerQuestionTool({
+        solutionId: TEST_SOLUTION_ID,
+        stage: 'basic', // Correct next stage
+        answers: { replicas: 3 }  // Answer basic question using correct question ID
+      }, context.dotAI, context.logger, context.requestId);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.status).toBe('stage_questions');
+      expect(response.currentStage).toBe('advanced');
+    });
+  });
 });

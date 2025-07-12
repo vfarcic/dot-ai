@@ -22,7 +22,7 @@
 2. **Always Run All Tests**: Before marking any task as complete, run `npm test` to ensure all tests pass  
 3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing - fix all test failures first
 4. **Test-Driven Validation**: Changes are only considered successful when validated by passing tests
-5. **Always Update CLAUDE.md**: After finishing any task, check if CLAUDE.md needs updates to reflect new features, commands, structure changes, or documentation
+5. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
 
 ## 🛑 TESTING REMINDERS
 
@@ -146,7 +146,7 @@ prompts/                 # AI prompt templates
 - **Always check CLAUDE.md** after task completion for needed updates
 
 **Commands:**
-- **Run tests**: `npm test` (351+ tests across 10 suites)
+- **Run tests**: `npm test` (462+ tests across 19 suites)
 - **Build**: `npm run build`
 - **Manual testing**: Follow examples in CLI and MCP guides
 - **Documentation**: See `docs/` directory for complete guides
