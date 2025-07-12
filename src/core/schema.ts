@@ -554,13 +554,20 @@ export class ResourceRecommender {
     const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-solution-ranking.md');
     const template = fs.readFileSync(promptPath, 'utf8');
     
-    // Format resources for the prompt
-    const resourcesText = schemas.map((schema, index) => 
-      `${index}: ${schema.kind} (${schema.apiVersion})
+    // Format resources for the prompt with detailed schema information
+    const resourcesText = schemas.map((schema, index) => {
+      let resourceInfo = `${index}: ${schema.kind} (${schema.apiVersion})
    Group: ${schema.group || 'core'}
    Description: ${schema.description}
-   Namespaced: ${schema.namespace}`
-    ).join('\n\n');
+   Namespaced: ${schema.namespace}`;
+      
+      // Include detailed schema information for capability analysis
+      if (schema.rawExplanation) {
+        resourceInfo += `\n\n   Complete Schema Information:\n${schema.rawExplanation}`;
+      }
+      
+      return resourceInfo;
+    }).join('\n\n');
     
     return template
       .replace('{intent}', intent)

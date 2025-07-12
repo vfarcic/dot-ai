@@ -781,6 +781,118 @@ FIELDS:
       expect(firstCall).toContain('Service (v1)');
     });
 
+    it('should include detailed schema information in ranking phase for capability analysis', async () => {
+      const intent = 'create a stateful application with persistent storage';
+      
+      mockDiscoverResources.mockResolvedValue({
+        resources: [
+          { kind: 'Deployment', apiVersion: 'apps/v1', group: 'apps', namespaced: true }
+        ],
+        custom: [
+          { kind: 'App', group: 'example.com', version: 'v1', scope: 'Namespaced' }
+        ]
+      });
+
+      // Mock detailed schema explanations with different capabilities
+      mockExplainResource
+        .mockResolvedValueOnce(`GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+DESCRIPTION:
+     Deployment enables declarative updates for Pods and ReplicaSets
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior of the Deployment
+
+   spec.template.spec.volumes	<[]Object>
+     List of volumes that can be mounted by containers
+
+   spec.template.spec.containers[].volumeMounts	<[]Object>
+     Pod volumes to mount into the container's filesystem`)
+        .mockResolvedValueOnce(`GROUP:      example.com
+KIND:       App
+VERSION:    v1
+
+DESCRIPTION:
+     App provides simple application deployment
+
+FIELDS:
+   metadata	<Object> -required-
+     Standard object metadata
+
+   spec	<Object> -required-
+     Specification of the desired behavior
+
+   spec.image	<string>
+     Container image to deploy
+
+   spec.replicas	<integer>
+     Number of replicas`);
+
+      // Mock resource selection response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `[
+          {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
+          {"kind": "App", "apiVersion": "example.com/v1", "group": "example.com"}
+        ]`
+      });
+
+      // Mock AI ranking response that should prefer Deployment due to storage capabilities
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "score": 95,
+            "description": "Deployment with persistent storage support",
+            "reasons": ["Has volume mounting capabilities", "Supports persistent storage"],
+            "analysis": "Deployment schema contains spec.template.spec.volumes and volumeMounts fields for persistent storage"
+          }, {
+            "type": "single",
+            "resources": [{"kind": "App", "apiVersion": "example.com/v1", "group": "example.com"}],
+            "score": 15,
+            "description": "App CRD without storage support",
+            "reasons": ["Lacks persistent storage fields"],
+            "analysis": "App schema lacks volume or storage-related fields"
+          }]
+        }`
+      });
+
+      // Mock question generation
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+
+      expect(solutions).toHaveLength(2);
+      
+      // Verify Deployment scored higher due to storage capabilities
+      expect(solutions[0].score).toBe(95);
+      expect(solutions[0].resources[0].kind).toBe('Deployment');
+      expect(solutions[1].score).toBe(15);
+      expect(solutions[1].resources[0].kind).toBe('App');
+
+      // Verify the AI received detailed schema information in the ranking phase
+      const rankingCall = mockClaudeIntegration.sendMessage.mock.calls[1][0];
+      
+      // Should include complete schema information for capability analysis
+      expect(rankingCall).toContain('Complete Schema Information:');
+      expect(rankingCall).toContain('spec.template.spec.volumes');
+      expect(rankingCall).toContain('spec.template.spec.containers[].volumeMounts');
+      expect(rankingCall).toContain('spec.image');
+      expect(rankingCall).toContain('spec.replicas');
+      
+      // Should include both resources with their detailed schemas
+      expect(rankingCall).toContain('Deployment (apps/v1)');
+      expect(rankingCall).toContain('App (example.com/v1)');
+    });
+
     it('should handle CRDs without group in apiVersion format', async () => {
       const intent = 'test intent';
       
