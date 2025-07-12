@@ -10,10 +10,12 @@ You are a Kubernetes expert helping to determine which resource(s) best meet a u
 
 ## Instructions
 
-Analyze the user's intent and determine the best solution(s). This could be:
+Analyze the user's intent and determine the best solution(s). **Provide multiple alternative approaches** ranked by effectiveness, such as:
 - A single resource that fully addresses the need
 - A combination of resources that can actually integrate and work together to create a complete solution
-- Multiple alternative approaches ranked by effectiveness
+- Different approaches with varying complexity and capabilities
+
+**IMPORTANT**: Always provide at least 2-3 different solution alternatives when possible, even if some score lower than others. Users benefit from seeing multiple options to choose from.
 
 ## Validation Requirements
 
@@ -39,7 +41,26 @@ Score solutions based on completeness and schema validation:
 {
   "solutions": [
     {
-      "type": "single|combination",
+      "type": "combination",
+      "resources": [
+        {
+          "kind": "Deployment",
+          "apiVersion": "apps/v1",
+          "group": "apps"
+        },
+        {
+          "kind": "Service",
+          "apiVersion": "v1",
+          "group": ""
+        }
+      ],
+      "score": 95,
+      "description": "Complete application deployment with networking",
+      "reasons": ["Provides full application lifecycle", "Includes network access"],
+      "analysis": "Detailed explanation of schema analysis and why this solution meets the user's needs"
+    },
+    {
+      "type": "single",
       "resources": [
         {
           "kind": "Deployment",
@@ -47,10 +68,10 @@ Score solutions based on completeness and schema validation:
           "group": "apps"
         }
       ],
-      "score": 85,
-      "description": "Brief description of this solution",
-      "reasons": ["reason1", "reason2"],
-      "analysis": "Detailed explanation of schema analysis and why this solution meets the user's needs"
+      "score": 75,
+      "description": "Basic application deployment",
+      "reasons": ["Simple deployment option", "Lower complexity"],
+      "analysis": "Alternative approach with reduced functionality but simpler setup"
     }
   ]
 }
