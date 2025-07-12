@@ -46,38 +46,30 @@ describe('Version Tool', () => {
       const versionInfo = getVersionInfo();
 
       expect(versionInfo).toHaveProperty('version');
-      expect(versionInfo).toHaveProperty('buildTime');
       expect(versionInfo).toHaveProperty('nodeVersion');
       expect(versionInfo).toHaveProperty('platform');
       expect(versionInfo).toHaveProperty('arch');
 
       expect(typeof versionInfo.version).toBe('string');
-      expect(typeof versionInfo.buildTime).toBe('string');
       expect(typeof versionInfo.nodeVersion).toBe('string');
       expect(typeof versionInfo.platform).toBe('string');
       expect(typeof versionInfo.arch).toBe('string');
     });
 
-    it('should include git information when available', () => {
+    it('should return valid version string', () => {
       const versionInfo = getVersionInfo();
 
-      // Git info may or may not be available depending on environment
-      if (versionInfo.gitCommit) {
-        expect(typeof versionInfo.gitCommit).toBe('string');
-        expect(versionInfo.gitCommit.length).toBeGreaterThan(0);
-      }
-
-      if (versionInfo.gitBranch) {
-        expect(typeof versionInfo.gitBranch).toBe('string');
-        expect(versionInfo.gitBranch.length).toBeGreaterThan(0);
-      }
+      expect(versionInfo.version).toBeDefined();
+      expect(versionInfo.version.length).toBeGreaterThan(0);
+      expect(typeof versionInfo.version).toBe('string');
     });
 
-    it('should return valid ISO timestamp for buildTime', () => {
+    it('should return valid runtime information', () => {
       const versionInfo = getVersionInfo();
       
-      expect(() => new Date(versionInfo.buildTime)).not.toThrow();
-      expect(new Date(versionInfo.buildTime).toISOString()).toBe(versionInfo.buildTime);
+      expect(versionInfo.nodeVersion).toMatch(/^v\d+\.\d+\.\d+/);
+      expect(['darwin', 'linux', 'win32']).toContain(versionInfo.platform);
+      expect(['arm64', 'x64', 'x86']).toContain(versionInfo.arch);
     });
   });
 
@@ -91,7 +83,6 @@ describe('Version Tool', () => {
       expect(result).toHaveProperty('timestamp');
 
       expect(result.versionInfo).toHaveProperty('version');
-      expect(result.versionInfo).toHaveProperty('buildTime');
       expect(result.versionInfo).toHaveProperty('nodeVersion');
       expect(result.versionInfo).toHaveProperty('platform');
       expect(result.versionInfo).toHaveProperty('arch');

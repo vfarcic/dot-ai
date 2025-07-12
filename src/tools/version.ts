@@ -6,7 +6,6 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { execSync } from 'child_process';
 import { Logger } from '../core/error-handling';
 
 export const VERSION_TOOL_NAME = 'version';
@@ -20,38 +19,31 @@ export const VERSION_TOOL_INPUT_SCHEMA = {
 
 export interface VersionInfo {
   version: string;
-  gitCommit?: string;
-  gitBranch?: string;
-  buildTime: string;
   nodeVersion: string;
   platform: string;
   arch: string;
 }
 
 /**
- * Get version information from package.json and git
+ * Get version information from package.json
  */
 export function getVersionInfo(): VersionInfo {
-  // Read package.json version
-  const packageJsonPath = join(process.cwd(), 'package.json');
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-  
-  // Get git information
-  let gitCommit: string | undefined;
-  let gitBranch: string | undefined;
+  // Find package.json relative to this module's location (MCP server's installation)
+  let packageJson: any;
   
   try {
-    gitCommit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-    gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    // Get the directory where this module is installed
+    // __dirname points to the compiled JS location, go up to find package.json
+    const mcpServerDir = join(__dirname, '..');
+    const packageJsonPath = join(mcpServerDir, 'package.json');
+    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
   } catch (error) {
-    // Git info not available (e.g., not a git repo or git not installed)
+    // If package.json not found, use unknown version
+    packageJson = { version: 'unknown' };
   }
   
   return {
     version: packageJson.version,
-    gitCommit,
-    gitBranch,
-    buildTime: new Date().toISOString(),
     nodeVersion: process.version,
     platform: process.platform,
     arch: process.arch
