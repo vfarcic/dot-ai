@@ -27,13 +27,23 @@ Analyze the user's intent and determine the best solution(s). **Provide multiple
 
 ## Scoring Guidelines
 
-Score solutions based on completeness and schema validation:
+**CRITICAL**: Identify whether each solution uses CRDs or standard Kubernetes resources, then apply the appropriate scoring range:
 
-- **90-100**: Complete solution, schema fields directly support ALL requirements
-- **70-89**: Good solution, schema fields support most requirements with minor gaps
-- **50-69**: Partial solution, schema fields support some requirements but missing others
-- **30-49**: Incomplete solution, schema fields only partially support requirements
-- **0-29**: Poor fit, schema fields don't meaningfully support the requirements
+### For CRD/Custom Resource Solutions:
+- **90-100**: CRD that clearly addresses user intent - operators provide higher-level abstractions and automatic resource management
+- **70-89**: CRD with partial relevance to user intent - may work but not ideal fit
+- **30-69**: CRD with limited relevance - significant gaps for this use case
+- **0-29**: CRD completely irrelevant to user intent
+
+### For Standard Kubernetes Resource Solutions:
+- **80-89**: Standard resource combination that fully addresses user intent
+- **60-79**: Standard resources with minor gaps or additional complexity  
+- **30-59**: Standard resources with significant limitations - major gaps in functionality
+- **0-29**: Standard resources poorly suited for this intent
+
+**Rationale**: CRDs get preference when relevant because operators provide domain expertise and simplified management. Standard resources remain reliable when no suitable CRDs exist.
+
+**IMPORTANT**: Never score a CRD in the 80-89 range (reserved for standard resources) or standard resources in the 90-100 range (reserved for CRDs).
 
 ## Response Format
 
