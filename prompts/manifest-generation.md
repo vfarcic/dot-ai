@@ -50,7 +50,10 @@ Generate production-ready Kubernetes YAML manifests from the complete solution c
      * **Resource limits** → Add ResourceQuota or LimitRange resources
 
 5. **Generate Appropriate Manifests**:
-   - Create manifests for the selected resource types
+   - **CRITICAL**: Analyze resource relationships before generating separate manifests
+   - When multiple resources can be integrated (e.g., one resource has fields that reference another), prefer integration over separate resources
+   - Generate separate manifests only when resources must be standalone or when integration is not supported by the schema
+   - Use resource schemas to determine integration possibilities and required field relationships
    - **IMPORTANT**: Include any additional supporting resources needed to fulfill open requirements
    - Use correct API versions and schemas from the solution data
    - Ensure all resources work together to meet user's complete requirements
