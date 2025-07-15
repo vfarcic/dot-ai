@@ -10,6 +10,7 @@ import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { extractUserAnswers } from '../core/solution-utils';
 
 // Tool metadata for direct MCP registration
 export const ANSWERQUESTION_TOOL_NAME = 'answerQuestion';
@@ -835,23 +836,7 @@ export async function handleAnswerQuestionTool(
         }
         
         // Extract all user answers for handoff
-        const userAnswers: Record<string, any> = {};
-        
-        // Extract from all question categories
-        const questionCategories = ['required', 'basic', 'advanced'];
-        for (const category of questionCategories) {
-          const questions = solution.questions[category] || [];
-          for (const question of questions) {
-            if (question.answer !== undefined && question.answer !== null) {
-              userAnswers[question.id] = question.answer;
-            }
-          }
-        }
-        
-        // Include open answer if provided
-        if (openAnswer) {
-          userAnswers.open = openAnswer;
-        }
+        const userAnswers = extractUserAnswers(solution);
         
         const response = {
           status: 'ready_for_manifest_generation',

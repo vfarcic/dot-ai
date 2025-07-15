@@ -418,6 +418,42 @@ Each deployment session is identified by a unique `solutionId` that maintains st
 
 ## Environment Configuration
 
+### Application Metadata Utilities
+
+```typescript
+import { 
+  extractUserAnswers, 
+  sanitizeIntentForLabel, 
+  generateDotAiLabels, 
+  addDotAiLabels 
+} from './src/core/solution-utils';
+
+// Extract user configuration from solution data
+const userAnswers = extractUserAnswers(solution);
+// Returns: { name: "my-app", namespace: "default", ... }
+
+// Convert intent string to Kubernetes label format
+const labelIntent = sanitizeIntentForLabel("Deploy a web application");
+// Returns: "deploy-a-web-application"
+
+// Generate standard dot-ai labels
+const labels = generateDotAiLabels(userAnswers, solution);
+// Returns: {
+//   "dot-ai.io/managed": "true",
+//   "dot-ai.io/app-name": "my-app", 
+//   "dot-ai.io/intent": "deploy-web-application"
+// }
+
+// Add dot-ai labels to existing labels
+const allLabels = addDotAiLabels(existingLabels, userAnswers, solution);
+// Returns: { ...existingLabels, ...dotAiLabels }
+```
+
+**Label Schema:**
+- `dot-ai.io/managed`: Always "true" - identifies dot-ai managed resources
+- `dot-ai.io/app-name`: User-provided application name
+- `dot-ai.io/intent`: Sanitized version of user's original intent
+
 ### Required Environment Variables
 
 ```bash
