@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
-import { extractUserAnswers, addDotAiLabels, sanitizeIntentForLabel } from '../core/solution-utils';
+import { extractUserAnswers, addDotAiLabels } from '../core/solution-utils';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -358,25 +358,13 @@ function generateMetadataConfigMap(solution: any, userAnswers: Record<string, an
   try {
     return yaml.dump(configMap);
   } catch (error) {
-    // Fallback to manual YAML generation if yaml.dump fails
-    logger.error('Failed to generate YAML for ConfigMap', error as Error);
-    return `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dot-ai-app-${appName}-${solutionId}
-  namespace: ${namespace}
-  labels:
-    dot-ai.io/managed: "true"
-    dot-ai.io/app-name: ${appName}
-    dot-ai.io/intent: ${sanitizeIntentForLabel(originalIntent)}
-  annotations:
-    dot-ai.io/original-intent: ${originalIntent}
-data:
-  deployment-info.yaml: |
-    appName: ${appName}
-    deployedAt: ${new Date().toISOString()}
-    originalIntent: ${originalIntent}
-    resources: ${JSON.stringify(resources, null, 2)}`;
+    logger.error('Failed to generate YAML for ConfigMap', error as Error, {
+      configMap,
+      appName,
+      solutionId,
+      namespace
+    });
+    throw new Error(`ConfigMap YAML generation failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
