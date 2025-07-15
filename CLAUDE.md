@@ -5,7 +5,7 @@
 **🔴 BEFORE MARKING ANY TASK/SUBTASK AS COMPLETE:**
 
 □ **Tests Written**: Write tests for new functionality (can be after implementation)
-□ **All Tests Pass**: Run `npm test` - ALL 562+ tests must pass  
+□ **All Tests Pass**: Run `npm test` - ALL tests must pass  
 □ **No Test Failures**: Fix any failing tests before proceeding
 □ **CLAUDE.md Updated**: Update this file if new features/commands/structure added
 
@@ -22,11 +22,12 @@
 2. **Always Run All Tests**: Before marking any task as complete, run `npm test` to ensure all tests pass  
 3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing - fix all test failures first
 4. **Test-Driven Validation**: Changes are only considered successful when validated by passing tests
-5. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
+5. **Always Check for Reusability**: Before implementing new functionality, ALWAYS search the codebase for existing similar functions or utilities that can be reused or extended. Never duplicate code - create shared utilities instead.
+6. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
 
 ## 🛑 TESTING REMINDERS
 
-- **Current test suite**: 562+ tests across 21 suites - maintain this standard
+- **Current test suite**: Comprehensive test coverage across 21 suites - maintain this standard
 - **Implementation flow**: Code → Tests → `npm test` → Mark complete
 - **Pattern matching**: Look at `tests/schema.test.ts`, `tests/cli.test.ts` for testing patterns
 - **Test organization**: Mirror source code structure - tests should be organized using the same naming convention as the code they're testing

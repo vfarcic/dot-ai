@@ -7,6 +7,10 @@
 The following schemas are available for the resources selected in the solution:
 {schemas}
 
+## Required Labels
+Add these labels to the metadata.labels section of EVERY resource you generate:
+{labels}
+
 ## Previous Attempt (if retry)
 {previous_attempt}
 
@@ -30,13 +34,18 @@ Generate production-ready Kubernetes YAML manifests from the complete solution c
    - Do not invent or guess field names - refer to the schema section above
    - Apply configuration values appropriately for the specific resource type
 
-3. **Cross-Resource Field Mapping**:
+3. **Apply Required Labels**:
+   - **CRITICAL**: Add the required labels shown above to EVERY resource's metadata.labels section
+   - Merge required labels with any existing labels the resource needs
+   - These labels are essential for application tracking and management
+
+4. **Cross-Resource Field Mapping**:
    - Many user answers apply to multiple resources in the solution
    - Use the same values consistently across related resources where appropriate
    - Ensure proper relationships between resources through consistent naming and labeling
    - Apply configuration values to all relevant fields across different resource types
 
-4. **Process Open Requirements**:
+5. **Process Open Requirements**:
    - If user provided open requirements, analyze their specific needs
    - Use available cluster resources to fulfill those requirements intelligently
    - Make enhancement decisions based on actual cluster capabilities
@@ -49,7 +58,7 @@ Generate production-ready Kubernetes YAML manifests from the complete solution c
      * **Network policies** → Add NetworkPolicy resources
      * **Resource limits** → Add ResourceQuota or LimitRange resources
 
-5. **Generate Appropriate Manifests**:
+6. **Generate Appropriate Manifests**:
    - **CRITICAL**: Analyze resource relationships before generating separate manifests
    - When multiple resources can be integrated (e.g., one resource has fields that reference another), prefer integration over separate resources
    - Generate separate manifests only when resources must be standalone or when integration is not supported by the schema
