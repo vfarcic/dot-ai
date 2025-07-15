@@ -79,7 +79,7 @@ The project maintains comprehensive test coverage:
 - **TDD Tests**: Error handling and graceful degradation scenarios
 - **Manual Validation**: CLI output verification and data structure validation
 
-Current coverage: **69%+ overall** with **565+ tests** across 21 test suites, including comprehensive tests for the stage-based workflow functionality.
+Current coverage: **57.32% overall**
 
 ### Code Quality
 

@@ -148,9 +148,49 @@ src/
 │   └── generate-manifests.ts # ✅ AI manifest generation
 └── cli.ts                 # ✅ Main CLI entry point
 
-tests/                     # ✅ 565+ comprehensive tests
+tests/                     # ✅ Comprehensive test coverage
 docs/                     # ✅ Complete documentation
 prompts/                  # ✅ AI prompt templates
+```
+
+### Application Metadata Storage
+
+The system includes ConfigMap-based metadata persistence for deployed applications:
+
+```typescript
+// src/core/solution-utils.ts - Application metadata utilities
+extractUserAnswers(solution)    // Extract user configuration
+sanitizeIntentForLabel(intent)  // Format intent for Kubernetes labels
+generateDotAiLabels(userAnswers, solution)  // Create standard labels
+addDotAiLabels(existingLabels, userAnswers, solution)  // Merge labels
+```
+
+**Label Schema:**
+- `dot-ai.io/managed: "true"` - Identifies dot-ai managed resources
+- `dot-ai.io/app-name: "my-app"` - User-provided application name  
+- `dot-ai.io/intent: "deploy-web-application"` - Sanitized user intent
+
+**ConfigMap Structure:**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dot-ai-app-{app-name}-{solution-id}
+  namespace: {user-namespace}
+  labels:
+    dot-ai.io/managed: "true"
+    dot-ai.io/app-name: "my-app"
+    dot-ai.io/intent: "deploy-web-application"
+data:
+  deployment-info.yaml: |
+    appName: my-app
+    deployedAt: "2025-01-01T12:00:00Z"
+    originalIntent: "Deploy a web application"
+    resources:
+      - apiVersion: apps/v1
+        kind: Deployment
+        name: my-app
+        namespace: production
 ```
 
 ### Current Commands

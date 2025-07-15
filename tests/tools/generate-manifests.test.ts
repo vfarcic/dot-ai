@@ -46,6 +46,8 @@ jest.mock('js-yaml', () => ({
   dump: jest.fn()
 }));
 
+const mockYaml = require('js-yaml');
+
 const mockLogger = {
   debug: jest.fn(),
   info: jest.fn(),
@@ -216,7 +218,8 @@ spec:
             group: 'devopstoolkit.live'
           }
         ],
-        questions: { required: [], basic: [], advanced: [], open: {} }
+        questions: { required: [{ id: 'name', answer: 'test-app' }], basic: [], advanced: [], open: {} },
+        intent: 'Deploy test application'
       };
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
@@ -293,7 +296,8 @@ FIELDS:
             group: ''
           }
         ],
-        questions: { required: [], basic: [], advanced: [], open: {} }
+        questions: { required: [{ id: 'name', answer: 'test-app' }], basic: [], advanced: [], open: {} },
+        intent: 'Deploy test application'
       };
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
@@ -345,7 +349,8 @@ FIELDS:
             group: 'example.com'
           }
         ],
-        questions: { required: [], basic: [], advanced: [], open: {} }
+        questions: { required: [{ id: 'name', answer: 'test-app' }], basic: [], advanced: [], open: {} },
+        intent: 'Deploy test application'
       };
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
@@ -381,7 +386,8 @@ FIELDS:
       const mockSolution = {
         solutionId: 'sol_2025-01-01T120000_abc123def456',
         resources: [], // No resources
-        questions: { required: [], basic: [], advanced: [], open: {} }
+        questions: { required: [{ id: 'name', answer: 'test-app' }], basic: [], advanced: [], open: {} },
+        intent: 'Deploy test application'
       };
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
@@ -415,7 +421,8 @@ FIELDS:
             group: 'devopstoolkit.live'
           }
         ],
-        questions: { required: [], basic: [], advanced: [], open: {} }
+        questions: { required: [{ id: 'name', answer: 'test-app' }], basic: [], advanced: [], open: {} },
+        intent: 'Deploy test application'
       };
       
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSolution));
@@ -498,7 +505,8 @@ FIELDS:
             { id: 'volumeSize', answer: 10 }
           ],
           open: {}
-        }
+        },
+        intent: 'Deploy stateful application with persistent storage'
       };
       
       // Mock file reads: solution file and prompt template
@@ -536,6 +544,8 @@ FIELDS:
      resources	<Object>
        Requirements for storage resource`;
 
+      // Reset and setup mock for this specific test
+      mockDotAI.discovery.explainResource.mockReset();
       mockDotAI.discovery.explainResource
         .mockResolvedValueOnce(statefulSetSchema)
         .mockResolvedValueOnce(pvcSchema);
@@ -620,7 +630,8 @@ spec:
           basic: [],
           advanced: [],
           open: {}
-        }
+        },
+        intent: 'Deploy test application'
       };
       
       // Mock file reads: solution file and prompt template  
@@ -709,6 +720,277 @@ spec:
       expect(response.success).toBe(true);
       expect(response.manifests).toContain('kind: Deployment');
       expect(response.manifests).toContain('kind: NetworkPolicy');
+    });
+  });
+
+  describe('ConfigMap Generation', () => {
+    it('should generate metadata ConfigMap with solution manifests', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        intent: 'Deploy a web application with Redis cache',
+        resources: [
+          {
+            kind: 'Deployment',
+            apiVersion: 'apps/v1',
+            group: 'apps'
+          },
+          {
+            kind: 'Service',
+            apiVersion: 'v1',
+            group: 'core'
+          }
+        ],
+        questions: {
+          required: [
+            { id: 'name', answer: 'my-web-app' },
+            { id: 'namespace', answer: 'production' }
+          ],
+          basic: [
+            { id: 'port', answer: 8080 }
+          ],
+          advanced: [],
+          open: {
+            answer: 'add persistent storage'
+          }
+        }
+      };
+      
+      // Mock filesystem operations for session directory validation
+      mockFs.existsSync.mockImplementation((path: any) => {
+        if (typeof path === 'string') {
+          if (path.includes('/test/session')) {
+            return true; // Session directory exists
+          }
+        }
+        return false;
+      });
+      
+      mockFs.statSync.mockImplementation((path: any) => {
+        if (typeof path === 'string' && path.includes('/test/session')) {
+          return { isDirectory: () => true } as any;
+        }
+        return { isDirectory: () => false } as any;
+      });
+      
+      mockFs.readdirSync.mockImplementation((path: any) => {
+        if (typeof path === 'string' && path.includes('/test/session')) {
+          return ['sol_2025-01-01T120000_abc123def456.json'] as any;
+        }
+        return [] as any;
+      });
+      
+      mockFs.writeFileSync.mockImplementation(() => {});
+      
+      // Mock file reads: solution file and prompt template
+      mockFs.readFileSync.mockImplementation((path: any) => {
+        if (typeof path === 'string') {
+          if (path.includes('sol_2025-01-01T120000_abc123def456.json')) {
+            return JSON.stringify(mockSolution);
+          }
+          if (path.includes('manifest-generation.md')) {
+            return `# Test Prompt Template
+{solution}
+{schemas}
+## Required Labels
+{labels}
+Generate manifests`;
+          }
+        }
+        return '';
+      });
+      
+      // Mock explainResource to return basic schemas
+      mockDotAI.discovery.explainResource
+        .mockResolvedValueOnce('Deployment schema')
+        .mockResolvedValueOnce('Service schema');
+      
+      // Mock yaml.dump to return proper YAML
+      mockYaml.dump.mockImplementation((obj: any) => {
+        if (obj.kind === 'ConfigMap') {
+          return `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dot-ai-app-my-web-app-sol_2025-01-01T120000_abc123def456
+  namespace: production
+  labels:
+    dot-ai.io/managed: "true"
+    dot-ai.io/app-name: my-web-app
+    dot-ai.io/intent: deploy-a-web-application-with-redis-cache
+  annotations:
+    dot-ai.io/original-intent: Deploy a web application with Redis cache
+data:
+  deployment-info.yaml: |
+    appName: my-web-app
+    deployedAt: "2025-01-01T12:00:00.000Z"
+    originalIntent: Deploy a web application with Redis cache
+    resources:
+      - apiVersion: apps/v1
+        kind: Deployment
+        name: my-web-app
+        namespace: production
+      - apiVersion: v1
+        kind: Service
+        name: my-web-app
+        namespace: production
+`;
+        }
+        return 'mocked-yaml-content';
+      });
+      
+      // Mock Claude to return basic application manifests
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-web-app
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-web-app
+  template:
+    metadata:
+      labels:
+        app: my-web-app
+    spec:
+      containers:
+      - name: my-web-app
+        image: nginx:latest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-web-app
+  namespace: production
+spec:
+  selector:
+    app: my-web-app
+  ports:
+  - port: 8080
+    targetPort: 8080`
+      });
+      
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      const result = await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
+      
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      
+      // Check that ConfigMap is included
+      expect(response.manifests).toContain('kind: ConfigMap');
+      expect(response.manifests).toContain('dot-ai-app-my-web-app-sol_2025-01-01T120000_abc123def456');
+      expect(response.manifests).toContain('dot-ai.io/managed: "true"');
+      expect(response.manifests).toContain('dot-ai.io/app-name: my-web-app');
+      expect(response.manifests).toContain('dot-ai.io/intent: deploy-a-web-application-with-redis-cache');
+      
+      // Check that original manifests are still included
+      expect(response.manifests).toContain('kind: Deployment');
+      expect(response.manifests).toContain('kind: Service');
+      
+      // Verify that Claude received the labels in the prompt
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('## Required Labels')
+      );
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('"dot-ai.io/managed": "true"')
+      );
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('"dot-ai.io/app-name": "my-web-app"')
+      );
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('"dot-ai.io/intent": "deploy-a-web-application-with-redis-cache"')
+      );
+    });
+
+    it('should fail when app name is missing', async () => {
+      const mockSolution = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456',
+        intent: 'Deploy application',
+        resources: [
+          {
+            kind: 'Deployment',
+            apiVersion: 'apps/v1',
+            group: 'apps'
+          }
+        ],
+        questions: {
+          required: [],
+          basic: [],
+          advanced: [],
+          open: {}
+        }
+      };
+      
+      // Mock filesystem operations for session directory validation
+      mockFs.existsSync.mockImplementation((path: any) => {
+        if (typeof path === 'string') {
+          if (path.includes('/test/session')) {
+            return true; // Session directory exists
+          }
+        }
+        return false;
+      });
+      
+      mockFs.statSync.mockImplementation((path: any) => {
+        if (typeof path === 'string' && path.includes('/test/session')) {
+          return { isDirectory: () => true } as any;
+        }
+        return { isDirectory: () => false } as any;
+      });
+      
+      mockFs.readdirSync.mockImplementation((path: any) => {
+        if (typeof path === 'string' && path.includes('/test/session')) {
+          return ['sol_2025-01-01T120000_abc123def456.json'] as any;
+        }
+        return [] as any;
+      });
+      
+      mockFs.writeFileSync.mockImplementation(() => {});
+      
+      // Mock file reads
+      mockFs.readFileSync.mockImplementation((path: any) => {
+        if (typeof path === 'string') {
+          if (path.includes('sol_2025-01-01T120000_abc123def456.json')) {
+            return JSON.stringify(mockSolution);
+          }
+          if (path.includes('manifest-generation.md')) {
+            return `# Test Prompt Template
+{solution}
+{schemas}
+## Required Labels
+{labels}
+Generate manifests`;
+          }
+        }
+        return '';
+      });
+      
+      mockDotAI.discovery.explainResource.mockResolvedValueOnce('Deployment schema');
+      
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: default
+spec:
+  replicas: 1`
+      });
+      
+      process.env.DOT_AI_SESSION_DIR = '/test/session';
+      
+      const args = {
+        solutionId: 'sol_2025-01-01T120000_abc123def456'
+      };
+
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toHaveProperty('message', 'Application name is required for dot-ai labels. This indicates a bug in the MCP workflow.');
     });
   });
 });

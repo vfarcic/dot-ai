@@ -12,6 +12,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { extractUserAnswers, addDotAiLabels, sanitizeIntentForLabel } from '../core/solution-utils';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -238,7 +239,8 @@ async function generateManifestsWithAI(
   solution: any, 
   dotAI: DotAI,
   logger: Logger,
-  errorContext?: ErrorContext
+  errorContext?: ErrorContext,
+  dotAiLabels?: Record<string, string>
 ): Promise<string> {
   
   // Load prompt template
@@ -267,11 +269,13 @@ ${errorContext.previousManifests}
   
   // Replace template variables
   const schemasData = JSON.stringify(resourceSchemas, null, 2);
+  const labelsData = dotAiLabels ? JSON.stringify(dotAiLabels, null, 2) : '{}';
   const aiPrompt = template
     .replace('{solution}', solutionData)
     .replace('{schemas}', schemasData)
     .replace('{previous_attempt}', previousAttempt)
-    .replace('{error_details}', errorDetails);
+    .replace('{error_details}', errorDetails)
+    .replace('{labels}', labelsData);
   
   const isRetry = !!errorContext;
   logger.info('Generating manifests with AI', {
@@ -307,6 +311,73 @@ ${errorContext.previousManifests}
   });
 
   return manifestContent;
+}
+
+/**
+ * Generate dot-ai application metadata ConfigMap
+ */
+function generateMetadataConfigMap(solution: any, userAnswers: Record<string, any>, logger: Logger): string {
+  const appName = userAnswers.name;
+  const namespace = userAnswers.namespace || 'default';
+  const solutionId = solution.solutionId;
+  const originalIntent = solution.intent;
+  
+  // Validate required fields (will throw if missing)
+  const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
+  
+  // Extract resource references from solution
+  const resources = (solution.resources || []).map((resource: any) => ({
+    apiVersion: resource.apiVersion,
+    kind: resource.kind,
+    name: resource.name || appName, // Use app name as fallback
+    namespace: resource.namespace || namespace
+  }));
+  
+  // Create ConfigMap object
+  const configMap = {
+    apiVersion: 'v1',
+    kind: 'ConfigMap',
+    metadata: {
+      name: `dot-ai-app-${appName}-${solutionId}`,
+      namespace: namespace,
+      labels: dotAiLabels,
+      annotations: {
+        'dot-ai.io/original-intent': originalIntent
+      }
+    },
+    data: {
+      'deployment-info.yaml': yaml.dump({
+        appName,
+        deployedAt: new Date().toISOString(),
+        originalIntent,
+        resources
+      })
+    }
+  };
+  
+  try {
+    return yaml.dump(configMap);
+  } catch (error) {
+    // Fallback to manual YAML generation if yaml.dump fails
+    logger.error('Failed to generate YAML for ConfigMap', error as Error);
+    return `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dot-ai-app-${appName}-${solutionId}
+  namespace: ${namespace}
+  labels:
+    dot-ai.io/managed: "true"
+    dot-ai.io/app-name: ${appName}
+    dot-ai.io/intent: ${sanitizeIntentForLabel(originalIntent)}
+  annotations:
+    dot-ai.io/original-intent: ${originalIntent}
+data:
+  deployment-info.yaml: |
+    appName: ${appName}
+    deployedAt: ${new Date().toISOString()}
+    originalIntent: ${originalIntent}
+    resources: ${JSON.stringify(resources, null, 2)}`;
+  }
 }
 
 /**
@@ -398,13 +469,24 @@ export async function handleGenerateManifestsTool(
         });
         
         try {
-          // Generate manifests with AI
-          const manifests = await generateManifestsWithAI(
+          // Extract user answers and generate required labels
+          const userAnswers = extractUserAnswers(solution);
+          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
+          
+          // Generate manifests with AI (including labels)
+          const aiManifests = await generateManifestsWithAI(
             solution, 
             dotAI,
             logger,
-            lastError
+            lastError,
+            dotAiLabels
           );
+          
+          // Generate metadata ConfigMap
+          const metadataConfigMap = generateMetadataConfigMap(solution, userAnswers, logger);
+          
+          // Combine ConfigMap with AI-generated manifests
+          const manifests = metadataConfigMap + '---\n' + aiManifests;
           
           // Save manifests to file
           fs.writeFileSync(yamlPath, manifests, 'utf8');
@@ -470,8 +552,13 @@ export async function handleGenerateManifestsTool(
         } catch (error) {
           logger.error('Error during manifest generation attempt', error as Error);
           
-          // If this is the last attempt, throw the error
-          if (attempt === maxAttempts) {
+          // Check if this is a validation error that should not be retried
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const isValidationError = errorMessage.includes('Application name is required') || 
+                                   errorMessage.includes('Application intent is required');
+          
+          // If this is a validation error or the last attempt, throw the error immediately
+          if (isValidationError || attempt === maxAttempts) {
             throw error;
           }
           
@@ -480,9 +567,9 @@ export async function handleGenerateManifestsTool(
             attempt,
             previousManifests: lastError?.previousManifests || '',
             yamlSyntaxValid: false,
-            kubectlOutput: error instanceof Error ? error.message : 'Unknown error',
+            kubectlOutput: errorMessage,
             exitCode: -1,
-            stderr: error instanceof Error ? error.message : 'Unknown error',
+            stderr: errorMessage,
             stdout: ''
           };
         }
