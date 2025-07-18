@@ -86,7 +86,7 @@ export async function handleTestDocsTool(
               priority: f.priority
             })),
             displayText,
-            instruction: `I found ${discoveredFiles.length} documentation file${discoveredFiles.length === 1 ? '' : 's'} matching "${pattern}". The default selection is "${defaultFile.relativePath}". Please choose which file you'd like to test, or I'll proceed with the default.`
+            instruction: `I found ${discoveredFiles.length} documentation file${discoveredFiles.length === 1 ? '' : 's'} matching "${pattern}". You must ask the user which file they want to test. Do not choose automatically - wait for the user to specify which file they prefer. The recommended option is "${defaultFile.relativePath}".`
           }, null, 2)
         }]
       };

@@ -191,7 +191,7 @@ describe('Test Docs Tool', () => {
       expect(responseData.defaultFile).toBe('README.md');
       expect(responseData.files).toHaveLength(2);
       expect(responseData.displayText).toContain('Found 2 files');
-      expect(responseData.instruction).toContain('Please choose which file');
+      expect(responseData.instruction).toContain('You must ask the user which file they want to test');
     });
   });
 
