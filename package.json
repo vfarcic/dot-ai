@@ -73,6 +73,7 @@
     "LICENSE"
   ],
   "devDependencies": {
+    "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -90,6 +91,7 @@
     "@modelcontextprotocol/sdk": "^1.13.2",
     "cli-table3": "^0.6.5",
     "commander": "^11.1.0",
+    "glob": "^11.0.3",
     "yaml": "^2.8.0"
   },
   "jest": {
