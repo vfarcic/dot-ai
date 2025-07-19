@@ -14,7 +14,7 @@ import { DotAI } from '../../src/core';
 import { Logger } from '../../src/core/error-handling';
 import { DocTestingSessionManager } from '../../src/core/doc-testing-session';
 import { DocDiscovery } from '../../src/core/doc-discovery';
-import { ValidationPhase, SessionStatus, SessionMetadata } from '../../src/core/doc-testing-types';
+import { ValidationPhase, SessionStatus, SessionMetadata, SectionStatus } from '../../src/core/doc-testing-types';
 import * as fs from 'fs';
 
 // Mock dependencies
@@ -47,11 +47,9 @@ describe('Test Docs Tool', () => {
     mockSessionManager = new MockDocTestingSessionManager() as jest.Mocked<DocTestingSessionManager>;
     
     const mockMetadata: SessionMetadata = {
-      totalItems: 0,
-      completedItems: 0,
-      skippedItems: 0,
-      blockedItems: 0,
-      pendingItems: 0,
+      totalSections: 0,
+      completedSections: 0,
+      sectionStatus: {},
       sessionDir: '/tmp/sessions',
       lastUpdated: '2025-07-18T10:30:00Z'
     };
@@ -283,7 +281,7 @@ describe('Test Docs Tool', () => {
         phase: 'scan'
       };
 
-      await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow('Failed to get workflow step for phase');
+      await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow('Failed to get workflow step for session');
     });
 
     test('should return proper workflow response structure', async () => {
@@ -390,7 +388,7 @@ describe('Test Docs Tool', () => {
       expect(mockSessionManager.getNextStep).toHaveBeenCalledWith(
         expect.any(String),
         args,
-        ValidationPhase.SCAN
+        undefined  // No phase override when no phase specified and creating new session
       );
     });
 
@@ -408,6 +406,502 @@ describe('Test Docs Tool', () => {
         args,
         ValidationPhase.TEST
       );
+    });
+  });
+
+  describe('Results Handling', () => {
+    test('should store section test results when provided', async () => {
+      const args = {
+        filePath: 'README.md', // Need to provide filePath to avoid discovery mode
+        sessionId: 'existing-session-id',
+        sectionId: 'section1',
+        results: '{"whatWasDone": "Tested installation commands", "issues": ["Missing verification step"], "recommendations": ["Add verification command"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.storeSectionTestResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        'section1', 
+        '{"whatWasDone": "Tested installation commands", "issues": ["Missing verification step"], "recommendations": ["Add verification command"]}',
+        args
+      );
+    });
+
+    test('should not store results if sessionId is missing', async () => {
+      const args = {
+        filePath: 'README.md',
+        sectionId: 'section1',
+        results: '{"whatWasDone": "Test results", "issues": [], "recommendations": []}',
+        phase: 'test'
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.storeSectionTestResults).not.toHaveBeenCalled();
+    });
+
+    test('should process scan results when sectionId is missing', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Test Section"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalled();
+      expect(mockSessionManager.storeSectionTestResults).not.toHaveBeenCalled();
+    });
+
+    test('should not store results if results are missing', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        sectionId: 'section1',
+        phase: 'test'
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.storeSectionTestResults).not.toHaveBeenCalled();
+    });
+
+    test('should store results and automatically return next workflow step', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        sectionId: 'section1',
+        results: '{"whatWasDone": "Test results", "issues": [], "recommendations": []}',
+        phase: 'test'
+      };
+
+      const nextWorkflowStep = {
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.TEST,
+        prompt: 'Test next section prompt',
+        nextPhase: ValidationPhase.TEST,
+        nextAction: 'testDocs',
+        instruction: 'Test the next section',
+        agentInstructions: 'Universal instructions...',
+        workflow: {
+          completed: ['scan'],
+          current: 'test',
+          remaining: ['test', 'analyze', 'fix']
+        },
+        data: {
+          currentSection: { id: 'section_2', title: 'Next Section' },
+          filePath: 'README.md',
+          sessionDir: '/tmp/sessions'
+        }
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue(nextWorkflowStep);
+      mockSessionManager.loadSession.mockReturnValue({
+        sessionId: 'existing-session-id',
+        filePath: 'README.md',
+        startTime: '2025-07-18T10:30:00Z',
+        currentPhase: ValidationPhase.TEST,
+        status: SessionStatus.ACTIVE,
+        reportFile: 'doc-test-report-existing-session-id.md',
+        metadata: {
+          totalSections: 2,
+          completedSections: 1,
+          sectionStatus: { section1: SectionStatus.COMPLETED, section2: SectionStatus.PENDING },
+          sessionDir: '/tmp/sessions',
+          lastUpdated: '2025-07-18T10:30:00Z'
+        }
+      });
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.storeSectionTestResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        'section1',
+        '{"whatWasDone": "Test results", "issues": [], "recommendations": []}',
+        args
+      );
+      
+      expect(mockSessionManager.getNextStep).toHaveBeenCalledWith('existing-session-id', args);
+      
+      expect(result).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.success).toBe(true);
+      expect(responseData.data).toEqual(nextWorkflowStep);
+      expect(responseData.data.instruction).toBe('Test the next section');
+      expect(responseData.data.data.currentSection.title).toBe('Next Section');
+    });
+
+    test('should automatically move to analyze phase when all sections completed', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        sectionId: 'section2', // Last section
+        results: '{"whatWasDone": "Final section test results", "issues": [], "recommendations": []}',
+        phase: 'test'
+      };
+
+      const analyzeWorkflowStep = {
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.ANALYZE,
+        prompt: 'Analyze all test results prompt',
+        nextPhase: ValidationPhase.FIX,
+        nextAction: 'testDocs',
+        instruction: 'Complete the analyze phase and submit your results to continue the workflow.',
+        agentInstructions: 'Universal instructions...',
+        workflow: {
+          completed: ['scan', 'test'],
+          current: 'analyze',
+          remaining: ['fix']
+        },
+        data: {
+          filePath: 'README.md',
+          sessionDir: '/tmp/sessions',
+          allSectionsTested: true
+        }
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue(analyzeWorkflowStep);
+      mockSessionManager.loadSession.mockReturnValue({
+        sessionId: 'existing-session-id',
+        filePath: 'README.md',
+        startTime: '2025-07-18T10:30:00Z',
+        currentPhase: ValidationPhase.TEST,
+        status: SessionStatus.ACTIVE,
+        reportFile: 'doc-test-report-existing-session-id.md',
+        metadata: {
+          totalSections: 2,
+          completedSections: 2,
+          sectionStatus: { 
+            section1: SectionStatus.COMPLETED, 
+            section2: SectionStatus.COMPLETED 
+          },
+          sessionDir: '/tmp/sessions',
+          lastUpdated: '2025-07-18T10:30:00Z'
+        }
+      });
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.storeSectionTestResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        'section2',
+        '{"whatWasDone": "Final section test results", "issues": [], "recommendations": []}',
+        args
+      );
+      
+      expect(mockSessionManager.getNextStep).toHaveBeenCalledWith('existing-session-id', args);
+      
+      expect(result).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.success).toBe(true);
+      expect(responseData.data.phase).toBe('analyze');
+      expect(responseData.data.instruction).toBe('Complete the analyze phase and submit your results to continue the workflow.');
+      expect(responseData.data.data.allSectionsTested).toBe(true);
+    });
+
+    test('should log result storage activity', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        sectionId: 'section1', 
+        results: '{"whatWasDone": "Test results", "issues": [], "recommendations": []}',
+        phase: 'test'
+      };
+
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Storing section test results',
+        expect.objectContaining({
+          requestId: 'test-request-id',
+          sessionId: 'existing-session-id',
+          sectionId: 'section1'
+        })
+      );
+    });
+  });
+
+  describe('Scan Results Processing', () => {
+    test('should process valid scan results JSON', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Prerequisites", "Installation", "Usage"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+      mockSessionManager.loadSession.mockReturnValue({
+        sessionId: 'existing-session-id',
+        filePath: 'README.md',
+        startTime: '2025-07-18T10:30:00Z',
+        currentPhase: ValidationPhase.TEST,
+        status: SessionStatus.ACTIVE,
+        reportFile: 'doc-test-report-existing-session-id.md',
+        metadata: {
+          totalSections: 3,
+          completedSections: 0,
+          sectionStatus: {},
+          sessionDir: '/tmp/sessions',
+          lastUpdated: '2025-07-18T10:30:00Z'
+        }
+      });
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        ['Prerequisites', 'Installation', 'Usage'],
+        args
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Scan results processed successfully',
+        expect.objectContaining({
+          requestId: 'test-request-id',
+          sessionId: 'existing-session-id',
+          sectionsCount: 3
+        })
+      );
+      expect(result).toBeDefined();
+    });
+
+    test('should handle invalid scan results JSON', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"invalid": "format"}',
+        phase: 'test'
+      };
+
+      await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow(
+        'Invalid scan results format - expected {sections: [...]} structure'
+      );
+    });
+
+    test('should handle malformed JSON in scan results', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{invalid json}',
+        phase: 'test'
+      };
+
+      await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow(
+        /Failed to process scan results/
+      );
+    });
+
+    test('should log scan results processing activity', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Section A", "Section B"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Processing scan results',
+        expect.objectContaining({
+          requestId: 'test-request-id',
+          sessionId: 'existing-session-id'
+        })
+      );
+    });
+
+    test('should handle empty sections array in scan results', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": []}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        [],
+        args
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Scan results processed successfully',
+        expect.objectContaining({
+          sectionsCount: 0
+        })
+      );
+      expect(result).toBeDefined();
+    });
+
+    test('should differentiate between scan results and section results', async () => {
+      // Test scan results (no sectionId)
+      const scanArgs = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Section 1"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+      mockSessionManager.storeSectionTestResults = jest.fn();
+
+      await handleTestDocsTool(scanArgs, mockDotAI, mockLogger, 'test-request-id-1');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalled();
+      expect(mockSessionManager.storeSectionTestResults).not.toHaveBeenCalled();
+
+      // Reset mocks
+      mockSessionManager.processScanResults.mockClear();
+      mockSessionManager.storeSectionTestResults.mockClear();
+
+      // Test section results (with sectionId)
+      const sectionArgs = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        sectionId: 'section1',
+        results: 'Section test results',
+        phase: 'test'
+      };
+
+      await handleTestDocsTool(sectionArgs, mockDotAI, mockLogger, 'test-request-id-2');
+
+      expect(mockSessionManager.storeSectionTestResults).toHaveBeenCalled();
+      expect(mockSessionManager.processScanResults).not.toHaveBeenCalled();
+    });
+
+    test('should return next workflow step after processing scan results', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Prerequisites", "Installation"]}',
+        phase: 'test'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue({
+        sessionId: 'existing-session-id',
+        phase: 'test',
+        prompt: 'Test first section prompt',
+        nextPhase: 'test',
+        nextAction: 'testDocs',
+        instruction: 'Test the Prerequisites section',
+        agentInstructions: 'Universal instructions...',
+        workflow: { completed: ['scan'], current: 'test', remaining: ['test', 'analyze', 'fix'] },
+        data: { currentSection: { id: 'section_1', title: 'Prerequisites' } }
+      });
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalledWith(
+        'existing-session-id',
+        ['Prerequisites', 'Installation'],
+        args
+      );
+      
+      // Should call getNextStep after processing scan results
+      expect(mockSessionManager.getNextStep).toHaveBeenCalledWith('existing-session-id', args);
+      
+      expect(result).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.success).toBe(true);
+      expect(responseData.data.phase).toBe('test');
+      expect(responseData.data.instruction).toBe('Test the Prerequisites section');
+      expect(responseData.data.nextAction).toBe('testDocs');
+    });
+
+    test('should load filePath from session when sessionId provided without filePath', async () => {
+      const args = {
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Test Section"]}',
+        phase: 'test'
+      };
+
+      // Mock session with filePath
+      const sessionWithFile = {
+        sessionId: 'existing-session-id',
+        filePath: 'README.md',
+        startTime: '2025-07-18T10:30:00Z',
+        currentPhase: ValidationPhase.SCAN,
+        status: SessionStatus.ACTIVE,
+        reportFile: 'report.md',
+        metadata: {
+          totalSections: 0,
+          completedSections: 0,
+          sectionStatus: {},
+          sessionDir: '/tmp/sessions',
+          lastUpdated: '2025-07-18T10:30:00Z'
+        }
+      };
+
+      mockSessionManager.loadSession.mockReturnValue(sessionWithFile);
+      mockSessionManager.processScanResults = jest.fn();
+      mockFs.existsSync.mockReturnValue(true);
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      // Should load session and use its filePath
+      expect(mockSessionManager.loadSession).toHaveBeenCalledWith('existing-session-id', args);
+      expect(mockFs.existsSync).toHaveBeenCalledWith('README.md');
+      expect(result).toBeDefined();
+    });
+
+    test('should use session currentPhase when no phase override provided', async () => {
+      const args = {
+        sessionId: 'existing-session-id',
+        // No phase specified - should use session's currentPhase
+      };
+
+      const sessionInTestPhase = {
+        sessionId: 'existing-session-id',
+        filePath: 'README.md',
+        startTime: '2025-07-18T10:30:00Z',
+        currentPhase: ValidationPhase.TEST, // Session is in TEST phase
+        status: SessionStatus.ACTIVE,
+        reportFile: 'report.md',
+        metadata: {
+          totalSections: 1,
+          completedSections: 0,
+          sectionStatus: { section1: SectionStatus.PENDING },
+          sessionDir: '/tmp/sessions',
+          lastUpdated: '2025-07-18T10:30:00Z'
+        },
+        sections: [{ id: 'section1', title: 'Test Section' }]
+      };
+
+      mockSessionManager.loadSession.mockReturnValue(sessionInTestPhase);
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue({
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.TEST,
+        prompt: 'Test section prompt',
+        workflow: { completed: ['scan'], current: 'test', remaining: ['analyze', 'fix'] }
+      });
+      mockFs.existsSync.mockReturnValue(true);
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      // Should call getNextStep without phase override (undefined)
+      expect(mockSessionManager.getNextStep).toHaveBeenCalledWith('existing-session-id', args, undefined);
     });
   });
 });

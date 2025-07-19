@@ -274,6 +274,8 @@ For more help on specific commands, use:
       .option('--session-id <id>', 'Existing session ID to continue')
       .option('--session-dir <path>', 'Directory to store session files (defaults to DOT_AI_SESSION_DIR env var)')
       .option('--phase <phase>', 'Specific phase to run (scan, test, analyze, fix)', 'scan')
+      .option('--section-id <id>', 'Section ID when submitting test results')
+      .option('--results <text>', 'Test results to store (for client agent reporting back)')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
       .action(async (options, command) => {
         // Get global options from parent command
@@ -405,7 +407,7 @@ For more help on specific commands, use:
       case 'deployManifests':
         return [...commonOptions, 'solution-id', 'session-dir', 'timeout'];
       case 'testDocs':
-        return [...commonOptions, 'file', 'file-pattern', 'session-id', 'session-dir', 'phase'];
+        return [...commonOptions, 'file', 'file-pattern', 'session-id', 'session-dir', 'phase', 'section-id', 'results'];
       // REMOVED: enhance command, deploy command
       default:
         return commonOptions;
@@ -693,7 +695,10 @@ For more help on specific commands, use:
         filePath: options.file,
         sessionId: options.sessionId,
         phase: options.phase,
-        filePattern: options.filePattern
+        filePattern: options.filePattern,
+        sessionDir: options.sessionDir,
+        sectionId: options.sectionId,
+        results: options.results
       };
 
       // Execute the testDocs tool directly

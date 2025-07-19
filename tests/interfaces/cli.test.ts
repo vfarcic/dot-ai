@@ -1,6 +1,7 @@
 import { CliInterface } from '../../src/interfaces/cli';
 import { DotAI } from '../../src/core';
 import { jest } from '@jest/globals';
+import * as fs from 'fs';
 
 describe('CLI Interface', () => {
   let cli: CliInterface;
@@ -1036,6 +1037,20 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('@vfarcic/dot-ai');
       // Should not contain the old package name in installation instructions
       expect(helpText).not.toContain('npm install -g dot-ai');
+    });
+  });
+
+  describe('Test Docs Command Parameters', () => {
+    test('should validate CLI option names are correct', () => {
+      const validOptions = (cli as any).getValidOptionsForCommand('testDocs');
+      
+      expect(validOptions).toContain('file');
+      expect(validOptions).toContain('file-pattern');
+      expect(validOptions).toContain('session-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('phase');
+      expect(validOptions).toContain('section-id');
+      expect(validOptions).toContain('results');
     });
   });
 }); 

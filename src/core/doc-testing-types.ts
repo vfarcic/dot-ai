@@ -16,47 +16,26 @@ export interface ValidationSession {
   status: SessionStatus;       // Overall session status
   reportFile: string;          // Path to the generated report file
   metadata: SessionMetadata;   // Counters and summary info
+  
+  // Section-based organization
+  sections?: DocumentSection[]; // Document sections for validation
+  sectionResults?: Record<string, SectionTestResult>; // Structured test results by section
 }
 
 /**
  * Session metadata with counters and summary information
  */
 export interface SessionMetadata {
-  totalItems: number;          // Total testable items found
-  completedItems: number;      // Items that passed testing
-  skippedItems: number;        // Items intentionally skipped
-  blockedItems: number;        // Items that failed due to dependencies
-  pendingItems: number;        // Items not yet tested
+  // Section-level tracking
+  totalSections: number;       // Total sections found in document
+  completedSections: number;   // Sections that completed successfully
+  sectionStatus: Record<string, SectionStatus>; // sectionId -> status
+  
   sessionDir: string;          // Directory where session files are stored
   lastUpdated: string;         // ISO timestamp of last update
 }
 
-/**
- * Individual testable item found in documentation
- * AI agent decides what's testable and how to categorize it
- */
-export interface ValidationItem {
-  id: string;                  // Unique identifier for this item
-  type: string;                // AI-determined type: "bash-command", "python-code", "file-exists", etc.
-  category?: string;           // Optional grouping: "command", "code", "reference", etc.
-  content: string;             // The actual content to test
-  context?: string;            // Surrounding context for better understanding
-  lineNumber?: number;         // Line number in the source file
-  status: ItemStatus;          // Current status of this item
-  dependencies: string[];      // Other item IDs this depends on
-  metadata: Record<string, any>; // Flexible metadata for AI-specific needs
-}
 
-/**
- * Result of testing a validation item
- */
-export interface TestResult {
-  success: boolean;            // Did the test pass?
-  output?: string;             // Command output or result details
-  error?: string;              // Error message if failed
-  duration: number;            // How long the test took (ms)
-  metadata: Record<string, any>; // Additional result data
-}
 
 /**
  * The four phases of documentation validation workflow
@@ -78,16 +57,35 @@ export enum SessionStatus {
   PAUSED = 'paused'        // Session temporarily paused
 }
 
+
 /**
- * Status of individual validation items
+ * Status of a document section during validation
  */
-export enum ItemStatus {
-  PENDING = 'pending',     // Not yet tested
-  TESTING = 'testing',     // Currently being tested
-  PASSED = 'passed',       // Test passed successfully
-  FAILED = 'failed',       // Test failed
-  SKIPPED = 'skipped',     // Intentionally skipped
-  BLOCKED = 'blocked'      // Cannot test due to dependency failure
+export enum SectionStatus {
+  PENDING = 'pending',     // Section not yet processed
+  SCANNING = 'scanning',   // Currently identifying testable items
+  TESTING = 'testing',     // Currently executing validation items  
+  ANALYZING = 'analyzing', // Currently analyzing test results
+  FIXING = 'fixing',       // Currently generating fixes
+  COMPLETED = 'completed', // Section validation completed successfully
+  FAILED = 'failed'        // Section validation failed
+}
+
+/**
+ * Logical section of a document for validation
+ */
+export interface DocumentSection {
+  id: string;                    // Unique section identifier: "section_1", "section_2"
+  title: string;                 // Human-readable section title: "Installation", "Getting Started"
+}
+
+/**
+ * Structured test results for a section (JSON format from client agent)
+ */
+export interface SectionTestResult {
+  whatWasDone: string;          // Summary of what was tested
+  issues: string[];             // List of problems found
+  recommendations: string[];    // List of improvement suggestions
 }
 
 /**
@@ -98,6 +96,9 @@ export interface WorkflowStep {
   phase: ValidationPhase;
   prompt: string;              // AI prompt for this phase
   nextPhase?: ValidationPhase; // What phase comes next
+  nextAction?: string;         // Next tool/action to call
+  instruction?: string;        // Brief instruction for immediate next step
+  agentInstructions?: string;  // Universal agent workflow instructions
   workflow: {
     completed: ValidationPhase[];
     current: ValidationPhase;
@@ -114,7 +115,6 @@ export interface PhaseResult {
   startTime: string;
   endTime?: string;
   status: PhaseStatus;
-  items: ValidationItem[];
   summary: string;
   nextPhase?: ValidationPhase;
   aiInsights?: string;         // AI-generated insights about this phase
@@ -125,7 +125,7 @@ export interface PhaseResult {
  */
 export enum PhaseStatus {
   PENDING = 'pending',
-  IN_PROGRESS = 'in_progress',
+  IN_PROGRESS = 'in_progress', 
   COMPLETED = 'completed',
   FAILED = 'failed'
 }

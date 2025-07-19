@@ -19,7 +19,10 @@ export const TESTDOCS_TOOL_DESCRIPTION = 'Test, validate, check, scan, verify, a
 export const TESTDOCS_TOOL_INPUT_SCHEMA = {
   filePath: z.string().min(1).optional().describe('Path to documentation file to test (optional - if not provided, will discover available files)'),
   sessionId: z.string().optional().describe('Existing session ID to continue (optional)'),
-  phase: z.enum(['scan', 'test', 'analyze', 'fix']).optional().describe('Specific phase to run (defaults to scan)')
+  phase: z.enum(['scan', 'test', 'analyze', 'fix']).optional().describe('Specific phase to run (defaults to scan)'),
+  sectionId: z.string().optional().describe('Section ID when submitting test results'),
+  results: z.string().optional().describe('Test results to store (for client agent reporting back)'),
+  filePattern: z.string().optional().describe('File pattern for discovery (e.g., "**/*.md", "*.rst")')
 };
 
 /**
@@ -39,8 +42,8 @@ export async function handleTestDocsTool(
       phase: args.phase
     });
 
-    // Check if we're in discovery mode (no filePath provided)
-    if (!args.filePath) {
+    // Check if we're in discovery mode (no filePath and no sessionId provided)
+    if (!args.filePath && !args.sessionId) {
       logger.info('Running in discovery mode - scanning for documentation files', { requestId });
       
       const discovery = new DocDiscovery();
@@ -92,6 +95,15 @@ export async function handleTestDocsTool(
       };
     }
 
+    // If we have sessionId but no filePath, load session to get filePath
+    if (args.sessionId && !args.filePath) {
+      const sessionManager = new DocTestingSessionManager();
+      const existingSession = sessionManager.loadSession(args.sessionId, args);
+      if (existingSession) {
+        args.filePath = existingSession.filePath;
+      }
+    }
+
     // Validate file exists (testing mode)
     if (!fs.existsSync(args.filePath)) {
       throw ErrorHandler.createError(
@@ -135,22 +147,100 @@ export async function handleTestDocsTool(
       logger.info('Created new session', { requestId, sessionId: session.sessionId });
     }
 
-    // Determine phase to run
-    const targetPhase = args.phase as ValidationPhase || ValidationPhase.SCAN;
+    // Handle results submission if provided
+    if (args.results && args.sessionId) {
+      if (args.sectionId) {
+        // Section-specific results
+        logger.info('Storing section test results', { 
+          requestId, 
+          sessionId: args.sessionId,
+          sectionId: args.sectionId
+        });
+        
+        sessionManager.storeSectionTestResults(args.sessionId, args.sectionId, args.results, args);
+        
+        // After storing section results, get the next workflow step automatically
+        const nextWorkflowStep = sessionManager.getNextStep(args.sessionId, args);
+        if (nextWorkflowStep) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  data: nextWorkflowStep
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      } else {
+        // Scan results - process JSON array of section titles
+        logger.info('Processing scan results', { 
+          requestId, 
+          sessionId: args.sessionId
+        });
+        
+        try {
+          const scanResults = JSON.parse(args.results);
+          if (scanResults.sections && Array.isArray(scanResults.sections)) {
+            sessionManager.processScanResults(args.sessionId, scanResults.sections, args);
+            logger.info('Scan results processed successfully', { 
+              requestId, 
+              sessionId: args.sessionId,
+              sectionsCount: scanResults.sections.length
+            });
+            
+            // After processing scan results, get the next workflow step based on updated session state
+            const nextWorkflowStep = sessionManager.getNextStep(args.sessionId, args);
+            if (nextWorkflowStep) {
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      data: nextWorkflowStep
+                    }, null, 2)
+                  }
+                ]
+              };
+            }
+          } else {
+            throw new Error('Invalid scan results format - expected {sections: [...]} structure');
+          }
+        } catch (parseError) {
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.HIGH,
+            `Failed to process scan results: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+            {
+              operation: 'scan_results_processing',
+              component: 'TestDocsTool',
+              requestId,
+              input: { sessionId: args.sessionId, results: args.results }
+            }
+          );
+        }
+      }
+    }
+
+    // Determine phase to run - only override if explicitly provided
+    const phaseOverride = args.phase ? args.phase as ValidationPhase : undefined;
     
     // Get workflow step
-    const workflowStep = sessionManager.getNextStep(session.sessionId, args, targetPhase);
+    const workflowStep = sessionManager.getNextStep(session.sessionId, args, phaseOverride);
     
     if (!workflowStep) {
       throw ErrorHandler.createError(
         ErrorCategory.OPERATION,
         ErrorSeverity.HIGH,
-        `Failed to get workflow step for phase: ${targetPhase}`,
+        `Failed to get workflow step for session: ${session.sessionId}`,
         {
           operation: 'workflow_step_generation',
           component: 'TestDocsTool',
           requestId,
-          input: { sessionId: session.sessionId, phase: targetPhase }
+          input: { sessionId: session.sessionId, phaseOverride }
         }
       );
     }
