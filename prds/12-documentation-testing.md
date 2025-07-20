@@ -52,8 +52,7 @@ Comprehensive AI-driven testing system that:
 - [x] **Structured result format** - Generate machine-readable JSON results for analysis
 - [x] **Automatic workflow progression** - Seamlessly move between sections without manual intervention
 - [x] **Dual interface support** - Provide both CLI and MCP interfaces with feature parity
-- [ ] **User-driven workflow selection** - Both CLI and MCP interfaces offer users choice of Test Only, Analyze Only, or Test & Analyze workflows at session creation, with intelligent prompting for missing file/mode selections
-- [ ] **Document coherence analysis and fix application** - Assess overall document flow, consistency, and completeness, then apply user-selected improvements
+- [ ] **Fix selection and application** - Allow users to select and apply recommended improvements from test results
 - [ ] **Recursive documentation testing** - Follow links from initial document to test entire documentation ecosystems
 
 ### Non-Functional Requirements
@@ -110,24 +109,25 @@ Comprehensive AI-driven testing system that:
 - [x] Comprehensive error handling and recovery
 - [x] Bug fixes (CLI parameter handling, phase override logic)
 
-### Phase 5: Document Coherence Analysis & Fix Application 🔄 **IN PROGRESS** (25% REMAINING)
-**Target**: Document-level coherence assessment and user-driven fix application
-- [ ] **Document coherence analysis**
-  - [ ] Overall document flow and organization assessment
-  - [ ] Cross-section consistency and terminology checking
-  - [ ] Missing connections and gap identification
-  - [ ] Document completeness evaluation
-- [ ] **Fix application workflow**
-  - [ ] Combined presentation of section-level and document-level issues
-  - [ ] User selection interface for choosing fixes to apply
-  - [ ] Automated fix application for selected improvements
-  - [ ] Simple, single-pass document transformation
+### Phase 4: Fix Selection and Application 🔄 **DESIGN COMPLETE** (2025-07-20)
+**Target**: User-driven fix application for test results
+- [x] **Fix selection interface design**
+  - [x] Present all recommendations from test results as numbered list
+  - [x] User interface for choosing fixes to apply by number
+  - [x] Sequential ID system (1,2,3,4...) for easy selection
+- [x] **Fix application workflow design**
+  - [x] Client-agent driven fix application model
+  - [x] Status tracking system (pending/fixed/deferred/failed)
+  - [x] Four-status workflow with explanation field
+- [ ] **Fix phase implementation**
+  - [ ] Create fix phase prompt template
+  - [ ] Implement fix selection logic in session manager
+  - [ ] Add fix status update methods
 - [ ] **Performance & integration optimization**
   - [ ] Large document processing optimization
-  - [ ] Concurrent validation features
   - [ ] CI/CD pipeline integration capabilities
 
-### Phase 6: Documentation Graph Testing ⏳ **PROPOSED**
+### Phase 5: Documentation Graph Testing ⏳ **PROPOSED**
 **Target**: Recursive validation of entire documentation ecosystems
 - [ ] **Link Discovery and Classification**
   - [ ] Markdown link extraction and parsing
@@ -154,6 +154,40 @@ Comprehensive AI-driven testing system that:
 - [x] Shared validation engine accessible via CLI and MCP interfaces
 - [x] Comprehensive error handling and graceful failure modes
 - [x] File-based prompt system following CLAUDE.md patterns
+- [x] **Trackable item data structure** - Issues and recommendations as objects with id/text/status/explanation
+- [x] **Fix phase workflow design** - Client-agent driven fix selection and application with status tracking
+
+### Data Structure Design 🔄 **UPDATED** (2025-07-20)
+
+**Enhanced SectionTestResult Interface**:
+```typescript
+interface FixableItem {
+  id: number;                    // Sequential ID across all sections (1,2,3,4...)
+  text: string;                  // Issue or recommendation description  
+  status: 'pending' | 'fixed' | 'deferred' | 'failed';
+  explanation?: string;          // Context for non-pending status
+}
+
+interface SectionTestResult {
+  whatWasDone: string;
+  issues: FixableItem[];         // Trackable issues instead of string[]
+  recommendations: FixableItem[]; // Trackable recommendations instead of string[]
+}
+```
+
+**Fix Phase Workflow**:
+1. **Present numbered list** of all pending items to client agent
+2. **User selects fixes** by number (1,3,5 or "all" or "none") 
+3. **Client agent applies fixes** (doc edits, code changes, external actions)
+4. **Client reports status** for each selected item (fixed/deferred/failed)
+5. **System updates tracking** and presents remaining items
+6. **Loop continues** until user selects "none" or no items remain
+
+**Status Definitions**:
+- **pending**: Not yet addressed
+- **fixed**: Completed (any type of resolution)
+- **deferred**: Handled via external action (GitHub issue, backlog) - removed from future sessions
+- **failed**: Attempted but couldn't complete - remains available for retry
 
 ### Development Tasks ✅ **COMPLETED**
 - [x] Core validation workflow implementation
@@ -181,7 +215,6 @@ Comprehensive AI-driven testing system that:
 - [x] MCP server infrastructure
 
 ### Current Blockers  
-- [ ] **Document Coherence Analysis Prompts**: Need to develop prompts for assessing overall document flow and meaningfulness
 - [ ] **Fix Selection and Application Interface**: Need to implement user interface for choosing which fixes to apply
 
 ## Risk Management
@@ -201,9 +234,8 @@ Comprehensive AI-driven testing system that:
 ## Decision Log
 
 ### Open Questions
-- [ ] **Workflow Mode Implementation**: How should CLI parameters and MCP tool parameters handle mode selection and prompting? | **Target**: Phase 5 kickoff
-- [ ] **Document Coherence Analysis Design**: What specific aspects of document flow and consistency should be evaluated? | **Target**: Phase 5 kickoff
-- [ ] **CI/CD Integration Approach**: What's the best way to integrate with existing development workflows? | **Target**: Phase 5 planning
+- [ ] **Fix Application Scope**: Should fix application be automatic, user-guided, or user-selected? | **Target**: Phase 4 kickoff
+- [ ] **CI/CD Integration Approach**: What's the best way to integrate with existing development workflows? | **Target**: Phase 4 planning
 
 ### Resolved Decisions
 - [x] **Two-Phase Validation Approach** - **Decided**: 2025-07-19 **Rationale**: Functional testing alone missed semantic accuracy issues; combined approach provides comprehensive validation
@@ -211,8 +243,13 @@ Comprehensive AI-driven testing system that:
 - [x] **Automatic Workflow Progression** - **Decided**: 2025-07-19 **Rationale**: Manual CLI calls between sections created friction; automatic progression improves user experience
 - [x] **File-based Prompt System** - **Decided**: 2025-07-18 **Rationale**: Separates AI instructions from code, enables easier prompt iteration and collaboration
 - [x] **Simplified 4-Phase Workflow** - **Decided**: 2025-07-19 **Rationale**: SCAN → TEST → ANALYZE → FIX approach with document-level coherence analysis and user-driven fix selection is simpler and more practical than complex coordination systems
-- [x] **User Workflow Selection at Session Creation** - **Decided**: 2025-07-20 **Rationale**: Users have different documentation validation needs - some only want functional testing, others only want structure review, others want comprehensive validation. Forcing all users through complete workflow reduces efficiency and user satisfaction
-- [x] **Simplified Document Coherence Analysis** - **Decided**: 2025-07-20 **Rationale**: Original cross-section coordination and cascade prevention approach was over-engineered. Most documentation fixes are independent and don't create conflicts. Users prefer simple fix selection over complex coordination
+- [x] **Eliminate Document Coherence Analysis** - **Decided**: 2025-07-20 **Rationale**: Analysis of existing TEST phase revealed comprehensive functional and semantic validation already occurring (difficulty claims, automation claims, user experience validation, etc.), making additional document-level analysis redundant
+- [x] **Focus on Fix Application Only** - **Decided**: 2025-07-20 **Rationale**: TEST phase provides comprehensive issue identification and recommendations; users need way to select and apply fixes rather than additional analysis
+- [x] **Remove Workflow Selection** - **Decided**: 2025-07-20 **Rationale**: Simplified approach - users run documentation testing and get fix recommendations, no need for mode selection complexity
+- [x] **Trackable Item Data Structure** - **Decided**: 2025-07-20 **Rationale**: Convert issues and recommendations from string arrays to objects with id, text, status, and explanation fields for comprehensive fix tracking
+- [x] **Four-Status Fix Tracking** - **Decided**: 2025-07-20 **Rationale**: Use pending/fixed/deferred/failed status system where deferred items (handled via GitHub issues, backlog, etc.) are considered resolved and removed from future sessions
+- [x] **Client-Agent Fix Application** - **Decided**: 2025-07-20 **Rationale**: Client agent and user determine how to handle each recommendation (doc edit, code fix, external issue), system provides tracking and numbered list interface
+- [x] **Simple Sequential Fix IDs** - **Decided**: 2025-07-20 **Rationale**: Use simple numbering (1,2,3,4) rather than section-based IDs (2.1, 4.3) for easier user selection and reduced cognitive load
 
 ## Scope Management
 
@@ -222,7 +259,6 @@ Comprehensive AI-driven testing system that:
 - [x] Session-based workflow management with resumption capabilities
 - [x] Two-phase validation (functional and semantic testing)
 - [x] Structured result format for programmatic analysis
-- [ ] Document coherence analysis for overall flow and consistency
 - [ ] User-driven fix selection and application
 
 ### Out of Scope (Future Versions)
@@ -264,6 +300,52 @@ Comprehensive AI-driven testing system that:
 - [ ] **Best practices guide**: Documentation testing methodology and recommendations
 
 ## Work Log
+
+### 2025-07-20: Fix Phase Architecture and Data Structure Design
+**Duration**: 4 hours
+**Commits**: 2 commits  
+**Primary Focus**: Architectural design for fix selection and application workflow
+
+**Completed PRD Items**:
+- [x] **Trackable item data structure** - Complete FixableItem interface design with id/text/status/explanation fields
+- [x] **Fix phase workflow design** - Client-agent interaction model with numbered selection interface
+- [x] **Eliminate document coherence analysis** - Simplified workflow removing redundant ANALYZE phase
+- [x] **Enhanced SectionTestResult interface** - Updated to use FixableItem arrays instead of string arrays
+
+**Additional Work Done**:
+- **Comprehensive decision documentation** - Added 8 new architectural decisions to PRD decision log
+- **Four-status tracking system design** - pending/fixed/deferred/failed with explanation field
+- **Sequential ID system design** - Simple numbering (1,2,3,4...) for user-friendly selection
+- **Backend conversion strategy** - Transparent string array to object conversion preserving prompt simplicity
+
+**Technical Decisions Made**:
+- **Decision**: Use client-agent driven fix application model
+- **Rationale**: Allows flexible handling of different fix types (doc edits, code changes, external issues)
+- **Impact**: Enables comprehensive fix tracking without restricting fix application methods
+
+**Challenges Encountered**:
+- **Data structure complexity** - Initial complex tracking system simplified to four-status model
+- **Workflow redundancy** - TEST phase analysis revealed ANALYZE phase was unnecessary
+
+**Quality Metrics**:
+- **Manual Testing**: End-to-end CLI testing generated 25 trackable items proving data structure works
+- **Decision Documentation**: 8 architectural decisions captured in PRD decision log
+- **Design Completeness**: Complete interface definitions and workflow documentation ready for implementation
+
+**Lessons Learned**:
+- **Analyze existing capabilities before adding new phases** - TEST phase already provided comprehensive validation
+- **Simple user interfaces are better** - Sequential numbering easier than complex section-based IDs
+- **Design decisions should be documented immediately** - Comprehensive decision log enables future context
+
+**Next Session Priorities**:
+- **Fix phase implementation** - Create prompt template and implement selection logic
+- **Session manager updates** - Add fix status tracking methods
+- **Comprehensive testing** - Validate new data structures and fix workflow
+
+**Files Modified**: 
+`prds/12-documentation-testing.md`
+
+---
 
 ### 2025-07-19: Enhanced Validation System Implementation
 **Duration**: 8 hours
@@ -322,11 +404,12 @@ Comprehensive AI-driven testing system that:
 **Next Session Focus**: Analysis phase prompt development and cross-section synthesis capabilities
 
 ## Current Status Summary
-- **Overall Completion**: ~75%
+- **Overall Completion**: ~85%
 - **Core Features**: 100% implemented and tested
-- **Remaining Work**: Analysis and fix generation phases (~25% of total effort)
+- **Architecture & Design**: 100% complete including fix phase design
+- **Remaining Work**: Fix phase implementation (~15% of total effort)
 - **Test Coverage**: 558 tests passing across 25 suites
-- **Next Milestone**: Cross-section analysis implementation
+- **Next Milestone**: Fix selection interface implementation and testing
 
 ## Priority: High
 This system significantly enhances documentation quality assurance by ensuring all examples work correctly and descriptions accurately reflect reality, directly impacting user experience and product adoption.

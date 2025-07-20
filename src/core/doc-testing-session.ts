@@ -15,7 +15,8 @@ import {
   WorkflowStep,
   DocumentSection,
   SectionStatus,
-  SectionTestResult
+  SectionTestResult,
+  FixableItem
 } from './doc-testing-types';
 
 export class DocTestingSessionManager {
@@ -39,6 +40,7 @@ export class DocTestingSessionManager {
         totalSections: 0,
         completedSections: 0,
         sectionStatus: {},
+        nextItemId: 1,
         sessionDir,
         lastUpdated: new Date().toISOString()
       }
@@ -315,19 +317,19 @@ _Items will be populated as they are discovered and tested._
     const nextSection = this.getNextSectionToTest(session);
     
     if (!nextSection) {
-      // All sections tested, move to analyze phase
+      // All sections tested, move to fix phase
       return {
         sessionId: session.sessionId,
-        phase: ValidationPhase.ANALYZE,
-        prompt: this.loadPhasePrompt(ValidationPhase.ANALYZE, session),
-        nextPhase: ValidationPhase.FIX,
+        phase: ValidationPhase.FIX,
+        prompt: this.loadPhasePrompt(ValidationPhase.FIX, session),
+        nextPhase: undefined, // FIX is the final phase
         nextAction: 'testDocs',
-        instruction: 'Complete the analyze phase and submit your results to continue the workflow.',
+        instruction: 'Review recommendations and select fixes to apply. Use testDocs tool to report completed fixes.',
         agentInstructions: this.getAgentInstructions(),
         workflow: {
           completed: [ValidationPhase.SCAN, ValidationPhase.TEST],
-          current: ValidationPhase.ANALYZE,
-          remaining: [ValidationPhase.FIX]
+          current: ValidationPhase.FIX,
+          remaining: []
         },
         data: {
           filePath: session.filePath,
@@ -438,6 +440,27 @@ _Items will be populated as they are discovered and tested._
   }
 
   /**
+   * Convert string arrays to FixableItem arrays with generated IDs
+   */
+  private convertToFixableItems(items: string[] | FixableItem[], session: ValidationSession): FixableItem[] {
+    return items.map((item) => {
+      // If already a FixableItem object, return as-is
+      if (typeof item === 'object' && item.id !== undefined) {
+        return item as FixableItem;
+      }
+      
+      // Convert string to FixableItem with generated ID
+      const fixableItem: FixableItem = {
+        id: session.metadata.nextItemId++,
+        text: item as string,
+        status: 'pending'
+      };
+      
+      return fixableItem;
+    });
+  }
+
+  /**
    * Store test results for a specific section
    */
   storeSectionTestResults(sessionId: string, sectionId: string, results: string, args: any): void {
@@ -447,7 +470,7 @@ _Items will be populated as they are discovered and tested._
     }
 
     // Parse and validate JSON results
-    let parsedResults: SectionTestResult;
+    let parsedResults: any; // Use 'any' initially to handle both old and new formats
     try {
       parsedResults = JSON.parse(results);
       
@@ -461,6 +484,15 @@ _Items will be populated as they are discovered and tested._
       if (!Array.isArray(parsedResults.recommendations)) {
         throw new Error('Missing or invalid "recommendations" field - must be array');
       }
+
+      // Convert string arrays to FixableItem arrays if needed
+      const processedResults: SectionTestResult = {
+        whatWasDone: parsedResults.whatWasDone,
+        issues: this.convertToFixableItems(parsedResults.issues, session),
+        recommendations: this.convertToFixableItems(parsedResults.recommendations, session)
+      };
+      
+      parsedResults = processedResults;
     } catch (error) {
       throw new Error(`Invalid JSON results format: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -504,6 +536,7 @@ _Items will be populated as they are discovered and tested._
     session.sections = sections;
     session.metadata.totalSections = sections.length;
     session.metadata.completedSections = 0;
+    session.metadata.nextItemId = 1; // Initialize ID counter for fix tracking
     session.metadata.sectionStatus = sections.reduce((acc, section) => {
       acc[section.id] = SectionStatus.PENDING;
       return acc;

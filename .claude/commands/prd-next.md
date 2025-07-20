@@ -1,4 +1,4 @@
-# PRD Next Steps Slash Command
+# PRD Next - Work On the Next Task
 
 ## Instructions
 

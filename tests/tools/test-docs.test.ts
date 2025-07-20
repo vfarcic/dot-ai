@@ -51,7 +51,8 @@ describe('Test Docs Tool', () => {
       completedSections: 0,
       sectionStatus: {},
       sessionDir: '/tmp/sessions',
-      lastUpdated: '2025-07-18T10:30:00Z'
+      lastUpdated: '2025-07-18T10:30:00Z',
+      nextItemId: 1
     };
 
     mockSessionManager.createSession.mockReturnValue({
@@ -521,7 +522,8 @@ describe('Test Docs Tool', () => {
           completedSections: 1,
           sectionStatus: { section1: SectionStatus.COMPLETED, section2: SectionStatus.PENDING },
           sessionDir: '/tmp/sessions',
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       });
 
@@ -590,7 +592,8 @@ describe('Test Docs Tool', () => {
             section2: SectionStatus.COMPLETED 
           },
           sessionDir: '/tmp/sessions',
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       });
 
@@ -659,7 +662,8 @@ describe('Test Docs Tool', () => {
           completedSections: 0,
           sectionStatus: {},
           sessionDir: '/tmp/sessions',
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       });
 
@@ -850,7 +854,8 @@ describe('Test Docs Tool', () => {
           completedSections: 0,
           sectionStatus: {},
           sessionDir: '/tmp/sessions',
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       };
 
@@ -884,7 +889,8 @@ describe('Test Docs Tool', () => {
           completedSections: 0,
           sectionStatus: { section1: SectionStatus.PENDING },
           sessionDir: '/tmp/sessions',
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         },
         sections: [{ id: 'section1', title: 'Test Section' }]
       };

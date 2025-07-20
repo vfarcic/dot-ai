@@ -76,7 +76,8 @@ describe('Doc Testing Types', () => {
         completedSections: 0,
         sectionStatus: {},
         sessionDir: '/tmp/sessions',
-        lastUpdated: '2025-07-18T10:30:00Z'
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 1
       };
 
       const session: ValidationSession = {
@@ -105,7 +106,8 @@ describe('Doc Testing Types', () => {
         completedSections: 0,
         sectionStatus: {'main': SectionStatus.PENDING},
         sessionDir: '/tmp/sessions',
-        lastUpdated: '2025-07-18T10:30:00Z'
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 1
       };
 
       const session: ValidationSession = {
@@ -145,12 +147,28 @@ describe('Doc Testing Types', () => {
       const result: SectionTestResult = {
         whatWasDone: 'Tested 3 installation commands and verified outputs',
         issues: [
-          'npm install command requires --global flag',
-          'Missing verification step in documentation'
+          {
+            id: 1,
+            text: 'npm install command requires --global flag',
+            status: 'pending'
+          },
+          {
+            id: 2,
+            text: 'Missing verification step in documentation',
+            status: 'pending'
+          }
         ],
         recommendations: [
-          'Add --global flag to npm install command',
-          'Include verification command example'
+          {
+            id: 3,
+            text: 'Add --global flag to npm install command',
+            status: 'pending'
+          },
+          {
+            id: 4,
+            text: 'Include verification command example',
+            status: 'pending'
+          }
         ]
       };
 

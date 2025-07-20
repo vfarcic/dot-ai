@@ -31,6 +31,9 @@ export interface SessionMetadata {
   completedSections: number;   // Sections that completed successfully
   sectionStatus: Record<string, SectionStatus>; // sectionId -> status
   
+  // Fix tracking
+  nextItemId: number;          // Counter for generating unique IDs across all sections
+  
   sessionDir: string;          // Directory where session files are stored
   lastUpdated: string;         // ISO timestamp of last update
 }
@@ -80,12 +83,22 @@ export interface DocumentSection {
 }
 
 /**
+ * Individual issue or recommendation with tracking
+ */
+export interface FixableItem {
+  id: number;                   // Unique identifier across all sections (1,2,3,4...)
+  text: string;                 // Description of the issue or recommendation
+  status: 'pending' | 'fixed' | 'deferred' | 'failed';  // Current status
+  explanation?: string;         // Context for non-pending status
+}
+
+/**
  * Structured test results for a section (JSON format from client agent)
  */
 export interface SectionTestResult {
   whatWasDone: string;          // Summary of what was tested
-  issues: string[];             // List of problems found
-  recommendations: string[];    // List of improvement suggestions
+  issues: FixableItem[];        // List of problems found with tracking
+  recommendations: FixableItem[]; // List of improvement suggestions with tracking
 }
 
 /**

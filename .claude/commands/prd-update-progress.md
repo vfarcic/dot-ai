@@ -14,11 +14,25 @@ You are helping update an existing Product Requirements Document (PRD) based on 
 6. **Update PRD** - Apply changes and add work log entry
 7. **Flag Divergences** - Alert when actual work differs from planned work
 
-## Step 1: PRD Identification
+## Step 1: Smart PRD Identification
 
-Ask the user which PRD to update, then:
+**Automatically detect target PRD using conversation context:**
+
+1. **Current Work Context**: Look for recent conversation about specific PRD work, features, or issues
+2. **Git Branch Analysis**: Check current git branch for PRD indicators (feature/prd-*, issue numbers)
+3. **Recent File Activity**: Identify recently modified PRD files in `prds/` directory
+4. **Todo List Context**: Check if TodoWrite tool shows PRD-specific tasks in progress
+
+**Detection Priority Order:**
+- If conversation explicitly mentions "PRD #X" or specific PRD file → Use that PRD
+- If git branch contains PRD reference (e.g., "feature/prd-12-*") → Use PRD #12  
+- If TodoWrite shows PRD-specific tasks → Use that PRD context
+- If only one PRD file recently modified → Use that PRD
+- **Only if none found** → Ask user which PRD to update
+
+**Once PRD identified:**
 - Locate the PRD file in `prds/[issue-id]-[feature-name].md`
-- Read current PRD content to understand planned work
+- Read current PRD content to understand planned work  
 - Extract last update date from PRD metadata or work log
 
 ## Step 2: Enhanced Code Analysis

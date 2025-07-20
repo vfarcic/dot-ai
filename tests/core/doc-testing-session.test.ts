@@ -91,7 +91,8 @@ describe('DocTestingSessionManager', () => {
         completedSections: 0,
         sectionStatus: {},
         sessionDir: '/tmp/sessions',
-        lastUpdated: '2025-07-18T10:30:00Z'
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 1
       };
 
       const mockSession: ValidationSession = {
@@ -149,7 +150,8 @@ describe('DocTestingSessionManager', () => {
         completedSections: 0,
         sectionStatus: {},
         sessionDir: '/tmp/sessions',
-        lastUpdated: '2025-07-18T10:30:00Z'
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 1
       };
 
       const mockSession: ValidationSession = {
@@ -180,7 +182,8 @@ describe('DocTestingSessionManager', () => {
         completedSections: 0,
         sectionStatus: {},
         sessionDir: '/tmp/sessions',
-        lastUpdated: '2025-07-18T10:30:00Z'
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 1
       };
 
       const mockSession: ValidationSession = {
@@ -206,7 +209,8 @@ describe('DocTestingSessionManager', () => {
       completedSections: 0,
       sectionStatus: {},
       sessionDir: '/tmp/sessions',
-      lastUpdated: '2025-07-18T10:30:00Z'
+      lastUpdated: '2025-07-18T10:30:00Z',
+      nextItemId: 1
     };
 
     const mockSession: ValidationSession = {
@@ -457,7 +461,8 @@ describe('DocTestingSessionManager', () => {
         'section2': SectionStatus.PENDING
       },
       sessionDir: '/tmp/sessions',
-      lastUpdated: '2025-07-18T10:30:00Z'
+      lastUpdated: '2025-07-18T10:30:00Z',
+      nextItemId: 1
     };
 
     const mockSession: ValidationSession = {
@@ -635,7 +640,8 @@ describe('DocTestingSessionManager', () => {
           completedSections: 0,
           sectionStatus: {},
           sessionDir: mockSessionDir,
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       };
       mockFs.readFileSync.mockReturnValue(JSON.stringify(mockSession));
@@ -755,7 +761,8 @@ describe('DocTestingSessionManager', () => {
       completedSections: 0,
       sectionStatus: { section1: SectionStatus.PENDING },
       sessionDir: mockSessionDir,
-      lastUpdated: '2025-07-18T10:30:00Z'
+      lastUpdated: '2025-07-18T10:30:00Z',
+      nextItemId: 1
     };
 
     const testSession: ValidationSession = {
@@ -861,7 +868,8 @@ describe('DocTestingSessionManager', () => {
           completedSections: 0,
           sectionStatus: {},
           sessionDir: mockSessionDir,
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       };
 
@@ -929,7 +937,8 @@ describe('DocTestingSessionManager', () => {
           completedSections: 0,
           sectionStatus: { section1: SectionStatus.PENDING },
           sessionDir: mockSessionDir,
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         },
         sections: [{ id: 'section1', title: 'Test Section' }]
       };
@@ -964,7 +973,8 @@ describe('DocTestingSessionManager', () => {
           completedSections: 0,
           sectionStatus: {},
           sessionDir: mockSessionDir,
-          lastUpdated: '2025-07-18T10:30:00Z'
+          lastUpdated: '2025-07-18T10:30:00Z',
+          nextItemId: 1
         }
       };
 
