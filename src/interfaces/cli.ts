@@ -265,6 +265,39 @@ For more help on specific commands, use:
         this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
       });
 
+    // Test Docs command
+    this.program
+      .command('test-docs')
+      .description('Test documentation for accuracy and functionality')
+      .option('--file <path>', 'Path to documentation file to test (optional - if not provided, will discover available files)')
+      .option('--file-pattern <pattern>', 'File pattern for discovery (e.g., "**/*.md", "*.rst") - defaults to DOT_AI_DOC_PATTERN env var or "**/*.md"')
+      .option('--session-id <id>', 'Existing session ID to continue')
+      .option('--session-dir <path>', 'Directory to store session files (defaults to DOT_AI_SESSION_DIR env var)')
+      .option('--phase <phase>', 'Specific phase to run (scan, test, analyze, fix, done)', 'scan')
+      .option('--section-id <id>', 'Section ID when submitting test results')
+      .option('--results <text>', 'Test results to store (for client agent reporting back)')
+      .option('--output <format>', 'Output format (json|yaml|table)', 'json')
+      .action(async (options, command) => {
+        // Get global options from parent command
+        const globalOptions = command.parent?.opts() || {};
+        this.processGlobalOptions(globalOptions);
+        
+        // Validate output format
+        if (options.output && !['json', 'yaml', 'table'].includes(options.output)) {
+          console.error('Error: Invalid output format. Supported: json, yaml, table');
+          process.exit(1);
+        }
+        
+        // Validate phase
+        if (options.phase && !['scan', 'test', 'analyze', 'fix', 'done'].includes(options.phase)) {
+          console.error('Error: Invalid phase. Supported: scan, test, analyze, fix, done');
+          process.exit(1);
+        }
+        
+        const result = await this.executeCommand('testDocs', options);
+        this.outputResult(result, options.output || this.config.defaultOutput || 'json', this.config.outputFile);
+      });
+
     // REMOVED: enhance command - moved to legacy reference
     // See src/legacy/tools/enhance-solution.ts for reference implementation
   }
@@ -373,6 +406,8 @@ For more help on specific commands, use:
         return [...commonOptions, 'solution-id', 'session-dir'];
       case 'deployManifests':
         return [...commonOptions, 'solution-id', 'session-dir', 'timeout'];
+      case 'testDocs':
+        return [...commonOptions, 'file', 'file-pattern', 'session-id', 'session-dir', 'phase', 'section-id', 'results'];
       // REMOVED: enhance command, deploy command
       default:
         return commonOptions;
@@ -382,7 +417,7 @@ For more help on specific commands, use:
   async executeCommand(command: string, options: Record<string, any> = {}): Promise<CliResult> {
     try {
       // Only initialize DotAI for commands that need cluster access
-      if (command !== 'chooseSolution' && command !== 'answerQuestion' && command !== 'generateManifests') {
+      if (command !== 'chooseSolution' && command !== 'answerQuestion' && command !== 'generateManifests' && command !== 'testDocs') {
         await this.ensureDotAI().initialize();
       }
 
@@ -401,6 +436,8 @@ For more help on specific commands, use:
           return await this.handleGenerateManifestsCommand(options);
         case 'deployManifests':
           return await this.handleDeployManifestsCommand(options);
+        case 'testDocs':
+          return await this.handleTestDocsCommand(options);
         // REMOVED: enhance command, deploy command
         default:
           return {
@@ -635,6 +672,54 @@ For more help on specific commands, use:
       return {
         success: false,
         error: `Manifest deployment failed: ${(error as Error).message}`
+      };
+    }
+  }
+
+  private async handleTestDocsCommand(options: Record<string, any>): Promise<CliResult> {
+    try {
+      // Show progress for documentation testing
+      this.showProgress('📄 Analyzing documentation for testable items...');
+
+      // Validate file exists if provided
+      const fs = require('fs');
+      if (options.file && !fs.existsSync(options.file)) {
+        return {
+          success: false,
+          error: `Documentation file not found: ${options.file}`
+        };
+      }
+
+      // Prepare arguments for the testDocs tool
+      const toolArgs = {
+        filePath: options.file,
+        sessionId: options.sessionId,
+        phase: options.phase,
+        filePattern: options.filePattern,
+        sessionDir: options.sessionDir,
+        sectionId: options.sectionId,
+        results: options.results
+      };
+
+      // Execute the testDocs tool directly
+      const { handleTestDocsTool } = await import('../tools/test-docs');
+      const requestId = `cli_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await handleTestDocsTool(toolArgs, this.dotAI || null, this.logger, requestId);
+
+      this.clearProgress();
+
+      // Parse the tool result
+      const responseData = JSON.parse(result.content[0].text);
+
+      return {
+        success: true,
+        data: responseData
+      };
+    } catch (error) {
+      this.clearProgress();
+      return {
+        success: false,
+        error: `Documentation testing failed: ${(error as Error).message}`
       };
     }
   }

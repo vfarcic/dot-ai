@@ -6,8 +6,6 @@
  */
 
 import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, ValidationResult, ResourceSolution, AIRankingConfig, Question, QuestionGroup, ClusterOptions } from '../../src/core/schema';
-// SolutionEnhancer moved to legacy - see src/legacy/core/solution-enhancer.ts for reference
-// import { SolutionEnhancer } from '../../src/legacy/core/solution-enhancer';
 import { ResourceExplanation } from '../../src/core/discovery';
 
 describe('ResourceSchema Interface and Core Types', () => {
@@ -1877,6 +1875,4 @@ FIELDS:
   });
 });
 
-// REMOVED: SolutionEnhancer tests - moved to legacy reference
-// See src/legacy/core/solution-enhancer.ts for reference implementation and original test patterns
 

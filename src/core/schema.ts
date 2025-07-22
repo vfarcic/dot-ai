@@ -242,20 +242,26 @@ export class SchemaParser {
       constraints.maximum = parseInt(maxMatch[1]);
     }
 
-    // Extract enum values
-    const enumMatch = description.match(/(?:possible values|valid values|values)\s*(?:are)?:\s*([^.]+)/i);
+    // Extract enum values - Fixed: Avoid catastrophic backtracking
+    const enumMatch = description.match(/(possible values|valid values|values)\s*(?:are)?:\s*([^.]+)/i);
     if (enumMatch) {
-      const values = enumMatch[1]
+      const values = enumMatch[2]
         .split(/,|\s+and\s+/)
         .map(v => v.trim())
         .filter(v => v.length > 0);
       constraints.enum = values;
     }
 
-    // Extract default values - handle multiple patterns: "(default: value)", "defaults to value", ". Default: value"
-    const defaultMatch = description.match(/(?:\(default:\s*([^)]+)\)|(?:defaults?\s+to\s+(\w+))|(?:\.\s+default:\s*(\w+)))/i);
+    // Extract default values - Fixed: Use simpler non-catastrophic patterns
+    let defaultMatch = description.match(/\(default:\s*([^)]+)\)/i);
+    if (!defaultMatch) {
+      defaultMatch = description.match(/defaults?\s+to\s+(\w+)/i);
+    }
+    if (!defaultMatch) {
+      defaultMatch = description.match(/\.\s+default:\s*(\w+)/i);
+    }
     if (defaultMatch) {
-      const defaultValue = (defaultMatch[1] || defaultMatch[2] || defaultMatch[3]).trim();
+      const defaultValue = defaultMatch[1].trim();
       if (type === 'integer') {
         const parsed = parseInt(defaultValue);
         if (!isNaN(parsed)) {

@@ -77,32 +77,60 @@ export interface ErrorContext {
 }
 
 /**
- * Structured error interface
+ * Structured error class that extends native Error
  */
-export interface AppError {
+export class AppError extends Error {
   // Core identification
-  id: string;
-  code: string;
-  category: ErrorCategory;
-  severity: ErrorSeverity;
+  public readonly id: string;
+  public readonly code: string;
+  public readonly category: ErrorCategory;
+  public readonly severity: ErrorSeverity;
   
   // User-facing information
-  message: string;
-  userMessage?: string;
-  technicalDetails?: string;
+  public readonly userMessage?: string;
+  public readonly technicalDetails?: string;
   
   // Context and debugging
-  context: ErrorContext;
+  public readonly context: ErrorContext;
   
   // Timing
-  timestamp: Date;
+  public readonly timestamp: Date;
   
   // Recovery guidance
-  suggestedActions: string[];
-  isRetryable: boolean;
+  public readonly suggestedActions: string[];
+  public readonly isRetryable: boolean;
   
   // Chaining
-  cause?: AppError;
+  public readonly cause?: AppError;
+
+  constructor(
+    id: string,
+    code: string,
+    category: ErrorCategory,
+    severity: ErrorSeverity,
+    message: string,
+    context: ErrorContext,
+    timestamp: Date,
+    suggestedActions: string[],
+    isRetryable: boolean,
+    userMessage?: string,
+    technicalDetails?: string,
+    cause?: AppError
+  ) {
+    super(message);
+    this.name = 'AppError';
+    this.id = id;
+    this.code = code;
+    this.category = category;
+    this.severity = severity;
+    this.context = context;
+    this.timestamp = timestamp;
+    this.suggestedActions = suggestedActions;
+    this.isRetryable = isRetryable;
+    this.userMessage = userMessage;
+    this.technicalDetails = technicalDetails;
+    this.cause = cause;
+  }
 }
 
 /**
@@ -273,21 +301,20 @@ export class ErrorHandler {
 
     const suggestedActions = context.suggestedActions || this.getDefaultSuggestedActions(category);
 
-    const appError: AppError = {
-      id: errorId,
-      code: this.generateErrorCode(category, severity),
+    const appError = new AppError(
+      errorId,
+      this.generateErrorCode(category, severity),
       category,
       severity,
       message,
-      userMessage: this.getUserFriendlyMessage(category),
-      technicalDetails: originalError?.message,
-      context: fullContext,
+      fullContext,
       timestamp,
       suggestedActions,
-      isRetryable: fullContext.isRetryable || false,
-      // Don't wrap the original error to prevent circular references
-      cause: undefined
-    };
+      fullContext.isRetryable || false,
+      this.getUserFriendlyMessage(category),
+      originalError?.message,
+      undefined // Don't wrap the original error to prevent circular references
+    );
 
     // Log the error
     this.logger.error(`Error created: ${message}`, appError, {
@@ -541,21 +568,20 @@ export class ErrorHandler {
       retryCount: 0
     };
 
-    const appError: AppError = {
-      id: errorId,
-      code: this.generateErrorCode(category, severity),
+    const appError = new AppError(
+      errorId,
+      this.generateErrorCode(category, severity),
       category,
       severity,
-      message: error.message,
-      userMessage: this.getUserFriendlyMessage(category),
-      technicalDetails: error.message,
+      error.message,
       context,
       timestamp,
-      suggestedActions: this.getDefaultSuggestedActions(category),
-      isRetryable: false,
-      // No cause to prevent circular reference
-      cause: undefined
-    };
+      this.getDefaultSuggestedActions(category),
+      false,
+      this.getUserFriendlyMessage(category),
+      error.message,
+      undefined // No cause to prevent circular reference
+    );
 
     return appError;
   }
