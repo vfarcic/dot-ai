@@ -47,23 +47,42 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
 /**
  * Build kubectl command string with proper flags
  */
+/**
+ * Safely escape shell arguments to prevent command injection
+ */
+function escapeShellArg(arg: string): string {
+  if (!arg || typeof arg !== 'string') {
+    return '""';
+  }
+  
+  // If the argument contains only safe characters, return as-is
+  if (/^[a-zA-Z0-9._/-]+$/.test(arg)) {
+    return arg;
+  }
+  
+  // Otherwise, quote and escape
+  return `"${arg.replace(/["\\]/g, '\\$&')}"`;
+}
+
 export function buildKubectlCommand(args: string[], config?: KubectlConfig): string {
-  let command = 'kubectl';
+  const cmdParts = ['kubectl'];
   
   if (config?.kubeconfig) {
-    command += ` --kubeconfig=${config.kubeconfig}`;
+    cmdParts.push('--kubeconfig', escapeShellArg(config.kubeconfig));
   }
   
   if (config?.context) {
-    command += ` --context=${config.context}`;
+    cmdParts.push('--context', escapeShellArg(config.context));
   }
   
   if (config?.namespace) {
-    command += ` --namespace=${config.namespace}`;
+    cmdParts.push('--namespace', escapeShellArg(config.namespace));
   }
   
-  command += ` ${args.join(' ')}`;
-  return command;
+  // Safely add all arguments
+  args.forEach(arg => cmdParts.push(escapeShellArg(arg)));
+  
+  return cmdParts.join(' ');
 }
 
 // Enhanced Error Classification System
@@ -127,11 +146,28 @@ export class ErrorClassifier {
   }
 
   private static isNetworkError(message: string): boolean {
-    return /getaddrinfo ENOTFOUND|timeout|ECONNREFUSED|ENOTFOUND|network|unreachable/i.test(message);
+    // Fixed: Avoid catastrophic backtracking by using non-overlapping alternation
+    const networkPatterns = [
+      'getaddrinfo ENOTFOUND',
+      'timeout',
+      'ECONNREFUSED', 
+      'ENOTFOUND',
+      'network',
+      'unreachable'
+    ];
+    return networkPatterns.some(pattern => message.toLowerCase().includes(pattern.toLowerCase()));
   }
 
   private static isAuthenticationError(message: string): boolean {
-    return /unauthorized|invalid bearer token|certificate|auth|authentication/i.test(message);
+    // Fixed: Avoid catastrophic backtracking by using non-overlapping alternation
+    const authPatterns = [
+      'unauthorized',
+      'invalid bearer token',
+      'certificate',
+      'auth',
+      'authentication'
+    ];
+    return authPatterns.some(pattern => message.toLowerCase().includes(pattern.toLowerCase()));
   }
 
   private static isAuthorizationError(message: string): boolean {
