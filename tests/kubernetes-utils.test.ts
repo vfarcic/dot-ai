@@ -16,19 +16,19 @@ describe('Kubernetes Utilities', () => {
       const kubeconfigPath = path.join('custom', 'kubeconfig');
       const config: KubectlConfig = { kubeconfig: kubeconfigPath };
       const command = buildKubectlCommand(['get', 'pods'], config);
-      expect(command).toBe(`kubectl --kubeconfig=${kubeconfigPath} get pods`);
+      expect(command).toBe(`kubectl --kubeconfig ${kubeconfigPath} get pods`);
     });
 
     it('should include context when provided', () => {
       const config: KubectlConfig = { context: 'test-context' };
       const command = buildKubectlCommand(['get', 'pods'], config);
-      expect(command).toBe('kubectl --context=test-context get pods');
+      expect(command).toBe('kubectl --context test-context get pods');
     });
 
     it('should include namespace when provided', () => {
       const config: KubectlConfig = { namespace: 'test-namespace' };
       const command = buildKubectlCommand(['get', 'pods'], config);
-      expect(command).toBe('kubectl --namespace=test-namespace get pods');
+      expect(command).toBe('kubectl --namespace test-namespace get pods');
     });
 
     it('should handle empty config', () => {
@@ -44,7 +44,7 @@ describe('Kubernetes Utilities', () => {
         namespace: 'test-namespace'
       };
       const command = buildKubectlCommand(['get', 'pods'], config);
-      expect(command).toBe(`kubectl --kubeconfig=${kubeconfigPath} --context=test-context --namespace=test-namespace get pods`);
+      expect(command).toBe(`kubectl --kubeconfig ${kubeconfigPath} --context test-context --namespace test-namespace get pods`);
     });
   });
 

@@ -84,9 +84,42 @@ EOF
 )"
 ```
 
-### 5. Merge Pull Request
+### 5. Verify CI and Automated Checks
 
-After review and approval, merge the PR:
+Before merging, ensure all automated systems have validated the changes:
+
+**Check CI Status:**
+```bash
+# Generic approach - check PR status in your system
+gh pr view [pr-number]  # Shows all check status regardless of CI provider
+gh pr checks [pr-number]  # Lists all status checks
+
+# Or check via web interface if using other platforms
+# - GitLab: Check pipeline status in merge request
+# - Bitbucket: Check build status in pull request  
+# - Azure DevOps: Check build validation in PR
+```
+
+**Common Validations to Verify:**
+- ✅ **Build/Compilation**: Code compiles successfully
+- ✅ **Test Suite**: All automated tests pass
+- ✅ **Code Quality**: Linting/formatting checks pass
+- ✅ **Security**: Vulnerability scans complete
+- ✅ **Coverage**: Test coverage meets requirements
+
+**If Checks Fail:**
+```bash
+# Fix issues and update PR
+git add [fixed-files]
+git commit -m "fix: address CI feedback"
+git push origin [branch-name]
+
+# Wait for checks to re-run, then proceed
+```
+
+### 6. Merge Pull Request
+
+Only merge after ALL automated checks pass:
 
 ```bash
 # If auto-merge is enabled and checks pass, it will merge automatically

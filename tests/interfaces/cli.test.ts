@@ -1,6 +1,7 @@
 import { CliInterface } from '../../src/interfaces/cli';
 import { DotAI } from '../../src/core';
 import { jest } from '@jest/globals';
+import * as fs from 'fs';
 
 describe('CLI Interface', () => {
   let cli: CliInterface;
@@ -92,7 +93,6 @@ describe('CLI Interface', () => {
       expect(commands).toContain('recommend');
     });
 
-    // REMOVED: enhance subcommand test - moved to legacy
 
     test('should work without dotAI for help commands', () => {
       // Test that CLI can be instantiated without dotAI
@@ -122,10 +122,8 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('status');
       expect(helpText).toContain('learn');
       expect(helpText).toContain('recommend');
-      // REMOVED: enhance help text check - moved to legacy
     });
 
-    // REMOVED: enhance command help test - moved to legacy
 
 
     test('should provide status command help', async () => {
@@ -176,7 +174,6 @@ describe('CLI Interface', () => {
       expect(parsed.options.intent).toBeUndefined();
     });
 
-    // REMOVED: enhance command parsing tests - moved to legacy
   });
 
   describe('Command Execution', () => {
@@ -293,13 +290,6 @@ describe('CLI Interface', () => {
       expect(validOptions).toContain('answers');
     });
 
-    // REMOVED: enhance command execution test - moved to legacy
-
-    // REMOVED: enhance command API key test - moved to legacy
-
-    // REMOVED: enhance command file missing test - moved to legacy
-
-    // REMOVED: enhance command no open response test - moved to legacy
 
     test('should include questions field in CLI output structure', () => {
       // Test the CLI output formatting directly by creating a mock solution with questions
@@ -847,6 +837,22 @@ describe('CLI Interface', () => {
       expect(subcommands).toContain('answer-question');
     });
 
+    test('should include test-docs in subcommands', () => {
+      const subcommands = cli.getSubcommands();
+      expect(subcommands).toContain('test-docs');
+    });
+
+    test('should validate test-docs command options', () => {
+      const validOptions = cli['getValidOptionsForCommand']('testDocs');
+      
+      expect(validOptions).toContain('file');
+      expect(validOptions).toContain('file-pattern');
+      expect(validOptions).toContain('session-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('phase');
+      expect(validOptions).toContain('output');
+    });
+
     test('should validate solution-id, stage and answers format in CLI args', () => {
       // Test that the CLI would properly validate parameters
       // This is handled by the tool itself, but CLI should pass it through
@@ -1031,6 +1037,20 @@ describe('CLI Interface', () => {
       expect(helpText).toContain('@vfarcic/dot-ai');
       // Should not contain the old package name in installation instructions
       expect(helpText).not.toContain('npm install -g dot-ai');
+    });
+  });
+
+  describe('Test Docs Command Parameters', () => {
+    test('should validate CLI option names are correct', () => {
+      const validOptions = (cli as any).getValidOptionsForCommand('testDocs');
+      
+      expect(validOptions).toContain('file');
+      expect(validOptions).toContain('file-pattern');
+      expect(validOptions).toContain('session-id');
+      expect(validOptions).toContain('session-dir');
+      expect(validOptions).toContain('phase');
+      expect(validOptions).toContain('section-id');
+      expect(validOptions).toContain('results');
     });
   });
 }); 

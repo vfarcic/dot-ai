@@ -48,6 +48,12 @@ import {
   VERSION_TOOL_INPUT_SCHEMA,
   handleVersionTool 
 } from '../tools/version';
+import { 
+  TESTDOCS_TOOL_NAME, 
+  TESTDOCS_TOOL_DESCRIPTION, 
+  TESTDOCS_TOOL_INPUT_SCHEMA,
+  handleTestDocsTool 
+} from '../tools/test-docs';
 
 export interface MCPServerConfig {
   name: string;
@@ -165,6 +171,18 @@ export class MCPServer {
         return await handleVersionTool(args, this.logger, requestId);
       }
     );
+
+    // Register testDocs tool
+    this.server.tool(
+      TESTDOCS_TOOL_NAME,
+      TESTDOCS_TOOL_DESCRIPTION,
+      TESTDOCS_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(`Processing ${TESTDOCS_TOOL_NAME} tool request`, { requestId });
+        return await handleTestDocsTool(args, null, this.logger, requestId);
+      }
+    );
     
     this.logger.info('Registered all tools with McpServer', { 
       tools: [
@@ -173,9 +191,10 @@ export class MCPServer {
         ANSWERQUESTION_TOOL_NAME,
         GENERATEMANIFESTS_TOOL_NAME,
         DEPLOYMANIFESTS_TOOL_NAME,
-        VERSION_TOOL_NAME
+        VERSION_TOOL_NAME,
+        TESTDOCS_TOOL_NAME
       ],
-      totalTools: 6
+      totalTools: 7
     });
   }
 
