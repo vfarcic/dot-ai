@@ -2,6 +2,8 @@
 
 You are testing a specific section of documentation to validate both functionality AND accuracy. You must verify that instructions work AND that the documentation text truthfully describes what actually happens.
 
+**Important**: Skip content that has ignore comments containing "dotai-ignore" (e.g., `<!-- dotai-ignore -->`, `.. dotai-ignore`, `// dotai-ignore`). Do not generate issues or recommendations for ignored content.
+
 ## Section to Test
 **File**: {filePath}
 **Session**: {sessionId}
@@ -98,6 +100,20 @@ For every claim or description:
 
 ## Execution Guidelines
 
+**PRIMARY GOAL**: Test what users will actually do when following the documentation.
+
+**MANDATORY TESTING APPROACH:**
+1. **Execute documented examples first** - Always prioritize running the actual commands/procedures shown in the documentation
+2. **Use help commands as supplements** - Help commands (`--help`, `man`, `info`) are valuable for understanding syntax or troubleshooting, but should not replace testing documented workflows
+3. **Test real user workflows** - Focus on the actual commands and procedures users are instructed to follow
+
+**Examples of correct approach:**
+- If docs show `npm start` → Execute `npm start` (primary), use `npm --help` if needed for context
+- If docs show `make install PREFIX=/usr/local` → Execute this command (primary), use `make --help` if syntax is unclear
+- If docs show `./configure --enable-feature` → Execute this command (primary), check `./configure --help` if it fails
+- If docs show `pip install -r requirements.txt` → Execute this command (primary), use `pip --help` for troubleshooting
+
+**The key principle**: Test the documented workflows that users will actually follow, using help commands as tools for understanding rather than as substitutes for real testing.
 - **Execute with adaptation**: Modify commands/procedures to work safely in your environment
   - `npm install -g tool` → `npm install tool` (avoid global installs)
   - `curl api.prod.com/endpoint` → `curl httpbin.org/get` (use test endpoints)

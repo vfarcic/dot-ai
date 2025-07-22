@@ -61,7 +61,6 @@ describe('Test Docs Tool', () => {
       startTime: '2025-07-18T10:30:00Z',
       currentPhase: ValidationPhase.SCAN,
       status: SessionStatus.ACTIVE,
-      reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
       metadata: mockMetadata
     });
 
@@ -71,7 +70,6 @@ describe('Test Docs Tool', () => {
       startTime: '2025-07-18T10:30:00Z',
       currentPhase: ValidationPhase.SCAN,
       status: SessionStatus.ACTIVE,
-      reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
       metadata: mockMetadata
     });
 
@@ -301,7 +299,6 @@ describe('Test Docs Tool', () => {
       expect(responseData.prompt).toBe('Test prompt with file README.md');
       expect(responseData.nextPhase).toBe(ValidationPhase.TEST);
       expect(responseData.workflow).toBeDefined();
-      expect(responseData.reportFile).toBe('doc-test-report-2025-07-18T10-30-00-abc12345.md');
     });
   });
 
@@ -516,7 +513,6 @@ describe('Test Docs Tool', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-existing-session-id.md',
         metadata: {
           totalSections: 2,
           completedSections: 1,
@@ -583,7 +579,6 @@ describe('Test Docs Tool', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-existing-session-id.md',
         metadata: {
           totalSections: 2,
           completedSections: 2,
@@ -656,7 +651,6 @@ describe('Test Docs Tool', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-existing-session-id.md',
         metadata: {
           totalSections: 3,
           completedSections: 0,
@@ -694,7 +688,7 @@ describe('Test Docs Tool', () => {
       };
 
       await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow(
-        'Invalid scan results format - expected {sections: [...]} structure'
+        /Invalid results format.*Expected either/
       );
     });
 
@@ -707,7 +701,7 @@ describe('Test Docs Tool', () => {
       };
 
       await expect(handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id')).rejects.toThrow(
-        /Failed to process scan results/
+        /Failed to process results/
       );
     });
 
@@ -848,7 +842,6 @@ describe('Test Docs Tool', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.ACTIVE,
-        reportFile: 'report.md',
         metadata: {
           totalSections: 0,
           completedSections: 0,
@@ -883,7 +876,6 @@ describe('Test Docs Tool', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST, // Session is in TEST phase
         status: SessionStatus.ACTIVE,
-        reportFile: 'report.md',
         metadata: {
           totalSections: 1,
           completedSections: 0,
@@ -908,6 +900,165 @@ describe('Test Docs Tool', () => {
 
       // Should call getNextStep without phase override (undefined)
       expect(mockSessionManager.getNextStep).toHaveBeenCalledWith('existing-session-id', args, undefined);
+    });
+  });
+
+  describe('Fix Phase Results Processing', () => {
+    test('should process fix phase results with status updates', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '[{"id": 1, "status": "fixed", "explanation": "Successfully applied fix"}, {"id": 2, "status": "deferred", "explanation": "Added ignore comment"}]',
+        phase: 'fix'
+      };
+
+      const nextWorkflowStep = {
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.FIX,
+        prompt: 'Continue with remaining fixes',
+        nextPhase: ValidationPhase.FIX,
+        workflow: { completed: ['scan', 'test', 'analyze'], current: 'fix', remaining: [] }
+      };
+
+      mockSessionManager.updateFixableItemStatus = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue(nextWorkflowStep);
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.updateFixableItemStatus).toHaveBeenCalledWith(
+        'existing-session-id',
+        1,
+        'fixed',
+        'Successfully applied fix',
+        args
+      );
+      expect(mockSessionManager.updateFixableItemStatus).toHaveBeenCalledWith(
+        'existing-session-id',
+        2,
+        'deferred',
+        'Added ignore comment',
+        args
+      );
+      
+      expect(result).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.success).toBe(true);
+      expect(responseData.data).toEqual(nextWorkflowStep);
+    });
+
+    test('should log fix phase processing activity', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '[{"id": 3, "status": "failed", "explanation": "Fix attempt unsuccessful"}]',
+        phase: 'fix'
+      };
+
+      mockSessionManager.updateFixableItemStatus = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue({
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.FIX,
+        prompt: 'Continue',
+        workflow: { completed: [], current: 'fix', remaining: [] }
+      });
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Processing fix phase results',
+        expect.objectContaining({
+          requestId: 'test-request-id',
+          sessionId: 'existing-session-id',
+          itemUpdates: 1
+        })
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Fix phase results processed successfully',
+        expect.objectContaining({
+          requestId: 'test-request-id',
+          sessionId: 'existing-session-id',
+          updatedItems: 1
+        })
+      );
+    });
+
+    test('should handle invalid fix phase results gracefully', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '[{"invalid": "format"}]',
+        phase: 'fix'
+      };
+
+      mockSessionManager.updateFixableItemStatus = jest.fn();
+
+      await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      // Should not call updateFixableItemStatus for invalid items
+      expect(mockSessionManager.updateFixableItemStatus).not.toHaveBeenCalled();
+    });
+
+    test('should handle empty fix phase results array', async () => {
+      const args = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '[]',
+        phase: 'fix'
+      };
+
+      mockSessionManager.updateFixableItemStatus = jest.fn();
+      mockSessionManager.getNextStep = jest.fn().mockReturnValue({
+        sessionId: 'existing-session-id',
+        phase: ValidationPhase.FIX,
+        prompt: 'No updates',
+        workflow: { completed: [], current: 'fix', remaining: [] }
+      });
+
+      const result = await handleTestDocsTool(args, mockDotAI, mockLogger, 'test-request-id');
+
+      expect(mockSessionManager.updateFixableItemStatus).not.toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Fix phase results processed successfully',
+        expect.objectContaining({
+          updatedItems: 0
+        })
+      );
+      expect(result).toBeDefined();
+    });
+
+    test('should differentiate between scan results and fix results', async () => {
+      // Test scan results (object with sections property)
+      const scanArgs = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '{"sections": ["Section 1"]}',
+        phase: 'scan'
+      };
+
+      mockSessionManager.processScanResults = jest.fn();
+      mockSessionManager.updateFixableItemStatus = jest.fn();
+
+      await handleTestDocsTool(scanArgs, mockDotAI, mockLogger, 'test-request-id-scan');
+
+      expect(mockSessionManager.processScanResults).toHaveBeenCalled();
+      expect(mockSessionManager.updateFixableItemStatus).not.toHaveBeenCalled();
+
+      // Reset mocks
+      mockSessionManager.processScanResults.mockClear();
+      mockSessionManager.updateFixableItemStatus.mockClear();
+
+      // Test fix results (array)
+      const fixArgs = {
+        filePath: 'README.md',
+        sessionId: 'existing-session-id',
+        results: '[{"id": 1, "status": "fixed"}]',
+        phase: 'fix'
+      };
+
+      await handleTestDocsTool(fixArgs, mockDotAI, mockLogger, 'test-request-id-fix');
+
+      expect(mockSessionManager.updateFixableItemStatus).toHaveBeenCalled();
+      expect(mockSessionManager.processScanResults).not.toHaveBeenCalled();
     });
   });
 });

@@ -2,17 +2,15 @@
 
 ## Instructions
 
-You are helping analyze an existing Product Requirements Document (PRD) to suggest what should be worked on next. This command intelligently prioritizes remaining work based on dependencies, completion status, and strategic value.
+You are helping analyze an existing Product Requirements Document (PRD) to suggest the single highest-priority task to work on next, then discuss its design if the user confirms they want to work on it.
 
 ## Process Overview
 
 1. **Identify Target PRD** - Determine which PRD to analyze
-2. **Analyze Current State** - Review completion status and progress
-3. **Identify Blockers** - Find items that are preventing other work
-4. **Assess Dependencies** - Understand what depends on what
-5. **Evaluate Strategic Value** - Consider impact and business value
-6. **Generate Prioritized Recommendations** - Suggest specific next steps
-7. **Provide Rationale** - Explain why these are the right next steps
+2. **Analyze Current Implementation** - Understand what's implemented vs what's missing
+3. **Identify the Single Best Next Task** - Find the one task that should be worked on next
+4. **Present Recommendation** - Give clear rationale and wait for confirmation
+5. **Design Discussion** - If confirmed, dive into implementation design details
 
 ## Step 1: PRD Analysis
 
@@ -21,7 +19,29 @@ Ask the user which PRD to analyze, then:
 - Analyze completion status across all sections
 - Identify patterns in completed vs remaining work
 
-## Step 2: Completion Assessment
+## Step 2: Codebase Analysis
+
+Before assessing task priorities, analyze the current implementation state:
+
+### Code Discovery
+- **Search for related files**: Use Grep/Glob to find files related to the feature
+- **Identify key modules**: Locate main implementation files mentioned in PRD
+- **Find test files**: Discover existing test coverage for the feature
+- **Check dependencies**: Review imports and module relationships
+
+### Implementation Assessment
+- **Compare PRD vs Code**: What's described vs actually implemented
+- **Partial implementations**: Identify half-finished features or TODO comments
+- **Architecture alignment**: Does current code match PRD architecture decisions
+- **Quality assessment**: Code style, error handling, test coverage gaps
+
+### Technical Feasibility Analysis
+- **Dependency conflicts**: Are PRD requirements compatible with existing code
+- **Breaking changes**: Will remaining tasks require refactoring existing code
+- **Integration points**: How new work connects with current implementation
+- **Technical debt**: Issues that might block or slow future work
+
+## Step 3: Completion Assessment
 
 ### Analyze Checkbox States
 Count and categorize all checkboxes:
@@ -44,7 +64,7 @@ Review requirement categories:
 - **Dependencies**: External requirements
 - **Risk Mitigation**: Risk management progress
 
-## Step 3: Dependency Analysis
+## Step 4: Dependency Analysis
 
 ### Identify Critical Path Items
 Look for items that:
@@ -53,12 +73,21 @@ Look for items that:
 - **Resolve current blockers** - Remove impediments to progress
 
 ### Dependency Patterns
+
+#### PRD-Level Dependencies
 - **Sequential dependencies** - A must be done before B
 - **Parallel opportunities** - Multiple items that can be worked simultaneously  
 - **Foundation requirements** - Core capabilities needed by multiple features
 - **Integration points** - Items that connect different parts of the system
 
-## Step 4: Strategic Value Assessment
+#### Code-Level Dependencies  
+- **Import dependencies** - Modules that depend on others being implemented first
+- **Interface contracts** - APIs/types that must be defined before consumers
+- **Database schema** - Data model changes needed before business logic
+- **Test dependencies** - Tests that require certain infrastructure or mocks
+- **Build/deployment** - Configuration changes that affect multiple components
+
+## Step 5: Strategic Value Assessment
 
 ### High-Value Next Steps
 Prioritize items that:
@@ -75,107 +104,58 @@ Identify items that:
 - **Are optimization-focused** - Improve existing working features
 - **Require external dependencies** - Waiting on others
 
-## Step 5: Recommendation Format
+## Step 6: Single Task Recommendation
 
-Present findings in this structured format:
+Present findings in this focused format:
 
 ```markdown
-# PRD Next Steps Analysis: [Feature Name]
+# Next Task Recommendation: [Feature Name]
 
-## Current Status Summary
-**Overall Completion**: [X]% complete
-**Active Phase**: [Phase name and status]
-**Total Pending Items**: [N] items across [N] categories
+## Recommended Task: [Specific Task Name]
 
-### Completion Breakdown
-- **Functional Requirements**: [X/Y] complete ([Z]%)
-- **Non-Functional Requirements**: [X/Y] complete ([Z]%)
-- **Implementation Phases**: [X/Y] complete ([Z]%)
-- **Risk Mitigation**: [X/Y] complete ([Z]%)
+**Why this task**: [2-3 sentences explaining why this is the highest priority right now]
 
-## 🚨 Critical Blockers (Address Immediately)
-Items currently blocking other work or causing delays:
+**What it unlocks**: [What becomes possible after completing this]
 
-1. **[Blocker Item]**
-   - **Why Critical**: [Explanation of impact]
-   - **Blocks**: [List of dependent items]
-   - **Effort**: [Estimated time/complexity]
-   - **Owner**: [Who should handle this]
+**Dependencies**: [What's already complete that makes this ready to work on]
 
-## 🎯 High-Priority Next Steps (Start This Week)
-Most valuable items to work on next:
+**Effort estimate**: [Realistic time estimate]
 
-1. **[High-Priority Item]**
-   - **Value**: [Why this is high value]
-   - **Dependencies Met**: [Required items already complete]
-   - **Enables**: [What this unlocks]
-   - **Effort**: [Estimated time/complexity]
-   - **Success Criteria**: [How to know it's done]
+**Success criteria**: [How you'll know it's done]
 
-2. **[Another High-Priority Item]**
-   - **Value**: [Impact and benefits]
-   - **Risk Reduction**: [Uncertainties this addresses]
-   - **Effort**: [Time investment required]
+---
 
-## ⚡ Quick Wins (Can Complete Soon)
-Low-effort, high-value items that can be knocked out quickly:
+**Do you want to work on this task?** 
 
-1. **[Quick Win Item]** - [Brief description of value and minimal effort required]
-2. **[Another Quick Win]** - [Impact and ease of completion]
-
-## 🔄 Parallel Work Opportunities
-Items that can be worked on simultaneously without conflicts:
-
-**Track A**: [Item group that can be worked together]
-- [Item 1]
-- [Item 2]
-
-**Track B**: [Another independent group]
-- [Item 3]
-- [Item 4]
-
-## ⏳ Not Ready Yet (Future Consideration)
-Items that have unmet dependencies or are premature:
-
-1. **[Future Item]** - **Depends on**: [Required completions] | **Target**: [When to revisit]
-2. **[Another Future Item]** - **Reason**: [Why not ready] | **Trigger**: [What needs to happen first]
-
-## 📊 Phase Transition Analysis
-**Current Phase**: [Phase name] ([X]% complete)
-**Ready for Next Phase?**: [Yes/No with rationale]
-**Remaining for Phase Completion**: [List of items needed to finish current phase]
-
-## 🎯 Recommended Focus for Next Sprint/Week
-
-### Primary Goal: [Main objective]
-[2-3 sentence description of what should be the main focus]
-
-### Sprint Backlog (Prioritized):
-1. **[Top Priority Item]** - [Brief rationale]
-2. **[Second Priority Item]** - [Brief rationale]  
-3. **[Third Priority Item]** - [Brief rationale]
-
-### Success Metrics:
-- [ ] [Specific measurable outcome 1]
-- [ ] [Specific measurable outcome 2]
-- [ ] [Specific measurable outcome 3]
-
-## 💡 Strategic Recommendations
-
-### Consider Scope Adjustments:
-- **Defer**: [Items that could be moved to later] - [Rationale]
-- **Prioritize**: [Items that should be moved up] - [Rationale]
-
-### Resource Allocation:
-- **Skill Requirements**: [What expertise is needed for next steps]
-- **Time Investment**: [Realistic effort estimates]
-- **External Dependencies**: [What you're waiting on from others]
-
-### Risk Mitigation:
-- **Biggest Risk**: [Current highest risk item]
-- **Mitigation Strategy**: [Recommended approach]
-- **Contingency Plan**: [What to do if things go wrong]
+If yes, I'll help you design the implementation approach. If no, let me know what you'd prefer to work on instead.
 ```
+
+## Step 7: Design Discussion (If Confirmed)
+
+If the user confirms they want to work on the recommended task, then dive into:
+
+### Implementation Planning
+- **Architecture approach**: How this fits into existing codebase
+- **Key components**: What needs to be built/modified
+- **Integration points**: How it connects with existing code
+- **Testing strategy**: How to validate the implementation
+
+### Design Decisions
+- **Technical choices**: Framework/library decisions to make
+- **Interface design**: APIs, data structures, user interfaces
+- **Error handling**: How to handle failure cases
+- **Performance considerations**: Scalability and optimization needs
+
+### Implementation Steps
+- **Step-by-step breakdown**: Logical sequence of implementation
+- **Quick wins**: Parts that can be completed first for validation
+- **Risk mitigation**: Addressing the biggest uncertainties first
+- **Testing checkpoints**: When and how to validate progress
+
+### Questions to Resolve
+- **Open decisions**: Design choices that need to be made
+- **Clarifications needed**: Requirements that need more detail
+- **Assumptions to validate**: Things we're assuming that should be confirmed
 
 ## Intelligent Analysis Guidelines
 
@@ -262,9 +242,9 @@ Before finalizing recommendations:
 ## Success Criteria
 
 This command should:
-- ✅ Accurately identify the most valuable next steps based on current PRD state
-- ✅ Provide clear rationale for prioritization decisions
-- ✅ Identify and highlight critical blockers that need immediate attention
-- ✅ Suggest realistic scope and timeline for next work iteration
-- ✅ Consider both technical dependencies and business value in recommendations
-- ✅ Help teams maintain momentum and avoid getting stuck or working on wrong priorities
+- ✅ Identify the single highest-value task to work on next based on current PRD state
+- ✅ Provide clear, compelling rationale for why this specific task should be prioritized
+- ✅ Wait for user confirmation before proceeding
+- ✅ If confirmed, provide detailed implementation design guidance
+- ✅ Keep teams focused on the most important work rather than overwhelming them with options
+- ✅ Enable immediate action by transitioning from recommendation to design discussion

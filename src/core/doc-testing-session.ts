@@ -27,7 +27,6 @@ export class DocTestingSessionManager {
   createSession(filePath: string, args: any): ValidationSession {
     const sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true
     const sessionId = this.generateSessionId();
-    const reportFile = path.join(sessionDir, `doc-test-report-${sessionId}.md`);
     
     const session: ValidationSession = {
       sessionId,
@@ -35,7 +34,6 @@ export class DocTestingSessionManager {
       startTime: new Date().toISOString(),
       currentPhase: ValidationPhase.SCAN,
       status: SessionStatus.ACTIVE,
-      reportFile,
       metadata: {
         totalSections: 0,
         completedSections: 0,
@@ -47,7 +45,6 @@ export class DocTestingSessionManager {
     };
 
     this.saveSession(session, args);
-    this.initializeReport(session);
     
     return session;
   }
@@ -124,6 +121,11 @@ The system manages session state and workflow progression automatically.`;
 
     const targetPhase = phaseOverride || session.currentPhase;
     
+    // Handle done phase - mark session as completed
+    if (targetPhase === ValidationPhase.DONE) {
+      return this.getDonePhaseStep(session, args);
+    }
+    
     // Handle section-by-section testing workflow
     if (targetPhase === ValidationPhase.TEST) {
       return this.getTestPhaseStep(session, args);
@@ -150,6 +152,99 @@ The system manages session state and workflow progression automatically.`;
         sessionDir: session.metadata.sessionDir
       }
     };
+  }
+
+  /**
+   * Handle done phase - mark session as completed and provide summary
+   */
+  private getDonePhaseStep(session: ValidationSession, args: any): WorkflowStep {
+    // Update session status to completed
+    session.status = SessionStatus.COMPLETED;
+    session.currentPhase = ValidationPhase.DONE;
+    session.metadata.lastUpdated = new Date().toISOString();
+    
+    // Save the updated session
+    this.saveSession(session, args);
+    
+    // Load and populate done phase prompt
+    const prompt = this.loadPhasePrompt(ValidationPhase.DONE, session);
+
+    return {
+      sessionId: session.sessionId,
+      phase: ValidationPhase.DONE,
+      prompt,
+      nextPhase: undefined, // No next phase - session is complete
+      nextAction: undefined, // No next action required
+      instruction: 'Documentation testing session completed successfully.',
+      agentInstructions: 'This session is now complete. No further action is required.',
+      workflow: {
+        completed: [ValidationPhase.SCAN, ValidationPhase.TEST, ValidationPhase.ANALYZE, ValidationPhase.FIX],
+        current: ValidationPhase.DONE,
+        remaining: []
+      },
+      data: {
+        filePath: session.filePath,
+        sessionDir: session.metadata.sessionDir,
+        sessionComplete: true,
+        summary: this.generateStatusSummary(session)
+      }
+    };
+  }
+
+  /**
+   * Generate final session summary for done phase
+   */
+  private generateFinalSummary(session: ValidationSession): string {
+    if (!session.sectionResults) {
+      return "No test results available.";
+    }
+
+    // Count all items by status
+    const allItems: FixableItem[] = [];
+    Object.values(session.sectionResults).forEach(result => {
+      allItems.push(...result.issues, ...result.recommendations);
+    });
+
+    if (allItems.length === 0) {
+      return "✅ **No issues found** - Documentation appears to be in excellent condition!";
+    }
+
+    const statusCounts = {
+      pending: allItems.filter(item => item.status === 'pending').length,
+      fixed: allItems.filter(item => item.status === 'fixed').length,
+      deferred: allItems.filter(item => item.status === 'deferred').length,
+      failed: allItems.filter(item => item.status === 'failed').length
+    };
+
+    const total = allItems.length;
+    let summary = `## Testing Results\n\n`;
+    summary += `**Total Items Identified**: ${total}\n\n`;
+    
+    if (statusCounts.fixed > 0) {
+      summary += `✅ **Successfully Fixed**: ${statusCounts.fixed} items\n`;
+    }
+    if (statusCounts.deferred > 0) {
+      summary += `📋 **Deferred/Ignored**: ${statusCounts.deferred} items\n`;
+    }
+    if (statusCounts.pending > 0) {
+      summary += `⏳ **Remaining for Future**: ${statusCounts.pending} items\n`;
+    }
+    if (statusCounts.failed > 0) {
+      summary += `❌ **Fix Attempts Failed**: ${statusCounts.failed} items\n`;
+    }
+
+    const addressedItems = statusCounts.fixed + statusCounts.deferred;
+    const completionRate = total > 0 ? Math.round((addressedItems / total) * 100) : 100;
+    
+    summary += `\n**Completion Rate**: ${completionRate}% (${addressedItems}/${total} items addressed)\n`;
+
+    if (statusCounts.pending > 0 || statusCounts.failed > 0) {
+      summary += `\n💡 **Next Steps**: Start a new testing session to address the remaining ${statusCounts.pending + statusCounts.failed} items.`;
+    } else {
+      summary += `\n🎉 **Excellent!** All identified items have been addressed.`;
+    }
+
+    return summary;
   }
 
   /**
@@ -201,12 +296,32 @@ The system manages session state and workflow progression automatically.`;
       const template = fs.readFileSync(promptPath, 'utf8');
       
       // Replace all template variables with actual values
-      const processedPrompt = template
+      let processedPrompt = template
         .replace(/\{filePath\}/g, session.filePath)
         .replace(/\{sessionId\}/g, session.sessionId)
         .replace(/\{phase\}/g, phase)
         .replace(/\{totalSections\}/g, session.metadata.totalSections.toString())
         .replace(/\{completedSections\}/g, session.metadata.completedSections.toString());
+      
+      // Handle fix phase specific template variables
+      if (phase === ValidationPhase.FIX) {
+        const statusSummary = this.generateStatusSummary(session);
+        const pendingItems = this.generatePendingItemsList(session);
+        
+        processedPrompt = processedPrompt
+          .replace(/\{statusSummary\}/g, statusSummary)
+          .replace(/\{pendingItems\}/g, pendingItems);
+      }
+      
+      // Handle done phase specific template variables
+      if (phase === ValidationPhase.DONE) {
+        const finalSummary = this.generateFinalSummary(session);
+        
+        processedPrompt = processedPrompt
+          .replace(/\{completionTime\}/g, session.metadata.lastUpdated)
+          .replace(/\{finalSummary\}/g, finalSummary)
+          .replace(/\{sessionDir\}/g, session.metadata.sessionDir);
+      }
       
       // Check for unreplaced template variables
       const unreplacedVars = processedPrompt.match(/\{[^}]+\}/g);
@@ -233,30 +348,6 @@ The system manages session state and workflow progression automatically.`;
     return phases.slice(currentIndex + 1);
   }
 
-  private initializeReport(session: ValidationSession): void {
-    const reportContent = `# Documentation Validation Report
-    
-**Session ID**: ${session.sessionId}
-**File**: ${session.filePath}
-**Started**: ${session.startTime}
-**Status**: ${session.status}
-
-## Progress Summary
-
-- **Total Sections**: ${session.metadata.totalSections}
-- **Completed Sections**: ${session.metadata.completedSections}
-- **Remaining Sections**: ${session.metadata.totalSections - session.metadata.completedSections}
-
-## Validation Items
-
-_Items will be populated as they are discovered and tested._
-
----
-*Last updated: ${session.metadata.lastUpdated}*
-`;
-
-    fs.writeFileSync(session.reportFile, reportContent);
-  }
 
 
   /**
@@ -324,7 +415,7 @@ _Items will be populated as they are discovered and tested._
         prompt: this.loadPhasePrompt(ValidationPhase.FIX, session),
         nextPhase: undefined, // FIX is the final phase
         nextAction: 'testDocs',
-        instruction: 'Review recommendations and select fixes to apply. Use testDocs tool to report completed fixes.',
+        instruction: 'Present the pending items to the user for selection. Ask which fixes they want to apply. DO NOT auto-select or auto-defer items.',
         agentInstructions: this.getAgentInstructions(),
         workflow: {
           completed: [ValidationPhase.SCAN, ValidationPhase.TEST],
@@ -546,5 +637,226 @@ _Items will be populated as they are discovered and tested._
     session.currentPhase = ValidationPhase.TEST;
 
     this.saveSession(session, args);
+  }
+
+  /**
+   * Generate status summary for fix phase
+   */
+  private generateStatusSummary(session: ValidationSession): string {
+    if (!session.sectionResults) {
+      return "No test results available.";
+    }
+
+    const allItems: FixableItem[] = [];
+    
+    // Collect all FixableItems from all sections
+    Object.values(session.sectionResults).forEach(result => {
+      allItems.push(...result.issues, ...result.recommendations);
+    });
+
+    if (allItems.length === 0) {
+      return "No issues or recommendations found during testing.";
+    }
+
+    // Count by status
+    const statusCounts = {
+      pending: allItems.filter(item => item.status === 'pending').length,
+      fixed: allItems.filter(item => item.status === 'fixed').length,
+      deferred: allItems.filter(item => item.status === 'deferred').length,
+      failed: allItems.filter(item => item.status === 'failed').length
+    };
+
+    const total = allItems.length;
+    const remaining = statusCounts.pending + statusCounts.failed;
+
+    let summary = `**Total Items**: ${total}\n`;
+    if (statusCounts.fixed > 0) summary += `✅ **Fixed**: ${statusCounts.fixed}\n`;
+    if (statusCounts.deferred > 0) summary += `📋 **Deferred**: ${statusCounts.deferred}\n`;
+    if (remaining > 0) summary += `⏳ **Remaining**: ${remaining} (${statusCounts.pending} pending, ${statusCounts.failed} failed)\n`;
+    
+    if (remaining === 0) {
+      summary += "\n🎉 All items have been addressed!";
+    }
+
+    return summary;
+  }
+
+  /**
+   * Generate formatted list of pending/failed items for fix phase
+   */
+  private generatePendingItemsList(session: ValidationSession): string {
+    if (!session.sectionResults) {
+      return "No test results available.";
+    }
+
+    const pendingItems: FixableItem[] = [];
+    const issues: FixableItem[] = [];
+    const recommendations: FixableItem[] = [];
+    
+    // Collect all pending/failed items from all sections
+    Object.values(session.sectionResults).forEach(result => {
+      const pendingIssues = result.issues.filter(item => 
+        item.status === 'pending' || item.status === 'failed'
+      );
+      const pendingRecs = result.recommendations.filter(item => 
+        item.status === 'pending' || item.status === 'failed'
+      );
+      
+      issues.push(...pendingIssues);
+      recommendations.push(...pendingRecs);
+      pendingItems.push(...pendingIssues, ...pendingRecs);
+    });
+
+    if (pendingItems.length === 0) {
+      return "No pending items - all issues and recommendations have been addressed!";
+    }
+
+    let output = "";
+
+    // Format issues section
+    if (issues.length > 0) {
+      output += "### Issues Found (Items requiring fixes)\n";
+      issues.forEach(item => {
+        const statusIndicator = item.status === 'failed' ? ' ❌ [RETRY]' : '';
+        output += `${item.id}. ${item.text}${statusIndicator}\n`;
+      });
+      output += "\n";
+    }
+
+    // Format recommendations section  
+    if (recommendations.length > 0) {
+      output += "### Recommendations (Items suggesting improvements)\n";
+      recommendations.forEach(item => {
+        const statusIndicator = item.status === 'failed' ? ' ❌ [RETRY]' : '';
+        output += `${item.id}. ${item.text}${statusIndicator}\n`;
+      });
+    }
+
+    return output;
+  }
+
+  /**
+   * Update the status of a specific FixableItem by ID
+   */
+  updateFixableItemStatus(
+    sessionId: string, 
+    itemId: number, 
+    status: 'fixed' | 'deferred' | 'failed', 
+    explanation?: string,
+    args?: any
+  ): void {
+    const session = this.loadSession(sessionId, args || {});
+    if (!session || !session.sectionResults) {
+      throw new Error(`Session ${sessionId} not found or has no test results`);
+    }
+
+    let itemFound = false;
+
+    // Search through all sections to find the item with the specified ID
+    Object.values(session.sectionResults).forEach(result => {
+      // Check issues
+      const issueIndex = result.issues.findIndex(item => item.id === itemId);
+      if (issueIndex !== -1) {
+        result.issues[issueIndex].status = status;
+        if (explanation) result.issues[issueIndex].explanation = explanation;
+        itemFound = true;
+        return;
+      }
+
+      // Check recommendations  
+      const recIndex = result.recommendations.findIndex(item => item.id === itemId);
+      if (recIndex !== -1) {
+        result.recommendations[recIndex].status = status;
+        if (explanation) result.recommendations[recIndex].explanation = explanation;
+        itemFound = true;
+        return;
+      }
+    });
+
+    if (!itemFound) {
+      throw new Error(`FixableItem with ID ${itemId} not found in session ${sessionId}`);
+    }
+
+    this.saveSession(session, args || {});
+  }
+
+  /**
+   * Update multiple FixableItem statuses at once
+   */
+  updateMultipleFixableItemStatuses(
+    sessionId: string,
+    updates: Array<{
+      itemId: number;
+      status: 'fixed' | 'deferred' | 'failed';
+      explanation?: string;
+    }>,
+    args?: any
+  ): void {
+    const session = this.loadSession(sessionId, args || {});
+    if (!session || !session.sectionResults) {
+      throw new Error(`Session ${sessionId} not found or has no test results`);
+    }
+
+    const notFoundItems: number[] = [];
+
+    // Update each item
+    updates.forEach(update => {
+      let itemFound = false;
+
+      Object.values(session.sectionResults!).forEach(result => {
+        // Check issues
+        const issueIndex = result.issues.findIndex(item => item.id === update.itemId);
+        if (issueIndex !== -1) {
+          result.issues[issueIndex].status = update.status;
+          if (update.explanation) result.issues[issueIndex].explanation = update.explanation;
+          itemFound = true;
+          return;
+        }
+
+        // Check recommendations  
+        const recIndex = result.recommendations.findIndex(item => item.id === update.itemId);
+        if (recIndex !== -1) {
+          result.recommendations[recIndex].status = update.status;
+          if (update.explanation) result.recommendations[recIndex].explanation = update.explanation;
+          itemFound = true;
+          return;
+        }
+      });
+
+      if (!itemFound) {
+        notFoundItems.push(update.itemId);
+      }
+    });
+
+    if (notFoundItems.length > 0) {
+      throw new Error(`FixableItems with IDs not found: ${notFoundItems.join(', ')}`);
+    }
+
+    this.saveSession(session, args || {});
+  }
+
+  /**
+   * Get all FixableItems with pending or failed status
+   */
+  getPendingFixableItems(sessionId: string, args?: any): FixableItem[] {
+    const session = this.loadSession(sessionId, args || {});
+    if (!session || !session.sectionResults) {
+      return [];
+    }
+
+    const pendingItems: FixableItem[] = [];
+    
+    Object.values(session.sectionResults).forEach(result => {
+      const pendingIssues = result.issues.filter(item => 
+        item.status === 'pending' || item.status === 'failed'
+      );
+      const pendingRecs = result.recommendations.filter(item => 
+        item.status === 'pending' || item.status === 'failed'
+      );
+      
+      pendingItems.push(...pendingIssues, ...pendingRecs);
+    });
+
+    return pendingItems.sort((a, b) => a.id - b.id); // Sort by ID for consistent ordering
   }
 }

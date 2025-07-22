@@ -14,7 +14,6 @@ export interface ValidationSession {
   startTime: string;           // ISO timestamp when session started
   currentPhase: ValidationPhase; // Current workflow phase
   status: SessionStatus;       // Overall session status
-  reportFile: string;          // Path to the generated report file
   metadata: SessionMetadata;   // Counters and summary info
   
   // Section-based organization
@@ -41,13 +40,14 @@ export interface SessionMetadata {
 
 
 /**
- * The four phases of documentation validation workflow
+ * The five phases of documentation validation workflow
  */
 export enum ValidationPhase {
   SCAN = 'scan',      // Find all testable items in the documentation
   TEST = 'test',      // Execute tests on the found items
   ANALYZE = 'analyze', // Analyze results and categorize issues
-  FIX = 'fix'         // Generate fixes for identified problems
+  FIX = 'fix',        // Generate fixes for identified problems
+  DONE = 'done'       // Mark session as completed
 }
 
 /**

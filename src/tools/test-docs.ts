@@ -19,7 +19,7 @@ export const TESTDOCS_TOOL_DESCRIPTION = 'Test, validate, check, scan, verify, a
 export const TESTDOCS_TOOL_INPUT_SCHEMA = {
   filePath: z.string().min(1).optional().describe('Path to documentation file to test (optional - if not provided, will discover available files)'),
   sessionId: z.string().optional().describe('Existing session ID to continue (optional)'),
-  phase: z.enum(['scan', 'test', 'analyze', 'fix']).optional().describe('Specific phase to run (defaults to scan)'),
+  phase: z.enum(['scan', 'test', 'analyze', 'fix', 'done']).optional().describe('Specific phase to run (defaults to scan)'),
   sectionId: z.string().optional().describe('Section ID when submitting test results'),
   results: z.string().optional().describe('Test results to store (for client agent reporting back)'),
   filePattern: z.string().optional().describe('File pattern for discovery (e.g., "**/*.md", "*.rst")')
@@ -182,13 +182,15 @@ export async function handleTestDocsTool(
         });
         
         try {
-          const scanResults = JSON.parse(args.results);
-          if (scanResults.sections && Array.isArray(scanResults.sections)) {
-            sessionManager.processScanResults(args.sessionId, scanResults.sections, args);
+          const resultsData = JSON.parse(args.results);
+          
+          // Handle scan results
+          if (resultsData.sections && Array.isArray(resultsData.sections)) {
+            sessionManager.processScanResults(args.sessionId, resultsData.sections, args);
             logger.info('Scan results processed successfully', { 
               requestId, 
               sessionId: args.sessionId,
-              sectionsCount: scanResults.sections.length
+              sectionsCount: resultsData.sections.length
             });
             
             // After processing scan results, get the next workflow step based on updated session state
@@ -206,16 +208,108 @@ export async function handleTestDocsTool(
                 ]
               };
             }
+          }
+          // Handle fix phase results - array of item status updates
+          else if (Array.isArray(resultsData)) {
+            logger.info('Processing fix phase results', { 
+              requestId, 
+              sessionId: args.sessionId,
+              itemUpdates: resultsData.length
+            });
+            
+            // Update status for each item
+            const statusUpdates: Array<{id: number, status: string, explanation?: string}> = [];
+            for (const itemUpdate of resultsData) {
+              if (itemUpdate.id && itemUpdate.status) {
+                // Convert string ID to number if needed
+                const itemId = typeof itemUpdate.id === 'string' ? parseInt(itemUpdate.id, 10) : itemUpdate.id;
+                sessionManager.updateFixableItemStatus(
+                  args.sessionId, 
+                  itemId, 
+                  itemUpdate.status,
+                  itemUpdate.explanation,
+                  args
+                );
+                statusUpdates.push({
+                  id: itemId,
+                  status: itemUpdate.status,
+                  explanation: itemUpdate.explanation
+                });
+              }
+            }
+            
+            logger.info('Fix phase results processed successfully', { 
+              requestId, 
+              sessionId: args.sessionId,
+              updatedItems: statusUpdates.length
+            });
+            
+            // After processing fix results, get the next workflow step
+            const nextWorkflowStep = sessionManager.getNextStep(args.sessionId, args);
+            if (nextWorkflowStep) {
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      data: nextWorkflowStep
+                    }, null, 2)
+                  }
+                ]
+              };
+            }
           } else {
-            throw new Error('Invalid scan results format - expected {sections: [...]} structure');
+            // Provide specific error message based on what we received
+            if (Array.isArray(resultsData)) {
+              // Fix results format - check if items have correct structure
+              const firstItem = resultsData[0];
+              if (!firstItem || typeof firstItem !== 'object') {
+                throw new Error(`Invalid fix results format. Expected array of objects like: [{"id": 1, "status": "fixed", "explanation": "..."}]. Got array with: ${typeof firstItem}`);
+              }
+              if (!firstItem.id || !firstItem.status) {
+                throw new Error(`Invalid fix result item. Each item must have 'id' and 'status' fields. Expected: [{"id": 1, "status": "fixed", "explanation": "..."}]. Missing fields in: ${JSON.stringify(firstItem)}`);
+              }
+              // If we get here, it's properly formatted but might have failed in the update process
+              throw new Error(`Fix results format is correct but processing failed. Array format: [{"id": number, "status": "fixed|deferred|failed", "explanation": "optional"}]`);
+            } else {
+              // Not an array and not scan results
+              throw new Error(`Invalid results format. Expected either:
+- Scan results: {"sections": ["Section 1", "Section 2", ...]}  
+- Fix results: [{"id": 1, "status": "fixed", "explanation": "..."}, {"id": 2, "status": "deferred", "explanation": "..."}]
+Got: ${JSON.stringify(resultsData).substring(0, 200)}`);
+            }
           }
         } catch (parseError) {
+          const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error';
+          
+          // Provide helpful JSON parsing guidance
+          if (errorMessage.includes('Unexpected token')) {
+            throw ErrorHandler.createError(
+              ErrorCategory.VALIDATION,
+              ErrorSeverity.HIGH,
+              `Invalid JSON format in results parameter. ${errorMessage}
+
+Expected formats:
+- Scan results: {"sections": ["Section 1", "Section 2"]}
+- Fix results: [{"id": 1, "status": "fixed", "explanation": "description"}]
+
+Your input: "${args.results?.substring(0, 200)}..."`,
+              {
+                operation: 'results_parsing',
+                component: 'TestDocsTool',
+                requestId,
+                input: { sessionId: args.sessionId, results: args.results }
+              }
+            );
+          }
+          
           throw ErrorHandler.createError(
             ErrorCategory.VALIDATION,
             ErrorSeverity.HIGH,
-            `Failed to process scan results: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+            `Failed to process results: ${errorMessage}`,
             {
-              operation: 'scan_results_processing',
+              operation: 'results_processing',
               component: 'TestDocsTool',
               requestId,
               input: { sessionId: args.sessionId, results: args.results }
@@ -252,7 +346,7 @@ export async function handleTestDocsTool(
       nextPhase: workflowStep.nextPhase
     });
 
-    // Return successful response
+    // Return successful response with all WorkflowStep fields
     return {
       content: [{
         type: 'text',
@@ -262,8 +356,11 @@ export async function handleTestDocsTool(
           filePath: session.filePath,
           prompt: workflowStep.prompt,
           nextPhase: workflowStep.nextPhase,
+          nextAction: workflowStep.nextAction,
+          instruction: workflowStep.instruction,
+          agentInstructions: workflowStep.agentInstructions,
           workflow: workflowStep.workflow,
-          reportFile: session.reportFile
+          data: workflowStep.data
         }, null, 2)
       }]
     };

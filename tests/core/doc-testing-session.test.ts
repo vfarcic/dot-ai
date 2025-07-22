@@ -52,7 +52,6 @@ describe('DocTestingSessionManager', () => {
       expect(session.currentPhase).toBe(ValidationPhase.SCAN);
       expect(session.status).toBe(SessionStatus.ACTIVE);
       expect(session.startTime).toBeDefined();
-      expect(session.reportFile).toContain('doc-test-report-');
       expect(session.metadata).toBeDefined();
       expect(session.metadata.totalSections).toBe(0);
     });
@@ -101,7 +100,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: mockMetadata
       };
 
@@ -160,7 +158,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: mockMetadata
       };
 
@@ -192,7 +189,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: mockMetadata
       };
 
@@ -219,7 +215,6 @@ describe('DocTestingSessionManager', () => {
       startTime: '2025-07-18T10:30:00Z',
       currentPhase: ValidationPhase.SCAN,
       status: SessionStatus.ACTIVE,
-      reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
       metadata: mockMetadata
     };
 
@@ -471,7 +466,6 @@ describe('DocTestingSessionManager', () => {
       startTime: '2025-07-18T10:30:00Z',
       currentPhase: ValidationPhase.TEST,
       status: SessionStatus.ACTIVE,
-      reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
       metadata: mockMetadata,
       sections: [
         { id: 'section1', title: 'Section 1' },
@@ -634,7 +628,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: {
           totalSections: 0,
           completedSections: 0,
@@ -771,7 +764,6 @@ describe('DocTestingSessionManager', () => {
       startTime: '2025-07-18T10:30:00Z',
       currentPhase: ValidationPhase.SCAN,
       status: SessionStatus.ACTIVE,
-      reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
       metadata: mockMetadata
     };
 
@@ -862,7 +854,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: {
           totalSections: 0,
           completedSections: 0,
@@ -931,7 +922,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata: {
           totalSections: 1,
           completedSections: 0,
@@ -967,7 +957,6 @@ describe('DocTestingSessionManager', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.COMPLETED, // Not active
-        reportFile: 'report.md',
         metadata: {
           totalSections: 0,
           completedSections: 0,
@@ -993,6 +982,323 @@ describe('DocTestingSessionManager', () => {
       expect(() => {
         sessionManager.storeSectionTestResults('nonexistent-session', 'section1', 'results', { sessionDir: mockSessionDir });
       }).toThrow('Session nonexistent-session not found');
+    });
+  });
+
+  describe('Fix Phase Functionality', () => {
+    const createMockSessionWithResults = (): ValidationSession => ({
+      sessionId: 'fix-test-session',
+      filePath: 'README.md',
+      startTime: '2025-07-18T10:30:00Z',
+      currentPhase: ValidationPhase.FIX,
+      status: SessionStatus.ACTIVE,
+      metadata: {
+        totalSections: 2,
+        completedSections: 2,
+        sectionStatus: {
+          'section_1': SectionStatus.COMPLETED,
+          'section_2': SectionStatus.COMPLETED
+        },
+        sessionDir: mockSessionDir,
+        lastUpdated: '2025-07-18T10:30:00Z',
+        nextItemId: 6 // Next ID after 5 existing items
+      },
+      sectionResults: {
+        'section_1': {
+          whatWasDone: 'Tested section 1',
+          issues: [
+            { id: 1, text: 'Fix broken command', status: 'pending' },
+            { id: 2, text: 'Update outdated link', status: 'fixed', explanation: 'Updated URL' }
+          ],
+          recommendations: [
+            { id: 3, text: 'Add error handling example', status: 'pending' },
+            { id: 4, text: 'Improve documentation clarity', status: 'deferred', explanation: 'Created GitHub issue' }
+          ]
+        },
+        'section_2': {
+          whatWasDone: 'Tested section 2',
+          issues: [
+            { id: 5, text: 'Fix typo in code example', status: 'failed', explanation: 'Initial fix attempt failed' }
+          ],
+          recommendations: []
+        }
+      }
+    });
+
+    beforeEach(() => {
+      // Reset mocks for each test
+      jest.clearAllMocks();
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.writeFileSync.mockImplementation(() => {});
+      // Default to returning a fresh mock session with results
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(createMockSessionWithResults()));
+    });
+
+    describe('generateStatusSummary', () => {
+      test('should generate correct status summary with mixed statuses', () => {
+        const mockSession = createMockSessionWithResults();
+        const summary = (sessionManager as any).generateStatusSummary(mockSession);
+        
+        expect(summary).toContain('**Total Items**: 5');
+        expect(summary).toContain('✅ **Fixed**: 1');
+        expect(summary).toContain('📋 **Deferred**: 1');
+        expect(summary).toContain('⏳ **Remaining**: 3 (2 pending, 1 failed)');
+      });
+
+      test('should show completion message when all items addressed', () => {
+        const completedSession = createMockSessionWithResults();
+        completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
+
+        const summary = (sessionManager as any).generateStatusSummary(completedSession);
+        
+        expect(summary).toContain('🎉 All items have been addressed!');
+        expect(summary).toContain('✅ **Fixed**: 4');
+        expect(summary).toContain('📋 **Deferred**: 1');
+        expect(summary).not.toContain('⏳ **Remaining**');
+      });
+
+      test('should handle session with no results', () => {
+        const emptySession = createMockSessionWithResults();
+        delete emptySession.sectionResults;
+
+        const summary = (sessionManager as any).generateStatusSummary(emptySession);
+        
+        expect(summary).toBe('No test results available.');
+      });
+
+      test('should handle session with empty results', () => {
+        const emptyResultsSession = createMockSessionWithResults();
+        emptyResultsSession.sectionResults = {
+          'section_1': { whatWasDone: 'Nothing found', issues: [], recommendations: [] }
+        };
+
+        const summary = (sessionManager as any).generateStatusSummary(emptyResultsSession);
+        
+        expect(summary).toBe('No issues or recommendations found during testing.');
+      });
+    });
+
+    describe('generatePendingItemsList', () => {
+      test('should generate formatted list of pending and failed items only', () => {
+        const testSession = createMockSessionWithResults();
+        const list = (sessionManager as any).generatePendingItemsList(testSession);
+        
+        expect(list).toContain('### Issues Found (Items requiring fixes)');
+        expect(list).toContain('1. Fix broken command');
+        expect(list).toContain('5. Fix typo in code example ❌ [RETRY]');
+        expect(list).toContain('### Recommendations (Items suggesting improvements)');
+        expect(list).toContain('3. Add error handling example');
+        
+        // Should not include fixed or deferred items
+        expect(list).not.toContain('Update outdated link');
+        expect(list).not.toContain('Improve documentation clarity');
+      });
+
+      test('should show completion message when no pending items', () => {
+        const completedSession = createMockSessionWithResults();
+        completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
+
+        const list = (sessionManager as any).generatePendingItemsList(completedSession);
+        
+        expect(list).toBe('No pending items - all issues and recommendations have been addressed!');
+      });
+
+      test('should handle only issues or only recommendations', () => {
+        const issuesOnlySession = createMockSessionWithResults();
+        issuesOnlySession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+
+        const list = (sessionManager as any).generatePendingItemsList(issuesOnlySession);
+        
+        expect(list).toContain('### Issues Found (Items requiring fixes)');
+        expect(list).not.toContain('### Recommendations (Items suggesting improvements)');
+        expect(list).toContain('1. Fix broken command');
+        expect(list).toContain('5. Fix typo in code example ❌ [RETRY]');
+      });
+    });
+
+    describe('updateFixableItemStatus', () => {
+      test('should update status of existing item in issues', () => {
+        let savedSession: ValidationSession;
+        mockFs.writeFileSync.mockImplementation((path, data) => {
+          if (typeof data === 'string') {
+            savedSession = JSON.parse(data);
+          }
+        });
+
+        sessionManager.updateFixableItemStatus('fix-test-session', 1, 'fixed', 'Successfully resolved', { sessionDir: mockSessionDir });
+
+        expect(savedSession!.sectionResults!['section_1'].issues[0].status).toBe('fixed');
+        expect(savedSession!.sectionResults!['section_1'].issues[0].explanation).toBe('Successfully resolved');
+      });
+
+      test('should update status of existing item in recommendations', () => {
+        let savedSession: ValidationSession;
+        mockFs.writeFileSync.mockImplementation((path, data) => {
+          if (typeof data === 'string') {
+            savedSession = JSON.parse(data);
+          }
+        });
+
+        sessionManager.updateFixableItemStatus('fix-test-session', 3, 'deferred', 'Created GitHub issue #123', { sessionDir: mockSessionDir });
+
+        expect(savedSession!.sectionResults!['section_1'].recommendations[0].status).toBe('deferred');
+        expect(savedSession!.sectionResults!['section_1'].recommendations[0].explanation).toBe('Created GitHub issue #123');
+      });
+
+      test('should throw error for non-existent item ID', () => {
+        expect(() => {
+          sessionManager.updateFixableItemStatus('fix-test-session', 999, 'fixed', undefined, { sessionDir: mockSessionDir });
+        }).toThrow('FixableItem with ID 999 not found in session fix-test-session');
+      });
+
+      test('should throw error for non-existent session', () => {
+        mockFs.existsSync.mockReturnValue(false);
+
+        expect(() => {
+          sessionManager.updateFixableItemStatus('nonexistent-session', 1, 'fixed', undefined, { sessionDir: mockSessionDir });
+        }).toThrow('Session nonexistent-session not found or has no test results');
+      });
+    });
+
+    describe('updateMultipleFixableItemStatuses', () => {
+      test('should update multiple items successfully', () => {
+        let savedSession: ValidationSession;
+        mockFs.writeFileSync.mockImplementation((path, data) => {
+          if (typeof data === 'string') {
+            savedSession = JSON.parse(data);
+          }
+        });
+
+        const updates = [
+          { itemId: 1, status: 'fixed' as const, explanation: 'Command updated' },
+          { itemId: 3, status: 'deferred' as const, explanation: 'Added to backlog' },
+          { itemId: 5, status: 'failed' as const, explanation: 'Still broken after retry' }
+        ];
+
+        sessionManager.updateMultipleFixableItemStatuses('fix-test-session', updates, { sessionDir: mockSessionDir });
+
+        expect(savedSession!.sectionResults!['section_1'].issues[0].status).toBe('fixed');
+        expect(savedSession!.sectionResults!['section_1'].issues[0].explanation).toBe('Command updated');
+        expect(savedSession!.sectionResults!['section_1'].recommendations[0].status).toBe('deferred');
+        expect(savedSession!.sectionResults!['section_1'].recommendations[0].explanation).toBe('Added to backlog');
+        expect(savedSession!.sectionResults!['section_2'].issues[0].status).toBe('failed');
+        expect(savedSession!.sectionResults!['section_2'].issues[0].explanation).toBe('Still broken after retry');
+      });
+
+      test('should throw error if any item ID not found', () => {
+        const updates = [
+          { itemId: 1, status: 'fixed' as const },
+          { itemId: 999, status: 'fixed' as const } // Non-existent
+        ];
+
+        expect(() => {
+          sessionManager.updateMultipleFixableItemStatuses('fix-test-session', updates, { sessionDir: mockSessionDir });
+        }).toThrow('FixableItems with IDs not found: 999');
+      });
+    });
+
+    describe('getPendingFixableItems', () => {
+      test('should return only pending and failed items sorted by ID', () => {
+        // Ensure the mock returns the correct session data
+        const testSession = createMockSessionWithResults();
+        mockFs.readFileSync.mockImplementation((path) => {
+          if (typeof path === 'string' && path.includes('fix-test-session.json')) {
+            return JSON.stringify(testSession);
+          }
+          return '{}';
+        });
+
+        const pendingItems = sessionManager.getPendingFixableItems('fix-test-session', { sessionDir: mockSessionDir });
+
+        expect(pendingItems).toHaveLength(3);
+        expect(pendingItems[0].id).toBe(1);
+        expect(pendingItems[0].text).toBe('Fix broken command');
+        expect(pendingItems[0].status).toBe('pending');
+        expect(pendingItems[1].id).toBe(3);
+        expect(pendingItems[1].text).toBe('Add error handling example');
+        expect(pendingItems[1].status).toBe('pending');
+        expect(pendingItems[2].id).toBe(5);
+        expect(pendingItems[2].text).toBe('Fix typo in code example');
+        expect(pendingItems[2].status).toBe('failed');
+      });
+
+      test('should return empty array for session with no results', () => {
+        const emptySession = createMockSessionWithResults();
+        delete emptySession.sectionResults;
+        mockFs.readFileSync.mockReturnValue(JSON.stringify(emptySession));
+
+        const pendingItems = sessionManager.getPendingFixableItems('fix-test-session', { sessionDir: mockSessionDir });
+
+        expect(pendingItems).toEqual([]);
+      });
+
+      test('should return empty array for non-existent session', () => {
+        mockFs.existsSync.mockReturnValue(false);
+
+        const pendingItems = sessionManager.getPendingFixableItems('nonexistent-session', { sessionDir: mockSessionDir });
+
+        expect(pendingItems).toEqual([]);
+      });
+    });
+
+    describe('Fix Phase Prompt Template Integration', () => {
+      test('should load fix phase prompt with populated template variables', () => {
+        const mockFixPrompt = '# Fix Phase\n\n## Current Status\n{statusSummary}\n\n## Items\n{pendingItems}';
+        
+        // Create a test session that definitely has pending items
+        const testSessionWithPending = createMockSessionWithResults();
+        
+        mockFs.existsSync.mockImplementation((path) => {
+          if (typeof path === 'string' && path.includes('doc-testing-fix.md')) {
+            return true;
+          }
+          return typeof path === 'string' && path.includes('.json');
+        });
+
+        mockFs.readFileSync.mockImplementation((path) => {
+          if (typeof path === 'string' && path.includes('doc-testing-fix.md')) {
+            return mockFixPrompt;
+          }
+          if (typeof path === 'string' && path.includes('fix-test-session.json')) {
+            return JSON.stringify(testSessionWithPending);
+          }
+          return JSON.stringify(testSessionWithPending);
+        });
+
+        const step = sessionManager.getNextStep('fix-test-session', { sessionDir: mockSessionDir }, ValidationPhase.FIX);
+
+        expect(step).toBeDefined();
+        expect(step!.phase).toBe(ValidationPhase.FIX);
+        expect(step!.prompt).toContain('**Total Items**: 5');
+        expect(step!.prompt).toContain('1. Fix broken command');
+        expect(step!.prompt).toContain('3. Add error handling example');
+        expect(step!.prompt).toContain('5. Fix typo in code example ❌ [RETRY]');
+        expect(step!.prompt).not.toContain('{statusSummary}');
+        expect(step!.prompt).not.toContain('{pendingItems}');
+      });
+
+      test('should handle fix phase when all items are resolved', () => {
+        const completedSession = createMockSessionWithResults();
+        completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
+
+        mockFs.readFileSync.mockImplementation((path) => {
+          if (typeof path === 'string' && path.includes('doc-testing-fix.md')) {
+            return 'Status: {statusSummary}\nItems: {pendingItems}';
+          }
+          return JSON.stringify(completedSession);
+        });
+
+        const step = sessionManager.getNextStep('fix-test-session', { sessionDir: mockSessionDir }, ValidationPhase.FIX);
+
+        expect(step!.prompt).toContain('🎉 All items have been addressed!');
+        expect(step!.prompt).toContain('No pending items - all issues and recommendations have been addressed!');
+      });
     });
   });
 });

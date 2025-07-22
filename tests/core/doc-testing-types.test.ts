@@ -24,15 +24,17 @@ describe('Doc Testing Types', () => {
       expect(ValidationPhase.TEST).toBe('test');
       expect(ValidationPhase.ANALYZE).toBe('analyze');
       expect(ValidationPhase.FIX).toBe('fix');
+      expect(ValidationPhase.DONE).toBe('done');
     });
 
     test('should have all expected phases', () => {
       const phases = Object.values(ValidationPhase);
-      expect(phases).toHaveLength(4);
+      expect(phases).toHaveLength(5);
       expect(phases).toContain('scan');
       expect(phases).toContain('test');
       expect(phases).toContain('analyze');
       expect(phases).toContain('fix');
+      expect(phases).toContain('done');
     });
   });
 
@@ -86,7 +88,6 @@ describe('Doc Testing Types', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.SCAN,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata
       };
 
@@ -95,7 +96,6 @@ describe('Doc Testing Types', () => {
       expect(session.startTime).toBe('2025-07-18T10:30:00Z');
       expect(session.currentPhase).toBe(ValidationPhase.SCAN);
       expect(session.status).toBe(SessionStatus.ACTIVE);
-      expect(session.reportFile).toBe('doc-test-report-2025-07-18T10-30-00-abc12345.md');
       expect(session.metadata.totalSections).toBe(0);
       expect(session.metadata.sessionDir).toBe('/tmp/sessions');
     });
@@ -116,7 +116,6 @@ describe('Doc Testing Types', () => {
         startTime: '2025-07-18T10:30:00Z',
         currentPhase: ValidationPhase.TEST,
         status: SessionStatus.ACTIVE,
-        reportFile: 'doc-test-report-2025-07-18T10-30-00-abc12345.md',
         metadata,
         sections: [{
           id: 'main',

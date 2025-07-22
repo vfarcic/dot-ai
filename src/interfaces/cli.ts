@@ -273,7 +273,7 @@ For more help on specific commands, use:
       .option('--file-pattern <pattern>', 'File pattern for discovery (e.g., "**/*.md", "*.rst") - defaults to DOT_AI_DOC_PATTERN env var or "**/*.md"')
       .option('--session-id <id>', 'Existing session ID to continue')
       .option('--session-dir <path>', 'Directory to store session files (defaults to DOT_AI_SESSION_DIR env var)')
-      .option('--phase <phase>', 'Specific phase to run (scan, test, analyze, fix)', 'scan')
+      .option('--phase <phase>', 'Specific phase to run (scan, test, analyze, fix, done)', 'scan')
       .option('--section-id <id>', 'Section ID when submitting test results')
       .option('--results <text>', 'Test results to store (for client agent reporting back)')
       .option('--output <format>', 'Output format (json|yaml|table)', 'json')
@@ -289,8 +289,8 @@ For more help on specific commands, use:
         }
         
         // Validate phase
-        if (options.phase && !['scan', 'test', 'analyze', 'fix'].includes(options.phase)) {
-          console.error('Error: Invalid phase. Supported: scan, test, analyze, fix');
+        if (options.phase && !['scan', 'test', 'analyze', 'fix', 'done'].includes(options.phase)) {
+          console.error('Error: Invalid phase. Supported: scan, test, analyze, fix, done');
           process.exit(1);
         }
         

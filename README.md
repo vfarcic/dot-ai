@@ -26,14 +26,22 @@ DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend
 
 ### Prerequisites
 - **Node.js 18+** and **kubectl** configured with cluster access
+  - Verify cluster access with: `kubectl get nodes`
+  - Should show your cluster nodes without authentication errors
+<!-- dotai-ignore: kubectl requirement not verifiable in current environment -->
 - **Claude API key** (required for AI recommendations)
+  - Get your API key from [Anthropic Console](https://console.anthropic.com/)
+  - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
 
 ### Installation
 
 **For CLI usage:**
 ```bash
-# Install globally for command-line usage
+# Option 1: Install globally for command-line usage
 npm install -g @vfarcic/dot-ai
+
+# Option 2: Use npx (no installation required, good if you can't install globally)
+# Just use 'npx @vfarcic/dot-ai' instead of 'dot-ai' in all commands
 
 # Required: Set up Claude API key
 export ANTHROPIC_API_KEY=your_api_key_here
@@ -59,7 +67,7 @@ Perfect for conversational deployments with AI agents:
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "KUBECONFIG": "./configs/my-cluster.yaml"
+        "KUBECONFIG": "~/.kube/config"
       }
     }
   }
@@ -68,8 +76,8 @@ Perfect for conversational deployments with AI agents:
 
 **Environment Variables:**
 - `ANTHROPIC_API_KEY`: Required for AI recommendations
-- `DOT_AI_SESSION_DIR`: Required session directory (supports relative paths)
-- `KUBECONFIG`: Optional kubeconfig path (supports relative paths, defaults to `~/.kube/config`)
+- `DOT_AI_SESSION_DIR`: Required session directory (relative paths are relative to where the AI agent is started)
+- `KUBECONFIG`: Optional kubeconfig path (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
 
 2. **Start Claude Code with MCP enabled:**
 ```bash
