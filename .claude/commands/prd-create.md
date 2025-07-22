@@ -26,6 +26,7 @@ Work through each section of the PRD template below with the user. **Discuss eac
 
 ## GitHub Issue Template (Keep Short & Stable)
 
+**Initial Issue Creation (without PRD link):**
 ```markdown
 ## PRD: [Feature Name]
 
@@ -33,7 +34,20 @@ Work through each section of the PRD template below with the user. **Discuss eac
 
 **Solution**: [1-2 sentence solution overview]
 
-**Detailed PRD**: See [prds/[issue-id]-[feature-name].md](./prds/[issue-id]-[feature-name].md)
+**Detailed PRD**: Will be added after PRD file creation
+
+**Priority**: [High/Medium/Low]
+```
+
+**Issue Update (after PRD file created):**
+```markdown
+## PRD: [Feature Name]
+
+**Problem**: [1-2 sentence problem description]
+
+**Solution**: [1-2 sentence solution overview]
+
+**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](./prds/[actual-issue-id]-[feature-name].md)
 
 **Priority**: [High/Medium/Low]
 ```
@@ -279,8 +293,21 @@ Work through each section of the PRD template below with the user. **Discuss eac
 ## File Management
 
 ```bash
-# 1. Create GitHub issue FIRST to get issue ID
-gh issue create --title "PRD: [Feature Name]" --body "[brief description]" --label PRD
+# 1. Create GitHub issue FIRST to get issue ID (without PRD link)
+gh issue create --title "PRD: [Feature Name]" --body "$(cat <<'EOF'
+## PRD: [Feature Name]
+
+**Problem**: [1-2 sentence problem description]
+
+**Solution**: [1-2 sentence solution overview]
+
+**Detailed PRD**: Will be added after PRD file creation
+
+**Priority**: [High/Medium/Low]
+EOF
+)" --label PRD
+
+# Note the returned issue URL to extract the ID (e.g., if URL ends with /issues/28, then ID is 28)
 
 # 2. Create prds directory if it doesn't exist
 mkdir -p prds
@@ -289,9 +316,18 @@ mkdir -p prds
 touch prds/[actual-issue-id]-[feature-name].md
 
 # 4. Update GitHub issue to add PRD link now that filename is known
-gh issue edit [issue-id] --body "[original-body]
+gh issue edit [actual-issue-id] --body "$(cat <<'EOF'
+## PRD: [Feature Name]
 
-**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](./prds/[actual-issue-id]-[feature-name].md)"
+**Problem**: [1-2 sentence problem description]
+
+**Solution**: [1-2 sentence solution overview]
+
+**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](./prds/[actual-issue-id]-[feature-name].md)
+
+**Priority**: [High/Medium/Low]
+EOF
+)"
 ```
 
 ## Example Output

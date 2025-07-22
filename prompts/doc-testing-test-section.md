@@ -35,11 +35,50 @@ Execute everything testable in this section:
 □ **Prerequisite Claims**: Are stated requirements actually sufficient for success?
 □ **Success Claims**: Do "successful," "working," "ready" match actual end states?
 □ **User Experience Claims**: Would a typical user get the promised experience?
+□ **Code/Architecture Claims**: When documentation makes claims about code, files, or system architecture, validate them against the actual codebase
 
-**For each claim found, ask:**
-- Is this statement factually accurate?
-- Would a user following this get what's promised?
-- Are there gaps between expectation and reality?
+### Code Analysis Validation (When Applicable)
+
+**When testing technical documentation in a code repository**, perform BOTH directions of validation:
+
+#### 1. Validate Documented Claims Against Code
+**File & Directory Claims:**
+- Check if claimed file paths actually exist (e.g., "src/core/discovery.ts")
+- Verify directory structure matches documentation claims
+- Validate that referenced configuration files exist where claimed
+
+**Component & Feature Claims:**
+- For architecture docs claiming "System has components A, B, C" - read the actual source code
+- Check if documented components/classes/functions actually exist in the codebase
+- Verify CLI commands exist if documentation claims they're available
+
+**Implementation Status Claims:**
+- For status markers (✅ IMPLEMENTED, 🔴 PLANNED) - verify against actual code
+- Check if "planned" features are already implemented but not updated in docs
+
+#### 2. Find Missing Documentation (Reverse Analysis)
+**Scan codebase to identify undocumented features:**
+- Read key source directories (src/, lib/, bin/, tools/) to find major components
+- Check package.json, CLI entry points, and main modules for implemented features
+- Look for significant classes, services, interfaces, or tools not mentioned in documentation
+- Identify recently added features that may not be reflected in architecture docs
+
+**For architecture/system documentation specifically:**
+- Compare documented system components against actual code organization
+- Look for major implemented subsystems missing from architecture diagrams
+- Check if all main interfaces/entry points are documented
+
+**How to Perform Code Analysis:**
+1. **Forward validation**: For each documented claim, verify against actual code
+2. **Reverse validation**: Scan actual code to find major features missing from docs
+3. Use file reading tools to examine source code structure
+4. Focus on major components that users would need to know about
+5. Don't flag internal implementation details - focus on user-facing or architecturally significant features
+
+**For each code-related validation, ask:**
+- Does this documented claim match the actual code?
+- Are there major implemented features missing from this documentation section?
+- Would a developer/user be surprised by significant undocumented functionality?
 
 ## Universal Testing Approach
 

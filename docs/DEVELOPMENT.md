@@ -10,7 +10,7 @@
 - **Stage-Based Workflow Tools** (`src/tools/`): MCP tools for progressive configuration (recommend, chooseSolution, answerQuestion, generateManifests)
 - **Memory System** (`src/core/memory.ts`): Persistent memory for learning and context retention
 - **Workflow Engine** (`src/core/workflow.ts`): Orchestrates the application construction process
-- **CLI Interface** (`src/interfaces/cli.ts`): Command-line interface for direct usage
+- **Test Interface** (`src/interfaces/cli.ts`): Testing interface for development purposes
 - **MCP Interface** (`src/interfaces/mcp.ts`): Model Context Protocol server for tool integration
 
 ### Data Structures
@@ -77,7 +77,7 @@ The project maintains comprehensive test coverage:
 - **Unit Tests**: Core functionality and error conditions
 - **Integration Tests**: Real cluster connectivity using kind cluster
 - **TDD Tests**: Error handling and graceful degradation scenarios
-- **Manual Validation**: CLI output verification and data structure validation
+- **Manual Validation**: MCP tool verification and data structure validation
 
 Current coverage: **57.32% overall**
 
@@ -194,10 +194,3 @@ DEBUG=node dist/cli.js:* npm run mcp:start
 - [ ] **GitOps Integration**: Automated deployment pipeline integration
 - [ ] **Policy Engine**: Security and compliance policy validation
 
-## Legacy Code
-
-Legacy components are archived in `/src/legacy/` directory:
-- **Solution Enhancer** (`src/legacy/core/solution-enhancer.ts`): Original JSON-based enhancement approach
-- **Enhance Tool** (`src/legacy/tools/enhance-solution.ts`): CLI enhancement command
-
-These are kept for reference and can be safely removed after 6 months of new architecture stability.

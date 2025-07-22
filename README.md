@@ -6,51 +6,62 @@
 
 </div>
 
-DevOps AI Toolkit discovers your cluster's capabilities and uses AI to recommend the optimal way to deploy your applications. Works with any Kubernetes cluster, from basic setups to clusters with advanced operators like Crossplane or ArgoCD.
+DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, and **automated documentation testing** that validates documentation accuracy by executing commands and testing examples.
 
 ## Who is this for?
 
+### Kubernetes Deployment
 - **Developers**: Deploy applications without needing deep Kubernetes expertise
-- **AI Agents**: Integrate with Claude Code, Cursor, or VS Code for conversational deployments
 - **Platform Engineers**: *(Coming Soon)* Governance, policy enforcement, and organizational compliance features
+
+### Documentation Testing  
+- **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
+- **Technical Writers**: Identify which sections need updates and prioritize work effectively
+- **Open Source Maintainers**: Ensure documentation works correctly for new contributors
+
+### AI Integration
+- **AI Agents**: Integrate both capabilities with Claude Code, Cursor, or VS Code for conversational workflows
 
 ## Key Features
 
+### Kubernetes Deployment Intelligence
 🔍 **Smart Discovery**: Automatically finds all available resources and operators in your cluster  
 🤖 **AI Recommendations**: Get deployment suggestions tailored to your specific cluster setup  
-⚡ **Two Usage Modes**: Use directly via CLI or integrate with AI development tools  
 🔧 **Operator-Aware**: Leverages custom operators and CRDs when available  
 🚀 **Complete Workflow**: From discovery to deployment with automated Kubernetes integration
+
+### Documentation Testing & Validation
+📖 **Automated Testing**: Validates documentation by executing commands and testing examples  
+🔍 **Two-Phase Validation**: Tests both functionality (does it work?) and semantic accuracy (are descriptions truthful?)  
+🛠️ **Fix Application**: User-driven selection and application of recommended documentation improvements  
+💾 **Session Management**: Resumable testing workflows for large documentation sets
+
+### AI Integration
+⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
+🤖 **Conversational Interface**: Natural language interaction for both deployment and documentation testing workflows
 
 ## Quick Start
 
 ### Prerequisites
-- **Node.js 18+** and **kubectl** configured with cluster access
-  - Verify cluster access with: `kubectl get nodes`
-  - Should show your cluster nodes without authentication errors
-<!-- dotai-ignore: kubectl requirement not verifiable in current environment -->
-- **Claude API key** (required for AI recommendations)
+
+**For both features:**
+- **Claude API key** (required for AI analysis)
   - Get your API key from [Anthropic Console](https://console.anthropic.com/)
   - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
 
+**For Kubernetes deployment recommendations:**
+- **kubectl** configured with cluster access
+  - Verify cluster access with: `kubectl get nodes`
+  - Should show your cluster nodes without authentication errors
+<!-- dotai-ignore: kubectl requirement not verifiable in current environment -->
+
+**For documentation testing:**
+- **Documentation files** to test (Markdown, HTML, etc.)
+- **File system access** to the documentation you want to validate
+
 ### Installation
 
-**For CLI usage:**
-```bash
-# Option 1: Install globally for command-line usage
-npm install -g @vfarcic/dot-ai
-
-# Option 2: Use npx (no installation required, good if you can't install globally)
-# Just use 'npx @vfarcic/dot-ai' instead of 'dot-ai' in all commands
-
-# Required: Set up Claude API key
-export ANTHROPIC_API_KEY=your_api_key_here
-
-# Verify installation
-dot-ai --version
-```
-
-**For MCP/AI Agent usage:** No installation needed - uses npx automatically
+DevOps AI Toolkit is designed to be used through AI development tools via MCP (Model Context Protocol). No direct installation needed - simply configure your AI tool to connect to the MCP server.
 
 ### Choose Your Usage Path
 
@@ -75,20 +86,21 @@ Perfect for conversational deployments with AI agents:
 ```
 
 **Environment Variables:**
-- `ANTHROPIC_API_KEY`: Required for AI recommendations
+- `ANTHROPIC_API_KEY`: Required for AI analysis (both features)
 - `DOT_AI_SESSION_DIR`: Required session directory (relative paths are relative to where the AI agent is started)
-- `KUBECONFIG`: Optional kubeconfig path (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
+- `KUBECONFIG`: Optional kubeconfig path for Kubernetes deployments (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
 
 2. **Start Claude Code with MCP enabled:**
 ```bash
-# Create session directory (relative to dot-ai cwd)
+# Create session directory (relative to the project)
 mkdir -p tmp/sessions
+
 claude
 ```
 
-3. **Use conversational workflow:**
+3. **Use conversational workflows:**
 
-**Example conversation with AI agent:**
+**Example: Kubernetes Deployment**
 ```
 User: I want to deploy a web application to my cluster
 
@@ -106,63 +118,31 @@ Agent: Perfect! Generating manifests and deploying now...
 Agent: ✅ Successfully deployed! Your application is running.
 ```
 
-📖 **[Complete MCP Setup Guide →](docs/mcp-guide.md)** - Detailed configuration, troubleshooting, and examples
+**Example: Documentation Testing**
+```
+User: I want to test my README.md file to make sure all the examples work
 
-#### Option B: Command Line Interface
-For scripting and direct usage (requires global installation):
+Agent: I'll help you test your README.md for accuracy. Let me start a documentation testing session.
+[Uses testDocs tool]
 
-```bash
-# 0. Create session directory (required)
-mkdir -p tmp/sessions
+Agent: Found 6 testable sections in your README. Testing installation instructions...
 
-# 1. Get AI recommendations (includes cluster discovery)
-dot-ai recommend --intent "deploy a web application" --session-dir tmp/sessions
+✅ npm install command works correctly
+❌ Configuration example has wrong port number (8080 vs 3000)
+⚠️  Claims "works out of the box" but requires additional setup
 
-# 2. Choose a solution
-dot-ai choose-solution --solution-id sol_xxx --session-dir tmp/sessions
+Which issues would you like me to help you fix?
 
-# 3. Configure step-by-step (all stages required)
-dot-ai answer-question --solution-id sol_xxx --stage required --answers {...} --session-dir tmp/sessions
-dot-ai answer-question --solution-id sol_xxx --stage basic --answers {} --session-dir tmp/sessions
-dot-ai answer-question --solution-id sol_xxx --stage advanced --answers {} --session-dir tmp/sessions
-dot-ai answer-question --solution-id sol_xxx --stage open --answers {"open":"N/A"} --session-dir tmp/sessions
+User: Fix the port number directly in the doc, and I'll create a GitHub issue for the setup requirements.
 
-# 4. Generate manifests
-dot-ai generate-manifests --solution-id sol_xxx --session-dir tmp/sessions
-
-# 5. Deploy to cluster
-dot-ai deploy-manifests --solution-id sol_xxx --session-dir tmp/sessions
+Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue tracked externally.
 ```
 
-📖 **[Complete CLI Guide →](docs/cli-guide.md)** - Detailed command-line interface documentation
+📖 **[Complete MCP Setup Guide →](docs/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
+
+
 
 ## Troubleshooting
-
-### Installation Issues
-
-**Package not found:**
-```bash
-# If you get "package not found" errors:
-npm cache clean --force
-npm install -g @vfarcic/dot-ai
-```
-
-**Permission errors on global install:**
-```bash
-# Use npm's recommended approach for global packages:
-mkdir ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-npm install -g @vfarcic/dot-ai
-```
-
-### CLI Issues
-
-**"dot-ai: command not found":**
-- Ensure global installation: `npm install -g @vfarcic/dot-ai`
-- Check PATH includes npm global bin: `npm config get prefix`
-- Verify installation: `npm list -g @vfarcic/dot-ai`
 
 ### MCP Issues
 
@@ -179,8 +159,9 @@ npm install -g @vfarcic/dot-ai
 ## Documentation
 
 ### 🚀 Getting Started
-- **[CLI Guide](docs/cli-guide.md)** - Complete command-line usage and examples
-- **[MCP Integration Guide](docs/mcp-guide.md)** - AI tools integration (Claude Code, Cursor)
+- **[MCP Setup Guide](docs/mcp-setup.md)** - AI tools integration (Claude Code, Cursor)
+- **[MCP Recommendation Guide](docs/mcp-recommendation-guide.md)** - Kubernetes deployment recommendations  
+- **[MCP Documentation Testing Guide](docs/mcp-documentation-testing-guide.md)** - Automated documentation validation
 
 ### 👩‍💻 Development  
 - **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
@@ -200,7 +181,7 @@ npm install -g @vfarcic/dot-ai
 - **[Next Steps & Roadmap](docs/NEXT_STEPS.md)** - Planned features and future vision
 
 **Quick Navigation:**
-- **New to DevOps AI Toolkit?** → Start with [CLI Guide](docs/cli-guide.md) or [MCP Guide](docs/mcp-guide.md)
+- **New to DevOps AI Toolkit?** → Start with [MCP Setup Guide](docs/mcp-setup.md)
 - **Building integrations?** → See [API Reference](docs/API.md)
 - **Contributing code?** → Read [Development Guide](docs/DEVELOPMENT.md)
 - **Understanding architecture?** → Check [Design Overview](docs/design.md)

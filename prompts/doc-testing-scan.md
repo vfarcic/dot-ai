@@ -1,97 +1,78 @@
 # Documentation Testing - Scan Phase
 
-You are analyzing documentation to identify all testable content. Your goal is to find every piece of content that can be validated, executed, or verified in any type of documentation.
+You are analyzing documentation to identify all content that can be validated through testing. Your goal is to find every section containing factual claims, executable instructions, or verifiable information.
 
 ## File to Analyze
 **File**: {filePath}
 **Session**: {sessionId}
 
+## Core Testing Philosophy
+
+**Most technical documentation is testable** through two validation approaches:
+1. **Functional Testing**: Execute instructions and verify they work
+2. **Factual Verification**: Compare claims against actual system state
+
 ## Comprehensive Content Discovery
 
-Scan the documentation systematically and identify ALL types of testable content:
+### 1. Executable & Interactive Content
+- **Commands & Scripts**: Shell commands, CLI tools, code snippets, scripts
+- **Workflows & Procedures**: Step-by-step instructions, installation guides, setup procedures
+- **API & Network Operations**: REST calls, database queries, connectivity tests
+- **File & System Operations**: File creation, directory structures, permission changes
+- **Configuration Examples**: Config files, environment variables, system settings
 
-### 1. Executable Content
-- **Shell commands**: Terminal commands in any shell (bash, zsh, powershell, cmd)
-- **Code snippets**: Runnable code in any programming language
-- **Scripts**: Batch files, shell scripts, automation scripts
-- **CLI invocations**: Command-line tool usage examples
-- **Package management**: npm, pip, apt, yum, composer, cargo, etc.
-- **Build/deployment commands**: make, gradle, docker, kubectl, etc.
-- **Database queries**: SQL, NoSQL, database-specific commands
+### 2. Factual Claims & System State
+- **Architecture Descriptions**: System components, interfaces, data flows
+- **Implementation Status**: What's implemented vs planned, feature availability
+- **File Structure Claims**: File/directory existence, code organization, module descriptions
+- **Component Descriptions**: What each part does, how components interact
+- **Capability Claims**: Supported features, available commands, system abilities
+- **Version & Compatibility Info**: Software versions, platform support, dependencies
 
-### 2. Links & References Validation
+### 3. References & Links
 - **External URLs**: Web links, API endpoints, documentation references
-- **Internal file references**: Relative paths, documentation cross-references
-- **Repository links**: GitHub, GitLab, Bitbucket URLs
-- **Download links**: Software downloads, assets, resources
-- **Image references**: Screenshots, diagrams, logos, figures
-- **Anchor links**: In-page navigation, table of contents links
+- **Internal References**: File paths, code references, documentation cross-links
+- **Resource References**: Images, downloads, repositories, configuration files
 
-### 3. File & Directory Operations
-- **File creation**: Instructions to create, edit, or modify files
-- **Directory structures**: Path references, folder hierarchies
-- **File existence checks**: References to files that should exist
-- **Permission operations**: chmod, file ownership changes
-- **File downloads**: wget, curl, browser downloads
-- **Configuration file paths**: Application configs, system files
-
-### 4. Configuration & Environment
-- **Environment variables**: Variables to set or reference
-- **Configuration files**: JSON, YAML, TOML, XML, INI structures  
-- **System settings**: Registry entries, system preferences
-- **Service configurations**: Database connections, API keys, endpoints
-- **Runtime parameters**: Command flags, application settings
-- **Path configurations**: CLASSPATH, PATH, library paths
-
-### 5. Installation & Prerequisites
-- **Software installation**: Package installations, software setup
-- **System requirements**: OS versions, hardware requirements
-- **Dependency management**: Libraries, frameworks, tools needed
-- **Version specifications**: Minimum/maximum version requirements
-- **Platform compatibility**: OS-specific instructions
-- **Permission requirements**: Admin/root access, user permissions
-
-### 6. Network & Connectivity
-- **API endpoints**: REST calls, GraphQL queries, SOAP requests
-- **Port configurations**: Service ports, firewall settings
-- **Network tests**: ping, telnet, curl connectivity checks
-- **Service availability**: Health checks, status endpoints
-- **Authentication**: Login procedures, token generation
-- **Protocol specifications**: HTTP, HTTPS, FTP, SSH usage
-
-### 7. Interactive Workflows
-- **Step-by-step procedures**: Multi-step processes with dependencies
-- **User interface interactions**: Button clicks, form submissions, navigation
-- **Wizard workflows**: Sequential setup procedures
-- **Q&A examples**: Input/output examples with expected responses
-- **Troubleshooting flows**: Problem identification and resolution steps
-- **Tutorial sequences**: Learning paths with validation points
-
-### 8. Verification & Testing
-- **Version checks**: Commands that should return version information
-- **Status commands**: System status, service health checks
-- **Validation commands**: Configuration validation, syntax checking
-- **Test procedures**: Unit tests, integration tests, smoke tests
-- **Expected outputs**: Sample outputs, expected results, success indicators
-- **Error scenarios**: Expected failures, error handling examples
+### 4. Examples & Demonstrations
+- **Code Examples**: Function usage, API calls, configuration samples
+- **Sample Outputs**: Expected results, error messages, status displays
+- **Use Case Scenarios**: Workflow examples, integration patterns
 
 ## Content Classification Strategy
 
-### What TO Include (Testable Content)
-- Any instruction that produces a measurable outcome
-- References that can be verified to exist or be accessible
-- Configurations that can be validated for correctness
-- Prerequisites that can be checked for availability
-- Workflows that can be executed step-by-step
-- Claims that can be fact-checked or demonstrated
+### What TO Include (Testable Sections)
+- **Any factual claim** that can be verified against system state
+- **Any instruction** that can be executed or followed
+- **Any reference** that can be checked for existence or accessibility
+- **Any example** that can be validated for correctness
+- **Any workflow** that can be tested end-to-end
+- **Any status claim** that can be fact-checked (implemented vs planned)
+- **Any architectural description** that can be compared to actual code
 
-### What NOT to Include (Descriptive Content)
-- Marketing copy and feature descriptions
-- Conceptual explanations without actionable steps
-- Background information and context setting
-- Pure narrative text without instructions
-- Theoretical discussions without practical application
-- Acknowledgments, legal text, and metadata
+### What NOT to Include (Non-Testable Sections)
+- **Pure marketing copy** with no factual claims
+- **Abstract theory** with no concrete implementation details
+- **General philosophy** without specific claims
+- **Legal text** (licenses, terms, copyright)
+- **Pure acknowledgments** without technical content
+- **Speculative future plans** with no current implementation claims
+
+### Examples of Testable vs Non-Testable Content
+
+#### ✅ TESTABLE:
+- "The CLI has a `recommend` command" → Can verify command exists
+- "Files are stored in `src/core/discovery.ts`" → Can check file exists
+- "The system supports Kubernetes CRDs" → Can test CRD discovery
+- "Run `npm install` to install dependencies" → Can execute command
+- "The API returns JSON format" → Can verify API response format
+
+#### ❌ NON-TESTABLE:
+- "This tool helps developers be more productive" → Subjective claim
+- "Kubernetes is a container orchestration platform" → General background info
+- "We believe in developer-first experiences" → Philosophy statement
+- "Thanks to all contributors" → Acknowledgment
+- "The future of DevOps is bright" → Speculative statement
 
 ## Document Structure Analysis
 
