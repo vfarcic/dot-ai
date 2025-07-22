@@ -39,6 +39,37 @@ export function sanitizeIntentForLabel(intent: string): string {
 }
 
 /**
+ * Sanitize string for use as Kubernetes resource name (RFC 1123 subdomain)
+ * Names must be lowercase alphanumeric characters, hyphens, or periods
+ * Must start and end with alphanumeric character, max 63 characters
+ */
+export function sanitizeKubernetesName(name: string): string {
+  if (!name) {
+    return 'default-name';
+  }
+  
+  let sanitized = name
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, '-') // Replace invalid chars with hyphens
+    .substring(0, 63); // Enforce max length
+  
+  // Remove leading/trailing dots or hyphens
+  sanitized = sanitized.replace(/^[.-]+|[.-]+$/g, '');
+  
+  // Ensure starts with alphanumeric
+  if (sanitized && !/^[a-z0-9]/.test(sanitized)) {
+    sanitized = 'a' + sanitized.substring(1);
+  }
+  
+  // Ensure ends with alphanumeric
+  if (sanitized && !/[a-z0-9]$/.test(sanitized)) {
+    sanitized = sanitized.substring(0, sanitized.length - 1) + 'z';
+  }
+  
+  return sanitized || 'default-name';
+}
+
+/**
  * Generate standard dot-ai labels for Kubernetes resources
  */
 export function generateDotAiLabels(userAnswers: Record<string, any>, solution: any): Record<string, string> {

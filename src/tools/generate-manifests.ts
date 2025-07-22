@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
-import { extractUserAnswers, addDotAiLabels } from '../core/solution-utils';
+import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -338,7 +338,7 @@ function generateMetadataConfigMap(solution: any, userAnswers: Record<string, an
     apiVersion: 'v1',
     kind: 'ConfigMap',
     metadata: {
-      name: `dot-ai-app-${appName}-${solutionId}`,
+      name: sanitizeKubernetesName(`dot-ai-app-${appName}-${solutionId}`),
       namespace: namespace,
       labels: dotAiLabels,
       annotations: {

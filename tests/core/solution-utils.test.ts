@@ -2,7 +2,7 @@
  * Tests for Solution Utils
  */
 
-import { extractUserAnswers, sanitizeIntentForLabel, generateDotAiLabels, addDotAiLabels } from '../../src/core/solution-utils';
+import { extractUserAnswers, sanitizeIntentForLabel, sanitizeKubernetesName, generateDotAiLabels, addDotAiLabels } from '../../src/core/solution-utils';
 
 describe('Solution Utils', () => {
   describe('extractUserAnswers', () => {
@@ -91,6 +91,90 @@ describe('Solution Utils', () => {
       const result = extractUserAnswers(solution);
 
       expect(result).toEqual({});
+    });
+  });
+
+  describe('sanitizeKubernetesName', () => {
+    it('should sanitize solution ID with underscores for ConfigMap name', () => {
+      const name = 'dot-ai-app-myapp-sol_2025-07-22T081656_39e3244d6653';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('dot-ai-app-myapp-sol-2025-07-22t081656-39e3244d6653');
+      expect(result).toMatch(/^[a-z0-9.-]+$/); // Only valid characters
+      expect(result.length).toBeLessThanOrEqual(63);
+    });
+
+    it('should handle typical ConfigMap name from issue 26', () => {
+      const name = 'dot-ai-app-test-webapp-sol_2025-07-22T081656_39e3244d6653';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('dot-ai-app-test-webapp-sol-2025-07-22t081656-39e3244d6653');
+      expect(result).not.toContain('_'); // No underscores
+      expect(result).toMatch(/^[a-z0-9].*[a-z0-9]$/); // Starts and ends with alphanumeric
+    });
+
+    it('should truncate long names to 63 characters', () => {
+      const longName = 'very-long-app-name-that-exceeds-kubernetes-limit-with-solution-id-sol_2025-07-22T081656_39e3244d6653-and-more';
+      const result = sanitizeKubernetesName(longName);
+      
+      expect(result.length).toBeLessThanOrEqual(63);
+      expect(result).toMatch(/^[a-z0-9].*[a-z0-9]$/); // Valid start/end
+    });
+
+    it('should replace invalid characters with hyphens', () => {
+      const name = 'my_app@domain.com#version!';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('my-app-domain.com-version');
+    });
+
+    it('should handle names starting with invalid characters', () => {
+      const name = '-starts-with-hyphen';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toMatch(/^[a-z0-9]/); // Must start with alphanumeric
+    });
+
+    it('should handle names ending with invalid characters', () => {
+      const name = 'ends-with-hyphen-';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toMatch(/[a-z0-9]$/); // Must end with alphanumeric
+    });
+
+    it('should preserve valid names', () => {
+      const name = 'valid-kubernetes-name-123';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('valid-kubernetes-name-123');
+    });
+
+    it('should handle names with periods (valid for DNS subdomain)', () => {
+      const name = 'app.service.namespace';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('app.service.namespace');
+    });
+
+    it('should handle empty string', () => {
+      const name = '';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('default-name'); // Fallback
+    });
+
+    it('should handle string with only invalid characters', () => {
+      const name = '___@@@___';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('default-name'); // Fallback when result would be empty
+    });
+
+    it('should handle mixed case and convert to lowercase', () => {
+      const name = 'MyApp-Solution_ID_2025';
+      const result = sanitizeKubernetesName(name);
+      
+      expect(result).toBe('myapp-solution-id-2025');
     });
   });
 

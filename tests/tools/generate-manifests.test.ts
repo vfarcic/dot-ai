@@ -992,5 +992,6 @@ spec:
       await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
         .rejects.toHaveProperty('message', 'Application name is required for dot-ai labels. This indicates a bug in the MCP workflow.');
     });
+
   });
 });
