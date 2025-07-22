@@ -10,9 +10,18 @@ You are helping create a Product Requirements Document (PRD) for a new feature. 
 ## Process
 
 ### Step 1: Understand the Feature Concept
-Ask the user to describe the feature idea. Then create a short GitHub issue that captures the core concept.
+Ask the user to describe the feature idea to understand the core concept and scope.
 
-### Step 2: Create Detailed PRD Through Discussion
+### Step 2: Create GitHub Issue FIRST
+Create the GitHub issue immediately to get the issue ID. This ID is required for proper PRD file naming.
+
+### Step 3: Create PRD File with Correct Naming
+Create the PRD file using the actual GitHub issue ID: `prds/[issue-id]-[feature-name].md`
+
+### Step 4: Update GitHub Issue with PRD Link
+Add the PRD file link to the GitHub issue description now that the filename is known.
+
+### Step 5: Create Detailed PRD Through Discussion
 Work through each section of the PRD template below with the user. **Discuss each section** to ensure clarity and completeness before moving to the next.
 
 ## GitHub Issue Template (Keep Short & Stable)
@@ -258,24 +267,31 @@ Work through each section of the PRD template below with the user. **Discuss eac
 ## Workflow
 
 1. **Concept Discussion**: Get the basic idea and validate the need
-2. **Create GitHub Issue**: Short, stable concept description  
-3. **Create PRD File**: Detailed document in `.prds/[feature-name].md`
-4. **Section-by-Section Discussion**: Work through each template section systematically
-5. **Checkbox Population**: Ensure all trackable items have checkboxes
-6. **Link Integration**: GitHub issue references PRD file
+2. **Create GitHub Issue FIRST**: Short, stable concept description to get issue ID
+3. **Create PRD File**: Detailed document using actual issue ID: `prds/[issue-id]-[feature-name].md`
+4. **Update GitHub Issue**: Add link to PRD file now that filename is known
+5. **Section-by-Section Discussion**: Work through each template section systematically
+6. **Checkbox Population**: Ensure all trackable items have checkboxes
 7. **Review & Validation**: Ensure completeness and clarity
+
+**CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.
 
 ## File Management
 
 ```bash
-# Create prds directory if it doesn't exist
+# 1. Create GitHub issue FIRST to get issue ID
+gh issue create --title "PRD: [Feature Name]" --body "[brief description]" --label PRD
+
+# 2. Create prds directory if it doesn't exist
 mkdir -p prds
 
-# Create the PRD file
-touch prds/[issue-id]-[feature-name].md
+# 3. Create the PRD file using the actual issue ID from step 1
+touch prds/[actual-issue-id]-[feature-name].md
 
-# Link from GitHub issue to PRD file
-[prds/[issue-id]-[feature-name].md](./prds/[issue-id]-[feature-name].md)
+# 4. Update GitHub issue to add PRD link now that filename is known
+gh issue edit [issue-id] --body "[original-body]
+
+**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](./prds/[actual-issue-id]-[feature-name].md)"
 ```
 
 ## Example Output
