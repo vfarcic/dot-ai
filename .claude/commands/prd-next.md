@@ -6,15 +6,59 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 
 ## Process Overview
 
-1. **Identify Target PRD** - Determine which PRD to analyze
+1. **Auto-Detect Target PRD** - Intelligently determine which PRD to analyze using context clues
 2. **Analyze Current Implementation** - Understand what's implemented vs what's missing
 3. **Identify the Single Best Next Task** - Find the one task that should be worked on next
 4. **Present Recommendation** - Give clear rationale and wait for confirmation
 5. **Design Discussion** - If confirmed, dive into implementation design details
 
-## Step 1: PRD Analysis
+## Step 1: Smart PRD Detection
 
-Ask the user which PRD to analyze, then:
+**Auto-detect the target PRD using these context clues (in priority order):**
+
+1. **Git Branch Analysis** - Check current branch name for PRD patterns:
+   - `feature/prd-12-*` → PRD 12
+   - `prd-13-*` → PRD 13
+   - `feature/prd-*` → Extract PRD number
+
+2. **Recent Git Commits** - Look at recent commit messages for PRD references:
+   - "fix: PRD 12 documentation" → PRD 12
+   - "feat: implement prd-13 features" → PRD 13
+
+3. **Git Status Analysis** - Check modified/staged files for PRD clues:
+   - Modified `prds/12-*.md` → PRD 12
+   - Changes in feature-specific directories
+
+4. **Available PRDs Discovery** - List all PRDs in `prds/` directory:
+   - `prds/12-documentation-testing.md`
+   - `prds/13-cicd-documentation-testing.md`
+
+5. **Fallback to User Choice** - Only if context detection fails, ask user to specify
+
+**PRD Detection Implementation:**
+```bash
+# Use these tools to gather context:
+# 1. Check git branch: gitStatus shows current branch
+# 2. Check git status: Look for modified PRD files  
+# 3. List PRDs: Use LS or Glob to find prds/*.md files
+# 4. Recent commits: Use Bash 'git log --oneline -n 5' for recent context
+```
+
+**Detection Logic:**
+- **High Confidence**: Branch name matches PRD pattern (e.g., `feature/prd-12-documentation-testing`)
+- **Medium Confidence**: Modified PRD files in git status or recent commits mention PRD
+- **Low Confidence**: Multiple PRDs available, use heuristics (most recent, largest)
+- **No Context**: Present available options to user
+
+**Example Detection Outputs:**
+```markdown
+🎯 **Auto-detected PRD 12** (Documentation Testing)
+- Branch: `feature/prd-12-documentation-testing` ✅
+- Modified files: `prds/12-documentation-testing.md` ✅
+- Recent commits mention PRD 12 features ✅
+```
+
+**Once PRD is identified:**
 - Read the PRD file from `prds/[issue-id]-[feature-name].md`
 - Analyze completion status across all sections
 - Identify patterns in completed vs remaining work
