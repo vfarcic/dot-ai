@@ -42,7 +42,7 @@ DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes d
 💾 **Session Management**: Resumable testing workflows for large documentation sets
 
 ### Shared Prompts Library
-🎯 **Native Slash Commands**: Prompts appear as `/mcp__dot-ai__prompt-name` in your coding agent  
+🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
 📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
 🔄 **Zero Setup**: Connect to MCP server and prompts are immediately available across all projects  
 🤝 **Team Consistency**: Standardized prompt usage with centralized management
@@ -51,14 +51,20 @@ DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes d
 ⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
 🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, and shared prompt workflows
 
+**Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.
+
 ## Quick Start
 
 ### Prerequisites
 
-**For both features:**
+**For Kubernetes deployment and documentation testing:**
 - **Claude API key** (required for AI analysis)
-  - Get your API key from [Anthropic Console](https://console.anthropic.com/)
+  - Get your API key from [Anthropic Console](https://console.anthropic.com/) (requires account login)
+  <!-- dotai-ignore: Console URL may return 403 - expected behavior for auth-protected endpoint -->
   - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
+
+**For shared prompts library:**
+- **No API key required** - Works with any MCP-enabled coding agent
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
@@ -74,12 +80,13 @@ DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes d
 
 DevOps AI Toolkit is designed to be used through AI development tools via MCP (Model Context Protocol). No direct installation needed - simply configure your AI tool to connect to the MCP server.
 
-### Choose Your Usage Path
+### Usage
 
-#### Option A: AI Agent Integration (Claude Code Example)
-Perfect for conversational deployments with AI agents:
+**AI Agent Integration (Claude Code Example)**
+Perfect for conversational AI-driven workflows:
 
 1. **Create `.mcp.json` in your project:**
+<!-- dotai-ignore: MCP server binary (dot-ai-mcp) not testable as CLI - only works through MCP client connections -->
 ```json
 {
   "mcpServers": {
@@ -107,6 +114,9 @@ Perfect for conversational deployments with AI agents:
 mkdir -p tmp/sessions
 
 claude
+
+# Verify MCP server connection
+# You should see "dot-ai" listed as an available MCP server
 ```
 
 3. **Use conversational workflows:**
@@ -149,6 +159,24 @@ User: Fix the port number directly in the doc, and I'll create a GitHub issue fo
 Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue tracked externally.
 ```
 
+*Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
+
+**Example: Shared Prompts Library**
+```
+# Conversational approach
+User: I want to create a new PRD for a feature
+
+Agent: I'll help you create a documentation-first PRD. Let me start the process.
+[Uses prd-create prompt via /dot-ai:prd-create]
+
+Agent: Great! I've created GitHub issue #34 and the PRD file. What feature would you like to document?
+
+# Direct slash command approach  
+User: /dot-ai:prd-create
+
+Agent: I'm executing the PRD creation workflow. Please describe the feature you want to create a PRD for...
+```
+
 📖 **[Complete MCP Setup Guide →](docs/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
 
 
@@ -158,7 +186,7 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 ### MCP Issues
 
 **MCP server won't start:**
-- Verify environment variables are set in `.mcp.json`
+- Verify environment variables are correctly configured in `.mcp.json` env section
 - Check session directory exists and is writable
 - Ensure `ANTHROPIC_API_KEY` is valid
 

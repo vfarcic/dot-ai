@@ -12,6 +12,16 @@ MCP Prompts provide a centralized way to share and discover prompts across proje
 - **Instant updates**: New prompts added to server are immediately available to all users
 - **Team consistency**: Everyone uses the same proven prompts
 
+## Prerequisites
+
+Before using MCP Prompts, you need:
+- **MCP-enabled coding agent** (Claude Code, Cursor, or VS Code with MCP extension)  
+- **Successfully configured dot-ai MCP server connection**
+
+**Setup Required**: Follow the [MCP Setup Guide](./mcp-setup.md) to configure your environment before proceeding.
+
+**Note**: The Anthropic API key is only required for AI-powered tools (like deployment recommendations), not for using the shared prompts library.
+
 ## How It Works
 
 The dot-ai MCP server implements the standard MCP Prompts specification, exposing two key endpoints:
@@ -19,30 +29,46 @@ The dot-ai MCP server implements the standard MCP Prompts specification, exposin
 - **`prompts/list`**: Returns all available prompts with metadata
 - **`prompts/get`**: Returns specific prompt content by ID
 
-When you connect to the MCP server, your coding agent automatically discovers available prompts and makes them available as slash commands. The exact format depends on your agent, but typically follows patterns like `/mcp__dot-ai__prompt-name`.
+When you connect to the MCP server, your coding agent automatically discovers available prompts and makes them accessible through agent-specific interfaces. The access method varies by agent - some use slash commands, others integrate prompts as available tools.
 
 ## Using Shared Prompts
 
 ### Discovering Available Prompts
 
 1. Ensure you're connected to the dot-ai MCP server (see [MCP Setup Guide](./mcp-setup.md))
-2. In your coding agent, access the command palette (for example, type `/` in Claude Code)
-3. Look for commands starting with your server prefix (e.g., `/mcp__dot-ai__`) - these are shared prompts
-4. Browse the list to see all available prompts with descriptions
+2. Access prompts using your agent's interface:
+   - **Claude Code**: Type `/` and look for `/dot-ai:prompt-name` commands
+   - **VS Code + GitHub Copilot**: Use `/mcp.dot-ai.prompt-name` format
+   - **Cursor**: Ask the agent to use specific prompts by name from available tools
+3. Browse available prompts through your agent's discovery interface
 
 ### Executing Shared Prompts
 
-Using shared prompts works like any other slash command in your coding agent:
+Using shared prompts varies by coding agent:
 
+**Claude Code:**
 ```bash
 # Create a new PRD
-/mcp__dot-ai__prd-create
+/dot-ai:prd-create
 
 # Get current PRD status
-/mcp__dot-ai__prds-get
+/dot-ai:prds-get
+```
 
-# Test documentation accuracy
-/mcp__dot-ai__test-docs
+**VS Code + GitHub Copilot:**
+```bash
+# Create a new PRD
+/mcp.dot-ai.prd-create
+
+# Get current PRD status
+/mcp.dot-ai.prds-get
+```
+
+**Cursor:**
+```
+# Ask the agent to use the tool by name
+Use the prd-create prompt to create a new PRD
+Run the prds-get prompt to show current PRD status
 ```
 
 The prompt content executes exactly as if it were a local command file, but without any file management on your part.
@@ -93,13 +119,6 @@ The prompt content executes exactly as if it were a local command file, but with
 - **Use when**: Before marking any task as complete to ensure all tests are written, run, and passing
 - **Example**: Before completing implementation work to verify testing standards are met
 
-### Documentation Prompts
-
-**`test-docs`**
-- **Purpose**: Validate documentation against actual code implementation by functionally testing all commands, examples, and workflows
-- **Use when**: Need to verify documentation accuracy, detect content drift, find broken examples, or validate that documented features actually work
-- **Example**: After code changes to ensure documentation still matches implementation
-
 ### Session Management Prompts
 
 **`context-save`**
@@ -116,27 +135,55 @@ The prompt content executes exactly as if it were a local command file, but with
 
 ### Workflow 1: Complete PRD Lifecycle
 
-1. **Start new feature**: Use `prd-create` to create comprehensive requirements document
-2. **Check priorities**: Use `prds-get` to see all active PRDs and priorities
-3. **Begin implementation**: Use `prd-start` to begin working on specific PRD
-4. **Get next task**: Use `prd-next` to identify highest-priority remaining work
-5. **Update progress**: Use `prd-update-progress` after completing implementation tasks
-6. **Finalize**: Use `prd-done` to deploy, merge, and close out completed work
+- **Start new feature**: Use `prd-create` prompt to create comprehensive requirements document
+  1. GitHub issue created with PRD label
+  2. PRD file generated with proper naming
+  3. Complete documentation content written across multiple files with traceability
 
-### Workflow 2: Documentation-Driven Development
+- **Check priorities**: Use `prds-get` prompt to see all active PRDs and priorities
+  1. Open PRD issues fetched from GitHub
+  2. Issues formatted with status analysis
+  3. Next steps recommendations provided
 
-1. **Create feature docs**: Document the feature as if it already exists
-2. **Validate documentation**: Use `test-docs` to ensure all examples and commands work
-3. **Implement to match docs**: Build functionality that matches documented behavior
-4. **Re-validate**: Use `test-docs` again to confirm implementation matches documentation
-5. **Update PRD**: Use `prd-update-progress` to mark documentation and implementation complete
+- **Begin implementation**: Use `prd-start` prompt to begin working on specific PRD
+  1. Target PRD auto-detected from context
+  2. PRD readiness validated
+  3. Feature branch created
+  4. First implementation task identified with detailed plan
 
-### Workflow 3: Session Continuity
+- **Get next task**: Use `prd-next` prompt to identify highest-priority remaining work
+  1. Current PRD state analyzed
+  2. Single highest-value next task identified
+  3. Implementation design guidance provided
 
-1. **End of session**: Use `context-save` to preserve current work state
-2. **Resume later**: Use `context-load` to restore previous context
-3. **Continue work**: Use `prd-next` to identify next priority task
-4. **Maintain quality**: Use `tests-reminder` before marking tasks complete
+- **Update decisions**: Use `prd-update-decisions` prompt when design decisions are made during implementation
+  1. Conversation context analyzed for design decisions
+  2. Decision impact assessed across requirements and scope
+  3. PRD sections updated with new decisions and rationale
+
+- **Update progress**: Use `prd-update-progress` prompt after completing implementation tasks
+  1. Git commits and code changes analyzed
+  2. Changes mapped to PRD requirements
+  3. PRD checkboxes updated with work log entry
+
+- **Finalize**: Use `prd-done` prompt to deploy, merge, and close out completed work
+  1. Pre-completion validation performed
+  2. Pull request created and merged
+  3. GitHub issue closed with final validation
+
+### Workflow 2: Session Continuity
+
+- **End of session**: Use `context-save` prompt to preserve current work state
+  1. Current work context analyzed
+  2. Context saved to tmp/context.md file
+
+- **Resume later**: Use `context-load` prompt to restore previous context
+  1. Saved context loaded from tmp/context.md
+  2. Previous work state restored
+
+- **Maintain quality**: Use `tests-reminder` prompt before marking tasks complete
+  1. Testing requirements reviewed
+  2. Quality checklist provided
 
 ## Managing Prompts
 
@@ -157,12 +204,11 @@ To add a new prompt to the shared library:
 Prompts are organized by category:
 - **`project-management`**: PRD lifecycle and project tracking prompts
 - **`development`**: Code development and quality assurance prompts
-- **`documentation`**: Documentation creation and validation prompts
 - **`session-management`**: Work session continuity and context management
 
 ### Naming Conventions
 
-- Use descriptive, kebab-case names: `prd-create`, `test-docs`
+- Use descriptive, kebab-case names: `prd-create`, `context-save`
 - Include category prefix when helpful: `prd-next`, `context-save`
 - Keep names concise but clear
 - Avoid special characters or spaces
@@ -174,27 +220,34 @@ Prompts are organized by category:
 **Claude Code**: ✅ Full support
 - Native slash command integration
 - Prompt discovery through command menu
-- Prompts appear as `/mcp__dot-ai__prompt-name`
+- Prompts appear as `/dot-ai:prompt-name`
 
-**Other MCP-Enabled Agents**: 🔄 Testing in progress
-- Support varies by agent and MCP implementation
-- For example, Cursor and VS Code with MCP extensions may have different behaviors
-- See compatibility notes below
+**Other MCP-Enabled Agents**: 🤔 Expected to work (not validated)
+- Other agents should work since they follow MCP specifications, but this hasn't been validated
+- Cursor and VS Code with MCP extensions are expected to support prompts via different interfaces
+- **Help us validate**: Try these prompts in your agent and [report your experience via GitHub issues](https://github.com/vfarcic/dot-ai/issues)
 
 ### Agent-Specific Notes
 
-> **Note**: This section will be updated as cross-agent testing is completed
-
 **Claude Code**:
-- Prompts appear as `/mcp__dot-ai__prompt-name`
+- Prompts appear as `/dot-ai:prompt-name`
 - Full metadata support (descriptions in command menu)
 - Seamless integration with existing workflow
 
-**Other Agents**:
-- Compatibility testing in progress
+**VS Code + GitHub Copilot**: *(not yet tested)*
+- Prompts expected to appear as `/mcp.dot-ai.prompt-name`
+- Should work through chat interface slash commands
+- Expected integration with existing Copilot workflow
+
+**Cursor**: *(not yet tested)*
+- Prompts expected to appear as available tools in agent interface
+- Should work by asking agent to use specific prompt by name
+- Expected automatic tool discovery and integration
+
+**Other Agents**: *(not yet tested)*
 - Different agents may use different slash command formats
 - Some agents may have different prompt discovery mechanisms
-- Specific differences will be documented here as testing completes
+- Please test and report your experience via GitHub issues
 
 ## Contributing Prompts
 
@@ -204,6 +257,33 @@ Have a useful prompt to share? Contribute it to the shared library:
 2. **Add your prompt** to the `shared-prompts/` directory following existing naming conventions
 3. **Update the documentation** by adding your prompt to the "Available Prompts" section above
 4. **Submit a pull request** with a clear description of what the prompt does and when to use it
+
+### Prompt Metadata Format
+
+Each prompt file must include YAML frontmatter that defines how it appears in coding agents:
+
+```yaml
+---
+name: your-prompt-name
+description: Brief description of what this prompt does
+category: project-management
+---
+
+# Your Prompt Content
+
+Your prompt instructions go here...
+```
+
+**Metadata Fields:**
+- **`name`**: Becomes the slash command name (e.g., `name: prd-create` → `/dot-ai:prd-create`)
+- **`description`**: Shows up in coding agent command menus and help text
+- **`category`**: Used for organizing prompts in documentation (must be one of: `project-management`, `development`, `session-management`)
+
+**How It Works:**
+1. **MCP Server Processing**: The dot-ai MCP server reads these metadata fields from all prompt files
+2. **Standard MCP Endpoints**: Metadata is exposed via `prompts/list` and `prompts/get` MCP endpoints
+3. **Agent Integration**: Your coding agent discovers prompts through these endpoints and makes them available as slash commands
+4. **User Experience**: The `name` becomes the command, `description` appears in menus, and `category` organizes documentation
 
 **Contribution Guidelines:**
 - Use descriptive, kebab-case names (e.g., `database-optimization`, `api-security-review`)

@@ -12,13 +12,32 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 
 ## Process Overview
 
-1. **Auto-Detect Target PRD** - Intelligently determine which PRD to analyze using context clues
-2. **Analyze Current Implementation** - Understand what's implemented vs what's missing
-3. **Identify the Single Best Next Task** - Find the one task that should be worked on next
-4. **Present Recommendation** - Give clear rationale and wait for confirmation
-5. **Design Discussion** - If confirmed, dive into implementation design details
+1. **Check Context Clarity** - Determine if PRD is obvious from recent conversation
+2. **Auto-Detect Target PRD** - If context unclear, intelligently determine which PRD to analyze
+3. **Analyze Current Implementation** - Understand what's implemented vs what's missing (skip if recent context available)
+4. **Identify the Single Best Next Task** - Find the one task that should be worked on next
+5. **Present Recommendation** - Give clear rationale and wait for confirmation
+6. **Design Discussion** - If confirmed, dive into implementation design details
 
-## Step 1: Smart PRD Detection
+## Step 0: Context Awareness Check
+
+**FIRST: Check if PRD context is already clear from recent conversation:**
+
+**Skip detection/analysis if recent conversation shows:**
+- **Recent PRD work discussed** - "We just worked on PRD 29", "Just completed PRD update", etc.
+- **Specific PRD mentioned** - "PRD #X", "MCP Prompts PRD", etc.
+- **PRD-specific commands used** - Recent use of `prd-update-progress`, `prd-start` with specific PRD
+- **Clear work context** - Discussion of specific features, tasks, or requirements for a known PRD
+
+**If context is clear:**
+- Skip to Step 6 (Single Task Recommendation) using the known PRD 
+- Use conversation history to understand current state and recent progress
+- Proceed directly with task recommendation based on known PRD status
+
+**If context is unclear:**
+- Continue to Step 1 (PRD Detection) for full analysis
+
+## Step 1: Smart PRD Detection (Only if Context Unclear)
 
 **Auto-detect the target PRD using these context clues (in priority order):**
 
@@ -69,7 +88,7 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 - Analyze completion status across all sections
 - Identify patterns in completed vs remaining work
 
-## Step 2: Documentation & Implementation Analysis
+## Step 2: Documentation & Implementation Analysis (Only if Context Unclear)
 
 Before assessing task priorities, analyze both the documented specifications and current implementation state:
 
@@ -99,7 +118,7 @@ For PRDs using the documentation-first approach:
 - **Integration points**: How new work connects with current implementation
 - **Technical debt**: Issues that might block or slow future work
 
-## Step 3: Completion Assessment
+## Step 3: Completion Assessment (Only if Context Unclear)
 
 ### Analyze Checkbox States
 Count and categorize all checkboxes:
@@ -122,7 +141,7 @@ Review requirement categories:
 - **Dependencies**: External requirements
 - **Risk Mitigation**: Risk management progress
 
-## Step 4: Dependency Analysis
+## Step 4: Dependency Analysis (Only if Context Unclear)
 
 ### Identify Critical Path Items
 Look for items that:
@@ -145,7 +164,7 @@ Look for items that:
 - **Test dependencies** - Tests that require certain infrastructure or mocks
 - **Build/deployment** - Configuration changes that affect multiple components
 
-## Step 5: Strategic Value Assessment
+## Step 5: Strategic Value Assessment (Only if Context Unclear)
 
 ### High-Value Next Steps
 Prioritize items that:
@@ -163,6 +182,8 @@ Identify items that:
 - **Require external dependencies** - Waiting on others
 
 ## Step 6: Single Task Recommendation
+
+**Note**: If you arrived here from Step 0 (clear context), use the conversation history and known PRD state to make your recommendation. If you came through the full analysis, use your detailed findings.
 
 Present findings in this focused format:
 

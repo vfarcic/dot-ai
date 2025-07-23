@@ -11,7 +11,7 @@ category: project-management
 You are helping create a documentation-first Product Requirements Document (PRD) for a new feature. This process involves three components:
 
 1. **GitHub Issue**: Short, immutable concept description that links to the detailed PRD
-2. **PRD File**: Project management document with task tracking, progress logs, and references to documentation
+2. **PRD File**: Project management document with milestone tracking, progress logs, and references to documentation
 3. **Documentation Updates**: Actual user-facing content written directly into documentation files with PRD traceability comments
 
 ## Process
@@ -76,7 +76,28 @@ Based on the analysis, create comprehensive checklist of ALL documentation files
 Create/update ALL user-facing documentation content with `<!-- PRD-[issue-id] -->` comments for traceability, following established patterns.
 
 ### Step 8: Create PRD as Project Tracker
-Work through the PRD template focusing on project management, task tracking, and references to the documentation content.
+Work through the PRD template focusing on project management, milestone tracking, and references to the documentation content.
+
+**Key Principle**: Focus on 5-10 major milestones rather than exhaustive task lists. Each milestone should represent meaningful progress that can be clearly validated.
+
+**Good Milestones Examples:**
+- [ ] Core functionality implemented and working
+- [ ] Documentation complete and tested
+- [ ] Integration with existing systems working
+- [ ] Feature ready for user testing
+- [ ] Feature launched and available
+
+**Avoid Micro-Tasks:**
+- ❌ Update README.md file
+- ❌ Write test for function X
+- ❌ Fix typo in documentation
+- ❌ Individual file modifications
+
+**Milestone Characteristics:**
+- **Meaningful**: Represents significant progress toward completion
+- **Testable**: Clear success criteria that can be validated
+- **User-focused**: Relates to user value or feature capability
+- **Manageable**: Can be completed in reasonable timeframe
 
 ## GitHub Issue Template (Keep Short & Stable)
 
@@ -135,7 +156,7 @@ Work through the PRD template focusing on project management, task tracking, and
 - **Prioritize ruthlessly**: Help distinguish between must-have and nice-to-have based on user impact
 - **Think about users**: Always bring the conversation back to user value, experience, and outcomes
 - **Consider feasibility**: While not diving into implementation details, ensure scope is realistic
-- **Plan for tracking**: Ensure requirements are specific and measurable enough to checkbox when complete
+- **Focus on major milestones**: Create 5-10 meaningful milestones rather than exhaustive micro-tasks
 - **Think cross-functionally**: Consider impact on different teams, systems, and stakeholders
 
 ## Workflow
@@ -145,7 +166,7 @@ Work through the PRD template focusing on project management, task tracking, and
 3. **Create PRD File**: Detailed document using actual issue ID: `prds/[issue-id]-[feature-name].md`
 4. **Update GitHub Issue**: Add link to PRD file now that filename is known
 5. **Section-by-Section Discussion**: Work through each template section systematically
-6. **Checkbox Population**: Ensure all trackable items have checkboxes
+6. **Milestone Definition**: Define 5-10 major milestones that represent meaningful progress
 7. **Review & Validation**: Ensure completeness and clarity
 
 **CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.

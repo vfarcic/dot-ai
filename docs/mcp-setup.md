@@ -4,10 +4,10 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides three main capabilities through MCP:
+The DevOps AI Toolkit provides three main capabilities through MCP (Model Context Protocol):
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance
 2. **Documentation Testing** - Automated validation of documentation accuracy
-3. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
+3. **Shared prompts library** - Centralized prompt sharing via native slash commands
 
 This guide covers the foundational setup that enables all features.
 
@@ -42,7 +42,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-This configuration enables all capabilities including shared prompts, which will automatically appear as `/mcp__dot-ai__prompt-name` slash commands in your coding agent.
+This configuration enables all capabilities including shared prompts, which will automatically appear as `/dot-ai:prompt-name` slash commands in your coding agent.
 
 ### 3. Start Your AI Tool
 
@@ -52,6 +52,26 @@ claude
 
 # The MCP server will automatically connect
 ```
+
+### 4. Verify Connection
+
+**Test MCP server connection:**
+```bash
+# In your coding agent, verify that dot-ai MCP tools are available
+# Look for tools like: recommend, testDocs, prompts, etc.
+```
+
+**Test shared prompts (if using prompts library):**
+```bash
+# In your coding agent, type "/" to see available commands
+# Look for commands like: /dot-ai:prd-create, /dot-ai:context-save, etc.
+```
+
+**Troubleshooting connection issues:**
+- Check that `.mcp.json` file exists in your project root
+- Verify environment variables are set correctly
+- Restart your coding agent if configuration was changed
+- Check coding agent logs for MCP connection errors
 
 ## Environment Variables
 
