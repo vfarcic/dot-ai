@@ -1,3 +1,9 @@
+---
+name: prd-next
+description: Analyze existing PRD to identify and recommend the single highest-priority task to work on next
+category: project-management
+---
+
 # PRD Next - Work On the Next Task
 
 ## Instructions
@@ -63,9 +69,16 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 - Analyze completion status across all sections
 - Identify patterns in completed vs remaining work
 
-## Step 2: Codebase Analysis
+## Step 2: Documentation & Implementation Analysis
 
-Before assessing task priorities, analyze the current implementation state:
+Before assessing task priorities, analyze both the documented specifications and current implementation state:
+
+### Documentation Analysis (Documentation-First PRDs)
+For PRDs using the documentation-first approach:
+- **Read referenced documentation**: Check the "Content Location Map" in PRD to find where feature specs live
+- **Understand target state**: What functionality is documented but not yet implemented
+- **Check documentation completeness**: Are all user workflows and examples fully documented
+- **Validate cross-references**: Do all documentation links and references work correctly
 
 ### Code Discovery
 - **Search for related files**: Use Grep/Glob to find files related to the feature
@@ -73,10 +86,11 @@ Before assessing task priorities, analyze the current implementation state:
 - **Find test files**: Discover existing test coverage for the feature
 - **Check dependencies**: Review imports and module relationships
 
-### Implementation Assessment
-- **Compare PRD vs Code**: What's described vs actually implemented
+### Implementation vs Documentation Gap Analysis
+- **Compare docs vs code**: What's documented vs actually implemented
 - **Partial implementations**: Identify half-finished features or TODO comments
-- **Architecture alignment**: Does current code match PRD architecture decisions
+- **Documentation validation**: Can documented examples and commands actually work
+- **Architecture alignment**: Does current code match documented behavior and PRD architecture decisions
 - **Quality assessment**: Code style, error handling, test coverage gaps
 
 ### Technical Feasibility Analysis
@@ -200,88 +214,6 @@ If the user confirms they want to work on the recommended task, then dive into:
 - **Open decisions**: Design choices that need to be made
 - **Clarifications needed**: Requirements that need more detail
 - **Assumptions to validate**: Things we're assuming that should be confirmed
-
-## Intelligent Analysis Guidelines
-
-### Critical Path Identification
-Look for patterns that indicate critical dependencies:
-- **Foundation items** - Basic capabilities others build on
-- **Integration points** - Where different components connect
-- **External dependencies** - Items waiting on outside resources
-- **Bottleneck items** - Single items blocking multiple others
-
-### Value Assessment Criteria
-Evaluate items based on:
-- **User impact** - Direct benefit to end users
-- **Risk reduction** - Addresses major uncertainties or risks
-- **Enablement factor** - Unlocks other valuable work
-- **Learning potential** - Provides insights for future decisions
-- **Completion ratio** - Items that are mostly done and can be finished quickly
-
-### Effort Estimation Patterns
-Consider complexity indicators:
-- **New vs extension** - Building new vs extending existing
-- **Research required** - Unknown vs well-understood work
-- **Integration complexity** - Standalone vs requires coordination
-- **Testing requirements** - Simple vs complex validation needs
-
-### Phase Transition Signals
-Indicators that a phase should be completed before moving on:
-- **Core functionality** - Essential features working end-to-end
-- **Quality gates** - Testing and validation complete
-- **Stakeholder validation** - User/business approval obtained
-- **Risk resolution** - Major uncertainties addressed
-
-## Common Recommendation Patterns
-
-### "Foundation First" Pattern
-When basic infrastructure is incomplete:
-- Prioritize core architecture and basic functionality
-- Defer advanced features until foundation is solid
-- Focus on getting end-to-end workflow working
-
-### "Risk Reduction" Pattern  
-When major uncertainties exist:
-- Prioritize items that address biggest risks
-- Build prototypes or proof-of-concepts for validation
-- Focus on learning and decision-making over completion
-
-### "User Value" Pattern
-When foundation is solid but features are incomplete:
-- Prioritize user-facing functionality
-- Focus on completing end-to-end user workflows
-- Defer internal optimizations and nice-to-haves
-
-### "Integration" Pattern
-When multiple components need to work together:
-- Prioritize integration points and interfaces
-- Focus on end-to-end testing and validation
-- Address compatibility and communication issues
-
-## Usage Tips
-
-### Questions to Ask Yourself
-Before making recommendations, consider:
-1. **What's really blocking progress?** (Not just what's next on the list)
-2. **What would deliver the most user value soonest?**
-3. **What reduces the biggest risks or unknowns?**
-4. **What can be done in parallel vs sequentially?**
-5. **What's the minimum to get real user feedback?**
-
-### Red Flags to Watch For
-Signs that priorities might need adjustment:
-- **Too many blocked items** - May indicate wrong dependency order
-- **Long list of "not ready yet"** - Might suggest scope or sequencing issues
-- **Uneven progress across phases** - Could indicate resource or priority problems
-- **Deferred items keep growing** - May suggest scope creep or unrealistic planning
-
-### Validation Questions for Recommendations
-Before finalizing recommendations:
-1. **Do the priorities make logical sense?** 
-2. **Are the effort estimates realistic?**
-3. **Will completing these items actually move the project forward significantly?**
-4. **Are there any hidden dependencies I missed?**
-5. **Does this align with overall project goals and timeline?**
 
 ## Success Criteria
 

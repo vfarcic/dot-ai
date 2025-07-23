@@ -6,7 +6,7 @@
 
 </div>
 
-DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, and **automated documentation testing** that validates documentation accuracy by executing commands and testing examples.
+DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, **automated documentation testing** that validates documentation accuracy by executing commands and testing examples, and **shared prompts library** that enables centralized prompt sharing via native slash commands across development teams.
 
 ## Who is this for?
 
@@ -19,8 +19,13 @@ DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes dep
 - **Technical Writers**: Identify which sections need updates and prioritize work effectively
 - **Open Source Maintainers**: Ensure documentation works correctly for new contributors
 
+### Shared Prompts Library
+- **Development Teams**: Share proven prompts across projects without file management
+- **Project Managers**: Standardize workflows with consistent prompt usage across teams
+- **Individual Developers**: Access curated prompt library via native slash commands
+
 ### AI Integration
-- **AI Agents**: Integrate both capabilities with Claude Code, Cursor, or VS Code for conversational workflows
+- **AI Agents**: Integrate all capabilities with Claude Code, Cursor, or VS Code for conversational workflows
 
 ## Key Features
 
@@ -36,9 +41,15 @@ DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes dep
 🛠️ **Fix Application**: User-driven selection and application of recommended documentation improvements  
 💾 **Session Management**: Resumable testing workflows for large documentation sets
 
+### Shared Prompts Library
+🎯 **Native Slash Commands**: Prompts appear as `/mcp__dot-ai__prompt-name` in your coding agent  
+📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
+🔄 **Zero Setup**: Connect to MCP server and prompts are immediately available across all projects  
+🤝 **Team Consistency**: Standardized prompt usage with centralized management
+
 ### AI Integration
 ⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
-🤖 **Conversational Interface**: Natural language interaction for both deployment and documentation testing workflows
+🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, and shared prompt workflows
 
 ## Quick Start
 
@@ -162,6 +173,7 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 - **[MCP Setup Guide](docs/mcp-setup.md)** - AI tools integration (Claude Code, Cursor)
 - **[MCP Recommendation Guide](docs/mcp-recommendation-guide.md)** - Kubernetes deployment recommendations  
 - **[MCP Documentation Testing Guide](docs/mcp-documentation-testing-guide.md)** - Automated documentation validation
+- **[MCP Prompts Guide](docs/mcp-prompts-guide.md)** - Shared prompt library and slash commands
 
 ### 👩‍💻 Development  
 - **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
@@ -169,16 +181,11 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 
 ### 🏗️ Architecture
 - **[Design Overview](docs/design.md)** - Technical design and principles  
-- **[Stage-Based API](docs/STAGE_BASED_API.md)** - Workflow stages and API design
 - **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery
 
 ### 🤖 AI & Integration
 - **[Error Handling](docs/error-handling.md)** - Error management and debugging
 - **[Function Registration](docs/function-registration.md)** - Tool and function management
-
-### 📋 Reference
-- **[Context & Background](docs/CONTEXT.md)** - Project context and inspiration
-- **[Next Steps & Roadmap](docs/NEXT_STEPS.md)** - Planned features and future vision
 
 **Quick Navigation:**
 - **New to DevOps AI Toolkit?** → Start with [MCP Setup Guide](docs/mcp-setup.md)

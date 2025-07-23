@@ -1,3 +1,11 @@
+---
+name: context-save
+description: Save current context to tmp/context.md for session continuity
+category: session-management
+---
+
+# Save Context
+
 Save current context to tmp/context.md for session continuity.
 
 Steps:
