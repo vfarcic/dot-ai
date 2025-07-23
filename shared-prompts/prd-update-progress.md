@@ -66,43 +66,104 @@ Identify different types of changes:
 - **Documentation files**: Shows documentation updates
 - **Configuration files**: Indicates setup or deployment changes
 
-## Step 3: Map Changes to PRD Requirements
+## Step 3: Comprehensive PRD Structure Analysis
 
-### Intelligent Mapping Process
-For each significant change, determine:
-- **Which PRD requirement does this satisfy?**
-- **What checkbox items can be marked complete?**
-- **Are there any new requirements that emerged during implementation?**
-- **Does the actual implementation differ from the planned approach?**
+### **CRITICAL**: Systematic Checkbox Scanning
+**MUST perform this step to avoid missing requirements:**
 
-### Evidence-Based Completion
-Only suggest marking items complete when there's clear evidence:
+1. **Scan ALL unchecked items** in the PRD using grep or search
+2. **Categorize each unchecked requirement** by type:
+   - **Implementation** (code, features, technical tasks)
+   - **Documentation** (guides, examples, cross-references)
+   - **Validation** (testing examples work, user journeys)
+   - **User Acceptance** (real-world usage, cross-client testing)
+   - **Launch Activities** (training, deployment, rollout)
+   - **Success Metrics** (adoption, analytics, support impact)
+
+3. **Map git changes to appropriate categories only**
+4. **Be conservative** - only mark items complete with direct evidence
+
+### Evidence-Based Completion Criteria
+
+**Implementation Requirements** - Mark complete when:
 - **Code files**: Show functionality is implemented
-- **Test files**: Demonstrate testing is complete
-- **Documentation**: Indicates user-facing features are documented
-- **Configuration**: Shows deployment/setup requirements are satisfied
+- **Test files**: Demonstrate comprehensive testing
+- **Integration**: Components properly connected
+
+**Documentation Requirements** - Mark complete when:
+- **Files created**: Documentation files exist
+- **Examples validated**: Commands/examples have been tested
+- **Cross-references work**: Internal links verified
+
+**Validation Requirements** - Mark complete when:
+- **Manual testing done**: Workflows tested end-to-end
+- **Examples verified**: All documented examples work
+- **User journeys confirmed**: Complete workflows validated
+
+**Launch Activities** - Mark complete when:
+- **Training delivered**: Team has been trained
+- **Deployment done**: Feature is live and accessible
+- **Rollout complete**: Users are actively using the feature
+
+### Conservative Completion Policy
+**DO NOT mark complete unless there is direct evidence:**
+- ❌ Don't assume documentation is "good enough" without validation
+- ❌ Don't mark testing complete without evidence of actual testing
+- ❌ Don't mark launch items complete without proof of rollout
+- ❌ Don't mark success criteria complete without metrics
 
 ### Gap Analysis
-Identify potential gaps:
-- **Requirements without corresponding code changes**
-- **Code changes that don't map to existing requirements**
-- **Missing test coverage for implemented features**
-- **Implemented features without documentation updates**
+Systematically identify:
+- **Requirements without evidence** (what still needs work)
+- **Evidence without requirements** (work done outside scope)
+- **Missing validation** (implemented but not tested)
+- **Missing rollout** (ready but not deployed/adopted)
 
-## Step 4: Propose PRD Updates
+## Step 4: Comprehensive Progress Report
 
-### Checkbox Updates
-Suggest specific checkbox completions with evidence:
+### **REQUIRED**: Complete Status Analysis
+Present a comprehensive breakdown:
+
 ```markdown
-✅ Suggest completing:
-- [x] Implement core authentication system (evidence: auth.ts, auth.test.ts added)
-- [x] Add user session management (evidence: session-manager.ts modified)
-- [x] Update API documentation (evidence: docs/api.md updated)
+## PRD Progress Analysis: [PRD Name]
 
-❓ Question these items:
-- [ ] Deploy to staging environment (no deployment evidence found)
-- [ ] Performance testing complete (no performance tests found)
+### ✅ COMPLETED (with evidence):
+**Implementation** (X/Y items):
+- [x] Item name - Evidence: specific files/changes
+- [x] Item name - Evidence: specific files/changes
+
+**Documentation** (X/Y items):
+- [x] Item name - Evidence: docs created, examples tested
+- [x] Item name - Evidence: cross-references verified
+
+### ⏳ REMAINING WORK:
+**Validation** (X items unchecked):
+- [ ] Item name - Reason: needs manual testing/validation
+- [ ] Item name - Reason: examples not tested
+
+**User Acceptance** (X items unchecked):
+- [ ] Item name - Reason: no cross-client testing done
+- [ ] Item name - Reason: no user feedback collected
+
+**Launch Activities** (X items unchecked):
+- [ ] Item name - Reason: team not trained
+- [ ] Item name - Reason: not deployed to production
+
+**Success Metrics** (X items unchecked):
+- [ ] Item name - Reason: no usage data available
+- [ ] Item name - Reason: adoption not measured
+
+### 🎯 COMPLETION STATUS:
+- **Overall Progress**: X% complete (Y of Z total items)
+- **Implementation Phase**: 100% complete ✅
+- **Validation Phase**: X% complete (what's missing)
+- **Launch Phase**: X% complete (what's missing)
 ```
+
+### Conservative Recommendation Policy
+**ONLY suggest marking items complete when you have direct evidence.**
+**CLEARLY list what still needs to be done.**
+**DO NOT claim "everything is done" unless ALL items are truly complete.**
 
 ### Work Log Updates
 Propose adding a work log entry summarizing completed work:
@@ -142,14 +203,31 @@ Suggest PRD updates when divergences are found:
 
 ## Step 6: User Confirmation Process
 
-Present proposed changes clearly:
+Present proposed changes clearly with complete transparency:
+
 1. **Evidence summary**: Show what work was detected
-2. **Proposed completions**: List checkbox items to mark done
-3. **Divergence alerts**: Highlight any plan vs reality differences
-4. **Impact assessment**: Explain how updates affect overall PRD progress
+2. **Proposed completions**: List specific checkbox items to mark done with evidence
+3. **Remaining work analysis**: Clearly show what's still unchecked and why
+4. **Divergence alerts**: Highlight any plan vs reality differences
+5. **Honest progress assessment**: Give realistic completion percentage
+
+**Critical Requirements:**
+- **Never claim "everything is done"** unless literally ALL checkboxes are complete
+- **Be explicit about limitations** of git-based analysis
+- **Acknowledge validation gaps** when you can't verify functionality works
+- **Separate implementation from validation/rollout**
 
 Wait for user confirmation before making changes, and handle:
 - **Partial acceptance**: User agrees with some but not all suggestions
 - **Additional context**: User provides information not visible in git history
 - **Scope clarification**: User explains work that appears to be out of scope
 - **Future planning**: User wants to adjust upcoming work based on current progress
+
+## Step 7: Systematic Update Application
+
+When applying updates:
+1. **Update only confirmed items** - Don't make assumptions
+2. **Add detailed work log entry** with evidence links
+3. **Update status sections** to reflect current phase
+4. **Preserve unchecked items** that still need work
+5. **Update completion percentages** realistically
