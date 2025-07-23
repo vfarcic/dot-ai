@@ -4,11 +4,12 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides two main capabilities through MCP:
+The DevOps AI Toolkit provides three main capabilities through MCP (Model Context Protocol):
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance
 2. **Documentation Testing** - Automated validation of documentation accuracy
+3. **Shared prompts library** - Centralized prompt sharing via native slash commands
 
-This guide covers the foundational setup that enables both features.
+This guide covers the foundational setup that enables all features.
 
 ## Quick Start
 
@@ -41,6 +42,8 @@ Create `.mcp.json` in your project root:
 }
 ```
 
+This configuration enables all capabilities including shared prompts, which will automatically appear as `/dot-ai:prompt-name` slash commands in your coding agent.
+
 ### 3. Start Your AI Tool
 
 ```bash
@@ -49,6 +52,26 @@ claude
 
 # The MCP server will automatically connect
 ```
+
+### 4. Verify Connection
+
+**Test MCP server connection:**
+```bash
+# In your coding agent, verify that dot-ai MCP tools are available
+# Look for tools like: recommend, testDocs, prompts, etc.
+```
+
+**Test shared prompts (if using prompts library):**
+```bash
+# In your coding agent, type "/" to see available commands
+# Look for commands like: /dot-ai:prd-create, /dot-ai:context-save, etc.
+```
+
+**Troubleshooting connection issues:**
+- Check that `.mcp.json` file exists in your project root
+- Verify environment variables are set correctly
+- Restart your coding agent if configuration was changed
+- Check coding agent logs for MCP connection errors
 
 ## Environment Variables
 
@@ -328,7 +351,9 @@ For troubleshooting MCP server issues:
    ```
 3. **Verify MCP tools are loaded:**
    - Ask your AI assistant: "What MCP tools do you have available?"
-   - Should list dot-ai tools like `recommend`, `test-docs`, etc.
+   - Should list dot-ai tools like `recommend`, `testDocs`, etc.
+   - Access your coding agent's command palette (for example, type `/` in Claude Code)
+   - Should show shared prompts with server prefix (e.g., `/mcp__dot-ai__*` commands)
 
 ## Next Steps
 
@@ -336,6 +361,7 @@ Once MCP server setup is complete, explore the available features:
 
 - **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Kubernetes deployment recommendations
 - **[MCP Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation
+- **[MCP Prompts Guide](mcp-prompts-guide.md)** - Shared prompt library and slash commands
 
 ## See Also
 

@@ -7,6 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { ListPromptsRequestSchema, GetPromptRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { DotAI } from '../core/index';
 import { 
   ConsoleLogger,
@@ -54,6 +55,10 @@ import {
   TESTDOCS_TOOL_INPUT_SCHEMA,
   handleTestDocsTool 
 } from '../tools/test-docs';
+import { 
+  handlePromptsListRequest,
+  handlePromptsGetRequest 
+} from '../tools/prompts';
 
 export interface MCPServerConfig {
   name: string;
@@ -81,7 +86,8 @@ export class MCPServer {
       },
       {
         capabilities: {
-          tools: {}
+          tools: {},
+          prompts: {}
         }
       }
     );
@@ -92,8 +98,9 @@ export class MCPServer {
       author: config.author
     });
 
-    // Register all tools directly with McpServer
+    // Register all tools and prompts directly with McpServer
     this.registerTools();
+    this.registerPrompts();
   }
 
   /**
@@ -195,6 +202,29 @@ export class MCPServer {
         TESTDOCS_TOOL_NAME
       ],
       totalTools: 7
+    });
+  }
+
+  /**
+   * Register prompts capability with McpServer
+   */
+  private registerPrompts(): void {
+    // Register prompts/list handler
+    this.server.server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
+      const requestId = this.generateRequestId();
+      this.logger.info('Processing prompts/list request', { requestId });
+      return await handlePromptsListRequest(request.params || {}, this.logger, requestId);
+    });
+
+    // Register prompts/get handler
+    this.server.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      const requestId = this.generateRequestId();
+      this.logger.info('Processing prompts/get request', { requestId, promptName: request.params?.name });
+      return await handlePromptsGetRequest(request.params || {}, this.logger, requestId);
+    });
+
+    this.logger.info('Registered prompts capability with McpServer', {
+      endpoints: ['prompts/list', 'prompts/get']
     });
   }
 
