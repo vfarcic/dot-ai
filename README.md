@@ -6,7 +6,7 @@
 
 </div>
 
-DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, and **automated documentation testing** that validates documentation accuracy by executing commands and testing examples.
+DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, **automated documentation testing** that validates documentation accuracy by executing commands and testing examples, and **shared prompts library** that enables centralized prompt sharing via native slash commands across development teams.
 
 ## Who is this for?
 
@@ -19,8 +19,13 @@ DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes dep
 - **Technical Writers**: Identify which sections need updates and prioritize work effectively
 - **Open Source Maintainers**: Ensure documentation works correctly for new contributors
 
+### Shared Prompts Library
+- **Development Teams**: Share proven prompts across projects without file management
+- **Project Managers**: Standardize workflows with consistent prompt usage across teams
+- **Individual Developers**: Access curated prompt library via native slash commands
+
 ### AI Integration
-- **AI Agents**: Integrate both capabilities with Claude Code, Cursor, or VS Code for conversational workflows
+- **AI Agents**: Integrate all capabilities with Claude Code, Cursor, or VS Code for conversational workflows
 
 ## Key Features
 
@@ -36,18 +41,30 @@ DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes dep
 🛠️ **Fix Application**: User-driven selection and application of recommended documentation improvements  
 💾 **Session Management**: Resumable testing workflows for large documentation sets
 
+### Shared Prompts Library
+🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
+📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
+🔄 **Zero Setup**: Connect to MCP server and prompts are immediately available across all projects  
+🤝 **Team Consistency**: Standardized prompt usage with centralized management
+
 ### AI Integration
 ⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
-🤖 **Conversational Interface**: Natural language interaction for both deployment and documentation testing workflows
+🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, and shared prompt workflows
+
+**Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.
 
 ## Quick Start
 
 ### Prerequisites
 
-**For both features:**
+**For Kubernetes deployment and documentation testing:**
 - **Claude API key** (required for AI analysis)
-  - Get your API key from [Anthropic Console](https://console.anthropic.com/)
+  - Get your API key from [Anthropic Console](https://console.anthropic.com/) (requires account login)
+  <!-- dotai-ignore: Console URL may return 403 - expected behavior for auth-protected endpoint -->
   - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
+
+**For shared prompts library:**
+- **No API key required** - Works with any MCP-enabled coding agent
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
@@ -63,12 +80,13 @@ DevOps AI Toolkit provides two powerful AI-driven capabilities: **Kubernetes dep
 
 DevOps AI Toolkit is designed to be used through AI development tools via MCP (Model Context Protocol). No direct installation needed - simply configure your AI tool to connect to the MCP server.
 
-### Choose Your Usage Path
+### Usage
 
-#### Option A: AI Agent Integration (Claude Code Example)
-Perfect for conversational deployments with AI agents:
+**AI Agent Integration (Claude Code Example)**
+Perfect for conversational AI-driven workflows:
 
 1. **Create `.mcp.json` in your project:**
+<!-- dotai-ignore: MCP server binary (dot-ai-mcp) not testable as CLI - only works through MCP client connections -->
 ```json
 {
   "mcpServers": {
@@ -96,6 +114,9 @@ Perfect for conversational deployments with AI agents:
 mkdir -p tmp/sessions
 
 claude
+
+# Verify MCP server connection
+# You should see "dot-ai" listed as an available MCP server
 ```
 
 3. **Use conversational workflows:**
@@ -138,6 +159,24 @@ User: Fix the port number directly in the doc, and I'll create a GitHub issue fo
 Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue tracked externally.
 ```
 
+*Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
+
+**Example: Shared Prompts Library**
+```
+# Conversational approach
+User: I want to create a new PRD for a feature
+
+Agent: I'll help you create a documentation-first PRD. Let me start the process.
+[Uses prd-create prompt via /dot-ai:prd-create]
+
+Agent: Great! I've created GitHub issue #34 and the PRD file. What feature would you like to document?
+
+# Direct slash command approach  
+User: /dot-ai:prd-create
+
+Agent: I'm executing the PRD creation workflow. Please describe the feature you want to create a PRD for...
+```
+
 📖 **[Complete MCP Setup Guide →](docs/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
 
 
@@ -147,7 +186,7 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 ### MCP Issues
 
 **MCP server won't start:**
-- Verify environment variables are set in `.mcp.json`
+- Verify environment variables are correctly configured in `.mcp.json` env section
 - Check session directory exists and is writable
 - Ensure `ANTHROPIC_API_KEY` is valid
 
@@ -162,6 +201,7 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 - **[MCP Setup Guide](docs/mcp-setup.md)** - AI tools integration (Claude Code, Cursor)
 - **[MCP Recommendation Guide](docs/mcp-recommendation-guide.md)** - Kubernetes deployment recommendations  
 - **[MCP Documentation Testing Guide](docs/mcp-documentation-testing-guide.md)** - Automated documentation validation
+- **[MCP Prompts Guide](docs/mcp-prompts-guide.md)** - Shared prompt library and slash commands
 
 ### 👩‍💻 Development  
 - **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
@@ -169,16 +209,11 @@ Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue track
 
 ### 🏗️ Architecture
 - **[Design Overview](docs/design.md)** - Technical design and principles  
-- **[Stage-Based API](docs/STAGE_BASED_API.md)** - Workflow stages and API design
 - **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery
 
 ### 🤖 AI & Integration
 - **[Error Handling](docs/error-handling.md)** - Error management and debugging
 - **[Function Registration](docs/function-registration.md)** - Tool and function management
-
-### 📋 Reference
-- **[Context & Background](docs/CONTEXT.md)** - Project context and inspiration
-- **[Next Steps & Roadmap](docs/NEXT_STEPS.md)** - Planned features and future vision
 
 **Quick Navigation:**
 - **New to DevOps AI Toolkit?** → Start with [MCP Setup Guide](docs/mcp-setup.md)

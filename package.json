@@ -69,6 +69,7 @@
   "files": [
     "dist",
     "prompts",
+    "shared-prompts",
     "README.md",
     "LICENSE"
   ],

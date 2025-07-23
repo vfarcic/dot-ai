@@ -1,3 +1,11 @@
+---
+name: context-load
+description: Load context from tmp/context.md to continue previous work session
+category: session-management
+---
+
+# Load Context
+
 Load context from tmp/context.md to continue previous work session.
 
 Steps:

@@ -37,6 +37,30 @@ Execute everything testable in this section:
 □ **User Experience Claims**: Would a typical user get the promised experience?
 □ **Code/Architecture Claims**: When documentation makes claims about code, files, or system architecture, validate them against the actual codebase
 
+### Cross-File Terminology Validation (When Applicable)
+
+**When testing documentation that references related files**, validate terminology consistency:
+
+#### Terminology Consistency Check
+**For files that are part of a documentation set** (e.g., setup guides, user guides, API references):
+
+1. **Identify Key Terms**: Extract important technical terms, feature names, and concepts from current section
+2. **Find Related Files**: Identify documentation files that should use consistent terminology
+3. **Cross-Reference Validation**: Check if the same concepts use identical terms across files
+4. **Flag Inconsistencies**: Report terminology mismatches that could confuse users
+
+**Common Terminology Issues:**
+- Same feature called different names in different files
+- Inconsistent capitalization (e.g., "MCP Server" vs "mcp server") 
+- Different terms for same concept (e.g., "slash commands" vs "command shortcuts")
+- Inconsistent format examples (e.g., `/dot-ai:name` vs `/mcp.dot-ai.name`)
+
+**How to Perform Cross-File Validation:**
+1. **Extract key terms** from current section being tested
+2. **Read related documentation files** mentioned in cross-references or logically related
+3. **Compare terminology usage** across files for consistency
+4. **Report discrepancies** that would confuse users navigating between files
+
 ### Code Analysis Validation (When Applicable)
 
 **When testing technical documentation in a code repository**, perform BOTH directions of validation:
@@ -199,7 +223,9 @@ Return your results as JSON in this exact format:
 - Mention how many items you tested in both phases
 - Example: "Tested 4 installation commands - npm install, API key setup, and 2 verification commands. All executed successfully with minor adaptations. Analyzed 6 documentation claims including 'easy installation' and 'automatic verification' - found installation complexity matches claimed simplicity but verification requires manual interpretation."
 
-**Both issues and recommendations should:**
+**Common Requirements for Both Issues and Recommendations:**
+- **MUST include precise location**: Section headings, specific text snippets, or element descriptions (NOT line numbers)
+- **MUST be immediately actionable**: Clear enough for someone else to locate and address
 - Be specific and actionable items only
 - Do NOT include positive assessments like "section works well" or "documentation is accurate"
 - Use empty arrays if nothing to report
@@ -207,14 +233,22 @@ Return your results as JSON in this exact format:
 - Focus on user impact and success
 
 **issues** (array of strings):
-- Specific problems that prevent or hinder user success
-- Include both functional problems (doesn't work) and semantic problems (inaccurate descriptions)
-- Examples: "npm install command requires global flag but documentation doesn't mention it", "Verification step expects specific output that doesn't match actual output"
+- **Purpose**: Specific problems that prevent or hinder user success
+- **Include**: Both functional problems (doesn't work) and semantic problems (inaccurate descriptions)
+- **Must explain user impact**: What fails or misleads users
+- Examples: 
+  - "In 'Quick Start' section: npm install command requires global flag but documentation doesn't mention it"
+  - "Under 'Verification' heading: Expected output 'Success: Ready' but actual output shows 'Status: OK'"
+  - "The phrase 'automatically detects' in Prerequisites: Claims automatic detection but requires manual configuration file editing"
 
 **recommendations** (array of strings):
-- Specific actionable improvements that would help users succeed
-- Only suggest concrete changes or additions to the documentation
-- Examples: "Add --global flag to npm install command", "Update expected output example to match actual command output", "Include verification command example"
+- **Purpose**: Specific actionable improvements that would help users succeed
+- **Include**: Only concrete changes or additions to the documentation
+- **Must specify exact action**: What text to add, remove, or modify
+- Examples:
+  - "In 'Quick Start' section: Change 'npm install' command to 'npm install --global'"
+  - "Under 'Verification' heading: Update expected output example from 'Success: Ready' to 'Status: OK'"
+  - "In Prerequisites section: Add note after 'automatically detects' phrase: 'Requires manual editing of config.json file before detection works'"
 
 **Important**: 
 - Use only this JSON format - do not include additional text before or after
