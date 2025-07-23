@@ -15,6 +15,7 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **All tests passing**: Run `npm test` to ensure quality standards
 - [ ] **Documentation updated**: All user-facing docs reflect implemented functionality
 - [ ] **No outstanding blockers**: All dependencies resolved and technical debt addressed
+- [ ] **Update PRD status**: Mark PRD as "Complete" with completion date (must be done before commit)
 
 ### 2. Branch and Commit Management
 - [ ] **Create feature branch**: `git checkout -b feature/prd-[issue-id]-[feature-name]`
@@ -38,10 +39,15 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Monitor for issues**: Watch for any post-deployment problems
 
 ### 5. Issue Closure
-- [ ] **Update PRD status**: Mark PRD as "Complete" with completion date
 - [ ] **Close GitHub issue**: Add final completion comment and close
 - [ ] **Archive artifacts**: Save any temporary files or testing data if needed
 - [ ] **Team notification**: Announce feature completion to relevant stakeholders
+
+### 6. Branch Cleanup
+- [ ] **Switch to main branch**: `git checkout main`
+- [ ] **Pull latest changes**: `git pull origin main` to ensure local main is up to date
+- [ ] **Delete local feature branch**: `git branch -d feature/prd-[issue-id]-[feature-name]`
+- [ ] **Delete remote feature branch**: `git push origin --delete feature/prd-[issue-id]-[feature-name]`
 
 ## Success Criteria
 ✅ **Feature is live and functional**  
