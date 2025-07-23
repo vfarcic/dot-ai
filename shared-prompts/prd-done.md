@@ -28,9 +28,12 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Review checklist**: Include testing, documentation, and quality confirmations
 - [ ] **Request reviews**: Assign appropriate team members for code review
 
-### 4. Merge and Deployment
+### 4. Review and Merge Process
+- [ ] **Check PR status**: Use `gh pr view [pr-number]` to check for any ongoing reviews or processes
+- [ ] **Wait for completion**: Do NOT merge if PR comments indicate reviews, checks, or processes are still in progress
 - [ ] **Address review feedback**: Make any required changes from code review
-- [ ] **Merge to main**: Complete the pull request merge
+- [ ] **Verify all checks pass**: Ensure all CI/CD, tests, and automated processes are complete and passing
+- [ ] **Merge to main**: Complete the pull request merge only after all feedback addressed and processes complete
 - [ ] **Verify deployment**: Ensure feature works in production environment
 - [ ] **Monitor for issues**: Watch for any post-deployment problems
 
