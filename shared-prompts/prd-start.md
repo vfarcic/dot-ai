@@ -12,49 +12,28 @@ You are helping initiate active implementation work on a specific Product Requir
 
 ## Process Overview
 
-1. **Auto-Detect Target PRD** - Intelligently determine which PRD to start implementing
-2. **Validate PRD Readiness** - Ensure the PRD is ready for implementation
+1. **Select Target PRD** - Ask user which PRD they want to implement
+2. **Validate PRD Readiness** - Ensure the selected PRD is ready for implementation
 3. **Set Up Implementation Context** - Prepare the development environment
 4. **Identify Starting Point** - Determine the best first implementation task
 5. **Begin Implementation** - Launch into actual development work
 
-## Step 1: Smart PRD Detection
+## Step 1: PRD Selection
 
-**Auto-detect the target PRD using these context clues (in priority order):**
+**Ask the user which PRD they want to start implementing:**
 
-1. **Git Branch Analysis** - Check current branch name for PRD patterns:
-   - `feature/prd-12-*` → PRD 12
-   - `prd-13-*` → PRD 13
-   - `feature/prd-*` → Extract PRD number
-
-2. **Recent Git Commits** - Look at recent commit messages for PRD references:
-   - "feat: PRD 12 setup" → PRD 12
-   - "docs: update prd-13 requirements" → PRD 13
-
-3. **Git Status Analysis** - Check modified/staged files for PRD clues:
-   - Modified `prds/12-*.md` → PRD 12
-   - Changes in PRD-specific directories
-
-4. **Available PRDs Discovery** - List all PRDs in `prds/` directory and identify those ready for implementation
-
-5. **Fallback to User Choice** - Only if context detection fails, ask user to specify
-
-**PRD Detection Implementation:**
-```bash
-# Use these tools to gather context:
-# 1. Check git branch: gitStatus shows current branch
-# 2. Check git status: Look for modified PRD files  
-# 3. List PRDs: Use LS or Glob to find prds/*.md files
-# 4. Recent commits: Use Bash 'git log --oneline -n 5' for recent context
-```
-
-**Detection Output:**
 ```markdown
-🚀 **Starting work on PRD [X]** ([Feature Name])
-- Branch: `feature/prd-[X]-[feature-name]` ✅
-- PRD file: `prds/[X]-[feature-name].md` ✅
-- Current status: Ready for implementation ✅
+## Which PRD would you like to start implementing?
+
+Please provide the PRD number (e.g., "12", "PRD 12", or "36").
+
+**Not sure which PRD to work on?** 
+Execute `dot-ai:prds-get` prompt to see all available PRDs organized by priority and readiness.
+
+**Your choice**: [Wait for user input]
 ```
+
+Once the user provides the PRD number, proceed to load and validate that specific PRD.
 
 ## Step 2: PRD Readiness Validation
 
@@ -104,6 +83,8 @@ git push -u origin feature/prd-[issue-id]-[feature-name]
 - **Mark PRD as "In Progress"**: Update PRD status section
 - **Create implementation log**: Add initial work log entry with start date
 - **Set up progress tracking**: Identify key milestones for progress updates
+- **✅ CRITICAL: Update milestone checkboxes**: As you complete each implementation milestone in the PRD, immediately mark the corresponding checkbox as [x] completed
+- **Commit milestone updates**: Include PRD milestone updates in your commits to maintain accurate progress tracking
 
 ## Step 4: Identify Implementation Starting Point
 
@@ -166,6 +147,12 @@ If confirmed, provide:
 - **Update PRD status**: Mark relevant items as "in progress"
 - **Commit initial setup**: Make initial commit with branch and any setup changes
 - **Documentation updates**: Add PRD traceability comments to any docs being implemented
+
+### Ongoing PRD Maintenance During Implementation
+Throughout the implementation process:
+- **After completing any milestone**: Immediately update the corresponding checkbox in the PRD file from `[ ]` to `[x]`
+- **Update work log**: Add entries documenting what was accomplished
+- **Keep status current**: Update the PRD status section to reflect current implementation state
 
 ## Success Criteria
 

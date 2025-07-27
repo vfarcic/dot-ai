@@ -6,7 +6,7 @@
 
 </div>
 
-DevOps AI Toolkit provides three powerful AI-driven capabilities: **Kubernetes deployment recommendations** that discover your cluster's capabilities and suggest optimal deployment approaches, **automated documentation testing** that validates documentation accuracy by executing commands and testing examples, and **shared prompts library** that enables centralized prompt sharing via native slash commands across development teams.
+DevOps AI Toolkit is an AI-powered development productivity platform that enhances software development workflows through intelligent automation and AI-driven assistance.
 
 ## Who is this for?
 
@@ -86,7 +86,7 @@ DevOps AI Toolkit is designed to be used through AI development tools via MCP (M
 Perfect for conversational AI-driven workflows:
 
 1. **Create `.mcp.json` in your project:**
-<!-- dotai-ignore: MCP server binary (dot-ai-mcp) not testable as CLI - only works through MCP client connections -->
+<!-- dotai-ignore: MCP server binary (dot-ai-mcp) only works through MCP client connections -->
 ```json
 {
   "mcpServers": {
@@ -203,35 +203,17 @@ Agent: I'm executing the PRD creation workflow. Please describe the feature you 
 - **[MCP Documentation Testing Guide](docs/mcp-documentation-testing-guide.md)** - Automated documentation validation
 - **[MCP Prompts Guide](docs/mcp-prompts-guide.md)** - Shared prompt library and slash commands
 
-### 👩‍💻 Development  
-- **[API Reference](docs/API.md)** - TypeScript interfaces and programmatic usage
-- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing, setup, and testing
-
-### 🏗️ Architecture
-- **[Design Overview](docs/design.md)** - Technical design and principles  
-- **[Discovery Engine](docs/discovery-engine.md)** - Cluster resource discovery
-
-### 🤖 AI & Integration
-- **[Error Handling](docs/error-handling.md)** - Error management and debugging
-- **[Function Registration](docs/function-registration.md)** - Tool and function management
-
-**Quick Navigation:**
-- **New to DevOps AI Toolkit?** → Start with [MCP Setup Guide](docs/mcp-setup.md)
-- **Building integrations?** → See [API Reference](docs/API.md)
-- **Contributing code?** → Read [Development Guide](docs/DEVELOPMENT.md)
-- **Understanding architecture?** → Check [Design Overview](docs/design.md)
-
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
 
 ## Contributing
 
-We welcome contributions! See the [Development Guide](docs/DEVELOPMENT.md) for details on:
-- Setting up the development environment
-- Running tests  
-- Code style and conventions
-- Submitting pull requests
+We welcome contributions! Please:
+- Fork the repository and create a feature branch
+- Run tests with `npm test` to ensure changes work correctly
+- Follow existing code style and conventions
+- Submit a pull request with a clear description of changes
 
 ## License
 
@@ -239,4 +221,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**DevOps AI Toolkit** - Making Kubernetes deployment intelligent and accessible for everyone.
+**DevOps AI Toolkit** - AI-powered development productivity platform for enhanced software development workflows.

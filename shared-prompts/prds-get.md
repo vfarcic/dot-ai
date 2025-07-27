@@ -22,14 +22,25 @@ Fetch all open GitHub issues from this project that have the 'PRD' label.
    - Direct link to the issue
    - PRD file link (if available in issue description)
 
-3. **Priority Analysis**: If multiple PRDs exist, help identify:
-   - Which PRDs are most recently updated
-   - Which PRDs have active work in progress
-   - Which PRDs might be blocked or stalled
+3. **Meaningful Categorization**: Group PRDs by their actual purpose and impact, not generic labels:
+   - **Architecture & Infrastructure**: Core system changes, API designs, major refactors
+   - **User Experience**: Features that directly impact how users interact with the system
+   - **Developer Experience**: Tools, workflows, testing, documentation that help developers
+   - **AI & Intelligence**: Machine learning, AI-powered features, recommendation engines
+   - **Operations & Monitoring**: Deployment, scaling, observability, performance
+   - **Integration & Extensibility**: Third-party integrations, plugin systems, APIs
+   
+   Each category should briefly explain what the PRDs in that group will accomplish for users or the system.
 
-4. **Next Steps Suggestion**: Based on the PRD list, suggest logical next actions:
-   - Which PRD to work on next
-   - PRDs that need attention or updates
-   - Opportunities for parallel work
+4. **Priority Analysis**: If multiple PRDs exist, help identify:
+   - Which PRDs are most recently updated or have active discussion
+   - Which PRDs have dependencies on other PRDs
+   - Which PRDs are foundational vs. incremental improvements
+   - Which PRDs might be blocked or need clarification
+
+5. **Next Steps Suggestion**: Based on the PRD list, suggest logical next actions:
+   - Which PRD to work on next based on dependencies and impact
+   - PRDs that need attention, updates, or clarification
+   - Opportunities for parallel work on independent PRDs
 
 This provides a complete view of all active product requirements and helps with project planning and prioritization.

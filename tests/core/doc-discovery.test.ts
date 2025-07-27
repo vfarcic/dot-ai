@@ -66,7 +66,7 @@ describe('DocDiscovery', () => {
   describe('discoverFiles', () => {
     test('should discover files and return sorted results', async () => {
       const mockFiles = [
-        'docs/API.md',
+        'docs/guide.md',
         'README.md',
         'CONTRIBUTING.md',
         'src/index.md'

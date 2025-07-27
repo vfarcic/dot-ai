@@ -64,28 +64,6 @@ describe('Recommend Tool', () => {
       expect(sourceCode).not.toContain('availableResources,'); // Old variable name
     });
     
-    test('should confirm CLI and MCP patterns now match', () => {
-      // Verify both CLI and MCP use the same pattern for calling ResourceRecommender
-      const fs = require('fs');
-      const path = require('path');
-      
-      const mcpCode = fs.readFileSync(
-        path.join(__dirname, '../../src/tools/recommend.ts'), 
-        'utf8'
-      );
-      
-      const cliCode = fs.readFileSync(
-        path.join(__dirname, '../../src/interfaces/cli.ts'), 
-        'utf8'
-      );
-      
-      // Both should use function-based approach
-      expect(mcpCode).toContain('const discoverResourcesFn = async () => {');
-      expect(cliCode).toContain('findBestSolutions(intent, discoverResourcesFn, explainResourceFn)'); // CLI uses same pattern
-      
-      // MCP should no longer have the broken pattern
-      expect(mcpCode).not.toContain('const availableResources = await dotAI.discovery.discoverResources();');
-    });
   });
 
   describe('Response Structure Validation', () => {

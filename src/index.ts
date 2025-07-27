@@ -1,11 +1,10 @@
 /**
  * DevOps AI Toolkit Main Entry Point
  * 
- * Universal Kubernetes application deployment agent with dual CLI/MCP interfaces
+ * Universal Kubernetes application deployment agent with MCP interface
  */
 
 export * from './core';
-export * from './interfaces/cli';
 
 // Version information
 export const version = '0.1.0';
