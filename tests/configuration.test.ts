@@ -20,7 +20,6 @@ describe('Package.json Configuration', () => {
       expect(packageJson.name).toBe('@vfarcic/dot-ai');
       expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(packageJson.description).toContain('Kubernetes');
-      expect(packageJson.description).toContain('CLI');
       expect(packageJson.description).toContain('MCP');
       expect(packageJson.license).toBe('MIT');
       expect(packageJson.author).toBeDefined();
@@ -28,16 +27,15 @@ describe('Package.json Configuration', () => {
 
     test('should have proper keywords for discoverability', () => {
       expect(packageJson.keywords).toContain('kubernetes');
-      expect(packageJson.keywords).toContain('cli');
       expect(packageJson.keywords).toContain('mcp');
       expect(packageJson.keywords).toContain('deployment');
     });
   });
 
   describe('Entry Points and Exports', () => {
-    test('should support both CLI and MCP entry points', () => {
+    test('should support MCP entry point', () => {
       expect(packageJson.main).toBe('dist/index.js');
-      expect(packageJson.bin).toHaveProperty('dot-ai');
+      expect(packageJson.bin).toHaveProperty('dot-ai-mcp');
       expect(packageJson.exports['.']).toBe('./dist/index.js');
       expect(packageJson.exports['./mcp']).toBe('./dist/mcp/server.js');
     });
@@ -62,10 +60,8 @@ describe('Package.json Configuration', () => {
       expect(packageJson.scripts.format).toBeDefined();
     });
 
-    test('should have CLI and MCP specific scripts', () => {
-      expect(packageJson.scripts['start:cli']).toBeDefined();
+    test('should have MCP specific scripts', () => {
       expect(packageJson.scripts['start:mcp']).toBeDefined();
-      expect(packageJson.scripts['build:cli']).toBeDefined();
       expect(packageJson.scripts['build:mcp']).toBeDefined();
     });
   });
@@ -73,7 +69,6 @@ describe('Package.json Configuration', () => {
   describe('Dependencies', () => {
     test('should have required runtime dependencies', () => {
       expect(packageJson.dependencies['@kubernetes/client-node']).toBeDefined();
-      expect(packageJson.dependencies['commander']).toBeDefined();
       expect(packageJson.dependencies['@anthropic-ai/sdk']).toBeDefined();
     });
 

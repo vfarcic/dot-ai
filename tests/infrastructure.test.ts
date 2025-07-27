@@ -16,7 +16,7 @@ describe('Test Infrastructure', () => {
       
       expect(packageJson.name).toBe('@vfarcic/dot-ai');
       expect(packageJson.main).toBe('dist/index.js');
-      expect(packageJson.bin).toHaveProperty('dot-ai');
+      expect(packageJson.bin).toHaveProperty('dot-ai-mcp');
       expect(packageJson.exports['.']).toBeDefined();
       expect(packageJson.exports['./mcp']).toBeDefined();
     });

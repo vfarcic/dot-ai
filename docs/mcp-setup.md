@@ -365,5 +365,4 @@ Once MCP server setup is complete, explore the available features:
 
 ## See Also
 
-- [API Reference](API.md) - Programmatic usage
-- [Development Guide](DEVELOPMENT.md) - Contributing and architecture
+For additional information, see the main README.md file in the repository.
