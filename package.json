@@ -1,11 +1,10 @@
 {
   "name": "@vfarcic/dot-ai",
   "version": "0.39.0",
-  "description": "Universal Kubernetes application deployment agent with CLI and MCP interfaces",
+  "description": "Universal Kubernetes application deployment agent with MCP interface",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "dot-ai": "./dist/cli.js",
     "dot-ai-mcp": "./dist/mcp/server.js"
   },
   "exports": {
@@ -21,14 +20,12 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",
-    "postbuild": "chmod +x dist/cli.js dist/mcp/server.js",
+    "postbuild": "chmod +x dist/mcp/server.js",
     "build:prod": "npm run clean && tsc --sourceMap false --removeComments true",
     "build:dev": "tsc --sourceMap true",
     "build:watch": "tsc --watch",
-    "build:cli": "npm run build && chmod +x dist/cli.js",
     "build:mcp": "npm run build && echo 'MCP server built successfully'",
     "dev": "ts-node src/index.ts",
-    "start:cli": "node dist/cli.js",
     "start:mcp": "node dist/mcp/server.js",
     "lint": "eslint src/ --ext .ts",
     "format": "prettier --write src/",
@@ -42,7 +39,6 @@
   "keywords": [
     "kubernetes",
     "deployment",
-    "cli",
     "mcp",
     "devops",
     "containers",

@@ -33,7 +33,6 @@ describe('Build System Validation (TDD)', () => {
       
       expect(fs.existsSync(distDir)).toBe(true);
       expect(fs.existsSync(path.join(distDir, 'core', 'index.js'))).toBe(true);
-      expect(fs.existsSync(path.join(distDir, 'interfaces', 'cli.js'))).toBe(true);
       expect(fs.existsSync(path.join(distDir, 'interfaces', 'mcp.js'))).toBe(true);
     });
 
@@ -51,7 +50,7 @@ describe('Build System Validation (TDD)', () => {
       });
       
       // Check interface modules
-      const interfaceModules = ['cli.js', 'mcp.js'];
+      const interfaceModules = ['mcp.js'];
       interfaceModules.forEach(module => {
         expect(fs.existsSync(path.join(interfacesDir, module))).toBe(true);
       });
@@ -59,43 +58,10 @@ describe('Build System Validation (TDD)', () => {
 
     test('should generate TypeScript declaration files', () => {
       expect(fs.existsSync(path.join(distDir, 'core', 'index.d.ts'))).toBe(true);
-      expect(fs.existsSync(path.join(distDir, 'interfaces', 'cli.d.ts'))).toBe(true);
       expect(fs.existsSync(path.join(distDir, 'interfaces', 'mcp.d.ts'))).toBe(true);
     });
   });
 
-  describe('CLI Binary Build Requirements', () => {
-    test('should create executable CLI binary', () => {
-      const cliBinary = path.join(projectRoot, 'bin', 'dot-ai.ts');
-      expect(fs.existsSync(cliBinary)).toBe(true);
-      
-      // Check that binary is executable
-      const stats = fs.statSync(cliBinary);
-      expect(stats.mode & parseInt('111', 8)).toBeGreaterThan(0);
-    });
-
-    test('should allow CLI binary to run without errors', () => {
-      expect(() => {
-        const projectKubeconfig = path.join(projectRoot, 'kubeconfig.yaml');
-        // Use the compiled JavaScript version for CI compatibility
-        const output = execSync(`node dist/cli.js --kubeconfig "${projectKubeconfig}" --help`, { 
-          cwd: projectRoot, 
-          stdio: 'pipe' 
-        });
-        expect(output.toString()).toContain('dot-ai');
-      }).not.toThrow();
-    });
-
-    test('should include all required dependencies in CLI build', () => {
-      const projectKubeconfig = path.join(projectRoot, 'kubeconfig.yaml');
-      // Use the compiled JavaScript version for CI compatibility
-      const output = execSync(`node dist/cli.js --kubeconfig "${projectKubeconfig}" --version`, { 
-        cwd: projectRoot, 
-        stdio: 'pipe' 
-      });
-      expect(output.toString().trim()).toMatch(/\d+\.\d+\.\d+/);
-    });
-  });
 
   describe('MCP Server Build Requirements', () => {
     test('should build MCP server without errors', () => {
@@ -140,13 +106,6 @@ describe('Build System Validation (TDD)', () => {
       expect(stats.size).toBeLessThan(100 * 1024);
     });
 
-    test('should keep CLI interface bundle size reasonable', () => {
-      const cliPath = path.join(distDir, 'interfaces', 'cli.js');
-      const stats = fs.statSync(cliPath);
-      
-      // CLI interface should be under 50KB
-      expect(stats.size).toBeLessThan(50 * 1024);
-    });
 
     test('should keep MCP interface bundle size reasonable', () => {
       const mcpPath = path.join(distDir, 'interfaces', 'mcp.js');
@@ -252,7 +211,7 @@ describe('Build System Validation (TDD)', () => {
     });
 
     test('should validate all imports resolve correctly', () => {
-      const interfaceFiles = ['cli.js', 'mcp.js'];
+      const interfaceFiles = ['mcp.js'];
       
       interfaceFiles.forEach(file => {
         const filePath = path.join(distDir, 'interfaces', file);
@@ -310,7 +269,6 @@ describe('Build System Validation (TDD)', () => {
       const scripts = packageJson.scripts;
       
       expect(scripts).toHaveProperty('build');
-      expect(scripts).toHaveProperty('build:cli');
       expect(scripts).toHaveProperty('build:mcp');
       expect(scripts).toHaveProperty('build:watch');
     });
