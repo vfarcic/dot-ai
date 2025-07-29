@@ -24,7 +24,7 @@ import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Manage organizational deployment patterns for AI recommendations. Use this tool to create, list, get, or delete organizational deployment patterns that guide AI recommendations. IMPORTANT: When creating patterns, ask the user for required information ONE BY ONE (not all at once): description, triggers (array), suggestedResources (provide list of Kubernetes resource types to choose from), rationale, createdBy. Then use their responses here.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Manage organizational deployment patterns for AI recommendations. Use this tool to create, list, get, or delete organizational deployment patterns that guide AI recommendations. CRITICAL: DO NOT call this tool with placeholder or example data. When user wants to create a pattern, you MUST ask them for each required field ONE BY ONE and wait for their actual responses before calling this tool: description, triggers (array), suggestedResources (provide list), rationale, createdBy. Only call this tool after collecting all real user data.';
 
 // Extensible schema - ready for future data types
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
@@ -32,11 +32,11 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   operation: z.enum(['create', 'list', 'get', 'delete']).describe('Operation to perform on the organizational data'),
   
   // Pattern-specific fields (required for create operation)
-  description: z.string().optional().describe('Pattern description for Vector DB embedding (required for create) - Ask the user to describe what this pattern is for and when to use it'),
-  triggers: z.array(z.string()).optional().describe('User intent keywords that match this pattern (required for create) - Ask the user for keywords/phrases that should trigger this pattern'),
-  suggestedResources: z.array(z.string()).optional().describe('Kubernetes resource types to suggest (required for create) - Provide user with list: Deployment, StatefulSet, DaemonSet, Job, CronJob, Service, Ingress, ConfigMap, Secret, PersistentVolume, PersistentVolumeClaim, HorizontalPodAutoscaler, NetworkPolicy, ServiceAccount'),
-  rationale: z.string().optional().describe('Why this pattern is recommended (required for create) - Ask the user to explain why this combination of resources works well together'),
-  createdBy: z.string().optional().describe('Pattern creator identifier (required for create) - Ask the user for their name or team identifier'),
+  description: z.string().optional().describe('Pattern description for Vector DB embedding (required for create) - DO NOT use placeholder data. Must ask user: What is this pattern for and when should it be used?'),
+  triggers: z.array(z.string()).optional().describe('User intent keywords that match this pattern (required for create) - DO NOT use placeholder data. Must ask user: What keywords or phrases should trigger this pattern?'),
+  suggestedResources: z.array(z.string()).optional().describe('Kubernetes resource types to suggest (required for create) - DO NOT use placeholder data. Must ask user to choose from: Deployment, StatefulSet, DaemonSet, Job, CronJob, Service, Ingress, ConfigMap, Secret, PersistentVolume, PersistentVolumeClaim, HorizontalPodAutoscaler, NetworkPolicy, ServiceAccount'),
+  rationale: z.string().optional().describe('Why this pattern is recommended (required for create) - DO NOT use placeholder data. Must ask user: Why does this combination of resources work well together?'),
+  createdBy: z.string().optional().describe('Pattern creator identifier (required for create) - DO NOT use placeholder data. Must ask user: What is your name or team identifier?'),
   
   // Generic fields for get/delete operations
   id: z.string().optional().describe('Data item ID (required for get/delete operations)'),
