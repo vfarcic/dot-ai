@@ -22,6 +22,8 @@ Ask the user to describe the feature idea to understand the core concept and sco
 ### Step 2: Create GitHub Issue FIRST
 Create the GitHub issue immediately to get the issue ID. This ID is required for proper PRD file naming.
 
+**IMPORTANT: Add the "PRD" label to the issue for discoverability.**
+
 ### Step 3: Create PRD File with Correct Naming
 Create the PRD file using the actual GitHub issue ID: `prds/[issue-id]-[feature-name].md`
 
@@ -113,6 +115,8 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **Priority**: [High/Medium/Low]
 ```
+
+**Don't forget to add the "PRD" label to the issue after creation.**
 
 **Issue Update (after PRD file created):**
 ```markdown
