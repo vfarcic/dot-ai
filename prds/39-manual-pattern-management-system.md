@@ -169,6 +169,9 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [x] **Vector DB storage**: Use Vector DB for pattern storage and semantic search - **Decided**: 2025-01-28 **Rationale**: Enables semantic matching with user intents
 - [x] **MCP tool interface**: Use MCP framework for pattern management commands - **Decided**: 2025-01-28 **Rationale**: Consistent with existing tool architecture
 - [x] **Foundation for AI Memory**: Provide infrastructure that PRD #5 can build upon - **Decided**: 2025-01-28 **Rationale**: Simpler implementation path and faster time to value
+- [x] **File storage replacement strategy**: Completely replace temporary file-based storage with Vector DB, no fallback - **Decided**: 2025-01-29 **Rationale**: Keeps codebase clean, forces proper Vector DB implementation, avoids confusion between storage systems
+- [x] **MCP tool naming convention**: Use camelCase verb pattern (`manageOrgData`) instead of kebab-case noun (`organizational-data`) - **Decided**: 2025-01-29 **Rationale**: Consistency with existing MCP tools (testDocs, generateManifests, etc.)
+- [x] **Interactive pattern creation**: AI should ask for pattern information one-by-one, not guess or invent data - **Decided**: 2025-01-29 **Rationale**: Better UX, prevents AI from creating patterns with made-up data, follows pattern of other MCP tools
 
 ## Scope Management
 
@@ -289,6 +292,41 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - Export integration: Seamless integration with existing `src/core/index.ts` structure
 
 **Next Steps**: Implement MCP tool interface for pattern CRUD operations
+
+### 2025-01-29: MCP Tool Interface Implementation
+**Duration**: ~4 hours
+**Primary Focus**: Organizational-data MCP tool with extensible architecture
+
+**Completed Work**: 
+- Implemented unified `organizational-data` MCP tool supporting pattern operations
+- Created extensible architecture ready for future data types (policies, memory, config)
+- Built file-based pattern storage service as temporary implementation
+- Integrated tool with existing MCP server architecture (8 total tools)
+- Developed comprehensive test suite with 8 test cases, all passing
+- Updated `.mcp.json` to use local development version for testing
+
+**Key Design Decisions**:
+- **Single unified tool**: One `organizational-data` tool instead of multiple pattern-specific tools to conserve MCP tool slots
+- **Extensible data types**: Architecture ready for `pattern|policy|memory|config` data types
+- **Complete replacement strategy**: File storage will be completely replaced with Vector DB, no fallback
+- **Temporary file storage**: JSON file storage in session directory for immediate functionality
+
+**Technical Achievements**:
+- MCP tool with CRUD operations: create, list, get, delete patterns
+- Pattern storage service with file-based persistence
+- Input validation and comprehensive error handling
+- Session directory integration following existing patterns
+- 8 passing tests covering all operations and error scenarios
+- Tool naming convention fix: `manageOrgData` following camelCase verb pattern
+- Interactive UX improvements: Clear instructions for AI to ask for information one-by-one
+
+**Validation**:
+- All 567 tests passing across 27 test suites
+- Build successful with no compilation errors
+- MCP tool properly registered and functional
+- Manual testing identified and resolved UX issue with AI guessing pattern data
+
+**Next Steps**: Vector DB integration to replace file storage and enable semantic search
 
 ---
 

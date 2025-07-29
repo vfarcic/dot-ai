@@ -7,7 +7,6 @@
 
 export interface OrganizationalPattern {
   id: string;                   // Auto-generated UUID
-  name: string;                 // Human-readable pattern name
   description: string;          // Detailed description for Vector DB embedding
   triggers: string[];           // User intent keywords that match this pattern
   suggestedResources: string[]; // Kubernetes resource types to suggest

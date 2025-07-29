@@ -39,3 +39,10 @@ export {
   DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
   handleDeployManifestsTool
 } from './deploy-manifests';
+
+export { 
+  ORGANIZATIONAL_DATA_TOOL_NAME, 
+  ORGANIZATIONAL_DATA_TOOL_DESCRIPTION, 
+  ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
+  handleOrganizationalDataTool
+} from './organizational-data';

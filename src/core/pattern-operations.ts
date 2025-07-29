@@ -11,13 +11,6 @@ import { randomUUID } from 'crypto';
 export function validatePattern(request: CreatePatternRequest): string[] {
   const errors: string[] = [];
 
-  if (!request.name || request.name.trim().length === 0) {
-    errors.push('Pattern name is required');
-  }
-  if (request.name && request.name.length > 100) {
-    errors.push('Pattern name must be 100 characters or less');
-  }
-
   if (!request.description || request.description.trim().length === 0) {
     errors.push('Pattern description is required');
   }
@@ -49,7 +42,6 @@ export function createPattern(request: CreatePatternRequest): OrganizationalPatt
   // Pre-process request to clean up data before validation
   const cleanRequest = {
     ...request,
-    name: request.name?.trim() || '',
     description: request.description?.trim() || '',
     triggers: request.triggers?.map(t => t?.trim()).filter(t => t && t.length > 0) || [],
     rationale: request.rationale?.trim() || '',
@@ -63,7 +55,6 @@ export function createPattern(request: CreatePatternRequest): OrganizationalPatt
 
   return {
     id: randomUUID(),
-    name: cleanRequest.name,
     description: cleanRequest.description,
     triggers: cleanRequest.triggers,
     suggestedResources: cleanRequest.suggestedResources,
@@ -83,7 +74,7 @@ export function deserializePattern(json: string): OrganizationalPattern {
   const parsed = JSON.parse(json);
   
   // Basic structure validation
-  if (!parsed.id || !parsed.name || !parsed.description || 
+  if (!parsed.id || !parsed.description || 
       !Array.isArray(parsed.triggers) || !Array.isArray(parsed.suggestedResources) ||
       !parsed.rationale || !parsed.createdAt || !parsed.createdBy) {
     throw new Error('Invalid pattern JSON structure');
