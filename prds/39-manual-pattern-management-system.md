@@ -73,10 +73,13 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [ ] **Document recommendation enhancement**: How patterns influence AI decision-making
 
 **Implementation Tasks:**
-- [ ] **Semantic Pattern Search**: Use Qdrant similarity search for relevant patterns based on user intent
+- [ ] **Embedding Service Integration**: Add embedding service to MCP agent (OpenAI/Cohere/local model) for converting text to vectors
+- [ ] **Vector DB Service**: Replace file storage with Qdrant Vector DB service for pattern storage and semantic search
+- [ ] **Hybrid Search Implementation**: Combine embedding-based semantic search with trigger-based keyword matching
+- [ ] **Semantic Pattern Search**: Use Qdrant similarity search for relevant patterns based on user intent embeddings
 - [ ] **Prompt Enhancement**: Inject relevant patterns into AI recommendation prompts via Claude API
 - [ ] **Suggestion Logic**: AI receives patterns as suggestions, not requirements
-- [ ] **Performance Optimization**: Efficient pattern retrieval for real-time recommendations
+- [ ] **Performance Optimization**: Efficient pattern retrieval for real-time recommendations with confidence thresholds
 - [ ] **Integration Validation**: Prove end-to-end Vector DB → Claude AI → Enhanced recommendations workflow
 
 ### Phase 3: Advanced Features [Status: ⏳ PENDING]
@@ -172,6 +175,8 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [x] **File storage replacement strategy**: Completely replace temporary file-based storage with Vector DB, no fallback - **Decided**: 2025-01-29 **Rationale**: Keeps codebase clean, forces proper Vector DB implementation, avoids confusion between storage systems
 - [x] **MCP tool naming convention**: Use camelCase verb pattern (`manageOrgData`) instead of kebab-case noun (`organizational-data`) - **Decided**: 2025-01-29 **Rationale**: Consistency with existing MCP tools (testDocs, generateManifests, etc.)
 - [x] **Interactive pattern creation**: AI should ask for pattern information one-by-one, not guess or invent data - **Decided**: 2025-01-29 **Rationale**: Better UX, prevents AI from creating patterns with made-up data, follows pattern of other MCP tools
+- [x] **Composable pattern design**: Use focused, single-purpose patterns rather than comprehensive ones - **Decided**: 2025-01-29 **Rationale**: Enables precise matching, avoids combinatorial explosion, maintains user control over what features they get
+- [x] **Hybrid search approach**: Combine embedding-based semantic search with trigger-based keyword matching - **Decided**: 2025-01-29 **Rationale**: Leverages embedding model synonym capabilities while providing exact match fallback for domain-specific terms
 
 ## Scope Management
 
