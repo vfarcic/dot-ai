@@ -231,3 +231,30 @@ When applying updates:
 3. **Update status sections** to reflect current phase
 4. **Preserve unchecked items** that still need work
 5. **Update completion percentages** realistically
+
+## Step 8: Commit Progress Updates
+
+After successfully updating the PRD, commit all changes to preserve the progress checkpoint:
+
+### Commit Implementation Work
+```bash
+# Stage all implementation files and PRD updates
+git add .
+
+# Create comprehensive commit with PRD reference
+git commit -m "feat(prd-X): implement [brief description of completed work]
+
+- [Brief list of key implementation achievements]
+- Updated PRD checkboxes for completed items
+- Added work log entry with progress summary
+
+Progress: X% complete - [next major milestone]"
+```
+
+### Commit Message Guidelines
+- **Reference PRD number**: Always include `prd-X` in commit message
+- **Descriptive summary**: Brief but clear description of what was implemented
+- **Progress indication**: Include completion status and next steps
+- **Evidence-based**: Only commit when there's actual implementation progress
+
+**Note**: Do NOT push commits unless explicitly requested by the user. Commits preserve local progress checkpoints without affecting remote branches.

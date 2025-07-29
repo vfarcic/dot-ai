@@ -138,6 +138,8 @@ export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
 export { ClaudeIntegration } from './claude';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
+export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
+export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
 
 // Default export
 export default DotAI; 
