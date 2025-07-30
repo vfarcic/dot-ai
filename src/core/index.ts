@@ -140,6 +140,8 @@ export { ClaudeIntegration } from './claude';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
 export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
+export { PatternCreationStep, PatternCreationSession, PatternWorkflowStep } from './pattern-creation-types';
+export { PatternCreationSessionManager } from './pattern-creation-session';
 
 // Default export
 export default DotAI; 

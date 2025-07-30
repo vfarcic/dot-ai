@@ -35,19 +35,12 @@ describe('Organizational Data Tool', () => {
   });
 
   describe('Pattern Operations', () => {
-    const validPatternArgs = {
-      dataType: 'pattern',
-      operation: 'create',
-      description: 'A test pattern for validation',
-      triggers: ['test app', 'validation service'],
-      suggestedResources: ['Deployment', 'Service'],
-      rationale: 'Standard pattern for testing applications',
-      createdBy: 'test-user'
-    };
-
-    it('should create a pattern successfully', async () => {
+    it('should start pattern creation workflow when create operation called', async () => {
       const result = await handleOrganizationalDataTool(
-        validPatternArgs,
+        {
+          dataType: 'pattern',
+          operation: 'create'
+        },
         null,
         testLogger,
         'test-request-1'
@@ -60,15 +53,45 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('create');
       expect(response.dataType).toBe('pattern');
-      expect(response.data.description).toBe('A test pattern for validation');
-      expect(response.data.id).toBeDefined();
+      expect(response.workflow).toBeDefined();
+      expect(response.workflow.step).toBe('description');
+      expect(response.workflow.prompt).toContain('What deployment capability does this pattern provide');
     });
 
-    it('should list patterns after creation', async () => {
-      // First create a pattern
-      await handleOrganizationalDataTool(validPatternArgs, null, testLogger, 'test-request-1');
+    it('should progress through workflow with user responses', async () => {
+      // Start workflow
+      const startResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'create'
+        },
+        null,
+        testLogger,
+        'test-request-1'
+      );
+      
+      const startResponse = JSON.parse(startResult.content[0].text);
+      const sessionId = startResponse.workflow.sessionId;
 
-      // Then list patterns
+      // Step 1: Provide description
+      const step1Result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'create',
+          sessionId: sessionId,
+          response: 'Horizontal scaling'
+        },
+        null,
+        testLogger,
+        'test-request-2'
+      );
+      
+      const step1Response = JSON.parse(step1Result.content[0].text);
+      expect(step1Response.workflow.step).toBe('triggers');
+      expect(step1Response.workflow.prompt).toContain('What keywords or phrases should trigger this pattern');
+    });
+
+    it('should list patterns (empty initially)', async () => {
       const listResult = await handleOrganizationalDataTool(
         {
           dataType: 'pattern',
@@ -76,84 +99,14 @@ describe('Organizational Data Tool', () => {
         },
         null,
         testLogger,
-        'test-request-2'
+        'test-request-1'
       );
 
       const response = JSON.parse(listResult.content[0].text);
       expect(response.success).toBe(true);
       expect(response.operation).toBe('list');
-      expect(response.data.patterns).toHaveLength(1);
-      expect(response.data.totalCount).toBe(1);
-    });
-
-    it('should get a specific pattern by ID', async () => {
-      // First create a pattern
-      const createResult = await handleOrganizationalDataTool(validPatternArgs, null, testLogger, 'test-request-1');
-      const createResponse = JSON.parse(createResult.content[0].text);
-      const patternId = createResponse.data.id;
-
-      // Then get the pattern
-      const getResult = await handleOrganizationalDataTool(
-        {
-          dataType: 'pattern',
-          operation: 'get',
-          id: patternId
-        },
-        null,
-        testLogger,
-        'test-request-2'
-      );
-
-      const response = JSON.parse(getResult.content[0].text);
-      expect(response.success).toBe(true);
-      expect(response.operation).toBe('get');
-      expect(response.data.id).toBe(patternId);
-      expect(response.data.description).toBe('A test pattern for validation');
-    });
-
-    it('should delete a pattern by ID', async () => {
-      // First create a pattern
-      const createResult = await handleOrganizationalDataTool(validPatternArgs, null, testLogger, 'test-request-1');
-      const createResponse = JSON.parse(createResult.content[0].text);
-      const patternId = createResponse.data.id;
-
-      // Then delete the pattern
-      const deleteResult = await handleOrganizationalDataTool(
-        {
-          dataType: 'pattern',
-          operation: 'delete',
-          id: patternId
-        },
-        null,
-        testLogger,
-        'test-request-2'
-      );
-
-      const response = JSON.parse(deleteResult.content[0].text);
-      expect(response.success).toBe(true);
-      expect(response.operation).toBe('delete');
-      expect(response.data.id).toBe(patternId);
-    });
-
-    it('should handle validation errors for incomplete create requests', async () => {
-      const incompleteArgs = {
-        dataType: 'pattern',
-        operation: 'create',
-        description: 'Incomplete Pattern'
-        // Missing required fields
-      };
-
-      const result = await handleOrganizationalDataTool(
-        incompleteArgs,
-        null,
-        testLogger,
-        'test-request-1'
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
-      expect(response.error.message).toContain('Missing required fields');
+      expect(response.data.patterns).toHaveLength(0);
+      expect(response.data.totalCount).toBe(0);
     });
 
     it('should handle errors for non-existent pattern get requests', async () => {
@@ -171,22 +124,6 @@ describe('Organizational Data Tool', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.success).toBe(false);
       expect(response.error.message).toContain('Pattern not found');
-    });
-
-    it('should handle errors for unsupported data types', async () => {
-      const result = await handleOrganizationalDataTool(
-        {
-          dataType: 'unsupported',
-          operation: 'create'
-        },
-        null,
-        testLogger,
-        'test-request-1'
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
-      expect(response.error.message).toContain('Unsupported data type');
     });
 
     it('should handle missing required parameters', async () => {

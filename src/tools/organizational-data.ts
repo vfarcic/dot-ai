@@ -18,25 +18,23 @@ import {
   serializePattern,
   deserializePattern 
 } from '../core/pattern-operations';
+import { PatternCreationSessionManager } from '../core/pattern-creation-session';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Manage organizational deployment patterns for AI recommendations. Use this tool to create, list, get, or delete organizational deployment patterns that guide AI recommendations. CRITICAL: DO NOT call this tool with placeholder or example data. When user wants to create a pattern, you MUST ask them for each required field ONE BY ONE and wait for their actual responses before calling this tool: description, triggers (array), suggestedResources (provide list), rationale, createdBy. Only call this tool after collecting all real user data.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Manage organizational deployment patterns, templates, standards, and best practices for AI recommendations. Use this tool when user wants to save, create, add, or manage deployment patterns, templates, resource configurations, organizational standards, best practices, or reusable deployment guidelines. This tool uses a step-by-step workflow for creation. IMPORTANT: When user wants to create something, call this tool with operation=create (no other parameters). The tool will return a workflow step with a "prompt" field - you must execute that prompt immediately and wait for user response before calling again.';
 
 // Extensible schema - ready for future data types
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   dataType: z.enum(['pattern']).describe('Type of organizational data to manage (currently only "pattern" supported)'),
   operation: z.enum(['create', 'list', 'get', 'delete']).describe('Operation to perform on the organizational data'),
   
-  // Pattern-specific fields (required for create operation)
-  description: z.string().optional().describe('Pattern description for Vector DB embedding (required for create) - DO NOT use placeholder data. Must ask user: What is this pattern for and when should it be used?'),
-  triggers: z.array(z.string()).optional().describe('User intent keywords that match this pattern (required for create) - DO NOT use placeholder data. Must ask user: What keywords or phrases should trigger this pattern?'),
-  suggestedResources: z.array(z.string()).optional().describe('Kubernetes resource types to suggest (required for create) - DO NOT use placeholder data. Must ask user to choose from: Deployment, StatefulSet, DaemonSet, Job, CronJob, Service, Ingress, ConfigMap, Secret, PersistentVolume, PersistentVolumeClaim, HorizontalPodAutoscaler, NetworkPolicy, ServiceAccount'),
-  rationale: z.string().optional().describe('Why this pattern is recommended (required for create) - DO NOT use placeholder data. Must ask user: Why does this combination of resources work well together?'),
-  createdBy: z.string().optional().describe('Pattern creator identifier (required for create) - DO NOT use placeholder data. Must ask user: What is your name or team identifier?'),
+  // Workflow fields for step-by-step pattern creation
+  sessionId: z.string().optional().describe('Pattern creation session ID (for continuing multi-step workflow)'),
+  response: z.string().optional().describe('User response to previous workflow step question'),
   
   // Generic fields for get/delete operations
   id: z.string().optional().describe('Data item ID (required for get/delete operations)'),
@@ -138,7 +136,7 @@ class PatternStorageService {
 }
 
 /**
- * Handle pattern operations
+ * Handle pattern operations with workflow support
  */
 async function handlePatternOperation(
   operation: string,
@@ -146,64 +144,104 @@ async function handlePatternOperation(
   logger: Logger,
   requestId: string
 ): Promise<any> {
-  const storageService = new PatternStorageService(args);
+  const sessionManager = new PatternCreationSessionManager();
 
   switch (operation) {
     case 'create': {
-      // Validate required fields for pattern creation
-      const requiredFields = ['description', 'triggers', 'suggestedResources', 'rationale', 'createdBy'];
-      const missingFields = requiredFields.filter(field => !args[field]);
-      
-      if (missingFields.length > 0) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.HIGH,
-          `Missing required fields for pattern creation: ${missingFields.join(', ')}`,
-          {
-            operation: 'pattern_create_validation',
-            component: 'OrganizationalDataTool',
-            requestId,
-            input: { provided: Object.keys(args), missing: missingFields }
-          }
-        );
+      if (args.sessionId && args.response) {
+        // Continue existing workflow session
+        logger.info('Continuing pattern creation workflow', { 
+          requestId, 
+          sessionId: args.sessionId 
+        });
+        
+        const workflowStep = sessionManager.processResponse(args.sessionId, args.response, args);
+        
+        if (!workflowStep) {
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.HIGH,
+            `Invalid session or workflow step`,
+            {
+              operation: 'pattern_workflow_continue',
+              component: 'OrganizationalDataTool',
+              requestId,
+              input: { sessionId: args.sessionId }
+            }
+          );
+        }
+        
+        return {
+          success: true,
+          operation: 'create',
+          dataType: 'pattern',
+          workflow: workflowStep,
+          message: 'Workflow step ready'
+        };
+        
+      } else if (args.sessionId) {
+        // Get next step for existing session
+        logger.info('Getting next workflow step', { 
+          requestId, 
+          sessionId: args.sessionId 
+        });
+        
+        const workflowStep = sessionManager.getNextStep(args.sessionId, args);
+        
+        if (!workflowStep) {
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.HIGH,
+            `Session not found or workflow complete`,
+            {
+              operation: 'pattern_workflow_next',
+              component: 'OrganizationalDataTool',
+              requestId,
+              input: { sessionId: args.sessionId }
+            }
+          );
+        }
+        
+        return {
+          success: true,
+          operation: 'create',
+          dataType: 'pattern',
+          workflow: workflowStep,
+          message: 'Workflow step ready'
+        };
+        
+      } else {
+        // Start new workflow session
+        logger.info('Starting new pattern creation workflow', { requestId });
+        
+        const session = sessionManager.createSession(args);
+        const workflowStep = sessionManager.getNextStep(session.sessionId, args);
+        
+        if (!workflowStep) {
+          throw ErrorHandler.createError(
+            ErrorCategory.OPERATION,
+            ErrorSeverity.HIGH,
+            `Failed to start pattern creation workflow`,
+            {
+              operation: 'pattern_workflow_start',
+              component: 'OrganizationalDataTool',
+              requestId
+            }
+          );
+        }
+        
+        return {
+          success: true,
+          operation: 'create',
+          dataType: 'pattern',
+          workflow: workflowStep,
+          message: 'Pattern creation workflow started'
+        };
       }
-
-      const createRequest: CreatePatternRequest = {
-        description: args.description,
-        triggers: args.triggers,
-        suggestedResources: args.suggestedResources,
-        rationale: args.rationale,
-        createdBy: args.createdBy
-      };
-
-      const pattern = await storageService.create(createRequest);
-      
-      logger.info('Pattern created successfully', { 
-        requestId, 
-        patternId: pattern.id,
-        description: pattern.description.substring(0, 50) + (pattern.description.length > 50 ? '...' : ''),
-        triggersCount: pattern.triggers.length,
-        resourcesCount: pattern.suggestedResources.length
-      });
-
-      return {
-        success: true,
-        operation: 'create',
-        dataType: 'pattern',
-        data: {
-          id: pattern.id,
-          description: pattern.description,
-          triggers: pattern.triggers,
-          suggestedResources: pattern.suggestedResources,
-          rationale: pattern.rationale,
-          createdAt: pattern.createdAt,
-          createdBy: pattern.createdBy
-        },
-        message: `Pattern created successfully with ID: ${pattern.id}`
-      };
     }
 
     case 'list': {
+      const storageService = new PatternStorageService(args);
       const limit = args.limit || 10;
       const patterns = await storageService.list(limit);
       const totalCount = await storageService.count();
@@ -237,6 +275,7 @@ async function handlePatternOperation(
     }
 
     case 'get': {
+      const storageService = new PatternStorageService(args);
       if (!args.id) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -283,6 +322,7 @@ async function handlePatternOperation(
     }
 
     case 'delete': {
+      const storageService = new PatternStorageService(args);
       if (!args.id) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
