@@ -1,7 +1,7 @@
 # PRD: Manual Pattern Management System
 
 **Created**: 2025-01-28
-**Status**: In Progress (~78% Complete)
+**Status**: In Progress (~82% Complete)
 **Owner**: TBD
 **Last Updated**: 2025-07-31
 **GitHub Issue**: [#39](https://github.com/vfarcic/dot-ai/issues/39)
@@ -106,7 +106,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [x] **Vector DB Service**: Integration layer for pattern storage and semantic search (src/core/vector-db-service.ts, src/core/pattern-vector-service.ts)
 - [ ] **AI Integration**: Pattern injection into recommendation prompts (src/core/pattern-enhanced-recommendations.ts)
 - [x] **Validation System**: Schema validation and basic conflict detection
-- [ ] **Documentation**: Pattern management architecture and integration points
+- [ ] **Documentation**: Pattern management user guide with MCP workflows and system integration examples
 
 ### Development Tasks
 - [x] **MCP Tool Implementation**: Create pattern-management MCP tool with intuitive commands
@@ -184,6 +184,10 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [x] **Interactive pattern creation**: AI should ask for pattern information one-by-one, not guess or invent data - **Decided**: 2025-01-29 **Rationale**: Better UX, prevents AI from creating patterns with made-up data, follows pattern of other MCP tools
 - [x] **Composable pattern design**: Use focused, single-purpose patterns rather than comprehensive ones - **Decided**: 2025-01-29 **Rationale**: Enables precise matching, avoids combinatorial explosion, maintains user control over what features they get
 - [x] **Hybrid search approach**: Combine embedding-based semantic search with trigger-based keyword matching - **Decided**: 2025-01-29 **Rationale**: Leverages embedding model synonym capabilities while providing exact match fallback for domain-specific terms
+- [x] **MCP-only interface approach**: Confirmed complete removal of CLI interface, focus entirely on MCP interface for AI agent integration - **Decided**: 2025-07-31 **Rationale**: CLI interface was completely removed from codebase, only MCP server exists; simplifies user experience and documentation
+- [x] **System diagnostics separation**: Keep version tool diagnostics separate from pattern management documentation - **Decided**: 2025-07-31 **Rationale**: Version tool serves broader system health purposes beyond pattern management; separation improves documentation clarity and reusability
+- [x] **Documentation architecture simplification**: Create single comprehensive pattern management guide instead of separate CLI reference - **Decided**: 2025-07-31 **Rationale**: With MCP-only interface, users interact through AI assistants rather than direct commands; single guide provides better user experience
+- [x] **Cross-PRD consistency**: Remove all outdated CLI references across multiple PRDs to maintain documentation accuracy - **Decided**: 2025-07-31 **Rationale**: Ensures consistency across project documentation and prevents confusion about non-existent interfaces
 
 ## Scope Management
 
@@ -193,7 +197,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [ ] **AI integration**: Pattern suggestions enhance recommendation prompts
 - [ ] **Basic validation**: Schema validation and duplicate detection
 - [ ] **User workflow**: Intuitive pattern creation and management experience
-- [ ] **Documentation**: Complete user guide and command reference
+- [ ] **Documentation**: Complete user guide with MCP workflow examples and troubleshooting
 
 ### Out of Scope (Future Versions)
 - [~] **Automatic pattern learning**: AI-generated patterns from deployment outcomes (PRD #5)
@@ -489,7 +493,35 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - **Developer Experience**: Clear logging and error messages help diagnose issues quickly
 
 **Phase 2 Completion Achievement**:
-This work session completed ALL remaining Phase 2 tasks, marking a major milestone in the PRD implementation. With embedding service integration and system diagnostics complete, the foundation is now ready for Phase 3 AI integration and documentation work.
+This work session completed ALL remaining Phase 2 tasks, marking a major milestone in the PRD implementation. With embedding service integration and system diagnostics complete, the foundation is now ready for Phase 3 documentation and validation work.
+
+### 2025-07-31: Documentation Architecture & Design Decision Capture
+**Duration**: ~2 hours (estimated from conversation timeline)
+**Commits**: Multiple commits capturing design decisions and cross-PRD cleanup
+**Primary Focus**: Documentation architecture design and interface strategy confirmation
+
+**Major Design Decisions Captured**:
+- **MCP-Only Interface Confirmation**: Verified complete CLI removal from codebase, confirmed MCP-only approach aligns with actual system architecture
+- **System Diagnostics Separation**: Decided to keep version tool diagnostics separate from pattern management documentation for broader reusability
+- **Documentation Architecture Simplification**: Designed single comprehensive pattern management guide instead of separate CLI reference
+- **Cross-PRD Consistency**: Systematic cleanup of outdated CLI references across PRDs #4, #5, #12, #39
+
+**Documentation Design Work**:
+- **Pattern Management Guide Structure**: Comprehensive outline created covering MCP workflows, troubleshooting, best practices, and AI integration examples
+- **Content Separation Strategy**: Clear boundaries established between pattern-specific documentation and general system diagnostics
+- **User Experience Approach**: Designed MCP workflow examples and AI assistant interaction patterns for optimal user experience
+- **Integration Planning**: Mapped connections with existing MCP setup guide and recommendation documentation
+
+**PRD Maintenance**:
+- **Decision Log Updates**: Added 4 major architectural decisions with rationale and impact assessment
+- **Cross-Reference Cleanup**: Updated documentation references across multiple PRDs to remove non-existent CLI interface mentions
+- **Scope Clarification**: Refined Phase 3 to focus on documentation creation and validation rather than additional implementation
+
+**Current State & Next Steps**:
+- **Implementation**: 100% complete - All core functionality working in production
+- **Design & Architecture**: 100% complete - All major decisions captured and documented  
+- **Documentation**: 0% complete - Comprehensive guide structure designed but not yet created
+- **Ready for Implementation**: `docs/pattern-management-guide.md` creation is next priority task with complete structure and content plan available
 
 ---
 
