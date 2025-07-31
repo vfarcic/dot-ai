@@ -4,9 +4,43 @@
 
 import { handleOrganizationalDataTool } from '../../src/tools/organizational-data';
 import { Logger } from '../../src/core/error-handling';
+import { VectorDBService, PatternVectorService } from '../../src/core/index';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+
+// Mock the getPatternService function and Vector DB connection validation
+const mockHealthCheck = jest.fn().mockResolvedValue(true);
+const mockGetAllPatterns = jest.fn().mockResolvedValue([]);
+const mockGetPatternsCount = jest.fn().mockResolvedValue(0);
+const mockGetPattern = jest.fn().mockResolvedValue(null);
+const mockDeletePattern = jest.fn().mockResolvedValue(undefined);
+const mockStorePattern = jest.fn().mockResolvedValue(undefined);
+const mockInitialize = jest.fn().mockResolvedValue(undefined);
+
+// Mock the imports at the module level
+jest.mock('../../src/core/vector-db-service', () => ({
+  VectorDBService: jest.fn().mockImplementation(() => ({
+    isInitialized: jest.fn().mockReturnValue(true),
+    healthCheck: jest.fn().mockResolvedValue(true),
+    getConfig: jest.fn().mockReturnValue({
+      url: 'http://localhost:6333',
+      collectionName: 'patterns'
+    })
+  }))
+}));
+
+jest.mock('../../src/core/pattern-vector-service', () => ({
+  PatternVectorService: jest.fn().mockImplementation(() => ({
+    healthCheck: mockHealthCheck,
+    initialize: mockInitialize,
+    getAllPatterns: mockGetAllPatterns,
+    getPatternsCount: mockGetPatternsCount,
+    getPattern: mockGetPattern,
+    deletePattern: mockDeletePattern,
+    storePattern: mockStorePattern
+  }))
+}));
 
 // Create a test logger
 const testLogger: Logger = {
@@ -24,6 +58,18 @@ describe('Organizational Data Tool', () => {
     // Create a unique test directory for each test
     testSessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dot-ai-test-'));
     process.env.DOT_AI_SESSION_DIR = testSessionDir;
+
+    // Reset all mocks to default state
+    mockHealthCheck.mockResolvedValue(true);
+    mockGetAllPatterns.mockResolvedValue([]);
+    mockGetPatternsCount.mockResolvedValue(0);
+    mockGetPattern.mockResolvedValue(null);
+    mockDeletePattern.mockResolvedValue(undefined);
+    mockStorePattern.mockResolvedValue(undefined);
+    mockInitialize.mockResolvedValue(undefined);
+
+    // Clear all mocks
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -32,6 +78,31 @@ describe('Organizational Data Tool', () => {
       fs.rmSync(testSessionDir, { recursive: true, force: true });
     }
     delete process.env.DOT_AI_SESSION_DIR;
+  });
+
+  describe('Vector DB Connection Requirement', () => {
+    it('should return connection required error when Vector DB unavailable', async () => {
+      // Mock unhealthy Vector DB
+      mockHealthCheck.mockResolvedValue(false);
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.error.message).toBe('Vector DB connection required for pattern management');
+      expect(response.error.setup.selfHosted.docker).toContain('docker run');
+      expect(response.error.setup.saas.signup).toContain('cloud.qdrant.io');
+      expect(response.error.setup.saas.environment.some((env: string) => env.includes('QDRANT_URL'))).toBe(true);
+      expect(response.error.setup.saas.environment.some((env: string) => env.includes('QDRANT_API_KEY'))).toBe(true);
+    });
   });
 
   describe('Pattern Operations', () => {
@@ -139,6 +210,61 @@ describe('Organizational Data Tool', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.success).toBe(false);
       expect(response.error.message).toContain('dataType parameter is required');
+    });
+
+    it('should clean up session file after successful Vector DB storage', async () => {
+      // Start workflow
+      const startResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'create'
+        },
+        null,
+        testLogger,
+        'test-request-1'
+      );
+      
+      const startResponse = JSON.parse(startResult.content[0].text);
+      const sessionId = startResponse.workflow.sessionId;
+
+      // Verify session file exists
+      const sessionFile = path.join(testSessionDir, 'pattern-sessions', `${sessionId}.json`);
+      expect(fs.existsSync(sessionFile)).toBe(true);
+
+      // Complete the workflow with all required steps
+      let currentResponse = startResponse;
+      const responses = [
+        'Horizontal scaling',        // description
+        'scale, scaling, horizontal', // triggers
+        'scale, scaling, horizontal, autoscale, hpa', // trigger expansion
+        'Deployment, HorizontalPodAutoscaler',       // resources
+        'HPA automatically scales pods based on metrics', // rationale
+        'test-user',                // created-by
+        'confirm'                   // review confirmation
+      ];
+
+      for (let i = 0; i < responses.length; i++) {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'pattern',
+            operation: 'create',
+            sessionId: sessionId,
+            response: responses[i]
+          },
+          null,
+          testLogger,
+          `test-request-${i + 2}`
+        );
+        currentResponse = JSON.parse(result.content[0].text);
+      }
+
+      // Final result should be successful
+      expect(currentResponse.success).toBe(true);
+      expect(currentResponse.message).toContain('Pattern created and stored successfully');
+      expect(currentResponse.storage.stored).toBe(true);
+
+      // Session file should be cleaned up after successful storage
+      expect(fs.existsSync(sessionFile)).toBe(false);
     });
   });
 });

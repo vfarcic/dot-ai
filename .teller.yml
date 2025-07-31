@@ -6,3 +6,4 @@ providers:
         path: projects/vfarcic
         keys:
           anthropic-api-key: ANTHROPIC_API_KEY
+          qdrant-api-key: QDRANT_API_KEY

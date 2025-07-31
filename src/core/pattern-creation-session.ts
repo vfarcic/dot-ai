@@ -175,7 +175,7 @@ export class PatternCreationSessionManager {
         return {
           sessionId,
           step: 'resources',
-          prompt: `Ask the user: "Which Kubernetes resources should be suggested for ${session.data.description}? Choose from: Deployment, StatefulSet, DaemonSet, Job, CronJob, Service, Ingress, ConfigMap, Secret, PersistentVolume, PersistentVolumeClaim, HorizontalPodAutoscaler, NetworkPolicy, ServiceAccount. Please select the ones that apply, separated by commas."`,
+          prompt: `Ask the user: "Which Kubernetes resources should be suggested for ${session.data.description}? Please list the resource types you want this pattern to suggest, separated by commas. For example: Deployment, Service, ConfigMap or StatefulSet, PersistentVolumeClaim, Secret."`,
           instruction: 'Wait for the user to select Kubernetes resources. Then call this tool again with their comma-separated response.',
           nextStep: 'rationale'
         };
@@ -225,18 +225,27 @@ export class PatternCreationSessionManager {
     return {
       sessionId: session.sessionId,
       step: 'trigger-expansion',
-      prompt: `Based on the pattern "${description}" and initial triggers [${initialTriggers.join(', ')}], suggest additional related terms that should also trigger this pattern. Consider synonyms, abbreviations, and alternative phrasings. Present them as a list and ask the user to confirm which ones to include. For example:
+      prompt: `Based on the pattern "${description}" and initial triggers [${initialTriggers.join(', ')}], use AI to suggest additional related terms that should also trigger this pattern. Consider synonyms, abbreviations, and alternative phrasings. Present them as a list and ask the user to confirm which ones to include. For example:
 
 "I found these additional terms that might also trigger your '${description}' pattern:
-- [AI-generated suggestions based on description and initial triggers]
+- application
+- service  
+- workload
+- deploy
+- deployment
+- microservice
+- container
+- pod
 
 Which of these should also trigger this pattern? You can:
 1. Select specific ones: 'include: term1, term2, term3'  
 2. Include all: 'include all'
 3. Skip additions: 'skip' or 'none'
 
-Your current triggers: ${initialTriggers.join(', ')}"`,
-      instruction: 'Use AI to generate trigger suggestions based on the pattern description and initial triggers. Present them to the user for confirmation. Then call this tool again with their response.',
+Your current triggers: ${initialTriggers.join(', ')}"
+
+IMPORTANT: After the user responds, you must convert their response into the actual final trigger list (comma-separated) before calling this tool again. Do not send the user's raw response.`,
+      instruction: 'Use AI to generate trigger suggestions based on the pattern description and initial triggers. Present them to the user for confirmation. Based on their response: if they say "include all" or "all", send back ALL the suggested terms as a comma-separated list. If they say "skip" or "none", send back only the original triggers. If they specify specific terms, send back the original triggers plus their selected terms as a comma-separated list. Do not send their raw response - send the actual final trigger list.',
       nextStep: 'resources',
       data: { initialTriggers, description }
     };
@@ -261,7 +270,7 @@ Does this look correct? Type 'confirm' to create the pattern, or 'modify' to mak
   /**
    * Complete pattern creation and return success result
    */
-  private completePattern(session: PatternCreationSession, args: any): PatternWorkflowStep {
+  private completePattern(session: PatternCreationSession, _args: any): PatternWorkflowStep {
     try {
       const request: CreatePatternRequest = {
         description: session.data.description!,
@@ -273,15 +282,8 @@ Does this look correct? Type 'confirm' to create the pattern, or 'modify' to mak
       
       const pattern = createPattern(request);
       
-      // Save to storage (file-based for now)
-      const sessionDir = getAndValidateSessionDirectory(args, true);
-      const patternsDir = path.join(sessionDir, 'patterns');
-      if (!fs.existsSync(patternsDir)) {
-        fs.mkdirSync(patternsDir, { recursive: true });
-      }
-      
-      const patternFile = path.join(patternsDir, `${pattern.id}.json`);
-      fs.writeFileSync(patternFile, JSON.stringify(pattern, null, 2));
+      // Pattern will be saved to Vector DB by the organizational-data tool
+      // No need to save to files here - that's handled in the tool layer
       
       return {
         sessionId: session.sessionId,

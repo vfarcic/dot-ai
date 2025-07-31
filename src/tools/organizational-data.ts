@@ -12,13 +12,9 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import { OrganizationalPattern, CreatePatternRequest } from '../core/pattern-types';
-import { 
-  createPattern,
-  serializePattern,
-  deserializePattern 
-} from '../core/pattern-operations';
+// Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternCreationSessionManager } from '../core/pattern-creation-session';
+import { VectorDBService, PatternVectorService } from '../core/index';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -44,95 +40,65 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
 };
 
 /**
- * Pattern storage service - simple file-based implementation
- * TODO: Replace with Vector DB integration in Phase 2
+ * Get Vector DB-based pattern service with connection validation
  */
-class PatternStorageService {
-  private patternsDir: string;
-
-  constructor(args: any = {}) {
-    const sessionDir = getAndValidateSessionDirectory(args, true);
-    this.patternsDir = path.join(sessionDir, 'patterns');
-    this.ensurePatternDirectory();
-  }
-
-  private ensurePatternDirectory(): void {
-    if (!fs.existsSync(this.patternsDir)) {
-      fs.mkdirSync(this.patternsDir, { recursive: true });
+async function getPatternService(): Promise<PatternVectorService> {
+  const vectorDB = new VectorDBService();
+  const patternService = new PatternVectorService(vectorDB);
+  
+  // Initialize collection if Vector DB is available
+  if (vectorDB.isInitialized()) {
+    try {
+      await patternService.initialize();
+    } catch (error) {
+      // Collection initialization failed, but we'll handle this in health check
     }
   }
+  
+  return patternService;
+}
 
-  async create(request: CreatePatternRequest): Promise<OrganizationalPattern> {
-    const pattern = createPattern(request);
-    const filePath = path.join(this.patternsDir, `${pattern.id}.json`);
+/**
+ * Validate Vector DB connection and return helpful error if unavailable
+ */
+async function validateVectorDBConnection(
+  patternService: PatternVectorService,
+  logger: Logger,
+  requestId: string
+): Promise<{ success: boolean; error?: any }> {
+  const isHealthy = await patternService.healthCheck();
+  
+  if (!isHealthy) {
+    logger.warn('Vector DB connection not available', { requestId });
     
-    if (fs.existsSync(filePath)) {
-      throw new Error(`Pattern already exists with ID: ${pattern.id}`);
-    }
-    
-    fs.writeFileSync(filePath, serializePattern(pattern));
-    return pattern;
-  }
-
-  async list(limit: number = 10): Promise<OrganizationalPattern[]> {
-    const files = fs.readdirSync(this.patternsDir)
-      .filter(file => file.endsWith('.json'))
-      .slice(0, limit);
-    
-    const patterns: OrganizationalPattern[] = [];
-    for (const file of files) {
-      try {
-        const filePath = path.join(this.patternsDir, file);
-        const content = fs.readFileSync(filePath, 'utf8');
-        const pattern = deserializePattern(content);
-        patterns.push(pattern);
-      } catch (error) {
-        // Skip invalid pattern files
-        continue;
+    return {
+      success: false,
+      error: {
+        message: 'Vector DB connection required for pattern management',
+        details: 'Pattern management requires a Qdrant Vector Database connection to store and search organizational patterns.',
+        setup: {
+          selfHosted: {
+            docker: 'docker run -d -p 6333:6333 --name qdrant qdrant/qdrant',
+            environment: 'export QDRANT_URL=http://localhost:6333'
+          },
+          saas: {
+            signup: 'Sign up at https://cloud.qdrant.io',
+            environment: [
+              'export QDRANT_URL=https://your-cluster.aws.cloud.qdrant.io:6333',
+              'export QDRANT_API_KEY=your-api-key-from-dashboard'
+            ]
+          },
+          docs: 'See documentation for detailed setup instructions'
+        },
+        currentConfig: {
+          QDRANT_URL: process.env.QDRANT_URL || 'not set (defaults to http://localhost:6333)',
+          QDRANT_API_KEY: process.env.QDRANT_API_KEY ? 'set' : 'not set (optional)'
+        }
       }
-    }
-    
-    // Sort by creation date (newest first)
-    return patterns.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    };
   }
-
-  async get(id: string): Promise<OrganizationalPattern | null> {
-    const filePath = path.join(this.patternsDir, `${id}.json`);
-    
-    if (!fs.existsSync(filePath)) {
-      return null;
-    }
-    
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      return deserializePattern(content);
-    } catch (error) {
-      throw new Error(`Failed to read pattern ${id}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  async delete(id: string): Promise<boolean> {
-    const filePath = path.join(this.patternsDir, `${id}.json`);
-    
-    if (!fs.existsSync(filePath)) {
-      return false;
-    }
-    
-    try {
-      fs.unlinkSync(filePath);
-      return true;
-    } catch (error) {
-      throw new Error(`Failed to delete pattern ${id}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  async count(): Promise<number> {
-    const files = fs.readdirSync(this.patternsDir)
-      .filter(file => file.endsWith('.json'));
-    return files.length;
-  }
+  
+  return { success: true };
 }
 
 /**
@@ -144,24 +110,46 @@ async function handlePatternOperation(
   logger: Logger,
   requestId: string
 ): Promise<any> {
+  // Get pattern service and validate Vector DB connection
+  const patternService = await getPatternService();
+  const connectionCheck = await validateVectorDBConnection(patternService, logger, requestId);
+  
+  if (!connectionCheck.success) {
+    return {
+      success: false,
+      operation,
+      dataType: 'pattern',
+      error: connectionCheck.error,
+      message: 'Vector DB connection required for pattern management'
+    };
+  }
+
   const sessionManager = new PatternCreationSessionManager();
 
   switch (operation) {
     case 'create': {
-      if (args.sessionId && args.response) {
-        // Continue existing workflow session
+      let workflowStep;
+      
+      if (args.sessionId) {
+        // Continue existing session
         logger.info('Continuing pattern creation workflow', { 
           requestId, 
           sessionId: args.sessionId 
         });
         
-        const workflowStep = sessionManager.processResponse(args.sessionId, args.response, args);
+        if (args.response) {
+          // Process user response and move to next step
+          workflowStep = sessionManager.processResponse(args.sessionId, args.response, args);
+        } else {
+          // Just get current step without processing response
+          workflowStep = sessionManager.getNextStep(args.sessionId, args);
+        }
         
         if (!workflowStep) {
           throw ErrorHandler.createError(
             ErrorCategory.VALIDATION,
             ErrorSeverity.HIGH,
-            `Invalid session or workflow step`,
+            `Session not found or workflow failed`,
             {
               operation: 'pattern_workflow_continue',
               component: 'OrganizationalDataTool',
@@ -170,52 +158,12 @@ async function handlePatternOperation(
             }
           );
         }
-        
-        return {
-          success: true,
-          operation: 'create',
-          dataType: 'pattern',
-          workflow: workflowStep,
-          message: 'Workflow step ready'
-        };
-        
-      } else if (args.sessionId) {
-        // Get next step for existing session
-        logger.info('Getting next workflow step', { 
-          requestId, 
-          sessionId: args.sessionId 
-        });
-        
-        const workflowStep = sessionManager.getNextStep(args.sessionId, args);
-        
-        if (!workflowStep) {
-          throw ErrorHandler.createError(
-            ErrorCategory.VALIDATION,
-            ErrorSeverity.HIGH,
-            `Session not found or workflow complete`,
-            {
-              operation: 'pattern_workflow_next',
-              component: 'OrganizationalDataTool',
-              requestId,
-              input: { sessionId: args.sessionId }
-            }
-          );
-        }
-        
-        return {
-          success: true,
-          operation: 'create',
-          dataType: 'pattern',
-          workflow: workflowStep,
-          message: 'Workflow step ready'
-        };
-        
       } else {
         // Start new workflow session
         logger.info('Starting new pattern creation workflow', { requestId });
         
         const session = sessionManager.createSession(args);
-        const workflowStep = sessionManager.getNextStep(session.sessionId, args);
+        workflowStep = sessionManager.getNextStep(session.sessionId, args);
         
         if (!workflowStep) {
           throw ErrorHandler.createError(
@@ -229,26 +177,100 @@ async function handlePatternOperation(
             }
           );
         }
-        
-        return {
-          success: true,
-          operation: 'create',
-          dataType: 'pattern',
-          workflow: workflowStep,
-          message: 'Pattern creation workflow started'
-        };
       }
+      
+      // Always check if workflow is complete and store pattern in Vector DB
+      let storageInfo: any = {};
+      
+      logger.info('Checking workflow completion', {
+        requestId,
+        step: workflowStep.step,
+        hasPattern: !!workflowStep.data?.pattern,
+        patternId: workflowStep.data?.pattern?.id
+      });
+      
+      if (workflowStep.step === 'complete' && workflowStep.data?.pattern) {
+        try {
+          await patternService.storePattern(workflowStep.data.pattern);
+          const vectorDBConfig = new VectorDBService().getConfig();
+          storageInfo = {
+            stored: true,
+            vectorDbUrl: vectorDBConfig.url,
+            collectionName: vectorDBConfig.collectionName,
+            patternId: workflowStep.data.pattern.id
+          };
+          logger.info('Pattern stored in Vector DB successfully', { 
+            requestId, 
+            patternId: workflowStep.data.pattern.id,
+            vectorDbUrl: vectorDBConfig.url
+          });
+
+          // Clean up session file after successful Vector DB storage
+          try {
+            const sessionDir = getAndValidateSessionDirectory(args, false);
+            const sessionFile = path.join(sessionDir, 'pattern-sessions', `${workflowStep.sessionId}.json`);
+            if (fs.existsSync(sessionFile)) {
+              fs.unlinkSync(sessionFile);
+              logger.info('Session file cleaned up after successful pattern storage', { 
+                requestId, 
+                sessionId: workflowStep.sessionId,
+                sessionFile 
+              });
+            }
+          } catch (cleanupError) {
+            // Log cleanup failure but don't fail the operation
+            logger.warn('Failed to cleanup session file after pattern storage', { 
+              requestId, 
+              sessionId: workflowStep.sessionId,
+              error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+            });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const vectorDBConfig = new VectorDBService().getConfig();
+          storageInfo = {
+            stored: false,
+            error: errorMessage,
+            vectorDbUrl: vectorDBConfig.url,
+            collectionName: vectorDBConfig.collectionName,
+            patternId: workflowStep.data.pattern.id
+          };
+          logger.error('Failed to store pattern in Vector DB', error as Error, { 
+            requestId, 
+            patternId: workflowStep.data.pattern.id,
+            error: errorMessage
+          });
+        }
+      }
+      
+      // For completed patterns, storage failure means creation failure
+      const isComplete = workflowStep.step === 'complete';
+      const storageSucceeded = storageInfo.stored === true;
+      const operationSucceeded = !isComplete || storageSucceeded;
+
+      return {
+        success: operationSucceeded,
+        operation: 'create',
+        dataType: 'pattern',
+        workflow: workflowStep,
+        storage: storageInfo,
+        message: isComplete ? 
+          (storageSucceeded ? 'Pattern created and stored successfully' : `Pattern creation failed - storage error: ${storageInfo.error}`) : 
+          'Workflow step ready'
+      };
     }
 
     case 'list': {
-      const storageService = new PatternStorageService(args);
       const limit = args.limit || 10;
-      const patterns = await storageService.list(limit);
-      const totalCount = await storageService.count();
+      const patterns = await patternService.getAllPatterns();
+      const totalCount = await patternService.getPatternsCount();
+
+      // Apply limit client-side (Vector DB returns all, we slice)
+      const limitedPatterns = patterns.slice(0, limit);
 
       logger.info('Patterns listed successfully', { 
         requestId, 
-        returnedCount: patterns.length,
+        returnedCount: limitedPatterns.length,
         totalCount,
         limit
       });
@@ -258,7 +280,7 @@ async function handlePatternOperation(
         operation: 'list',
         dataType: 'pattern',
         data: {
-          patterns: patterns.map(p => ({
+          patterns: limitedPatterns.map(p => ({
             id: p.id,
             description: p.description.substring(0, 100) + (p.description.length > 100 ? '...' : ''),
             triggersCount: p.triggers.length,
@@ -267,15 +289,14 @@ async function handlePatternOperation(
             createdBy: p.createdBy
           })),
           totalCount,
-          returnedCount: patterns.length,
+          returnedCount: limitedPatterns.length,
           limit
         },
-        message: `Found ${patterns.length} of ${totalCount} total patterns`
+        message: `Found ${limitedPatterns.length} of ${totalCount} total patterns`
       };
     }
 
     case 'get': {
-      const storageService = new PatternStorageService(args);
       if (!args.id) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -290,7 +311,7 @@ async function handlePatternOperation(
         );
       }
 
-      const pattern = await storageService.get(args.id);
+      const pattern = await patternService.getPattern(args.id);
       
       if (!pattern) {
         throw ErrorHandler.createError(
@@ -322,7 +343,6 @@ async function handlePatternOperation(
     }
 
     case 'delete': {
-      const storageService = new PatternStorageService(args);
       if (!args.id) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -338,10 +358,9 @@ async function handlePatternOperation(
       }
 
       // Get pattern info before deletion for logging
-      const pattern = await storageService.get(args.id);
-      const deleted = await storageService.delete(args.id);
+      const pattern = await patternService.getPattern(args.id);
       
-      if (!deleted) {
+      if (!pattern) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.MEDIUM,
@@ -355,10 +374,12 @@ async function handlePatternOperation(
         );
       }
 
+      await patternService.deletePattern(args.id);
+
       logger.info('Pattern deleted successfully', { 
         requestId, 
         patternId: args.id,
-        description: pattern?.description?.substring(0, 50) + (pattern?.description && pattern.description.length > 50 ? '...' : '') || 'unknown'
+        description: pattern.description.substring(0, 50) + (pattern.description.length > 50 ? '...' : '')
       });
 
       return {

@@ -142,6 +142,8 @@ export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
 export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
 export { PatternCreationStep, PatternCreationSession, PatternWorkflowStep } from './pattern-creation-types';
 export { PatternCreationSessionManager } from './pattern-creation-session';
+export { VectorDBService, VectorDBConfig, VectorDocument, SearchResult } from './vector-db-service';
+export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
 
 // Default export
 export default DotAI; 
