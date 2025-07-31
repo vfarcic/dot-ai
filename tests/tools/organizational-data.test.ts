@@ -17,6 +17,11 @@ const mockGetPattern = jest.fn().mockResolvedValue(null);
 const mockDeletePattern = jest.fn().mockResolvedValue(undefined);
 const mockStorePattern = jest.fn().mockResolvedValue(undefined);
 const mockInitialize = jest.fn().mockResolvedValue(undefined);
+const mockGetSearchMode = jest.fn().mockReturnValue({
+  semantic: false,
+  provider: null,
+  reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+});
 
 // Mock the imports at the module level
 jest.mock('../../src/core/vector-db-service', () => ({
@@ -38,7 +43,19 @@ jest.mock('../../src/core/pattern-vector-service', () => ({
     getPatternsCount: mockGetPatternsCount,
     getPattern: mockGetPattern,
     deletePattern: mockDeletePattern,
-    storePattern: mockStorePattern
+    storePattern: mockStorePattern,
+    getSearchMode: mockGetSearchMode
+  }))
+}));
+
+jest.mock('../../src/core/embedding-service', () => ({
+  EmbeddingService: jest.fn().mockImplementation(() => ({
+    isAvailable: jest.fn().mockReturnValue(false),
+    getStatus: jest.fn().mockReturnValue({
+      available: false,
+      provider: null,
+      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+    })
   }))
 }));
 
@@ -67,6 +84,11 @@ describe('Organizational Data Tool', () => {
     mockDeletePattern.mockResolvedValue(undefined);
     mockStorePattern.mockResolvedValue(undefined);
     mockInitialize.mockResolvedValue(undefined);
+    mockGetSearchMode.mockReturnValue({
+      semantic: false,
+      provider: null,
+      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+    });
 
     // Clear all mocks
     jest.clearAllMocks();
@@ -178,6 +200,10 @@ describe('Organizational Data Tool', () => {
       expect(response.operation).toBe('list');
       expect(response.data.patterns).toHaveLength(0);
       expect(response.data.totalCount).toBe(0);
+      expect(response.data.searchCapabilities).toBeDefined();
+      expect(response.data.searchCapabilities.semantic).toBe(false);
+      expect(response.data.searchCapabilities.mode).toBe('keyword-only search');
+      expect(response.message).toContain('keyword-only');
     });
 
     it('should handle errors for non-existent pattern get requests', async () => {
@@ -260,11 +286,37 @@ describe('Organizational Data Tool', () => {
 
       // Final result should be successful
       expect(currentResponse.success).toBe(true);
-      expect(currentResponse.message).toContain('Pattern created and stored successfully');
+      expect(currentResponse.message).toContain('Pattern created successfully');
       expect(currentResponse.storage.stored).toBe(true);
 
       // Session file should be cleaned up after successful storage
       expect(fs.existsSync(sessionFile)).toBe(false);
     });
+
+    it('should handle Vector DB initialization failures with helpful error', async () => {
+      // Mock PatternVectorService constructor to throw initialization error
+      const mockPatternVectorService = require('../../src/core/pattern-vector-service').PatternVectorService;
+      mockPatternVectorService.mockImplementation(() => ({
+        initialize: jest.fn().mockRejectedValue(new Error('Dimension mismatch detected')),
+        healthCheck: mockHealthCheck,
+        getAllPatterns: mockGetAllPatterns
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.error.message).toContain('Vector DB collection initialization failed');
+      expect(response.error.message).toContain('dimension mismatch');
+    });
+
   });
 });

@@ -14,7 +14,7 @@ import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternCreationSessionManager } from '../core/pattern-creation-session';
-import { VectorDBService, PatternVectorService } from '../core/index';
+import { VectorDBService, PatternVectorService, EmbeddingService } from '../core/index';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -40,19 +40,20 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
 };
 
 /**
- * Get Vector DB-based pattern service with connection validation
+ * Get Vector DB-based pattern service with optional embedding support
  */
 async function getPatternService(): Promise<PatternVectorService> {
   const vectorDB = new VectorDBService();
-  const patternService = new PatternVectorService(vectorDB);
+  const embeddingService = new EmbeddingService(); // Optional - gracefully handles missing API keys
+  const patternService = new PatternVectorService(vectorDB, embeddingService);
   
-  // Initialize collection if Vector DB is available
-  if (vectorDB.isInitialized()) {
-    try {
-      await patternService.initialize();
-    } catch (error) {
-      // Collection initialization failed, but we'll handle this in health check
-    }
+  // Always ensure proper collection initialization
+  try {
+    await patternService.initialize();
+  } catch (error) {
+    // If initialization fails, try to provide helpful error context
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Vector DB collection initialization failed: ${errorMessage}. This may be due to dimension mismatch or collection configuration issues.`);
   }
   
   return patternService;
@@ -255,7 +256,7 @@ async function handlePatternOperation(
         workflow: workflowStep,
         storage: storageInfo,
         message: isComplete ? 
-          (storageSucceeded ? 'Pattern created and stored successfully' : `Pattern creation failed - storage error: ${storageInfo.error}`) : 
+          (storageSucceeded ? 'Pattern created successfully' : `Pattern creation failed: ${storageInfo.error}`) : 
           'Workflow step ready'
       };
     }
@@ -264,6 +265,7 @@ async function handlePatternOperation(
       const limit = args.limit || 10;
       const patterns = await patternService.getAllPatterns();
       const totalCount = await patternService.getPatternsCount();
+      const searchMode = patternService.getSearchMode();
 
       // Apply limit client-side (Vector DB returns all, we slice)
       const limitedPatterns = patterns.slice(0, limit);
@@ -272,7 +274,8 @@ async function handlePatternOperation(
         requestId, 
         returnedCount: limitedPatterns.length,
         totalCount,
-        limit
+        limit,
+        searchMode: searchMode.semantic ? 'semantic+keyword' : 'keyword-only'
       });
 
       return {
@@ -290,9 +293,15 @@ async function handlePatternOperation(
           })),
           totalCount,
           returnedCount: limitedPatterns.length,
-          limit
+          limit,
+          searchCapabilities: {
+            semantic: searchMode.semantic,
+            provider: searchMode.provider,
+            mode: searchMode.semantic ? 'semantic+keyword hybrid search' : 'keyword-only search',
+            note: searchMode.reason || (searchMode.semantic ? 'Full semantic search enabled' : undefined)
+          }
         },
-        message: `Found ${limitedPatterns.length} of ${totalCount} total patterns`
+        message: `Found ${limitedPatterns.length} of ${totalCount} total patterns. Search mode: ${searchMode.semantic ? 'semantic+keyword' : 'keyword-only'}`
       };
     }
 

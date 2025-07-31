@@ -144,6 +144,7 @@ export { PatternCreationStep, PatternCreationSession, PatternWorkflowStep } from
 export { PatternCreationSessionManager } from './pattern-creation-session';
 export { VectorDBService, VectorDBConfig, VectorDocument, SearchResult } from './vector-db-service';
 export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
+export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, OpenAIEmbeddingProvider } from './embedding-service';
 
 // Default export
 export default DotAI; 

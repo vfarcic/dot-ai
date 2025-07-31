@@ -7,3 +7,4 @@ providers:
         keys:
           anthropic-api-key: ANTHROPIC_API_KEY
           qdrant-api-key: QDRANT_API_KEY
+          openai-key: OPENAI_API_KEY

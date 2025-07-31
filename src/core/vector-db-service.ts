@@ -84,23 +84,52 @@ export class VectorDBService {
         col => col.name === this.collectionName
       );
 
-      if (!collectionExists) {
-        // Create collection with optional vectors - allows storing documents without vectors
-        await this.client.createCollection(this.collectionName, {
-          vectors: {
-            size: vectorSize,
-            distance: 'Cosine',
-            on_disk: true // Enable on-disk storage for better performance with large collections
-          },
-          // Enable payload indexing for better keyword search performance
-          optimizers_config: {
-            default_segment_number: 2
+      if (collectionExists) {
+        // Verify existing collection has correct vector dimensions
+        try {
+          const collectionInfo = await this.client.getCollection(this.collectionName);
+          const existingVectorSize = collectionInfo.config?.params?.vectors?.size;
+          
+          if (existingVectorSize && existingVectorSize !== vectorSize) {
+            // Dimension mismatch - recreate collection
+            console.warn(`Vector dimension mismatch: existing collection has ${existingVectorSize} dimensions, but ${vectorSize} expected. Recreating collection.`);
+            await this.client.deleteCollection(this.collectionName);
+            await this.createCollection(vectorSize);
           }
-        });
+        } catch (error) {
+          // If we can't get collection info, assume it's corrupted and recreate
+          console.warn(`Failed to get collection info, recreating collection: ${error}`);
+          await this.client.deleteCollection(this.collectionName);
+          await this.createCollection(vectorSize);
+        }
+      } else {
+        // Create new collection
+        await this.createCollection(vectorSize);
       }
     } catch (error) {
       throw new Error(`Failed to initialize collection: ${error}`);
     }
+  }
+
+  /**
+   * Create collection with specified vector size
+   */
+  private async createCollection(vectorSize: number): Promise<void> {
+    if (!this.client) {
+      throw new Error('Vector DB client not initialized');
+    }
+
+    await this.client.createCollection(this.collectionName, {
+      vectors: {
+        size: vectorSize,
+        distance: 'Cosine',
+        on_disk: true // Enable on-disk storage for better performance with large collections
+      },
+      // Enable payload indexing for better keyword search performance
+      optimizers_config: {
+        default_segment_number: 2
+      }
+    });
   }
 
   /**

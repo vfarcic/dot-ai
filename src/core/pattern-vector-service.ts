@@ -6,6 +6,7 @@
 
 import { VectorDBService, VectorDocument } from './vector-db-service';
 import { OrganizationalPattern } from './pattern-types';
+import { EmbeddingService } from './embedding-service';
 
 export interface PatternSearchOptions {
   limit?: number;
@@ -21,72 +22,221 @@ export interface PatternSearchResult {
 
 export class PatternVectorService {
   private vectorDB: VectorDBService;
+  private embeddingService: EmbeddingService;
   private collectionName = 'patterns';
 
-  constructor(vectorDB: VectorDBService) {
+  constructor(vectorDB: VectorDBService, embeddingService?: EmbeddingService) {
     this.vectorDB = vectorDB;
+    this.embeddingService = embeddingService || new EmbeddingService();
   }
 
   /**
    * Initialize the patterns collection
    */
   async initialize(): Promise<void> {
-    await this.vectorDB.initializeCollection(384); // Using 384 dimensions for potential future embeddings
+    // Use embedding dimensions if available, otherwise default to 1536 (OpenAI default)
+    const dimensions = this.embeddingService.isAvailable() ? 
+      this.embeddingService.getDimensions() : 
+      1536;
+    await this.vectorDB.initializeCollection(dimensions);
   }
 
   /**
-   * Store a pattern in Vector DB
+   * Store a pattern in Vector DB with optional semantic embedding
    */
   async storePattern(pattern: OrganizationalPattern): Promise<void> {
+    const searchText = this.createSearchText(pattern);
+    
+    // Try to generate embedding if service is available
+    let embedding: number[] | null = null;
+    if (this.embeddingService.isAvailable()) {
+      try {
+        embedding = await this.embeddingService.generateEmbedding(searchText);
+      } catch (error) {
+        // Log but don't fail - fall back to keyword-only storage
+        console.warn('Failed to generate embedding for pattern, using keyword-only storage:', error);
+      }
+    }
+
     const document: VectorDocument = {
       id: pattern.id,
       payload: {
         description: pattern.description,
         triggers: pattern.triggers.map(t => t.toLowerCase()), // Store lowercase for matching
         suggestedResources: pattern.suggestedResources,
-        rationale: pattern.rationale,
+        rationale: pattern.rationale,  
         createdAt: pattern.createdAt,
         createdBy: pattern.createdBy,
-        // Add searchable text combining all text fields
-        searchText: this.createSearchText(pattern)
-      }
-      // No vector for now - using keyword matching only
+        searchText: searchText,
+        // Store embedding status for debugging
+        hasEmbedding: embedding !== null
+      },
+      vector: embedding || undefined // Use real embedding or let VectorDB use zero vector
     };
 
     await this.vectorDB.upsertDocument(document);
   }
 
   /**
-   * Search for patterns using keyword matching
+   * Search for patterns using hybrid semantic + keyword matching
    */
   async searchPatterns(
     query: string, 
     options: PatternSearchOptions = {}
   ): Promise<PatternSearchResult[]> {
-    // Extract keywords from query
+    // Extract keywords for keyword search
     const queryKeywords = this.extractKeywords(query);
     
     if (queryKeywords.length === 0) {
       return [];
     }
 
-    // Search using keyword matching
-    const keywordResults = await this.vectorDB.searchByKeywords(
-      queryKeywords,
+    const limit = options.limit || 10;
+    const scoreThreshold = options.scoreThreshold || 0.1;
+    
+    // Try semantic search first if embeddings available
+    if (this.embeddingService.isAvailable()) {
+      try {
+        return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold });
+      } catch (error) {
+        // Fall back to keyword-only search if semantic search fails
+        console.warn('Semantic search failed, falling back to keyword search:', error);
+      }
+    }
+
+    // Keyword-only search (fallback or when embeddings not available)
+    return await this.keywordOnlySearch(queryKeywords, { limit, scoreThreshold });
+  }
+
+  /**
+   * Hybrid search combining semantic and keyword matching
+   */
+  private async hybridSearch(
+    query: string, 
+    queryKeywords: string[],
+    options: { limit: number; scoreThreshold: number }
+  ): Promise<PatternSearchResult[]> {
+    // Generate query embedding
+    const queryEmbedding = await this.embeddingService.generateEmbedding(query);
+    if (!queryEmbedding) {
+      // Fall back to keyword search
+      return await this.keywordOnlySearch(queryKeywords, options);
+    }
+
+    // Semantic search using vector similarity
+    const semanticResults = await this.vectorDB.searchSimilar(
+      queryEmbedding,
       {
-        limit: options.limit || 10,
-        scoreThreshold: options.scoreThreshold || 0.1
+        limit: options.limit * 2, // Get more candidates for hybrid ranking
+        scoreThreshold: 0.5 // Lower threshold for semantic similarity
       }
     );
 
-    // Convert results to pattern search results
+    // Keyword search
+    const keywordResults = await this.vectorDB.searchByKeywords(
+      queryKeywords,
+      {
+        limit: options.limit * 2,
+        scoreThreshold: 0.1
+      }
+    );
+
+    // Combine and rank results
+    return this.combineHybridResults(semanticResults, keywordResults, queryKeywords, options);
+  }
+
+  /**
+   * Keyword-only search (fallback when embeddings not available)
+   */
+  private async keywordOnlySearch(
+    queryKeywords: string[],
+    options: { limit: number; scoreThreshold: number }
+  ): Promise<PatternSearchResult[]> {
+    const keywordResults = await this.vectorDB.searchByKeywords(
+      queryKeywords,
+      {
+        limit: options.limit,
+        scoreThreshold: options.scoreThreshold
+      }
+    );
+
     return keywordResults.map(result => ({
       pattern: this.payloadToPattern(result.payload, result.id),
       score: this.calculateKeywordScore(queryKeywords, result.payload.triggers || []),
       matchType: 'keyword' as const
     }))
-    .filter(result => result.score > (options.scoreThreshold || 0.1))
+    .filter(result => result.score > options.scoreThreshold)
     .sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * Combine semantic and keyword search results with hybrid ranking
+   */
+  private combineHybridResults(
+    semanticResults: any[],
+    keywordResults: any[],
+    queryKeywords: string[],
+    options: { limit: number; scoreThreshold: number }
+  ): PatternSearchResult[] {
+    // Create map to avoid duplicates and combine scores
+    const resultMap = new Map<string, PatternSearchResult>();
+
+    // Process semantic results
+    semanticResults.forEach(result => {
+      const pattern = this.payloadToPattern(result.payload, result.id);
+      const semanticScore = result.score; // Cosine similarity from Vector DB
+      
+      resultMap.set(result.id, {
+        pattern,
+        score: semanticScore * 0.7, // Weight semantic score at 70%
+        matchType: 'semantic' as const
+      });
+    });
+
+    // Process keyword results and combine with semantic
+    keywordResults.forEach(result => {
+      const pattern = this.payloadToPattern(result.payload, result.id);
+      const keywordScore = this.calculateKeywordScore(queryKeywords, result.payload.triggers || []);
+      
+      if (resultMap.has(result.id)) {
+        // Combine scores for hybrid result
+        const existing = resultMap.get(result.id)!;
+        resultMap.set(result.id, {
+          pattern,
+          score: existing.score + (keywordScore * 0.3), // Add 30% keyword weight
+          matchType: 'hybrid' as const
+        });
+      } else {
+        // Keyword-only result
+        resultMap.set(result.id, {
+          pattern,
+          score: keywordScore * 0.3, // Lower weight for keyword-only
+          matchType: 'keyword' as const
+        });
+      }
+    });
+
+    // Convert to array, filter, and sort
+    return Array.from(resultMap.values())
+      .filter(result => result.score > options.scoreThreshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, options.limit);
+  }
+
+  /**
+   * Get search mode information for debugging
+   */
+  getSearchMode(): {
+    semantic: boolean;
+    provider: string | null;
+    reason?: string;
+  } {
+    const status = this.embeddingService.getStatus();
+    return {
+      semantic: status.available,
+      provider: status.provider,
+      reason: status.reason
+    };
   }
 
   /**
