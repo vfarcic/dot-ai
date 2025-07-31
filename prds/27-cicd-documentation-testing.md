@@ -92,7 +92,7 @@ Extend the existing documentation testing system with CI/CD-friendly capabilitie
 - [ ] **Configuration management** - Implement hierarchical configuration (env vars, config files, CLI args)
 
 ### Development Tasks
-- [ ] **CLI enhancements** - Add CI/CD specific flags and options to existing CLI
+- [ ] **MCP enhancements** - Add CI/CD specific parameters and options to existing MCP tools
 - [ ] **Reporter implementations** - Create JSON, JUnit XML, and plain text reporters
 - [ ] **GitHub Action creation** - Develop and publish official GitHub Action
 - [ ] **Integration testing** - Test in real CI/CD environments (GitHub Actions, GitLab CI)
@@ -114,7 +114,7 @@ Extend the existing documentation testing system with CI/CD-friendly capabilitie
 ### Internal Dependencies  
 - [x] **Documentation testing system** - PRD #12 core functionality complete (dependency satisfied)
 - [x] **Session management** - Existing session infrastructure (dependency satisfied)
-- [x] **CLI interface** - Current CLI implementation (dependency satisfied)
+- [x] **MCP interface** - Current MCP implementation (dependency satisfied)
 
 ### Current Blockers
 - **None identified** - All dependencies are satisfied, ready to begin implementation

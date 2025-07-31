@@ -499,7 +499,7 @@ interface SectionTestResult {
 - Format-agnostic ignore comment system for multiple documentation types
 
 **Files Modified**: 
-`src/core/doc-testing-session.ts`, `src/core/doc-testing-types.ts`, `src/tools/test-docs.ts`, `src/interfaces/cli.ts`, `prompts/doc-testing-fix.md`, `prompts/doc-testing-done.md`, comprehensive test updates
+`src/core/doc-testing-session.ts`, `src/core/doc-testing-types.ts`, `src/tools/test-docs.ts`, `src/interfaces/mcp.ts`, `prompts/doc-testing-fix.md`, `prompts/doc-testing-done.md`, comprehensive test updates
 
 ## Priority: High
 This system significantly enhances documentation quality assurance by ensuring all examples work correctly and descriptions accurately reflect reality, directly impacting user experience and product adoption.

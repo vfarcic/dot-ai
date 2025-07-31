@@ -13,7 +13,7 @@ Build proactive monitoring system with health checks, alerting, anomaly detectio
 ### Files Created/Updated
 - **`docs/proactive-monitoring-guide.md`** - New File - Complete guide for continuous monitoring and alerting
 - **`docs/alerting-configuration-guide.md`** - New File - Alert setup and notification configuration
-- **`docs/cli-reference.md`** - CLI Documentation - Add monitoring setup and management commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add monitoring setup and management MCP tools
 - **`README.md`** - Project Overview - Add proactive monitoring to operational capabilities
 - **`src/core/monitoring/`** - Technical Implementation - Proactive monitoring system modules
 

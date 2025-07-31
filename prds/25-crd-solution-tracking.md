@@ -13,7 +13,7 @@ Implement Kubernetes CRDs for solution storage with state management, GitOps int
 ### Files Created/Updated
 - **`docs/solution-tracking-guide.md`** - New File - Complete guide for CRD-based solution tracking
 - **`docs/gitops-integration-guide.md`** - New File - GitOps workflows with CRD solution tracking
-- **`docs/cli-reference.md`** - CLI Documentation - Add solution management and tracking commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add solution management and tracking MCP tools
 - **`README.md`** - Project Overview - Add persistent solution tracking to core capabilities
 - **`src/core/crds/`** - Technical Implementation - CRD definitions and controllers
 
@@ -22,7 +22,7 @@ Implement Kubernetes CRDs for solution storage with state management, GitOps int
 - **CRD Architecture**: See `docs/solution-tracking-guide.md` (Section: "CRD-Based Storage")
 - **GitOps Integration**: See `docs/gitops-integration-guide.md` (Section: "GitOps Workflows")
 - **Setup Instructions**: See `docs/solution-tracking-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Solution Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Solution Management Tools")
 - **Examples**: See `docs/solution-tracking-guide.md` (Section: "Usage Examples")
 
 ### User Journey Validation
@@ -50,7 +50,7 @@ Implement Kubernetes CRDs for solution storage with state management, GitOps int
 
 **Documentation Changes:**
 - [ ] **`docs/solution-tracking-guide.md`**: Create complete CRD solution tracking guide
-- [ ] **`docs/cli-reference.md`**: Add CRD-based solution management commands
+- [ ] **`docs/mcp-guide.md`**: Add CRD-based solution management MCP tools
 - [ ] **`README.md`**: Update capabilities to include persistent solution tracking
 
 **Implementation Tasks:**

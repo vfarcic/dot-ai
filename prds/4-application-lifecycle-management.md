@@ -236,7 +236,7 @@ Build a comprehensive application lifecycle management system that handles post-
 - [ ] Team training materials prepared
 
 ### Launch
-- [ ] Deploy lifecycle management as extension to existing dot-ai CLI
+- [ ] Deploy lifecycle management as extension to existing dot-ai MCP server
 - [ ] Monitor update and scaling operation success rates
 - [ ] Collect user feedback on operational workflow effectiveness
 - [ ] Resolve any performance or reliability issues
@@ -276,7 +276,7 @@ Build a comprehensive application lifecycle management system that handles post-
 ### Supporting Materials
 - [Kubernetes Deployment Strategies](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/) - For update strategy implementation
 - [Kubernetes Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) - For automated scaling integration
-- [Existing dot-ai CLI Patterns](./src/interfaces/cli.ts) - For command structure consistency
+- [Existing dot-ai MCP Patterns](./src/interfaces/mcp.ts) - For tool structure consistency
 
 ### Research Findings
 - Zero-downtime updates require careful coordination of health checks and traffic routing

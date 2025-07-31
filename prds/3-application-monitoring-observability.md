@@ -13,15 +13,15 @@ Build an on-demand monitoring and observability system that provides instant hea
 ### Files Created/Updated
 - **`docs/monitoring-guide.md`** - New File - Complete guide for application monitoring and observability features
 - **`docs/troubleshooting-guide.md`** - New File - AI-powered troubleshooting workflows and commands
-- **`docs/cli-reference.md`** - CLI Documentation - Add status, health, and diagnostics commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add monitoring and observability MCP tools
 - **`README.md`** - Project Overview - Add monitoring and observability to core capabilities
 - **`src/core/monitoring/`** - Technical Implementation - On-demand monitoring system modules
 
 ### Content Location Map
 - **Feature Overview**: See `docs/monitoring-guide.md` (Section: "What is Application Monitoring")
-- **Status Commands**: See `docs/cli-reference.md` (Section: "Status and Health Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Monitoring and Status Tools")
 - **Setup Instructions**: See `docs/monitoring-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Monitoring Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Monitoring and Analysis Tools")
 - **Examples**: See `docs/monitoring-guide.md` (Section: "Usage Examples")
 - **Troubleshooting**: See `docs/troubleshooting-guide.md` (Section: "AI-Powered Diagnostics")
 - **Monitoring Index**: See `README.md` (Section: "Monitoring and Observability")
@@ -35,14 +35,14 @@ Build an on-demand monitoring and observability system that provides instant hea
 ## Implementation Requirements
 - [ ] **Core functionality**: On-demand status queries and health checks - Documented in `docs/monitoring-guide.md` (Section: "Status Queries")
 - [ ] **User workflows**: Troubleshooting with AI-powered recommendations - Documented in `docs/troubleshooting-guide.md` (Section: "Diagnostic Workflows")
-- [ ] **API/Commands**: Performance analysis and resource monitoring - Documented in `docs/cli-reference.md` (Section: "Monitoring Commands")
+- [ ] **MCP Tools**: Performance analysis and resource monitoring - Documented in `docs/mcp-guide.md` (Section: "Monitoring and Analysis Tools")
 - [ ] **Error handling**: Graceful handling of unavailable metrics and cluster issues - Documented in `docs/troubleshooting-guide.md` (Section: "Common Issues")
 - [ ] **Performance optimization**: Fast status queries (<5s basic, <30s deep analysis)
 
 ### Documentation Quality Requirements
 - [ ] **All examples work**: Automated testing validates all monitoring commands and status queries
 - [ ] **Complete user journeys**: End-to-end workflows from deployment to issue resolution documented
-- [ ] **Consistent terminology**: Same monitoring terms used across CLI reference, user guide, and README
+- [ ] **Consistent terminology**: Same monitoring terms used across MCP guide, user guide, and README
 - [ ] **Working cross-references**: All internal links between monitoring docs and core docs resolve correctly
 
 ### Success Criteria
@@ -58,7 +58,7 @@ Build an on-demand monitoring and observability system that provides instant hea
 
 **Documentation Changes:**
 - [ ] **`docs/monitoring-guide.md`**: Create complete user guide with status command concepts and usage
-- [ ] **`docs/cli-reference.md`**: Add status, health, and basic monitoring commands
+- [ ] **`docs/mcp-guide.md`**: Add status, health, and basic monitoring MCP tools
 - [ ] **`README.md`**: Update capabilities section to mention application monitoring and observability
 
 **Implementation Tasks:**
@@ -73,7 +73,7 @@ Build an on-demand monitoring and observability system that provides instant hea
 **Documentation Changes:**
 - [ ] **`docs/troubleshooting-guide.md`**: Create comprehensive troubleshooting guide with AI recommendations
 - [ ] **`docs/monitoring-guide.md`**: Add "Performance Analysis" section with bottleneck identification
-- [ ] **`docs/cli-reference.md`**: Add advanced diagnostic and analysis commands
+- [ ] **`docs/mcp-guide.md`**: Add advanced diagnostic and analysis MCP tools
 
 **Implementation Tasks:**
 - [ ] Implement AI-powered analysis using Claude integration for status interpretation
@@ -175,7 +175,7 @@ Build an on-demand monitoring and observability system that provides instant hea
 - [ ] AI-powered troubleshooting recommendations
 - [ ] Performance analysis and bottleneck identification
 - [ ] Basic log analysis and error pattern detection
-- [ ] Integration with existing dot-ai CLI and MCP interfaces
+- [ ] Integration with existing dot-ai MCP interface
 
 ### Out of Scope (Future Versions)
 - [~] Continuous monitoring with persistent data storage
@@ -213,7 +213,7 @@ Build an on-demand monitoring and observability system that provides instant hea
 ### Documentation Completion Status
 - [ ] **`docs/monitoring-guide.md`**: Complete - User guide with status queries, analysis, usage examples
 - [ ] **`docs/troubleshooting-guide.md`**: Complete - AI-powered diagnostic workflows and recommendations
-- [ ] **`docs/cli-reference.md`**: Updated - Added comprehensive monitoring and status commands
+- [ ] **`docs/mcp-guide.md`**: Updated - Added comprehensive monitoring and status MCP tools
 - [ ] **`README.md`**: Updated - Added monitoring and observability to core capabilities
 - [ ] **Cross-file consistency**: Complete - All monitoring terminology and examples aligned
 
@@ -233,7 +233,7 @@ Build an on-demand monitoring and observability system that provides instant hea
 - [ ] Team training materials prepared
 
 ### Launch
-- [ ] Deploy monitoring system as part of existing dot-ai CLI
+- [ ] Deploy monitoring system as part of existing dot-ai MCP server
 - [ ] Monitor query performance and optimization needs
 - [ ] Collect user feedback on troubleshooting recommendation quality
 - [ ] Resolve any performance or accuracy issues
@@ -300,5 +300,5 @@ Recommendations: Consider increasing memory limit for better performance
 ### Implementation References
 - Kubernetes client-go library for API integration
 - Claude SDK for AI-powered analysis
-- Existing dot-ai CLI patterns for command structure
+- Existing dot-ai MCP patterns for tool structure
 - MCP integration patterns for server interface

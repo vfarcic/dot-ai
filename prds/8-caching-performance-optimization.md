@@ -12,7 +12,7 @@ Implement intelligent caching to significantly improve response times and reduce
 
 ### Files Created/Updated
 - **`docs/performance-optimization-guide.md`** - New File - Complete guide for caching and performance features
-- **`docs/cli-reference.md`** - CLI Documentation - Add cache management commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add cache management MCP tools
 - **`README.md`** - Project Overview - Add performance optimization to capabilities
 - **`src/core/cache/`** - Technical Implementation - Multi-layer caching system modules
 
@@ -20,7 +20,7 @@ Implement intelligent caching to significantly improve response times and reduce
 - **Feature Overview**: See `docs/performance-optimization-guide.md` (Section: "What is Performance Optimization")
 - **Caching Architecture**: See `docs/performance-optimization-guide.md` (Section: "Multi-Layer Caching")
 - **Setup Instructions**: See `docs/performance-optimization-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Cache Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Cache Management Tools")
 - **Examples**: See `docs/performance-optimization-guide.md` (Section: "Usage Examples")
 
 ### User Journey Validation
@@ -31,7 +31,7 @@ Implement intelligent caching to significantly improve response times and reduce
 
 ## Implementation Requirements
 - [ ] **Core functionality**: Multi-layer cache architecture with intelligent cache keys - Documented in `docs/performance-optimization-guide.md` (Section: "Cache Architecture")
-- [ ] **User workflows**: Cache management and monitoring capabilities - Documented in `docs/cli-reference.md` (Section: "Cache Commands")
+- [ ] **User workflows**: Cache management and monitoring capabilities - Documented in `docs/mcp-guide.md` (Section: "Cache Management Tools")
 - [ ] **Performance optimization**: >70% improvement in response times for cached operations
 
 ### Success Criteria

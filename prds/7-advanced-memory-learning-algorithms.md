@@ -13,7 +13,7 @@ Implement sophisticated AI/ML algorithms that recognize patterns, track success 
 ### Files Created/Updated
 - **`docs/learning-algorithms-guide.md`** - New File - Complete guide for AI learning and pattern recognition features
 - **`docs/advanced-features.md`** - Advanced Features - Add learning algorithms to AI capabilities
-- **`docs/cli-reference.md`** - CLI Documentation - Add pattern analysis and learning inspection commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add pattern analysis and learning inspection MCP tools
 - **`README.md`** - Project Overview - Add AI learning algorithms to core capabilities
 - **`src/core/learning/`** - Technical Implementation - Advanced learning algorithm modules
 
@@ -22,7 +22,7 @@ Implement sophisticated AI/ML algorithms that recognize patterns, track success 
 - **Pattern Recognition**: See `docs/learning-algorithms-guide.md` (Section: "Pattern Recognition Engine")
 - **Success Tracking**: See `docs/learning-algorithms-guide.md` (Section: "Success Rate Analysis")
 - **Setup Instructions**: See `docs/learning-algorithms-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Learning Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Learning and Analysis Tools")
 - **Examples**: See `docs/learning-algorithms-guide.md` (Section: "Usage Examples")
 
 ### User Journey Validation
@@ -34,7 +34,7 @@ Implement sophisticated AI/ML algorithms that recognize patterns, track success 
 ## Implementation Requirements
 - [ ] **Core functionality**: Pattern recognition algorithms for deployment similarity - Documented in `docs/learning-algorithms-guide.md` (Section: "Pattern Recognition")
 - [ ] **User workflows**: Success rate tracking with optimization recommendations - Documented in `docs/learning-algorithms-guide.md` (Section: "Success Analysis")
-- [ ] **API/Commands**: Configuration effectiveness analysis and insights - Documented in `docs/cli-reference.md` (Section: "Learning Commands")
+- [ ] **MCP Tools**: Configuration effectiveness analysis and insights - Documented in `docs/mcp-guide.md` (Section: "Learning and Analysis Tools")
 - [ ] **Performance optimization**: <200ms for pattern analysis operations
 
 ### Success Criteria

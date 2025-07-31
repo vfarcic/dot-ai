@@ -81,10 +81,6 @@ dev-debug.log
 *.sw?
 # OS specific
 
-# Cursor
-.cursor/mcp.json
-.mcp*.json*
-
 # Task files
 # tasks.json
 # tasks/
