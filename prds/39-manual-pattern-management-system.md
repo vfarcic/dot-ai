@@ -13,7 +13,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 
 ### Files Created/Updated
 - **`docs/pattern-management-guide.md`** - New File - Complete guide for creating and managing organizational patterns
-- **`docs/cli-reference.md`** - CLI Documentation - Add pattern management MCP commands
+- **`docs/pattern-management-guide.md`** - User Documentation - Complete guide for creating and managing organizational patterns
 - **`README.md`** - Project Overview - Add Manual Pattern Management to core capabilities
 - **`src/tools/pattern-management/`** - Technical Implementation - MCP tool and pattern service modules
 
@@ -21,7 +21,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - **Feature Overview**: See `docs/pattern-management-guide.md` (Section: "What is Pattern Management")
 - **Pattern Creation**: See `docs/pattern-management-guide.md` (Section: "Creating Organizational Patterns")
 - **Setup Instructions**: See `docs/pattern-management-guide.md` (Section: "Configuration")
-- **MCP Commands**: See `docs/cli-reference.md` (Section: "Pattern Management Commands")
+- **MCP Commands**: See `docs/pattern-management-guide.md` (Section: "Pattern Management Operations")
 - **Examples**: See `docs/pattern-management-guide.md` (Section: "Pattern Examples")
 - **Integration**: See `docs/pattern-management-guide.md` (Section: "AI Integration")
 
@@ -32,7 +32,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 - [ ] **Examples and commands** are testable via automated validation
 
 ## Implementation Requirements
-- [ ] **MCP Tool Interface**: Simple CRUD operations for pattern management - Documented in `docs/cli-reference.md` (Section: "Pattern Management Commands")
+- [ ] **MCP Tool Interface**: Simple CRUD operations for pattern management - Documented in `docs/pattern-management-guide.md` (Section: "Pattern Management Operations")
 - [ ] **Pattern Storage**: Integration with Vector DB for semantic search - Documented in `docs/pattern-management-guide.md` (Section: "Pattern Storage")
 - [ ] **AI Integration**: Pattern suggestions enhance AI recommendation prompts - Documented in `docs/pattern-management-guide.md` (Section: "AI Integration")
 - [ ] **Validation**: Basic pattern validation and conflict detection - Documented in `docs/pattern-management-guide.md` (Section: "Pattern Validation")
@@ -53,7 +53,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 
 **Documentation Changes:**
 - [ ] **`docs/pattern-management-guide.md`**: Create comprehensive user guide with pattern creation workflows
-- [ ] **`docs/cli-reference.md`**: Add MCP commands for pattern management
+- [ ] **`docs/pattern-management-guide.md`**: Create comprehensive user guide with pattern creation workflows
 - [ ] **`README.md`**: Update capabilities section to mention pattern management
 
 **Implementation Tasks:**
@@ -229,7 +229,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 
 ### Documentation Completion Status
 - [ ] **`docs/pattern-management-guide.md`**: Complete - User guide with pattern creation, management, and AI integration
-- [ ] **`docs/cli-reference.md`**: Updated - Added pattern management MCP commands and examples
+- [ ] **`docs/pattern-management-guide.md`**: Complete - User guide with pattern creation, management, and AI integration
 - [ ] **`README.md`**: Updated - Added Manual Pattern Management to core capabilities list
 - [ ] **Cross-file consistency**: Complete - All pattern management terminology and examples aligned
 
@@ -447,7 +447,7 @@ Create an MCP tool that allows platform engineers and architects to manually def
 **Next Session Priorities**:
 - **Embedding Service Integration**: Add OpenAI/Cohere/local model support for text-to-vector conversion to enable true semantic search
 - **AI Integration Implementation**: Pattern injection into recommendation prompts via Claude API
-- **Documentation Creation**: Pattern management guide and CLI reference for user adoption
+- **Documentation Creation**: Pattern management guide for user adoption
 - **Performance Testing**: Validate pattern retrieval performance with realistic volumes (100+ patterns)
 
 ### 2025-07-31: Embedding Service Integration & System Diagnostics Enhancement

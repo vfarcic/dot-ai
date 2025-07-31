@@ -13,7 +13,7 @@ Build a comprehensive application lifecycle management system that handles post-
 ### Files Created/Updated
 - **`docs/lifecycle-management-guide.md`** - New File - Complete guide for application lifecycle operations
 - **`docs/scaling-guide.md`** - New File - Application scaling strategies and automation
-- **`docs/cli-reference.md`** - CLI Documentation - Add update, scale, config, and delete commands
+- **`docs/lifecycle-management-guide.md`** - User Documentation - Add application lifecycle management operations
 - **`README.md`** - Project Overview - Add lifecycle management to core capabilities
 - **`src/core/lifecycle/`** - Technical Implementation - Lifecycle management system modules
 
@@ -22,7 +22,7 @@ Build a comprehensive application lifecycle management system that handles post-
 - **Update Operations**: See `docs/lifecycle-management-guide.md` (Section: "Updates and Rollbacks")
 - **Scaling Operations**: See `docs/scaling-guide.md` (Section: "Scaling Strategies")
 - **Setup Instructions**: See `docs/lifecycle-management-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Lifecycle Commands")
+- **MCP Operations**: See `docs/lifecycle-management-guide.md` (Section: "Lifecycle Operations")
 - **Examples**: See `docs/lifecycle-management-guide.md` (Section: "Usage Examples")
 - **Troubleshooting**: See `docs/lifecycle-management-guide.md` (Section: "Common Issues")
 - **Lifecycle Index**: See `README.md` (Section: "Application Lifecycle")
@@ -36,7 +36,7 @@ Build a comprehensive application lifecycle management system that handles post-
 ## Implementation Requirements
 - [ ] **Core functionality**: Rolling updates and zero-downtime deployments - Documented in `docs/lifecycle-management-guide.md` (Section: "Update Strategies")
 - [ ] **User workflows**: Scaling operations with manual and automated options - Documented in `docs/scaling-guide.md` (Section: "Scaling Workflows")
-- [ ] **API/Commands**: Configuration management and troubleshooting tools - Documented in `docs/cli-reference.md` (Section: "Lifecycle Commands")
+- [ ] **MCP Operations**: Configuration management and troubleshooting tools - Documented in `docs/lifecycle-management-guide.md` (Section: "Lifecycle Operations")
 - [ ] **Error handling**: Graceful handling of update failures and rollback scenarios - Documented in `docs/lifecycle-management-guide.md` (Section: "Error Recovery")
 - [ ] **Performance optimization**: Zero-downtime updates for 99% of deployments
 
@@ -61,7 +61,7 @@ Build a comprehensive application lifecycle management system that handles post-
 **Documentation Changes:**
 - [ ] **`docs/lifecycle-management-guide.md`**: Create complete user guide with update and rollback concepts
 - [ ] **`docs/scaling-guide.md`**: Create comprehensive scaling guide with manual and automated strategies
-- [ ] **`docs/cli-reference.md`**: Add update, rollback, scale, and basic lifecycle commands
+- [ ] **`docs/lifecycle-management-guide.md`**: Add update, rollback, scale, and basic lifecycle operations
 - [ ] **`README.md`**: Update capabilities section to mention application lifecycle management
 
 **Implementation Tasks:**
@@ -216,7 +216,7 @@ Build a comprehensive application lifecycle management system that handles post-
 ### Documentation Completion Status
 - [ ] **`docs/lifecycle-management-guide.md`**: Complete - User guide with update, scaling, troubleshooting workflows
 - [ ] **`docs/scaling-guide.md`**: Complete - Comprehensive scaling strategies and automation guide
-- [ ] **`docs/cli-reference.md`**: Updated - Added comprehensive lifecycle management commands
+- [ ] **`docs/lifecycle-management-guide.md`**: Complete - Added comprehensive lifecycle management operations
 - [ ] **`README.md`**: Updated - Added application lifecycle management to core capabilities
 - [ ] **Cross-file consistency**: Complete - All lifecycle terminology and examples aligned
 

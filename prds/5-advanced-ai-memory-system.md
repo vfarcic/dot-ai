@@ -14,14 +14,14 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 - **`docs/ai-memory-guide.md`** - New File - Complete guide for AI memory system capabilities and usage
 - **`docs/advanced-features.md`** - New File - Advanced dot-ai features including AI memory, pattern learning
 - **`README.md`** - Project Overview - Add AI Memory System to core capabilities
-- **`docs/cli-reference.md`** - CLI Documentation - Add memory analysis and pattern inspection commands
+- **`docs/ai-memory-guide.md`** - User Documentation - Add memory analysis and pattern inspection guide
 - **`src/core/memory/`** - Technical Implementation - AI-enhanced memory system modules
 
 ### Content Location Map
 - **Feature Overview**: See `docs/ai-memory-guide.md` (Section: "What is AI Memory")
 - **Pattern Recognition**: See `docs/ai-memory-guide.md` (Section: "Pattern Recognition Engine")
 - **Setup Instructions**: See `docs/ai-memory-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Memory Commands")
+- **MCP Operations**: See `docs/ai-memory-guide.md` (Section: "Memory Operations")
 - **Examples**: See `docs/ai-memory-guide.md` (Section: "Usage Examples")
 - **Troubleshooting**: See `docs/ai-memory-guide.md` (Section: "Common Issues")
 - **Advanced Features Index**: See `README.md` (Section: "Advanced Capabilities")
@@ -34,7 +34,7 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 
 ## Implementation Requirements
 - [ ] **Core functionality**: AI-powered pattern recognition and similarity matching - Documented in `docs/ai-memory-guide.md` (Section: "Pattern Recognition Engine")
-- [ ] **User workflows**: Memory inspection and pattern analysis commands - Documented in `docs/cli-reference.md` (Section: "Memory Commands")
+- [ ] **User workflows**: Memory inspection and pattern analysis operations - Documented in `docs/ai-memory-guide.md` (Section: "Memory Operations")
 - [ ] **API/Commands**: Deployment outcome tracking and lesson extraction - Documented in `docs/ai-memory-guide.md` (Section: "Lesson Learning")
 - [ ] **Error handling**: Graceful handling of memory corruption and pattern conflicts - Documented in `docs/ai-memory-guide.md` (Section: "Troubleshooting")
 - [ ] **Performance optimization**: Sub-100ms pattern retrieval with intelligent caching
@@ -42,7 +42,7 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 ### Documentation Quality Requirements
 - [ ] **All examples work**: Automated testing validates all memory commands and pattern analysis examples
 - [ ] **Complete user journeys**: End-to-end workflows from deployment to recommendation improvement documented
-- [ ] **Consistent terminology**: Same AI memory terms used across CLI reference, user guide, and README
+- [ ] **Consistent terminology**: Same AI memory terms used across user guide and README
 - [ ] **Working cross-references**: All internal links between memory docs and core docs resolve correctly
 
 ### Success Criteria
@@ -72,7 +72,7 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 
 **Documentation Changes:**
 - [ ] **`docs/ai-memory-guide.md`**: Add "Lesson Learning" section with outcome tracking examples
-- [ ] **`docs/cli-reference.md`**: Add memory inspection commands (memory:patterns, memory:lessons)
+- [ ] **`docs/ai-memory-guide.md`**: Add memory inspection operations via MCP tools
 - [ ] **`docs/troubleshooting.md`**: Add AI memory troubleshooting section
 
 **Implementation Tasks:**
@@ -214,7 +214,7 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 ### Documentation Completion Status
 - [ ] **`docs/ai-memory-guide.md`**: Complete - User guide with pattern recognition, lesson learning, usage examples
 - [ ] **`docs/advanced-features.md`**: Complete - Advanced capabilities overview including AI memory
-- [ ] **`docs/cli-reference.md`**: Updated - Added memory inspection and analysis commands
+- [ ] **`docs/ai-memory-guide.md`**: Complete - Added memory inspection and analysis operations
 - [ ] **`README.md`**: Updated - Added AI Memory System to core capabilities list
 - [ ] **Cross-file consistency**: Complete - All AI memory terminology and examples aligned
 
