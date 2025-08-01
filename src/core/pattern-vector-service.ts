@@ -207,10 +207,10 @@ export class PatternVectorService {
           matchType: 'hybrid' as const
         });
       } else {
-        // Keyword-only result
+        // Keyword-only result - give fair weight, don't penalize
         resultMap.set(result.id, {
           pattern,
-          score: keywordScore * 0.3, // Lower weight for keyword-only
+          score: keywordScore, // Use full keyword score for keyword-only results
           matchType: 'keyword' as const
         });
       }

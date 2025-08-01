@@ -2465,4 +2465,129 @@ FIELDS:
   });
 });
 
+describe('ResourceRecommender - No Vector DB Scenarios', () => {
+  describe('when Vector DB service is unavailable during construction', () => {
+    it('should initialize successfully and log appropriate warnings', async () => {
+      // Mock VectorDBService constructor to throw
+      const originalVectorDBService = require('../../src/core/vector-db-service').VectorDBService;
+      const mockVectorDBService = jest.fn(() => {
+        throw new Error('Vector DB connection failed');
+      });
+      
+      // Temporarily replace VectorDBService
+      const vectorDBModule = require('../../src/core/vector-db-service');
+      vectorDBModule.VectorDBService = mockVectorDBService;
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      
+      // This should not throw an error
+      const config: AIRankingConfig = { claudeApiKey: 'test-key' };
+      const recommender = new ResourceRecommender(config);
+      
+      // Verify warning was logged
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Vector DB not available, patterns disabled:'), 
+        expect.any(Error)
+      );
+      
+      // Restore original
+      vectorDBModule.VectorDBService = originalVectorDBService;
+      consoleSpy.mockRestore();
+    });
+
+    it('should skip pattern search and return empty array', async () => {
+      // Mock VectorDBService to fail
+      const originalVectorDBService = require('../../src/core/vector-db-service').VectorDBService;
+      const mockVectorDBService = jest.fn(() => {
+        throw new Error('No Vector DB available');
+      });
+      
+      const vectorDBModule = require('../../src/core/vector-db-service');
+      vectorDBModule.VectorDBService = mockVectorDBService;
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      
+      const config: AIRankingConfig = { claudeApiKey: 'test-key' };
+      const recommender = new ResourceRecommender(config);
+      
+      // Access the private method through type assertion to test it directly
+      const searchMethod = (recommender as any).searchRelevantPatterns;
+      const result = await searchMethod.call(recommender, 'deploy my app');
+      
+      // Should return empty array
+      expect(result).toEqual([]);
+      
+      // Should log appropriate message
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Pattern service unavailable, skipping pattern search')
+      );
+      
+      // Restore
+      vectorDBModule.VectorDBService = originalVectorDBService;
+      consoleLogSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+
+    it('should use empty patterns context in AI prompts when Vector DB unavailable', async () => {
+      // This test focuses on verifying the prompts contain the right fallback text
+      const originalVectorDBService = require('../../src/core/vector-db-service').VectorDBService;
+      const vectorDBModule = require('../../src/core/vector-db-service');
+      vectorDBModule.VectorDBService = jest.fn(() => {
+        throw new Error('Vector DB not available');
+      });
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      
+      const config: AIRankingConfig = { claudeApiKey: 'test-key' };
+      const recommender = new ResourceRecommender(config);
+
+      // Test the pattern context building directly by calling selectResourceCandidates  
+      const selectCandidatesMethod = (recommender as any).selectResourceCandidates;
+      
+      // Mock Claude integration
+      const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
+      const mockSendMessage = jest.fn().mockResolvedValue({
+        content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]`,
+        usage: { input_tokens: 50, output_tokens: 25 }
+      });
+      jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockSendMessage);
+
+      // Mock fs.readFileSync
+      const fs = require('fs');
+      const originalReadFileSync = fs.readFileSync;
+      fs.readFileSync = jest.fn().mockReturnValue('Intent: {intent}\nResources: {resources}\nPatterns: {patterns}');
+
+      try {
+        await selectCandidatesMethod.call(
+          recommender, 
+          'deploy app', 
+          [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }], 
+          [] // Empty patterns array
+        );
+
+        // Verify the AI prompt included fallback text for no patterns
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('No organizational patterns found for this request.')
+        );
+
+        // Verify Vector DB unavailability was logged
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Vector DB not available, patterns disabled:'),
+          expect.any(Error)
+        );
+
+      } finally {
+        // Restore everything
+        vectorDBModule.VectorDBService = originalVectorDBService;
+        fs.readFileSync = originalReadFileSync;
+        jest.restoreAllMocks();
+        consoleSpy.mockRestore();
+        consoleLogSpy.mockRestore();
+      }
+    });
+  });
+});
+
 

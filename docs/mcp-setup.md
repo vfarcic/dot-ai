@@ -4,10 +4,11 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides three main capabilities through MCP (Model Context Protocol):
+The DevOps AI Toolkit provides four main capabilities through MCP (Model Context Protocol):
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance
-2. **Documentation Testing** - Automated validation of documentation accuracy
-3. **Shared prompts library** - Centralized prompt sharing via native slash commands
+2. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
+3. **Documentation Testing** - Automated validation of documentation accuracy
+4. **Shared prompts library** - Centralized prompt sharing via native slash commands
 
 This guide covers the foundational setup that enables all features.
 
@@ -87,6 +88,9 @@ claude
 | Variable | Feature | Description | Example |
 |----------|---------|-------------|---------|
 | `KUBECONFIG` | Kubernetes Deployment | Kubernetes config file path | `./configs/cluster.yaml` |
+| `QDRANT_URL` | Pattern Management | Qdrant Vector DB URL | `https://your-cluster.qdrant.io` |
+| `QDRANT_API_KEY` | Pattern Management | Qdrant API key | `your-qdrant-api-key` |
+| `OPENAI_API_KEY` | Pattern Management | OpenAI key for semantic search | `sk-proj-...` |
 
 ## Path Resolution
 
@@ -360,6 +364,7 @@ For troubleshooting MCP server issues:
 Once MCP server setup is complete, explore the available features:
 
 - **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Kubernetes deployment recommendations
+- **[Pattern Management Guide](pattern-management-guide.md)** - Organizational deployment patterns
 - **[MCP Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation
 - **[MCP Prompts Guide](mcp-prompts-guide.md)** - Shared prompt library and slash commands
 

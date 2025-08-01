@@ -8,11 +8,15 @@ You are a Kubernetes expert. Given this user intent and available resources, sel
 ## Available Resources
 {resources}
 
+## Organizational Patterns
+{patterns}
+
 ## Instructions
 
 Select all resources that could be relevant for this intent. Consider:
 - Direct relevance to the user's needs
 - Common Kubernetes patterns and best practices
+- **Organizational patterns** and resource suggestions from your organization's best practices (see above)
 - Resource relationships and combinations
 - Production deployment patterns
 - Complex multi-component solutions

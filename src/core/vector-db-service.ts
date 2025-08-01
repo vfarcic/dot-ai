@@ -205,22 +205,33 @@ export class VectorDBService {
     }
 
     try {
-      // Create filter for keyword matching
-      const should = keywords.map(keyword => ({
-        key: 'triggers',
-        match: { any: [keyword.toLowerCase()] }
-      }));
-
+      // Fallback to JavaScript-based filtering due to Qdrant filter syntax issues
+      // Get all documents and filter in JavaScript for keyword matching
       const scrollResult = await this.client.scroll(this.collectionName, {
-        filter: {
-          should
-        },
-        limit: options.limit || 10,
+        limit: 1000, // Get all documents for filtering
         with_payload: true,
         with_vector: false
       });
 
-      return scrollResult.points.map(point => ({
+      // Filter documents by checking if any keyword matches any trigger
+      const matchedPoints = scrollResult.points.filter(point => {
+        if (!point.payload || !point.payload.triggers || !Array.isArray(point.payload.triggers)) {
+          return false;
+        }
+
+        const triggers = point.payload.triggers.map((t: string) => t.toLowerCase());
+        return keywords.some(keyword => 
+          triggers.some(trigger => 
+            trigger.includes(keyword.toLowerCase()) || 
+            keyword.toLowerCase().includes(trigger)
+          )
+        );
+      });
+
+      // Apply limit after filtering
+      const limitedResults = matchedPoints.slice(0, options.limit || 10);
+
+      return limitedResults.map(point => ({
         id: point.id.toString(),
         score: 1.0, // Keyword matches get full score
         payload: point.payload || {}

@@ -329,16 +329,28 @@ export async function handleRecommendTool(
           description: solution.description,
           primaryResources: solution.resources.slice(0, 3).map(r => r.kind),
           reasons: solution.reasons,
-          analysis: solution.analysis
+          analysis: solution.analysis,
+          usedPatterns: solution.usedPatterns || false,
+          patternInfluences: solution.patternInfluences || []
         });
       }
+
+      // Analyze pattern usage across all solutions
+      const patternsUsedCount = solutionSummaries.filter(s => s.usedPatterns).length;
+      const totalPatternInfluences = solutionSummaries.reduce((count, s) => count + (s.patternInfluences?.length || 0), 0);
 
       // Build new response format
       const response = {
         intent: args.intent,
         solutions: solutionSummaries,
+        patternSummary: {
+          solutionsUsingPatterns: patternsUsedCount,
+          totalSolutions: solutionSummaries.length,
+          totalPatternInfluences: totalPatternInfluences,
+          patternsAvailable: totalPatternInfluences > 0 ? "Yes" : "None found or pattern search failed"
+        },
         nextAction: "Call chooseSolution with your preferred solutionId",
-        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection.",
+        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
         timestamp
       };
 
