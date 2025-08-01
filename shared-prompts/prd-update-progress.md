@@ -253,8 +253,12 @@ After successfully updating the PRD, commit all changes to preserve the progress
 
 ### Commit Implementation Work
 ```bash
-# Stage all implementation files and PRD updates
+# MANDATORY: Stage ALL files - implementation work AND PRD updates together
+# DO NOT selectively add only PRD files - commit everything as one atomic unit
 git add .
+
+# Verify what will be committed
+git status
 
 # Create comprehensive commit with PRD reference
 git commit -m "feat(prd-X): implement [brief description of completed work]
