@@ -70,13 +70,13 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
   - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
 
 **For shared prompts library:**
-- **No API key required** - Works with any MCP-enabled coding agent
+- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require ANTHROPIC_API_KEY)
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
   - Verify cluster access with: `kubectl get nodes`
   - Should show your cluster nodes without authentication errors
-<!-- dotai-ignore: kubectl requirement not verifiable in current environment -->
+<!-- dotai-ignore: kubectl verification command output format - implementation-specific -->
 
 **For documentation testing:**
 - **Documentation files** to test (Markdown, HTML, etc.)
@@ -117,8 +117,15 @@ Perfect for conversational AI-driven workflows:
 }
 ```
 
+**Note**: Replace all placeholder values (like `your_key_here`, `your-cluster.qdrant.io`) with your actual API keys and service URLs.
+
+**Environment Variable Setup**: You can set these variables either:
+- **In the `.mcp.json` file** (as shown above in the `env` section), OR  
+- **As shell environment variables** (e.g., `export ANTHROPIC_API_KEY=your_key_here`), OR
+- **A combination of both** (shell variables take precedence)
+
 **Environment Variables:**
-- `ANTHROPIC_API_KEY`: Required for AI analysis (all features)
+- `ANTHROPIC_API_KEY`: Required for AI analysis (Kubernetes deployments, documentation testing, pattern management). Not required for shared prompts library.
 - `DOT_AI_SESSION_DIR`: Required session directory (relative paths are relative to where the AI agent is started)
 - `KUBECONFIG`: Optional kubeconfig path for Kubernetes deployments (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
 - `QDRANT_URL`: Required for pattern management - Vector DB endpoint
@@ -132,8 +139,9 @@ mkdir -p tmp/sessions
 
 claude
 
-# Verify MCP server connection
-# You should see "dot-ai" listed as an available MCP server
+# Verify MCP server connection by running `/mcp` command
+# Example: type `/mcp` in Claude Code to see server status
+# Expected output shows "dot-ai" server connected with available tools
 ```
 
 3. **Use conversational workflows:**

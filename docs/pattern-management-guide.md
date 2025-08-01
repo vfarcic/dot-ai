@@ -19,16 +19,18 @@ Pattern Management allows you to:
 1. **Pattern Creation** → Platform engineers define deployment patterns with triggers and resource recommendations
 2. **Semantic Storage** → Patterns are stored with AI-generated embeddings for intelligent matching
 3. **AI Integration** → When users request deployments, relevant patterns automatically enhance recommendations
-4. **Continuous Learning** → Patterns improve recommendation quality over time through usage
+4. **Continuous Learning** → Patterns improve recommendation quality over time through usage (planned for future versions)
 
 ## Prerequisites
+
+<!-- dotai-test-hint: Start Qdrant container before testing later sections: docker run -d --name qdrant-testing -p 6333:6333 -v $(pwd)/tmp/qdrant_storage:/qdrant/storage qdrant/qdrant -->
 
 Before using Pattern Management, ensure you have:
 
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
 - **Vector DB service** (Qdrant) for pattern storage
-- **API keys** can be set as environment variables or in `.mcp.json`
+- **API keys** (ANTHROPIC_API_KEY, QDRANT_API_KEY, OPENAI_API_KEY) can be set as environment variables or in `.mcp.json`
 
 For complete setup instructions, see the [MCP Setup Guide](./mcp-setup.md).
 
@@ -61,13 +63,19 @@ docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
 }
 ```
 
+**Test Connectivity**:
+```bash
+# Verify Qdrant is responding
+curl http://localhost:6333/healthz
+```
+
 ### Embedding Service Setup
 
 For semantic pattern matching, configure an embedding service:
 
 #### OpenAI Embeddings (Recommended)
 
-1. **Get API key** from [OpenAI Platform](https://platform.openai.com/api-keys)
+1. **Get API key** from [OpenAI Platform](https://platform.openai.com/api-keys) <!-- dotai-ignore: requires authentication -->
 2. **Add to environment**: `"OPENAI_API_KEY": "sk-proj-..."`
 3. **Automatic model**: Uses `text-embedding-3-small` (1536 dimensions)
 
@@ -93,54 +101,87 @@ The assistant will ask for a clear description of your pattern:
 
 **Example**:
 ```
-Assistant: I'll help you create an organizational deployment pattern. 
+Assistant: What deployment capability does this pattern provide? I need a capability name (2-4 words).
 
-What type of deployment pattern would you like to create? Please provide a clear description of the pattern's purpose.
-
-You: I want to create a pattern for stateless web applications
+You: stateless web applications
 ```
 
 #### Step 2: Trigger Keywords
-Define keywords that should activate this pattern:
+Define initial keywords that should activate this pattern:
 
 **Example**:
 ```
-Assistant: Great! Now I need trigger keywords that should activate this pattern. When users mention these terms, the pattern will be suggested.
+Assistant: What keywords or phrases should trigger this pattern? Please provide keywords separated by commas.
 
-Please provide trigger keywords or phrases (one per line):
-
-You: stateless application
-web app  
-api service
-microservice
-rest api
-frontend application
+You: stateless application, web app, api service, microservice, rest api, frontend application
 ```
 
-#### Step 3: Suggested Resources
+#### Step 3: Trigger Expansion
+The system suggests additional related terms:
+
+**Example**:
+```
+Assistant: I found these additional terms that might also trigger your pattern:
+- application
+- service
+- workload
+
+Which should also trigger this pattern? You can select specific ones, include all, or skip.
+
+You: include: application, service, workload
+```
+
+#### Step 4: Suggested Resources
 Specify Kubernetes resources this pattern should recommend:
 
 **Example**:
 ```
-Assistant: Perfect! Now, what Kubernetes resources should this pattern suggest? 
+Assistant: Which Kubernetes resources should be suggested for stateless web applications? Please list the resource types separated by commas.
 
-You: Deployment
-Service  
-Ingress
-HorizontalPodAutoscaler
+You: Deployment, Service, Ingress, HorizontalPodAutoscaler
 ```
 
-#### Step 4: Rationale
+#### Step 5: Rationale
 Explain why these resources work well together:
 
 **Example**:
 ```
-Assistant: Finally, please provide a rationale explaining why these resources work well together for this use case:
+Assistant: Why does this combination of resources work well together for stateless web applications?
 
 You: This combination provides a complete stateless application deployment: Deployment manages replicated pods without persistent state, Service provides stable network access, Ingress handles external routing and SSL termination, and HorizontalPodAutoscaler automatically scales based on demand. Together they create resilient, scalable applications that can handle traffic fluctuations and failures gracefully.
 ```
 
+#### Step 6: Pattern Ownership
+Specify who created the pattern:
+
+**Example**:
+```
+Assistant: What is your name or team identifier? This helps track pattern ownership.
+
+You: platform-team
+```
+
+#### Step 7: Review and Confirmation
+Review the complete pattern before creation:
+
+**Example**:
+```
+Assistant: Please review your pattern:
+
+**Description**: stateless web applications
+**Triggers**: stateless application, web app, api service, microservice, rest api, frontend application, application, service, workload
+**Suggested Resources**: Deployment, Service, Ingress, HorizontalPodAutoscaler
+**Rationale**: This combination provides a complete stateless application deployment...
+**Created By**: platform-team
+
+Does this look correct? Type 'confirm' to create the pattern, or 'modify' to make changes.
+
+You: confirm
+```
+
 The system will then create and store your pattern with semantic embeddings for intelligent matching.
+
+**Note**: The conversation examples above are simplified for readability. The actual workflow uses structured prompts, specific response formats, and includes additional validation steps, but the core information flow remains the same.
 
 ### Listing Patterns
 
@@ -216,52 +257,14 @@ The assistant will confirm the deletion and remove the pattern from storage.
 
 ## AI Integration
 
-### How Patterns Enhance Recommendations
+Patterns automatically enhance deployment recommendations when users request deployments. For complete examples of how patterns influence recommendations, see the [MCP Recommendation Guide](mcp-recommendation-guide.md).
 
-When you request a deployment recommendation, the system automatically:
+The recommendation system automatically:
+- Searches for relevant patterns using semantic matching
+- Includes pattern context in AI prompts  
+- Balances organizational consistency with specific user needs
 
-1. **Analyzes your request** for semantic similarity to stored patterns
-2. **Finds relevant patterns** using hybrid semantic + keyword search
-3. **Enhances the AI prompt** with organizational context
-4. **Provides recommendations** that align with your patterns while maintaining AI autonomy
-
-### Example Integration Workflow
-
-**User Request**:
-```
-I need to deploy a REST API for user authentication
-```
-
-**Behind the Scenes**:
-1. System finds "Stateless Applications" pattern (matches "REST API")
-2. AI receives both the user request AND the relevant pattern context
-3. AI generates recommendations influenced by organizational best practices
-
-**Enhanced Recommendation**:
-```
-Based on your request and organizational patterns, I recommend:
-
-**Core Resources** (from Stateless Applications pattern):
-- Deployment: For running your auth API pods
-- Service: To provide stable internal access  
-- Ingress: For external API access with TLS
-- HorizontalPodAutoscaler: Auto-scaling based on demand
-
-**Additional Considerations**:
-- Secret: For API keys and JWT signing keys
-- ConfigMap: For non-sensitive configuration
-- NetworkPolicy: To restrict database access (security pattern)
-
-This follows your organization's stateless application pattern while adding auth-specific requirements.
-```
-
-### Pattern Suggestions vs. Requirements
-
-**Important**: Patterns serve as **suggestions** to enhance AI decision-making, not rigid requirements. The AI maintains autonomy to:
-- Adapt recommendations based on specific user needs  
-- Suggest additional resources not in patterns
-- Explain when it deviates from patterns and why
-- Balance organizational consistency with deployment-specific requirements
+**Important**: Patterns serve as suggestions to enhance AI decision-making, not rigid requirements.
 
 ## Pattern Examples
 
@@ -325,10 +328,13 @@ Triggers:
   - microsegmentation
 Resources:
   - NetworkPolicy
-  - PodSecurityPolicy
   - ServiceAccount
-Rationale: Implements defense-in-depth with network segmentation and pod security controls
+  - Role
+  - RoleBinding
+Rationale: Implements defense-in-depth with network segmentation and RBAC controls
 ```
+
+**Note**: This pattern uses Pod Security Standards (successor to deprecated PodSecurityPolicy) for pod-level security controls, which are configured at the namespace level rather than as individual resources.
 
 **When It Activates**: User mentions "security", "network isolation", "compliance requirements", etc.
 
@@ -349,9 +355,11 @@ Resources:
   - ServiceMonitor
   - PodMonitor
   - PrometheusRule
-  - Grafana Dashboard
-Rationale: Provides comprehensive observability with metrics collection, alerting, and visualization
+  - ConfigMap
+Rationale: Provides comprehensive observability with metrics collection, alerting, and dashboard configuration
 ```
+
+**Note**: Resources like ServiceMonitor, PodMonitor, and PrometheusRule are Custom Resource Definitions (CRDs) provided by the Prometheus Operator and require it to be installed in your cluster. ConfigMap stores dashboard configurations for Grafana.
 
 **When It Activates**: User requests including "monitoring", "observability", "metrics collection", etc.
 
@@ -418,16 +426,18 @@ Triggers:
 - **Create patterns for team-specific needs** (data team patterns, frontend patterns, etc.)
 
 #### 3. Iterative Improvement
-- **Monitor pattern usage** through recommendation feedback
+- **Gather feedback** from teams on pattern effectiveness and usage
 - **Update patterns** based on changing organizational needs
 - **Archive outdated patterns** that no longer reflect best practices
 
 ### Pattern Quality Guidelines
 
+These are manual best practices for creating effective patterns. The system performs basic validation (required fields) but does not automatically warn about quality issues.
+
 #### 1. Resource Selection
 - **Include complementary resources** that work well together
-- **Avoid conflicting resources** (e.g., both Deployment and StatefulSet)
 - **Focus on the core resources** needed for the pattern's use case
+- **Consider resource relationships** when selecting combinations
 
 #### 2. Trigger Optimization  
 - **Test triggers** with real user language from past deployment requests
@@ -535,16 +545,40 @@ What's the current system status?
 **Expected Response**:
 ```json
 {
-  "status": "healthy",
-  "vectorDB": {
-    "connected": true,
-    "patternsCount": 5
+  "status": "success",
+  "system": {
+    "version": {
+      "version": "0.42.0",
+      "nodeVersion": "v23.11.0",
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    "vectorDB": {
+      "connected": true,
+      "url": "http://localhost:6333",
+      "collectionName": "patterns",
+      "patternsCount": 5
+    },
+    "embedding": {
+      "available": true,
+      "provider": "openai",
+      "model": "text-embedding-3-small",
+      "dimensions": 1536
+    },
+    "anthropic": {
+      "connected": true,
+      "keyConfigured": true
+    }
   },
-  "embedding": {
-    "available": true,
-    "provider": "openai"
+  "summary": {
+    "overall": "healthy",
+    "patternSearch": "semantic+keyword",
+    "capabilities": [
+      "semantic-search",
+      "ai-recommendations"
+    ]
   },
-  "search": "semantic+keyword"
+  "timestamp": "2025-08-01T23:10:26.691Z"
 }
 ```
 
@@ -634,5 +668,7 @@ A: The system is tested with 100+ patterns. Qdrant can scale to much larger volu
 **Issues**: Report bugs and feature requests at [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
 
 ---
+
+<!-- dotai-test-hint: Clean up Qdrant container after testing: docker stop qdrant-testing && docker rm qdrant-testing -->
 
 *This guide covers Pattern Management v1.0. Features like pattern analytics, approval workflows, and advanced pattern organization are planned for future versions.*

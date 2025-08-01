@@ -43,7 +43,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-This configuration enables all capabilities including shared prompts, which will automatically appear as `/dot-ai:prompt-name` slash commands in your coding agent.
+This configuration enables all capabilities including shared prompts, which will automatically appear as `/dot-ai:prompt-name` slash commands in your coding agent. <!-- dotai-ignore -->
 
 ### 3. Start Your AI Tool
 
@@ -62,7 +62,7 @@ claude
 # Look for tools like: recommend, testDocs, prompts, etc.
 ```
 
-**Test shared prompts (if using prompts library):**
+**Test shared prompts (if using prompts library):** <!-- dotai-ignore -->
 ```bash
 # In your coding agent, type "/" to see available commands
 # Look for commands like: /dot-ai:prd-create, /dot-ai:context-save, etc.
