@@ -56,6 +56,12 @@ import {
   handleTestDocsTool 
 } from '../tools/test-docs';
 import { 
+  ORGANIZATIONAL_DATA_TOOL_NAME, 
+  ORGANIZATIONAL_DATA_TOOL_DESCRIPTION, 
+  ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
+  handleOrganizationalDataTool 
+} from '../tools/organizational-data';
+import { 
   handlePromptsListRequest,
   handlePromptsGetRequest 
 } from '../tools/prompts';
@@ -190,6 +196,18 @@ export class MCPServer {
         return await handleTestDocsTool(args, null, this.logger, requestId);
       }
     );
+
+    // Register organizational-data tool
+    this.server.tool(
+      ORGANIZATIONAL_DATA_TOOL_NAME,
+      ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
+      ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(`Processing ${ORGANIZATIONAL_DATA_TOOL_NAME} tool request`, { requestId });
+        return await handleOrganizationalDataTool(args, this.dotAI, this.logger, requestId);
+      }
+    );
     
     this.logger.info('Registered all tools with McpServer', { 
       tools: [
@@ -199,9 +217,10 @@ export class MCPServer {
         GENERATEMANIFESTS_TOOL_NAME,
         DEPLOYMANIFESTS_TOOL_NAME,
         VERSION_TOOL_NAME,
-        TESTDOCS_TOOL_NAME
+        TESTDOCS_TOOL_NAME,
+        ORGANIZATIONAL_DATA_TOOL_NAME
       ],
-      totalTools: 7
+      totalTools: 8
     });
   }
 

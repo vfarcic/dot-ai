@@ -13,12 +13,13 @@ You are helping update an existing Product Requirements Document (PRD) based on 
 ## Process Overview
 
 1. **Identify Target PRD** - Determine which PRD to update
-2. **Analyze Git Changes** - Review commits and file changes since last update
-3. **Map Changes to PRD Items** - Intelligently connect code changes to requirements
+2. **Context-First Progress Analysis** - Use conversation context first, Git analysis as fallback
+3. **Map Changes to PRD Items** - Intelligently connect work to requirements
 4. **Propose Updates** - Suggest checkbox completions and requirement changes
 5. **User Confirmation** - Verify proposals and handle edge cases
 6. **Update PRD** - Apply changes and add work log entry
 7. **Flag Divergences** - Alert when actual work differs from planned work
+8. **Commit Progress Updates** - Preserve progress checkpoint
 
 ## Step 1: Smart PRD Identification
 
@@ -36,9 +37,23 @@ You are helping update an existing Product Requirements Document (PRD) based on 
 - If only one PRD file recently modified → Use that PRD
 - If multiple PRDs possible → Ask user to clarify
 
-## Step 2: Git Change Analysis
+## Step 2: Context-First Progress Analysis
 
-Use git tools to understand what work was completed:
+**PRIORITY: Use conversation context first before Git analysis**
+
+### Conversation Context Analysis (FAST - Use First)
+**If recent conversation shows clear work completion:**
+- **Recently discussed implementations**: "Just completed X", "Implemented Y", "Built Z"
+- **Todo list context**: Check TodoWrite tool for completed/in-progress items
+- **File creation mentions**: "Created file X", "Added Y functionality"
+- **Test completion references**: "Tests passing", "All X tests complete"
+- **User confirmations**: "That works", "Implementation complete", "Ready for next step"
+
+**Use conversation context when available - it's faster and more accurate than Git parsing**
+
+### Git Change Analysis (FALLBACK - Use Only If Context Unclear)
+
+**Only use git tools when conversation context is insufficient:**
 
 ### Commit Analysis
 ```bash
@@ -231,3 +246,34 @@ When applying updates:
 3. **Update status sections** to reflect current phase
 4. **Preserve unchecked items** that still need work
 5. **Update completion percentages** realistically
+
+## Step 8: Commit Progress Updates
+
+After successfully updating the PRD, commit all changes to preserve the progress checkpoint:
+
+### Commit Implementation Work
+```bash
+# MANDATORY: Stage ALL files - implementation work AND PRD updates together
+# DO NOT selectively add only PRD files - commit everything as one atomic unit
+git add .
+
+# Verify what will be committed
+git status
+
+# Create comprehensive commit with PRD reference
+git commit -m "feat(prd-X): implement [brief description of completed work]
+
+- [Brief list of key implementation achievements]
+- Updated PRD checkboxes for completed items
+- Added work log entry with progress summary
+
+Progress: X% complete - [next major milestone]"
+```
+
+### Commit Message Guidelines
+- **Reference PRD number**: Always include `prd-X` in commit message
+- **Descriptive summary**: Brief but clear description of what was implemented
+- **Progress indication**: Include completion status and next steps
+- **Evidence-based**: Only commit when there's actual implementation progress
+
+**Note**: Do NOT push commits unless explicitly requested by the user. Commits preserve local progress checkpoints without affecting remote branches.

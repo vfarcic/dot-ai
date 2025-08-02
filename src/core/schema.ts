@@ -10,6 +10,9 @@ import {
   executeKubectl 
 } from './kubernetes-utils';
 import { ClaudeIntegration } from './claude';
+import { PatternVectorService } from './pattern-vector-service';
+import { OrganizationalPattern } from './pattern-types';
+import { VectorDBService } from './vector-db-service';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -96,6 +99,32 @@ export interface QuestionGroup {
   };
 }
 
+export interface DeploymentConcept {
+  category: 'application_architecture' | 'infrastructure' | 'operational' | 'technology';
+  concept: string;
+  importance: 'high' | 'medium' | 'low';
+  keywords: string[];
+}
+
+export interface ConceptExtractionResult {
+  concepts: DeploymentConcept[];
+}
+
+export interface PatternMatch {
+  pattern: OrganizationalPattern;
+  score: number;
+  matchedConcept: DeploymentConcept;
+  matchType: 'keyword' | 'semantic' | 'hybrid';
+}
+
+export interface PatternInfluence {
+  patternId: string;
+  description: string;
+  influence: 'high' | 'medium' | 'low';
+  matchedTriggers: string[];
+  matchedConcept?: string; // NEW: Which concept led to this pattern match
+}
+
 export interface ResourceSolution {
   type: 'single' | 'combination';
   resources: ResourceSchema[];
@@ -104,6 +133,8 @@ export interface ResourceSolution {
   reasons: string[];
   analysis: string;
   questions: QuestionGroup;
+  patternInfluences?: PatternInfluence[]; // NEW: Which patterns influenced this recommendation
+  usedPatterns?: boolean; // NEW: Quick indicator if any patterns were used
 }
 
 export interface AIRankingConfig {
@@ -364,10 +395,20 @@ export class ManifestValidator {
 export class ResourceRecommender {
   private claudeIntegration: ClaudeIntegration;
   private config: AIRankingConfig;
+  private patternService?: PatternVectorService;
 
   constructor(config: AIRankingConfig) {
     this.config = config;
     this.claudeIntegration = new ClaudeIntegration(config.claudeApiKey);
+    // Initialize pattern service only if Vector DB is available
+    try {
+      const vectorDB = new VectorDBService({ collectionName: 'patterns' });
+      this.patternService = new PatternVectorService(vectorDB);
+      console.log('✅ Pattern service initialized with Vector DB');
+    } catch (error) {
+      console.warn('⚠️ Vector DB not available, patterns disabled:', error);
+      this.patternService = undefined;
+    }
   }
 
   /**
@@ -383,23 +424,174 @@ export class ResourceRecommender {
     }
 
     try {
+      // Phase 0: Search for relevant organizational patterns
+      const relevantPatterns = await this.searchRelevantPatterns(intent);
+
       // Phase 1: Get lightweight resource list and let AI select candidates
       const resourceMap = await discoverResources();
       const allResources = [...resourceMap.resources, ...resourceMap.custom];
-      const candidates = await this.selectResourceCandidates(intent, allResources);
+      const candidates = await this.selectResourceCandidates(intent, allResources, relevantPatterns);
 
       // Phase 2: Fetch detailed schemas for selected candidates and rank
       const schemas = await this.fetchDetailedSchemas(candidates, explainResource);
-      return await this.rankWithDetailedSchemas(intent, schemas);
+      return await this.rankWithDetailedSchemas(intent, schemas, relevantPatterns);
     } catch (error) {
       throw new Error(`AI-powered resource solution analysis failed: ${error}`);
     }
   }
 
   /**
+   * Phase 0: Search for relevant organizational patterns using multi-concept approach
+   * Returns empty array if Vector DB is not available - this is completely optional
+   */
+  private async searchRelevantPatterns(intent: string): Promise<OrganizationalPattern[]> {
+    // If pattern service is not available, skip pattern search entirely
+    if (!this.patternService) {
+      console.log('📋 Pattern service unavailable, skipping pattern search - using pure AI recommendations');
+      return [];
+    }
+
+    try {
+      // Step 1: Extract deployment concepts from user intent
+      const concepts = await this.extractDeploymentConcepts(intent);
+      console.log(`🔍 Extracted ${concepts.length} deployment concepts from intent`);
+      
+      // If concept extraction fails, fall back to simple search
+      if (concepts.length === 0) {
+        console.warn('⚠️ No concepts extracted, falling back to simple pattern search');
+        const fallbackResults = await this.patternService.searchPatterns(intent, { limit: 5 });
+        return fallbackResults.map(result => result.pattern);
+      }
+      
+      // Step 2: Find patterns for each concept
+      const allPatternMatches: PatternMatch[] = [];
+      
+      for (const concept of concepts) {
+        try {
+          // Search using concept keywords
+          const conceptKeywords = concept.keywords.join(' ');
+          const searchResults = await this.patternService.searchPatterns(conceptKeywords, { limit: 10 });
+          
+          // Convert to PatternMatch with concept context
+          const matches: PatternMatch[] = searchResults.map(result => ({
+            pattern: result.pattern,
+            score: result.score * this.getConceptImportanceWeight(concept.importance),
+            matchedConcept: concept,
+            matchType: result.matchType
+          }));
+          
+          allPatternMatches.push(...matches);
+          console.log(`  📋 Found ${matches.length} patterns for concept: ${concept.concept}`);
+        } catch (error) {
+          console.warn(`⚠️ Pattern search failed for concept "${concept.concept}":`, error);
+        }
+      }
+      
+      // Step 3: Deduplicate and rank patterns
+      const uniquePatterns = this.deduplicateAndRankPatterns(allPatternMatches);
+      console.log(`✅ Final pattern selection: ${uniquePatterns.length} unique patterns`);
+      
+      return uniquePatterns;
+      
+    } catch (error) {
+      // Pattern search is non-blocking - if it fails, continue without patterns
+      console.warn('❌ Multi-concept pattern search failed, continuing without patterns:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Extract deployment concepts from user intent using AI
+   */
+  private async extractDeploymentConcepts(intent: string): Promise<DeploymentConcept[]> {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'concept-extraction.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    const conceptPrompt = template.replace('{intent}', intent);
+    const response = await this.claudeIntegration.sendMessage(conceptPrompt);
+    
+    try {
+      // Extract JSON from response
+      let jsonContent = response.content;
+      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      }
+      
+      const result: ConceptExtractionResult = JSON.parse(jsonContent);
+      return result.concepts || [];
+    } catch (error) {
+      console.warn('Failed to parse concept extraction response:', error);
+      // Fallback: create a single concept from the original intent
+      return [{
+        category: 'application_architecture',
+        concept: 'generic application',
+        importance: 'medium',
+        keywords: [intent]
+      }];
+    }
+  }
+
+  /**
+   * Get weight multiplier based on concept importance
+   */
+  private getConceptImportanceWeight(importance: 'high' | 'medium' | 'low'): number {
+    switch (importance) {
+      case 'high': return 1.2;
+      case 'medium': return 1.0;
+      case 'low': return 0.8;
+      default: return 1.0;
+    }
+  }
+
+  /**
+   * Deduplicate patterns and rank by combined score
+   */
+  private deduplicateAndRankPatterns(matches: PatternMatch[]): OrganizationalPattern[] {
+    // Group by pattern ID and combine scores
+    const patternScores = new Map<string, { pattern: OrganizationalPattern; totalScore: number; matchCount: number }>();
+    
+    for (const match of matches) {
+      const existing = patternScores.get(match.pattern.id);
+      if (existing) {
+        existing.totalScore += match.score;
+        existing.matchCount += 1;
+      } else {
+        patternScores.set(match.pattern.id, {
+          pattern: match.pattern,
+          totalScore: match.score,
+          matchCount: 1
+        });
+      }
+    }
+    
+    // Calculate average scores and sort
+    const rankedPatterns = Array.from(patternScores.values())
+      .map(item => ({
+        pattern: item.pattern,
+        avgScore: item.totalScore / item.matchCount,
+        matchCount: item.matchCount
+      }))
+      .sort((a, b) => {
+        // Prioritize patterns that match multiple concepts
+        if (a.matchCount !== b.matchCount) {
+          return b.matchCount - a.matchCount;
+        }
+        // Then sort by average score
+        return b.avgScore - a.avgScore;
+      })
+      .slice(0, 8); // Increased limit for multi-concept matching
+    
+    return rankedPatterns.map(item => item.pattern);
+  }
+
+  /**
    * Phase 1: AI selects promising resource candidates from lightweight list
    */
-  private async selectResourceCandidates(intent: string, resources: any[]): Promise<any[]> {
+  private async selectResourceCandidates(intent: string, resources: any[], patterns: OrganizationalPattern[] = []): Promise<any[]> {
     // Normalize resource structures between standard resources and CRDs
     const normalizedResources = resources.map(resource => {
       // Handle both standard resources and CRDs
@@ -422,6 +614,17 @@ export class ResourceRecommender {
    Namespaced: ${resource.namespaced}`
     ).join('\n\n');
 
+    // Format organizational patterns for AI context
+    const patternsContext = patterns.length > 0 
+      ? patterns.map(pattern => 
+          `- ID: ${pattern.id}
+            Description: ${pattern.description}
+            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
+            Rationale: ${pattern.rationale}
+            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
+        ).join('\n')
+      : 'No organizational patterns found for this request.';
+
     const fs = await import('fs');
     const path = await import('path');
     
@@ -430,7 +633,8 @@ export class ResourceRecommender {
     
     const selectionPrompt = template
       .replace('{intent}', intent)
-      .replace('{resources}', resourceSummary);
+      .replace('{resources}', resourceSummary)
+      .replace('{patterns}', patternsContext);
 
     const response = await this.claudeIntegration.sendMessage(selectionPrompt);
     
@@ -537,8 +741,8 @@ export class ResourceRecommender {
   /**
    * Phase 3: Rank resources with detailed schema information
    */
-  private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[]): Promise<ResourceSolution[]> {
-    const prompt = await this.loadPromptTemplate(intent, schemas);
+  private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[], patterns: OrganizationalPattern[] = []): Promise<ResourceSolution[]> {
+    const prompt = await this.loadPromptTemplate(intent, schemas, patterns);
     const response = await this.claudeIntegration.sendMessage(prompt);
     const solutions = this.parseAISolutionResponse(response.content, schemas);
     
@@ -553,7 +757,7 @@ export class ResourceRecommender {
   /**
    * Load and format prompt template from file
    */
-  private async loadPromptTemplate(intent: string, schemas: ResourceSchema[]): Promise<string> {
+  private async loadPromptTemplate(intent: string, schemas: ResourceSchema[], patterns: OrganizationalPattern[] = []): Promise<string> {
     const fs = await import('fs');
     const path = await import('path');
     
@@ -574,10 +778,22 @@ export class ResourceRecommender {
       
       return resourceInfo;
     }).join('\n\n');
+
+    // Format organizational patterns for AI context
+    const patternsContext = patterns.length > 0 
+      ? patterns.map(pattern => 
+          `- ID: ${pattern.id}
+            Description: ${pattern.description}
+            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
+            Rationale: ${pattern.rationale}
+            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
+        ).join('\n')
+      : 'No organizational patterns found for this request.';
     
     return template
       .replace('{intent}', intent)
-      .replace('{resources}', resourcesText);
+      .replace('{resources}', resourcesText)
+      .replace('{patterns}', patternsContext);
   }
 
   /**
@@ -639,7 +855,9 @@ export class ResourceRecommender {
           description: solution.description,
           reasons: solution.reasons || [],
           analysis: solution.analysis || '',
-          questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } }
+          questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } },
+          patternInfluences: solution.patternInfluences || [],
+          usedPatterns: solution.usedPatterns || false
         };
       });
 

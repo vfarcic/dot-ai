@@ -29,10 +29,10 @@
 
 - **Current test suite**: Comprehensive test coverage across 21 suites - maintain this standard
 - **Implementation flow**: Code → Tests → `npm test` → Mark complete
-- **Pattern matching**: Look at `tests/schema.test.ts`, `tests/cli.test.ts` for testing patterns
+- **Pattern matching**: Look at `tests/schema.test.ts`, `tests/mcp.test.ts` for testing patterns
 - **Test organization**: Mirror source code structure - tests should be organized using the same naming convention as the code they're testing
   - `src/core/schema.ts` → `tests/core/schema.test.ts`
-  - `src/interfaces/cli.ts` → `tests/interfaces/cli.test.ts`
+  - `src/interfaces/mcp.ts` → `tests/interfaces/mcp.test.ts`
   - `src/mcp/server.ts` → `tests/mcp/server.test.ts`
   - Keep integration tests separate in `tests/integration/`
 
@@ -49,13 +49,6 @@
 ### Key Commands
 
 ```bash
-# Core dot-ai commands
-dot-ai discover                           # Discover cluster resources
-dot-ai recommend --intent "description"   # Get AI-powered recommendations  
-dot-ai enhance --solution solution.json   # Enhance solutions with user requirements
-dot-ai explain Pod                        # Get detailed resource schema
-dot-ai fingerprint                        # Analyze cluster capabilities
-
 # Development commands
 npm test                                            # Run all tests
 npm run build                                       # Build the project
@@ -129,7 +122,6 @@ src/
 │   ├── claude.ts         # Claude AI integration
 │   └── ...
 ├── interfaces/
-│   ├── cli.ts           # CLI interface
 │   └── mcp.ts           # MCP server interface
 └── ...
 
@@ -149,7 +141,7 @@ prompts/                 # AI prompt templates
 **Commands:**
 - **Run tests**: `npm test` (462+ tests across 19 suites)
 - **Build**: `npm run build`
-- **Manual testing**: Follow examples in CLI and MCP guides
+- **Manual testing**: Follow examples in MCP guides
 - **Documentation**: See `docs/` directory for complete guides
 
 ### Environment Setup
