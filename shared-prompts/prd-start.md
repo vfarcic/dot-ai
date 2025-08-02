@@ -18,9 +18,71 @@ You are helping initiate active implementation work on a specific Product Requir
 4. **Identify Starting Point** - Determine the best first implementation task
 5. **Begin Implementation** - Launch into actual development work
 
-## Step 1: PRD Selection
+## Step 0: Context Awareness Check
 
-**Ask the user which PRD they want to start implementing:**
+**FIRST: Check if PRD context is already clear from recent conversation:**
+
+**Skip detection/analysis if recent conversation shows:**
+- **Recent PRD work discussed** - "We just worked on PRD 29", "Just completed PRD update", etc.
+- **Specific PRD mentioned** - "PRD #X", "MCP Prompts PRD", etc.
+- **PRD-specific commands used** - Recent use of `prd-update-progress`, `prd-start` with specific PRD
+- **Clear work context** - Discussion of specific features, tasks, or requirements for a known PRD
+
+**If context is clear:**
+- Skip to Step 2 (PRD Readiness Validation) using the known PRD 
+- Use conversation history to understand current state and recent progress
+- Proceed directly with readiness validation based on known PRD status
+
+**If context is unclear:**
+- Continue to Step 1 (PRD Detection) for full analysis
+
+## Step 1: Smart PRD Detection (Only if Context Unclear)
+
+**Auto-detect the target PRD using these context clues (in priority order):**
+
+1. **Git Branch Analysis** - Check current branch name for PRD patterns:
+   - `feature/prd-12-*` → PRD 12
+   - `prd-13-*` → PRD 13
+   - `feature/prd-*` → Extract PRD number
+
+2. **Recent Git Commits** - Look at recent commit messages for PRD references:
+   - "fix: PRD 12 documentation" → PRD 12
+   - "feat: implement prd-13 features" → PRD 13
+
+3. **Git Status Analysis** - Check modified/staged files for PRD clues:
+   - Modified `prds/12-*.md` → PRD 12
+   - Changes in feature-specific directories
+
+4. **Available PRDs Discovery** - List all PRDs in `prds/` directory:
+   - `prds/12-documentation-testing.md`
+   - `prds/13-cicd-documentation-testing.md`
+
+5. **Fallback to User Choice** - Only if context detection fails, ask user to specify
+
+**PRD Detection Implementation:**
+```bash
+# Use these tools to gather context:
+# 1. Check git branch: gitStatus shows current branch
+# 2. Check git status: Look for modified PRD files  
+# 3. List PRDs: Use LS or Glob to find prds/*.md files
+# 4. Recent commits: Use Bash 'git log --oneline -n 5' for recent context
+```
+
+**Detection Logic:**
+- **High Confidence**: Branch name matches PRD pattern (e.g., `feature/prd-12-documentation-testing`)
+- **Medium Confidence**: Modified PRD files in git status or recent commits mention PRD
+- **Low Confidence**: Multiple PRDs available, use heuristics (most recent, largest)
+- **No Context**: Present available options to user
+
+**Example Detection Outputs:**
+```markdown
+🎯 **Auto-detected PRD 12** (Documentation Testing)
+- Branch: `feature/prd-12-documentation-testing` ✅
+- Modified files: `prds/12-documentation-testing.md` ✅
+- Recent commits mention PRD 12 features ✅
+```
+
+**If context detection fails, ask the user:**
 
 ```markdown
 ## Which PRD would you like to start implementing?
@@ -33,7 +95,10 @@ Execute `dot-ai:prds-get` prompt to see all available PRDs organized by priority
 **Your choice**: [Wait for user input]
 ```
 
-Once the user provides the PRD number, proceed to load and validate that specific PRD.
+**Once PRD is identified:**
+- Read the PRD file from `prds/[issue-id]-[feature-name].md`
+- Analyze completion status across all sections
+- Identify patterns in completed vs remaining work
 
 ## Step 2: PRD Readiness Validation
 

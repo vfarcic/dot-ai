@@ -9,398 +9,536 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 - `ANTHROPIC_API_KEY` configured
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional but recommended)
 
+**Optional - Enhanced with Organizational Patterns:**
+- Vector DB service (Qdrant) for pattern storage
+- Organizational patterns created via [Pattern Management Guide](pattern-management-guide.md)
+- When configured, recommendations automatically include organizational best practices
+
 ## Overview
 
 The DevOps AI Toolkit recommendation feature provides:
 - **Intelligent cluster discovery** - Analyzes your Kubernetes cluster capabilities
 - **AI-powered recommendations** - Suggests optimal deployment approaches based on available resources
+- **Organizational pattern integration** - Automatically enhances recommendations with your team's best practices and standards
 - **Guided configuration** - Step-by-step configuration collection for your deployments
 - **Manifest generation** - Creates ready-to-deploy Kubernetes YAML files
 - **Automated deployment** - Deploys and monitors your applications
 
-## Available MCP Tools
-
-### Core Workflow Tools
-
-#### `mcp__dot-ai__recommend`
-Get AI-powered deployment recommendations based on your cluster capabilities.
-
-**Usage:**
-```
-Use the recommend tool to get deployment suggestions for my web application
-```
-
-**Parameters:**
-- `intent` (required): Description of what you want to deploy
-
-**Returns:**
-- List of recommended solutions with scoring
-- Available configuration questions
-
-**Example:**
-```
-User: I want to deploy a Node.js web application with Redis cache
-
-Agent: I'll help you deploy a Node.js application with Redis cache. Let me analyze your cluster and get recommendations.
-
-[Uses mcp__dot-ai__recommend with intent "deploy Node.js web application with Redis cache"]
-
-Response: Found 3 recommended solutions:
-1. Kubernetes Deployment + StatefulSet Redis (Score: 92)
-2. Helm Chart with Redis subchart (Score: 87) 
-3. Operator-based Redis + Deployment (Score: 83)
-```
-
-#### `mcp__dot-ai__chooseSolution`
-Select a specific solution and get its configuration questions.
-
-**Usage:**
-```
-Use chooseSolution with solution ID sol_2024-12-01T123456_abc123
-```
-
-**Parameters:**
-- `solutionId` (required): ID from recommend tool response
-
-**Returns:**
-- Configuration questions grouped by stage (required, basic, advanced, open)
-
-**Example:**
-```
-Agent: Let's go with the Kubernetes Deployment + StatefulSet Redis approach.
-
-[Uses mcp__dot-ai__chooseSolution with selected solution ID]
-
-Response: Great choice! I need configuration details:
-
-Required Questions:
-- Application name
-- Node.js container image  
-- Application port
-- Redis password
-
-Basic Questions:
-- Number of replicas
-- Resource limits
-- Storage size for Redis
-
-Advanced Questions:
-- Redis configuration overrides
-- Network policies
-- Backup strategy
-```
-
-#### `mcp__dot-ai__answerQuestion`
-Provide answers to configuration questions for your chosen solution.
-
-**Usage:**
-```
-Use answerQuestion to configure the required settings
-```
-
-**Parameters:**
-- `solutionId` (required): Solution ID
-- `stage` (required): Question stage (required/basic/advanced/open)
-- `answers` (required): Your configuration answers
-
-**Returns:**
-- Next set of questions or completion status
-
-**Example:**
-```
-Agent: Let me configure the required settings first.
-
-[Uses mcp__dot-ai__answerQuestion with stage "required" and answers]
-
-Response: Required configuration complete! Moving to basic questions:
-- How many replicas do you want? (default: 3)
-- What are the resource limits for your app?
-- How much storage for Redis? (default: 10Gi)
-```
-
-#### `mcp__dot-ai__generateManifests`
-Generate final Kubernetes manifests from your configured solution.
-
-**Usage:**
-```
-Use generateManifests to create the deployment files
-```
-
-**Parameters:**
-- `solutionId` (required): Fully configured solution ID
-
-**Returns:**
-- Generated Kubernetes YAML manifests
-- Deployment instructions
-
-**Example:**
-```
-Agent: Configuration complete! Generating your Kubernetes manifests...
-
-[Uses mcp__dot-ai__generateManifests]
-
-Response: Generated 5 manifest files:
-- my-app-deployment.yaml
-- my-app-service.yaml  
-- redis-statefulset.yaml
-- redis-service.yaml
-- redis-configmap.yaml
-```
-
-#### `mcp__dot-ai__deployManifests`
-Deploy the generated manifests to your Kubernetes cluster.
-
-**Usage:**
-```
-Use deployManifests to apply the configuration to the cluster
-```
-
-**Parameters:**
-- `solutionId` (required): Solution ID with generated manifests
-- `timeout` (optional): Deployment timeout in seconds (default: 30)
-
-**Returns:**
-- Deployment status and results
-- Any deployment errors or warnings
-
-**Example:**
-```
-Agent: Deploying your application stack to the cluster...
-
-[Uses mcp__dot-ai__deployManifests]
-
-Response: Deployment successful!
-- my-app: 3/3 pods running
-- redis: 1/1 pods running
-- Services created and accessible
-- External IP: 203.0.113.10
-```
-
-### Utility Tools
-
-#### `mcp__dot-ai__version`
-Get version information for the DevOps AI Toolkit.
-
-**Usage:**
-```
-Use version to check the toolkit version
-```
-
-**Parameters:** None
-
-**Returns:** Version information and capabilities
-
 ## Complete Workflow Examples
 
-### Example 1: Simple Web Application
+### Example 1: Stateless Golang Web Application
 
 ```
-User: I want to deploy a Node.js web application to my cluster
+User: I want to deploy a stateless Golang web application
+```
 
-Agent: I'll help you deploy a Node.js web application. Let me get recommendations for your cluster.
+```
+Agent: I'll help you deploy a stateless Golang web application. Let me analyze your cluster and get recommendations.
 
-[Uses mcp__dot-ai__recommend with intent "deploy Node.js web application"]
+[Uses mcp__dot-ai__recommend with intent "deploy a stateless Golang web application"]
 
-Agent: Based on your cluster capabilities, I found 3 deployment options:
+Based on your cluster capabilities, I found 3 deployment options:
 
-1. **Standard Kubernetes Deployment + Service (Score: 85)**
-   - Uses your existing ingress controller
-   - Horizontal Pod Autoscaler available
-   - Persistent volumes supported
+1. **Complete Stateless Application Stack (Score: 85)** - RECOMMENDED
+   - Resources: Deployment, Service, HorizontalPodAutoscaler, NetworkPolicy
+   - Features: Pod lifecycle management, stable networking, automatic scaling, network security
+   - Uses organizational patterns: ✅ Stateless Apps Pattern, Network Security Pattern
+   - Best for: Production deployments requiring security and scaling
    
-2. **Cloud Run Service (Score: 78)**  
-   - Serverless scaling
-   - Pay-per-request pricing
-   - Limited to HTTP services
+2. **Simple Application Deployment (Score: 72)**
+   - Resources: Deployment, Service
+   - Features: Basic pod management and networking
+   - Uses organizational patterns: ❌
+   - Best for: Development/testing or simple use cases
    
-3. **Knative Service (Score: 72)**
-   - Auto-scaling to zero
-   - Traffic splitting capabilities
-   - Requires Knative operator
+3. **Minimal Pod Deployment (Score: 58)**
+   - Resources: Deployment only
+   - Features: Basic container orchestration
+   - Uses organizational patterns: ❌
+   - Best for: Internal services that don't need external access
 
 Which approach interests you most?
+```
 
-User: Let's go with the standard Kubernetes approach.
+**What happened behind the scenes:**
+- AI analyzed your intent and extracted concepts: "stateless application" (high importance), "golang application" (medium importance)
+- Vector DB search found matching organizational patterns: Stateless Apps Pattern (score: 0.621), Network Security Pattern (score: 0.333)
+- AI selected candidate resources and ran `kubectl explain` to verify schema capabilities
+- Generated 3 solution alternatives with different complexity/capability tradeoffs, scoring based on pattern influence and completeness
 
+**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns.
+
+```
+User: I'll go with option 1
+```
+
+```
 Agent: Excellent choice! Let me get the configuration requirements.
 
-[Uses mcp__dot-ai__chooseSolution with the selected solution ID]
+[Uses mcp__dot-ai__chooseSolution with solution ID sol_2025-08-01T151532_d0e8f0c19e0e]
 
-Agent: I need some details to configure your deployment:
+I need some required details to configure your deployment:
 
 **Required Configuration:**
-- What's your application name? (e.g., "my-web-app")
-- What's your container image? (e.g., "node:18-alpine")  
-- What port does your app listen on? (e.g., 3000)
+- What name should be used for the application resources? (e.g., "my-go-app")
+- Which namespace should the application be deployed to? (options: a-team, b-team, default, kube-public)
+- What is the container image for your Go application? (e.g., "registry.example.com/go-app:v1.0.0")
+- What port does your Go application listen on? (1-65535)
+```
+
+**What happened behind the scenes:**
+- chooseSolution loaded the selected solution and returned only the required stage questions
+- Questions generated from resource schema analysis: Deployment needs name/image/port, Service needs port configuration
+- System categorizes questions as required (must answer) to proceed
+
+```
+User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080.
+```
+
+```
+Agent: Perfect! Let me configure the required settings.
+
+[Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
+
+Great! Now for some basic configuration options:
 
 **Basic Configuration (optional):**
-- How many replicas do you want? (default: 3)
-- Do you need persistent storage?
-- What resource limits should I set?
+- How many replicas of the application should run? (default: 3)
+- What type of Service should be created? (ClusterIP, NodePort, LoadBalancer)
+- Enable horizontal pod autoscaling? (true/false)
+```
 
-User: App name is "customer-portal", image is "myregistry/customer-portal:v1.2.0", port 8080, and I want 2 replicas.
+**What happened behind the scenes:**
+- answerQuestion processed required stage answers and updated solution file
+- Validated all required fields were provided (name, namespace, image, port)
+- Determined next stage is 'basic' and returned basic configuration questions
+- Questions are optional at this stage - user can answer or skip to advanced stage
 
-Agent: Perfect! Let me configure this for you.
+```
+User: 3 replicas, ClusterIP service, and yes to autoscaling.
+```
 
-[Uses mcp__dot-ai__answerQuestion with the provided answers]
+```
+Agent: Excellent! Let me configure those settings.
 
-Agent: Great! Your configuration is complete. Let me generate the Kubernetes manifests.
+[Uses mcp__dot-ai__answerQuestion with stage="basic" and answers]
+
+Would you like to configure advanced features?
+
+**Advanced Configuration (optional):**
+- Specify container resource limits (CPU and memory)? (true/false)
+- Maximum CPU cores per pod? (e.g., "500m")
+- Maximum memory per pod? (e.g., "512Mi")
+- Minimum number of replicas for autoscaling? (default: 2)
+- Maximum number of replicas for autoscaling? (default: 10)
+- Target CPU utilization percentage for autoscaling? (default: 80)
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed basic stage answers (replicas: 3, serviceType: ClusterIP, autoscaling: true)
+- Updated solution file and determined next stage is 'advanced'
+- Returned advanced configuration questions focused on resource limits and autoscaling tuning
+
+```
+User: Skip advanced configuration
+```
+
+```
+Agent: No problem! Moving to the final configuration stage.
+
+[Uses mcp__dot-ai__answerQuestion with stage="advanced" and empty answers]
+
+Any additional requirements or constraints?
+
+**Open Configuration:**
+- Are there any additional requirements or constraints for your Go application deployment that we should consider? (e.g., specific security requirements, networking constraints, performance needs...)
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed empty advanced stage answers (skipped all advanced questions)
+- Marked advanced questions as explicitly skipped (answer: null)
+- Determined next stage is 'open' and returned the open-ended question
+
+```
+User: N/A
+```
+
+```
+Agent: Perfect! Configuration complete.
+
+[Uses mcp__dot-ai__answerQuestion with stage="open" and answer="N/A"]
+
+Configuration complete. Ready to generate deployment manifests.
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed open stage with "N/A" (no additional requirements)
+- All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
+- Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
+
+```
+User: Generate the manifests
+```
+
+```
+Agent: Generating your Kubernetes manifests...
 
 [Uses mcp__dot-ai__generateManifests]
 
-Agent: I've generated your deployment files:
+Generated your complete deployment stack:
 
-# customer-portal-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: customer-portal
+  name: my-app
+  namespace: a-team
+  labels:
+    dot-ai.io/managed: "true"
+    dot-ai.io/app-name: "my-app"
+    dot-ai.io/intent: "deploy-a-stateless-golang-web-application"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    spec:
+      containers:
+      - name: my-app
+        image: ghcr.io/vfarcic/silly-demo:v1.5.151
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  namespace: a-team
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: my-app
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app
+  namespace: a-team
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: my-app
+  namespace: a-team
+spec:
+  podSelector:
+    matchLabels:
+      app: my-app
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+  egress:
+  - {}
+
+Ready to deploy to your cluster?
+```
+
+**What happened behind the scenes:**
+- generateManifests loaded the fully configured solution file
+- AI generated YAML manifests using all collected configuration answers
+- System performed up to 10 validation loops with `kubectl apply --dry-run=server --validate=true`
+- Each resource includes dot-ai.io/ labels for tracking and proper resource linking via labels/selectors
+- Organizational patterns influenced the final YAML (NetworkPolicy added for security, HPA configured for scaling)
+- Returned status: 'manifests_generated' with complete YAML content
+
+```
+User: Yes, deploy it!
+```
+
+```
+Agent: Deploying your Golang application...
+
+[Uses mcp__dot-ai__deployManifests]
+
+🎉 **Deployment successful!**
+
+**Status:**
+- Deployment: my-app (3/3 pods running)
+- Service: my-app (ClusterIP created)
+- HorizontalPodAutoscaler: my-app (active, scaling 3-10 replicas)
+- NetworkPolicy: my-app (network security applied)
+- Internal access: my-app.a-team.svc.cluster.local:8080
+
+Your Golang web application is now live with autoscaling and network security!
+```
+
+**What happened behind the scenes:**
+- deployManifests applied all manifests using `kubectl apply --wait`
+- Monitored deployment progress and pod startup
+- Verified HorizontalPodAutoscaler attached to deployment and NetworkPolicy applied to pods
+- Provided access information based on Service configuration (ClusterIP = internal access only)
+
+### Example 2: Microservice API with Auto-scaling
+
+```
+User: I want to deploy a REST API microservice that needs to handle variable traffic loads
+```
+
+```
+Agent: I'll help you deploy a REST API microservice optimized for variable traffic. Let me analyze your cluster capabilities.
+
+[Uses mcp__dot-ai__recommend with intent "deploy REST API microservice with variable traffic loads"]
+
+Based on your requirements, I found 3 scalable deployment options:
+
+1. **Enterprise API Stack (Score: 88)**
+   - Resources: Deployment, Service, HorizontalPodAutoscaler, Ingress, ServiceMonitor
+   - Features: Advanced scaling, external access, traffic routing, monitoring integration
+   - Uses organizational patterns: ✅ API Service Pattern, Monitoring Pattern
+   - Best for: Production APIs with external access and observability
+   
+2. **Internal API Service (Score: 79)**
+   - Resources: Deployment, Service, HorizontalPodAutoscaler
+   - Features: Automatic scaling, internal networking
+   - Uses organizational patterns: ✅ Stateless Apps Pattern
+   - Best for: Internal microservices within the cluster
+   
+3. **Simple API Deployment (Score: 65)**
+   - Resources: Deployment, Service
+   - Features: Basic API hosting with fixed scaling
+   - Uses organizational patterns: ❌
+   - Best for: Development or low-traffic APIs
+
+Which approach fits your API requirements?
+```
+
+**What happened behind the scenes:**
+- AI extracted key concepts: "REST API service", "microservice architecture", "variable traffic handling"
+- Pattern matching found: API Service Pattern (high relevance), Stateless Apps Pattern (medium relevance)
+- The "variable traffic" requirement strongly influenced resource selection toward HorizontalPodAutoscaler
+- Generated 3 solutions with different external vs internal capabilities, scoring based on traffic handling requirements
+
+**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns.
+
+```
+User: Option 2 please
+```
+
+```
+Agent: Great choice! Internal APIs with autoscaling are ideal for microservice architectures. Let me get the configuration details.
+
+[Uses mcp__dot-ai__chooseSolution with selected solution ID]
+
+I need some required details to configure your API deployment:
+
+**Required Configuration:**
+- API service name? (e.g., "user-api", "order-service")
+- Target namespace for deployment?
+- Container image for your API? (e.g., "myregistry/api:v2.1.0")
+- API port your service listens on?
+```
+
+**What happened behind the scenes:**
+- chooseSolution loaded the Internal API Service solution and returned only required stage questions
+- Questions focused on API-specific needs: service naming, microservice namespace, container image, port
+- System recognizes this is for "variable traffic" and will emphasize scaling in later stages
+
+```
+User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080.
+```
+
+```
+Agent: Perfect! Let me configure the required settings.
+
+[Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
+
+Great! Now for scaling configuration:
+
+**Basic Configuration (optional):**
+- Initial number of replicas? (default: 2)
+- Enable horizontal pod autoscaling? (recommended: true)
+- Target CPU utilization for scaling? (default: 70%)
+- Maximum replicas during high traffic? (default: 10)
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed required API configuration (service name, namespace, image, port)
+- Validated all required fields and updated solution file
+- Moved to basic stage focused on scaling configuration (core requirement from "variable traffic loads")
+- Questions are optional but recommended for traffic handling
+
+```
+User: 2 replicas initially, enable autoscaling at 70% CPU, max 15 replicas.
+```
+
+```
+Agent: Excellent scaling configuration! Let me set this up.
+
+[Uses mcp__dot-ai__answerQuestion with stage="basic" and answers]
+
+Any additional requirements or constraints?
+
+**Open Configuration:**
+- Are there any additional requirements or constraints for your API deployment that we should consider? (e.g., specific security requirements, networking constraints, performance needs...)
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed scaling configuration (replicas: 2, autoscaling: true, CPU target: 70%, max replicas: 15)
+- Updated solution file with scaling-focused answers
+- Skipped advanced stage (no advanced configuration questions for this solution)
+- Moved directly to open stage for additional requirements
+
+```
+User: N/A
+```
+
+```
+Agent: Perfect! Configuration complete.
+
+[Uses mcp__dot-ai__answerQuestion with stage="open" and answer="N/A"]
+
+Configuration complete. Ready to generate deployment manifests.
+```
+
+**What happened behind the scenes:**
+- answerQuestion processed open stage with "N/A" (no additional requirements)
+- All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
+- Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
+
+```
+User: Generate the manifests
+```
+
+```
+Agent: Generating your API manifests...
+
+[Uses mcp__dot-ai__generateManifests]
+
+Generated your scalable API deployment:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: microservices
+  labels:
+    dot-ai.io/managed: "true"
+    dot-ai.io/app-name: "payment-api"
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: customer-portal
+      app: payment-api
   template:
-    metadata:
-      labels:
-        app: customer-portal
     spec:
       containers:
-      - name: customer-portal
-        image: myregistry/customer-portal:v1.2.0
+      - name: payment-api
+        image: internal/payment-api:v3.2.1
         ports:
         - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
 ---
-# customer-portal-service.yaml  
 apiVersion: v1
 kind: Service
 metadata:
-  name: customer-portal
+  name: payment-api
+  namespace: microservices
 spec:
-  selector:
-    app: customer-portal
+  type: ClusterIP
   ports:
-  - port: 80
+  - port: 8080
     targetPort: 8080
-  type: LoadBalancer
+  selector:
+    app: payment-api
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-api
+  namespace: microservices
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-api
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
 
-Ready to deploy to your cluster?
+Ready to deploy your payment API?
+```
 
+**What happened behind the scenes:**
+- generateManifests loaded the fully configured solution file
+- AI generated YAML using scaling-focused configuration
+- Stateless Apps Pattern influenced resource requests/limits (cpu: 100m-500m, memory: 128Mi-512Mi) for predictable scaling
+- Service.spec.type: ClusterIP set appropriately for internal microservices
+- HPA configured with your specific parameters (2-15 replicas, 70% CPU target)
+- System validated manifests with kubectl apply --dry-run=server --validate=true
+- Returned status: 'manifests_generated' with complete YAML content
+
+```
 User: Yes, deploy it!
+```
 
-Agent: Deploying your customer portal...
+```
+Agent: Deploying your payment API microservice...
 
 [Uses mcp__dot-ai__deployManifests]
 
-Agent: 🎉 **Deployment successful!**
+🎉 **API deployment successful!**
 
 **Status:**
-- Deployment: customer-portal (2/2 pods running)
-- Service: customer-portal (LoadBalancer created)
-- External IP: 203.0.113.15
-- URL: http://203.0.113.15
+- Deployment: payment-api (2/2 pods running)
+- Service: payment-api (ClusterIP created)
+- HorizontalPodAutoscaler: payment-api (active, scaling 2-15 replicas at 70% CPU)
+- Internal access: payment-api.microservices.svc.cluster.local:8080
+- Ready to handle variable traffic loads
 
-Your customer portal is now live and accessible!
+Your payment API microservice is now live with intelligent autoscaling!
 ```
 
-### Example 2: Database + Application Stack
-
-```
-User: I need to deploy a web app with a PostgreSQL database
-
-Agent: I'll help you set up both the application and database as a complete stack.
-
-[Uses mcp__dot-ai__recommend with intent "deploy web application with PostgreSQL database"]
-
-Agent: Perfect! I found several stack options for you:
-
-1. **Application + StatefulSet PostgreSQL (Score: 89)**
-   - Persistent database with automatic backups
-   - Dedicated storage volumes
-   - Database configuration management
-   
-2. **Helm Chart Stack (Score: 85)**
-   - PostgreSQL subchart included  
-   - Configurable with values.yaml
-   - Easy upgrades and rollbacks
-   
-3. **Operator-based Stack (Score: 82)**
-   - PostgreSQL Operator manages database
-   - Advanced features like streaming replication
-   - Automatic failover capabilities
-
-I recommend the StatefulSet approach for reliability. Sound good?
-
-User: Yes, let's go with StatefulSet PostgreSQL.
-
-Agent: Excellent! This will create a robust stack. Let me get the configuration requirements.
-
-[Uses mcp__dot-ai__chooseSolution with selected solution]
-
-Agent: I need configuration for both your application and database:
-
-**Application Configuration:**
-- Application name?
-- Container image and version?  
-- Application port?
-
-**Database Configuration:**
-- Database name and user?
-- Storage size for PostgreSQL? (default: 10Gi)
-- Database password (I'll generate secure one if not provided)?
-
-**Infrastructure:**
-- How many app replicas?
-- Resource limits needed?
-
-User: App name "task-manager", image "mycompany/task-manager:2.1", port 9000. Database name "tasks" with user "taskuser". Use 20Gi storage and 3 app replicas.
-
-Agent: Perfect configuration! Let me set this up.
-
-[Uses mcp__dot-ai__answerQuestion for all configuration stages]
-
-Agent: Stack configuration complete! Generating manifests for your task manager with PostgreSQL...
-
-[Uses mcp__dot-ai__generateManifests]
-
-Agent: Generated complete stack manifests:
-
-**Application Components:**
-- task-manager-deployment.yaml (3 replicas)
-- task-manager-service.yaml
-- task-manager-configmap.yaml (database connection config)
-
-**Database Components:**  
-- postgres-statefulset.yaml (persistent storage)
-- postgres-service.yaml (internal connectivity)
-- postgres-secret.yaml (credentials)
-- postgres-pvc.yaml (20Gi storage claim)
-
-Ready to deploy your complete stack?
-
-User: Deploy it!
-
-Agent: Deploying task manager with PostgreSQL database...
-
-[Uses mcp__dot-ai__deployManifests with longer timeout for database startup]
-
-Agent: 🎉 **Full stack deployment successful!**
-
-**Application Status:**
-- task-manager: 3/3 pods running
-- PostgreSQL: 1/1 pods running  
-- Database initialized with 'tasks' database
-- Internal connectivity established
-
-**Access Information:**
-- External service IP: 203.0.113.25
-- Application URL: http://203.0.113.25:9000
-- Database accessible internally at: postgres:5432
-
-Your task manager application is now live with a persistent PostgreSQL database!
-```
+**What happened behind the scenes:**
+- deployManifests applied manifests using kubectl apply --wait and monitored deployment progress
+- HorizontalPodAutoscaler attached to deployment and began monitoring CPU metrics
+- Service created internal DNS entry: payment-api.microservices.svc.cluster.local:8080
+- Ready to automatically scale from 2-15 replicas based on CPU utilization, handling variable traffic as requested
 
 ## See Also
 
 - **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[Pattern Management Guide](pattern-management-guide.md)** - Create organizational deployment patterns
 - **[MCP Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation

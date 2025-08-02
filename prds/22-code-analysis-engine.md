@@ -12,7 +12,7 @@ Build code analysis engine that scans application repositories and automatically
 
 ### Files Created/Updated
 - **`docs/code-analysis-guide.md`** - New File - Complete guide for automated code analysis and recommendations
-- **`docs/cli-reference.md`** - CLI Documentation - Add code analysis and repository scanning commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add code analysis and repository scanning MCP tools
 - **`README.md`** - Project Overview - Add automated code analysis to core capabilities
 - **`src/core/analysis/`** - Technical Implementation - Code analysis engine modules
 
@@ -20,7 +20,7 @@ Build code analysis engine that scans application repositories and automatically
 - **Feature Overview**: See `docs/code-analysis-guide.md` (Section: "What is Code Analysis")
 - **Repository Scanning**: See `docs/code-analysis-guide.md` (Section: "Repository Analysis")
 - **Setup Instructions**: See `docs/code-analysis-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Analysis Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Code Analysis Tools")
 - **Examples**: See `docs/code-analysis-guide.md` (Section: "Usage Examples")
 
 ### User Journey Validation
@@ -47,7 +47,7 @@ Build code analysis engine that scans application repositories and automatically
 
 **Documentation Changes:**
 - [ ] **`docs/code-analysis-guide.md`**: Create complete code analysis and automation guide
-- [ ] **`docs/cli-reference.md`**: Add repository analysis and scanning commands
+- [ ] **`docs/mcp-guide.md`**: Add repository analysis and scanning MCP tools
 - [ ] **`README.md`**: Update capabilities to include automated code analysis
 
 **Implementation Tasks:**

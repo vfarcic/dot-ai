@@ -12,7 +12,7 @@ Parse organizational policies written in plain English and convert them to enfor
 
 ### Files Created/Updated
 - **`docs/policy-governance-guide.md`** - New File - Complete guide for policy parsing and governance features
-- **`docs/cli-reference.md`** - CLI Documentation - Add policy validation and enforcement commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add policy validation and enforcement MCP tools
 - **`README.md`** - Project Overview - Add policy governance to enterprise capabilities
 - **`src/core/policy/`** - Technical Implementation - Policy parsing and enforcement modules
 
@@ -20,7 +20,7 @@ Parse organizational policies written in plain English and convert them to enfor
 - **Feature Overview**: See `docs/policy-governance-guide.md` (Section: "What is Policy Governance")
 - **Policy Writing**: See `docs/policy-governance-guide.md` (Section: "Writing Policies in Plain English")
 - **Setup Instructions**: See `docs/policy-governance-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Policy Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Policy Management Tools")
 - **Examples**: See `docs/policy-governance-guide.md` (Section: "Policy Examples")
 - **Troubleshooting**: See `docs/policy-governance-guide.md` (Section: "Policy Violations")
 
@@ -33,7 +33,7 @@ Parse organizational policies written in plain English and convert them to enfor
 ## Implementation Requirements
 - [ ] **Core functionality**: Natural language policy parsing with Claude SDK - Documented in `docs/policy-governance-guide.md` (Section: "Policy Parsing Engine")
 - [ ] **User workflows**: Interactive violation resolution workflows - Documented in `docs/policy-governance-guide.md` (Section: "Violation Resolution")
-- [ ] **API/Commands**: Deployment validation against parsed policies - Documented in `docs/cli-reference.md` (Section: "Policy Commands")
+- [ ] **MCP Tools**: Deployment validation against parsed policies - Documented in `docs/mcp-guide.md` (Section: "Policy Management Tools")
 - [ ] **Error handling**: Graceful handling of policy conflicts and parsing errors - Documented in `docs/policy-governance-guide.md` (Section: "Common Issues")
 - [ ] **Performance optimization**: Sub-100ms policy validation for typical deployments
 
@@ -52,7 +52,7 @@ Parse organizational policies written in plain English and convert them to enfor
 
 **Documentation Changes:**
 - [ ] **`docs/policy-governance-guide.md`**: Create complete user guide with policy writing and parsing concepts
-- [ ] **`docs/cli-reference.md`**: Add policy validation and enforcement commands
+- [ ] **`docs/mcp-guide.md`**: Add policy validation and enforcement MCP tools
 - [ ] **`README.md`**: Update enterprise capabilities to mention policy governance
 
 **Implementation Tasks:**

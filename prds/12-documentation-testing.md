@@ -20,11 +20,10 @@ This leads to user frustration, reduced adoption, and loss of credibility for do
 
 ## Interface Requirements
 
-This system provides dual interfaces with complete feature parity:
-- **CLI Interface**: Command-line tool for direct user interaction
-- **MCP Interface**: Model Context Protocol server for AI agent integration
+This system provides MCP interface for AI agent integration:
+- **MCP Interface**: Model Context Protocol server for AI agent integration via tools like Claude Code, Cursor, VS Code
 
-All functionality, workflows, and capabilities described in this PRD must be implemented in both interfaces with identical behavior and feature sets.
+All functionality, workflows, and capabilities are accessible through the MCP interface.
 
 ## Proposed Solution
 Comprehensive AI-driven testing system that:
@@ -51,7 +50,7 @@ Comprehensive AI-driven testing system that:
 - [x] **Two-phase validation approach** - Combine functional testing (does it work) with semantic validation (is it accurate)
 - [x] **Structured result format** - Generate machine-readable JSON results for analysis
 - [x] **Automatic workflow progression** - Seamlessly move between sections without manual intervention
-- [x] **Dual interface support** - Provide both CLI and MCP interfaces with feature parity
+- [x] **MCP interface support** - Provide comprehensive MCP interface for AI agent integration
 - [x] **Fix selection and application** - Allow users to select and apply recommended improvements from test results
 - [x] **Session completion workflow** - Provide natural "done" phase for completing sessions without requiring manual item deferrals
 - [x] **Persistent issue dismissal** - Support format-agnostic ignore comments (dotai-ignore) that prevent future detection of dismissed items
@@ -80,7 +79,7 @@ Comprehensive AI-driven testing system that:
 ### Phase 1: Core Architecture ✅ **COMPLETED** (2025-07-18)
 **Target**: Foundation for all validation capabilities
 - [x] Session-based architecture with unique IDs and persistence
-- [x] Basic CLI interface implementation
+- [x] Basic MCP interface implementation
 - [x] MCP server interface implementation  
 - [x] Shared validation engine (`handleTestDocsTool`)
 - [x] Phase-driven workflow framework
@@ -103,13 +102,13 @@ Comprehensive AI-driven testing system that:
 
 ### Phase 4: Enhanced Validation ✅ **COMPLETED** (2025-07-19)
 **Target**: Comprehensive testing capabilities with automatic workflow
-- [x] Complete CLI and MCP feature parity
+- [x] Complete MCP feature implementation
 - [x] Structured JSON result format implementation
 - [x] Automatic workflow progression after result submission
 - [x] Two-phase validation (functional + semantic)
 - [x] Enhanced prompts with mandatory semantic analysis checklists
 - [x] Comprehensive error handling and recovery
-- [x] Bug fixes (CLI parameter handling, phase override logic)
+- [x] Bug fixes (MCP parameter handling, phase override logic)
 
 ### Phase 4: Fix Selection and Application ✅ **COMPLETED** (2025-07-21)
 **Target**: User-driven fix application for test results
@@ -148,7 +147,7 @@ Comprehensive AI-driven testing system that:
 ### Architecture & Design ✅ **COMPLETED**
 - [x] TypeScript implementation with comprehensive type safety
 - [x] Session-based state management using JSON persistence
-- [x] Shared validation engine accessible via CLI and MCP interfaces
+- [x] Shared validation engine accessible via MCP interface
 - [x] Comprehensive error handling and graceful failure modes
 - [x] File-based prompt system following CLAUDE.md patterns
 - [x] **Trackable item data structure** - Issues and recommendations as objects with id/text/status/explanation
@@ -196,7 +195,7 @@ interface SectionTestResult {
 ### Quality Assurance ✅ **COMPLETED**
 - [x] Comprehensive test suite (656 tests across 25 suites)
 - [x] Manual end-to-end testing validation
-- [x] Feature parity verification between CLI and MCP interfaces
+- [x] MCP interface feature verification
 - [x] Performance validation for multi-section documents
 - [x] Fix phase workflow validation and testing
 
@@ -255,7 +254,7 @@ interface SectionTestResult {
 
 ### In Scope (Current Version)
 - [x] Single document validation with section-by-section processing
-- [x] CLI and MCP interfaces with complete feature parity
+- [x] MCP interface with complete feature set
 - [x] Session-based workflow management with resumption capabilities
 - [x] Two-phase validation (functional and semantic testing)
 - [x] Structured result format for programmatic analysis
@@ -500,7 +499,7 @@ interface SectionTestResult {
 - Format-agnostic ignore comment system for multiple documentation types
 
 **Files Modified**: 
-`src/core/doc-testing-session.ts`, `src/core/doc-testing-types.ts`, `src/tools/test-docs.ts`, `src/interfaces/cli.ts`, `prompts/doc-testing-fix.md`, `prompts/doc-testing-done.md`, comprehensive test updates
+`src/core/doc-testing-session.ts`, `src/core/doc-testing-types.ts`, `src/tools/test-docs.ts`, `src/interfaces/mcp.ts`, `prompts/doc-testing-fix.md`, `prompts/doc-testing-done.md`, comprehensive test updates
 
 ## Priority: High
 This system significantly enhances documentation quality assurance by ensuring all examples work correctly and descriptions accurately reflect reality, directly impacting user experience and product adoption.

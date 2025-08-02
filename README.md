@@ -12,7 +12,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 
 ### Kubernetes Deployment
 - **Developers**: Deploy applications without needing deep Kubernetes expertise
-- **Platform Engineers**: *(Coming Soon)* Governance, policy enforcement, and organizational compliance features
+- **Platform Engineers**: Create organizational deployment patterns that enhance AI recommendations with institutional knowledge and best practices
 
 ### Documentation Testing  
 - **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
@@ -41,6 +41,12 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 🛠️ **Fix Application**: User-driven selection and application of recommended documentation improvements  
 💾 **Session Management**: Resumable testing workflows for large documentation sets
 
+### Organizational Pattern Management
+🏛️ **Pattern Creation**: Define organizational deployment patterns that capture institutional knowledge  
+🧠 **AI Enhancement**: Patterns automatically enhance deployment recommendations with organizational context  
+🔍 **Semantic Search**: Uses Vector DB technology for intelligent pattern matching based on user intent  
+📋 **Best Practices**: Share deployment standards across teams through reusable patterns
+
 ### Shared Prompts Library
 🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
 📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
@@ -49,7 +55,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 
 ### AI Integration
 ⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
-🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, and shared prompt workflows
+🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, pattern management, and shared prompt workflows
 
 **Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.
 
@@ -64,17 +70,22 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
   - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
 
 **For shared prompts library:**
-- **No API key required** - Works with any MCP-enabled coding agent
+- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require ANTHROPIC_API_KEY)
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
   - Verify cluster access with: `kubectl get nodes`
   - Should show your cluster nodes without authentication errors
-<!-- dotai-ignore: kubectl requirement not verifiable in current environment -->
+<!-- dotai-ignore: kubectl verification command output format - implementation-specific -->
 
 **For documentation testing:**
 - **Documentation files** to test (Markdown, HTML, etc.)
 - **File system access** to the documentation you want to validate
+
+**For organizational pattern management:**
+- **Vector DB service** (Qdrant) for pattern storage and semantic search
+- **OpenAI API key** (optional) for semantic pattern matching - falls back to keyword matching if not available
+- See the [Pattern Management Guide](./docs/pattern-management-guide.md) for complete setup
 
 ### Installation
 
@@ -96,17 +107,30 @@ Perfect for conversational AI-driven workflows:
       "env": {
         "ANTHROPIC_API_KEY": "your_key_here",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "KUBECONFIG": "~/.kube/config"
+        "KUBECONFIG": "~/.kube/config",
+        "QDRANT_URL": "https://your-cluster.qdrant.io",
+        "QDRANT_API_KEY": "your_qdrant_key",
+        "OPENAI_API_KEY": "sk-proj-your_openai_key"
       }
     }
   }
 }
 ```
 
+**Note**: Replace all placeholder values (like `your_key_here`, `your-cluster.qdrant.io`) with your actual API keys and service URLs.
+
+**Environment Variable Setup**: You can set these variables either:
+- **In the `.mcp.json` file** (as shown above in the `env` section), OR  
+- **As shell environment variables** (e.g., `export ANTHROPIC_API_KEY=your_key_here`), OR
+- **A combination of both** (shell variables take precedence)
+
 **Environment Variables:**
-- `ANTHROPIC_API_KEY`: Required for AI analysis (both features)
+- `ANTHROPIC_API_KEY`: Required for AI analysis (Kubernetes deployments, documentation testing, pattern management). Not required for shared prompts library.
 - `DOT_AI_SESSION_DIR`: Required session directory (relative paths are relative to where the AI agent is started)
 - `KUBECONFIG`: Optional kubeconfig path for Kubernetes deployments (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
+- `QDRANT_URL`: Required for pattern management - Vector DB endpoint
+- `QDRANT_API_KEY`: Required for pattern management - Vector DB authentication  
+- `OPENAI_API_KEY`: Optional for semantic pattern matching - enables enhanced pattern search
 
 2. **Start Claude Code with MCP enabled:**
 ```bash
@@ -115,8 +139,9 @@ mkdir -p tmp/sessions
 
 claude
 
-# Verify MCP server connection
-# You should see "dot-ai" listed as an available MCP server
+# Verify MCP server connection by running `/mcp` command
+# Example: type `/mcp` in Claude Code to see server status
+# Expected output shows "dot-ai" server connected with available tools
 ```
 
 3. **Use conversational workflows:**

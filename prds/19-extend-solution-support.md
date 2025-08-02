@@ -13,7 +13,7 @@ Extend dot-ai recommendation system to support infrastructure resources, operato
 ### Files Created/Updated
 - **`docs/infrastructure-deployment-guide.md`** - New File - Complete guide for infrastructure and resource deployment
 - **`docs/solution-types-reference.md`** - New File - Reference for all supported solution types
-- **`docs/cli-reference.md`** - CLI Documentation - Add infrastructure deployment commands
+- **`docs/mcp-guide.md`** - MCP Documentation - Add infrastructure deployment MCP tools
 - **`README.md`** - Project Overview - Add infrastructure deployment to core capabilities
 - **`src/core/solutions/`** - Technical Implementation - Extended solution support modules
 
@@ -21,7 +21,7 @@ Extend dot-ai recommendation system to support infrastructure resources, operato
 - **Feature Overview**: See `docs/infrastructure-deployment-guide.md` (Section: "What is Infrastructure Deployment")
 - **Solution Types**: See `docs/solution-types-reference.md` (Section: "Supported Resources")
 - **Setup Instructions**: See `docs/infrastructure-deployment-guide.md` (Section: "Configuration")
-- **API/Commands**: See `docs/cli-reference.md` (Section: "Infrastructure Commands")
+- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Infrastructure Deployment Tools")
 - **Examples**: See `docs/infrastructure-deployment-guide.md` (Section: "Usage Examples")
 
 ### User Journey Validation
