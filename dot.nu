@@ -13,6 +13,8 @@ def "main setup" [] {
     
     rm --force .env
 
+    let provider = main get provider --providers ["google"]
+
     let anthropic_data = main get anthropic
 
     main create kubernetes kind
@@ -21,7 +23,10 @@ def "main setup" [] {
 
     main apply ingress nginx --provider kind
 
-    main apply crossplane --preview true --app-config true
+    (
+        main apply crossplane --provider $provider
+            --preview true --app-config true --db-config true
+    )
 
     kubectl create namespace a-team
 
@@ -30,7 +35,6 @@ def "main setup" [] {
     (
         main apply mcp --location [".mcp.json"]
             --enable-dot-ai true
-            --anthropic-api-key $anthropic_data.token
             --kubeconfig "./kubeconfig.yaml"
     )
 

@@ -16,11 +16,11 @@ import { getAndValidateSessionDirectory } from '../core/session-utils';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
-export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, run, or setup applications on Kubernetes with AI-powered recommendations. Ask the user to describe their application first, then use their response here.';
+export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, setup, install, or run applications, infrastructure, and services on Kubernetes with AI recommendations. Describe what you want to deploy.';
 
 // Zod schema for MCP registration
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
-  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, run, or setup on Kubernetes (based on their description). Ask the user to describe their application first, then use their response here. Examples: "deploy a web application", "create a database cluster", "run my Node.js API", "setup a Redis cache", "launch a microservice", "build a CI/CD pipeline", "deploy a WordPress site", "create a monitoring stack", "run a Python Flask app", "setup MongoDB", "deploy a React frontend", "create a load balancer"')
+  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"')
 };
 
 

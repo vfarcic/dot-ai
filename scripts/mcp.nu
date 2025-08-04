@@ -117,7 +117,6 @@ def --env "main apply mcp" [
             command: "npx",
             args: ["-y", "--package=@vfarcic/dot-ai@latest", "dot-ai-mcp"],
             env: {
-                ANTHROPIC_API_KEY: $resolved_anthropic_api_key,
                 KUBECONFIG: $resolved_kubeconfig,
                 DOT_AI_SESSION_DIR: "./tmp/sessions"
             }
