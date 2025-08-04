@@ -7,6 +7,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
+import { ensureClusterConnection } from '../core/cluster-utils';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
@@ -412,6 +413,9 @@ export async function handleGenerateManifestsTool(
           }
         );
       }
+      
+      // Ensure cluster connectivity before proceeding
+      await ensureClusterConnection(dotAI, logger, requestId, 'GenerateManifestsTool');
       
       // Load solution file
       let solution: any;

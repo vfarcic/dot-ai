@@ -66,18 +66,14 @@ async function main() {
     // Initialize DotAI - it will read KUBECONFIG and ANTHROPIC_API_KEY from environment
     const dotAI = new DotAI();
 
-    // Test cluster connectivity immediately on startup
-    process.stderr.write('Testing cluster connectivity...\n');
+    // Initialize without cluster connection (lazy connection)
+    process.stderr.write('Initializing DevOps AI Toolkit...\n');
     try {
-      await dotAI.initialize();
-      await dotAI.discovery.connect();
-      process.stderr.write('Cluster connectivity verified successfully\n');
-    } catch (connectError) {
-      process.stderr.write(`FATAL: Failed to connect to Kubernetes cluster: ${connectError}\n`);
-      process.stderr.write('Troubleshooting:\n');
-      process.stderr.write('- Check KUBECONFIG environment variable\n');
-      process.stderr.write('- Verify cluster is running: kubectl cluster-info\n');
-      process.stderr.write('- Test kubectl connectivity: kubectl get nodes\n');
+      await dotAI.initializeWithoutCluster();
+      process.stderr.write('DevOps AI Toolkit initialized successfully\n');
+      process.stderr.write('Cluster connectivity will be checked when needed by individual tools\n');
+    } catch (initError) {
+      process.stderr.write(`FATAL: Failed to initialize DevOps AI Toolkit: ${initError}\n`);
       process.exit(1);
     }
 
