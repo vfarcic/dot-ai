@@ -87,7 +87,7 @@ describe('Tool Integration', () => {
   describe('Tool Metadata Structure', () => {
     test('recommend tool should have valid metadata', () => {
       expect(RECOMMEND_TOOL_NAME).toBe('recommend');
-      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, run, or setup applications');
+      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, setup, install, or run applications, infrastructure, and services');
       expect(RECOMMEND_TOOL_INPUT_SCHEMA.intent).toBeDefined();
     });
 
