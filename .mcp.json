@@ -8,7 +8,7 @@
       "env": {
         "KUBECONFIG": "./kubeconfig.yaml",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "QDRANT_URL": "http://localhost:6333"
+        "QDRANT_URL": "https://f24c22da-a95e-459f-8af2-f7f76cfa991b.us-west-1-0.aws.cloud.qdrant.io"
       }
     }
   }

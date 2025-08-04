@@ -8,6 +8,7 @@ import { ResourceRecommender, AIRankingConfig } from '../core/schema';
 import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
+import { ensureClusterConnection } from '../core/cluster-utils';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -200,6 +201,9 @@ export async function handleRecommendTool(
           error instanceof Error ? error : new Error(String(error))
         );
       }
+
+      // Ensure cluster connectivity before proceeding
+      await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
 
       logger.info('Starting resource recommendation process', {
         requestId,

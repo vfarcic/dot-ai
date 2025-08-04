@@ -119,6 +119,19 @@ export class DotAI {
     }
   }
 
+  async initializeWithoutCluster(): Promise<void> {
+    try {
+      // Initialize non-cluster modules only
+      await this.memory.initialize();
+      await this.workflow.initialize();
+      
+      this.initialized = true;
+    } catch (error) {
+      this.initialized = false;
+      throw error;
+    }
+  }
+
   isInitialized(): boolean {
     return this.initialized;
   }

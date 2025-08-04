@@ -6,111 +6,309 @@
 **Last Updated**: 2025-01-28
 
 ## Executive Summary
-Parse organizational policies written in plain English and convert them to enforceable rules automatically, making governance accessible to non-technical stakeholders while ensuring automated compliance.
+Create a three-tool system for intelligent policy management: (1) AI-assisted Kyverno policy creation from plain English, (2) Policy analyzer that converts Kyverno policies to searchable embeddings, and (3) Policy-aware resource assembly that consults these embeddings to create compliant resources on the first attempt.
+
+## Architecture Overview
+
+### Three Distinct Tools:
+
+1. **Kyverno Policy Creator** (Optional)
+   - Converts plain English requirements to Kyverno YAML
+   - Users can skip and write Kyverno directly
+
+2. **Policy Analyzer/Indexer** (Core)
+   - Analyzes Kyverno policies
+   - Extracts semantic intent
+   - Stores in vector database with embeddings
+
+3. **Policy-Aware Resource Assembler** (Core)
+   - Queries vector DB before creating resources
+   - Builds compliant resources first time
+   - Explains decisions with policy references
+
+### Data Flow:
+```
+Plain English → [Tool 1] → Kyverno YAML → [Tool 2] → Vector DB → [Tool 3] → Compliant Resources
+     OR
+Kyverno YAML → [Tool 2] → Vector DB → [Tool 3] → Compliant Resources
+```
 
 ## Documentation Changes
 
 ### Files Created/Updated
-- **`docs/policy-governance-guide.md`** - New File - Complete guide for policy parsing and governance features
-- **`docs/mcp-guide.md`** - MCP Documentation - Add policy validation and enforcement MCP tools
-- **`README.md`** - Project Overview - Add policy governance to enterprise capabilities
-- **`src/core/policy/`** - Technical Implementation - Policy parsing and enforcement modules
+- **`docs/policy-creator-guide.md`** - New File - Guide for AI-assisted policy creation (Tool 1)
+- **`docs/policy-analyzer-guide.md`** - New File - Policy analysis and indexing documentation (Tool 2)
+- **`docs/policy-aware-assembly.md`** - New File - Policy-aware resource creation (Tool 3)
+- **`docs/mcp-guide.md`** - MCP Documentation - Add all three policy tools
+- **`README.md`** - Project Overview - Add intelligent policy management to capabilities
 
 ### Content Location Map
-- **Feature Overview**: See `docs/policy-governance-guide.md` (Section: "What is Policy Governance")
-- **Policy Writing**: See `docs/policy-governance-guide.md` (Section: "Writing Policies in Plain English")
-- **Setup Instructions**: See `docs/policy-governance-guide.md` (Section: "Configuration")
-- **MCP Tools**: See `docs/mcp-guide.md` (Section: "Policy Management Tools")
-- **Examples**: See `docs/policy-governance-guide.md` (Section: "Policy Examples")
-- **Troubleshooting**: See `docs/policy-governance-guide.md` (Section: "Policy Violations")
+- **Tool 1 Usage**: See `docs/policy-creator-guide.md` (Section: "Creating Policies from Plain English")
+- **Tool 2 Setup**: See `docs/policy-analyzer-guide.md` (Section: "Indexing Kyverno Policies")
+- **Tool 3 Integration**: See `docs/policy-aware-assembly.md` (Section: "Policy-Aware Resource Creation")
+- **Vector DB Schema**: See `docs/policy-analyzer-guide.md` (Section: "Embedding Storage")
+- **MCP Commands**: See `docs/mcp-guide.md` (Section: "Policy Management Tools")
 
-### User Journey Validation
-- [ ] **Primary workflow** documented end-to-end: Write policy → Parse with AI → Deploy with validation → Handle violations
-- [ ] **Secondary workflows** have complete coverage: Policy management, violation resolution, compliance reporting
-- [ ] **Cross-references** between deployment docs and policy docs work correctly
-- [ ] **Examples and commands** are testable via automated validation
+## Tool 1: Kyverno Policy Creator
 
-## Implementation Requirements
-- [ ] **Core functionality**: Natural language policy parsing with Claude SDK - Documented in `docs/policy-governance-guide.md` (Section: "Policy Parsing Engine")
-- [ ] **User workflows**: Interactive violation resolution workflows - Documented in `docs/policy-governance-guide.md` (Section: "Violation Resolution")
-- [ ] **MCP Tools**: Deployment validation against parsed policies - Documented in `docs/mcp-guide.md` (Section: "Policy Management Tools")
-- [ ] **Error handling**: Graceful handling of policy conflicts and parsing errors - Documented in `docs/policy-governance-guide.md` (Section: "Common Issues")
-- [ ] **Performance optimization**: Sub-100ms policy validation for typical deployments
+### Purpose
+Enable non-technical users to create Kyverno policies by explaining requirements in plain English.
+
+### Implementation Requirements
+- [ ] Natural language understanding of policy requirements
+- [ ] Kyverno YAML generation with proper structure
+- [ ] Support for common policy patterns (deny, require, validate)
+- [ ] Interactive clarification for ambiguous requirements
+
+### Example Usage:
+```
+User: "Don't allow databases to be exposed to the internet"
+
+AI: "I'll create a Kyverno policy that prevents database Services from using LoadBalancer or NodePort types. 
+    Should this apply to:
+    1. All Services labeled with app=database
+    2. Services in specific namespaces
+    3. Services with specific naming patterns?"
+
+User: "Option 1"
+
+Output: deny-database-exposure.yaml (valid Kyverno policy)
+```
 
 ### Success Criteria
-- [ ] **Parsing accuracy**: Parse 95% of common policy statements written in natural language
-- [ ] **Violation clarity**: Provide clear, actionable policy violation messages with resolution guidance
-- [ ] **Workflow integration**: Interactive resolution workflows for policy conflicts work seamlessly
-- [ ] **Performance**: Policy validation completes in <100ms for typical deployments
+- [ ] Generate valid Kyverno policies for 90% of common requirements
+- [ ] Clear clarification prompts for ambiguous requests
+- [ ] Policies pass Kyverno validation
+
+## Tool 2: Policy Analyzer/Indexer
+
+### Purpose
+Convert Kyverno policies into searchable knowledge by extracting intent and storing as embeddings.
+
+### Implementation Requirements
+- [ ] Parse Kyverno policy structure (rules, matches, validations)
+- [ ] Extract semantic intent from each rule
+- [ ] Generate multiple natural language interpretations
+- [ ] Create embeddings using OpenAI/local models
+- [ ] Store in vector database with metadata
+
+### Processing Example:
+```yaml
+# Input: Kyverno Policy
+- name: deny-loadbalancer-for-db
+  match:
+    resources:
+      kinds: ["Service"]
+      selector:
+        matchLabels:
+          app: database
+  validate:
+    message: "Database services must use ClusterIP only"
+    deny:
+      conditions:
+        - key: "{{ request.object.spec.type }}"
+          operator: In
+          value: ["LoadBalancer", "NodePort"]
+
+# Output: Vector DB Entries
+1. Text: "Database Services must not use LoadBalancer or NodePort types"
+   Metadata: {
+     source: "policies/deny-loadbalancer-for-db.yaml",
+     rule: "deny-loadbalancer-for-db",
+     resourceType: "Service",
+     labels: ["app=database"],
+     denies: ["LoadBalancer", "NodePort"]
+   }
+
+2. Text: "Services with label app=database must use ClusterIP only"
+   Metadata: {...}
+
+3. Text: "External database exposure is prohibited"
+   Metadata: {...}
+
+4. Text: "LoadBalancer Services are denied for database workloads"
+   Metadata: {...}
+```
+
+### Success Criteria
+- [ ] Extract intent from 95% of standard Kyverno patterns
+- [ ] Generate 3-5 semantic variations per rule
+- [ ] Index updates within 30 seconds of policy changes
+- [ ] Maintain source traceability for all embeddings
+
+## Tool 3: Policy-Aware Resource Assembler
+
+### Purpose
+MCP tool that queries policy embeddings before creating resources, ensuring compliance on first attempt.
+
+### Implementation Requirements
+- [ ] Query vector DB based on resource context
+- [ ] Interpret relevant policies for resource type
+- [ ] Apply policies during resource generation
+- [ ] Explain policy decisions in resource comments
+- [ ] Fall back to safe defaults when uncertain
+
+### Usage Flow:
+```
+1. User: "Create a PostgreSQL Service for the payment system"
+
+2. Tool queries vector DB:
+   - "policies for database Services"
+   - "PostgreSQL Service requirements"
+   - "payment system constraints"
+
+3. Vector DB returns:
+   - ClusterIP only for databases (similarity: 0.89)
+   - Require encryption labels (similarity: 0.76)
+   - Payment services need high availability (similarity: 0.71)
+
+4. Tool creates Service:
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: payment-postgresql
+     labels:
+       app: database        # Required by policy
+       encryption: enabled  # Required by policy
+     annotations:
+       policy/compliant: "deny-loadbalancer-for-db,require-encryption"
+   spec:
+     type: ClusterIP       # Policy: deny-loadbalancer-for-db
+     selector:
+       app: payment-postgresql
+   ```
+
+5. Explanation: "Created ClusterIP Service (required by database exposure policy)"
+```
+
+### Success Criteria
+- [ ] 90% reduction in policy violations at apply time
+- [ ] Query relevant policies in <50ms
+- [ ] Clear policy attribution in generated resources
+- [ ] Graceful handling when no policies found
+
+## Integration Architecture
+
+### Vector Database Schema
+```json
+{
+  "collections": {
+    "policies": {
+      "vectors": {
+        "size": 1536,
+        "distance": "cosine"
+      },
+      "payload": {
+        "source": "string",         // Original policy file
+        "rule": "string",           // Rule name
+        "resourceType": "string",   // Kubernetes resource type
+        "action": "string",         // deny|require|validate
+        "conditions": "object",     // Parsed conditions
+        "originalYaml": "string"    // For reference
+      }
+    }
+  }
+}
+```
+
+### Synchronization
+- Watch Kyverno policy ConfigMaps/CRDs
+- Regenerate embeddings on changes
+- Invalidate cache for affected resource types
+- Log sync status and errors
 
 ## Implementation Progress
 
-### Phase 1: Core Policy Parsing Engine [Status: ⏳ PENDING - Blocked by PRD #38]
-**Target**: Natural language policy parsing with basic enforcement working
+### Phase 1: Policy Analyzer/Indexer (Tool 2) [Status: ⏳ PENDING]
+**Target**: Core functionality to convert Kyverno → Vector DB
 
-**Dependencies**: Waiting for PRD #38 Vector Database exploration results to determine policy storage and semantic search architecture.
+**Documentation**:
+- [ ] Create `docs/policy-analyzer-guide.md`
+- [ ] Document vector DB schema
 
-**Documentation Changes:**
-- [ ] **`docs/policy-governance-guide.md`**: Create complete user guide with policy writing and parsing concepts
-- [ ] **`docs/mcp-guide.md`**: Add policy validation and enforcement MCP tools
-- [ ] **`README.md`**: Update enterprise capabilities to mention policy governance
+**Implementation**:
+- [ ] Kyverno YAML parser
+- [ ] Intent extraction engine
+- [ ] Embedding generation pipeline
+- [ ] Vector DB integration
+- [ ] Change detection/sync
 
-**Implementation Tasks:**
-- [ ] Design PolicyEngine class with Claude SDK integration for NLP parsing
-- [ ] Implement PolicyRule interface supporting multiple policy categories (security, compliance, resources, platform)
-- [ ] Create policy parsing system that converts natural language to enforceable rules
-- [ ] Build basic deployment validation against parsed policies
-- [ ] **Storage Architecture**: Implement policy storage based on PRD #38 Vector DB exploration results
+### Phase 2: Policy-Aware Resource Assembler (Tool 3) [Status: ⏳ PENDING]
+**Target**: MCP tool using vector DB for compliant resource creation
 
-### Phase 2: Violation Handling and Resolution [Status: ⏳ PENDING]
-**Target**: Interactive policy violation workflows with resolution guidance
+**Documentation**:
+- [ ] Create `docs/policy-aware-assembly.md`
+- [ ] Add to `docs/mcp-guide.md`
 
-**Documentation Changes:**
-- [ ] **`docs/policy-governance-guide.md`**: Add "Violation Resolution" section with interactive workflows
-- [ ] **`docs/troubleshooting-guide.md`**: Add policy-specific troubleshooting procedures
+**Implementation**:
+- [ ] Vector DB query interface
+- [ ] Policy interpretation logic
+- [ ] Resource generation with policy application
+- [ ] Policy explanation in outputs
 
-**Implementation Tasks:**
-- [ ] Implement comprehensive policy violation reporting with clear messages
-- [ ] Create interactive violation resolution workflows
-- [ ] Add policy conflict detection and resolution recommendations
-- [ ] Build approval workflows for deployments requiring policy exceptions
+### Phase 3: Kyverno Policy Creator (Tool 1) [Status: ⏳ PENDING]
+**Target**: Natural language to Kyverno YAML conversion
 
-### Phase 3: Advanced Policy Management [Status: ⏳ PENDING]
-**Target**: Enterprise-grade policy management with audit and compliance features
+**Documentation**:
+- [ ] Create `docs/policy-creator-guide.md`
+- [ ] Add examples for common patterns
 
-**Documentation Changes:**
-- [ ] **`docs/policy-governance-guide.md`**: Add "Advanced Features" section with audit and compliance
-- [ ] **Cross-file validation**: Ensure policy governance integrates with all deployment workflows
+**Implementation**:
+- [ ] Natural language parser
+- [ ] Kyverno template system
+- [ ] Interactive clarification flow
+- [ ] Validation against Kyverno schema
 
-**Implementation Tasks:**
-- [ ] Add policy versioning and change management
-- [ ] Implement audit logging and compliance reporting
-- [ ] Create policy template system for common organizational requirements
-- [ ] Build integration with external governance systems
+### Phase 4: Production Hardening [Status: ⏳ PENDING]
+**Target**: Scale, monitoring, and feedback loops
+
+**Implementation**:
+- [ ] Performance optimization for large policy sets
+- [ ] Monitoring and alerting
+- [ ] Feedback loop for missed violations
+- [ ] Policy coverage analytics
 
 ## Work Log
 
-### 2025-07-28: PRD Refactoring to Documentation-First Format
-**Duration**: ~15 minutes
-**Primary Focus**: Refactor existing PRD #6 to follow new shared-prompts/prd-create.md guidelines
+### 2025-01-28: Complete PRD Rewrite - Three Tool Architecture
+**Duration**: ~45 minutes
+**Primary Focus**: Restructured PRD around three distinct tools based on user feedback
 
 **Completed Work**: 
-- Updated GitHub issue #6 to follow new short, stable format
-- Refactored PRD to documentation-first approach with user journey focus
-- Added comprehensive documentation change mapping for policy governance features
-- Structured implementation as meaningful milestones rather than micro-tasks
+- Defined clear separation between policy creation, analysis, and usage
+- Specified Tool 2 as the critical bridge between Kyverno and AI
+- Emphasized Tool 3's proactive policy checking
+- Added concrete examples for each tool
+- Defined vector DB schema and integration points
 
-**Next Steps**: Ready for prd-start workflow to begin Phase 1 implementation
+**Key Decisions**:
+- Tool 1 is optional - teams can write Kyverno directly
+- Tool 2 generates multiple interpretations per policy rule
+- Tool 3 always consults policies before creating resources
+- Kyverno remains the enforcement layer
+
+**Next Steps**: Start with Tool 2 implementation as it's the foundation
 
 ---
 
 ## Appendix
 
-### Example Policy Statements
-```
-"Never deploy to production without resource limits"
-"All containers must run as non-root in production"  
-"Development deployments cannot exceed 2 replicas"
-"Require approval for deployments costing >$100/month"
-"Prefer AppClaim over standard Kubernetes when available"
-```
+### Common Kyverno Patterns to Support
+
+**Deny Patterns**:
+- Resource type restrictions
+- Service exposure limits
+- Namespace boundaries
+- Label/annotation requirements
+
+**Validation Patterns**:
+- Resource limits/requests
+- Security contexts
+- Image registries
+- Configuration constraints
+
+**Mutation Patterns** (future):
+- Default labels/annotations
+- Resource defaults
+- Security hardening

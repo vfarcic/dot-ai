@@ -18,7 +18,8 @@ const mockFs = fs as jest.Mocked<typeof fs>;
 const mockDotAI = {
   initialize: jest.fn(),
   discovery: {
-    explainResource: jest.fn()
+    explainResource: jest.fn(),
+    connect: jest.fn()
   }
 };
 

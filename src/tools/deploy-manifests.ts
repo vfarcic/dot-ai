@@ -7,6 +7,7 @@ import { ErrorHandler } from '../core/error-handling';
 import { DeployOperation } from '../core/deploy-operation';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
+import { ensureClusterConnection } from '../core/cluster-utils';
 
 // Tool metadata for direct MCP registration
 export const DEPLOYMANIFESTS_TOOL_NAME = 'deployManifests';
@@ -38,6 +39,9 @@ export async function handleDeployManifestsTool(
 
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
+      
+      // Ensure cluster connectivity before proceeding
+      await ensureClusterConnection(dotAI, logger, requestId, 'DeployManifestsTool');
       
       const deployOp = new DeployOperation();
       

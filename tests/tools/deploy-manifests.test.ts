@@ -36,7 +36,11 @@ describe('Deploy Manifests Tool', () => {
         error: jest.fn(),
         fatal: jest.fn()
       },
-      dotAI: null
+      dotAI: {
+        discovery: {
+          connect: jest.fn()
+        }
+      }
     };
     jest.clearAllMocks();
   });
