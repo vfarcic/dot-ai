@@ -50,8 +50,8 @@ Update dot-ai's presentation and examples to clearly communicate its existing ca
 
 **Documentation Changes:**
 - [x] **`src/tools/recommend.ts`**: Update MCP tool descriptions to remove application bias
-- [ ] **`prompts/intent-validation.md`**: Add infrastructure examples alongside application examples
-- [ ] **`prompts/resource-selection.md`**: Enhance with database, networking, operator examples
+- [x] **`prompts/intent-validation.md`**: Add infrastructure examples alongside application examples
+- [x] **`prompts/resource-selection.md`**: Enhance with database, networking, operator examples
 - [ ] **`docs/mcp-guide.md`**: Document infrastructure deployment examples using existing tools
 - [ ] **`README.md`**: Clarify that infrastructure deployment is already supported
 
