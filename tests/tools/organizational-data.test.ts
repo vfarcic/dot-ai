@@ -319,4 +319,258 @@ describe('Organizational Data Tool', () => {
     });
 
   });
+
+  describe('Extended Data Types - Capabilities', () => {
+    it('should return "coming soon" for capabilities create operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'create'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('create');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toContain('Resource capabilities management not yet implemented');
+      expect(response.error.details).toContain('PRD #48');
+      expect(response.error.implementationPlan.prd).toBe('PRD #48');
+      expect(response.error.implementationPlan.expectedFeatures).toContain('Cluster resource scanning');
+      expect(response.message).toContain('PRD #48 implementation');
+    });
+
+    it('should return "coming soon" for capabilities scan operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-2'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('scan');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.status).toBe('coming-soon');
+    });
+
+    it('should return "coming soon" for capabilities analyze with resource', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'analyze',
+          resource: {
+            kind: 'SQL',
+            group: 'devopstoolkit.live',
+            apiVersion: 'devopstoolkit.live/v1beta1'
+          }
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-3'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('analyze');
+      expect(response.error.implementationPlan.expectedFeatures).toContain('Semantic resource matching');
+    });
+  });
+
+  describe('Extended Data Types - Dependencies', () => {
+    it('should return "coming soon" for dependencies create operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'dependencies',
+          operation: 'create'
+        },
+        null,
+        testLogger,
+        'test-request-dependencies-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('create');
+      expect(response.dataType).toBe('dependencies');
+      expect(response.error.message).toContain('Resource dependencies management not yet implemented');
+      expect(response.error.details).toContain('PRD #49');
+      expect(response.error.implementationPlan.prd).toBe('PRD #49');
+      expect(response.error.implementationPlan.expectedFeatures).toContain('Dependency relationship discovery');
+      expect(response.message).toContain('PRD #49 implementation');
+    });
+
+    it('should return "coming soon" for dependencies scan operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'dependencies',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-request-dependencies-2'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('scan');
+      expect(response.dataType).toBe('dependencies');
+      expect(response.error.status).toBe('coming-soon');
+    });
+
+    it('should return "coming soon" for dependencies analyze with resource', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'dependencies',
+          operation: 'analyze',
+          resource: {
+            kind: 'Server',
+            group: 'dbforpostgresql.azure.upbound.io',
+            apiVersion: 'dbforpostgresql.azure.upbound.io/v1beta1'
+          }
+        },
+        null,
+        testLogger,
+        'test-request-dependencies-3'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('analyze');
+      expect(response.error.implementationPlan.expectedFeatures).toContain('Complete solution assembly');
+      expect(response.error.implementationPlan.expectedFeatures).toContain('Deployment order optimization');
+    });
+  });
+
+  describe('Extended Schema Validation', () => {
+    it('should reject unsupported data types', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'unsupported',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-invalid-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.error.message).toContain('Unsupported data type: unsupported');
+      expect(response.error.message).toContain('pattern, capabilities, dependencies');
+    });
+
+    it('should route pattern operations to pattern handler (not capabilities/dependencies)', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-pattern-routing'
+      );
+
+      // Should route to pattern handler, not return "coming soon" message
+      const response = JSON.parse(result.content[0].text);
+      const errorMessage = response.error?.message || '';
+      const errorDetails = response.error?.details || '';
+      expect(errorMessage).not.toContain('not yet implemented');
+      expect(errorDetails).not.toContain('PRD #');
+      // Pattern operations go to handlePatternOperation, not capabilities/dependencies handlers
+    });
+  });
+
+  describe('Embedding Service Validation', () => {
+    it('should fail pattern create operation when OpenAI key missing', async () => {
+      // Clear environment to simulate missing OPENAI_API_KEY
+      const originalKey = process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'create'
+        },
+        null,
+        testLogger,
+        'test-request-embedding-error-create'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('create');
+      expect(response.dataType).toBe('pattern');
+      expect(response.error.message).toBe('OpenAI API key required for pattern management');
+      expect(response.error.setup.required).toContain('export OPENAI_API_KEY=');
+      expect(response.error.currentConfig.OPENAI_API_KEY).toBe('not set');
+      expect(response.message).toBe('OpenAI API key required for pattern management');
+
+      // Restore original environment
+      if (originalKey) process.env.OPENAI_API_KEY = originalKey;
+    });
+
+    it('should fail pattern list operation when OpenAI key missing', async () => {
+      // Clear environment to simulate missing OPENAI_API_KEY
+      const originalKey = process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-embedding-error-list'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('list');
+      expect(response.dataType).toBe('pattern');
+      expect(response.error.message).toBe('OpenAI API key required for pattern management');
+      expect(response.error.details).toContain('Pattern management requires OpenAI embeddings');
+      expect(response.error.setup.docs).toContain('https://platform.openai.com/api-keys');
+
+      // Restore original environment
+      if (originalKey) process.env.OPENAI_API_KEY = originalKey;
+    });
+
+    it('should succeed when embedding service is available', async () => {
+      // Set environment to simulate available OPENAI_API_KEY
+      const originalKey = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = 'test-api-key';
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'pattern',
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-embedding-success'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      // Should succeed when OpenAI key is available
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('list');
+      expect(response.dataType).toBe('pattern');
+
+      // Restore original environment
+      if (originalKey) {
+        process.env.OPENAI_API_KEY = originalKey;
+      } else {
+        delete process.env.OPENAI_API_KEY;
+      }
+    });
+  });
 });

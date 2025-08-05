@@ -460,7 +460,7 @@ export class ResourceRecommender {
       if (concepts.length === 0) {
         console.warn('⚠️ No concepts extracted, falling back to simple pattern search');
         const fallbackResults = await this.patternService.searchPatterns(intent, { limit: 5 });
-        return fallbackResults.map(result => result.pattern);
+        return fallbackResults.map(result => result.data);
       }
       
       // Step 2: Find patterns for each concept
@@ -474,7 +474,7 @@ export class ResourceRecommender {
           
           // Convert to PatternMatch with concept context
           const matches: PatternMatch[] = searchResults.map(result => ({
-            pattern: result.pattern,
+            pattern: result.data,
             score: result.score * this.getConceptImportanceWeight(concept.importance),
             matchedConcept: concept,
             matchType: result.matchType
