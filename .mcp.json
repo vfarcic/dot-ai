@@ -1,15 +1,14 @@
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "--package=@vfarcic/dot-ai@latest",
-        "dot-ai-mcp"
+        "./dist/mcp/server.js"
       ],
       "env": {
         "KUBECONFIG": "./kubeconfig.yaml",
-        "DOT_AI_SESSION_DIR": "./tmp/sessions"
+        "DOT_AI_SESSION_DIR": "./tmp/sessions",
+        "QDRANT_URL": "http://localhost:6333"
       }
     }
   }

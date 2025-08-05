@@ -21,12 +21,12 @@ import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Manage organizational deployment patterns, templates, standards, and best practices for AI recommendations. Use this tool when user wants to save, create, add, or manage deployment patterns, templates, resource configurations, organizational standards, best practices, or reusable deployment guidelines. This tool uses a step-by-step workflow for creation. IMPORTANT: When user wants to create something, call this tool with operation=create (no other parameters). The tool will return a workflow step with a "prompt" field - you must execute that prompt immediately and wait for user response before calling again.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns (available now), resource capabilities (PRD #48), and resource dependencies (PRD #49). For patterns: supports step-by-step creation workflow. For capabilities/dependencies: returns implementation status. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities, "dependencies" for resource dependencies.';
 
-// Extensible schema - ready for future data types
+// Extensible schema - supports patterns, capabilities, and dependencies
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
-  dataType: z.enum(['pattern']).describe('Type of organizational data to manage (currently only "pattern" supported)'),
-  operation: z.enum(['create', 'list', 'get', 'delete']).describe('Operation to perform on the organizational data'),
+  dataType: z.enum(['pattern', 'capabilities', 'dependencies']).describe('Type of cluster data to manage: pattern (organizational patterns), capabilities (resource capabilities), dependencies (resource dependencies)'),
+  operation: z.enum(['create', 'list', 'get', 'delete', 'scan', 'analyze']).describe('Operation to perform on the cluster data'),
   
   // Workflow fields for step-by-step pattern creation
   sessionId: z.string().optional().describe('Pattern creation session ID (for continuing multi-step workflow)'),
@@ -36,7 +36,14 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   id: z.string().optional().describe('Data item ID (required for get/delete operations)'),
   
   // Generic fields for list operations
-  limit: z.number().optional().describe('Maximum number of items to return (default: 10)')
+  limit: z.number().optional().describe('Maximum number of items to return (default: 10)'),
+  
+  // Resource-specific fields (for capabilities and dependencies)
+  resource: z.object({
+    kind: z.string(),
+    group: z.string(),
+    apiVersion: z.string()
+  }).optional().describe('Kubernetes resource reference (for capabilities/dependencies operations)')
 };
 
 /**
@@ -103,6 +110,56 @@ async function validateVectorDBConnection(
 }
 
 /**
+ * Validate embedding service configuration and fail if unavailable
+ */
+async function validateEmbeddingService(
+  logger: Logger,
+  requestId: string
+): Promise<{ success: boolean; error?: any }> {
+  const { EmbeddingService } = await import('../core/embedding-service');
+  const embeddingService = new EmbeddingService();
+  const status = embeddingService.getStatus();
+  
+  if (!status.available) {
+    logger.warn('Embedding service required but not available', { 
+      requestId, 
+      reason: status.reason 
+    });
+    
+    return {
+      success: false,
+      error: {
+        message: 'OpenAI API key required for pattern management',
+        details: 'Pattern management requires OpenAI embeddings for semantic search and storage. The system cannot proceed without proper configuration.',
+        reason: status.reason,
+        setup: {
+          required: 'export OPENAI_API_KEY=your-openai-api-key',
+          optional: [
+            'export OPENAI_MODEL=text-embedding-3-small (default)',
+            'export OPENAI_DIMENSIONS=1536 (default)'
+          ],
+          docs: 'Get API key from https://platform.openai.com/api-keys'
+        },
+        currentConfig: {
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'set' : 'not set',
+          QDRANT_URL: process.env.QDRANT_URL || 'http://localhost:6333',
+          status: 'embedding service unavailable'
+        }
+      }
+    };
+  }
+  
+  logger.info('Embedding service available', { 
+    requestId, 
+    provider: status.provider,
+    model: status.model,
+    dimensions: status.dimensions
+  });
+  
+  return { success: true };
+}
+
+/**
  * Handle pattern operations with workflow support
  */
 async function handlePatternOperation(
@@ -122,6 +179,19 @@ async function handlePatternOperation(
       dataType: 'pattern',
       error: connectionCheck.error,
       message: 'Vector DB connection required for pattern management'
+    };
+  }
+
+  // Validate embedding service and fail if unavailable
+  const embeddingCheck = await validateEmbeddingService(logger, requestId);
+  
+  if (!embeddingCheck.success) {
+    return {
+      success: false,
+      operation,
+      dataType: 'pattern',
+      error: embeddingCheck.error,
+      message: 'OpenAI API key required for pattern management'
     };
   }
 
@@ -416,6 +486,74 @@ async function handlePatternOperation(
 }
 
 /**
+ * Handle capabilities operations (placeholder for PRD #48)
+ */
+async function handleCapabilitiesOperation(
+  operation: string,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  logger.info('Capabilities operation requested', { requestId, operation });
+  
+  return {
+    success: false,
+    operation,
+    dataType: 'capabilities',
+    error: {
+      message: 'Resource capabilities management not yet implemented',
+      details: 'This feature is planned for PRD #48 - Resource Capabilities Discovery & Integration',
+      status: 'coming-soon',
+      implementationPlan: {
+        prd: 'PRD #48',
+        description: 'Kubernetes resource capability discovery and semantic matching',
+        expectedFeatures: [
+          'Cluster resource scanning',
+          'Capability inference from schemas', 
+          'Semantic resource matching',
+          'Vector DB storage and search'
+        ]
+      }
+    },
+    message: 'Capabilities management will be available after PRD #48 implementation'
+  };
+}
+
+/**
+ * Handle dependencies operations (placeholder for PRD #49)
+ */
+async function handleDependenciesOperation(
+  operation: string,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  logger.info('Dependencies operation requested', { requestId, operation });
+  
+  return {
+    success: false,
+    operation,
+    dataType: 'dependencies',
+    error: {
+      message: 'Resource dependencies management not yet implemented',
+      details: 'This feature is planned for PRD #49 - Resource Dependencies Discovery & Integration',
+      status: 'coming-soon',
+      implementationPlan: {
+        prd: 'PRD #49', 
+        description: 'Resource dependency discovery and complete solution assembly',
+        expectedFeatures: [
+          'Dependency relationship discovery',
+          'Complete solution assembly',
+          'Deployment order optimization',
+          'Vector DB storage and search'
+        ]
+      }
+    },
+    message: 'Dependencies management will be available after PRD #49 implementation'
+  };
+}
+
+/**
  * Main tool handler - routes to appropriate data type handler
  */
 export async function handleOrganizationalDataTool(
@@ -467,24 +605,24 @@ export async function handleOrganizationalDataTool(
         result = await handlePatternOperation(args.operation, args, logger, requestId);
         break;
       
-      // Future data types will be added here:
-      // case 'policy':
-      //   result = await handlePolicyOperation(args.operation, args, logger, requestId);
-      //   break;
-      // case 'memory':
-      //   result = await handleMemoryOperation(args.operation, args, logger, requestId);
-      //   break;
+      case 'capabilities':
+        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
+        break;
+        
+      case 'dependencies':
+        result = await handleDependenciesOperation(args.operation, args, logger, requestId);
+        break;
       
       default:
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          `Unsupported data type: ${args.dataType}. Currently supported: pattern`,
+          `Unsupported data type: ${args.dataType}. Currently supported: pattern, capabilities, dependencies`,
           {
             operation: 'data_type_validation',
             component: 'OrganizationalDataTool',
             requestId,
-            input: { dataType: args.dataType, supportedTypes: ['pattern'] }
+            input: { dataType: args.dataType, supportedTypes: ['pattern', 'capabilities', 'dependencies'] }
           }
         );
     }
