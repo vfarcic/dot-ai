@@ -625,6 +625,7 @@ export class ResourceRecommender {
         ).join('\n')
       : 'No organizational patterns found for this request.';
 
+
     const fs = await import('fs');
     const path = await import('path');
     
@@ -635,6 +636,7 @@ export class ResourceRecommender {
       .replace('{intent}', intent)
       .replace('{resources}', resourceSummary)
       .replace('{patterns}', patternsContext);
+
 
     const response = await this.claudeIntegration.sendMessage(selectionPrompt);
     

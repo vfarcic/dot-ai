@@ -31,6 +31,8 @@ Analyze the user's intent and determine the best solution(s). **Provide multiple
 - **Combine relevant patterns** - A single solution can be influenced by multiple patterns
 - **Prioritize by specificity** - More specific patterns should have higher influence than generic ones
 - **Layer pattern guidance** - Generic patterns provide baseline, specific patterns add requirements
+- **Use complete patterns** - When a pattern is relevant, include ALL resources from that pattern unless you have a specific technical reason to exclude them
+- **Pattern resource completeness** - Organizational patterns represent battle-tested, complete solutions. Missing pattern resources often leads to incomplete deployments
 - **Avoid conflicts** - If patterns conflict, prioritize user intent and technical accuracy
 
 **IMPORTANT**: Always provide at least 2-3 different solution alternatives when possible, even if some score lower than others. Users benefit from seeing multiple options to choose from.
@@ -38,6 +40,8 @@ Analyze the user's intent and determine the best solution(s). **Provide multiple
 ## Validation Requirements
 
 **Capability Verification**: For each resource in your solution, examine its schema fields to verify it can fulfill the user's requirements. Do not assume capabilities that aren't explicitly present in the schema fields.
+
+**IMPORTANT - Pattern vs Individual Resource Validation**: When using organizational patterns, validate the PATTERN as a whole, not individual resources. Individual resources in a pattern may serve supporting roles and don't need to individually fulfill the complete user requirement - they work together as a complete solution.
 
 **Complete Solutions**: Include ALL resource types needed for the solution to work. If your analysis mentions integration with other resources, include those resources in your resources array. For example, if a workload resource has built-in templates or references to other resource types, include those referenced resource types in your solution even if they're managed through the primary resource.
 

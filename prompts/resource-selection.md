@@ -14,14 +14,19 @@ You are a Kubernetes expert. Given this user intent and available resources, sel
 ## Instructions
 
 Select all resources that could be relevant for this intent. Consider:
-- Direct relevance to the user's needs
+- Direct relevance to the user's needs (applications, infrastructure, operators, networking, storage)
 - Common Kubernetes patterns and best practices
-- **Organizational patterns** and resource suggestions from your organization's best practices (see above)
+- **PRIORITY: Organizational pattern resources** - If organizational patterns are provided above, ALWAYS include ALL resources from patterns that match this intent, even if individual resources don't seem directly relevant
+- **Pattern resource completeness** - Organizational patterns represent complete, battle-tested solutions. Include entire pattern resource sets to avoid incomplete deployments
 - Resource relationships and combinations
 - Production deployment patterns
 - Complex multi-component solutions
 - **Custom Resource Definitions (CRDs)** that might provide higher-level abstractions or simpler alternatives
 - Platform-specific resources (e.g., Crossplane, Knative, Istio, ArgoCD) that could simplify the deployment
+- **Infrastructure components**: networking (Ingress, Service, NetworkPolicy), storage (PVC, StorageClass), security (RBAC, ServiceAccount)
+- **Database operators**: PostgreSQL, MongoDB, MySQL, Redis operators that provide managed database services
+- **Monitoring and observability**: Prometheus, Grafana, AlertManager, logging operators
+- **Operator patterns**: Look for operators that provide simplified management of complex infrastructure
 - **CRD Selection Priority**: If you see multiple CRDs from the same group with similar purposes (like "App" and "AppClaim"), include the namespace-scoped ones (marked as "Namespaced: true") rather than cluster-scoped ones, as they're more appropriate for application deployments
 
 Don't limit yourself - if the intent is complex, select as many resources as needed. **Be extra inclusive** - the detailed schema analysis phase will filter out inappropriate resources, so it's better to include more candidates initially.

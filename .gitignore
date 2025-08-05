@@ -87,3 +87,7 @@ dev-debug.log
 
 # Taskmaster
 .taskmaster/ 
+
+# Creds
+gcp-creds.json
+azure-creds.json

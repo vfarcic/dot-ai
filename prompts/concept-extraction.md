@@ -16,8 +16,10 @@ Analyze the user intent and extract all relevant deployment concepts. Consider t
 
 ### **Infrastructure & Integration**  
 - Data storage: database, cache, persistent storage, file storage, object storage
+- Database services: PostgreSQL, MongoDB, MySQL, Redis, Elasticsearch clusters
 - Connectivity: external database, message queue, third-party API, service mesh
-- Networking: public access, internal service, load balancing, ingress
+- Networking: public access, internal service, load balancing, ingress, networking policies
+- Infrastructure operators: monitoring, logging, backup, security operators
 
 ### **Operational Requirements**
 - Scaling: auto-scaling, high availability, load balancing, horizontal scaling
@@ -29,6 +31,8 @@ Analyze the user intent and extract all relevant deployment concepts. Consider t
 - Programming languages: golang, java, python, nodejs, react, angular
 - Frameworks: spring boot, express, flask, django, rails
 - Databases: postgresql, mysql, mongodb, redis, elasticsearch
+- Infrastructure tools: prometheus, grafana, ingress-nginx, istio, knative
+- Operators: database operators, monitoring operators, backup operators
 
 ## Response Format
 

@@ -2,11 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
   "packages": [
     "kind@0.29.0",
+    "path:gcloud#google-cloud-sdk",
     "git@2.49.0",
     "teller@2.0.7",
     "kubernetes-helm@3.18.3",
     "nushell@0.105.1",
-    "kubectl@1.33.2"
+    "kubectl@1.33.2",
+    "azure-cli@2.75.0"
   ],
   "shell": {
     "init_hook": [],
