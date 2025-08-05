@@ -23,13 +23,13 @@ describe('Recommend Tool', () => {
   describe('Tool Metadata', () => {
     test('should have essential properties only', () => {
       expect(RECOMMEND_TOOL_NAME).toBe('recommend');
-      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, run, or setup applications');
+      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, setup, install, or run applications, infrastructure, and services');
       expect(RECOMMEND_TOOL_INPUT_SCHEMA).toBeDefined();
     });
 
     test('should have concise user-facing description', () => {
-      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, run, or setup applications');
-      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Ask the user to describe their application first');
+      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, setup, install, or run applications, infrastructure, and services');
+      expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Describe what you want to deploy');
       expect(RECOMMEND_TOOL_DESCRIPTION.length).toBeLessThan(200); // Should be concise
     });
 

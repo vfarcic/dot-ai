@@ -14,9 +14,10 @@ An intent is **TOO VAGUE OR GENERIC** if it:
 - Extremely short without any technical context (1-2 words like "database", "container")
 
 An intent is **SPECIFIC ENOUGH** if it includes ANY of:
-- Specific technology or framework (Node.js, PostgreSQL, Redis, React, Python, etc.)
-- Clear architectural pattern (stateless app, microservice, web server, REST API, etc.)
-- Application type or purpose (frontend, backend, database, cache, queue, etc.)
+- Specific technology or framework (Node.js, PostgreSQL, Redis, React, Python, Prometheus, Grafana, etc.)
+- Clear architectural pattern (stateless app, microservice, web server, REST API, operator, etc.)
+- Application type or purpose (frontend, backend, database, cache, queue, monitoring, storage, etc.)
+- Infrastructure component (load balancer, ingress controller, persistent storage, networking, etc.)
 - Deployment context that helps understand Kubernetes resource needs
 
 **IMPORTANT**: Be generous in accepting intents. Focus on rejecting only truly meaningless requests. Terms like "stateless app", "web application", "microservice", "database cluster" provide sufficient Kubernetes deployment context.
@@ -40,6 +41,14 @@ An intent is **SPECIFIC ENOUGH** if it includes ANY of:
 - "Node.js application" (technology + type)
 - "frontend service" (purpose + type)
 - "cache service" (purpose + type)
+- "PostgreSQL database" (technology + infrastructure type)
+- "Redis cache" (technology + infrastructure purpose)
+- "Prometheus monitoring" (technology + infrastructure purpose)
+- "Ingress controller" (infrastructure component + type)
+- "MongoDB operator" (technology + operator pattern)
+- "load balancer" (infrastructure component)
+- "persistent storage" (infrastructure capability)
+- "CI/CD pipeline" (workflow automation)
 
 ## Response Format
 
