@@ -31,6 +31,8 @@ Analyze the user's intent and determine the best solution(s). **Provide multiple
 - **Combine relevant patterns** - A single solution can be influenced by multiple patterns
 - **Prioritize by specificity** - More specific patterns should have higher influence than generic ones
 - **Layer pattern guidance** - Generic patterns provide baseline, specific patterns add requirements
+- **Use complete patterns** - When a pattern is relevant, include ALL resources from that pattern unless you have a specific technical reason to exclude them
+- **Pattern resource completeness** - Organizational patterns represent battle-tested, complete solutions. Missing pattern resources often leads to incomplete deployments
 - **Avoid conflicts** - If patterns conflict, prioritize user intent and technical accuracy
 
 **IMPORTANT**: Always provide at least 2-3 different solution alternatives when possible, even if some score lower than others. Users benefit from seeing multiple options to choose from.
