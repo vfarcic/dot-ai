@@ -16,7 +16,8 @@ You are a Kubernetes expert. Given this user intent and available resources, sel
 Select all resources that could be relevant for this intent. Consider:
 - Direct relevance to the user's needs (applications, infrastructure, operators, networking, storage)
 - Common Kubernetes patterns and best practices
-- **Organizational patterns** and resource suggestions from your organization's best practices (see above)
+- **PRIORITY: Organizational pattern resources** - If organizational patterns are provided above, ALWAYS include ALL resources from patterns that match this intent, even if individual resources don't seem directly relevant
+- **Pattern resource completeness** - Organizational patterns represent complete, battle-tested solutions. Include entire pattern resource sets to avoid incomplete deployments
 - Resource relationships and combinations
 - Production deployment patterns
 - Complex multi-component solutions
