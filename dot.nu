@@ -13,7 +13,7 @@ def "main setup" [] {
     
     rm --force .env
 
-    let provider = main get provider --providers ["google"]
+    # let provider = main get provider --providers ["azure" "google"]
 
     let anthropic_data = main get anthropic
 
@@ -23,10 +23,11 @@ def "main setup" [] {
 
     main apply ingress nginx --provider kind
 
-    (
-        main apply crossplane --provider $provider
-            --preview true --app-config true --db-config true
-    )
+    # (
+    #     main apply crossplane --provider $provider
+    #         --preview true --app-config true --db-config true
+    # )
+    main apply crossplane --preview true --app-config true
 
     kubectl create namespace a-team
 

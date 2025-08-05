@@ -90,3 +90,4 @@ dev-debug.log
 
 # Creds
 gcp-creds.json
+azure-creds.json
