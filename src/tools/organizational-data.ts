@@ -2073,7 +2073,7 @@ async function handleCapabilityProgress(
       response.message = `Capability scan in progress: ${progress.current}/${progress.total} resources processed`;
     }
     
-    // Add user-friendly display information
+    // Add user-friendly display information with client formatting instructions
     response.display = {
       summary: progress.status === 'completed' 
         ? `✅ Scan complete: processed ${progress.total} resources in ${progress.totalProcessingTime}`
@@ -2084,6 +2084,19 @@ async function handleCapabilityProgress(
         lastUpdate: progress.lastUpdated,
         ...(progress.completedAt && { completed: progress.completedAt })
       }
+    };
+
+    // Add client instructions for readable formatting
+    response.clientInstructions = {
+      behavior: 'Display capability scan progress in a clean, readable format',
+      requirement: 'Show progress information in separate lines, not as a single condensed line',
+      format: progress.status === 'completed' 
+        ? 'Completion format: Status, total processed, processing time on separate lines'
+        : 'Progress format: Status line, current resource line, time estimates line, timestamps line',
+      example: progress.status === 'completed' 
+        ? '✅ Capability Scan Complete\\n📊 Processed: X resources\\n⏰ Processing time: X minutes'
+        : '⏳ Progress: X/Y resources (Z%)\\n📊 Current resource: ResourceName\\n⏰ Est. remaining: X minutes\\n🕒 Started: timestamp\\n🔄 Last updated: timestamp',
+      prohibit: 'Do not display all progress information on a single line'
     };
     
     logger.info('Progress query completed successfully', {

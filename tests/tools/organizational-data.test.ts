@@ -1545,6 +1545,9 @@ describe('Organizational Data Tool', () => {
         expect(progressResponse.currentStep).toBe('resource-selection');
         expect(progressResponse.startedAt).toBeDefined();
         expect(progressResponse.lastActivity).toBeDefined();
+
+        // Should not have client instructions for no-progress state
+        expect(progressResponse.clientInstructions).toBeUndefined();
         
       } finally {
         // Clean up test session file and restore environment
@@ -1704,6 +1707,92 @@ describe('Organizational Data Tool', () => {
         }
         
         // Restore environment
+        if (originalSessionDir) {
+          process.env.DOT_AI_SESSION_DIR = originalSessionDir;
+        } else {
+          delete process.env.DOT_AI_SESSION_DIR;
+        }
+      }
+    });
+
+    it('should include client instructions for readable progress formatting', async () => {
+      // Test that active progress includes client formatting instructions
+      const sessionId = 'test-progress-formatting-123';
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      const sessionDir = path.join(os.tmpdir(), '.dot-ai-test-formatting');
+      if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+      }
+      
+      const originalSessionDir = process.env.DOT_AI_SESSION_DIR;
+      process.env.DOT_AI_SESSION_DIR = sessionDir;
+      
+      const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+      if (!fs.existsSync(sessionSubDir)) {
+        fs.mkdirSync(sessionSubDir, { recursive: true });
+      }
+      
+      const sessionFilePath = path.join(sessionSubDir, `${sessionId}.json`);
+      const testSessionData = {
+        sessionId,
+        currentStep: 'scanning',
+        startedAt: new Date().toISOString(),
+        lastActivity: new Date().toISOString(),
+        progress: {
+          status: 'processing',
+          current: 8,
+          total: 415,
+          percentage: 2,
+          currentResource: 'PersistentVolumeClaim',
+          startedAt: new Date().toISOString(),
+          lastUpdated: new Date().toISOString(),
+          estimatedTimeRemaining: '26.6 minutes'
+        }
+      };
+      
+      fs.writeFileSync(sessionFilePath, JSON.stringify(testSessionData, null, 2));
+      
+      try {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'capabilities',
+            operation: 'progress',
+            sessionId
+          },
+          null,
+          testLogger,
+          'test-progress-formatting'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('progress');
+        expect(response.progress.status).toBe('processing');
+        
+        // Verify client instructions for readable formatting are included
+        expect(response.clientInstructions).toBeDefined();
+        expect(response.clientInstructions.behavior).toContain('clean, readable format');
+        expect(response.clientInstructions.requirement).toContain('separate lines');
+        expect(response.clientInstructions.format).toContain('Status line, current resource line');
+        expect(response.clientInstructions.example).toContain('Progress: X/Y resources');
+        expect(response.clientInstructions.prohibit).toContain('single line');
+        
+      } finally {
+        // Clean up
+        if (fs.existsSync(sessionFilePath)) {
+          fs.unlinkSync(sessionFilePath);
+        }
+        if (fs.existsSync(sessionSubDir)) {
+          fs.rmdirSync(sessionSubDir);
+        }
+        if (fs.existsSync(sessionDir)) {
+          fs.rmdirSync(sessionDir);
+        }
+        
         if (originalSessionDir) {
           process.env.DOT_AI_SESSION_DIR = originalSessionDir;
         } else {
