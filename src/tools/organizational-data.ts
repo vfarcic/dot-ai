@@ -1554,13 +1554,27 @@ async function handleCapabilityList(
       success: true,
       operation: 'list',
       dataType: 'capabilities',
-      data: capabilities,
-      metadata: {
-        returned: capabilities.length,
-        total: count,
+      data: {
+        capabilities: capabilities.map(cap => ({
+          id: (cap as any).id,
+          resourceName: cap.resourceName,
+          capabilities: cap.capabilities,
+          description: cap.description.length > 100 ? cap.description.substring(0, 100) + '...' : cap.description,
+          complexity: cap.complexity,
+          confidence: cap.confidence,
+          analyzedAt: cap.analyzedAt
+        })),
+        totalCount: count,
+        returnedCount: capabilities.length,
         limit
       },
-      message: `Retrieved ${capabilities.length} capabilities (${count} total)`
+      message: `Retrieved ${capabilities.length} capabilities (${count} total)`,
+      clientInstructions: {
+        behavior: 'Display capability list with IDs prominently visible for user reference',
+        requirement: 'Each capability must show: ID, resource name, main capabilities, and description',
+        format: 'List format with ID clearly labeled (e.g., "ID: abc123") so users can reference specific capabilities',
+        prohibit: 'Do not hide or omit capability IDs from the display - users need them for get operations'
+      }
     };
   } catch (error) {
     logger.error('Failed to list capabilities', error as Error, {
@@ -1590,26 +1604,26 @@ async function handleCapabilityGet(
 ): Promise<any> {
   try {
     // Validate required parameters
-    if (!args.resourceName) {
+    if (!args.id) {
       return {
         success: false,
         operation: 'get',
         dataType: 'capabilities',
         error: {
-          message: 'Missing required parameter: resourceName',
-          details: 'Specify resourceName to retrieve capability data',
-          example: { resourceName: 'sqls.devopstoolkit.live' }
+          message: 'Missing required parameter: id',
+          details: 'Specify id to retrieve capability data',
+          example: { id: 'capability-id-example' }
         }
       };
     }
     
-    // Get capability by resource name
-    const capability = await capabilityService.getCapability(args.resourceName);
+    // Get capability by ID
+    const capability = await capabilityService.getCapability(args.id);
     
     if (!capability) {
       logger.warn('Capability not found', {
         requestId,
-        resourceName: args.resourceName
+        capabilityId: args.id
       });
       
       return {
@@ -1617,7 +1631,7 @@ async function handleCapabilityGet(
         operation: 'get',
         dataType: 'capabilities',
         error: {
-          message: `Capability not found for resource: ${args.resourceName}`,
+          message: `Capability not found for ID: ${args.id}`,
           details: 'Resource capability may not have been scanned yet',
           suggestion: 'Use scan operation to analyze this resource first'
         }
@@ -1626,7 +1640,8 @@ async function handleCapabilityGet(
     
     logger.info('Capability retrieved successfully', {
       requestId,
-      resourceName: args.resourceName,
+      capabilityId: args.id,
+      resourceName: capability.resourceName,
       capabilitiesFound: capability.capabilities.length,
       confidence: capability.confidence
     });
@@ -1636,12 +1651,23 @@ async function handleCapabilityGet(
       operation: 'get',
       dataType: 'capabilities',
       data: capability,
-      message: `Retrieved capability data for ${args.resourceName}`
+      message: `Retrieved capability data for ${capability.resourceName} (ID: ${args.id})`,
+      clientInstructions: {
+        behavior: 'Display comprehensive capability details in organized sections',
+        requirement: 'Show resource name, capabilities, providers, complexity, use case, and confidence prominently',
+        format: 'Structured display with clear sections: Resource Info, Capabilities, Technical Details, and Analysis Results',
+        sections: {
+          resourceInfo: 'Resource name and description with use case',
+          capabilities: 'List all capabilities, providers, and abstractions clearly',
+          technicalDetails: 'Complexity level and provider information',
+          analysisResults: 'Confidence score, analysis timestamp, and ID for reference'
+        }
+      }
     };
   } catch (error) {
     logger.error('Failed to get capability', error as Error, {
       requestId,
-      resourceName: args.resourceName
+      capabilityId: args.id
     });
     
     return {

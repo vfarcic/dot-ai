@@ -599,15 +599,76 @@ describe('Organizational Data Tool', () => {
       expect(response.operation).toBe('list');
       expect(response.dataType).toBe('capabilities');
       expect(response.data).toBeDefined();
-      expect(response.metadata.returned).toBe(0); // Mock returns empty array
+      expect(response.data.capabilities).toBeDefined();
+      expect(response.data.returnedCount).toBe(0); // Mock returns empty array
+      
+      // Test comprehensive client display instructions for list operation
+      expect(response.clientInstructions).toBeDefined();
+      expect(response.clientInstructions.behavior).toContain('Display capability list with IDs prominently visible');
+      expect(response.clientInstructions.requirement).toContain('Each capability must show: ID, resource name, main capabilities, and description');
+      expect(response.clientInstructions.format).toContain('List format with ID clearly labeled');
+      expect(response.clientInstructions.prohibit).toContain('Do not hide or omit capability IDs from the display');
     });
 
-    it('should return error for capabilities get operation without resourceName parameter', async () => {
+    it('should format capability list data with user-friendly summary objects', async () => {
+      // Mock capabilities with sample data to test data formatting
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        getAllCapabilities: jest.fn().mockResolvedValue([
+          {
+            id: 'test-id-123',
+            resourceName: 'test.resource.example',
+            capabilities: ['database', 'postgresql'],
+            description: 'This is a very long description that should be truncated because it exceeds 100 characters and we want to test the truncation functionality',
+            complexity: 'medium',
+            confidence: 0.85,
+            analyzedAt: '2025-01-01T12:00:00Z'
+          }
+        ]),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(1)
+      }));
+
       const result = await handleOrganizationalDataTool(
         {
           dataType: 'capabilities',
-          operation: 'get',
-          id: 'capability-test-id' // Wrong parameter name
+          operation: 'list'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-formatting'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.data.capabilities).toBeDefined();
+      expect(response.data.capabilities).toHaveLength(1);
+      
+      const capability = response.data.capabilities[0];
+      expect(capability.id).toBe('test-id-123');
+      expect(capability.resourceName).toBe('test.resource.example');
+      expect(capability.capabilities).toEqual(['database', 'postgresql']);
+      expect(capability.complexity).toBe('medium');
+      expect(capability.confidence).toBe(0.85);
+      expect(capability.analyzedAt).toBe('2025-01-01T12:00:00Z');
+      
+      // Test description truncation
+      expect(capability.description.length).toBeLessThanOrEqual(103); // 100 + '...'
+      expect(capability.description).toContain('...');
+      
+      // Test metadata structure
+      expect(response.data.totalCount).toBe(1);
+      expect(response.data.returnedCount).toBe(1);
+      expect(response.data.limit).toBeDefined();
+    });
+
+    it('should return error for capabilities get operation without id parameter', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'get'
+          // Missing id parameter
         },
         null,
         testLogger,
@@ -618,15 +679,15 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(false);
       expect(response.operation).toBe('get');
       expect(response.dataType).toBe('capabilities');
-      expect(response.error.message).toContain('Missing required parameter: resourceName');
+      expect(response.error.message).toContain('Missing required parameter: id');
     });
 
-    it('should successfully get capability with resourceName parameter', async () => {
+    it('should successfully get capability with id parameter', async () => {
       const result = await handleOrganizationalDataTool(
         {
           dataType: 'capabilities',
           operation: 'get',
-          resourceName: 'test.resource'
+          id: 'test-capability-id'
         },
         null,
         testLogger,
@@ -639,6 +700,17 @@ describe('Organizational Data Tool', () => {
       expect(response.dataType).toBe('capabilities');
       expect(response.data.resourceName).toBe('test.resource');
       expect(response.data.capabilities).toEqual(['test']);
+      
+      // Test client display instructions for get operation
+      expect(response.clientInstructions).toBeDefined();
+      expect(response.clientInstructions.behavior).toContain('Display comprehensive capability details in organized sections');
+      expect(response.clientInstructions.requirement).toContain('Show resource name, capabilities, providers, complexity');
+      expect(response.clientInstructions.format).toContain('Structured display with clear sections');
+      expect(response.clientInstructions.sections).toBeDefined();
+      expect(response.clientInstructions.sections.resourceInfo).toContain('Resource name and description');
+      expect(response.clientInstructions.sections.capabilities).toContain('List all capabilities, providers, and abstractions');
+      expect(response.clientInstructions.sections.technicalDetails).toContain('Complexity level and provider');
+      expect(response.clientInstructions.sections.analysisResults).toContain('Confidence score, analysis timestamp');
     });
 
     it('should provide immediate error feedback when Vector DB is unavailable', async () => {
