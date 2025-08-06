@@ -1233,15 +1233,15 @@ describe('Organizational Data Tool', () => {
       expect(autoResponse.success).toBe(true);
       expect(autoResponse.mode).toBe('auto');
       expect(autoResponse.step).toBe('complete');
-      expect(autoResponse.results.processed).toBe(3); // All 3 resources
-      expect(autoResponse.results.successful).toBe(3);
-      expect(autoResponse.results.failed).toBe(0);
-      expect(autoResponse.results.processedResources).toHaveLength(3);
+      expect(autoResponse.summary.totalScanned).toBe(3); // All 3 resources
+      expect(autoResponse.summary.successful).toBe(3);
+      expect(autoResponse.summary.failed).toBe(0);
       expect(autoResponse.message).toContain('completed successfully');
       
-      // Verify all resources were processed
-      const processedResourceNames = autoResponse.results.processedResources.map((r: any) => r.resource);
-      expect(processedResourceNames).toEqual(expect.arrayContaining(testResources));
+      // Verify minimal response format (no detailed resource data to prevent token limits)
+      expect(autoResponse.availableOptions).toBeDefined();
+      expect(autoResponse.availableOptions.viewResults).toContain("'list' operation");
+      expect(autoResponse.userNote).toContain("available for you to choose from");
     });
 
     it('should prevent the workflow bug with proper step validation', async () => {
@@ -1402,20 +1402,18 @@ describe('Organizational Data Tool', () => {
       expect(response.step).toBe('complete');
       
       // Should process multiple resources, not just one
-      expect(response.results.processed).toBe(5);
-      expect(response.results.successful).toBe(5);
-      expect(response.results.failed).toBe(0);
+      expect(response.summary.totalScanned).toBe(5);
+      expect(response.summary.successful).toBe(5);
+      expect(response.summary.failed).toBe(0);
       
-      // Should contain results for all specified resources
-      expect(response.results.processedResources).toHaveLength(5);
-      const resourceNames = response.results.processedResources.map((r: any) => r.resource);
-      expect(resourceNames).toContain('Pod');
-      expect(resourceNames).toContain('Service');
-      expect(resourceNames).toContain('Deployment');
-      expect(resourceNames).toContain('sqls.devopstoolkit.live');
-      expect(resourceNames).toContain('resourcegroups.azure.upbound.io');
+      // Verify minimal response format (detailed resource data removed to prevent token limits)
+      expect(response.availableOptions).toBeDefined();
+      expect(response.availableOptions.viewResults).toContain("'list' operation");
+      expect(response.userNote).toContain("available for you to choose from");
+      
+      // Note: Resource names verification removed - use 'list' operation to verify stored capabilities
 
-      expect(response.message).toContain('completed successfully for all resources');
+      expect(response.message).toContain('completed successfully');
     });
 
     it('should include progress tracking information in completion response', async () => {
@@ -1479,15 +1477,12 @@ describe('Organizational Data Tool', () => {
 
       const autoResponse = JSON.parse(autoResult.content[0].text);
       
-      // Verify progress tracking information is included in response
-      expect(autoResponse.progressTracking).toBeDefined();
-      expect(autoResponse.progressTracking.note).toContain('Progress was tracked during processing');
-      expect(autoResponse.progressTracking.sessionFile).toContain(sessionId);
-      expect(autoResponse.progressTracking.nextTime).toContain('To monitor progress of future scans');
+      // Progress tracking now available via separate 'progress' operation
+      expect(autoResponse.availableOptions.checkStatus).toContain('available for AI-powered recommendations');
       
       // Verify processing time is included
-      expect(autoResponse.results.processingTime).toBeDefined();
-      expect(autoResponse.results.processingTime).toMatch(/(seconds|minutes)/);
+      expect(autoResponse.summary.processingTime).toBeDefined();
+      expect(autoResponse.summary.processingTime).toMatch(/(seconds|minutes)/);
     });
 
     it('should handle progress operation to query scan status', async () => {

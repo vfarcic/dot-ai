@@ -490,6 +490,52 @@ async function handlePatternOperation(
 }
 
 /**
+ * Create standardized capability scan completion response
+ */
+function createCapabilityScanCompletionResponse(
+  sessionId: string,
+  totalProcessed: number,
+  successful: number,
+  failed: number,
+  processingTime: string,
+  mode: 'auto' | 'manual',
+  stopped: boolean = false
+): any {
+  
+  let message: string;
+  if (stopped) {
+    message = `⏹️ Capability scan stopped by user after processing ${successful} of ${totalProcessed} resources.`;
+  } else if (failed > 0) {
+    message = `✅ Capability scan completed with ${failed} errors. ${successful}/${totalProcessed} resources processed successfully.`;
+  } else {
+    message = `✅ Capability scan completed successfully! Processed ${totalProcessed} resources.`;
+  }
+
+  return {
+    success: true,
+    operation: 'scan',
+    dataType: 'capabilities',
+    mode: mode,
+    step: 'complete',
+    sessionId: sessionId,
+    summary: {
+      totalScanned: totalProcessed,
+      successful: successful,
+      failed: failed,
+      processingTime: processingTime,
+      ...(stopped && { stopped: true })
+    },
+    message: message,
+    availableOptions: {
+      viewResults: "Use 'list' operation to browse all discovered capabilities",
+      getDetails: "Use 'get' operation with capability ID to view specific capability details", 
+      checkStatus: successful > 0 ? "Capabilities are now available for AI-powered recommendations" : "No capabilities were stored"
+    },
+    userNote: "The above options are available for you to choose from - the system will not execute them automatically."
+  };
+}
+
+/**
  * Handle capabilities operations - PRD #48 Implementation
  */
 async function handleCapabilitiesOperation(
@@ -1277,21 +1323,15 @@ async function handleScanning(
         const currentIndex = session.currentResourceIndex || 0;
         const totalResources = Array.isArray(session.selectedResources) ? session.selectedResources.length : 1;
         
-        return {
-          success: true,
-          operation: 'scan',
-          dataType: 'capabilities',
-          step: 'complete',
-          sessionId: session.sessionId,
-          results: {
-            processed: currentIndex, // Resources processed so far
-            successful: currentIndex, // Assume all successful for now
-            failed: 0,
-            stopped: true,
-            message: `Scanning stopped by user after ${currentIndex} of ${totalResources} resources`
-          },
-          message: 'Capability scan stopped by user'
-        };
+        return createCapabilityScanCompletionResponse(
+          session.sessionId,
+          totalResources,
+          currentIndex, // Resources processed so far
+          0,
+          'stopped interactively',
+          'manual',
+          true // stopped = true
+        );
       }
       
       if (userResponse === 'yes' || userResponse === 'no') {
@@ -1446,20 +1486,14 @@ async function handleScanning(
         transitionCapabilitySession(session, 'complete', {}, args);
         cleanupCapabilitySession(session, args, logger, requestId);
         
-        return {
-          success: true,
-          operation: 'scan',
-          dataType: 'capabilities',
-          step: 'complete',
-          sessionId: session.sessionId,
-          results: {
-            processed: totalResources,
-            successful: totalResources, // Assume all successful for now
-            failed: 0,
-            message: `Completed scanning ${totalResources} resources`
-          },
-          message: 'Capability scan completed successfully'
-        };
+        return createCapabilityScanCompletionResponse(
+          session.sessionId,
+          totalResources,
+          totalResources, // Assume all successful for manual mode
+          0,
+          'completed interactively',
+          'manual'
+        );
       }
       
       resourceName = session.selectedResources[currentIndex];
@@ -1677,32 +1711,14 @@ The AI should infer what this resource does based on its name and provide compre
         cleanupCapabilitySession(session, args, logger, requestId);
       }, 30000); // Keep for 30 seconds after completion
       
-      return {
-        success: true,
-        operation: 'scan',
-        dataType: 'capabilities',
-        mode: 'auto',
-        step: 'complete',
-        sessionId: session.sessionId,
-        results: {
-          processed: totalResources,
-          successful,
-          failed,
-          message: `Completed batch processing ${totalResources} resources (${successful} successful, ${failed} failed)`,
-          processedResources: processedResults,
-          processingTime: completionData.totalProcessingTime,
-          ...(errors.length > 0 && { errors })
-        },
-        message: failed > 0 ? 
-          `Capability scan completed with ${failed} errors. ${successful}/${totalResources} resources processed successfully.` :
-          'Capability scan completed successfully for all resources.',
-        sample: processedResults.length > 0 ? processedResults[0] : undefined,
-        progressTracking: {
-          note: 'Progress was tracked during processing in the session file',
-          sessionFile: `Session progress was available at: ~/.dot-ai/sessions/${session.sessionId}.json`,
-          nextTime: 'To monitor progress of future scans, check the session file during processing'
-        }
-      };
+      return createCapabilityScanCompletionResponse(
+        session.sessionId,
+        totalResources,
+        successful,
+        failed,
+        completionData.totalProcessingTime || 'completed',
+        'auto'
+      );
     }
   } catch (error) {
     logger.error('Capability scanning failed', error as Error, {
