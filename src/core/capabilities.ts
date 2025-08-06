@@ -1,0 +1,260 @@
+/**
+ * Resource Capability Discovery & Inference Engine
+ * 
+ * PRD #48: Resource Capabilities Discovery & Integration
+ * 
+ * This module provides capability inference for Kubernetes resources through
+ * AI-powered analysis of schemas and metadata.
+ */
+
+import { Logger } from './error-handling';
+import { ClaudeIntegration } from './claude';
+import * as fs from 'fs';
+import * as path from 'path';
+
+
+/**
+ * Complete resource capability data structure for Vector DB storage
+ */
+export interface ResourceCapability {
+  // Resource identification
+  resourceName: string;      // "resourcegroups.azure.upbound.io"
+  
+  // Capability information (AI-inferred)
+  capabilities: string[];    // ["postgresql", "mysql", "database", "multi-cloud"]
+  providers: string[];       // ["azure", "gcp", "aws"] 
+  abstractions: string[];    // ["high-availability", "persistent-storage", "backup"]
+  complexity: 'low' | 'medium' | 'high';  // User experience complexity
+  
+  // Metadata for AI understanding
+  description: string;       // "Managed database solution supporting multiple engines"
+  useCase: string;          // "Simple database deployment without infrastructure complexity"
+  
+  // Vector embedding for semantic search (generated separately)
+  embedding?: number[];      // Generated from capability description
+  
+  // Analysis metadata
+  analyzedAt: string;        // ISO timestamp
+  confidence: number;        // 0-1 AI confidence score
+}
+
+/**
+ * Generic Capability Inference Engine
+ * 
+ * Analyzes any Kubernetes CRD using AI to extract semantic capabilities
+ * for improved AI recommendations and resource matching.
+ */
+export class CapabilityInferenceEngine {
+  private logger: Logger;
+  private claudeIntegration: ClaudeIntegration;
+
+  constructor(claudeIntegration: ClaudeIntegration, logger: Logger) {
+    this.claudeIntegration = claudeIntegration;
+    this.logger = logger;
+  }
+
+  /**
+   * Main entry point: analyze resource to infer complete capabilities
+   * 
+   * @param resourceName - Full resource name (e.g., "resourcegroups.azure.upbound.io")
+   * @throws Error if capability inference fails for any reason
+   */
+  async inferCapabilities(
+    resourceName: string,
+    schema?: string,
+    metadata?: any
+  ): Promise<ResourceCapability> {
+    const requestId = `capability-inference-${Date.now()}`;
+    
+    this.logger.info('Starting capability inference', {
+      requestId,
+      resource: resourceName,
+      hasSchema: !!schema,
+      hasMetadata: !!metadata
+    });
+
+    // Use AI to analyze all available information
+    const aiResult = await this.inferWithAI(resourceName, schema, metadata, requestId);
+
+    // Convert AI result to final capability structure
+    const finalCapability = this.buildResourceCapability(resourceName, aiResult);
+
+    this.logger.info('Capability inference completed', {
+      requestId,
+      resource: resourceName,
+      capabilitiesFound: finalCapability.capabilities.length,
+      providersFound: finalCapability.providers.length,
+      complexity: finalCapability.complexity,
+      confidence: finalCapability.confidence
+    });
+
+    return finalCapability;
+  }
+
+  /**
+   * Use AI to infer capabilities from all available resource context
+   * 
+   * @throws Error if AI inference fails
+   */
+  private async inferWithAI(
+    resourceName: string,
+    schema?: string,
+    metadata?: any,
+    requestId?: string
+  ): Promise<{
+    capabilities: string[];
+    providers: string[];
+    abstractions: string[];
+    complexity: 'low' | 'medium' | 'high';
+    description: string;
+    useCase: string;
+    confidence: number;
+  }> {
+    try {
+      const prompt = await this.buildInferencePrompt(resourceName, schema, metadata);
+      const response = await this.claudeIntegration.sendMessage(prompt);
+      return this.parseCapabilitiesFromAI(response.content);
+    } catch (error) {
+      this.logger.error('AI capability inference failed', error as Error, {
+        requestId,
+        resource: resourceName
+      });
+      throw error; // Re-throw to maintain fail-fast behavior
+    }
+  }
+
+  /**
+   * Build AI inference prompt using standard prompt loading pattern
+   * 
+   * @throws Error if prompt template cannot be loaded
+   */
+  private async buildInferencePrompt(
+    resourceName: string,
+    schema?: string,
+    metadata?: any
+  ): Promise<string> {
+    // Load prompt template using standard pattern from existing codebase
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'capability-inference.md');
+    
+    if (!fs.existsSync(promptPath)) {
+      throw new Error(`Capability inference prompt template not found: ${promptPath}`);
+    }
+    
+    let template: string;
+    try {
+      template = fs.readFileSync(promptPath, 'utf8');
+    } catch (error) {
+      throw new Error(`Failed to read capability inference prompt: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Replace template variables using standard pattern
+    const analysisContext = schema && metadata ? 
+      'Schema and metadata available' :
+      schema ? 'Schema only' : 
+      metadata ? 'Metadata only' : 'Limited context';
+
+    const finalPrompt = template
+      .replace(/\{resourceName\}/g, resourceName)
+      .replace(/\{analysisContext\}/g, analysisContext)
+      .replace(/\{schema\}/g, schema || 'No schema provided')
+      .replace(/\{metadata\}/g, metadata ? JSON.stringify(metadata, null, 2) : 'No metadata provided');
+
+    return finalPrompt;
+  }
+
+  /**
+   * Parse AI response into structured capability data
+   * 
+   * @throws Error if AI response cannot be parsed or is invalid
+   */
+  private parseCapabilitiesFromAI(response: string): {
+    capabilities: string[];
+    providers: string[];
+    abstractions: string[];
+    complexity: 'low' | 'medium' | 'high';
+    description: string;
+    useCase: string;
+    confidence: number;
+  } {
+    // Look for JSON in the response using standard pattern
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error(`No JSON found in AI response. Response: ${response.substring(0, 200)}...`);
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      throw new Error(`Invalid JSON in AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}. JSON: ${jsonMatch[0].substring(0, 200)}...`);
+    }
+
+    // Validate required fields with detailed error messages
+    if (!Array.isArray(parsed.capabilities)) {
+      throw new Error(`AI response missing or invalid capabilities array. Got: ${typeof parsed.capabilities}`);
+    }
+    if (!Array.isArray(parsed.providers)) {
+      throw new Error(`AI response missing or invalid providers array. Got: ${typeof parsed.providers}`);
+    }
+    if (!Array.isArray(parsed.abstractions)) {
+      throw new Error(`AI response missing or invalid abstractions array. Got: ${typeof parsed.abstractions}`);
+    }
+    if (!['low', 'medium', 'high'].includes(parsed.complexity)) {
+      throw new Error(`AI response invalid complexity: ${parsed.complexity}. Must be low, medium, or high`);
+    }
+    if (typeof parsed.description !== 'string' || parsed.description.trim() === '') {
+      throw new Error(`AI response missing or invalid description. Got: ${typeof parsed.description}`);
+    }
+    if (typeof parsed.useCase !== 'string' || parsed.useCase.trim() === '') {
+      throw new Error(`AI response missing or invalid useCase. Got: ${typeof parsed.useCase}`);
+    }
+    if (typeof parsed.confidence !== 'number' || parsed.confidence < 0 || parsed.confidence > 1) {
+      throw new Error(`AI response invalid confidence score: ${parsed.confidence}. Must be number between 0-1`);
+    }
+
+    return {
+      capabilities: parsed.capabilities,
+      providers: parsed.providers,
+      abstractions: parsed.abstractions,
+      complexity: parsed.complexity,
+      description: parsed.description.trim(),
+      useCase: parsed.useCase.trim(),
+      confidence: parsed.confidence
+    };
+  }
+
+  /**
+   * Build final ResourceCapability from AI analysis result
+   */
+  private buildResourceCapability(
+    resourceName: string,
+    aiResult: {
+      capabilities: string[];
+      providers: string[];
+      abstractions: string[];
+      complexity: 'low' | 'medium' | 'high';
+      description: string;
+      useCase: string;
+      confidence: number;
+    }
+  ): ResourceCapability {
+    return {
+      resourceName,
+      capabilities: aiResult.capabilities,
+      providers: aiResult.providers,
+      abstractions: aiResult.abstractions,
+      complexity: aiResult.complexity,
+      description: aiResult.description,
+      useCase: aiResult.useCase,
+      confidence: aiResult.confidence,
+      analyzedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Generate Vector DB ID for capability storage
+   */
+  static generateCapabilityId(resourceName: string): string {
+    return `capability-${resourceName.replace(/[./]/g, '-')}`;
+  }
+}

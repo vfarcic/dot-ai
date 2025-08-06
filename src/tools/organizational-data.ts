@@ -30,6 +30,7 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   
   // Workflow fields for step-by-step pattern creation
   sessionId: z.string().optional().describe('Pattern creation session ID (for continuing multi-step workflow)'),
+  step: z.string().optional().describe('Current workflow step (required when sessionId is provided)'),
   response: z.string().optional().describe('User response to previous workflow step question'),
   
   // Generic fields for get/delete operations
@@ -43,7 +44,10 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
     kind: z.string(),
     group: z.string(),
     apiVersion: z.string()
-  }).optional().describe('Kubernetes resource reference (for capabilities/dependencies operations)')
+  }).optional().describe('Kubernetes resource reference (for capabilities/dependencies operations)'),
+  
+  // Resource list for specific resource scanning
+  resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)')
 };
 
 /**
@@ -486,7 +490,7 @@ async function handlePatternOperation(
 }
 
 /**
- * Handle capabilities operations (placeholder for PRD #48)
+ * Handle capabilities operations - PRD #48 Implementation
  */
 async function handleCapabilitiesOperation(
   operation: string,
@@ -496,26 +500,863 @@ async function handleCapabilitiesOperation(
 ): Promise<any> {
   logger.info('Capabilities operation requested', { requestId, operation });
   
+  switch (operation) {
+    case 'scan':
+      return await handleCapabilityScan(args, logger, requestId);
+    
+    case 'list':
+      return await handleCapabilityList(args, logger, requestId);
+    
+    case 'get':
+      return await handleCapabilityGet(args, logger, requestId);
+    
+    default:
+      return {
+        success: false,
+        operation,
+        dataType: 'capabilities',
+        error: {
+          message: `Unsupported capabilities operation: ${operation}`,
+          supportedOperations: ['scan', 'list', 'get']
+        }
+      };
+  }
+}
+
+/**
+ * Convert numeric response to option value
+ */
+function parseNumericResponse(response: string, validOptions: string[]): string {
+  // If response is a number, map it to the corresponding option
+  const num = parseInt(response, 10);
+  if (!isNaN(num) && num >= 1 && num <= validOptions.length) {
+    return validOptions[num - 1]; // Convert 1-based to 0-based index
+  }
+  // Otherwise return the original response (for backward compatibility)
+  return response;
+}
+
+/**
+ * Capability scanning workflow session with step-based state management
+ */
+interface CapabilityScanSession {
+  sessionId: string;
+  currentStep: 'resource-selection' | 'resource-specification' | 'processing-mode' | 'scanning' | 'complete';
+  selectedResources?: string[] | 'all';
+  resourceList?: string;
+  processingMode?: 'auto' | 'manual';
+  currentResourceIndex?: number; // Track which resource we're currently processing (for multi-resource workflows)
+  startedAt: string;
+  lastActivity: string;
+}
+
+/**
+ * Get session file path following established pattern
+ */
+function getCapabilitySessionPath(sessionId: string, args: any): string {
+  const sessionDir = getAndValidateSessionDirectory(args, false);
+  const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+  
+  // Ensure capability-sessions subdirectory exists
+  if (!fs.existsSync(sessionSubDir)) {
+    fs.mkdirSync(sessionSubDir, { recursive: true });
+  }
+  
+  return path.join(sessionSubDir, `${sessionId}.json`);
+}
+
+/**
+ * Load session from file system following established pattern
+ */
+function loadCapabilitySession(sessionId: string, args: any): CapabilityScanSession | null {
+  try {
+    const sessionPath = getCapabilitySessionPath(sessionId, args);
+    if (!fs.existsSync(sessionPath)) {
+      return null;
+    }
+    
+    const sessionData = fs.readFileSync(sessionPath, 'utf8');
+    const session = JSON.parse(sessionData) as CapabilityScanSession;
+    
+    // Update last activity
+    session.lastActivity = new Date().toISOString();
+    saveCapabilitySession(session, args);
+    
+    return session;
+  } catch (error) {
+    // Log error but don't throw - return null to create new session
+    return null;
+  }
+}
+
+/**
+ * Save session to file system following established pattern
+ */
+function saveCapabilitySession(session: CapabilityScanSession, args: any): void {
+  try {
+    const sessionPath = getCapabilitySessionPath(session.sessionId, args);
+    fs.writeFileSync(sessionPath, JSON.stringify(session, null, 2), 'utf8');
+  } catch (error) {
+    // Log error but don't throw - workflow can continue
+    console.warn('Failed to save capability session:', error);
+  }
+}
+
+/**
+ * Get or create session with file-based persistence
+ */
+function getOrCreateCapabilitySession(sessionId: string | undefined, args: any, logger: Logger, requestId: string): CapabilityScanSession {
+  if (sessionId) {
+    const existing = loadCapabilitySession(sessionId, args);
+    if (existing) {
+      logger.info('Loaded existing capability session', { 
+        requestId, 
+        sessionId, 
+        currentStep: existing.currentStep 
+      });
+      return existing;
+    }
+  }
+  
+  // Create new session
+  const newSessionId = sessionId || `cap-scan-${Date.now()}`;
+  const session: CapabilityScanSession = {
+    sessionId: newSessionId,
+    currentStep: 'resource-selection',
+    startedAt: new Date().toISOString(),
+    lastActivity: new Date().toISOString()
+  };
+  
+  saveCapabilitySession(session, args);
+  logger.info('Created new capability session', { 
+    requestId, 
+    sessionId: newSessionId, 
+    currentStep: session.currentStep 
+  });
+  
+  return session;
+}
+
+/**
+ * Validate client is on the correct step - step parameter is MANDATORY
+ */
+function validateCapabilityStep(session: CapabilityScanSession, clientStep?: string): { valid: boolean; error?: string } {
+  if (!clientStep) {
+    return {
+      valid: false,
+      error: `Step parameter is required. You are currently on step '${session.currentStep}'. Please call with step='${session.currentStep}' and appropriate parameters.`
+    };
+  }
+  
+  if (clientStep !== session.currentStep) {
+    return {
+      valid: false,
+      error: `Step mismatch: you're on step '${session.currentStep}', but called with step '${clientStep}'. Please call with step='${session.currentStep}'.`
+    };
+  }
+  
+  return { valid: true };
+}
+
+/**
+ * Transition session to next step with proper state updates
+ */
+function transitionCapabilitySession(session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: any): void {
+  session.currentStep = nextStep;
+  session.lastActivity = new Date().toISOString();
+  
+  if (updates) {
+    Object.assign(session, updates);
+  }
+  
+  saveCapabilitySession(session, args);
+}
+
+/**
+ * Clean up session file after successful completion
+ */
+function cleanupCapabilitySession(session: CapabilityScanSession, args: any, logger: Logger, requestId: string): void {
+  try {
+    const sessionPath = getCapabilitySessionPath(session.sessionId, args);
+    if (fs.existsSync(sessionPath)) {
+      fs.unlinkSync(sessionPath);
+      logger.info('Capability session cleaned up after completion', { 
+        requestId, 
+        sessionId: session.sessionId 
+      });
+    }
+  } catch (error) {
+    // Log cleanup failure but don't fail the operation
+    logger.warn('Failed to cleanup capability session file', { 
+      requestId, 
+      sessionId: session.sessionId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+/**
+ * Handle capability scanning workflow with step-based state management
+ */
+async function handleCapabilityScan(
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  // Get or create session with step-based state management
+  const session = getOrCreateCapabilitySession(args.sessionId, args, logger, requestId);
+  
+  // Validate client is on correct step - only for existing sessions
+  // New sessions (no sessionId provided) are allowed to start without step parameter
+  // If sessionId is provided, client must follow step-based protocol
+  const clientProvidedSessionId = !!args.sessionId;
+  if (clientProvidedSessionId) {
+    const stepValidation = validateCapabilityStep(session, args.step);
+    if (!stepValidation.valid) {
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Step validation failed',
+          details: stepValidation.error,
+          currentStep: session.currentStep,
+          expectedCall: `Call with step='${session.currentStep}' and appropriate parameters`
+        }
+      };
+    }
+  }
+  
+  // Handle workflow based on current step
+  switch (session.currentStep) {
+    case 'resource-selection':
+      return await handleResourceSelection(session, args, logger, requestId);
+    
+    case 'resource-specification':
+      return await handleResourceSpecification(session, args, logger, requestId);
+    
+    case 'processing-mode':
+      return await handleProcessingMode(session, args, logger, requestId);
+    
+    case 'scanning':
+      return await handleScanning(session, args, logger, requestId);
+    
+    case 'complete':
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Workflow already complete',
+          details: `Session ${session.sessionId} has already completed capability scanning.`,
+          sessionId: session.sessionId
+        }
+      };
+    
+    default:
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Invalid workflow state',
+          details: `Unknown step: ${session.currentStep}`,
+          currentStep: session.currentStep
+        }
+      };
+  }
+}
+
+/**
+ * Handle resource selection step
+ */
+async function handleResourceSelection(
+  session: CapabilityScanSession,
+  args: any,
+  _logger: Logger,
+  _requestId: string
+): Promise<any> {
+  if (!args.response) {
+    // Show initial resource selection prompt
+    return {
+      success: true,
+      operation: 'scan',
+      dataType: 'capabilities',
+      
+      // CRITICAL: Put required parameters at top level for maximum visibility
+      REQUIRED_NEXT_CALL: {
+        tool: 'dot-ai:manageOrgData',
+        parameters: {
+          dataType: 'capabilities',
+          operation: 'scan',
+          sessionId: session.sessionId,
+          step: 'resource-selection',  // MANDATORY PARAMETER
+          response: 'user_choice_here'  // Replace with actual user choice
+        },
+        note: 'The step parameter is MANDATORY when sessionId is provided'
+      },
+      
+      workflow: {
+        step: 'resource-selection',
+        question: 'Scan all cluster resources or specify subset?',
+        options: [
+          { number: 1, value: 'all', display: '1. all - Scan all available cluster resources' },
+          { number: 2, value: 'specific', display: '2. specific - Specify particular resource types to scan' }
+        ],
+        sessionId: session.sessionId,
+        instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select an option.',
+        userPrompt: 'Would you like to scan all cluster resources or specify a subset?',
+        clientInstructions: {
+          behavior: 'interactive',
+          requirement: 'Ask user to choose between options',
+          prohibit: 'Do not auto-select options',
+          nextStep: `Call with step='resource-selection', sessionId='${session.sessionId}', and response parameter containing the semantic value (all or specific)`,
+          responseFormat: 'Convert user input to semantic values: 1→all, 2→specific, or pass through semantic words directly',
+          requiredParameters: {
+            step: 'resource-selection',
+            sessionId: session.sessionId,
+            response: 'user choice (all or specific)'
+          }
+        }
+      }
+    };
+  }
+  
+  // Process user response
+  const normalizedResponse = parseNumericResponse(args.response, ['all', 'specific']);
+  
+  if (normalizedResponse === 'all') {
+    // Transition to processing mode for all resources
+    transitionCapabilitySession(session, 'processing-mode', { selectedResources: 'all' }, args);
+    
+    return {
+      success: true,
+      operation: 'scan',
+      dataType: 'capabilities',
+      
+      // CRITICAL: Put required parameters at top level for maximum visibility
+      REQUIRED_NEXT_CALL: {
+        tool: 'dot-ai:manageOrgData',
+        parameters: {
+          dataType: 'capabilities',
+          operation: 'scan',
+          sessionId: session.sessionId,
+          step: 'processing-mode',  // MANDATORY PARAMETER
+          response: 'user_choice_here'  // Replace with actual user choice
+        },
+        note: 'The step parameter is MANDATORY when sessionId is provided'
+      },
+      
+      workflow: {
+        step: 'processing-mode',
+        question: 'Processing mode: auto (batch process) or manual (review each)?',
+        options: [
+          { number: 1, value: 'auto', display: '1. auto - Batch process automatically' },
+          { number: 2, value: 'manual', display: '2. manual - Review each step' }
+        ],
+        sessionId: session.sessionId,
+        selectedResources: 'all',
+        instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select a processing mode.',
+        userPrompt: 'How would you like to process the resources?',
+        clientInstructions: {
+          behavior: 'interactive',
+          requirement: 'Ask user to choose processing mode',
+          prohibit: 'Do not auto-select processing mode',
+          nextStep: `Call with step='processing-mode', sessionId='${session.sessionId}', and response parameter containing the semantic value (auto or manual)`,
+          responseFormat: 'Convert user input to semantic values: 1→auto, 2→manual, or pass through semantic words directly',
+          requiredParameters: {
+            step: 'processing-mode', 
+            sessionId: session.sessionId,
+            response: 'user choice (auto or manual)'
+          }
+        }
+      }
+    };
+  }
+  
+  if (normalizedResponse === 'specific') {
+    // Transition to resource specification
+    transitionCapabilitySession(session, 'resource-specification', {}, args);
+    
+    return {
+      success: true,
+      operation: 'scan',
+      dataType: 'capabilities',
+      
+      // CRITICAL: Put required parameters at top level for maximum visibility
+      REQUIRED_NEXT_CALL: {
+        tool: 'dot-ai:manageOrgData',
+        parameters: {
+          dataType: 'capabilities',
+          operation: 'scan',
+          sessionId: session.sessionId,
+          step: 'resource-specification',  // MANDATORY PARAMETER
+          resourceList: 'user_resource_list_here'  // Replace with actual resource list
+        },
+        note: 'The step parameter is MANDATORY when sessionId is provided'
+      },
+      
+      workflow: {
+        step: 'resource-specification',
+        question: 'Which resources would you like to scan?',
+        sessionId: session.sessionId,
+        instruction: 'IMPORTANT: You MUST ask the user to specify which resources to scan. Do NOT provide a default list.',
+        userPrompt: 'Please specify which resources you want to scan.',
+        resourceFormat: {
+          description: 'Specify resources using Kubernetes naming convention',
+          format: 'Kind.group for CRDs, Kind for core resources',
+          examples: {
+            crds: ['SQL.devopstoolkit.live', 'Server.dbforpostgresql.azure.upbound.io'],
+            core: ['Pod', 'Service', 'ConfigMap'],
+            apps: ['Deployment.apps', 'StatefulSet.apps']
+          },
+          input: 'Comma-separated list (e.g.: SQL.devopstoolkit.live, Deployment.apps, Pod)'
+        },
+        clientInstructions: {
+          behavior: 'interactive',
+          requirement: 'Ask user to provide specific resource list',
+          prohibit: 'Do not suggest or auto-select resources',
+          nextStep: `Call with step='resource-specification', sessionId='${session.sessionId}', and resourceList parameter`,
+          requiredParameters: {
+            step: 'resource-specification',
+            sessionId: session.sessionId,
+            resourceList: 'comma-separated list of resources'
+          }
+        }
+      }
+    };
+  }
+  
   return {
     success: false,
-    operation,
+    operation: 'scan',
     dataType: 'capabilities',
     error: {
-      message: 'Resource capabilities management not yet implemented',
-      details: 'This feature is planned for PRD #48 - Resource Capabilities Discovery & Integration',
-      status: 'coming-soon',
-      implementationPlan: {
-        prd: 'PRD #48',
-        description: 'Kubernetes resource capability discovery and semantic matching',
-        expectedFeatures: [
-          'Cluster resource scanning',
-          'Capability inference from schemas', 
-          'Semantic resource matching',
-          'Vector DB storage and search'
-        ]
+      message: 'Invalid resource selection response',
+      details: `Expected 'all' or 'specific', got: ${args.response}`,
+      currentStep: session.currentStep
+    }
+  };
+}
+
+/**
+ * Handle resource specification step
+ */
+async function handleResourceSpecification(
+  session: CapabilityScanSession,
+  args: any,
+  _logger: Logger,
+  _requestId: string
+): Promise<any> {
+  if (!args.resourceList) {
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Missing resource list',
+        details: 'Expected resourceList parameter with comma-separated resource names',
+        currentStep: session.currentStep,
+        expectedCall: `Call with step='resource-specification' and resourceList parameter`
       }
+    };
+  }
+  
+  // Parse and validate resource list
+  const resources = args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+  if (resources.length === 0) {
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Empty resource list',
+        details: 'Resource list cannot be empty',
+        currentStep: session.currentStep
+      }
+    };
+  }
+  
+  // Transition to processing mode for specific resources
+  transitionCapabilitySession(session, 'processing-mode', { 
+    selectedResources: resources,
+    resourceList: args.resourceList 
+  }, args);
+  
+  return {
+    success: true,
+    operation: 'scan',
+    dataType: 'capabilities',
+    
+    // CRITICAL: Put required parameters at top level for maximum visibility
+    REQUIRED_NEXT_CALL: {
+      tool: 'dot-ai:manageOrgData',
+      parameters: {
+        dataType: 'capabilities',
+        operation: 'scan',
+        sessionId: session.sessionId,
+        step: 'processing-mode',  // MANDATORY PARAMETER
+        response: 'user_choice_here'  // Replace with actual user choice
+      },
+      note: 'The step parameter is MANDATORY when sessionId is provided'
     },
-    message: 'Capabilities management will be available after PRD #48 implementation'
+    
+    workflow: {
+      step: 'processing-mode',
+      question: `Processing mode for ${resources.length} selected resources: auto (batch process) or manual (review each)?`,
+      options: [
+        { number: 1, value: 'auto', display: '1. auto - Batch process automatically' },
+        { number: 2, value: 'manual', display: '2. manual - Review each step' }
+      ],
+      sessionId: session.sessionId,
+      selectedResources: resources,
+      instruction: 'IMPORTANT: You MUST ask the user to choose processing mode for the specified resources.',
+      userPrompt: `How would you like to process these ${resources.length} resources?`,
+      clientInstructions: {
+        behavior: 'interactive',
+        requirement: 'Ask user to choose processing mode for specific resources',
+        context: `Processing ${resources.length} user-specified resources: ${resources.join(', ')}`,
+        prohibit: 'Do not auto-select processing mode',
+        nextStep: `Call with step='processing-mode', sessionId='${session.sessionId}', and response parameter containing the semantic value (auto or manual)`,
+        responseFormat: 'Convert user input to semantic values: 1→auto, 2→manual, or pass through semantic words directly',
+        requiredParameters: {
+          step: 'processing-mode',
+          sessionId: session.sessionId,
+          response: 'user choice (auto or manual)'
+        }
+      }
+    }
+  };
+}
+
+/**
+ * Handle processing mode step
+ */
+async function handleProcessingMode(
+  session: CapabilityScanSession,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  if (!args.response) {
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Missing processing mode response',
+        details: 'Expected response parameter with processing mode choice',
+        currentStep: session.currentStep,
+        expectedCall: `Call with step='processing-mode' and response parameter (auto or manual)`
+      }
+    };
+  }
+  
+  // Process user response
+  const processingModeResponse = parseNumericResponse(args.response, ['auto', 'manual']);
+  
+  if (processingModeResponse !== 'auto' && processingModeResponse !== 'manual') {
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Invalid processing mode response',
+        details: `Expected 'auto' or 'manual', got: ${args.response}`,
+        currentStep: session.currentStep
+      }
+    };
+  }
+  
+  // Transition to scanning with processing mode and initialize resource tracking
+  transitionCapabilitySession(session, 'scanning', { 
+    processingMode: processingModeResponse,
+    currentResourceIndex: 0  // Start with first resource
+  }, args);
+  
+  // Begin actual capability scanning - clear response from previous step
+  return await handleScanning(session, { ...args, response: undefined }, logger, requestId);
+}
+
+/**
+ * Handle scanning step (actual capability analysis)
+ */
+async function handleScanning(
+  session: CapabilityScanSession,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  try {
+    // If this is a response to a manual mode preview, handle it first
+    if (session.processingMode === 'manual' && args.response) {
+      const userResponse = parseNumericResponse(args.response, ['yes', 'no', 'stop']);
+      
+      if (userResponse === 'stop') {
+        // User wants to stop scanning
+        transitionCapabilitySession(session, 'complete', {}, args);
+        cleanupCapabilitySession(session, args, logger, requestId);
+        
+        const currentIndex = session.currentResourceIndex || 0;
+        const totalResources = Array.isArray(session.selectedResources) ? session.selectedResources.length : 1;
+        
+        return {
+          success: true,
+          operation: 'scan',
+          dataType: 'capabilities',
+          step: 'complete',
+          sessionId: session.sessionId,
+          results: {
+            processed: currentIndex, // Resources processed so far
+            successful: currentIndex, // Assume all successful for now
+            failed: 0,
+            stopped: true,
+            message: `Scanning stopped by user after ${currentIndex} of ${totalResources} resources`
+          },
+          message: 'Capability scan stopped by user'
+        };
+      }
+      
+      if (userResponse === 'yes' || userResponse === 'no') {
+        // TODO: If 'yes', store the capability in Vector DB (Milestone 2)
+        // For now, just log the decision
+        logger.info(`User ${userResponse === 'yes' ? 'accepted' : 'skipped'} capability for resource`, {
+          requestId,
+          sessionId: session.sessionId,
+          resourceIndex: session.currentResourceIndex,
+          decision: userResponse
+        });
+        
+        // Move to the next resource
+        const nextIndex = (session.currentResourceIndex || 0) + 1;
+        transitionCapabilitySession(session, 'scanning', { currentResourceIndex: nextIndex }, args);
+        
+        // Continue processing (will handle the next resource or complete if done)
+        return await handleScanning(session, { ...args, response: undefined }, logger, requestId);
+      }
+      
+      // Invalid response
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Invalid response to capability preview',
+          details: `Expected 'yes', 'no', or 'stop', got: ${args.response}`,
+          currentStep: session.currentStep
+        }
+      };
+    }
+    // Import capability engine
+    const { CapabilityInferenceEngine } = await import('../core/capabilities');
+    const { ClaudeIntegration } = await import('../core/claude');
+    
+    // Validate Claude API key
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'ANTHROPIC_API_KEY required for capability inference',
+          details: 'Set ANTHROPIC_API_KEY environment variable to enable AI-powered capability analysis'
+        }
+      };
+    }
+    
+    // Initialize capability engine
+    const claudeIntegration = new ClaudeIntegration(apiKey);
+    const engine = new CapabilityInferenceEngine(claudeIntegration, logger);
+    
+    // Get the resource to analyze
+    let resourceName: string;
+    let currentIndex: number;
+    let totalResources: number;
+    
+    if (session.selectedResources === 'all') {
+      // For 'all' mode, use a sample resource (could be enhanced to discover actual resources)
+      resourceName = 'SQL.devopstoolkit.live';
+      currentIndex = 1;
+      totalResources = 1;
+    } else if (Array.isArray(session.selectedResources)) {
+      // Get the current resource based on currentResourceIndex
+      currentIndex = session.currentResourceIndex || 0;
+      totalResources = session.selectedResources.length;
+      
+      if (currentIndex >= totalResources) {
+        // All resources processed - mark as complete
+        transitionCapabilitySession(session, 'complete', {}, args);
+        cleanupCapabilitySession(session, args, logger, requestId);
+        
+        return {
+          success: true,
+          operation: 'scan',
+          dataType: 'capabilities',
+          step: 'complete',
+          sessionId: session.sessionId,
+          results: {
+            processed: totalResources,
+            successful: totalResources, // Assume all successful for now
+            failed: 0,
+            message: `Completed scanning ${totalResources} resources`
+          },
+          message: 'Capability scan completed successfully'
+        };
+      }
+      
+      resourceName = session.selectedResources[currentIndex];
+      if (!resourceName) {
+        throw new Error(`No resource found at index ${currentIndex}`);
+      }
+    } else {
+      throw new Error('Invalid selectedResources in session state');
+    }
+    
+    // Generate a context-rich prompt for the AI
+    const resourceContext = `
+Resource Name: ${resourceName}
+Context: This is a Kubernetes resource that the user wants to analyze for capabilities.
+The AI should infer what this resource does based on its name and provide comprehensive capability analysis.`;
+    
+    logger.info('Analyzing resource for capability inference', { 
+      requestId, 
+      sessionId: session.sessionId,
+      resource: resourceName,
+      mode: session.processingMode
+    });
+    
+    if (session.processingMode === 'manual') {
+      // Manual mode: Show capability data for user review
+      const capability = await engine.inferCapabilities(resourceName, resourceContext);
+      const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      
+      return {
+        success: true,
+        operation: 'scan',
+        dataType: 'capabilities',
+        mode: 'manual',
+        step: 'scanning',
+        sessionId: session.sessionId,
+        preview: {
+          resource: resourceName,
+          resourceIndex: `${currentIndex + 1}/${totalResources}`,
+          id: capabilityId,
+          data: capability,
+          question: 'Continue storing this capability?',
+          options: [
+            { number: 1, value: 'yes', display: '1. yes - Store this capability' },
+            { number: 2, value: 'no', display: '2. no - Skip this resource' },
+            { number: 3, value: 'stop', display: '3. stop - End scanning process' }
+          ],
+          instruction: 'Review the capability analysis results before storing',
+          clientInstructions: {
+            behavior: 'interactive',
+            requirement: 'Ask user to review capability data and decide on storage',
+            nextStep: `Call with step='scanning' and response parameter containing their choice (yes/no/stop)`,
+            responseFormat: 'Convert user input to semantic values: 1→yes, 2→no, 3→stop'
+          }
+        }
+      };
+    } else {
+      // Auto mode: Process and store capability
+      const capability = await engine.inferCapabilities(resourceName, resourceContext);
+      const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      
+      // TODO: Store in Vector DB (Milestone 2)
+      logger.info('Capability analysis completed', {
+        requestId,
+        sessionId: session.sessionId,
+        resource: resourceName,
+        capabilityId,
+        capabilitiesFound: capability.capabilities.length,
+        confidence: capability.confidence
+      });
+      
+      // Mark session as complete and cleanup
+      transitionCapabilitySession(session, 'complete', {}, args);
+      cleanupCapabilitySession(session, args, logger, requestId);
+      
+      return {
+        success: true,
+        operation: 'scan',
+        dataType: 'capabilities',
+        mode: 'auto',
+        step: 'complete',
+        sessionId: session.sessionId,
+        results: {
+          processed: 1,
+          successful: 1,
+          failed: 0,
+          sample: {
+            resource: resourceName,
+            id: capabilityId,
+            capabilities: capability.capabilities,
+            providers: capability.providers,
+            complexity: capability.complexity,
+            confidence: capability.confidence
+          }
+        },
+        message: 'Capability scan completed successfully'
+      };
+    }
+    
+  } catch (error) {
+    logger.error('Capability scanning failed', error as Error, { 
+      requestId, 
+      sessionId: session.sessionId 
+    });
+    
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      step: 'scanning',
+      sessionId: session.sessionId,
+      error: {
+        message: 'Capability scanning failed',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+
+/**
+ * Handle capability listing (placeholder for future implementation)
+ */
+async function handleCapabilityList(
+  _args: any,
+  _logger: Logger,
+  _requestId: string
+): Promise<any> {
+  return {
+    success: false,
+    operation: 'list',
+    dataType: 'capabilities',
+    error: {
+      message: 'Capability listing not yet implemented',
+      details: 'Will be available in Milestone 2 - Vector DB storage integration'
+    }
+  };
+}
+
+/**
+ * Handle capability retrieval (placeholder for future implementation)
+ */
+async function handleCapabilityGet(
+  _args: any,
+  _logger: Logger,
+  _requestId: string
+): Promise<any> {
+  return {
+    success: false,
+    operation: 'get',
+    dataType: 'capabilities',
+    error: {
+      message: 'Capability retrieval not yet implemented',
+      details: 'Will be available in Milestone 2 - Vector DB storage integration'
+    }
   };
 }
 
