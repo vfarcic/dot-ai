@@ -357,6 +357,38 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 **Rationale**: Follows K8s conventions, enables tracking capability changes across schema versions
 **Impact**: Affects Vector DB storage implementation and capability retrieval logic
 
+#### Interface Simplification (2025-08-06)
+**Decision**: Replace ResourceReference object parsing with direct string-based resource names
+- Remove complex `kind`, `group`, `apiVersion` field parsing
+- AI works directly with full resource names (e.g., "resourcegroups.azure.upbound.io")
+- Eliminate unnecessary ResourceReference interface and associated parsing logic
+**Rationale**: AI can understand full resource names without manual parsing, reducing complexity and potential parsing errors
+**Impact**: Simplifies implementation, improves maintainability, reduces brittle parsing code, makes system more flexible for various resource naming conventions
+
+#### Natural Language Capability Tags (2025-08-06)
+**Decision**: Use natural language phrases instead of hyphenated terms in capability tags
+- Store "high availability" instead of "high-availability"
+- Store "managed service" instead of "managed-service" 
+- Store "object storage" instead of "object-storage"
+**Rationale**: Matches how users naturally think and search ("I want high availability" not "I want high-availability")
+**Impact**: Improves user experience, better semantic search compatibility, more intuitive capability discovery
+
+#### Workflow State Management (2025-08-06)
+**Decision**: Clear response parameters when transitioning between workflow steps
+- Prevent response data from previous step contaminating next step logic
+- Explicitly pass `{ ...args, response: undefined }` during step transitions
+- Maintain clean state boundaries between workflow phases
+**Rationale**: Fixes critical bug where "manual" response from processing-mode step was incorrectly interpreted as capability preview response
+**Impact**: Ensures workflow state integrity, prevents parameter contamination bugs, improves workflow reliability
+
+#### Vector DB ID Format Revision (2025-08-06)
+**Decision**: Simplify Vector DB ID format to use resource names directly
+- Updated format: `capability-{resourceName}` with dots/slashes replaced by dashes
+- Example: `capability-resourcegroups-azure-upbound-io` 
+- Remove apiVersion tracking from ID format
+**Rationale**: Aligns with simplified interface approach, easier to generate and debug
+**Impact**: Affects Vector DB storage keys, simpler ID generation logic
+
 ## Dependencies and Assumptions
 
 ### Technical Dependencies
@@ -484,3 +516,9 @@ This PRD ensures that users requesting database solutions will find the optimal 
 - **Performance Optimization**: Large-scale capability analysis optimization after core features complete
 
 **Current Status**: 70% complete (10 of 14 total milestone items) - Core inference engine ready for Vector DB integration
+
+**Design Decisions Documented**: Added 4 major architectural decisions to decision log:
+- Interface simplification (ResourceReference → string-based)  
+- Natural language capability tags for better UX
+- Workflow state management improvements
+- Vector DB ID format revision
