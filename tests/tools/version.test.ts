@@ -30,12 +30,33 @@ jest.mock('../../src/core/pattern-vector-service', () => ({
   }))
 }));
 
+jest.mock('../../src/core/capability-vector-service', () => ({
+  CapabilityVectorService: jest.fn().mockImplementation(() => ({
+    healthCheck: jest.fn().mockResolvedValue(true),
+    initialize: jest.fn().mockResolvedValue(undefined),
+    getCapabilitiesCount: jest.fn().mockResolvedValue(3),
+    storeCapability: jest.fn().mockResolvedValue(undefined),
+    getCapability: jest.fn().mockResolvedValue({
+      resourceName: 'test.version.diagnostic',
+      capabilities: ['version-test'],
+      providers: ['test'],
+      abstractions: ['diagnostic'],
+      complexity: 'low',
+      description: 'Version tool diagnostic test capability',
+      useCase: 'Testing capability storage pipeline',
+      confidence: 100
+    }),
+    deleteCapability: jest.fn().mockResolvedValue(undefined)
+  }))
+}));
+
 jest.mock('../../src/core/embedding-service', () => ({
   EmbeddingService: jest.fn().mockImplementation(() => ({
+    isAvailable: jest.fn().mockReturnValue(false), // For capability system check
     getStatus: jest.fn().mockReturnValue({
       available: false,
       provider: null,
-      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+      reason: 'OPENAI_API_KEY not set - vector operations will fail'
     })
   }))
 }));
@@ -197,7 +218,7 @@ describe('Version Tool', () => {
       expect(response.system.embedding).toMatchObject({
         available: false,
         provider: null,
-        reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+        reason: 'OPENAI_API_KEY not set - vector operations will fail'
       });
       
       // Check Anthropic status
@@ -206,12 +227,40 @@ describe('Version Tool', () => {
         keyConfigured: true
       });
       
-      // Check summary
-      expect(response.summary.overall).toBe('healthy');
+      // Check capability system status
+      expect(response.system.capabilities).toMatchObject({
+        systemReady: false, // Not ready because embeddings unavailable
+        vectorDBHealthy: true,
+        collectionAccessible: true,
+        storedCount: 3
+      });
+      
+      // Check summary - overall should be degraded because capability system not ready
+      expect(response.summary.overall).toBe('degraded');
       expect(response.summary.patternSearch).toBe('keyword-only');
+      expect(response.summary.capabilityScanning).toBe('not-ready');
       expect(response.summary.capabilities).toContain('pattern-management');
       expect(response.summary.capabilities).toContain('ai-recommendations');
+      expect(response.summary.capabilities).not.toContain('capability-scanning'); // Not ready
       expect(response.summary.capabilities).not.toContain('semantic-search');
+    });
+
+    it('should show capability system diagnostics when embeddings unavailable', async () => {
+      // Test that capability system shows as not ready when embeddings unavailable
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+
+      const result = await handleVersionTool({}, logger, requestId);
+      const response = JSON.parse(result.content[0].text);
+
+      expect(response.status).toBe('success');
+      expect(response.system.capabilities).toMatchObject({
+        systemReady: false,
+        vectorDBHealthy: true,
+        collectionAccessible: true,
+        storedCount: 3
+      });
+      expect(response.summary.capabilityScanning).toBe('not-ready');
+      expect(response.summary.capabilities).not.toContain('capability-scanning');
     });
 
     it('should show degraded status when Anthropic API key is missing', async () => {
@@ -286,6 +335,76 @@ describe('Version Tool', () => {
       expect(response.system.anthropic.connected).toBe(false);
       expect(response.system.anthropic.keyConfigured).toBe(true);
       expect(response.system.anthropic.error).toContain('API rate limit exceeded');
+    });
+
+    it('should detect capability storage failures', async () => {
+      // Mock embedding service to return valid embeddings
+      const mockEmbeddingService = require('../../src/core/embedding-service').EmbeddingService;
+      mockEmbeddingService.mockImplementation(() => ({
+        isAvailable: jest.fn().mockReturnValue(true),
+        generateEmbedding: jest.fn().mockResolvedValue(new Array(1536).fill(0.1)),
+        getStatus: jest.fn().mockReturnValue({
+          available: true,
+          provider: 'openai',
+          reason: 'API key available'
+        })
+      }));
+
+      // Mock a storage failure scenario
+      const mockCapabilityService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      mockCapabilityService.mockImplementation(() => ({
+        healthCheck: jest.fn().mockResolvedValue(true),
+        initialize: jest.fn().mockResolvedValue(undefined),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(0),
+        storeCapability: jest.fn().mockRejectedValue(new Error('Bad Request')),
+        getCapability: jest.fn().mockResolvedValue(null),
+        deleteCapability: jest.fn().mockResolvedValue(undefined)
+      }));
+
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      const result = await handleVersionTool({}, logger, requestId);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.status).toBe('success');
+      expect(response.system.capabilities).toMatchObject({
+        systemReady: false,
+        vectorDBHealthy: true,
+        collectionAccessible: true,
+        storedCount: 0,
+        error: expect.stringContaining('Vector dimension mismatch detected')
+      });
+      expect(response.summary.capabilityScanning).toBe('not-ready');
+      expect(response.summary.capabilities).not.toContain('capability-scanning');
+      
+      // Reset mocks for other tests
+      mockCapabilityService.mockImplementation(() => ({
+        healthCheck: jest.fn().mockResolvedValue(true),
+        initialize: jest.fn().mockResolvedValue(undefined),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(3),
+        storeCapability: jest.fn().mockResolvedValue(undefined),
+        getCapability: jest.fn().mockResolvedValue({
+          resourceName: 'test.version.diagnostic',
+          capabilities: ['version-test'],
+          providers: ['test'],
+          abstractions: ['diagnostic'],
+          complexity: 'low',
+          description: 'Version tool diagnostic test capability',
+          useCase: 'Testing capability storage pipeline',
+          confidence: 100
+        }),
+        deleteCapability: jest.fn().mockResolvedValue(undefined)
+      }));
+
+      // Reset embedding service mock
+      mockEmbeddingService.mockImplementation(() => ({
+        isAvailable: jest.fn().mockReturnValue(false),
+        getStatus: jest.fn().mockReturnValue({
+          available: false,
+          provider: null,
+          reason: 'OPENAI_API_KEY not set - vector operations will fail'
+        })
+      }));
     });
 
     it('should log diagnostic progress', async () => {

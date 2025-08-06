@@ -247,6 +247,39 @@ When applying updates:
 4. **Preserve unchecked items** that still need work
 5. **Update completion percentages** realistically
 
+## Step 7.5: Code Example Validation
+
+When updating PRDs based on implementation progress:
+
+**CRITICAL**: Always check if code examples in PRD match current implementation
+
+### Example Impact Detection
+1. **Interface Changes**: Function signatures, parameter types, return formats
+2. **API Evolution**: Method names, class structures, data models
+3. **Workflow Updates**: User interaction patterns, step sequences
+4. **Integration Changes**: How components connect and communicate
+
+### Code Example Update Process
+1. **Scan PRD**: Identify all code snippets and examples
+2. **Cross-reference Implementation**: Compare examples with actual code
+3. **Mark Outdated**: Flag examples that no longer match
+4. **Priority Assessment**: Determine which examples need immediate updates
+5. **Update Examples**: Revise code snippets to match current implementation
+6. **Validate Examples**: Test updated examples to ensure they work
+
+### Example Categories to Check
+- **Function calls**: Parameter order, types, names
+- **Interface definitions**: TypeScript interfaces, class structures
+- **API responses**: Data formats, field names, response structures  
+- **Workflow steps**: User interaction sequences, tool usage patterns
+- **Configuration**: Setup examples, environment variables, config files
+
+### When to Update Examples
+- **Immediately**: When interface changes break existing examples
+- **Before completion**: When marking implementation milestones complete
+- **During reviews**: When validating PRD accuracy
+- **User feedback**: When someone reports examples don't work
+
 ## Step 8: Commit Progress Updates
 
 After successfully updating the PRD, commit all changes to preserve the progress checkpoint:

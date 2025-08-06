@@ -158,6 +158,7 @@ export { PatternCreationSessionManager } from './pattern-creation-session';
 export { VectorDBService, VectorDBConfig, VectorDocument, SearchResult } from './vector-db-service';
 export { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
+export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, OpenAIEmbeddingProvider } from './embedding-service';
 
 // Default export

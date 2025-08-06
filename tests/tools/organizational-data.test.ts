@@ -20,7 +20,7 @@ const mockInitialize = jest.fn().mockResolvedValue(undefined);
 const mockGetSearchMode = jest.fn().mockReturnValue({
   semantic: false,
   provider: null,
-  reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+  reason: 'OPENAI_API_KEY not set - vector operations will fail'
 });
 
 // Mock the imports at the module level
@@ -83,6 +83,25 @@ jest.mock('../../src/core/capabilities', () => ({
 const mockCapabilityInferenceEngine = require('../../src/core/capabilities').CapabilityInferenceEngine;
 mockCapabilityInferenceEngine.generateCapabilityId = jest.fn().mockReturnValue('mock-capability-id');
 
+// Mock CapabilityVectorService
+jest.mock('../../src/core/capability-vector-service', () => ({
+  CapabilityVectorService: jest.fn().mockImplementation(() => ({
+    initialize: jest.fn().mockResolvedValue(undefined),
+    healthCheck: jest.fn().mockResolvedValue(true), // Add healthCheck for upfront validation
+    storeCapability: jest.fn().mockResolvedValue(undefined),
+    getCapability: jest.fn().mockResolvedValue({
+      resourceName: 'test.resource',
+      capabilities: ['test'],
+      providers: ['azure'],
+      complexity: 'low',
+      confidence: 85
+    }),
+    getAllCapabilities: jest.fn().mockResolvedValue([]),
+    getCapabilitiesCount: jest.fn().mockResolvedValue(0),
+    searchCapabilities: jest.fn().mockResolvedValue([])
+  }))
+}));
+
 // Create a test logger
 const testLogger: Logger = {
   info: jest.fn(),
@@ -115,7 +134,7 @@ describe('Organizational Data Tool', () => {
     mockGetSearchMode.mockReturnValue({
       semantic: false,
       provider: null,
-      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+      reason: 'OPENAI_API_KEY not set - vector operations will fail'
     });
 
     // Reset embedding service mocks to default (available) state
@@ -128,7 +147,7 @@ describe('Organizational Data Tool', () => {
     } : {
       available: false,
       provider: null,
-      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+      reason: 'OPENAI_API_KEY not set - vector operations will fail'
     });
 
     // Clear all mocks
@@ -564,7 +583,7 @@ describe('Organizational Data Tool', () => {
       expect(response.workflow.clientInstructions.responseFormat).toContain('Convert user input to semantic values');
     });
 
-    it('should return error for capabilities list operation (not yet implemented)', async () => {
+    it('should successfully list capabilities (now implemented)', async () => {
       const result = await handleOrganizationalDataTool(
         {
           dataType: 'capabilities',
@@ -576,19 +595,19 @@ describe('Organizational Data Tool', () => {
       );
 
       const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
+      expect(response.success).toBe(true);
       expect(response.operation).toBe('list');
       expect(response.dataType).toBe('capabilities');
-      expect(response.error.message).toContain('Capability listing not yet implemented');
-      expect(response.error.details).toContain('Milestone 2');
+      expect(response.data).toBeDefined();
+      expect(response.metadata.returned).toBe(0); // Mock returns empty array
     });
 
-    it('should return error for capabilities get operation (not yet implemented)', async () => {
+    it('should return error for capabilities get operation without resourceName parameter', async () => {
       const result = await handleOrganizationalDataTool(
         {
           dataType: 'capabilities',
           operation: 'get',
-          id: 'capability-test-id'
+          id: 'capability-test-id' // Wrong parameter name
         },
         null,
         testLogger,
@@ -599,8 +618,120 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(false);
       expect(response.operation).toBe('get');
       expect(response.dataType).toBe('capabilities');
-      expect(response.error.message).toContain('Capability retrieval not yet implemented');
-      expect(response.error.details).toContain('Milestone 2');
+      expect(response.error.message).toContain('Missing required parameter: resourceName');
+    });
+
+    it('should successfully get capability with resourceName parameter', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'get',
+          resourceName: 'test.resource'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-9'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('get');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.data.resourceName).toBe('test.resource');
+      expect(response.data.capabilities).toEqual(['test']);
+    });
+
+    it('should provide immediate error feedback when Vector DB is unavailable', async () => {
+      // Mock capability service to return unhealthy Vector DB
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(false), // Vector DB unhealthy
+        storeCapability: jest.fn().mockResolvedValue(undefined),
+        getCapability: jest.fn().mockResolvedValue(null),
+        getAllCapabilities: jest.fn().mockResolvedValue([]),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(0),
+        searchCapabilities: jest.fn().mockResolvedValue([])
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-vector-db-fail'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('scan');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toContain('Vector DB (Qdrant) connection required');
+      expect(response.error.setup.docker).toBe('docker run -p 6333:6333 qdrant/qdrant');
+      expect(response.error.currentConfig.status).toBe('connection failed');
+    });
+
+    it('should provide immediate error feedback when Vector DB connection fails', async () => {
+      // Mock capability service to throw connection error
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockRejectedValue(new Error('Connection refused')), // Connection error
+        storeCapability: jest.fn().mockResolvedValue(undefined),
+        getCapability: jest.fn().mockResolvedValue(null),
+        getAllCapabilities: jest.fn().mockResolvedValue([]),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(0),
+        searchCapabilities: jest.fn().mockResolvedValue([])
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-connection-error'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('scan');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toContain('Vector DB (Qdrant) connection failed');
+      expect(response.error.technicalDetails).toBe('Connection refused');
+      expect(response.error.setup.docker).toBe('docker run -p 6333:6333 qdrant/qdrant');
+    });
+
+    it('should provide immediate error feedback when OpenAI API is unavailable', async () => {
+      // Mock embedding service to be unavailable
+      mockIsAvailable.mockReturnValueOnce(false);
+      mockGetStatus.mockReturnValueOnce({
+        available: false,
+        reason: 'OPENAI_API_KEY not set',
+        model: null,
+        provider: null
+      });
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-openai-fail'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('scan');
+      expect(response.dataType).toBe('capabilities');
+      // Verify it's checking for OpenAI API - exact message may vary from validateEmbeddingService
+      expect(response.error.message).toContain('OpenAI API');
+      expect(response.error.setup || response.error.currentConfig).toBeDefined(); // Should have setup guidance
     });
 
     it('should handle numeric responses for workflow options', async () => {
@@ -793,7 +924,99 @@ describe('Organizational Data Tool', () => {
       expect(response2.success).toBe(true);
       expect(response2.operation).toBe('scan');
       expect(response2.dataType).toBe('capabilities');
-      // Should trigger capability scanning in auto mode
+      expect(response2.mode).toBe('auto');
+      expect(response2.step).toBe('complete');
+      expect(response2.results.processed).toBeGreaterThan(0);
+      expect(response2.results.successful).toBe(response2.results.processed);
+      expect(response2.message).toContain('completed successfully');
+    });
+
+    it('should process multiple resources in auto mode without user interaction', async () => {
+      // Test that auto mode processes ALL resources in a single call
+      const testResources = [
+        'resourcegroups.azure.upbound.io',
+        'servers.dbforpostgresql.azure.upbound.io', 
+        'firewallrules.dbforpostgresql.azure.upbound.io'
+      ];
+
+      // Create session with specific resources
+      const startResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan'
+        },
+        null,
+        testLogger,
+        'test-multi-resource-auto-1'
+      );
+
+      const startResponse = JSON.parse(startResult.content[0].text);
+      const sessionId = startResponse.workflow.sessionId;
+
+      // Select specific resources
+      const specResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities', 
+          operation: 'scan',
+          sessionId,
+          step: 'resource-selection',
+          response: 'specific'
+        },
+        null,
+        testLogger,
+        'test-multi-resource-auto-2'
+      );
+
+      const specResponse = JSON.parse(specResult.content[0].text);
+      expect(specResponse.workflow.step).toBe('resource-specification');
+
+      // Provide resource list
+      const listResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan', 
+          sessionId,
+          step: 'resource-specification',
+          resourceList: testResources.join(', ')
+        },
+        null,
+        testLogger,
+        'test-multi-resource-auto-3'
+      );
+
+      const listResponse = JSON.parse(listResult.content[0].text);
+      expect(listResponse.workflow.step).toBe('processing-mode');
+      expect(listResponse.workflow.selectedResources).toEqual(testResources);
+
+      // Select AUTO mode - should process ALL resources without stopping
+      const autoResult = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'scan',
+          sessionId,
+          step: 'processing-mode', 
+          response: 'auto'
+        },
+        null,
+        testLogger,
+        'test-multi-resource-auto-4'
+      );
+
+      const autoResponse = JSON.parse(autoResult.content[0].text);
+      
+      // Verify auto mode completed ALL resources in single call
+      expect(autoResponse.success).toBe(true);
+      expect(autoResponse.mode).toBe('auto');
+      expect(autoResponse.step).toBe('complete');
+      expect(autoResponse.results.processed).toBe(3); // All 3 resources
+      expect(autoResponse.results.successful).toBe(3);
+      expect(autoResponse.results.failed).toBe(0);
+      expect(autoResponse.results.processedResources).toHaveLength(3);
+      expect(autoResponse.message).toContain('completed successfully');
+      
+      // Verify all resources were processed
+      const processedResourceNames = autoResponse.results.processedResources.map((r: any) => r.resource);
+      expect(processedResourceNames).toEqual(expect.arrayContaining(testResources));
     });
 
     it('should prevent the workflow bug with proper step validation', async () => {
@@ -1110,7 +1333,7 @@ describe('Organizational Data Tool', () => {
       mockGetStatus.mockReturnValue({
         available: false,
         provider: null,
-        reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+        reason: 'OPENAI_API_KEY not set - vector operations will fail'
       });
 
       const result = await handleOrganizationalDataTool(
@@ -1146,7 +1369,7 @@ describe('Organizational Data Tool', () => {
       mockGetStatus.mockReturnValue({
         available: false,
         provider: null,
-        reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+        reason: 'OPENAI_API_KEY not set - vector operations will fail'
       });
 
       const result = await handleOrganizationalDataTool(

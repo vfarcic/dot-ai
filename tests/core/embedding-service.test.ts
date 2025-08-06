@@ -151,11 +151,10 @@ describe('EmbeddingService', () => {
   });
 
   describe('EmbeddingService Integration', () => {
-    it('should return null when no provider available', async () => {
+    it('should throw error when no provider available', async () => {
       const service = new EmbeddingService();
-      const result = await service.generateEmbedding('test text');
       
-      expect(result).toBeNull();
+      await expect(service.generateEmbedding('test text')).rejects.toThrow('Embedding service not available');
     });
 
     it('should use OpenAI provider when API key available', async () => {
@@ -182,14 +181,13 @@ describe('EmbeddingService', () => {
       expect(service2.isAvailable()).toBe(true);
     });
 
-    it('should handle embedding errors gracefully', async () => {
+    it('should throw error when embedding generation fails', async () => {
       process.env.OPENAI_API_KEY = 'test-key';
       mockCreate.mockRejectedValue(new Error('Network error'));
 
       const service = new EmbeddingService();
-      const result = await service.generateEmbedding('test text');
       
-      expect(result).toBeNull(); // Graceful fallback
+      await expect(service.generateEmbedding('test text')).rejects.toThrow('Embedding generation failed: OpenAI embedding failed: Network error');
     });
 
     it('should provide correct status information', () => {

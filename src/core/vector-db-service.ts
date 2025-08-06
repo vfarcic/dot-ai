@@ -143,16 +143,13 @@ export class VectorDBService {
     try {
       const point: any = {
         id: document.id,
-        payload: document.payload
+        payload: document.payload,
+        vector: document.vector
       };
 
-      // For documents without vectors, use a zero vector as placeholder
-      // This allows us to store documents in collections configured for vectors
-      if (document.vector && document.vector.length > 0) {
-        point.vector = document.vector;
-      } else {
-        // Create a zero vector with the expected dimensions (384)
-        point.vector = new Array(384).fill(0);
+      // Validate vector is provided
+      if (!document.vector || document.vector.length === 0) {
+        throw new Error('Vector is required for vector database storage');
       }
 
       await this.client.upsert(this.collectionName, {

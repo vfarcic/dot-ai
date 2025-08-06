@@ -65,15 +65,18 @@ export abstract class BaseVectorService<T> {
     const searchText = this.createSearchText(data);
     const id = this.extractId(data);
     
-    // Try to generate embedding if service is available
-    let embedding: number[] | null = null;
+    // Generate embedding - required for vector storage
+    let embedding: number[];
     if (this.embeddingService.isAvailable()) {
       try {
         embedding = await this.embeddingService.generateEmbedding(searchText);
       } catch (error) {
-        // Log but don't fail - fall back to keyword-only storage
-        console.warn(`Failed to generate embedding for ${this.collectionName}, using keyword-only storage:`, error);
+        // Fail immediately with clear error about embedding generation
+        throw new Error(`Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
       }
+    } else {
+      // Embedding service not available - fail with clear error
+      throw new Error('Embedding service not available - cannot store data in vector collection');
     }
 
     const document: VectorDocument = {
@@ -81,9 +84,9 @@ export abstract class BaseVectorService<T> {
       payload: {
         ...this.createPayload(data),
         searchText: searchText,
-        hasEmbedding: embedding !== null
+        hasEmbedding: true
       },
-      vector: embedding || undefined
+      vector: embedding
     };
 
     await this.vectorDB.upsertDocument(document);
@@ -96,6 +99,11 @@ export abstract class BaseVectorService<T> {
     query: string, 
     options: BaseSearchOptions = {}
   ): Promise<BaseSearchResult<T>[]> {
+    // Fail immediately if embedding service not available - no graceful fallback
+    if (!this.embeddingService.isAvailable()) {
+      throw new Error('Embedding service not available - cannot perform semantic search');
+    }
+
     // Extract keywords for keyword search
     const queryKeywords = this.extractKeywords(query);
     
@@ -106,18 +114,13 @@ export abstract class BaseVectorService<T> {
     const limit = options.limit || 10;
     const scoreThreshold = options.scoreThreshold || 0.1;
     
-    // Try semantic search first if embeddings available
-    if (this.embeddingService.isAvailable()) {
-      try {
-        return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold });
-      } catch (error) {
-        // Fall back to keyword-only search if semantic search fails
-        console.warn('Semantic search failed, falling back to keyword search:', error);
-      }
+    // Perform hybrid search (semantic + keyword)
+    try {
+      return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold });
+    } catch (error) {
+      // Fail immediately - no fallback to keyword-only search
+      throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    // Keyword-only search (fallback or when embeddings not available)
-    return await this.keywordOnlySearch(queryKeywords, { limit, scoreThreshold });
   }
 
   /**
@@ -198,11 +201,10 @@ export abstract class BaseVectorService<T> {
     queryKeywords: string[],
     options: { limit: number; scoreThreshold: number }
   ): Promise<BaseSearchResult<T>[]> {
-    // Generate query embedding
+    // Generate query embedding - required for semantic search
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
     if (!queryEmbedding) {
-      // Fall back to keyword search
-      return await this.keywordOnlySearch(queryKeywords, options);
+      throw new Error('Failed to generate query embedding for semantic search');
     }
 
     // Semantic search using vector similarity
@@ -227,30 +229,6 @@ export abstract class BaseVectorService<T> {
     return this.combineHybridResults(semanticResults, keywordResults, queryKeywords, options);
   }
 
-  /**
-   * Keyword-only search (fallback when embeddings not available)
-   */
-  private async keywordOnlySearch(
-    queryKeywords: string[],
-    options: { limit: number; scoreThreshold: number }
-  ): Promise<BaseSearchResult<T>[]> {
-    const keywordResults = await this.vectorDB.searchByKeywords(
-      queryKeywords,
-      options
-    );
-
-    return keywordResults
-      .map(result => {
-        const data = this.payloadToData(result.payload);
-        (data as any).id = result.id;
-        return {
-          data,
-          score: result.score,
-          matchType: 'keyword' as const
-        };
-      })
-      .filter(result => result.score >= options.scoreThreshold); // Apply score filtering
-  }
 
   /**
    * Combine semantic and keyword results with hybrid ranking

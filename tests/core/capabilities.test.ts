@@ -453,28 +453,56 @@ describe('CapabilityInferenceEngine', () => {
   });
 
   describe('generateCapabilityId static method', () => {
-    it('should generate correct ID format for standard resource', () => {
+    it('should generate deterministic UUID for standard resource', () => {
       const resourceName = 'SQL.devopstoolkit.live';
 
       const id = CapabilityInferenceEngine.generateCapabilityId(resourceName);
 
-      expect(id).toBe('capability-SQL-devopstoolkit-live');
+      // Should be a valid UUID format
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      // Should be deterministic - same input produces same output
+      const id2 = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      expect(id).toBe(id2);
+      // Verify specific expected UUID for this resource
+      expect(id).toBe('d259727c-73e4-4ff0-eac6-54051c1d0c38');
     });
 
-    it('should generate correct ID format for core resource', () => {
+    it('should generate deterministic UUID for core resource', () => {
       const resourceName = 'Pod';
 
       const id = CapabilityInferenceEngine.generateCapabilityId(resourceName);
 
-      expect(id).toBe('capability-Pod');
+      // Should be a valid UUID format
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      // Should be deterministic
+      const id2 = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      expect(id).toBe(id2);
+      // Verify specific expected UUID for this resource
+      expect(id).toBe('df9676f3-8ed2-3424-24cd-cfd7e5ba0729');
     });
 
-    it('should generate correct ID format for apps resource', () => {
+    it('should generate deterministic UUID for apps resource', () => {
       const resourceName = 'Deployment.apps';
 
       const id = CapabilityInferenceEngine.generateCapabilityId(resourceName);
 
-      expect(id).toBe('capability-Deployment-apps');
+      // Should be a valid UUID format
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      // Should be deterministic
+      const id2 = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      expect(id).toBe(id2);
+      // Verify specific expected UUID for this resource
+      expect(id).toBe('b120b11c-c57a-fcbb-b93c-ff373ad7cf77');
+    });
+
+    it('should generate different UUIDs for different resources', () => {
+      const id1 = CapabilityInferenceEngine.generateCapabilityId('resource1');
+      const id2 = CapabilityInferenceEngine.generateCapabilityId('resource2');
+      
+      expect(id1).not.toBe(id2);
+      // Both should be valid UUIDs
+      expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      expect(id2).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
   });
 });

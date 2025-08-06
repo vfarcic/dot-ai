@@ -14,7 +14,7 @@ import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternCreationSessionManager } from '../core/pattern-creation-session';
-import { VectorDBService, PatternVectorService, EmbeddingService } from '../core/index';
+import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -505,10 +505,47 @@ async function handleCapabilitiesOperation(
       return await handleCapabilityScan(args, logger, requestId);
     
     case 'list':
-      return await handleCapabilityList(args, logger, requestId);
-    
-    case 'get':
-      return await handleCapabilityGet(args, logger, requestId);
+    case 'get': {
+      // Create and initialize capability service for list/get operations
+      const capabilityService = new CapabilityVectorService();
+      try {
+        const vectorDBHealthy = await capabilityService.healthCheck();
+        if (!vectorDBHealthy) {
+          return {
+            success: false,
+            operation,
+            dataType: 'capabilities',
+            error: {
+              message: 'Vector DB (Qdrant) connection required',
+              details: 'Capability operations require a working Qdrant connection.',
+              setup: {
+                docker: 'docker run -p 6333:6333 qdrant/qdrant',
+                config: 'export QDRANT_URL=http://localhost:6333'
+              }
+            }
+          };
+        }
+        
+        await capabilityService.initialize();
+        
+        if (operation === 'list') {
+          return await handleCapabilityList(args, logger, requestId, capabilityService);
+        } else {
+          return await handleCapabilityGet(args, logger, requestId, capabilityService);
+        }
+      } catch (error) {
+        logger.error(`Capability ${operation} operation failed`, error as Error, { requestId });
+        return {
+          success: false,
+          operation,
+          dataType: 'capabilities',
+          error: {
+            message: `Capability ${operation} failed`,
+            details: error instanceof Error ? error.message : String(error)
+          }
+        };
+      }
+    }
     
     default:
       return {
@@ -703,6 +740,110 @@ async function handleCapabilityScan(
   logger: Logger,
   requestId: string
 ): Promise<any> {
+  // Validate Vector DB and embedding service dependencies upfront
+  // This prevents users from going through the entire workflow only to fail at storage
+  const capabilityService = new CapabilityVectorService();
+  
+  // Check Vector DB connection and initialize collection
+  try {
+    const vectorDBHealthy = await capabilityService.healthCheck();
+    if (!vectorDBHealthy) {
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Vector DB (Qdrant) connection required for capability management',
+          details: 'Capability scanning requires Qdrant for storing and searching capabilities. The system cannot proceed without a working Vector DB connection.',
+          setup: {
+            required: 'Qdrant server must be running',
+            default: 'http://localhost:6333',
+            docker: 'docker run -p 6333:6333 qdrant/qdrant',
+            config: 'export QDRANT_URL=http://localhost:6333'
+          },
+          currentConfig: {
+            QDRANT_URL: process.env.QDRANT_URL || 'http://localhost:6333 (default)',
+            status: 'connection failed'
+          }
+        }
+      };
+    }
+  } catch (error) {
+    logger.error('Vector DB connection check failed', error as Error, { requestId });
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Vector DB (Qdrant) connection failed',
+        details: 'Cannot establish connection to Qdrant server. Please ensure Qdrant is running and accessible.',
+        technicalDetails: error instanceof Error ? error.message : String(error),
+        setup: {
+          required: 'Qdrant server must be running',
+          default: 'http://localhost:6333',
+          docker: 'docker run -p 6333:6333 qdrant/qdrant',
+          config: 'export QDRANT_URL=http://localhost:6333'
+        },
+        currentConfig: {
+          QDRANT_URL: process.env.QDRANT_URL || 'http://localhost:6333 (default)',
+          status: 'connection error'
+        }
+      }
+    };
+  }
+  
+  // Initialize the collection now that we know Qdrant is healthy
+  try {
+    await capabilityService.initialize();
+  } catch (error) {
+    logger.error('Failed to initialize capabilities collection', error as Error, { requestId });
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'Vector DB collection initialization failed',
+        details: 'Could not create or access the capabilities collection in Qdrant.',
+        technicalDetails: error instanceof Error ? error.message : String(error),
+        setup: {
+          possibleCauses: [
+            'Qdrant version compatibility issue',
+            'Insufficient permissions',
+            'Collection dimension mismatch',
+            'Corrupted existing collection'
+          ],
+          recommendations: [
+            'Check Qdrant logs for detailed error information',
+            'Verify Qdrant version compatibility',
+            'Consider removing existing capabilities collection if corrupted'
+          ]
+        }
+      }
+    };
+  }
+
+  // Check embedding service (OpenAI API) availability
+  const embeddingCheck = await validateEmbeddingService(logger, requestId);
+  if (!embeddingCheck.success) {
+    return {
+      success: false,
+      operation: 'scan',
+      dataType: 'capabilities',
+      error: {
+        message: 'OpenAI API required for capability semantic search',
+        details: 'Capability scanning requires OpenAI embeddings for semantic search functionality. The system cannot proceed without proper OpenAI API configuration.',
+        ...embeddingCheck.error,
+        recommendation: 'Set up OpenAI API key to enable full capability scanning with semantic search'
+      }
+    };
+  }
+
+  logger.info('Capability scanning dependencies validated', {
+    requestId,
+    vectorDB: 'healthy',
+    embeddings: 'available'
+  });
+
   // Get or create session with step-based state management
   const session = getOrCreateCapabilitySession(args.sessionId, args, logger, requestId);
   
@@ -736,10 +877,10 @@ async function handleCapabilityScan(
       return await handleResourceSpecification(session, args, logger, requestId);
     
     case 'processing-mode':
-      return await handleProcessingMode(session, args, logger, requestId);
+      return await handleProcessingMode(session, args, logger, requestId, capabilityService);
     
     case 'scanning':
-      return await handleScanning(session, args, logger, requestId);
+      return await handleScanning(session, args, logger, requestId, capabilityService);
     
     case 'complete':
       return {
@@ -1036,7 +1177,8 @@ async function handleProcessingMode(
   session: CapabilityScanSession,
   args: any,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  capabilityService: CapabilityVectorService
 ): Promise<any> {
   if (!args.response) {
     return {
@@ -1075,7 +1217,7 @@ async function handleProcessingMode(
   }, args);
   
   // Begin actual capability scanning - clear response from previous step
-  return await handleScanning(session, { ...args, response: undefined }, logger, requestId);
+  return await handleScanning(session, { ...args, response: undefined }, logger, requestId, capabilityService);
 }
 
 /**
@@ -1085,7 +1227,8 @@ async function handleScanning(
   session: CapabilityScanSession,
   args: any,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  capabilityService: CapabilityVectorService
 ): Promise<any> {
   try {
     // If this is a response to a manual mode preview, handle it first
@@ -1132,7 +1275,7 @@ async function handleScanning(
         transitionCapabilitySession(session, 'scanning', { currentResourceIndex: nextIndex }, args);
         
         // Continue processing (will handle the next resource or complete if done)
-        return await handleScanning(session, { ...args, response: undefined }, logger, requestId);
+        return await handleScanning(session, { ...args, response: undefined }, logger, requestId, capabilityService);
       }
       
       // Invalid response
@@ -1259,23 +1402,87 @@ The AI should infer what this resource does based on its name and provide compre
         }
       };
     } else {
-      // Auto mode: Process and store capability
-      const capability = await engine.inferCapabilities(resourceName, resourceContext);
-      const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+      // Auto mode: Process ALL resources in batch without user interaction
+      const resources = Array.isArray(session.selectedResources) ? session.selectedResources : [resourceName];
+      const totalResources = resources.length;
+      const processedResults: any[] = [];
+      const errors: any[] = [];
       
-      // TODO: Store in Vector DB (Milestone 2)
-      logger.info('Capability analysis completed', {
+      logger.info('Starting auto batch processing', {
         requestId,
         sessionId: session.sessionId,
-        resource: resourceName,
-        capabilityId,
-        capabilitiesFound: capability.capabilities.length,
-        confidence: capability.confidence
+        totalResources,
+        resources: resources
       });
+      
+      // Process each resource in the batch
+      for (let i = 0; i < resources.length; i++) {
+        const currentResource = resources[i];
+        const currentContext = `
+Resource Name: ${currentResource}
+Context: This is a Kubernetes resource that the user wants to analyze for capabilities.
+The AI should infer what this resource does based on its name and provide comprehensive capability analysis.`;
+        
+        try {
+          logger.info(`Processing resource ${i + 1}/${totalResources}`, {
+            requestId,
+            sessionId: session.sessionId,
+            resource: currentResource
+          });
+          
+          const capability = await engine.inferCapabilities(currentResource, currentContext);
+          const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
+          
+          // Store capability in Vector DB
+          await capabilityService.storeCapability(capability);
+          
+          processedResults.push({
+            resource: currentResource,
+            id: capabilityId,
+            capabilities: capability.capabilities,
+            providers: capability.providers,
+            complexity: capability.complexity,
+            confidence: capability.confidence
+          });
+          
+          logger.info(`Successfully processed resource ${i + 1}/${totalResources}`, {
+            requestId,
+            sessionId: session.sessionId,
+            resource: currentResource,
+            capabilitiesFound: capability.capabilities.length
+          });
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          logger.error(`Failed to process resource ${i + 1}/${totalResources}`, error as Error, {
+            requestId,
+            sessionId: session.sessionId,
+            resource: currentResource
+          });
+          
+          errors.push({
+            resource: currentResource,
+            error: errorMessage,
+            index: i + 1
+          });
+        }
+      }
       
       // Mark session as complete and cleanup
       transitionCapabilitySession(session, 'complete', {}, args);
       cleanupCapabilitySession(session, args, logger, requestId);
+      
+      const successful = processedResults.length;
+      const failed = errors.length;
+      
+      logger.info('Auto batch processing completed', {
+        requestId,
+        sessionId: session.sessionId,
+        processed: totalResources,
+        successful,
+        failed
+      });
       
       return {
         success: true,
@@ -1285,34 +1492,34 @@ The AI should infer what this resource does based on its name and provide compre
         step: 'complete',
         sessionId: session.sessionId,
         results: {
-          processed: 1,
-          successful: 1,
-          failed: 0,
-          sample: {
-            resource: resourceName,
-            id: capabilityId,
-            capabilities: capability.capabilities,
-            providers: capability.providers,
-            complexity: capability.complexity,
-            confidence: capability.confidence
-          }
+          processed: totalResources,
+          successful,
+          failed,
+          message: `Completed batch processing ${totalResources} resources (${successful} successful, ${failed} failed)`,
+          processedResources: processedResults,
+          ...(errors.length > 0 && { errors })
         },
-        message: 'Capability scan completed successfully'
+        message: failed > 0 ? 
+          `Capability scan completed with ${failed} errors. ${successful}/${totalResources} resources processed successfully.` :
+          'Capability scan completed successfully for all resources.',
+        sample: processedResults.length > 0 ? processedResults[0] : undefined
       };
     }
-    
   } catch (error) {
-    logger.error('Capability scanning failed', error as Error, { 
-      requestId, 
-      sessionId: session.sessionId 
+    logger.error('Capability scanning failed', error as Error, {
+      requestId,
+      sessionId: session.sessionId,
+      resource: (error && typeof error === 'object' && 'resourceName' in error) ? (error as any).resourceName : 'unknown',
+      step: session.currentStep
     });
+    
+    // Clean up session on error
+    cleanupCapabilitySession(session, args, logger, requestId);
     
     return {
       success: false,
       operation: 'scan',
       dataType: 'capabilities',
-      step: 'scanning',
-      sessionId: session.sessionId,
       error: {
         message: 'Capability scanning failed',
         details: error instanceof Error ? error.message : String(error)
@@ -1321,43 +1528,132 @@ The AI should infer what this resource does based on its name and provide compre
   }
 }
 
-
 /**
  * Handle capability listing (placeholder for future implementation)
  */
 async function handleCapabilityList(
-  _args: any,
-  _logger: Logger,
-  _requestId: string
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
 ): Promise<any> {
-  return {
-    success: false,
-    operation: 'list',
-    dataType: 'capabilities',
-    error: {
-      message: 'Capability listing not yet implemented',
-      details: 'Will be available in Milestone 2 - Vector DB storage integration'
-    }
-  };
+  try {
+    // Get all capabilities with optional limit
+    const limit = args.limit || 10;
+    const capabilities = await capabilityService.getAllCapabilities(limit);
+    const count = await capabilityService.getCapabilitiesCount();
+    
+    logger.info('Capabilities listed successfully', {
+      requestId,
+      count: capabilities.length,
+      totalCount: count,
+      limit
+    });
+    
+    return {
+      success: true,
+      operation: 'list',
+      dataType: 'capabilities',
+      data: capabilities,
+      metadata: {
+        returned: capabilities.length,
+        total: count,
+        limit
+      },
+      message: `Retrieved ${capabilities.length} capabilities (${count} total)`
+    };
+  } catch (error) {
+    logger.error('Failed to list capabilities', error as Error, {
+      requestId
+    });
+    
+    return {
+      success: false,
+      operation: 'list',
+      dataType: 'capabilities',
+      error: {
+        message: 'Failed to list capabilities',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
 }
 
 /**
  * Handle capability retrieval (placeholder for future implementation)
  */
 async function handleCapabilityGet(
-  _args: any,
-  _logger: Logger,
-  _requestId: string
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
 ): Promise<any> {
-  return {
-    success: false,
-    operation: 'get',
-    dataType: 'capabilities',
-    error: {
-      message: 'Capability retrieval not yet implemented',
-      details: 'Will be available in Milestone 2 - Vector DB storage integration'
+  try {
+    // Validate required parameters
+    if (!args.resourceName) {
+      return {
+        success: false,
+        operation: 'get',
+        dataType: 'capabilities',
+        error: {
+          message: 'Missing required parameter: resourceName',
+          details: 'Specify resourceName to retrieve capability data',
+          example: { resourceName: 'sqls.devopstoolkit.live' }
+        }
+      };
     }
-  };
+    
+    // Get capability by resource name
+    const capability = await capabilityService.getCapability(args.resourceName);
+    
+    if (!capability) {
+      logger.warn('Capability not found', {
+        requestId,
+        resourceName: args.resourceName
+      });
+      
+      return {
+        success: false,
+        operation: 'get',
+        dataType: 'capabilities',
+        error: {
+          message: `Capability not found for resource: ${args.resourceName}`,
+          details: 'Resource capability may not have been scanned yet',
+          suggestion: 'Use scan operation to analyze this resource first'
+        }
+      };
+    }
+    
+    logger.info('Capability retrieved successfully', {
+      requestId,
+      resourceName: args.resourceName,
+      capabilitiesFound: capability.capabilities.length,
+      confidence: capability.confidence
+    });
+    
+    return {
+      success: true,
+      operation: 'get',
+      dataType: 'capabilities',
+      data: capability,
+      message: `Retrieved capability data for ${args.resourceName}`
+    };
+  } catch (error) {
+    logger.error('Failed to get capability', error as Error, {
+      requestId,
+      resourceName: args.resourceName
+    });
+    
+    return {
+      success: false,
+      operation: 'get',
+      dataType: 'capabilities',
+      error: {
+        message: 'Failed to retrieve capability',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
 }
 
 /**

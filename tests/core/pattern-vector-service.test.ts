@@ -30,17 +30,28 @@ describe('PatternVectorService', () => {
     mockVectorDB = new VectorDBService({ url: 'test-url' }) as jest.Mocked<VectorDBService>;
     mockEmbeddingService = new EmbeddingService() as jest.Mocked<EmbeddingService>;
     
-    // Mock embedding service to be unavailable by default (keyword-only mode)
-    mockEmbeddingService.isAvailable = jest.fn().mockReturnValue(false);
-    mockEmbeddingService.generateEmbedding = jest.fn().mockResolvedValue(null);
+    // Mock embedding service to be available by default
+    mockEmbeddingService.isAvailable = jest.fn().mockReturnValue(true);
+    mockEmbeddingService.generateEmbedding = jest.fn().mockResolvedValue([0.1, 0.2, 0.3]);
     mockEmbeddingService.getDimensions = jest.fn().mockReturnValue(1536);
     mockEmbeddingService.getStatus = jest.fn().mockReturnValue({
-      available: false,
-      provider: null,
-      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+      available: true,
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 1536
     });
     
     patternService = new PatternVectorService(mockVectorDB, mockEmbeddingService);
+
+    // Setup default Vector DB mocks
+    mockVectorDB.searchSimilar = jest.fn().mockResolvedValue([]);
+    mockVectorDB.searchByKeywords = jest.fn().mockResolvedValue([]);
+    mockVectorDB.healthCheck = jest.fn().mockResolvedValue(true);
+    mockVectorDB.initializeCollection = jest.fn().mockResolvedValue(undefined);
+    mockVectorDB.upsertDocument = jest.fn().mockResolvedValue(undefined);
+    mockVectorDB.getDocument = jest.fn().mockResolvedValue(null);
+    mockVectorDB.getAllDocuments = jest.fn().mockResolvedValue([]);
+    mockVectorDB.deleteDocument = jest.fn().mockResolvedValue(undefined);
 
     // Reset all mocks
     jest.clearAllMocks();
@@ -79,9 +90,9 @@ describe('PatternVectorService', () => {
           createdAt: '2025-01-30T12:00:00Z',
           createdBy: 'test-user',
           searchText: expect.stringContaining('horizontal scaling pattern'),
-          hasEmbedding: false
+          hasEmbedding: true
         },
-        vector: undefined
+        vector: [0.1, 0.2, 0.3]
       });
     });
 
@@ -215,8 +226,8 @@ describe('PatternVectorService', () => {
       expect(mockVectorDB.searchByKeywords).toHaveBeenCalledWith(
         ['scaling'],
         {
-          limit: 5,
-          scoreThreshold: 0.8
+          limit: 10, // limit * 2 for hybrid search
+          scoreThreshold: 0.1 // Fixed threshold for hybrid search intermediate results
         }
       );
     });
@@ -307,7 +318,7 @@ describe('PatternVectorService', () => {
 
       const results = await patternService.searchPatterns('scaling autoscaling');
 
-      expect(results[0].score).toBe(1.0); // Perfect match
+      expect(results[0].score).toBe(0.6); // Keyword match score (1.0 * 0.6 weighting)
     });
   });
 
@@ -343,19 +354,21 @@ describe('PatternVectorService', () => {
       });
     });
 
-    it('should fallback to keyword-only storage when embedding fails', async () => {
+    it('should throw error when embedding generation fails', async () => {
       mockEmbeddingService.generateEmbedding = jest.fn().mockRejectedValue(new Error('API error'));
-      mockVectorDB.upsertDocument = jest.fn().mockResolvedValue(undefined);
 
-      await patternService.storePattern(samplePattern);
+      await expect(patternService.storePattern(samplePattern)).rejects.toThrow('Embedding generation failed: API error');
 
-      expect(mockVectorDB.upsertDocument).toHaveBeenCalledWith({
-        id: samplePattern.id,
-        payload: expect.objectContaining({
-          hasEmbedding: false
-        }),
-        vector: undefined
-      });
+      expect(mockVectorDB.upsertDocument).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when embedding service unavailable', async () => {
+      mockEmbeddingService.isAvailable = jest.fn().mockReturnValue(false);
+
+      await expect(patternService.storePattern(samplePattern)).rejects.toThrow('Embedding service not available - cannot store data in vector collection');
+
+      expect(mockEmbeddingService.generateEmbedding).not.toHaveBeenCalled();
+      expect(mockVectorDB.upsertDocument).not.toHaveBeenCalled();
     });
 
     it('should use hybrid search when embeddings available', async () => {
@@ -406,44 +419,28 @@ describe('PatternVectorService', () => {
     });
   });
 
-  describe('Graceful Degradation', () => {
-    it('should use keyword-only search when embeddings unavailable', async () => {
-      // Embedding service unavailable (default mock state)
-      mockVectorDB.searchByKeywords = jest.fn().mockResolvedValue([{
-        id: 'pattern-1',
-        score: 0.9,
-        payload: {
-          description: 'Test pattern',
-          triggers: ['scale', 'scaling']
-        }
-      }]);
+  describe('Fail-Fast Behavior', () => {
+    it('should fail immediately when embeddings unavailable (no graceful fallback)', async () => {
+      // Override default mock to make embedding service unavailable
+      mockEmbeddingService.isAvailable = jest.fn().mockReturnValue(false);
 
-      const results = await patternService.searchPatterns('scale application');
+      await expect(patternService.searchPatterns('scale application'))
+        .rejects.toThrow('Embedding service not available - cannot perform semantic search');
 
       expect(mockEmbeddingService.generateEmbedding).not.toHaveBeenCalled();
       expect(mockVectorDB.searchSimilar).not.toHaveBeenCalled();
-      expect(mockVectorDB.searchByKeywords).toHaveBeenCalled();
-      expect(results[0].matchType).toBe('keyword');
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
     });
 
-    it('should fallback to keyword search when semantic search fails', async () => {
+    it('should fail immediately when embedding generation fails', async () => {
       // Mock embedding service as available but generateEmbedding fails
       mockEmbeddingService.isAvailable = jest.fn().mockReturnValue(true);
       mockEmbeddingService.generateEmbedding = jest.fn().mockRejectedValue(new Error('Network error'));
-      
-      mockVectorDB.searchByKeywords = jest.fn().mockResolvedValue([{
-        id: 'pattern-1',
-        score: 0.9,
-        payload: {
-          description: 'Test pattern',
-          triggers: ['scale', 'scaling']
-        }
-      }]);
 
-      const results = await patternService.searchPatterns('scale application');
+      await expect(patternService.searchPatterns('scale application'))
+        .rejects.toThrow('Semantic search failed: Network error');
 
-      expect(mockVectorDB.searchByKeywords).toHaveBeenCalled();
-      expect(results[0].matchType).toBe('keyword');
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
     });
   });
 });
