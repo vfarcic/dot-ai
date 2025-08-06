@@ -713,6 +713,159 @@ describe('Organizational Data Tool', () => {
       expect(response.clientInstructions.sections.analysisResults).toContain('Confidence score, analysis timestamp');
     });
 
+    it('should return error for capabilities delete operation without id parameter', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'delete'
+          // Missing id parameter
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-delete-no-id'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('delete');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toContain('Missing required parameter: id');
+    });
+
+    it('should return error when trying to delete non-existent capability', async () => {
+      // Mock capability service to return null for getCapability
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        getCapability: jest.fn().mockResolvedValue(null), // Capability not found
+        deleteCapabilityById: jest.fn().mockResolvedValue(undefined)
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'delete',
+          id: 'non-existent-capability-id'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-delete-not-found'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('delete');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toContain('Capability not found for ID: non-existent-capability-id');
+    });
+
+    it('should successfully delete capability with valid id', async () => {
+      // Mock capability service
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        getCapability: jest.fn().mockResolvedValue({
+          resourceName: 'test.resource.example',
+          capabilities: ['test'],
+          providers: ['azure'],
+          complexity: 'low',
+          confidence: 85
+        }),
+        deleteCapabilityById: jest.fn().mockResolvedValue(undefined)
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'delete',
+          id: 'test-capability-id'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-delete-success'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('delete');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.message).toContain('Capability deleted: test.resource.example');
+      expect(response.deletedCapability.id).toBe('test-capability-id');
+      expect(response.deletedCapability.resourceName).toBe('test.resource.example');
+    });
+
+    it('should successfully delete all capabilities', async () => {
+      // Mock capability service with sample capabilities
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(2),
+        getAllCapabilities: jest.fn().mockResolvedValue([
+          {
+            id: 'cap-1',
+            resourceName: 'resource1.example',
+            capabilities: ['test1']
+          },
+          {
+            id: 'cap-2', 
+            resourceName: 'resource2.example',
+            capabilities: ['test2']
+          }
+        ]),
+        deleteCapabilityById: jest.fn().mockResolvedValue(undefined)
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'deleteAll'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-delete-all'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('deleteAll');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.deletedCount).toBe(2);
+      expect(response.totalCount).toBe(2);
+      expect(response.message).toContain('Deleted 2 of 2 capabilities');
+      expect(response.confirmation).toContain('All capability data has been permanently removed');
+    });
+
+    it('should handle deleteAll when no capabilities exist', async () => {
+      // Mock capability service with no capabilities
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        getCapabilitiesCount: jest.fn().mockResolvedValue(0),
+        getAllCapabilities: jest.fn().mockResolvedValue([])
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'deleteAll'
+        },
+        null,
+        testLogger,
+        'test-request-capabilities-delete-all-empty'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('deleteAll');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.deletedCount).toBe(0);
+      expect(response.message).toContain('No capabilities found to delete');
+    });
+
     it('should provide immediate error feedback when Vector DB is unavailable', async () => {
       // Mock capability service to return unhealthy Vector DB
       const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;

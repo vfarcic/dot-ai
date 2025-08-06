@@ -26,7 +26,7 @@ export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing c
 // Extensible schema - supports patterns, capabilities, and dependencies
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   dataType: z.enum(['pattern', 'capabilities', 'dependencies']).describe('Type of cluster data to manage: pattern (organizational patterns), capabilities (resource capabilities), dependencies (resource dependencies)'),
-  operation: z.enum(['create', 'list', 'get', 'delete', 'scan', 'analyze']).describe('Operation to perform on the cluster data'),
+  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze']).describe('Operation to perform on the cluster data'),
   
   // Workflow fields for step-by-step pattern creation
   sessionId: z.string().optional().describe('Pattern creation session ID (for continuing multi-step workflow)'),
@@ -505,8 +505,10 @@ async function handleCapabilitiesOperation(
       return await handleCapabilityScan(args, logger, requestId);
     
     case 'list':
-    case 'get': {
-      // Create and initialize capability service for list/get operations
+    case 'get':
+    case 'delete':
+    case 'deleteAll': {
+      // Create and initialize capability service for list/get/delete operations
       const capabilityService = new CapabilityVectorService();
       try {
         const vectorDBHealthy = await capabilityService.healthCheck();
@@ -530,8 +532,15 @@ async function handleCapabilitiesOperation(
         
         if (operation === 'list') {
           return await handleCapabilityList(args, logger, requestId, capabilityService);
-        } else {
+        } else if (operation === 'get') {
           return await handleCapabilityGet(args, logger, requestId, capabilityService);
+        } else if (operation === 'delete') {
+          return await handleCapabilityDelete(args, logger, requestId, capabilityService);
+        } else if (operation === 'deleteAll') {
+          return await handleCapabilityDeleteAll(args, logger, requestId, capabilityService);
+        } else {
+          // This should never happen since we already check the operation in the switch case
+          throw new Error(`Unexpected operation: ${operation}`);
         }
       } catch (error) {
         logger.error(`Capability ${operation} operation failed`, error as Error, { requestId });
@@ -554,7 +563,7 @@ async function handleCapabilitiesOperation(
         dataType: 'capabilities',
         error: {
           message: `Unsupported capabilities operation: ${operation}`,
-          supportedOperations: ['scan', 'list', 'get']
+          supportedOperations: ['scan', 'list', 'get', 'delete', 'deleteAll']
         }
       };
   }
@@ -1676,6 +1685,187 @@ async function handleCapabilityGet(
       dataType: 'capabilities',
       error: {
         message: 'Failed to retrieve capability',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+/**
+ * Handle capability deletion (delete single capability by ID)
+ */
+async function handleCapabilityDelete(
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
+): Promise<any> {
+  try {
+    // Validate required parameters
+    if (!args.id) {
+      return {
+        success: false,
+        operation: 'delete',
+        dataType: 'capabilities',
+        error: {
+          message: 'Missing required parameter: id',
+          details: 'Specify id to delete capability data',
+          example: { id: 'capability-id-example' }
+        }
+      };
+    }
+    
+    // Check if capability exists before deletion
+    const capability = await capabilityService.getCapability(args.id);
+    
+    if (!capability) {
+      logger.warn('Capability not found for deletion', {
+        requestId,
+        capabilityId: args.id
+      });
+      
+      return {
+        success: false,
+        operation: 'delete',
+        dataType: 'capabilities',
+        error: {
+          message: `Capability not found for ID: ${args.id}`,
+          details: 'Cannot delete capability that does not exist'
+        }
+      };
+    }
+    
+    // Delete capability by ID
+    await capabilityService.deleteCapabilityById(args.id);
+    
+    logger.info('Capability deleted successfully', {
+      requestId,
+      capabilityId: args.id,
+      resourceName: capability.resourceName
+    });
+    
+    return {
+      success: true,
+      operation: 'delete',
+      dataType: 'capabilities',
+      deletedCapability: { 
+        id: args.id,
+        resourceName: capability.resourceName 
+      },
+      message: `Capability deleted: ${capability.resourceName}`
+    };
+  } catch (error) {
+    logger.error('Failed to delete capability', error as Error, {
+      requestId,
+      capabilityId: args.id
+    });
+    
+    return {
+      success: false,
+      operation: 'delete',
+      dataType: 'capabilities',
+      error: {
+        message: 'Failed to delete capability',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+/**
+ * Handle capability bulk deletion (delete all capabilities)
+ */
+async function handleCapabilityDeleteAll(
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
+): Promise<any> {
+  try {
+    // Get all capabilities first to count them and provide feedback
+    const allCapabilities = await capabilityService.getAllCapabilities();
+    const totalCount = allCapabilities.length;
+    
+    if (totalCount === 0) {
+      logger.info('No capabilities found to delete', { requestId });
+      
+      return {
+        success: true,
+        operation: 'deleteAll',
+        dataType: 'capabilities',
+        deletedCount: 0,
+        totalCount: 0,
+        message: 'No capabilities found to delete'
+      };
+    }
+    
+    logger.info('Starting bulk capability deletion', {
+      requestId,
+      totalCapabilities: totalCount
+    });
+    
+    // Delete all capabilities one by one
+    let deletedCount = 0;
+    const errors: any[] = [];
+    
+    for (const capability of allCapabilities) {
+      try {
+        const capabilityId = (capability as any).id;
+        if (capabilityId) {
+          await capabilityService.deleteCapabilityById(capabilityId);
+          deletedCount++;
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to delete capability: ${(capability as any).id}`, {
+          requestId,
+          capabilityId: (capability as any).id,
+          error: errorMessage
+        });
+        
+        errors.push({
+          id: (capability as any).id,
+          resourceName: capability.resourceName,
+          error: errorMessage
+        });
+      }
+    }
+    
+    logger.info('Bulk capability deletion completed', {
+      requestId,
+      deleted: deletedCount,
+      errors: errors.length,
+      total: totalCount
+    });
+    
+    const allDeleted = deletedCount === totalCount;
+    
+    return {
+      success: allDeleted, // Only success if all deleted without errors
+      operation: 'deleteAll',
+      dataType: 'capabilities',
+      deletedCount,
+      totalCount,
+      errorCount: errors.length,
+      ...(errors.length > 0 && { errorDetails: errors }),
+      message: allDeleted 
+        ? `Deleted ${deletedCount} of ${totalCount} capabilities`
+        : `Deleted ${deletedCount} of ${totalCount} capabilities (${errors.length} errors occurred)`,
+      confirmation: allDeleted 
+        ? 'All capability data has been permanently removed from the Vector DB'
+        : `${deletedCount} capabilities removed, ${errors.length} operations failed`
+    };
+  } catch (error) {
+    logger.error('Failed to delete all capabilities', error as Error, {
+      requestId
+    });
+    
+    return {
+      success: false,
+      operation: 'deleteAll',
+      dataType: 'capabilities',
+      error: {
+        message: 'Failed to delete all capabilities',
         details: error instanceof Error ? error.message : String(error)
       }
     };

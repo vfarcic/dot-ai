@@ -154,6 +154,13 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   }
 
   /**
+   * Delete capability by ID (for MCP tool interface)
+   */
+  async deleteCapabilityById(id: string): Promise<void> {
+    await this.deleteData(id);
+  }
+
+  /**
    * List all capabilities with optional pagination
    */
   async getAllCapabilities(limit?: number): Promise<ResourceCapability[]> {
