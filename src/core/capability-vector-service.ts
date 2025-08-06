@@ -161,6 +161,13 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   }
 
   /**
+   * Delete all capabilities efficiently by recreating collection
+   */
+  async deleteAllCapabilities(): Promise<void> {
+    await this.deleteAllData();
+  }
+
+  /**
    * List all capabilities with optional pagination
    */
   async getAllCapabilities(limit?: number): Promise<ResourceCapability[]> {
@@ -172,7 +179,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    */
   async getCapabilitiesCount(): Promise<number> {
     // Use getAllData to get count since base class doesn't expose getCount
-    const allCapabilities = await this.getAllData(1000); // Reasonable upper bound
+    const allCapabilities = await this.getAllData(); // Get all capabilities to count them
     return allCapabilities.length;
   }
 }

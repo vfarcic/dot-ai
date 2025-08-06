@@ -145,6 +145,13 @@ export abstract class BaseVectorService<T> {
   }
 
   /**
+   * Delete all data (recreate collection)
+   */
+  async deleteAllData(): Promise<void> {
+    await this.vectorDB.deleteAllDocuments();
+  }
+
+  /**
    * Get all data (limited)
    */
   async getAllData(limit?: number): Promise<T[]> {

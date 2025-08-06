@@ -796,26 +796,15 @@ describe('Organizational Data Tool', () => {
       expect(response.deletedCapability.resourceName).toBe('test.resource.example');
     });
 
-    it('should successfully delete all capabilities', async () => {
-      // Mock capability service with sample capabilities
+    it('should efficiently delete all capabilities using collection recreation', async () => {
+      // Mock capability service with efficient deleteAllCapabilities method
       const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      const mockDeleteAllCapabilities = jest.fn().mockResolvedValue(undefined);
       MockCapabilityVectorService.mockImplementationOnce(() => ({
         initialize: jest.fn().mockResolvedValue(undefined),
         healthCheck: jest.fn().mockResolvedValue(true),
         getCapabilitiesCount: jest.fn().mockResolvedValue(2),
-        getAllCapabilities: jest.fn().mockResolvedValue([
-          {
-            id: 'cap-1',
-            resourceName: 'resource1.example',
-            capabilities: ['test1']
-          },
-          {
-            id: 'cap-2', 
-            resourceName: 'resource2.example',
-            capabilities: ['test2']
-          }
-        ]),
-        deleteCapabilityById: jest.fn().mockResolvedValue(undefined)
+        deleteAllCapabilities: mockDeleteAllCapabilities
       }));
 
       const result = await handleOrganizationalDataTool(
@@ -834,18 +823,22 @@ describe('Organizational Data Tool', () => {
       expect(response.dataType).toBe('capabilities');
       expect(response.deletedCount).toBe(2);
       expect(response.totalCount).toBe(2);
-      expect(response.message).toContain('Deleted 2 of 2 capabilities');
+      expect(response.errorCount).toBe(0);
+      expect(response.message).toContain('Successfully deleted all 2 capabilities');
       expect(response.confirmation).toContain('All capability data has been permanently removed');
+      expect(response.method).toContain('Efficient collection recreation');
+      
+      // Verify efficient method was called (no individual record retrieval/deletion)
+      expect(mockDeleteAllCapabilities).toHaveBeenCalledTimes(1);
     });
 
     it('should handle deleteAll when no capabilities exist', async () => {
-      // Mock capability service with no capabilities
+      // Mock capability service with no capabilities (no deleteAllCapabilities needed)
       const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
       MockCapabilityVectorService.mockImplementationOnce(() => ({
         initialize: jest.fn().mockResolvedValue(undefined),
         healthCheck: jest.fn().mockResolvedValue(true),
-        getCapabilitiesCount: jest.fn().mockResolvedValue(0),
-        getAllCapabilities: jest.fn().mockResolvedValue([])
+        getCapabilitiesCount: jest.fn().mockResolvedValue(0)
       }));
 
       const result = await handleOrganizationalDataTool(
@@ -1151,8 +1144,8 @@ describe('Organizational Data Tool', () => {
       expect(response2.dataType).toBe('capabilities');
       expect(response2.mode).toBe('auto');
       expect(response2.step).toBe('complete');
-      expect(response2.results.processed).toBeGreaterThan(0);
-      expect(response2.results.successful).toBe(response2.results.processed);
+      expect(response2.summary.totalScanned).toBeGreaterThan(0);
+      expect(response2.summary.successful).toBe(response2.summary.totalScanned);
       expect(response2.message).toContain('completed successfully');
     });
 

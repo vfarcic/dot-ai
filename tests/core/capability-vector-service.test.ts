@@ -251,7 +251,7 @@ describe('CapabilityVectorService', () => {
       
       const count = await service.getCapabilitiesCount();
       
-      expect(mockVectorDB.getAllDocuments).toHaveBeenCalledWith(1000);
+      expect(mockVectorDB.getAllDocuments).toHaveBeenCalledWith(undefined);
       expect(count).toBe(42);
     });
   });
@@ -320,6 +320,24 @@ describe('CapabilityVectorService', () => {
       expect(data.useCase).toBe('');
       expect(data.confidence).toBe(0);
       expect(data.analyzedAt).toBeDefined();
+    });
+  });
+
+  describe('deleteAllCapabilities', () => {
+    it('should delete all capabilities efficiently', async () => {
+      const mockDeleteAllData = jest.fn().mockResolvedValue(undefined);
+      (service as any).deleteAllData = mockDeleteAllData;
+
+      await service.deleteAllCapabilities();
+
+      expect(mockDeleteAllData).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle errors during deleteAllCapabilities', async () => {
+      const mockDeleteAllData = jest.fn().mockRejectedValue(new Error('Delete all failed'));
+      (service as any).deleteAllData = mockDeleteAllData;
+
+      await expect(service.deleteAllCapabilities()).rejects.toThrow('Delete all failed');
     });
   });
 });

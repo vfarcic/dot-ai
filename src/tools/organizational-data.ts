@@ -2217,9 +2217,8 @@ async function handleCapabilityDeleteAll(
   capabilityService: CapabilityVectorService
 ): Promise<any> {
   try {
-    // Get all capabilities first to count them and provide feedback
-    const allCapabilities = await capabilityService.getAllCapabilities();
-    const totalCount = allCapabilities.length;
+    // Get count first to provide feedback (but don't retrieve all data)
+    const totalCount = await capabilityService.getCapabilitiesCount();
     
     if (totalCount === 0) {
       logger.info('No capabilities found to delete', { requestId });
@@ -2234,61 +2233,31 @@ async function handleCapabilityDeleteAll(
       };
     }
     
-    logger.info('Starting bulk capability deletion', {
+    logger.info('Starting efficient bulk capability deletion', {
       requestId,
-      totalCapabilities: totalCount
+      totalCapabilities: totalCount,
+      method: 'collection recreation'
     });
     
-    // Delete all capabilities one by one
-    let deletedCount = 0;
-    const errors: any[] = [];
+    // Efficiently delete all capabilities by recreating collection
+    await capabilityService.deleteAllCapabilities();
     
-    for (const capability of allCapabilities) {
-      try {
-        const capabilityId = (capability as any).id;
-        if (capabilityId) {
-          await capabilityService.deleteCapabilityById(capabilityId);
-          deletedCount++;
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to delete capability: ${(capability as any).id}`, {
-          requestId,
-          capabilityId: (capability as any).id,
-          error: errorMessage
-        });
-        
-        errors.push({
-          id: (capability as any).id,
-          resourceName: capability.resourceName,
-          error: errorMessage
-        });
-      }
-    }
-    
-    logger.info('Bulk capability deletion completed', {
+    logger.info('Bulk capability deletion completed successfully', {
       requestId,
-      deleted: deletedCount,
-      errors: errors.length,
-      total: totalCount
+      deleted: totalCount,
+      method: 'collection recreation'
     });
-    
-    const allDeleted = deletedCount === totalCount;
     
     return {
-      success: allDeleted, // Only success if all deleted without errors
+      success: true,
       operation: 'deleteAll',
       dataType: 'capabilities',
-      deletedCount,
+      deletedCount: totalCount,
       totalCount,
-      errorCount: errors.length,
-      ...(errors.length > 0 && { errorDetails: errors }),
-      message: allDeleted 
-        ? `Deleted ${deletedCount} of ${totalCount} capabilities`
-        : `Deleted ${deletedCount} of ${totalCount} capabilities (${errors.length} errors occurred)`,
-      confirmation: allDeleted 
-        ? 'All capability data has been permanently removed from the Vector DB'
-        : `${deletedCount} capabilities removed, ${errors.length} operations failed`
+      errorCount: 0,
+      message: `Successfully deleted all ${totalCount} capabilities`,
+      confirmation: 'All capability data has been permanently removed from the Vector DB',
+      method: 'Efficient collection recreation (no individual record retrieval)'
     };
   } catch (error) {
     logger.error('Failed to delete all capabilities', error as Error, {

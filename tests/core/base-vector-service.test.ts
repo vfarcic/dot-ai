@@ -398,4 +398,22 @@ describe('BaseVectorService', () => {
       expect(results[0].score).toBeGreaterThan(results[1].score);
     });
   });
+
+  describe('deleteAllData', () => {
+    it('should delete all data efficiently using collection recreation', async () => {
+      const mockDeleteAllDocuments = jest.fn().mockResolvedValue(undefined);
+      mockVectorDB.deleteAllDocuments = mockDeleteAllDocuments;
+
+      await testService.deleteAllData();
+
+      expect(mockDeleteAllDocuments).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle errors during deleteAll operation', async () => {
+      const mockDeleteAllDocuments = jest.fn().mockRejectedValue(new Error('Vector DB error'));
+      mockVectorDB.deleteAllDocuments = mockDeleteAllDocuments;
+
+      await expect(testService.deleteAllData()).rejects.toThrow('Vector DB error');
+    });
+  });
 });
