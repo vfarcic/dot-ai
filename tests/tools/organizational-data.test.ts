@@ -1490,6 +1490,252 @@ describe('Organizational Data Tool', () => {
       expect(autoResponse.results.processingTime).toMatch(/(seconds|minutes)/);
     });
 
+    it('should handle progress operation to query scan status', async () => {
+      // Test progress query functionality by creating a session file manually
+      
+      const sessionId = 'test-progress-session-123';
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      // Set up test session directory
+      const sessionDir = path.join(os.tmpdir(), '.dot-ai-test-progress');
+      if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+      }
+      
+      // Set environment variable for session directory
+      const originalSessionDir = process.env.DOT_AI_SESSION_DIR;
+      process.env.DOT_AI_SESSION_DIR = sessionDir;
+      
+      // Create capability-sessions subdirectory
+      const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+      if (!fs.existsSync(sessionSubDir)) {
+        fs.mkdirSync(sessionSubDir, { recursive: true });
+      }
+      
+      const sessionFilePath = path.join(sessionSubDir, `${sessionId}.json`);
+      const testSessionData = {
+        sessionId,
+        currentStep: 'resource-selection',
+        startedAt: new Date().toISOString(),
+        lastActivity: new Date().toISOString()
+      };
+      
+      fs.writeFileSync(sessionFilePath, JSON.stringify(testSessionData, null, 2));
+      
+      try {
+        // Test progress query for the created session
+        const progressResult = await handleOrganizationalDataTool(
+          {
+            dataType: 'capabilities',
+            operation: 'progress',
+            sessionId
+          },
+          null,
+          testLogger,
+          'test-progress-query'
+        );
+
+        const progressResponse = JSON.parse(progressResult.content[0].text);
+        
+        // Should succeed and provide session information
+        expect(progressResponse.success).toBe(true);
+        expect(progressResponse.operation).toBe('progress');
+        expect(progressResponse.dataType).toBe('capabilities');
+        expect(progressResponse.sessionId).toBe(sessionId);
+        
+        // Should indicate no progress data but session exists
+        expect(progressResponse.status).toBe('no-progress-data');
+        expect(progressResponse.currentStep).toBe('resource-selection');
+        expect(progressResponse.startedAt).toBeDefined();
+        expect(progressResponse.lastActivity).toBeDefined();
+        
+      } finally {
+        // Clean up test session file and restore environment
+        if (fs.existsSync(sessionFilePath)) {
+          fs.unlinkSync(sessionFilePath);
+        }
+        // Remove subdirectory first, then main directory
+        if (fs.existsSync(sessionSubDir)) {
+          fs.rmdirSync(sessionSubDir);
+        }
+        if (fs.existsSync(sessionDir)) {
+          fs.rmdirSync(sessionDir);
+        }
+        
+        // Restore original environment variable
+        if (originalSessionDir) {
+          process.env.DOT_AI_SESSION_DIR = originalSessionDir;
+        } else {
+          delete process.env.DOT_AI_SESSION_DIR;
+        }
+      }
+    });
+
+    it('should auto-discover latest session when no sessionId provided', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      // Set up test session directory
+      const sessionDir = path.join(os.tmpdir(), '.dot-ai-test-autodiscover');
+      if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+      }
+      
+      // Set environment variable for session directory
+      const originalSessionDir = process.env.DOT_AI_SESSION_DIR;
+      process.env.DOT_AI_SESSION_DIR = sessionDir;
+      
+      // Create capability-sessions subdirectory
+      const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+      if (!fs.existsSync(sessionSubDir)) {
+        fs.mkdirSync(sessionSubDir, { recursive: true });
+      }
+      
+      // Create multiple session files with different timestamps
+      const session1Id = 'test-session-old';
+      const session2Id = 'test-session-recent';
+      
+      const oldSessionData = {
+        sessionId: session1Id,
+        currentStep: 'complete',
+        startedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+        lastActivity: new Date(Date.now() - 3600000).toISOString()
+      };
+      
+      const recentSessionData = {
+        sessionId: session2Id,
+        currentStep: 'resource-selection',
+        startedAt: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+        lastActivity: new Date().toISOString()
+      };
+      
+      const oldSessionPath = path.join(sessionSubDir, `${session1Id}.json`);
+      const recentSessionPath = path.join(sessionSubDir, `${session2Id}.json`);
+      
+      // Write old session first
+      fs.writeFileSync(oldSessionPath, JSON.stringify(oldSessionData, null, 2));
+      
+      // Wait a small amount to ensure different mtime
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Write recent session after delay
+      fs.writeFileSync(recentSessionPath, JSON.stringify(recentSessionData, null, 2));
+      
+      try {
+        
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'capabilities',
+            operation: 'progress'
+            // No sessionId provided - should auto-discover latest
+          },
+          null,
+          testLogger,
+          'test-progress-autodiscover'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        
+        // Should succeed and use the most recent session
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('progress');
+        expect(response.sessionId).toBe(session2Id); // Should pick the most recent session
+        expect(response.status).toBe('no-progress-data'); // Since no actual progress data
+        expect(response.currentStep).toBe('resource-selection');
+        
+      } finally {
+        // Clean up
+        [oldSessionPath, recentSessionPath].forEach(filePath => {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        });
+        
+        // Remove subdirectory first, then main directory
+        if (fs.existsSync(sessionSubDir)) {
+          fs.rmdirSync(sessionSubDir);
+        }
+        if (fs.existsSync(sessionDir)) {
+          fs.rmdirSync(sessionDir);
+        }
+        
+        // Restore environment
+        if (originalSessionDir) {
+          process.env.DOT_AI_SESSION_DIR = originalSessionDir;
+        } else {
+          delete process.env.DOT_AI_SESSION_DIR;
+        }
+      }
+    });
+
+    it('should return error when no sessions exist and no sessionId provided', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      // Set up empty test session directory
+      const sessionDir = path.join(os.tmpdir(), '.dot-ai-test-no-sessions');
+      if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+      }
+      
+      // Set environment variable for session directory
+      const originalSessionDir = process.env.DOT_AI_SESSION_DIR;
+      process.env.DOT_AI_SESSION_DIR = sessionDir;
+      
+      try {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'capabilities',
+            operation: 'progress'
+          },
+          null,
+          testLogger,
+          'test-progress-no-sessions'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.operation).toBe('progress');
+        expect(response.error.message).toContain('No capability scan sessions found');
+        
+      } finally {
+        // Clean up
+        if (fs.existsSync(sessionDir)) {
+          fs.rmdirSync(sessionDir);
+        }
+        
+        // Restore environment
+        if (originalSessionDir) {
+          process.env.DOT_AI_SESSION_DIR = originalSessionDir;
+        } else {
+          delete process.env.DOT_AI_SESSION_DIR;
+        }
+      }
+    });
+
+    it('should return error for progress query with non-existent session', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId: 'non-existent-session-id'
+        },
+        null,
+        testLogger,
+        'test-progress-not-found'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('progress');
+      expect(response.error.message).toContain('Session not found');
+      expect(response.error.details).toContain('non-existent-session-id');
+    });
+
     it('should return error for invalid resource selection response', async () => {
       const result = await handleOrganizationalDataTool(
         {
@@ -1606,70 +1852,6 @@ describe('Organizational Data Tool', () => {
     });
   });
 
-  describe('Extended Data Types - Dependencies', () => {
-    it('should return "coming soon" for dependencies create operation', async () => {
-      const result = await handleOrganizationalDataTool(
-        {
-          dataType: 'dependencies',
-          operation: 'create'
-        },
-        null,
-        testLogger,
-        'test-request-dependencies-1'
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
-      expect(response.operation).toBe('create');
-      expect(response.dataType).toBe('dependencies');
-      expect(response.error.message).toContain('Resource dependencies management not yet implemented');
-      expect(response.error.details).toContain('PRD #49');
-      expect(response.error.implementationPlan.prd).toBe('PRD #49');
-      expect(response.error.implementationPlan.expectedFeatures).toContain('Dependency relationship discovery');
-      expect(response.message).toContain('PRD #49 implementation');
-    });
-
-    it('should return "coming soon" for dependencies scan operation', async () => {
-      const result = await handleOrganizationalDataTool(
-        {
-          dataType: 'dependencies',
-          operation: 'scan'
-        },
-        null,
-        testLogger,
-        'test-request-dependencies-2'
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
-      expect(response.operation).toBe('scan');
-      expect(response.dataType).toBe('dependencies');
-      expect(response.error.status).toBe('coming-soon');
-    });
-
-    it('should return "coming soon" for dependencies analyze with resource', async () => {
-      const result = await handleOrganizationalDataTool(
-        {
-          dataType: 'dependencies',
-          operation: 'analyze',
-          resource: {
-            kind: 'Server',
-            group: 'dbforpostgresql.azure.upbound.io',
-            apiVersion: 'dbforpostgresql.azure.upbound.io/v1beta1'
-          }
-        },
-        null,
-        testLogger,
-        'test-request-dependencies-3'
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(false);
-      expect(response.operation).toBe('analyze');
-      expect(response.error.implementationPlan.expectedFeatures).toContain('Complete solution assembly');
-      expect(response.error.implementationPlan.expectedFeatures).toContain('Deployment order optimization');
-    });
-  });
 
   describe('Extended Schema Validation', () => {
     it('should reject unsupported data types', async () => {
@@ -1686,7 +1868,7 @@ describe('Organizational Data Tool', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.success).toBe(false);
       expect(response.error.message).toContain('Unsupported data type: unsupported');
-      expect(response.error.message).toContain('pattern, capabilities, dependencies');
+      expect(response.error.message).toContain('pattern, capabilities');
     });
 
     it('should route pattern operations to pattern handler (not capabilities/dependencies)', async () => {

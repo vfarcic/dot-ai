@@ -21,15 +21,15 @@ import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns (available now), resource capabilities (PRD #48), and resource dependencies (PRD #49). For patterns: supports step-by-step creation workflow. For capabilities/dependencies: returns implementation status. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities, "dependencies" for resource dependencies.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns and resource capabilities. For patterns: supports step-by-step creation workflow. For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities.';
 
-// Extensible schema - supports patterns, capabilities, and dependencies
+// Extensible schema - supports patterns and capabilities
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
-  dataType: z.enum(['pattern', 'capabilities', 'dependencies']).describe('Type of cluster data to manage: pattern (organizational patterns), capabilities (resource capabilities), dependencies (resource dependencies)'),
-  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze']).describe('Operation to perform on the cluster data'),
+  dataType: z.enum(['pattern', 'capabilities']).describe('Type of cluster data to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities'),
+  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress']).describe('Operation to perform on the cluster data'),
   
   // Workflow fields for step-by-step pattern creation
-  sessionId: z.string().optional().describe('Pattern creation session ID (for continuing multi-step workflow)'),
+  sessionId: z.string().optional().describe('Session ID (required for continuing workflow steps, optional for progress - uses latest session if omitted)'),
   step: z.string().optional().describe('Current workflow step (required when sessionId is provided)'),
   response: z.string().optional().describe('User response to previous workflow step question'),
   
@@ -39,12 +39,12 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   // Generic fields for list operations
   limit: z.number().optional().describe('Maximum number of items to return (default: 10)'),
   
-  // Resource-specific fields (for capabilities and dependencies)
+  // Resource-specific fields (for capabilities operations)
   resource: z.object({
     kind: z.string(),
     group: z.string(),
     apiVersion: z.string()
-  }).optional().describe('Kubernetes resource reference (for capabilities/dependencies operations)'),
+  }).optional().describe('Kubernetes resource reference (for capabilities operations)'),
   
   // Resource list for specific resource scanning
   resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)')
@@ -503,6 +503,9 @@ async function handleCapabilitiesOperation(
   switch (operation) {
     case 'scan':
       return await handleCapabilityScan(args, logger, requestId);
+    
+    case 'progress':
+      return await handleCapabilityProgress(args, logger, requestId);
     
     case 'list':
     case 'get':
@@ -1879,6 +1882,222 @@ async function handleCapabilityGet(
 }
 
 /**
+ * Handle capability progress query (check progress of running scan)
+ */
+async function handleCapabilityProgress(
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  try {
+    logger.info('Capability progress query requested', { 
+      requestId,
+      sessionId: args.sessionId 
+    });
+    
+    // Get session directory first
+    const sessionDir = getAndValidateSessionDirectory(args, false);
+    let sessionId = args.sessionId;
+    let sessionFilePath: string;
+    
+    // If no sessionId provided, auto-discover the latest session
+    if (!sessionId) {
+      logger.info('No sessionId provided, searching for latest session file', { requestId });
+      
+      try {
+        // Check if capability-sessions subdirectory exists
+        const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+        if (!fs.existsSync(sessionSubDir)) {
+          logger.info('No capability-sessions directory found', { requestId, sessionDir });
+          return {
+            success: false,
+            operation: 'progress',
+            dataType: 'capabilities',
+            error: {
+              message: 'No capability scan sessions found',
+              details: 'No capability-sessions directory found in the session directory',
+              help: 'Start a new capability scan with the scan operation first',
+              sessionDirectory: sessionDir
+            }
+          };
+        }
+        
+        // Find all capability scan session files in the subdirectory
+        const sessionFiles = fs.readdirSync(sessionSubDir)
+          .filter(file => file.endsWith('.json'))
+          .map(file => {
+            const filePath = path.join(sessionSubDir, file);
+            const stats = fs.statSync(filePath);
+            return {
+              filename: file,
+              path: filePath,
+              mtime: stats.mtime,
+              sessionId: file.replace('.json', '') // Remove .json extension to get sessionId
+            };
+          })
+          .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()); // Sort by newest first
+        
+        if (sessionFiles.length === 0) {
+          logger.info('No capability scan session files found', { requestId, sessionDir });
+          return {
+            success: false,
+            operation: 'progress',
+            dataType: 'capabilities',
+            error: {
+              message: 'No capability scan sessions found',
+              details: 'No active or recent capability scans found in the session directory',
+              help: 'Start a new capability scan with the scan operation first',
+              sessionDirectory: sessionDir
+            }
+          };
+        }
+        
+        // Use the latest session (first after sorting)
+        const latestSession = sessionFiles[0];
+        sessionId = latestSession.sessionId;
+        sessionFilePath = latestSession.path;
+        
+        logger.info('Using latest session file', { 
+          requestId, 
+          sessionId, 
+          totalSessions: sessionFiles.length,
+          sessionFile: latestSession.filename 
+        });
+        
+      } catch (error) {
+        logger.error('Failed to discover session files', error as Error, { requestId, sessionDir });
+        return {
+          success: false,
+          operation: 'progress',
+          dataType: 'capabilities',
+          error: {
+            message: 'Failed to discover session files',
+            details: error instanceof Error ? error.message : String(error),
+            sessionDirectory: sessionDir
+          }
+        };
+      }
+    } else {
+      // Use provided sessionId - look in capability-sessions subdirectory
+      const sessionSubDir = path.join(sessionDir, 'capability-sessions');
+      sessionFilePath = path.join(sessionSubDir, `${sessionId}.json`);
+      
+      if (!fs.existsSync(sessionFilePath)) {
+        logger.warn('Session file not found for provided sessionId', {
+          requestId,
+          sessionId,
+          filePath: sessionFilePath
+        });
+        
+        return {
+          success: false,
+          operation: 'progress',
+          dataType: 'capabilities',
+          error: {
+            message: 'Session not found',
+            details: `No capability scan found for session: ${sessionId}`,
+            help: 'Use the scan operation to start a new capability scan, or omit sessionId to use the latest session'
+          }
+        };
+      }
+    }
+    
+    // Read and parse session file
+    const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, 'utf8')) as CapabilityScanSession;
+    
+    // Extract progress information
+    const progress = sessionData.progress;
+    if (!progress) {
+      return {
+        success: true,
+        operation: 'progress',
+        dataType: 'capabilities',
+        sessionId: sessionId,
+        status: 'no-progress-data',
+        message: 'Session exists but no progress tracking is active',
+        currentStep: sessionData.currentStep,
+        startedAt: sessionData.startedAt,
+        lastActivity: sessionData.lastActivity
+      };
+    }
+    
+    // Build comprehensive progress response
+    const response: any = {
+      success: true,
+      operation: 'progress',
+      dataType: 'capabilities',
+      sessionId: sessionId,
+      progress: {
+        status: progress.status,
+        current: progress.current,
+        total: progress.total,
+        percentage: progress.percentage,
+        currentResource: progress.currentResource,
+        startedAt: progress.startedAt,
+        lastUpdated: progress.lastUpdated
+      },
+      sessionInfo: {
+        currentStep: sessionData.currentStep,
+        processingMode: sessionData.processingMode,
+        resourceCount: Array.isArray(sessionData.selectedResources) 
+          ? sessionData.selectedResources.length 
+          : (sessionData.selectedResources === 'all' ? 'all resources' : 'unknown'),
+        startedAt: sessionData.startedAt,
+        lastActivity: sessionData.lastActivity
+      }
+    };
+    
+    // Add completion information if scan is done
+    if (progress.status === 'completed') {
+      response.progress.completedAt = progress.completedAt;
+      response.progress.totalProcessingTime = progress.totalProcessingTime;
+      response.message = 'Capability scan completed successfully';
+    } else {
+      response.progress.estimatedTimeRemaining = progress.estimatedTimeRemaining;
+      response.message = `Capability scan in progress: ${progress.current}/${progress.total} resources processed`;
+    }
+    
+    // Add user-friendly display information
+    response.display = {
+      summary: progress.status === 'completed' 
+        ? `✅ Scan complete: processed ${progress.total} resources in ${progress.totalProcessingTime}`
+        : `⏳ Processing: ${progress.current}/${progress.total} (${progress.percentage}%) - ${progress.estimatedTimeRemaining} remaining`,
+      currentResource: progress.currentResource,
+      timeline: {
+        started: progress.startedAt,
+        lastUpdate: progress.lastUpdated,
+        ...(progress.completedAt && { completed: progress.completedAt })
+      }
+    };
+    
+    logger.info('Progress query completed successfully', {
+      requestId,
+      sessionId: args.sessionId,
+      status: progress.status,
+      percentage: progress.percentage
+    });
+    
+    return response;
+    
+  } catch (error) {
+    logger.error('Failed to query capability progress', error as Error, {
+      requestId,
+      sessionId: args.sessionId
+    });
+    
+    return {
+      success: false,
+      operation: 'progress',
+      dataType: 'capabilities',
+      error: {
+        message: 'Failed to query scan progress',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+/**
  * Handle capability deletion (delete single capability by ID)
  */
 async function handleCapabilityDelete(
@@ -2060,40 +2279,6 @@ async function handleCapabilityDeleteAll(
 }
 
 /**
- * Handle dependencies operations (placeholder for PRD #49)
- */
-async function handleDependenciesOperation(
-  operation: string,
-  args: any,
-  logger: Logger,
-  requestId: string
-): Promise<any> {
-  logger.info('Dependencies operation requested', { requestId, operation });
-  
-  return {
-    success: false,
-    operation,
-    dataType: 'dependencies',
-    error: {
-      message: 'Resource dependencies management not yet implemented',
-      details: 'This feature is planned for PRD #49 - Resource Dependencies Discovery & Integration',
-      status: 'coming-soon',
-      implementationPlan: {
-        prd: 'PRD #49', 
-        description: 'Resource dependency discovery and complete solution assembly',
-        expectedFeatures: [
-          'Dependency relationship discovery',
-          'Complete solution assembly',
-          'Deployment order optimization',
-          'Vector DB storage and search'
-        ]
-      }
-    },
-    message: 'Dependencies management will be available after PRD #49 implementation'
-  };
-}
-
-/**
  * Main tool handler - routes to appropriate data type handler
  */
 export async function handleOrganizationalDataTool(
@@ -2148,21 +2333,17 @@ export async function handleOrganizationalDataTool(
       case 'capabilities':
         result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
         break;
-        
-      case 'dependencies':
-        result = await handleDependenciesOperation(args.operation, args, logger, requestId);
-        break;
       
       default:
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          `Unsupported data type: ${args.dataType}. Currently supported: pattern, capabilities, dependencies`,
+          `Unsupported data type: ${args.dataType}. Currently supported: pattern, capabilities`,
           {
             operation: 'data_type_validation',
             component: 'OrganizationalDataTool',
             requestId,
-            input: { dataType: args.dataType, supportedTypes: ['pattern', 'capabilities', 'dependencies'] }
+            input: { dataType: args.dataType, supportedTypes: ['pattern', 'capabilities'] }
           }
         );
     }
