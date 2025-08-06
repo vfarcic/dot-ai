@@ -585,6 +585,27 @@ function parseNumericResponse(response: string, validOptions: string[]): string 
 /**
  * Capability scanning workflow session with step-based state management
  */
+interface ProgressData {
+  status: 'processing' | 'completed';
+  current: number;
+  total: number;
+  percentage: number;
+  currentResource: string;
+  startedAt: string;
+  lastUpdated: string;
+  completedAt?: string;
+  estimatedTimeRemaining?: string;
+  totalProcessingTime?: string;
+  successfulResources: number;
+  failedResources: number;
+  errors: Array<{
+    resource: string;
+    error: string;
+    index: number;
+    timestamp: string;
+  }>;
+}
+
 interface CapabilityScanSession {
   sessionId: string;
   currentStep: 'resource-selection' | 'resource-specification' | 'processing-mode' | 'scanning' | 'complete';
@@ -592,6 +613,7 @@ interface CapabilityScanSession {
   resourceList?: string;
   processingMode?: 'auto' | 'manual';
   currentResourceIndex?: number; // Track which resource we're currently processing (for multi-resource workflows)
+  progress?: ProgressData; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
 }
@@ -1327,10 +1349,90 @@ async function handleScanning(
     let totalResources: number;
     
     if (session.selectedResources === 'all') {
-      // For 'all' mode, use a sample resource (could be enhanced to discover actual resources)
-      resourceName = 'SQL.devopstoolkit.live';
-      currentIndex = 1;
-      totalResources = 1;
+      // For 'all' mode, discover actual cluster resources first
+      try {
+        logger.info('Discovering all cluster resources for capability scanning', { requestId, sessionId: session.sessionId });
+        
+        // Import discovery engine
+        const { KubernetesDiscovery } = await import('../core/discovery');
+        const discovery = new KubernetesDiscovery();
+        await discovery.connect();
+        
+        // Discover all available resources
+        const resourceMap = await discovery.discoverResources();
+        const allResources = [...resourceMap.resources, ...resourceMap.custom];
+        
+        // Extract resource names for capability analysis
+        const discoveredResourceNames = allResources.map(resource => {
+          // For CRDs (custom resources), prioritize full name format
+          if (resource.name && resource.name.includes('.')) {
+            return resource.name;
+          }
+          // For standard resources, use kind
+          if (resource.kind) {
+            return resource.kind;
+          }
+          // Fallback to name if no kind
+          if (resource.name) {
+            return resource.name;
+          }
+          return 'unknown-resource';
+        }).filter(name => name !== 'unknown-resource');
+        
+        logger.info('Discovered cluster resources for capability scanning', {
+          requestId,
+          sessionId: session.sessionId,
+          totalDiscovered: discoveredResourceNames.length,
+          sampleResources: discoveredResourceNames.slice(0, 5)
+        });
+        
+        if (discoveredResourceNames.length === 0) {
+          return {
+            success: false,
+            operation: 'scan',
+            dataType: 'capabilities',
+            error: {
+              message: 'No resources discovered in cluster',
+              details: 'Cluster resource discovery returned empty results. Check cluster connectivity and permissions.',
+              sessionId: session.sessionId
+            }
+          };
+        }
+        
+        // Update session with discovered resources and start batch processing
+        transitionCapabilitySession(session, 'scanning', {
+          selectedResources: discoveredResourceNames,
+          processingMode: session.processingMode,
+          currentResourceIndex: 0
+        }, args);
+        
+        // Continue to batch processing with discovered resources
+        resourceName = discoveredResourceNames[0]; // First resource for manual mode
+        currentIndex = 0;
+        totalResources = discoveredResourceNames.length;
+        
+      } catch (error) {
+        logger.error('Failed to discover cluster resources', error as Error, {
+          requestId,
+          sessionId: session.sessionId
+        });
+        
+        return {
+          success: false,
+          operation: 'scan',
+          dataType: 'capabilities',
+          error: {
+            message: 'Cluster resource discovery failed',
+            details: error instanceof Error ? error.message : String(error),
+            sessionId: session.sessionId,
+            suggestedActions: [
+              'Check cluster connectivity',
+              'Verify kubectl access permissions',
+              'Try specifying specific resources instead of "all"'
+            ]
+          }
+        };
+      }
     } else if (Array.isArray(session.selectedResources)) {
       // Get the current resource based on currentResourceIndex
       currentIndex = session.currentResourceIndex || 0;
@@ -1412,7 +1514,12 @@ The AI should infer what this resource does based on its name and provide compre
       };
     } else {
       // Auto mode: Process ALL resources in batch without user interaction
-      const resources = Array.isArray(session.selectedResources) ? session.selectedResources : [resourceName];
+      // At this point, selectedResources should always be an array (either discovered or specified)
+      if (!Array.isArray(session.selectedResources)) {
+        throw new Error(`Invalid selectedResources state: expected array, got ${typeof session.selectedResources}. This indicates a bug in resource discovery.`);
+      }
+      
+      const resources = session.selectedResources;
       const totalResources = resources.length;
       const processedResults: any[] = [];
       const errors: any[] = [];
@@ -1424,7 +1531,48 @@ The AI should infer what this resource does based on its name and provide compre
         resources: resources
       });
       
-      // Process each resource in the batch
+      // Initialize progress tracking
+      const startTime = Date.now();
+      const updateProgress = (current: number, currentResource: string, successful: number, failed: number, recentErrors: any[]) => {
+        const elapsed = Date.now() - startTime;
+        const percentage = Math.round((current / totalResources) * 100);
+        
+        // Calculate estimated time remaining
+        let estimatedTimeRemaining: string | undefined;
+        if (current > 0) {
+          const avgTimePerResource = elapsed / current;
+          const remainingResources = totalResources - current;
+          const estimatedRemainingMs = remainingResources * avgTimePerResource;
+          const estimatedMinutes = Math.round(estimatedRemainingMs / 60000 * 10) / 10;
+          estimatedTimeRemaining = estimatedMinutes > 1 ? 
+            `${estimatedMinutes} minutes` : 
+            `${Math.round(estimatedRemainingMs / 1000)} seconds`;
+        }
+        
+        const progressData: ProgressData = {
+          status: 'processing',
+          current: current,
+          total: totalResources,
+          percentage: percentage,
+          currentResource: currentResource,
+          startedAt: new Date(startTime).toISOString(),
+          lastUpdated: new Date().toISOString(),
+          estimatedTimeRemaining,
+          successfulResources: successful,
+          failedResources: failed,
+          errors: recentErrors.slice(-5) // Keep last 5 errors for troubleshooting
+        };
+        
+        // Update session file with progress
+        transitionCapabilitySession(session, 'scanning', { 
+          processingMode: session.processingMode,
+          selectedResources: session.selectedResources,
+          currentResourceIndex: current - 1,
+          progress: progressData
+        }, args);
+      };
+      
+      // Process each resource in the batch with progress tracking
       for (let i = 0; i < resources.length; i++) {
         const currentResource = resources[i];
         const currentContext = `
@@ -1432,11 +1580,15 @@ Resource Name: ${currentResource}
 Context: This is a Kubernetes resource that the user wants to analyze for capabilities.
 The AI should infer what this resource does based on its name and provide comprehensive capability analysis.`;
         
+        // Update progress before processing
+        updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
+        
         try {
           logger.info(`Processing resource ${i + 1}/${totalResources}`, {
             requestId,
             sessionId: session.sessionId,
-            resource: currentResource
+            resource: currentResource,
+            percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
           const capability = await engine.inferCapabilities(currentResource, currentContext);
@@ -1458,40 +1610,69 @@ The AI should infer what this resource does based on its name and provide compre
             requestId,
             sessionId: session.sessionId,
             resource: currentResource,
-            capabilitiesFound: capability.capabilities.length
+            capabilitiesFound: capability.capabilities.length,
+            percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorDetail = {
+            resource: currentResource,
+            error: errorMessage,
+            index: i + 1,
+            timestamp: new Date().toISOString()
+          };
           
           logger.error(`Failed to process resource ${i + 1}/${totalResources}`, error as Error, {
             requestId,
             sessionId: session.sessionId,
-            resource: currentResource
+            resource: currentResource,
+            percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
-          errors.push({
-            resource: currentResource,
-            error: errorMessage,
-            index: i + 1
-          });
+          errors.push(errorDetail);
         }
       }
       
-      // Mark session as complete and cleanup
-      transitionCapabilitySession(session, 'complete', {}, args);
-      cleanupCapabilitySession(session, args, logger, requestId);
-      
+      // Final progress update - mark as completed
+      const finalElapsed = Date.now() - startTime;
+      const finalMinutes = Math.round(finalElapsed / 60000 * 10) / 10;
       const successful = processedResults.length;
       const failed = errors.length;
+      
+      const completionData: ProgressData = {
+        status: 'completed',
+        current: totalResources,
+        total: totalResources,
+        percentage: 100,
+        currentResource: 'Processing complete',
+        startedAt: new Date(startTime).toISOString(),
+        lastUpdated: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        totalProcessingTime: finalMinutes > 1 ? `${finalMinutes} minutes` : `${Math.round(finalElapsed / 1000)} seconds`,
+        successfulResources: successful,
+        failedResources: failed,
+        errors: errors.slice(-5)
+      };
+      
+      // Update session with completion status
+      transitionCapabilitySession(session, 'complete', {
+        progress: completionData
+      }, args);
       
       logger.info('Auto batch processing completed', {
         requestId,
         sessionId: session.sessionId,
         processed: totalResources,
         successful,
-        failed
+        failed,
+        processingTime: completionData.totalProcessingTime
       });
+      
+      // Clean up session file after a brief delay to allow progress viewing
+      setTimeout(() => {
+        cleanupCapabilitySession(session, args, logger, requestId);
+      }, 30000); // Keep for 30 seconds after completion
       
       return {
         success: true,
@@ -1506,12 +1687,18 @@ The AI should infer what this resource does based on its name and provide compre
           failed,
           message: `Completed batch processing ${totalResources} resources (${successful} successful, ${failed} failed)`,
           processedResources: processedResults,
+          processingTime: completionData.totalProcessingTime,
           ...(errors.length > 0 && { errors })
         },
         message: failed > 0 ? 
           `Capability scan completed with ${failed} errors. ${successful}/${totalResources} resources processed successfully.` :
           'Capability scan completed successfully for all resources.',
-        sample: processedResults.length > 0 ? processedResults[0] : undefined
+        sample: processedResults.length > 0 ? processedResults[0] : undefined,
+        progressTracking: {
+          note: 'Progress was tracked during processing in the session file',
+          sessionFile: `Session progress was available at: ~/.dot-ai/sessions/${session.sessionId}.json`,
+          nextTime: 'To monitor progress of future scans, check the session file during processing'
+        }
       };
     }
   } catch (error) {
