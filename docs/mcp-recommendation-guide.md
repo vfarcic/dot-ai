@@ -9,20 +9,37 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 - `ANTHROPIC_API_KEY` configured
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional but recommended)
 
+**Required - Capability Management:**
+- Vector DB service (Qdrant) for capability storage
+- Cluster capabilities discovered via [Capability Management Guide](mcp-capability-management-guide.md)
+- **Note**: Recommendations will fail without capabilities - the system requires semantic understanding of your cluster resources
+
 **Optional - Enhanced with Organizational Patterns:**
-- Vector DB service (Qdrant) for pattern storage
 - Organizational patterns created via [Pattern Management Guide](pattern-management-guide.md)
 - When configured, recommendations automatically include organizational best practices
 
 ## Overview
 
 The DevOps AI Toolkit recommendation feature provides:
-- **Intelligent cluster discovery** - Analyzes your Kubernetes cluster capabilities
-- **AI-powered recommendations** - Suggests optimal deployment approaches based on available resources
+- **Semantic capability understanding** - Uses discovered resource capabilities for intelligent semantic matching
+- **AI-powered recommendations** - Suggests optimal deployment approaches based on capability-filtered resources with rich context
+- **Enhanced resource discovery** - Finds resources like `sqls.devopstoolkit.live` for "PostgreSQL database" requests through semantic search
 - **Organizational pattern integration** - Automatically enhances recommendations with your team's best practices and standards
 - **Guided configuration** - Step-by-step configuration collection for your deployments
 - **Manifest generation** - Creates ready-to-deploy Kubernetes YAML files
 - **Automated deployment** - Deploys and monitors your applications
+
+### How Capability-Enhanced Recommendations Work
+
+**Traditional Problem**: AI sees `sqls.devopstoolkit.live` as a meaningless name among many cluster resources.
+
+**Capability Solution**: AI understands that `sqls.devopstoolkit.live` provides PostgreSQL database capabilities with multi-cloud support.
+
+**Recommendation Flow**:
+1. **User Intent**: "I need a PostgreSQL database"
+2. **Capability Search**: Semantic search finds relevant resources with capability context
+3. **Pre-filtered Results**: AI gets semantically relevant resources instead of all generic resource names
+4. **Enhanced Recommendations**: Optimal matches like `sqls.devopstoolkit.live` appear as top suggestions
 
 ## Complete Workflow Examples
 
@@ -61,12 +78,12 @@ Which approach interests you most?
 ```
 
 **What happened behind the scenes:**
-- AI analyzed your intent and extracted concepts: "stateless application" (high importance), "golang application" (medium importance)
-- Vector DB search found matching organizational patterns: Stateless Apps Pattern (score: 0.621), Network Security Pattern (score: 0.333)
-- AI selected candidate resources and ran `kubectl explain` to verify schema capabilities
-- Generated 3 solution alternatives with different complexity/capability tradeoffs, scoring based on pattern influence and completeness
+- Capability search found relevant resources: Deployment (score: 0.85), Service (score: 0.78), HorizontalPodAutoscaler (score: 0.65)
+- Vector DB search found matching organizational patterns: Stateless Apps Pattern (score: 0.621), Network Security Pattern (score: 0.333) 
+- AI received pre-filtered capability-rich resources with semantic context instead of raw resource names
+- Generated 3 solution alternatives with different complexity/capability tradeoffs, scoring based on capability relevance and pattern influence
 
-**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns.
+**Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md).
 
 ```
 User: I'll go with option 1

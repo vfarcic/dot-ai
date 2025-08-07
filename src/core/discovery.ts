@@ -29,6 +29,12 @@ export interface CRD {
   group: string;
   version: string;
   schema: any;
+  metadata?: {
+    labels: any;
+    annotations: any;
+    description: string;
+    categories: string[];
+  };
 }
 
 // Enhanced interfaces for kubectl-based discovery
@@ -407,7 +413,13 @@ export class KubernetesDiscovery {
         name: crd.metadata?.name || '',
         group: crd.spec.group,
         version: crd.spec.versions[0]?.name || '',
-        schema: crd.spec.versions[0]?.schema || {}
+        schema: crd.spec.versions[0]?.schema || {},
+        metadata: {
+          labels: crd.metadata?.labels || {},
+          annotations: crd.metadata?.annotations || {},
+          description: crd.spec.versions[0]?.schema?.openAPIV3Schema?.description || '',
+          categories: crd.spec.names?.categories || []
+        }
       }));
     } catch (error) {
       return [];

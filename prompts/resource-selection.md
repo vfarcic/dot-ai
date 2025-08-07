@@ -13,11 +13,18 @@ You are a Kubernetes expert. Given this user intent and available resources, sel
 
 ## Instructions
 
+## 🏆 PATTERN PRIORITIZATION (HIGHEST PRIORITY)
+
+**If any organizational pattern above matches this intent (based on pattern triggers), prioritize those resources above all others:**
+- **Golden Path Priority** - Pattern resources represent approved organizational standards and should rank higher than cloud-native alternatives
+- **Pattern Recognition** - Match pattern triggers against user intent keywords. If triggers match, the pattern's "Suggested Resources" become high-priority candidates
+- **Higher-Level Abstractions** - Pattern resources often provide better user experience than low-level cloud provider resources
+- **Resource Name Matching** - Find exact "Suggested Resources" names in the "Resource Name" field of available resources
+
 Select all resources that could be relevant for this intent. Consider:
-- Direct relevance to the user's needs (applications, infrastructure, operators, networking, storage)
+- **🥇 FIRST: Organizational pattern resources** - When patterns match the intent, their suggested resources should appear early in your selection
+- Direct relevance to the user's needs (applications, infrastructure, operators, networking, storage)  
 - Common Kubernetes patterns and best practices
-- **PRIORITY: Organizational pattern resources** - If organizational patterns are provided above, ALWAYS include ALL resources from patterns that match this intent, even if individual resources don't seem directly relevant
-- **Pattern resource completeness** - Organizational patterns represent complete, battle-tested solutions. Include entire pattern resource sets to avoid incomplete deployments
 - Resource relationships and combinations
 - Production deployment patterns
 - Complex multi-component solutions

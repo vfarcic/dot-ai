@@ -5,6 +5,9 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 export interface ClaudeResponse {
   content: string;
@@ -31,9 +34,11 @@ export class ClaudeIntegration {
   private apiKey: string;
   private conversationHistory: any[] = [];
   private interactions: Interaction[] = [];
+  private debugMode: boolean;
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
+    this.debugMode = process.env.DEBUG_DOT_AI === 'true';
     this.validateApiKey();
     
     if (this.apiKey) {
@@ -57,7 +62,62 @@ export class ClaudeIntegration {
     }
   }
 
-  async sendMessage(message: string): Promise<ClaudeResponse> {
+  /**
+   * Create debug directory if it doesn't exist
+   */
+  private ensureDebugDirectory(): string {
+    const debugDir = path.join(process.cwd(), 'tmp', 'debug-ai');
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    return debugDir;
+  }
+
+  /**
+   * Generate unique identifier for debug files with operation context
+   */
+  private generateDebugId(operation: string): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T');
+    const dateTime = timestamp[0] + 'T' + timestamp[1].substring(0, 6);
+    const randomHex = crypto.randomBytes(4).toString('hex');
+    return `${dateTime}_${randomHex}_${operation}`;
+  }
+
+  /**
+   * Save AI interaction for debugging when DEBUG_DOT_AI=true
+   */
+  private debugLogInteraction(debugId: string, prompt: string, response: ClaudeResponse, operation: string = 'ai_call'): void {
+    if (!this.debugMode) return;
+
+    try {
+      const debugDir = this.ensureDebugDirectory();
+      
+      // Save prompt with descriptive naming
+      const promptFile = path.join(debugDir, `${debugId}_prompt.md`);
+      fs.writeFileSync(promptFile, `# AI Prompt - ${operation}\n\nTimestamp: ${new Date().toISOString()}\nOperation: ${operation}\n\n---\n\n${prompt}`);
+      
+      // Save response with matching naming
+      const responseFile = path.join(debugDir, `${debugId}_response.md`);
+      const responseContent = `# AI Response - ${operation}
+
+Timestamp: ${new Date().toISOString()}
+Operation: ${operation}
+Input Tokens: ${response.usage.input_tokens}
+Output Tokens: ${response.usage.output_tokens}
+
+---
+
+${response.content}`;
+      
+      fs.writeFileSync(responseFile, responseContent);
+      
+      console.log(`🐛 DEBUG: AI interaction logged to tmp/debug-ai/${debugId}_*.md`);
+    } catch (error) {
+      console.warn('Failed to log AI debug interaction:', error);
+    }
+  }
+
+  async sendMessage(message: string, operation: string = 'generic'): Promise<ClaudeResponse> {
     if (!this.client) {
       throw new Error('Claude client not initialized due to missing API key');
     }
@@ -89,38 +149,46 @@ export class ClaudeIntegration {
         };
 
         this.conversationHistory.push({ role: 'assistant', content: response.content });
+        
+        // Debug log the interaction if enabled
+        if (this.debugMode) {
+          const debugId = this.generateDebugId(operation);
+          this.debugLogInteraction(debugId, message, response, operation);
+        }
+        
         return response;
       }
 
       // For testing purposes, return mock responses
+      let response: ClaudeResponse;
+      
       if (message.toLowerCase().includes('deploy a web application')) {
-        const response: ClaudeResponse = {
+        response = {
           content: 'I can help you deploy a web application to Kubernetes. Let me guide you through the process of creating the necessary YAML manifests for your deployment.',
           usage: { input_tokens: 10, output_tokens: 25 }
         };
-        
-        this.conversationHistory.push({ role: 'assistant', content: response.content });
-        return response;
-      }
-
-      if (message.toLowerCase().includes('recommended resources') && 
+      } else if (message.toLowerCase().includes('recommended resources') && 
           this.conversationHistory.some(msg => msg.content.toLowerCase().includes('nginx'))) {
-        const response: ClaudeResponse = {
+        response = {
           content: 'For nginx deployment, I recommend starting with 2 replicas, 500m CPU and 512Mi memory per pod. You can adjust these based on your traffic patterns.',
           usage: { input_tokens: 8, output_tokens: 30 }
         };
-        
-        this.conversationHistory.push({ role: 'assistant', content: response.content });
-        return response;
+      } else {
+        // Default mock response
+        response = {
+          content: 'I understand you want help with Kubernetes deployment. Could you provide more specific details about what you\'d like to deploy?',
+          usage: { input_tokens: message.length / 4, output_tokens: 20 }
+        };
       }
-
-      // Default mock response
-      const response: ClaudeResponse = {
-        content: 'I understand you want help with Kubernetes deployment. Could you provide more specific details about what you\'d like to deploy?',
-        usage: { input_tokens: message.length / 4, output_tokens: 20 }
-      };
       
       this.conversationHistory.push({ role: 'assistant', content: response.content });
+      
+      // Debug log the interaction if enabled (for mocks too)
+      if (this.debugMode) {
+        const debugId = this.generateDebugId(`mock-${operation}`);
+        this.debugLogInteraction(debugId, message, response, `mock-${operation}`);
+      }
+      
       return response;
 
     } catch (error) {

@@ -142,20 +142,19 @@ export class EmbeddingService {
   }
 
   /**
-   * Generate embedding for text (optional enhancement)
-   * Returns null if embeddings not available - caller should handle gracefully
+   * Generate embedding for text 
+   * Throws error if embeddings not available or generation fails
    */
-  async generateEmbedding(text: string): Promise<number[] | null> {
+  async generateEmbedding(text: string): Promise<number[]> {
     if (!this.isAvailable()) {
-      return null;
+      throw new Error('Embedding service not available');
     }
 
     try {
       return await this.provider!.generateEmbedding(text);
     } catch (error) {
-      // Log error but don't throw - allow graceful fallback
-      console.warn('Embedding generation failed, falling back to keyword search:', error);
-      return null;
+      // Throw error immediately - no silent fallback
+      throw new Error(`Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -214,7 +213,7 @@ export class EmbeddingService {
     return {
       available: false,
       provider: null,
-      reason: 'OPENAI_API_KEY not set - using keyword-only pattern search'
+      reason: 'OPENAI_API_KEY not set - vector operations will fail'
     };
   }
 

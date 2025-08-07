@@ -143,16 +143,13 @@ export class VectorDBService {
     try {
       const point: any = {
         id: document.id,
-        payload: document.payload
+        payload: document.payload,
+        vector: document.vector
       };
 
-      // For documents without vectors, use a zero vector as placeholder
-      // This allows us to store documents in collections configured for vectors
-      if (document.vector && document.vector.length > 0) {
-        point.vector = document.vector;
-      } else {
-        // Create a zero vector with the expected dimensions (384)
-        point.vector = new Array(384).fill(0);
+      // Validate vector is provided
+      if (!document.vector || document.vector.length === 0) {
+        throw new Error('Vector is required for vector database storage');
       }
 
       await this.client.upsert(this.collectionName, {
@@ -290,9 +287,43 @@ export class VectorDBService {
   }
 
   /**
-   * Get all documents (for listing)
+   * Delete all documents by recreating the collection
+   * More efficient than retrieving and deleting individual records
    */
-  async getAllDocuments(limit: number = 100): Promise<VectorDocument[]> {
+  async deleteAllDocuments(): Promise<void> {
+    if (!this.client) {
+      throw new Error('Vector DB client not initialized');
+    }
+
+    try {
+      // Get current collection info to preserve vector dimensions
+      let vectorSize = 1536; // Default OpenAI embedding size
+      try {
+        const collectionInfo = await this.client.getCollection(this.collectionName);
+        const vectorConfig = collectionInfo.config?.params?.vectors;
+        // Handle both legacy format (number) and new format (object with size)
+        if (typeof vectorConfig === 'number') {
+          vectorSize = vectorConfig;
+        } else if (vectorConfig && typeof vectorConfig.size === 'number') {
+          vectorSize = vectorConfig.size;
+        }
+      } catch (error) {
+        // If we can't get collection info, use default
+      }
+
+      // Delete and recreate collection - more efficient than individual deletions
+      await this.client.deleteCollection(this.collectionName);
+      await this.createCollection(vectorSize);
+    } catch (error) {
+      throw new Error(`Failed to delete all documents: ${error}`);
+    }
+  }
+
+  /**
+   * Get all documents (for listing)
+   * @param limit - Maximum number of documents to retrieve. Defaults to unlimited (10000).
+   */
+  async getAllDocuments(limit: number = 10000): Promise<VectorDocument[]> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
