@@ -59,7 +59,7 @@ jobs:
       run: npm run build
     
     - name: Run tests
-      run: npm test
+      run: npm test -- --verbose
 
   security:
     name: Security Analysis

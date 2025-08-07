@@ -313,10 +313,10 @@ async findBestSolutions(
 - [x] Performance optimization for large-scale capability analysis (MCP token limits resolved)
 - [x] Performance optimization for large-scale capability deletion operations (efficient collection recreation implemented)
 - [x] Create comprehensive capability management guide (docs/mcp-capability-management-guide.md) - Evidence: 300+ line guide created, tested with testDocs workflow, 4 critical accuracy issues fixed
-- [ ] Update README.md to include capability discovery features
-- [ ] Update MCP recommendation guide with capability integration details  
-- [ ] Update MCP setup guide to include capability management
-- [ ] Update pattern management guide to clarify capabilities vs patterns
+- [x] Update README.md to include capability discovery features - Evidence: Added capability management as key feature, enhanced Platform Engineers persona, added conversational example (commit 4026b29, 28d358c)  
+- [x] Update MCP recommendation guide with capability integration details - Evidence: Updated Prerequisites (Required), Overview sections, workflow explanations, scale-agnostic language (commit 28d358c)
+- [x] Update MCP setup guide to include capability management - Evidence: Updated overview (5 capabilities), environment variables, workflow order recommendations (commit 28d358c)
+- [x] Update pattern management guide to clarify capabilities vs patterns - Evidence: Added "Capabilities vs Patterns" section with clear distinctions and workflow order (commit d5c7686)
 - **Success Criteria**: Feature ready for production use with measurable recommendation improvements
 
 ## Risk Assessment
