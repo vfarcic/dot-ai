@@ -54,6 +54,7 @@ For each identified decision, assess:
 - **Scope Impact**: Does this expand or contract the project scope?
 - **Timeline Impact**: Does this affect project phases or delivery dates?
 - **Architecture Impact**: Does this change technical constraints or approaches?
+- **Code Example Impact**: Which examples, interfaces, or snippets become outdated?
 - **Risk Impact**: Does this introduce new risks or mitigate existing ones?
 
 ### Decision Documentation Format
@@ -62,6 +63,7 @@ For each decision, record:
 - **Date**: When the decision was made
 - **Rationale**: Why this approach was chosen
 - **Impact**: How this affects the PRD requirements, scope, or approach
+- **Code Impact**: Which code examples, interfaces, or snippets need updating
 - **Owner**: Who made or approved the decision
 
 ## Step 4: PRD Updates
@@ -82,6 +84,13 @@ Update the appropriate PRD sections:
 - Update phases if sequencing or priorities changed
 - Modify architecture decisions if technical approach evolved
 - Adjust scope management if features were added, deferred, or removed
+
+### Code Example Validation and Updates
+- **Identify Outdated Examples**: Scan PRD for code snippets that may be affected by design decisions
+- **Interface Changes**: Update examples when function signatures, parameter types, or return values change
+- **API Modifications**: Revise examples when method names, class structures, or data formats evolve
+- **Workflow Updates**: Update process examples when user interaction patterns or step sequences change
+- **Mark for Verification**: Flag code examples that need manual testing to ensure they still work
 
 ### Risk and Dependency Updates
 - Add new risks introduced by design decisions

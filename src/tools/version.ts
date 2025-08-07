@@ -8,7 +8,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Logger } from '../core/error-handling';
-import { VectorDBService, PatternVectorService, EmbeddingService } from '../core/index';
+import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, and pattern management health check';
@@ -46,6 +46,15 @@ export interface SystemStatus {
     connected: boolean;
     keyConfigured: boolean;
     error?: string;
+  };
+  capabilities: {
+    systemReady: boolean;
+    vectorDBHealthy: boolean;
+    collectionAccessible: boolean;
+    storedCount?: number;
+    error?: string;
+    rawError?: string;
+    lastDiagnosis: string;
   };
 }
 
@@ -109,6 +118,127 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
     dimensions: status.dimensions,
     reason: status.reason
   };
+}
+
+/**
+ * Test capability system readiness
+ */
+async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
+  const timestamp = new Date().toISOString();
+  
+  try {
+    const capabilityService = new CapabilityVectorService();
+    
+    // Test Vector DB health for capabilities
+    let vectorDBHealthy = false;
+    let collectionAccessible = false;
+    let storedCount: number | undefined;
+    
+    try {
+      vectorDBHealthy = await capabilityService.healthCheck();
+    } catch (error) {
+      return {
+        systemReady: false,
+        vectorDBHealthy: false,
+        collectionAccessible: false,
+        error: `Vector DB health check failed: ${error instanceof Error ? error.message : String(error)}`,
+        lastDiagnosis: timestamp
+      };
+    }
+    
+    if (vectorDBHealthy) {
+      // Test collection accessibility and storage operations
+      try {
+        await capabilityService.initialize();
+        storedCount = await capabilityService.getCapabilitiesCount();
+        collectionAccessible = true;
+        
+        // Test actual storage operation to detect dimension mismatches and other storage issues
+        const testCapability = {
+          resourceName: 'test.version.diagnostic',
+          capabilities: ['version-test'],
+          providers: ['test'],
+          abstractions: ['diagnostic'],
+          complexity: 'low' as const,
+          description: 'Version tool diagnostic test capability',
+          useCase: 'Testing capability storage pipeline',
+          confidence: 0.95, // Should be 0-1 range, not 0-100
+          analyzedAt: timestamp
+        };
+        
+        // Test embedding generation directly first
+        const embeddingService = new EmbeddingService();
+        const testEmbedding = await embeddingService.generateEmbedding('test capability storage pipeline');
+        
+        if (!testEmbedding || testEmbedding.length !== 1536) {
+          throw new Error(`Embedding dimension mismatch: expected 1536, got ${testEmbedding?.length || 'null'} dimensions`);
+        }
+        
+        // Validate embedding values are numbers (not NaN, Infinity, etc.)
+        if (testEmbedding.some(val => !Number.isFinite(val))) {
+          throw new Error('Embedding contains invalid values (NaN or Infinity)');
+        }
+        
+        // Attempt to store test capability
+        await capabilityService.storeCapability(testCapability);
+        
+        // Attempt to retrieve test capability
+        const retrieved = await capabilityService.getCapability('test.version.diagnostic');
+        if (!retrieved) {
+          throw new Error('Test capability storage failed - could not retrieve stored test data');
+        }
+        
+        // Clean up test capability
+        await capabilityService.deleteCapability('test.version.diagnostic');
+        
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Check for common Vector DB issues
+        const isDimensionMismatch = errorMessage.toLowerCase().includes('dimension') || 
+                                  errorMessage.toLowerCase().includes('vector') ||
+                                  errorMessage.toLowerCase().includes('size') ||
+                                  errorMessage.toLowerCase().includes('bad request');
+        
+        return {
+          systemReady: false,
+          vectorDBHealthy: true,
+          collectionAccessible: collectionAccessible,
+          storedCount: storedCount,
+          error: isDimensionMismatch ? 
+            `Vector dimension mismatch detected: ${errorMessage}. The capabilities collection exists but has incompatible vector dimensions. Delete the collection to allow recreation with correct dimensions.` :
+            `Capability storage test failed: ${errorMessage}`,
+          lastDiagnosis: timestamp,
+          // Add raw error for debugging
+          rawError: errorMessage
+        };
+      }
+    }
+    
+    // Check embedding service (required for semantic search)
+    const embeddingService = new EmbeddingService();
+    const embeddingAvailable = embeddingService.isAvailable();
+    
+    // System is ready if Vector DB is healthy, collection is accessible, and embeddings available
+    const systemReady = vectorDBHealthy && collectionAccessible && embeddingAvailable;
+    
+    return {
+      systemReady,
+      vectorDBHealthy,
+      collectionAccessible,
+      storedCount,
+      lastDiagnosis: timestamp
+    };
+    
+  } catch (error) {
+    return {
+      systemReady: false,
+      vectorDBHealthy: false,
+      collectionAccessible: false,
+      error: `Capability diagnostics failed: ${error instanceof Error ? error.message : String(error)}`,
+      lastDiagnosis: timestamp
+    };
+  }
 }
 
 /**
@@ -188,17 +318,19 @@ export async function handleVersionTool(
     
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId });
-    const [vectorDBStatus, embeddingStatus, anthropicStatus] = await Promise.all([
+    const [vectorDBStatus, embeddingStatus, anthropicStatus, capabilityStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
-      getAnthropicStatus()
+      getAnthropicStatus(),
+      getCapabilityStatus()
     ]);
     
     const systemStatus: SystemStatus = {
       version,
       vectorDB: vectorDBStatus,
       embedding: embeddingStatus,
-      anthropic: anthropicStatus
+      anthropic: anthropicStatus,
+      capabilities: capabilityStatus
     };
     
     // Log summary of system health
@@ -207,7 +339,8 @@ export async function handleVersionTool(
       version: version.version,
       vectorDBConnected: vectorDBStatus.connected,
       embeddingAvailable: embeddingStatus.available,
-      anthropicConnected: anthropicStatus.connected
+      anthropicConnected: anthropicStatus.connected,
+      capabilitySystemReady: capabilityStatus.systemReady
     });
     
     return {
@@ -217,10 +350,12 @@ export async function handleVersionTool(
           status: 'success',
           system: systemStatus,
           summary: {
-            overall: vectorDBStatus.connected && anthropicStatus.connected ? 'healthy' : 'degraded',
+            overall: vectorDBStatus.connected && anthropicStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
             patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
+            capabilityScanning: capabilityStatus.systemReady ? 'ready' : 'not-ready',
             capabilities: [
               vectorDBStatus.connected ? 'pattern-management' : null,
+              capabilityStatus.systemReady ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
               anthropicStatus.connected ? 'ai-recommendations' : null
             ].filter(Boolean)

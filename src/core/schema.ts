@@ -13,6 +13,7 @@ import { ClaudeIntegration } from './claude';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
+import { CapabilityVectorService } from './capability-vector-service';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -99,23 +100,6 @@ export interface QuestionGroup {
   };
 }
 
-export interface DeploymentConcept {
-  category: 'application_architecture' | 'infrastructure' | 'operational' | 'technology';
-  concept: string;
-  importance: 'high' | 'medium' | 'low';
-  keywords: string[];
-}
-
-export interface ConceptExtractionResult {
-  concepts: DeploymentConcept[];
-}
-
-export interface PatternMatch {
-  pattern: OrganizationalPattern;
-  score: number;
-  matchedConcept: DeploymentConcept;
-  matchType: 'keyword' | 'semantic' | 'hybrid';
-}
 
 export interface PatternInfluence {
   patternId: string;
@@ -141,10 +125,8 @@ export interface AIRankingConfig {
   claudeApiKey: string;
 }
 
-export interface DiscoveryFunctions {
-  discoverResources: () => Promise<any>;
-  explainResource: (resource: string) => Promise<any>;
-}
+// Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
+// explainResource function is now passed directly to findBestSolutions
 
 export interface ClusterOptions {
   namespaces: string[];
@@ -396,10 +378,22 @@ export class ResourceRecommender {
   private claudeIntegration: ClaudeIntegration;
   private config: AIRankingConfig;
   private patternService?: PatternVectorService;
+  private capabilityService?: CapabilityVectorService;
 
   constructor(config: AIRankingConfig) {
     this.config = config;
     this.claudeIntegration = new ClaudeIntegration(config.claudeApiKey);
+    
+    // Initialize capability service - fail gracefully if Vector DB unavailable
+    try {
+      const capabilityVectorDB = new VectorDBService({ collectionName: 'capabilities' });
+      this.capabilityService = new CapabilityVectorService(capabilityVectorDB);
+      console.log('✅ Capability service initialized with Vector DB');
+    } catch (error) {
+      console.warn('⚠️ Vector DB not available, capabilities disabled:', error);
+      this.capabilityService = undefined;
+    }
+    
     // Initialize pattern service only if Vector DB is available
     try {
       const vectorDB = new VectorDBService({ collectionName: 'patterns' });
@@ -415,8 +409,7 @@ export class ResourceRecommender {
    * Find the best resource solution(s) for user intent using two-phase analysis
    */
   async findBestSolutions(
-    intent: string, 
-    discoverResources: () => Promise<any>,
+    intent: string,
     explainResource: (resource: string) => Promise<any>
   ): Promise<ResourceSolution[]> {
     if (!this.claudeIntegration.isInitialized()) {
@@ -427,17 +420,99 @@ export class ResourceRecommender {
       // Phase 0: Search for relevant organizational patterns
       const relevantPatterns = await this.searchRelevantPatterns(intent);
 
-      // Phase 1: Get lightweight resource list and let AI select candidates
-      const resourceMap = await discoverResources();
-      const allResources = [...resourceMap.resources, ...resourceMap.custom];
-      const candidates = await this.selectResourceCandidates(intent, allResources, relevantPatterns);
+      // Phase 1a: Replace mass resource discovery with capability-based pre-filtering
+      if (!this.capabilityService) {
+        // Capability service not available - fail fast with clear guidance
+        throw new Error(
+          `Capability service not available for intent "${intent}". Please scan your cluster first:\n` +
+          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+          `Note: Vector DB is required for capability-based recommendations.`
+        );
+      }
 
-      // Phase 2: Fetch detailed schemas for selected candidates and rank
+      let relevantCapabilities: any[] = [];
+      
+      try {
+        relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
+      } catch (error) {
+        // Capability search failed - fail fast with clear guidance
+        throw new Error(
+          `Capability search failed for intent "${intent}". Please scan your cluster first:\n` +
+          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+          `Error: ${error}`
+        );
+      }
+      
+      if (relevantCapabilities.length === 0) {
+        // Fail fast with clear user guidance if no capabilities found
+        throw new Error(
+          `No capabilities found for "${intent}". Please scan your cluster first:\n` +
+          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })`
+        );
+      }
+
+      console.log(`🎯 Found ${relevantCapabilities.length} relevant capabilities (vs 415+ mass discovery)`);
+      
+      // Create normalized resource objects from capability matches
+      const capabilityFilteredResources = relevantCapabilities.map(cap => ({
+        kind: this.extractKindFromResourceName(cap.data.resourceName),
+        group: this.extractGroupFromResourceName(cap.data.resourceName),
+        apiVersion: this.constructApiVersionFromResourceName(cap.data.resourceName),
+        resourceName: cap.data.resourceName,
+        namespaced: true, // Default assumption, could be enhanced
+        capabilities: cap.data // Include capability data for AI decision-making
+      }));
+
+      // Phase 1b: AI selects best candidates from capability-filtered resources (maintains existing logic)
+      const candidates = await this.selectResourceCandidates(intent, capabilityFilteredResources, relevantPatterns);
+
+      // Phase 2: Fetch detailed schemas for AI-selected candidates and rank (unchanged)
       const schemas = await this.fetchDetailedSchemas(candidates, explainResource);
       return await this.rankWithDetailedSchemas(intent, schemas, relevantPatterns);
     } catch (error) {
       throw new Error(`AI-powered resource solution analysis failed: ${error}`);
     }
+  }
+
+  /**
+   * Extract Kubernetes kind from resource name (e.g., "sqls.devopstoolkit.live" -> "SQL")
+   */
+  private extractKindFromResourceName(resourceName: string): string {
+    // For CRDs like "sqls.devopstoolkit.live", the kind is usually the singular of the plural
+    // For core resources like "pods", return as-is
+    if (!resourceName.includes('.')) {
+      return resourceName; // Core resources like "pods", "services"
+    }
+    
+    // For CRDs, extract the resource part (before first dot)
+    const resourcePart = resourceName.split('.')[0];
+    // Convert plural to singular and capitalize (sqls -> SQL)
+    return resourcePart.toUpperCase();
+  }
+
+  /**
+   * Extract group from resource name (e.g., "sqls.devopstoolkit.live" -> "devopstoolkit.live")
+   */
+  private extractGroupFromResourceName(resourceName: string): string {
+    if (!resourceName.includes('.')) {
+      return 'core'; // Core resources have no group
+    }
+    
+    // Return everything after the first dot
+    return resourceName.substring(resourceName.indexOf('.') + 1);
+  }
+
+  /**
+   * Construct API version from resource name (simplified approach)
+   */
+  private constructApiVersionFromResourceName(resourceName: string): string {
+    if (!resourceName.includes('.')) {
+      return 'v1'; // Core resources typically use v1
+    }
+    
+    // For CRDs, construct group/version format
+    const group = this.extractGroupFromResourceName(resourceName);
+    return `${group}/v1beta1`; // Default to v1beta1 for CRDs
   }
 
   /**
@@ -452,141 +527,16 @@ export class ResourceRecommender {
     }
 
     try {
-      // Step 1: Extract deployment concepts from user intent
-      const concepts = await this.extractDeploymentConcepts(intent);
-      console.log(`🔍 Extracted ${concepts.length} deployment concepts from intent`);
-      
-      // If concept extraction fails, fall back to simple search
-      if (concepts.length === 0) {
-        console.warn('⚠️ No concepts extracted, falling back to simple pattern search');
-        const fallbackResults = await this.patternService.searchPatterns(intent, { limit: 5 });
-        return fallbackResults.map(result => result.data);
-      }
-      
-      // Step 2: Find patterns for each concept
-      const allPatternMatches: PatternMatch[] = [];
-      
-      for (const concept of concepts) {
-        try {
-          // Search using concept keywords
-          const conceptKeywords = concept.keywords.join(' ');
-          const searchResults = await this.patternService.searchPatterns(conceptKeywords, { limit: 10 });
-          
-          // Convert to PatternMatch with concept context
-          const matches: PatternMatch[] = searchResults.map(result => ({
-            pattern: result.data,
-            score: result.score * this.getConceptImportanceWeight(concept.importance),
-            matchedConcept: concept,
-            matchType: result.matchType
-          }));
-          
-          allPatternMatches.push(...matches);
-          console.log(`  📋 Found ${matches.length} patterns for concept: ${concept.concept}`);
-        } catch (error) {
-          console.warn(`⚠️ Pattern search failed for concept "${concept.concept}":`, error);
-        }
-      }
-      
-      // Step 3: Deduplicate and rank patterns
-      const uniquePatterns = this.deduplicateAndRankPatterns(allPatternMatches);
-      console.log(`✅ Final pattern selection: ${uniquePatterns.length} unique patterns`);
-      
-      return uniquePatterns;
-      
+      // Search patterns directly with user intent (vector search handles semantic concepts)
+      const patternResults = await this.patternService.searchPatterns(intent, { limit: 5 });
+      return patternResults.map(result => result.data);
     } catch (error) {
       // Pattern search is non-blocking - if it fails, continue without patterns
-      console.warn('❌ Multi-concept pattern search failed, continuing without patterns:', error);
+      console.warn('❌ Pattern search failed, continuing without patterns:', error);
       return [];
     }
   }
 
-  /**
-   * Extract deployment concepts from user intent using AI
-   */
-  private async extractDeploymentConcepts(intent: string): Promise<DeploymentConcept[]> {
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'concept-extraction.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
-    
-    const conceptPrompt = template.replace('{intent}', intent);
-    const response = await this.claudeIntegration.sendMessage(conceptPrompt);
-    
-    try {
-      // Extract JSON from response
-      let jsonContent = response.content;
-      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        jsonContent = codeBlockMatch[1];
-      }
-      
-      const result: ConceptExtractionResult = JSON.parse(jsonContent);
-      return result.concepts || [];
-    } catch (error) {
-      console.warn('Failed to parse concept extraction response:', error);
-      // Fallback: create a single concept from the original intent
-      return [{
-        category: 'application_architecture',
-        concept: 'generic application',
-        importance: 'medium',
-        keywords: [intent]
-      }];
-    }
-  }
-
-  /**
-   * Get weight multiplier based on concept importance
-   */
-  private getConceptImportanceWeight(importance: 'high' | 'medium' | 'low'): number {
-    switch (importance) {
-      case 'high': return 1.2;
-      case 'medium': return 1.0;
-      case 'low': return 0.8;
-      default: return 1.0;
-    }
-  }
-
-  /**
-   * Deduplicate patterns and rank by combined score
-   */
-  private deduplicateAndRankPatterns(matches: PatternMatch[]): OrganizationalPattern[] {
-    // Group by pattern ID and combine scores
-    const patternScores = new Map<string, { pattern: OrganizationalPattern; totalScore: number; matchCount: number }>();
-    
-    for (const match of matches) {
-      const existing = patternScores.get(match.pattern.id);
-      if (existing) {
-        existing.totalScore += match.score;
-        existing.matchCount += 1;
-      } else {
-        patternScores.set(match.pattern.id, {
-          pattern: match.pattern,
-          totalScore: match.score,
-          matchCount: 1
-        });
-      }
-    }
-    
-    // Calculate average scores and sort
-    const rankedPatterns = Array.from(patternScores.values())
-      .map(item => ({
-        pattern: item.pattern,
-        avgScore: item.totalScore / item.matchCount,
-        matchCount: item.matchCount
-      }))
-      .sort((a, b) => {
-        // Prioritize patterns that match multiple concepts
-        if (a.matchCount !== b.matchCount) {
-          return b.matchCount - a.matchCount;
-        }
-        // Then sort by average score
-        return b.avgScore - a.avgScore;
-      })
-      .slice(0, 8); // Increased limit for multi-concept matching
-    
-    return rankedPatterns.map(item => item.pattern);
-  }
 
   /**
    * Phase 1: AI selects promising resource candidates from lightweight list
@@ -608,11 +558,26 @@ export class ResourceRecommender {
       };
     });
 
-    const resourceSummary = normalizedResources.map((resource, index) => 
-      `${index}: ${resource.kind} (${resource.apiVersion})
+    const resourceSummary = normalizedResources.map((resource, index) => {
+      const basic = `${index}: ${resource.kind} (${resource.apiVersion})
    Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced}`
-    ).join('\n\n');
+   Namespaced: ${resource.namespaced}`;
+      
+      // Include rich capability context if available (from capability-based pre-filtering)
+      if (resource.capabilities) {
+        const cap = resource.capabilities;
+        return `${basic}
+   Resource Name: ${resource.resourceName || 'Not specified'}
+   Capabilities: ${cap.capabilities?.join(', ') || 'Not specified'}
+   Providers: ${cap.providers?.join(', ') || 'Not specified'}
+   Complexity: ${cap.complexity || 'Not specified'}
+   Use Case: ${cap.useCase || 'Not specified'}
+   Description: ${cap.description || 'Not specified'}
+   Confidence: ${cap.confidence || 'N/A'}`;
+      }
+      
+      return basic;
+    }).join('\n\n');
 
     // Format organizational patterns for AI context
     const patternsContext = patterns.length > 0 
@@ -638,7 +603,7 @@ export class ResourceRecommender {
       .replace('{patterns}', patternsContext);
 
 
-    const response = await this.claudeIntegration.sendMessage(selectionPrompt);
+    const response = await this.claudeIntegration.sendMessage(selectionPrompt, 'resource-selection');
     
     try {
       // Extract JSON from response with robust parsing
@@ -745,7 +710,7 @@ export class ResourceRecommender {
    */
   private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[], patterns: OrganizationalPattern[] = []): Promise<ResourceSolution[]> {
     const prompt = await this.loadPromptTemplate(intent, schemas, patterns);
-    const response = await this.claudeIntegration.sendMessage(prompt);
+    const response = await this.claudeIntegration.sendMessage(prompt, 'resource-ranking');
     const solutions = this.parseAISolutionResponse(response.content, schemas);
     
     // Generate AI-powered questions for each solution
@@ -1032,7 +997,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{resource_details}', resourceDetails)
         .replace('{cluster_options}', clusterOptionsText);
 
-      const response = await this.claudeIntegration.sendMessage(questionPrompt);
+      const response = await this.claudeIntegration.sendMessage(questionPrompt, 'question-generation');
       
       // Use robust JSON extraction
       const questions = this.extractJsonFromAIResponse(response.content);

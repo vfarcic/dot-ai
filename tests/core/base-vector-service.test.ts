@@ -136,45 +136,23 @@ describe('BaseVectorService', () => {
       });
     });
 
-    it('should store data without embedding when service unavailable', async () => {
+    it('should throw error when embedding service unavailable', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(false);
 
-      await testService.storeData(testData);
+      await expect(testService.storeData(testData)).rejects.toThrow('Embedding service not available - cannot store data in vector collection');
 
       expect(mockEmbeddingService.generateEmbedding).not.toHaveBeenCalled();
-      expect(mockVectorDB.upsertDocument).toHaveBeenCalledWith({
-        id: 'test-1',
-        payload: {
-          name: 'Test Item',
-          description: 'A test description',
-          searchText: 'test item a test description',
-          hasEmbedding: false
-        },
-        vector: undefined
-      });
+      expect(mockVectorDB.upsertDocument).not.toHaveBeenCalled();
     });
 
-    it('should handle embedding generation failure gracefully', async () => {
+    it('should throw error when embedding generation fails', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(true);
       mockEmbeddingService.generateEmbedding.mockRejectedValue(new Error('API error'));
-      
-      // Mock console.warn to avoid test output noise
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      await testService.storeData(testData);
+      await expect(testService.storeData(testData)).rejects.toThrow('Embedding generation failed: API error');
 
-      expect(mockVectorDB.upsertDocument).toHaveBeenCalledWith({
-        id: 'test-1',
-        payload: {
-          name: 'Test Item',
-          description: 'A test description',
-          searchText: 'test item a test description',
-          hasEmbedding: false
-        },
-        vector: undefined
-      });
-
-      consoleSpy.mockRestore();
+      expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalledWith('test item a test description');
+      expect(mockVectorDB.upsertDocument).not.toHaveBeenCalled();
     });
   });
 
@@ -272,50 +250,25 @@ describe('BaseVectorService', () => {
       scoreThreshold: 0.5
     };
 
-    it('should perform keyword-only search when embeddings unavailable', async () => {
+    it('should fail when embeddings unavailable (no graceful fallback)', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(false);
-      mockVectorDB.searchByKeywords.mockResolvedValue([
-        {
-          id: 'result-1',
-          score: 0.8,
-          payload: { name: 'Match', description: 'Matching item' }
-        }
-      ]);
 
-      const results = await testService.searchData('test query', searchOptions);
+      await expect(testService.searchData('test query', searchOptions))
+        .rejects.toThrow('Embedding service not available - cannot perform semantic search');
 
-      expect(mockVectorDB.searchByKeywords).toHaveBeenCalledWith(
-        ['test', 'query'],
-        { limit: 5, scoreThreshold: 0.5 }
-      );
-      expect(results).toEqual([
-        {
-          data: { id: 'result-1', name: 'Match', description: 'Matching item' },
-          score: 0.8,
-          matchType: 'keyword'
-        }
-      ]);
+      // Should not call any vector DB methods when embeddings unavailable
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
+      expect(mockVectorDB.searchSimilar).not.toHaveBeenCalled();
     });
 
-    it('should filter results by score threshold', async () => {
+    it('should fail when embeddings unavailable during score threshold filtering', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(false);
-      mockVectorDB.searchByKeywords.mockResolvedValue([
-        {
-          id: 'high-score',
-          score: 0.8,
-          payload: { name: 'High', description: 'High score item' }
-        },
-        {
-          id: 'low-score',
-          score: 0.3,
-          payload: { name: 'Low', description: 'Low score item' }
-        }
-      ]);
 
-      const results = await testService.searchData('test', { scoreThreshold: 0.5 });
+      await expect(testService.searchData('test', { scoreThreshold: 0.5 }))
+        .rejects.toThrow('Embedding service not available - cannot perform semantic search');
 
-      expect(results).toHaveLength(1);
-      expect(results[0].data.name).toBe('High');
+      // Should not perform any search operations
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
     });
 
     it('should attempt hybrid search when embeddings available', async () => {
@@ -337,43 +290,39 @@ describe('BaseVectorService', () => {
       expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalledWith('test query');
       expect(mockVectorDB.searchSimilar).toHaveBeenCalledWith(
         embedding,
-        { limit: 10, scoreThreshold: 0.5 }
+        { limit: 10, scoreThreshold: 0.1 }
       );
       expect(results[0].matchType).toBe('semantic');
     });
 
-    it('should fallback to keyword search when embedding generation fails', async () => {
+    it('should fail immediately when embedding generation fails', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(true);
       mockEmbeddingService.generateEmbedding.mockRejectedValue(new Error('API error'));
-      mockVectorDB.searchByKeywords.mockResolvedValue([]);
-      
-      // Mock console.warn to avoid test output noise
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      await testService.searchData('test query', searchOptions);
+      await expect(testService.searchData('test query', searchOptions))
+        .rejects.toThrow('Semantic search failed: API error');
 
-      expect(mockVectorDB.searchByKeywords).toHaveBeenCalled();
-      
-      consoleSpy.mockRestore();
-    });
-
-    it('should return empty results for empty query', async () => {
-      const results = await testService.searchData('', searchOptions);
-
-      expect(results).toEqual([]);
+      // Should not fallback to keyword search
       expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
     });
 
-    it('should extract keywords correctly', async () => {
+    it('should fail for empty query due to embedding unavailability', async () => {
       mockEmbeddingService.isAvailable.mockReturnValue(false);
-      mockVectorDB.searchByKeywords.mockResolvedValue([]);
 
-      await testService.searchData('I want to scale the application');
+      await expect(testService.searchData('', searchOptions))
+        .rejects.toThrow('Embedding service not available - cannot perform semantic search');
 
-      expect(mockVectorDB.searchByKeywords).toHaveBeenCalledWith(
-        ['want', 'scale', 'the', 'application'],  // Length > 2 filter
-        expect.any(Object)
-      );
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
+    });
+
+    it('should fail when trying to extract keywords without embeddings', async () => {
+      mockEmbeddingService.isAvailable.mockReturnValue(false);
+
+      await expect(testService.searchData('I want to scale the application'))
+        .rejects.toThrow('Embedding service not available - cannot perform semantic search');
+
+      // Should not attempt keyword extraction or search when embeddings unavailable
+      expect(mockVectorDB.searchByKeywords).not.toHaveBeenCalled();
     });
   });
 
@@ -447,6 +396,24 @@ describe('BaseVectorService', () => {
       expect(results[1].matchType).toBe('keyword');
       // Results should be sorted by score (highest first)
       expect(results[0].score).toBeGreaterThan(results[1].score);
+    });
+  });
+
+  describe('deleteAllData', () => {
+    it('should delete all data efficiently using collection recreation', async () => {
+      const mockDeleteAllDocuments = jest.fn().mockResolvedValue(undefined);
+      mockVectorDB.deleteAllDocuments = mockDeleteAllDocuments;
+
+      await testService.deleteAllData();
+
+      expect(mockDeleteAllDocuments).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle errors during deleteAll operation', async () => {
+      const mockDeleteAllDocuments = jest.fn().mockRejectedValue(new Error('Vector DB error'));
+      mockVectorDB.deleteAllDocuments = mockDeleteAllDocuments;
+
+      await expect(testService.deleteAllData()).rejects.toThrow('Vector DB error');
     });
   });
 });

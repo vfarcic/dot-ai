@@ -37,7 +37,7 @@ async function validateIntentWithAI(intent: string, claudeIntegration: any): Pro
     const validationPrompt = template.replace('{intent}', intent);
     
     // Send to Claude for validation
-    const response = await claudeIntegration.sendMessage(validationPrompt);
+    const response = await claudeIntegration.sendMessage(validationPrompt, 'intent-validation');
     
     // Parse JSON response with robust error handling
     let jsonContent = response.content;
@@ -246,12 +246,7 @@ export async function handleRecommendTool(
       const rankingConfig: AIRankingConfig = { claudeApiKey };
       const recommender = new ResourceRecommender(rankingConfig);
 
-      // Create discovery functions
-      const discoverResourcesFn = async () => {
-        logger.debug('Discovering cluster resources', { requestId });
-        return await dotAI.discovery.discoverResources();
-      };
-
+      // Create discovery function
       const explainResourceFn = async (resource: string) => {
         logger.debug(`Explaining resource: ${resource}`, { requestId });
         return await dotAI.discovery.explainResource(resource);
@@ -261,7 +256,6 @@ export async function handleRecommendTool(
       logger.debug('Generating recommendations with AI', { requestId });
       const solutions = await recommender.findBestSolutions(
         args.intent,
-        discoverResourcesFn,
         explainResourceFn
       );
 

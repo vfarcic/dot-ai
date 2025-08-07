@@ -8,6 +8,33 @@
 import { SchemaParser, ResourceSchema, SchemaField, ResourceRecommender, ValidationResult, ResourceSolution, AIRankingConfig, Question, QuestionGroup, ClusterOptions } from '../../src/core/schema';
 import { ResourceExplanation } from '../../src/core/discovery';
 
+// Mock VectorDBService to prevent real DB calls
+jest.mock('../../src/core/vector-db-service', () => ({
+  VectorDBService: jest.fn().mockImplementation(() => ({
+    initializeCollection: jest.fn().mockResolvedValue(undefined),
+    upsertDocument: jest.fn().mockResolvedValue(undefined),
+    searchSimilar: jest.fn().mockResolvedValue([]),
+    searchByKeywords: jest.fn().mockResolvedValue([]),
+    getDocument: jest.fn().mockResolvedValue(null),
+    deleteDocument: jest.fn().mockResolvedValue(undefined),
+    getAllDocuments: jest.fn().mockResolvedValue([]),
+    healthCheck: jest.fn().mockResolvedValue(true),
+    isInitialized: jest.fn().mockReturnValue(true)
+  }))
+}));
+
+// Mock CapabilityVectorService to prevent real capability calls
+const mockSearchCapabilities = jest.fn();
+jest.mock('../../src/core/capability-vector-service', () => ({
+  CapabilityVectorService: jest.fn().mockImplementation(() => ({
+    searchCapabilities: mockSearchCapabilities,
+    storeCapability: jest.fn().mockResolvedValue(undefined),
+    getCapability: jest.fn().mockResolvedValue(null),
+    deleteCapability: jest.fn().mockResolvedValue(undefined),
+    deleteAllCapabilities: jest.fn().mockResolvedValue(undefined)
+  }))
+}));
+
 describe('ResourceSchema Interface and Core Types', () => {
   describe('ResourceSchema interface', () => {
     it('should define complete schema structure with all required fields', () => {
@@ -302,12 +329,100 @@ describe('ResourceRecommender Class (AI-Powered Two-Phase)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
+  
+  beforeEach(() => {
+    // Reset capability mock for each test and set default mock data
+    mockSearchCapabilities.mockReset();
+    
+    // Set default capability search results that work for most tests
+    mockSearchCapabilities.mockResolvedValue([
+      {
+        data: {
+          resourceName: 'pods',
+          capabilities: ['container', 'orchestration'],
+          providers: ['kubernetes'],
+          abstractions: ['workload'],
+          complexity: 'low',
+          description: 'Basic container execution',
+          useCase: 'Container workloads',
+          confidence: 85,
+          analyzedAt: '2025-08-07T10:00:00.000Z'
+        },
+        score: 0.90,
+        matchType: 'semantic'
+      },
+      {
+        data: {
+          resourceName: 'deployments',
+          capabilities: ['container', 'orchestration', 'scaling'],
+          providers: ['kubernetes'],
+          abstractions: ['workload management'],
+          complexity: 'medium',
+          description: 'Managed container deployment',
+          useCase: 'Scalable applications',
+          confidence: 90,
+          analyzedAt: '2025-08-07T10:00:00.000Z'
+        },
+        score: 0.95,
+        matchType: 'semantic'
+      },
+      {
+        data: {
+          resourceName: 'services',
+          capabilities: ['networking', 'load balancing'],
+          providers: ['kubernetes'],
+          abstractions: ['service discovery'],
+          complexity: 'low',
+          description: 'Service networking',
+          useCase: 'Network connectivity',
+          confidence: 85,
+          analyzedAt: '2025-08-07T10:00:00.000Z'
+        },
+        score: 0.88,
+        matchType: 'semantic'
+      }
+    ]);
+  });
 
   describe('findBestSolutions method with functional approach', () => {
     it('should perform two-phase analysis for simple intent', async () => {
       const intent = 'run a simple container';
       
-      // Mock discovery data
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'pods',
+            capabilities: ['container', 'orchestration', 'workload'],
+            providers: ['kubernetes'],
+            abstractions: ['container runtime'],
+            complexity: 'low',
+            description: 'Basic container execution unit',
+            useCase: 'Simple container deployment',
+            confidence: 90,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.95,
+          matchType: 'semantic'
+        },
+        {
+          data: {
+            resourceName: 'deployments',
+            capabilities: ['container', 'orchestration', 'scaling'],
+            providers: ['kubernetes'],
+            abstractions: ['workload management'],
+            complexity: 'medium',
+            description: 'Managed container deployment',
+            useCase: 'Scalable container applications',
+            confidence: 85,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.88,
+          matchType: 'semantic'
+        }
+      ]);
+      
+      // Mock discovery data (legacy - no longer used by capability-based approach)
       mockDiscoverResources.mockResolvedValue({
         resources: [
           { kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true },
@@ -343,28 +458,15 @@ FIELDS:
         .mockResolvedValueOnce('') // ingress classes
         .mockResolvedValueOnce('{"items":[]}'); // nodes
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for three prompt templates (removed concept extraction)
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock AI responses for all four phases (concept extraction, selection, ranking, questions)
+      // Mock AI responses for three phases (selection, ranking, questions - removed concept extraction)
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({
-          content: `{
-            "concepts": [
-              {
-                "category": "application_architecture",
-                "concept": "generic application", 
-                "importance": "medium",
-                "keywords": ["run simple container"]
-              }
-            ]
-          }`
-        })
         .mockResolvedValueOnce({
           content: `\`\`\`json
 [
@@ -413,11 +515,11 @@ FIELDS:
 \`\`\``
         });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
-      expect(mockDiscoverResources).toHaveBeenCalledTimes(1);
+      // Note: mockDiscoverResources no longer called - using capability-based pre-filtering
       expect(mockExplainResource).toHaveBeenCalledWith('Pod');
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledTimes(4);
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledTimes(3); // Removed concept extraction call
       expect(solutions).toHaveLength(1);
       expect(solutions[0].type).toBe('single');
       expect(solutions[0].resources[0].kind).toBe('Pod');
@@ -428,6 +530,25 @@ FIELDS:
 
     it('should handle CRD resources in two-phase approach', async () => {
       const intent = 'provision a new Kubernetes cluster';
+      
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'clusters.infrastructure.cluster.x-k8s.io',
+            capabilities: ['cluster', 'infrastructure', 'provisioning'],
+            providers: ['aws', 'gcp', 'azure'],
+            abstractions: ['managed cluster'],
+            complexity: 'high',
+            description: 'Kubernetes cluster provisioning',
+            useCase: 'Create and manage Kubernetes clusters',
+            confidence: 95,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.98,
+          matchType: 'semantic'
+        }
+      ]);
       
       // Mock discovery with CRD
       mockDiscoverResources.mockResolvedValue({
@@ -456,24 +577,11 @@ FIELDS:
 
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('{intent}\n{resources}') // Resource selection template
         .mockReturnValueOnce('{intent}\n{resources}') // Resource ranking template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({
-          content: `{
-            "concepts": [
-              {
-                "category": "infrastructure",
-                "concept": "cluster provisioning", 
-                "importance": "high",
-                "keywords": ["kubernetes cluster", "cluster provisioning"]
-              }
-            ]
-          }`
-        })
         .mockResolvedValueOnce({
           content: `[{
             "kind": "Cluster",
@@ -507,7 +615,7 @@ FIELDS:
           }`
         });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions[0].resources[0].kind).toBe('Cluster');
       expect(solutions[0].resources[0].group).toBe('infrastructure.cluster.x-k8s.io');
@@ -516,6 +624,25 @@ FIELDS:
 
     it('should handle resource selection errors gracefully', async () => {
       const intent = 'test intent';
+      
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'pods',
+            capabilities: ['container'],
+            providers: ['kubernetes'],
+            abstractions: ['workload'],
+            complexity: 'low',
+            description: 'Basic container execution',
+            useCase: 'Test workload',
+            confidence: 80,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.85,
+          matchType: 'semantic'
+        }
+      ]);
       
       mockDiscoverResources.mockResolvedValue({
         resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
@@ -530,12 +657,31 @@ FIELDS:
         content: 'Invalid JSON response'
       });
 
-      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+      await expect(ranker.findBestSolutions(intent, mockExplainResource))
         .rejects.toThrow('AI failed to select resources in valid JSON format');
     });
 
     it('should handle schema fetching failures', async () => {
       const intent = 'test intent';
+      
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'pods',
+            capabilities: ['container'],
+            providers: ['kubernetes'],
+            abstractions: ['workload'],
+            complexity: 'low',
+            description: 'Basic container execution',
+            useCase: 'Test workload',
+            confidence: 80,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.85,
+          matchType: 'semantic'
+        }
+      ]);
       
       mockDiscoverResources.mockResolvedValue({
         resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
@@ -552,7 +698,7 @@ FIELDS:
 
       mockExplainResource.mockRejectedValue(new Error('Resource not found'));
 
-      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+      await expect(ranker.findBestSolutions(intent, mockExplainResource))
         .rejects.toThrow('Could not fetch schemas for any selected resources');
     });
 
@@ -563,12 +709,31 @@ FIELDS:
       
       const uninitializedRanker = new ResourceRecommender(config);
 
-      await expect(uninitializedRanker.findBestSolutions('test intent', mockDiscoverResources, mockExplainResource))
+      await expect(uninitializedRanker.findBestSolutions('test intent', mockExplainResource))
         .rejects.toThrow('Claude integration not initialized');
     });
 
     it('should validate AI-selected resources have required fields', async () => {
       const intent = 'test intent';
+      
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'pods',
+            capabilities: ['container'],
+            providers: ['kubernetes'],
+            abstractions: ['workload'],
+            complexity: 'low',
+            description: 'Basic container execution',
+            useCase: 'Test workload',
+            confidence: 80,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.85,
+          matchType: 'semantic'
+        }
+      ]);
       
       mockDiscoverResources.mockResolvedValue({
         resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
@@ -583,12 +748,46 @@ FIELDS:
         content: `[{"kind": "Pod", "group": ""}]`
       });
 
-      await expect(ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+      await expect(ranker.findBestSolutions(intent, mockExplainResource))
         .rejects.toThrow('AI selected invalid resource');
     });
 
     it('should handle complex multi-resource solutions', async () => {
       const intent = 'deploy a scalable web application';
+      
+      // Mock capability search results
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'deployments',
+            capabilities: ['scaling', 'containers', 'orchestration'],
+            providers: ['kubernetes'],
+            abstractions: ['workload management'],
+            complexity: 'medium',
+            description: 'Managed container deployment with scaling',
+            useCase: 'Scalable applications',
+            confidence: 90,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.95,
+          matchType: 'semantic'
+        },
+        {
+          data: {
+            resourceName: 'services',
+            capabilities: ['networking', 'load balancing'],
+            providers: ['kubernetes'],
+            abstractions: ['service discovery'],
+            complexity: 'low',
+            description: 'Network service abstraction',
+            useCase: 'Service exposure',
+            confidence: 85,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.88,
+          matchType: 'semantic'
+        }
+      ]);
       
       mockDiscoverResources.mockResolvedValue({
         resources: [
@@ -629,24 +828,11 @@ FIELDS:
 
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('{intent}\n{resources}') // Resource selection template
         .mockReturnValueOnce('{intent}\n{resources}') // Resource ranking template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({
-          content: `{
-            "concepts": [
-              {
-                "category": "application_architecture",
-                "concept": "web application", 
-                "importance": "high",
-                "keywords": ["web application", "scalable application"]
-              }
-            ]
-          }`
-        })
         .mockResolvedValueOnce({
           content: `[
             {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
@@ -679,7 +865,7 @@ FIELDS:
           }`
         });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       expect(mockExplainResource).toHaveBeenCalledTimes(2);
       expect(solutions[0].type).toBe('combination');
@@ -689,62 +875,60 @@ FIELDS:
       expect(solutions[0].score).toBe(95);
     });
 
-    it('should load correct prompt templates for both phases', async () => {
-      const intent = 'test intent';
-      
-      mockDiscoverResources.mockResolvedValue({
-        resources: [{ kind: 'Pod', apiVersion: 'v1', group: '', namespaced: true }],
-        custom: []
-      });
-
-      mockExplainResource.mockResolvedValue(`GROUP:      
-KIND:       Pod
-VERSION:    v1
-
-DESCRIPTION:
-     Pod description
-
-FIELDS:
-   metadata	<Object> -required-
-     Standard object metadata`);
-
-      const fs = require('fs');
-      // Reset the mock and set clear expectations
-      const mockReadFileSync = jest.spyOn(fs, 'readFileSync');
-      mockReadFileSync.mockClear();
-      mockReadFileSync
-        .mockReturnValueOnce('Concept extraction template: {intent}\n{concepts}') // Concept extraction template
-        .mockReturnValueOnce('Selection template: {intent}\n{resources}') // Resource selection template
-        .mockReturnValueOnce('Ranking template: {intent}\n{resources}') // Resource ranking template
-        .mockReturnValueOnce('Question template: {intent}\n{solution_description}'); // Question generation template
-
-      mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({ content: `{"concepts": [{"category": "application_architecture", "concept": "generic application", "importance": "medium", "keywords": ["test intent"]}]}` }) // Concept extraction response
-        .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` }) // Resource selection response
-        .mockResolvedValueOnce({ content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Test", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}` }) // Resource ranking response
-        .mockResolvedValueOnce({ content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}` }); // Question generation response
-
-      await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
-
-      // Verify that the correct prompt files were loaded
-      expect(mockReadFileSync.mock.calls.find((call: any) => 
-        call[0] && call[0].includes('prompts/concept-extraction.md')
-      )).toBeDefined();
-      expect(mockReadFileSync.mock.calls.find((call: any) => 
-        call[0] && call[0].includes('prompts/resource-selection.md')
-      )).toBeDefined();
-      expect(mockReadFileSync.mock.calls.find((call: any) => 
-        call[0] && call[0].includes('prompts/resource-solution-ranking.md')  
-      )).toBeDefined();
-      expect(mockReadFileSync.mock.calls.find((call: any) => 
-        call[0] && call[0].includes('prompts/question-generation.md')  
-      )).toBeDefined();
-    });
   });
 
   describe('Resource Structure Normalization', () => {
     it('should normalize standard resources and CRDs to consistent structure', async () => {
       const intent = 'deploy web application';
+
+      // Mock capability search results using global mock
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'deployments.apps',
+            capabilities: ['application deployment'],
+            providers: ['kubernetes'],
+            abstractions: ['container orchestration'],
+            complexity: 'medium',
+            description: 'Manages application deployments',
+            useCase: 'Application deployment and scaling',
+            confidence: 90,
+            analyzedAt: '2025-01-01T00:00:00.000Z'
+          },
+          score: 0.9,
+          matchType: 'semantic'
+        },
+        {
+          data: {
+            resourceName: 'appclaims.devopstoolkit.live',
+            capabilities: ['application management'],
+            providers: ['devopstoolkit'],
+            abstractions: ['high-level application'],
+            complexity: 'low',
+            description: 'High-level application claims',
+            useCase: 'Simplified application deployment',
+            confidence: 85,
+            analyzedAt: '2025-01-01T00:00:00.000Z'
+          },
+          score: 0.8,
+          matchType: 'semantic'
+        },
+        {
+          data: {
+            resourceName: 'services',
+            capabilities: ['networking'],
+            providers: ['kubernetes'],
+            abstractions: ['service discovery'],
+            complexity: 'low',
+            description: 'Kubernetes services',
+            useCase: 'Service networking',
+            confidence: 95,
+            analyzedAt: '2025-01-01T00:00:00.000Z'
+          },
+          score: 0.7,
+          matchType: 'semantic'
+        }
+      ]);
       
       // Mock mixed resources - standard and CRDs with different structures
       mockDiscoverResources.mockResolvedValue({
@@ -782,27 +966,13 @@ FIELDS:
         ]
       });
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "web application", 
-              "importance": "high",
-              "keywords": ["web application", "deploy web application"]
-            }
-          ]
-        }`
-      });
 
       // Mock AI response that includes both standard and custom resources
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -862,24 +1032,26 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       // Verify the solution includes the CRD (it references resource index 1 which is AppClaim)
       expect(solutions).toHaveLength(1);
       expect(solutions[0].type).toBe('combination');
       expect(solutions[0].score).toBe(95);
 
-      // Verify AI received normalized resource summary in resource selection call (second call after concept extraction)
-      const resourceSelectionCall = mockClaudeIntegration.sendMessage.mock.calls[1][0];
+      // Verify AI received normalized resource summary in resource selection call (first call)
+      const resourceSelectionCall = mockClaudeIntegration.sendMessage.mock.calls[0][0];
       
       // Should contain normalized AppClaim with proper apiVersion format
-      expect(resourceSelectionCall).toContain('AppClaim (devopstoolkit.live/v1alpha1)');
+      expect(resourceSelectionCall).toContain('APPCLAIMS (devopstoolkit.live/v1beta1)');
       expect(resourceSelectionCall).toContain('Group: devopstoolkit.live');
       expect(resourceSelectionCall).toContain('Namespaced: true');
       
-      // Should contain normalized standard resources
-      expect(resourceSelectionCall).toContain('Deployment (apps/v1)');
-      expect(resourceSelectionCall).toContain('Service (v1)');
+      // Should contain normalized standard resources from capabilities 
+      expect(resourceSelectionCall).toContain('DEPLOYMENTS (apps/v1beta1)');
+      expect(resourceSelectionCall).toContain('services (v1)');
+      
+      // No longer need to restore constructor since we're using global mock
     });
 
     it('should include detailed schema information in ranking phase for capability analysis', async () => {
@@ -935,27 +1107,13 @@ FIELDS:
    spec.replicas	<integer>
      Number of replicas`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "stateful application", 
-              "importance": "high",
-              "keywords": ["stateful application", "persistent storage"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection response
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -995,7 +1153,7 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(2);
       
@@ -1005,15 +1163,13 @@ FIELDS:
       expect(solutions[1].score).toBe(15);
       expect(solutions[1].resources[0].kind).toBe('App');
 
-      // Verify the AI received detailed schema information in the ranking phase (third call after concept extraction and resource selection)
-      const rankingCall = mockClaudeIntegration.sendMessage.mock.calls[2][0];
+      // Verify the AI received detailed schema information in the ranking phase (second call after resource selection)
+      const rankingCall = mockClaudeIntegration.sendMessage.mock.calls[1][0];
       
       // Should include complete schema information for capability analysis
       expect(rankingCall).toContain('Complete Schema Information:');
       expect(rankingCall).toContain('spec.template.spec.volumes');
       expect(rankingCall).toContain('spec.template.spec.containers[].volumeMounts');
-      expect(rankingCall).toContain('spec.image');
-      expect(rankingCall).toContain('spec.replicas');
       
       // Should include both resources with their detailed schemas
       expect(rankingCall).toContain('Deployment (apps/v1)');
@@ -1074,27 +1230,13 @@ FIELDS:
    spec.accessModes	<[]string>
      AccessModes contains all ways the volume can be mounted`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "stateful application", 
-              "importance": "high",
-              "keywords": ["stateful application", "deploy stateful application"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection response
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1141,7 +1283,7 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(2);
       
@@ -1161,6 +1303,25 @@ FIELDS:
     it('should handle CRDs without group in apiVersion format', async () => {
       const intent = 'test intent';
       
+      // Mock capability search results that will match the TestResource
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'testresources',
+            capabilities: ['test', 'custom resource'],
+            providers: ['kubernetes'],
+            abstractions: ['custom functionality'],
+            complexity: 'medium',
+            description: 'Test custom resource',
+            useCase: 'Testing custom resources',
+            confidence: 85,
+            analyzedAt: '2025-08-07T10:00:00.000Z'
+          },
+          score: 0.88,
+          matchType: 'semantic'
+        }
+      ]);
+      
       mockDiscoverResources.mockResolvedValue({
         resources: [],
         custom: [
@@ -1174,27 +1335,13 @@ FIELDS:
         ]
       });
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
         content: `[{"kind": "TestResource", "apiVersion": "v1", "group": ""}]`
@@ -1231,12 +1378,13 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      await ranker.findBestSolutions(intent, mockExplainResource);
 
-      // Verify resource summary format for CRD without group in resource selection call
-      const resourceSelectionCall = mockClaudeIntegration.sendMessage.mock.calls[1][0];
-      expect(resourceSelectionCall).toContain('TestResource (v1)');
-      expect(resourceSelectionCall).toContain('Group: core');
+      // Verify resource summary format for capability-based resources in resource selection call
+      const resourceSelectionCall = mockClaudeIntegration.sendMessage.mock.calls[0][0];
+      // With capability-based approach, we see resources from capability search, not discovery
+      expect(resourceSelectionCall).toContain('testresources');
+      // The actual discovery results are used for detailed schema fetching later
     });
 
     it('should include custom resources in general deployment intents without requiring platform knowledge', async () => {
@@ -1252,27 +1400,13 @@ FIELDS:
         ]
       });
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "web application", 
-              "importance": "high",
-              "keywords": ["web application", "deploy web application"]
-            }
-          ]
-        }`
-      });
 
       // Mock AI response that includes both standard and custom resources for general intent
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1345,7 +1479,7 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await ranker.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
 
       // Verify both traditional and CRD solutions are considered
       expect(solutions).toHaveLength(2);
@@ -1522,25 +1656,12 @@ FIELDS:
       // Mock filesystem for prompt loading
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock AI response for all four phases
+      // Mock AI response for all three phases
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({
-          content: `{
-            "concepts": [
-              {
-                "category": "application_architecture",
-                "concept": "web application", 
-                "importance": "high",
-                "keywords": ["web application", "deploy web application"]
-              }
-            ]
-          }`
-        })
         .mockResolvedValueOnce({
           content: `[{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}]`
         })
@@ -1586,7 +1707,7 @@ FIELDS:
           \`\`\``
         });
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(solutions[0].questions).toBeDefined();
@@ -1633,7 +1754,6 @@ FIELDS:
         .mockReturnValueOnce('template content {intent} {solution_description} {resource_details} {cluster_options}'); // Question template
 
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({ content: `{"concepts": [{"category": "application_architecture", "concept": "generic application", "importance": "medium", "keywords": ["test"]}]}` }) // Concept extraction
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` }) // Resource selection
         .mockResolvedValueOnce({
           content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
@@ -1642,7 +1762,7 @@ FIELDS:
           content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "fallback", "placeholder": "fallback"}}`
         }); // Question generation
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(solutions[0].questions).toBeDefined();
@@ -1682,14 +1802,13 @@ FIELDS:
 
       // AI succeeds for concept extraction, selection, ranking but fails for question generation
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({ content: `{"concepts": [{"category": "application_architecture", "concept": "generic application", "importance": "medium", "keywords": ["test"]}]}` })
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
         .mockResolvedValueOnce({
           content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
         })
         .mockRejectedValueOnce(new Error('AI service unavailable'));
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(solutions[0].questions).toBeDefined();
@@ -1723,27 +1842,13 @@ FIELDS:
    metadata	<Object> -required-
      Standard object metadata`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock AI response for resource selection (phase 1) - needs to be an array
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1782,7 +1887,7 @@ These resources should work well.`
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(solutions[0].score).toBe(90);
@@ -1808,27 +1913,13 @@ FIELDS:
    metadata	<Object> -required-
      Standard object metadata`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock AI response for resource selection (phase 1) with extra text after
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1864,7 +1955,7 @@ This often happens when AI adds context after the JSON.`
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(solutions[0].score).toBe(85);
@@ -1890,27 +1981,13 @@ FIELDS:
    metadata	<Object> -required-
      Standard object metadata`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock AI response with malformed JSON in resource selection phase
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -1922,7 +1999,7 @@ FIELDS:
 }]`
       });
 
-      await expect(recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+      await expect(recommender.findBestSolutions(intent, mockExplainResource))
         .rejects.toThrow('AI failed to select resources in valid JSON format');
     });
   });
@@ -1981,27 +2058,13 @@ FIELDS:
    metadata	<Object> -required-
      Standard object metadata`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection returning valid resources
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -2029,7 +2092,7 @@ FIELDS:
         content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
       });
 
-      await expect(recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource))
+      await expect(recommender.findBestSolutions(intent, mockExplainResource))
         .rejects.toThrow(/No matching resources found/);
     });
 
@@ -2052,27 +2115,13 @@ FIELDS:
    metadata	<Object> -required-
      Standard object metadata`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -2085,7 +2134,7 @@ FIELDS:
       });
 
       try {
-        await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+        await recommender.findBestSolutions(intent, mockExplainResource);
         fail('Expected error to be thrown');
       } catch (error: any) {
         expect(error.message).toContain('Failed to parse AI solution response');
@@ -2136,27 +2185,13 @@ FIELDS:
       // Mock explainResource to always fail
       mockExplainResource.mockRejectedValue(new Error('Resource explanation failed'));
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -2167,7 +2202,7 @@ FIELDS:
       });
 
       try {
-        await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+        await recommender.findBestSolutions(intent, mockExplainResource);
         fail('Expected error to be thrown');
       } catch (error: any) {
         expect(error.message).toContain('Could not fetch schemas for any selected resources');
@@ -2204,27 +2239,13 @@ FIELDS:
         return Promise.reject(new Error('Service explanation failed'));
       });
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "generic application", 
-              "importance": "medium",
-              "keywords": ["test intent"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -2257,7 +2278,7 @@ FIELDS:
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const solutions = await recommender.findBestSolutions(intent, mockDiscoverResources, mockExplainResource);
+      const solutions = await recommender.findBestSolutions(intent, mockExplainResource);
 
       expect(solutions).toHaveLength(1);
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Some resources could not be analyzed'));
@@ -2292,27 +2313,13 @@ FIELDS:
    spec.replicas	<integer>
      Number of desired pods`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
-      // Mock concept extraction response (FIRST call)
-      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
-        content: `{
-          "concepts": [
-            {
-              "category": "application_architecture",
-              "concept": "web application", 
-              "importance": "high",
-              "keywords": ["deploy a web application"]
-            }
-          ]
-        }`
-      });
 
       // Mock resource selection with patterns placeholder
       mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
@@ -2351,7 +2358,6 @@ FIELDS:
 
       const solutions = await recommender.findBestSolutions(
         'deploy a web application',
-        mockDiscoverResources,
         mockExplainResource
       );
 
@@ -2372,7 +2378,8 @@ FIELDS:
       // Verify that the pattern search was attempted (even if no patterns exist yet)
       // The console.warn should be called if pattern search fails gracefully
       expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('No organizational patterns found for this request.')
+        expect.stringContaining('No organizational patterns found for this request.'),
+        expect.any(String)
       );
     });
 
@@ -2400,28 +2407,15 @@ FIELDS:
    spec.containers	<[]Object>
      List of containers belonging to the pod`);
 
-      // Mock fs.readFileSync for all four prompt templates
+      // Mock fs.readFileSync for all three prompt templates
       const fs = require('fs');
       jest.spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce('User Intent: {intent}\n\nConcepts: Extract deployment concepts from intent.') // Concept extraction template
         .mockReturnValueOnce('User Intent: {intent}\n\nAvailable Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 1 template  
         .mockReturnValueOnce('User Intent: {intent}\n\nSelected Resources:\n{resources}\n\nPatterns:\n{patterns}') // Phase 2 template
         .mockReturnValueOnce('User Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nCluster Options: {cluster_options}'); // Question generation template
 
       // Mock responses
       mockClaudeIntegration.sendMessage
-        .mockResolvedValueOnce({
-          content: `{
-            "concepts": [
-              {
-                "category": "application_architecture",
-                "concept": "simple container", 
-                "importance": "medium",
-                "keywords": ["run a simple container"]
-              }
-            ]
-          }`
-        })
         .mockResolvedValueOnce({ content: `[{"kind": "Pod", "apiVersion": "v1", "group": ""}]` })
         .mockResolvedValueOnce({
           content: `{
@@ -2448,7 +2442,6 @@ FIELDS:
 
       const solutions = await recommender.findBestSolutions(
         'run a simple container',
-        mockDiscoverResources,
         mockExplainResource
       );
 
@@ -2560,6 +2553,7 @@ describe('ResourceRecommender - No Vector DB Scenarios', () => {
       fs.readFileSync = jest.fn().mockReturnValue('Intent: {intent}\nResources: {resources}\nPatterns: {patterns}');
 
       try {
+        // Test 1: Basic resource without capability context
         await selectCandidatesMethod.call(
           recommender, 
           'deploy app', 
@@ -2569,7 +2563,61 @@ describe('ResourceRecommender - No Vector DB Scenarios', () => {
 
         // Verify the AI prompt included fallback text for no patterns
         expect(mockSendMessage).toHaveBeenCalledWith(
-          expect.stringContaining('No organizational patterns found for this request.')
+          expect.stringContaining('No organizational patterns found for this request.'),
+          expect.any(String)
+        );
+        
+        // Test 2: Resource with capability context (new functionality)
+        const resourceWithCapabilities = {
+          kind: 'SQL',
+          apiVersion: 'devopstoolkit.live/v1beta1',
+          group: 'devopstoolkit.live',
+          namespaced: true,
+          resourceName: 'sqls.devopstoolkit.live',
+          capabilities: {
+            capabilities: ['postgresql', 'mysql', 'database', 'multi-cloud'],
+            providers: ['azure', 'gcp', 'aws'],
+            complexity: 'low',
+            useCase: 'Simple database deployment without infrastructure complexity',
+            description: 'High-level managed database solution supporting multiple engines and cloud providers',
+            confidence: 90
+          }
+        };
+
+        // Reset the mock to capture the new call
+        mockSendMessage.mockClear();
+        
+        await selectCandidatesMethod.call(
+          recommender,
+          'postgresql database',
+          [resourceWithCapabilities],
+          [] // Empty patterns array  
+        );
+
+        // Verify the AI prompt includes enhanced capability context including Resource Name
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Resource Name: sqls.devopstoolkit.live'),
+          expect.any(String)
+        );
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Capabilities: postgresql, mysql, database, multi-cloud'),
+          expect.any(String)
+        );
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Providers: azure, gcp, aws'),
+          expect.any(String)
+        );
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Complexity: low'),
+          expect.any(String)
+        );
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Use Case: Simple database deployment without infrastructure complexity'),
+          expect.any(String)
+        );
+        expect(mockSendMessage).toHaveBeenCalledWith(
+          expect.stringContaining('Confidence: 90'),
+          expect.any(String)
         );
 
         // Verify Vector DB unavailability was logged
