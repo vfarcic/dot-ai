@@ -129,7 +129,7 @@ def --env "main apply crossplane" [
 
         print $"\n(ansi green_bold)Applying `dot-sql` Configuration...(ansi reset)\n"
 
-        mut version = "v2.1.57"
+        mut version = "v2.1.59"
         if not $preview {
             $version = "v1.1.21"
         }

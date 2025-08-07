@@ -38,12 +38,12 @@ describe('Recommend Tool', () => {
     });
   });
 
-  describe('Tool Handler - MCP Connectivity Fix Verification', () => {
-    test('should verify the fix: function parameters passed correctly', () => {
-      // This test verifies that our MCP connectivity fix is in place
-      // The fix changed from passing raw data to passing functions
+  describe('Tool Handler - Capability Pre-filtering Implementation', () => {
+    test('should verify capability-based approach is implemented', () => {
+      // This test verifies that capability pre-filtering is implemented
+      // The new approach uses capability search instead of mass resource discovery
       
-      // Read the source code to verify the fix
+      // Read the source code to verify the implementation
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
@@ -51,17 +51,18 @@ describe('Recommend Tool', () => {
         'utf8'
       );
       
-      // Verify the fix: discoverResourcesFn should be defined as a function
-      expect(sourceCode).toContain('const discoverResourcesFn = async () => {');
-      expect(sourceCode).toContain('return await dotAI.discovery.discoverResources();');
+      // Verify capability-based approach: explainResourceFn is still used for schema fetching
+      expect(sourceCode).toContain('explainResourceFn');
+      expect(sourceCode).toContain('const explainResourceFn = async (resource: string) => {');
       
-      // Verify the function is passed to findBestSolutions (not raw data)
-      expect(sourceCode).toContain('discoverResourcesFn,');
+      // Verify findBestSolutions is called with the new 2-parameter signature
+      expect(sourceCode).toContain('recommender.findBestSolutions(');
+      expect(sourceCode).toContain('args.intent,');
       expect(sourceCode).toContain('explainResourceFn');
       
-      // Verify we're not passing raw data anymore (the old broken pattern)
+      // Verify we're no longer using discoverResourcesFn (old approach)
+      expect(sourceCode).not.toContain('discoverResourcesFn');
       expect(sourceCode).not.toContain('await dotAI.discovery.discoverResources(),');
-      expect(sourceCode).not.toContain('availableResources,'); // Old variable name
     });
     
   });

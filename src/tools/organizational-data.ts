@@ -1508,11 +1508,44 @@ async function handleScanning(
       throw new Error('Invalid selectedResources in session state');
     }
     
-    // Generate a context-rich prompt for the AI
-    const resourceContext = `
-Resource Name: ${resourceName}
-Context: This is a Kubernetes resource that the user wants to analyze for capabilities.
-The AI should infer what this resource does based on its name and provide comprehensive capability analysis.`;
+    // Get actual CRD schema and metadata for comprehensive analysis
+    let resourceSchema: string | undefined;
+    let resourceMetadata: any | undefined;
+    
+    try {
+      // Import and connect to discovery engine
+      const { KubernetesDiscovery } = await import('../core/discovery');
+      const discovery = new KubernetesDiscovery();
+      await discovery.connect();
+      
+      // Get CRD definition with schema and metadata if it's a custom resource
+      if (resourceName.includes('.')) {
+        const crdList = await discovery.discoverCRDDetails();
+        const matchingCRD = crdList.find((crd: any) => crd.name === resourceName);
+        
+        if (matchingCRD) {
+          resourceSchema = JSON.stringify(matchingCRD.schema, null, 2);
+          resourceMetadata = matchingCRD.metadata;
+          
+          logger.info('Found CRD schema and metadata for capability analysis', {
+            requestId,
+            sessionId: session.sessionId,
+            resource: resourceName,
+            hasSchema: !!resourceSchema,
+            hasMetadata: !!resourceMetadata,
+            metadataLabels: Object.keys(resourceMetadata?.labels || {}),
+            categories: resourceMetadata?.categories?.length || 0
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn('Could not retrieve CRD schema and metadata, using name-based inference', {
+        requestId,
+        sessionId: session.sessionId,
+        resource: resourceName,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
     
     logger.info('Analyzing resource for capability inference', { 
       requestId, 
@@ -1523,7 +1556,7 @@ The AI should infer what this resource does based on its name and provide compre
     
     if (session.processingMode === 'manual') {
       // Manual mode: Show capability data for user review
-      const capability = await engine.inferCapabilities(resourceName, resourceContext);
+      const capability = await engine.inferCapabilities(resourceName, resourceSchema, resourceMetadata);
       const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
       
       return {
@@ -1613,13 +1646,42 @@ The AI should infer what this resource does based on its name and provide compre
         }, args);
       };
       
+      // Get all CRD definitions once for efficiency
+      let availableCRDs: any[] = [];
+      try {
+        const { KubernetesDiscovery } = await import('../core/discovery');
+        const discovery = new KubernetesDiscovery();
+        await discovery.connect();
+        availableCRDs = await discovery.discoverCRDDetails();
+        
+        logger.info('Retrieved CRD definitions for batch processing', {
+          requestId,
+          sessionId: session.sessionId,
+          totalCRDs: availableCRDs.length
+        });
+      } catch (error) {
+        logger.warn('Could not retrieve CRDs for batch processing, falling back to name-based inference', {
+          requestId,
+          sessionId: session.sessionId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+      
       // Process each resource in the batch with progress tracking
       for (let i = 0; i < resources.length; i++) {
         const currentResource = resources[i];
-        const currentContext = `
-Resource Name: ${currentResource}
-Context: This is a Kubernetes resource that the user wants to analyze for capabilities.
-The AI should infer what this resource does based on its name and provide comprehensive capability analysis.`;
+        
+        // Get CRD schema and metadata for this resource
+        let currentSchema: string | undefined;
+        let currentMetadata: any | undefined;
+        
+        if (currentResource.includes('.')) {
+          const matchingCRD = availableCRDs.find((crd: any) => crd.name === currentResource);
+          if (matchingCRD) {
+            currentSchema = JSON.stringify(matchingCRD.schema, null, 2);
+            currentMetadata = matchingCRD.metadata;
+          }
+        }
         
         // Update progress before processing
         updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
@@ -1632,7 +1694,7 @@ The AI should infer what this resource does based on its name and provide compre
             percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
-          const capability = await engine.inferCapabilities(currentResource, currentContext);
+          const capability = await engine.inferCapabilities(currentResource, currentSchema, currentMetadata);
           const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
           
           // Store capability in Vector DB
@@ -2304,7 +2366,7 @@ async function handleCapabilitySearch(
     }
 
     const searchQuery = args.id.trim();
-    const limit = args.limit || 100;
+    const limit = args.limit || 25;
     
     logger.info('Searching capabilities', {
       requestId,

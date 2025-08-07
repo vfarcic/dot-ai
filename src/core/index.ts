@@ -90,11 +90,10 @@ export class DotAI {
           throw new Error('ResourceRanker not available. ANTHROPIC_API_KEY is required for AI-powered ranking.');
         }
         
-        // Create discovery functions with proper binding
-        const discoverResourcesFn = async () => await this.discovery.discoverResources();
+        // Create discovery function with proper binding
         const explainResourceFn = async (resource: string) => await this.discovery.explainResource(resource);
         
-        return await ranker.findBestSolutions(intent, discoverResourcesFn, explainResourceFn);
+        return await ranker.findBestSolutions(intent, explainResourceFn);
       }
     };
   }
