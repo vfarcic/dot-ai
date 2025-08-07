@@ -237,29 +237,37 @@ Result: sqls.devopstoolkit.live ranked #1 (optimal solution)
 ### Modified AI Ranking Integration
 ```typescript
 // Enhanced findBestSolutions in schema.ts
-async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<ResourceSolution[]> {
-  // NEW: Phase 0 - Capability-based pre-filtering
-  const capabilityService = new CapabilityVectorService(this.vectorDB);
-  const relevantCapabilities = await capabilityService.searchCapabilities(intent, 10);
+async findBestSolutions(
+  intent: string, 
+  explainResource: (resource: string) => Promise<any>
+): Promise<ResourceSolution[]> {
+  // NEW: Replace mass resource discovery with capability-based pre-filtering
+  const capabilityService = new CapabilityVectorService();
+  const relevantCapabilities = await capabilityService.searchCapabilities(intent, { limit: 20 });
   
   if (relevantCapabilities.length > 0) {
-    console.log(`🎯 Found ${relevantCapabilities.length} capabilities matching intent`);
+    console.log(`🎯 Found ${relevantCapabilities.length} relevant capabilities (vs 415+ mass discovery)`);
     
-    // Convert capabilities to resource candidates
-    const candidates = relevantCapabilities.map(cap => ({
-      kind: cap.kind,
-      apiVersion: cap.apiVersion,
-      group: cap.group
-    }));
+    // Get schemas only for capability-identified resources
+    const resourceNames = relevantCapabilities.map(cap => cap.resourceName);
     
-    // Continue with existing schema analysis on filtered candidates
-    const schemas = await this.fetchDetailedSchemas(candidates, discovery.explainResource);
-    return await this.rankWithDetailedSchemas(intent, schemas, []);
+    // Fetch schemas for pre-filtered resources only
+    const schemas = await Promise.all(
+      resourceNames.map(async (resourceName) => ({
+        resourceName,
+        schema: await explainResource(resourceName),
+        capabilities: relevantCapabilities.find(cap => cap.resourceName === resourceName)
+      }))
+    );
+    
+    return await this.rankWithCapabilityContext(intent, schemas);
   }
   
-  // Fallback to original discovery if no capabilities found
-  console.log('⚠️ No capabilities found, falling back to full discovery');
-  return this.originalFindBestSolutions(intent, discovery);
+  // Fail fast with clear user guidance if no capabilities available
+  throw new Error(
+    `No capabilities found for "${intent}". Please scan your cluster first:\n` +
+    `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })`
+  );
 }
 ```
 
@@ -289,7 +297,7 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 ### Milestone 4: Recommendation System Integration  
 - [x] Add capability search operation to MCP tool (manageOrgData)
 - [ ] Modify findBestSolutions to use capability pre-filtering
-- [ ] Implement fallback to original system when capabilities unavailable
+- [ ] Implement fail-fast error handling when capabilities unavailable (with clear user guidance to scan cluster)
 - [ ] Add capability-based resource ranking enhancements
 - **Success Criteria**: "PostgreSQL database" intent returns sqls.devopstoolkit.live as top recommendation via both MCP search and recommendation system
 
@@ -405,6 +413,29 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 - Enables users to test semantic matching interactively before automated use
 - Validates search functionality works correctly before internal system integration
 - Provides debugging and discovery path for capability management
+
+#### Mass Resource Discovery Elimination (2025-08-07)
+**Decision**: Replace mass Kubernetes resource discovery with capability-based pre-filtering in recommendation system
+- **Remove**: `discoverResources()`, `discoverCRDs()`, `getAPIResources()` functions that enumerate all 415+ cluster resources
+- **Remove**: Resource discovery wrapper functions in `recommend.ts` and function parameters in `schema.ts`
+- **Replace**: Mass discovery with targeted capability search: `searchCapabilities(intent, {limit: 20})` 
+- **Keep**: Individual resource schema retrieval (`explainResource()`) for specific resources identified by capability search
+- **No Fallback**: Fail fast with clear user guidance if no capabilities found, requiring cluster scanning first
+- **Result**: ~200-300 lines of obsolete discovery code eliminated, replaced with ~5 lines of capability-based pre-filtering
+**Rationale**: 
+- Mass enumeration of 415+ resources overwhelms AI with irrelevant options and generic names
+- Capability-based pre-filtering provides AI with semantically relevant, context-rich resource candidates
+- Eliminates unnecessary Kubernetes API calls and improves recommendation performance
+- Semantic search already validates which resources are relevant for user intents
+- Fail-fast approach eliminates complexity of maintaining dual code paths and ensures capability adoption
+- Clear error messages guide users to proper system setup instead of degraded functionality
+**Impact**:
+- **Code Reduction**: Significant reduction in discovery complexity and maintenance burden (~200-300 lines eliminated)
+- **Performance**: Faster recommendations through reduced API calls and smaller candidate sets  
+- **Accuracy**: AI receives focused, relevant candidates instead of exhaustive resource lists
+- **Architecture**: Clean separation between capability discovery (Vector DB) and schema retrieval (Kubernetes API)
+- **Maintainability**: Single code path to maintain, no dual fallback complexity
+- **User Experience**: Clear error messages guide users to scan capabilities first, ensuring proper system setup
 
 ## Dependencies and Assumptions
 
