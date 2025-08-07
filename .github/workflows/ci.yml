@@ -60,6 +60,12 @@ jobs:
     
     - name: Run tests
       run: npm test
+      env:
+        # Mock environment variables for tests
+        ANTHROPIC_API_KEY: test-key
+        QDRANT_URL: http://localhost:6333
+        QDRANT_API_KEY: test-key
+        OPENAI_API_KEY: test-key
 
   security:
     name: Security Analysis
