@@ -63,6 +63,42 @@ Check every claim in the documentation:
 
 ## Testing Approach
 
+### EXECUTION REQUIREMENTS FOR TESTABLE CONTENT
+**When documentation contains executable examples, you MUST actually execute them:**
+
+**Types of executable content that require actual testing:**
+- **CLI Commands**: `kubectl get pods`, `npm install`, `docker run`
+- **API Calls**: HTTP requests, REST endpoints, GraphQL queries
+- **MCP Tool Calls**: `mcp__tool_name` with documented parameters
+- **Configuration Examples**: Creating files, environment variables, config files
+- **Web Navigation**: URLs, web interface interactions, form submissions
+- **Database Queries**: SQL commands, database operations
+- **Script Execution**: Shell scripts, Python scripts, automation workflows
+
+**Testing Protocol for Executable Content:**
+✅ REQUIRED: Execute each example exactly as documented
+✅ REQUIRED: Test with the exact parameters/inputs shown  
+✅ REQUIRED: Compare actual results with documented expected results
+❌ FORBIDDEN: Analyze implementation code instead of running examples
+❌ FORBIDDEN: Skip execution because "it looks similar to previous tests"
+❌ FORBIDDEN: Rely on testing from other sections of the documentation
+
+### NON-TESTABLE CONTENT (Testing Not Required)
+**These types of content should be analyzed but not executed:**
+- **Conceptual explanations**: Architecture descriptions, background theory
+- **Screenshots**: Visual examples that can't be directly executed
+- **Future roadmaps**: Planned features not yet implemented
+- **External dependencies**: Third-party services you don't control
+- **Destructive operations**: Commands that could damage systems
+- **Hardware-specific instructions**: When you lack the specific hardware
+- **Security credentials**: Examples containing sensitive information
+
+### CRITICAL: Section-Specific Testing Required (When Testable)
+**Each documentation section with executable content requires independent validation:**
+- Execute the specific testable examples shown in the current section
+- Previous successful tests cannot substitute for current section validation
+- Clearly distinguish between testable and non-testable content in your analysis
+
 ### Functional Testing (Execute Documentation)
 **Execute documented examples first** - Always prioritize running the actual commands/procedures shown in the documentation, adapting for safety when needed. Use help commands only as supplements for understanding, not as substitutes for real testing.
 
@@ -102,9 +138,11 @@ Return your results as JSON in this exact format:
 
 **whatWasDone** (string): Concise summary covering BOTH functional testing AND semantic analysis - what commands/procedures you executed and what claims you analyzed.
 
-**issues** (array): CRITICAL PROBLEMS that prevent users from succeeding (broken functionality, incorrect information, missing required steps). Include precise location and explain user impact.
+**issues** (array): CRITICAL PROBLEMS that prevent users from succeeding (broken functionality, incorrect information, missing required steps). Include precise location and explain user impact. Each issue must be ACTIONABLE - describe what needs to be changed/fixed.
 
-**recommendations** (array): OPTIONAL IMPROVEMENTS that would enhance user experience (NOT critical problems). Must be genuinely optional - user can succeed without these changes. Do NOT repeat anything from issues array.
+**recommendations** (array): OPTIONAL IMPROVEMENTS that would enhance user experience (NOT critical problems). Must be genuinely optional - user can succeed without these changes. Each recommendation must be ACTIONABLE - describe a specific change to make. Do NOT include statements that validate existing content is correct (e.g., "The format matches actual behavior - this is accurate"). Only include suggestions for actual changes or additions. Do NOT repeat anything from issues array.
+
+**ACTIONABILITY REQUIREMENT**: Both issues and recommendations must suggest concrete changes. Avoid validation statements like "X is correct" or "Y matches expected behavior." If something is working correctly, don't mention it unless suggesting an enhancement.
 
 **ANTI-DUPLICATION RULES**: If something is broken/incorrect → issues only. If something could be enhanced but works fine → recommendations only. Never put the same concept in both arrays.
 
