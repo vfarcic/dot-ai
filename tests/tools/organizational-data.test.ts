@@ -1003,6 +1003,9 @@ describe('Organizational Data Tool', () => {
       );
 
       const response2 = JSON.parse(result2.content[0].text);
+      if (!response2.success) {
+        console.log('DEBUG: Test failure response (numeric):', JSON.stringify(response2, null, 2));
+      }
       expect(response2.success).toBe(true);
       // Should trigger capability scanning with manual mode
       expect(response2.operation).toBe('scan');
@@ -1139,6 +1142,9 @@ describe('Organizational Data Tool', () => {
       );
 
       const response2 = JSON.parse(result2.content[0].text);
+      if (!response2.success) {
+        console.log('DEBUG: Test failure response (context):', JSON.stringify(response2, null, 2));
+      }
       expect(response2.success).toBe(true);
       expect(response2.operation).toBe('scan');
       expect(response2.dataType).toBe('capabilities');
