@@ -102,6 +102,79 @@ jest.mock('../../src/core/capability-vector-service', () => ({
   }))
 }));
 
+// Mock KubernetesDiscovery for capability scanning tests
+jest.mock('../../src/core/discovery', () => ({
+  KubernetesDiscovery: jest.fn().mockImplementation(() => ({
+    connect: jest.fn().mockResolvedValue(undefined),
+    discoverResources: jest.fn().mockResolvedValue({
+      resources: [
+        {
+          name: 'pods',
+          namespaced: true,
+          kind: 'Pod',
+          shortNames: ['po'],
+          apiVersion: 'v1',
+          group: ''
+        },
+        {
+          name: 'services',
+          namespaced: true,
+          kind: 'Service',
+          shortNames: ['svc'],
+          apiVersion: 'v1',
+          group: ''
+        }
+      ],
+      custom: [
+        {
+          name: 'compositions.apiextensions.crossplane.io',
+          group: 'apiextensions.crossplane.io',
+          version: 'v1',
+          kind: 'Composition',
+          scope: 'Cluster',
+          versions: [
+            {
+              name: 'v1',
+              served: true,
+              storage: true
+            }
+          ],
+          metadata: {
+            labels: {},
+            annotations: {},
+            description: 'Crossplane Composition resource',
+            categories: ['crossplane']
+          },
+          schema: {}
+        }
+      ]
+    }),
+    discoverCRDDetails: jest.fn().mockResolvedValue([
+      {
+        name: 'compositions.apiextensions.crossplane.io',
+        group: 'apiextensions.crossplane.io',
+        version: 'v1',
+        kind: 'Composition',
+        scope: 'Cluster',
+        versions: [
+          {
+            name: 'v1',
+            served: true,
+            storage: true
+          }
+        ],
+        metadata: {
+          labels: {},
+          annotations: {},
+          description: 'Crossplane Composition resource',
+          categories: ['crossplane']
+        },
+        schema: {}
+      }
+    ])
+  }))
+}));
+
 // Create a test logger
 const testLogger: Logger = {
   info: jest.fn(),
