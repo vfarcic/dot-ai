@@ -1927,6 +1927,260 @@ describe('Organizational Data Tool', () => {
       expect(response.workflow.step).toBe('resource-selection'); // Should start at beginning, not jump to processing-mode
       expect(response.workflow.sessionId).toMatch(/^cap-scan-\d+$/);
     });
+
+    // Capability Search Tests
+    it('should successfully search capabilities with query in id field', async () => {
+      // Mock capability service with search results
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      const mockSearchResults = [
+        {
+          score: 0.95,
+          data: {
+            id: 'capability-sqls-devopstoolkit-live',
+            resourceName: 'sqls.devopstoolkit.live',
+            capabilities: ['postgresql', 'mysql', 'database'],
+            providers: ['azure', 'aws', 'gcp'],
+            complexity: 'low',
+            description: 'Managed database solution supporting multiple engines',
+            useCase: 'Simple database deployment without infrastructure complexity',
+            confidence: 90,
+            analyzedAt: '2025-08-06T10:30:00.000Z'
+          }
+        },
+        {
+          score: 0.87,
+          data: {
+            id: 'capability-servers-postgresql-azure',
+            resourceName: 'servers.postgresql.azure',
+            capabilities: ['postgresql', 'azure', 'database'],
+            providers: ['azure'],
+            complexity: 'medium',
+            description: 'Azure PostgreSQL database service',
+            useCase: 'Azure-specific PostgreSQL deployment',
+            confidence: 85,
+            analyzedAt: '2025-08-06T10:30:00.000Z'
+          }
+        }
+      ];
+
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        searchCapabilities: jest.fn().mockResolvedValue(mockSearchResults)
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: 'postgresql database in azure'
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-1'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('search');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.data.query).toBe('postgresql database in azure');
+      expect(response.data.results).toHaveLength(2);
+      expect(response.data.results[0].rank).toBe(1);
+      expect(response.data.results[0].score).toBe(0.95);
+      expect(response.data.results[0].resourceName).toBe('sqls.devopstoolkit.live');
+      expect(response.data.results[0].capabilities).toEqual(['postgresql', 'mysql', 'database']);
+      expect(response.message).toContain('Found 2 capabilities matching "postgresql database in azure"');
+    });
+
+    it('should require search query in id field for search operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search'
+          // Missing id field with query
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-no-query'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('search');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toBe('Search query required');
+      expect(response.error.details).toContain('The id field must contain a search query');
+    });
+
+    it('should reject empty search query for search operation', async () => {
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: '   ' // Empty/whitespace query
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-empty-query'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('search');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toBe('Search query required');
+      expect(response.error.details).toContain('The id field must contain a search query');
+    });
+
+    it('should handle search with limit parameter', async () => {
+      // Mock capability service with more results than limit
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      const mockSearchResults = [
+        {
+          score: 0.90,
+          data: {
+            id: 'capability-storage-azure',
+            resourceName: 'storageaccounts.azure',
+            capabilities: ['storage', 'azure'],
+            providers: ['azure'],
+            complexity: 'medium',
+            description: 'Azure storage account',
+            useCase: 'Cloud storage for applications',
+            confidence: 88,
+            analyzedAt: '2025-08-06T10:30:00.000Z'
+          }
+        }
+      ];
+
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        searchCapabilities: jest.fn().mockImplementation((query, options) => {
+          expect(options.limit).toBe(5); // Verify limit passed through
+          return Promise.resolve(mockSearchResults.slice(0, options.limit));
+        })
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: 'azure storage',
+          limit: 5
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-with-limit'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.data.limit).toBe(5);
+      expect(response.data.results).toHaveLength(1);
+    });
+
+    it('should return no results when no capabilities match search query', async () => {
+      // Mock capability service with no results
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        searchCapabilities: jest.fn().mockResolvedValue([])
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: 'nonexistent capability type'
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-no-results'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.operation).toBe('search');
+      expect(response.data.results).toHaveLength(0);
+      expect(response.message).toContain('Found 0 capabilities matching "nonexistent capability type"');
+    });
+
+    it('should provide comprehensive client instructions for search results', async () => {
+      // Mock capability service with search results
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      const mockSearchResults = [
+        {
+          score: 0.85,
+          data: {
+            id: 'capability-test-resource',
+            resourceName: 'tests.example.com',
+            capabilities: ['testing', 'validation'],
+            providers: ['aws'],
+            complexity: 'low',
+            description: 'Test resource for validation',
+            useCase: 'Testing and validation scenarios',
+            confidence: 80,
+            analyzedAt: '2025-08-06T10:30:00.000Z'
+          }
+        }
+      ];
+
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        searchCapabilities: jest.fn().mockResolvedValue(mockSearchResults)
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: 'testing capabilities'
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-client-instructions'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.clientInstructions).toBeDefined();
+      expect(response.clientInstructions.behavior).toBe('Display search results with relevance scores and capability details');
+      expect(response.clientInstructions.sections.searchSummary).toBe('Show query and result count prominently');
+      expect(response.clientInstructions.sections.resultsList).toBe('Display each result with rank, score, resource name, and capabilities');
+      expect(response.clientInstructions.format).toBe('Ranked list with scores (higher scores = better matches)');
+      expect(response.clientInstructions.emphasize).toBe('Resource names and main capabilities for easy scanning');
+    });
+
+    it('should handle search operation errors gracefully', async () => {
+      // Mock capability service to throw error during search
+      const MockCapabilityVectorService = require('../../src/core/capability-vector-service').CapabilityVectorService;
+      MockCapabilityVectorService.mockImplementationOnce(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(true),
+        searchCapabilities: jest.fn().mockRejectedValue(new Error('Vector DB search failed'))
+      }));
+
+      const result = await handleOrganizationalDataTool(
+        {
+          dataType: 'capabilities',
+          operation: 'search',
+          id: 'test query'
+        },
+        null,
+        testLogger,
+        'test-request-capability-search-error'
+      );
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(false);
+      expect(response.operation).toBe('search');
+      expect(response.dataType).toBe('capabilities');
+      expect(response.error.message).toBe('Capability search failed');
+      expect(response.error.details).toBe('Vector DB search failed');
+    });
   });
 
 

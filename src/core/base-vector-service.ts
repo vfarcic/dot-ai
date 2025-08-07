@@ -112,7 +112,7 @@ export abstract class BaseVectorService<T> {
     }
 
     const limit = options.limit || 10;
-    const scoreThreshold = options.scoreThreshold || 0.1;
+    const scoreThreshold = options.scoreThreshold || 0.01;
     
     // Perform hybrid search (semantic + keyword)
     try {
@@ -219,7 +219,7 @@ export abstract class BaseVectorService<T> {
       queryEmbedding,
       {
         limit: options.limit * 2, // Get more candidates for hybrid ranking
-        scoreThreshold: 0.5 // Lower threshold for semantic similarity
+        scoreThreshold: 0.1 // Very permissive threshold for single-word queries
       }
     );
 

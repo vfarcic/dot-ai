@@ -75,6 +75,17 @@ await manageClusterData({
 //    { kind: 'SQL', capabilities: ['postgresql', 'mysql'], ... }
 //    Continue storing this capability? (yes/no/stop)"
 
+// NEW: Interactive capability search
+await manageClusterData({
+  dataType: 'capabilities',
+  operation: 'search',
+  query: 'postgresql database',
+  limit: 10,
+  complexityFilter: 'low',
+  providerFilter: ['azure', 'aws']
+});
+// → Response: Ranked list of matching capabilities with scores
+
 // Vector DB storage with simplified ID format
 const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
 await this.vectorDB.store({
@@ -85,9 +96,10 @@ await this.vectorDB.store({
 });
 // Examples: capability-sqls-devopstoolkit-live, capability-resourcegroups-azure-upbound-io
 
-// Later, during recommendations:
-const capabilities = await vectorDB.search(userIntent, {type: 'capabilities'});
-// Returns: High-quality capability matches with schema version tracking
+// Later, during recommendations (uses same search method):
+const capabilityService = new CapabilityVectorService();
+const capabilities = await capabilityService.searchCapabilities(userIntent, 10);
+// Returns: High-quality capability matches for AI pre-filtering
 ```
 
 ## Technical Implementation
@@ -275,10 +287,11 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 - **Success Criteria**: Full cluster scan completes with user-controlled interface options ✅
 
 ### Milestone 4: Recommendation System Integration  
+- [x] Add capability search operation to MCP tool (manageOrgData)
 - [ ] Modify findBestSolutions to use capability pre-filtering
 - [ ] Implement fallback to original system when capabilities unavailable
 - [ ] Add capability-based resource ranking enhancements
-- **Success Criteria**: "PostgreSQL database" intent returns sqls.devopstoolkit.live as top recommendation
+- **Success Criteria**: "PostgreSQL database" intent returns sqls.devopstoolkit.live as top recommendation via both MCP search and recommendation system
 
 ### Milestone 5: Production Readiness
 - [ ] Comprehensive testing with various cluster configurations
@@ -379,6 +392,19 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 - Remove apiVersion tracking from ID format
 **Rationale**: Aligns with simplified interface approach, easier to generate and debug
 **Impact**: Affects Vector DB storage keys, simpler ID generation logic
+
+#### Dual-Purpose Capability Search Architecture (2025-08-06)
+**Decision**: Implement unified capability search functionality serving both user-facing and internal system needs
+- **User-facing**: Add `search` operation to `manageOrgData` MCP tool for interactive capability discovery
+- **Internal**: Use same `searchCapabilities()` method for recommendation system pre-filtering in `schema.ts`
+- **Shared Implementation**: Single source of truth in `CapabilityVectorService.searchCapabilities()` method
+- **Parameters**: Support query, limit, complexityFilter, and providerFilter for both use cases
+**Rationale**: Eliminates code duplication, ensures consistent search behavior, provides user validation path for recommendation logic
+**Impact**: 
+- Extends Milestone 4 to include MCP search operation before recommendation integration
+- Enables users to test semantic matching interactively before automated use
+- Validates search functionality works correctly before internal system integration
+- Provides debugging and discovery path for capability management
 
 ## Dependencies and Assumptions
 
@@ -514,6 +540,55 @@ This PRD ensures that users requesting database solutions will find the optimal 
 - **Performance Optimization**: Large-scale capability analysis optimization and batch processing improvements
 
 **Current Status**: 79% complete (11 of 14 total milestone items + performance optimization) - Core capability system feature-complete with production-ready performance
+
+### 2025-08-07: Vector Search Enhancement & XRD Metadata Optimization
+**Duration**: ~3-4 hours (estimated from conversation scope)  
+**Primary Focus**: Search functionality optimization and enhanced resource metadata
+
+**Completed PRD Items**:
+- [x] Add capability search operation to MCP tool (manageOrgData) - Evidence: Implemented in `src/tools/organizational-data.ts` with comprehensive search handler, all 54 tests passing
+
+**Search System Improvements**:
+- **Vector Similarity Threshold Optimization**: Lowered semantic search threshold from 0.5→0.2→0.1 and final threshold from 0.1→0.05→0.01 for better single-word query coverage
+- **Search Result Limits Enhancement**: Increased default search limit from 10 to 100 results for comprehensive AI recommendation evaluation 
+- **Test Suite Updates**: Updated `base-vector-service.test.ts` expectations to match new threshold values, all tests passing
+
+**XRD Metadata Enhancement**:
+- **Comprehensive Annotations**: Added database type, engine versions, provider support, and capability descriptions to Crossplane XRD
+- **Enhanced Labels**: Added database.postgresql, database.mysql, provider.multicloud, and complexity labels
+- **Improved Categories**: Extended `spec.names.categories` to include database, postgresql, mysql, and sql for better discoverability
+- **Vector DB Refresh**: Successfully rescanned and updated resource with enhanced metadata, replacing old analysis
+
+**Search Performance Validation**:
+- **Multi-word Query Success**: "postgresql database" search now returns `SQL.devopstoolkit.live` at rank #2 (score: 0.37)
+- **Cross-context Discovery**: Resource appears in "azure database" searches at rank #7 (score: 0.36), validating multi-cloud metadata effectiveness
+- **Enhanced Descriptions**: AI now generates production-focused descriptions mentioning "high availability features" and "production-grade" positioning
+- **Competitive Scoring**: Resource scores competitively (0.36-0.37) with major cloud provider services (AWS RDS, Azure PostgreSQL)
+
+**Technical Achievements**:
+- **Single-word Query Resolution**: Successfully resolved with threshold optimization - "postgresql" searches now return relevant results
+- **Confidence Gap**: Resource confidence (0.7) lower than cloud provider services (0.95) - opportunity for metadata-driven confidence improvements
+
+**Files Modified**:
+- `src/core/base-vector-service.ts` - Vector search threshold optimization
+- `src/tools/organizational-data.ts` - Search limit increase to 100 results
+- `tests/core/base-vector-service.test.ts` - Updated test expectations
+- Enhanced XRD definition in Crossplane configuration (external)
+
+**Next Session Priorities**:
+- **Recommendation Integration**: Implement capability pre-filtering in `schema.ts` using validated search functionality  
+- **Fallback Implementation**: Add graceful degradation when capabilities unavailable
+- **Production Testing**: Validate search performance with larger capability datasets
+
+**Updated Status**: 86% complete (12 of 14 milestone items) - Search functionality validated with enhanced metadata, ready for recommendation system integration
+
+## Known Issues & Technical Debt
+
+### Minor: Resource Confidence Gap
+**Issue**: Custom resources like `sqls.devopstoolkit.live` have lower AI confidence scores (0.7) compared to cloud provider services (0.95)  
+**Impact**: May affect ranking in recommendation systems that use confidence as a factor  
+**Potential Solutions**: Enhanced metadata quality, more specific XRD annotations, confidence calibration  
+**Priority**: Low - Functional impact minimal, search ranking competitive despite lower confidence
 
 **Implementation Evidence**:
 - **Core Engine**: `src/core/capabilities.ts` (266 lines) - Complete AI-powered inference system

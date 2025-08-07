@@ -290,7 +290,7 @@ describe('BaseVectorService', () => {
       expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalledWith('test query');
       expect(mockVectorDB.searchSimilar).toHaveBeenCalledWith(
         embedding,
-        { limit: 10, scoreThreshold: 0.5 }
+        { limit: 10, scoreThreshold: 0.1 }
       );
       expect(results[0].matchType).toBe('semantic');
     });

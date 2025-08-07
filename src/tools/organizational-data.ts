@@ -15,6 +15,7 @@ import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternCreationSessionManager } from '../core/pattern-creation-session';
 import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { CapabilityInferenceEngine } from '../core/capabilities';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,15 +27,15 @@ export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing c
 // Extensible schema - supports patterns and capabilities
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   dataType: z.enum(['pattern', 'capabilities']).describe('Type of cluster data to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities'),
-  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress']).describe('Operation to perform on the cluster data'),
+  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress', 'search']).describe('Operation to perform on the cluster data'),
   
   // Workflow fields for step-by-step pattern creation
   sessionId: z.string().optional().describe('Session ID (required for continuing workflow steps, optional for progress - uses latest session if omitted)'),
   step: z.string().optional().describe('Current workflow step (required when sessionId is provided)'),
   response: z.string().optional().describe('User response to previous workflow step question'),
   
-  // Generic fields for get/delete operations
-  id: z.string().optional().describe('Data item ID (required for get/delete operations)'),
+  // Generic fields for get/delete/search operations
+  id: z.string().optional().describe('Data item ID (required for get/delete operations) or search query (required for search operations)'),
   
   // Generic fields for list operations
   limit: z.number().optional().describe('Maximum number of items to return (default: 10)'),
@@ -555,6 +556,7 @@ async function handleCapabilitiesOperation(
     
     case 'list':
     case 'get':
+    case 'search':
     case 'delete':
     case 'deleteAll': {
       // Create and initialize capability service for list/get/delete operations
@@ -583,6 +585,8 @@ async function handleCapabilitiesOperation(
           return await handleCapabilityList(args, logger, requestId, capabilityService);
         } else if (operation === 'get') {
           return await handleCapabilityGet(args, logger, requestId, capabilityService);
+        } else if (operation === 'search') {
+          return await handleCapabilitySearch(args, logger, requestId, capabilityService);
         } else if (operation === 'delete') {
           return await handleCapabilityDelete(args, logger, requestId, capabilityService);
         } else if (operation === 'deleteAll') {
@@ -2270,6 +2274,104 @@ async function handleCapabilityDeleteAll(
       dataType: 'capabilities',
       error: {
         message: 'Failed to delete all capabilities',
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+/**
+ * Handle capability search operation
+ */
+async function handleCapabilitySearch(
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
+): Promise<any> {
+  try {
+    // Validate required search query (stored in id field)
+    if (!args.id || typeof args.id !== 'string' || args.id.trim() === '') {
+      return {
+        success: false,
+        operation: 'search',
+        dataType: 'capabilities',
+        error: {
+          message: 'Search query required',
+          details: 'The id field must contain a search query (e.g., "postgresql database in azure")'
+        }
+      };
+    }
+
+    const searchQuery = args.id.trim();
+    const limit = args.limit || 100;
+    
+    logger.info('Searching capabilities', {
+      requestId,
+      query: searchQuery,
+      limit
+    });
+
+    // Perform the search using existing service
+    const searchResults = await capabilityService.searchCapabilities(searchQuery, { limit });
+    
+    // Format results for user display
+    const formattedResults = searchResults.map((result, index) => ({
+      rank: index + 1,
+      score: Math.round(result.score * 100) / 100, // Round to 2 decimal places
+      id: CapabilityInferenceEngine.generateCapabilityId(result.data.resourceName),
+      resourceName: result.data.resourceName,
+      capabilities: result.data.capabilities,
+      providers: result.data.providers,
+      complexity: result.data.complexity,
+      description: result.data.description,
+      useCase: result.data.useCase,
+      confidence: result.data.confidence,
+      analyzedAt: result.data.analyzedAt
+    }));
+
+    logger.info('Capability search completed', {
+      requestId,
+      query: searchQuery,
+      resultsFound: searchResults.length,
+      limit
+    });
+
+    return {
+      success: true,
+      operation: 'search',
+      dataType: 'capabilities',
+      data: {
+        query: searchQuery,
+        results: formattedResults,
+        resultCount: searchResults.length,
+        limit
+      },
+      message: `Found ${searchResults.length} capabilities matching "${searchQuery}"`,
+      clientInstructions: {
+        behavior: 'Display search results with relevance scores and capability details',
+        sections: {
+          searchSummary: 'Show query and result count prominently',
+          resultsList: 'Display each result with rank, score, resource name, and capabilities',
+          capabilityDetails: 'Include providers, complexity, and description for context',
+          actionGuidance: 'Show IDs for get operations and suggest refinement if needed'
+        },
+        format: 'Ranked list with scores (higher scores = better matches)',
+        emphasize: 'Resource names and main capabilities for easy scanning'
+      }
+    };
+  } catch (error) {
+    logger.error('Failed to search capabilities', error as Error, {
+      requestId,
+      query: args.id
+    });
+    
+    return {
+      success: false,
+      operation: 'search',
+      dataType: 'capabilities',
+      error: {
+        message: 'Capability search failed',
         details: error instanceof Error ? error.message : String(error)
       }
     };
