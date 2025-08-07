@@ -14,6 +14,22 @@ Pattern Management allows you to:
 - **Enhance AI recommendations** with organizational context and best practices
 - **Share institutional knowledge** across teams through standardized deployment approaches
 
+### Capabilities vs Patterns
+
+**Important**: Pattern Management is distinct from Capability Management:
+
+- **[Capability Management](mcp-capability-management-guide.md)**: Discovers what each Kubernetes resource actually does (semantic understanding)
+  - **Required for recommendations**: Enables intelligent resource discovery and semantic matching
+  - **Example**: Teaches AI that `sqls.devopstoolkit.live` provides PostgreSQL database capabilities
+  - **Goal**: Make AI smarter about your cluster's existing resources
+
+- **Pattern Management**: Defines your organization's preferred resource combinations (institutional knowledge)
+  - **Optional enhancement**: Adds organizational best practices to AI recommendations  
+  - **Example**: Defines that web applications should include Deployment + Service + Ingress + HPA
+  - **Goal**: Make AI follow your team's deployment standards
+
+**Workflow Order**: Run capability scanning first (required), then create organizational patterns (optional but recommended).
+
 ### How It Works
 
 1. **Pattern Creation** → Platform engineers define deployment patterns with triggers and resource recommendations

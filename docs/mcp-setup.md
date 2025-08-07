@@ -4,11 +4,12 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides four main capabilities through MCP (Model Context Protocol):
-1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance
-2. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
-3. **Documentation Testing** - Automated validation of documentation accuracy
-4. **Shared prompts library** - Centralized prompt sharing via native slash commands
+The DevOps AI Toolkit provides five main capabilities through MCP (Model Context Protocol):
+1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance with enhanced semantic understanding
+2. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
+3. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
+4. **Documentation Testing** - Automated validation of documentation accuracy
+5. **Shared prompts library** - Centralized prompt sharing via native slash commands
 
 This guide covers the foundational setup that enables all features.
 
@@ -88,9 +89,9 @@ claude
 | Variable | Feature | Description | Example |
 |----------|---------|-------------|---------|
 | `KUBECONFIG` | Kubernetes Deployment | Kubernetes config file path | `./configs/cluster.yaml` |
-| `QDRANT_URL` | Pattern Management | Qdrant Vector DB URL | `https://your-cluster.qdrant.io` |
-| `QDRANT_API_KEY` | Pattern Management | Qdrant API key | `your-qdrant-api-key` |
-| `OPENAI_API_KEY` | Pattern Management | OpenAI key for semantic search | `sk-proj-...` |
+| `QDRANT_URL` | Capability & Pattern Management | Qdrant Vector DB URL | `https://your-cluster.qdrant.io` |
+| `QDRANT_API_KEY` | Capability & Pattern Management | Qdrant API key | `your-qdrant-api-key` |
+| `OPENAI_API_KEY` | Capability & Pattern Management | OpenAI key for semantic search | `sk-proj-...` |
 
 ## Path Resolution
 
@@ -363,7 +364,8 @@ For troubleshooting MCP server issues:
 
 Once MCP server setup is complete, explore the available features:
 
-- **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Kubernetes deployment recommendations
+- **[Capability Management Guide](mcp-capability-management-guide.md)** - Discover resource capabilities for intelligent recommendation matching (recommended first step for Kubernetes users)
+- **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Kubernetes deployment recommendations with enhanced semantic understanding
 - **[Pattern Management Guide](pattern-management-guide.md)** - Organizational deployment patterns
 - **[MCP Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation
 - **[MCP Prompts Guide](mcp-prompts-guide.md)** - Shared prompt library and slash commands

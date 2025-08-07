@@ -12,7 +12,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 
 ### Kubernetes Deployment
 - **Developers**: Deploy applications without needing deep Kubernetes expertise
-- **Platform Engineers**: Create organizational deployment patterns that enhance AI recommendations with institutional knowledge and best practices
+- **Platform Engineers**: Create organizational deployment patterns that enhance AI recommendations with institutional knowledge and best practices, and scan cluster resources to enable semantic matching for dramatically improved recommendation accuracy
 
 ### Documentation Testing  
 - **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
@@ -31,9 +31,33 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 
 ### Kubernetes Deployment Intelligence
 🔍 **Smart Discovery**: Automatically finds all available resources and operators in your cluster  
-🤖 **AI Recommendations**: Get deployment suggestions tailored to your specific cluster setup  
+🧠 **Semantic Capability Management**: Discovers what each resource actually does for intelligent matching  
+🤖 **AI Recommendations**: Get deployment suggestions tailored to your specific cluster setup with enhanced semantic understanding  
 🔧 **Operator-Aware**: Leverages custom operators and CRDs when available  
 🚀 **Complete Workflow**: From discovery to deployment with automated Kubernetes integration
+
+#### Capability-Enhanced Recommendations
+Transform how AI understands your cluster by discovering semantic capabilities of each resource:
+
+**The Problem**: Traditional discovery sees `sqls.devopstoolkit.live` as a meaningless name among hundreds of resources.
+
+**The Solution**: Capability management teaches the system that `sqls.devopstoolkit.live` handles PostgreSQL databases with multi-cloud support.
+
+**Before Capability Management:**
+```
+User: "I need a PostgreSQL database"
+AI: Gets 400+ generic resource names → picks complex multi-resource solution
+Result: Misses optimal single-resource solutions
+```
+
+**After Capability Management:**
+```
+User: "I need a PostgreSQL database"  
+AI: Gets pre-filtered relevant resources with rich context
+Result: Finds sqls.devopstoolkit.live as perfect match ✨
+```
+
+**Get Started**: See the [Capability Management Guide](./docs/mcp-capability-management-guide.md) for complete workflows including cluster scanning, capability search, and recommendation enhancement.
 
 ### Documentation Testing & Validation
 📖 **Automated Testing**: Validates documentation by executing commands and testing examples  
@@ -162,6 +186,29 @@ Agent: Perfect! Generating manifests and deploying now...
 [Uses chooseSolution, answerQuestion, generateManifests, deployManifests]
 
 Agent: ✅ Successfully deployed! Your application is running.
+```
+
+**Example: Capability Management**
+```
+User: I want to scan my cluster for resource capabilities to improve recommendations
+
+Agent: I'll help you scan your cluster to discover semantic capabilities. This will dramatically improve recommendation accuracy.
+[Uses manageOrgData with capabilities scanning]
+
+Agent: Would you like to scan all cluster resources or specify a subset?
+Options: 1) All resources 2) Specific subset
+
+User: All resources in auto mode
+
+Agent: Starting comprehensive cluster capability scan...
+✅ Capability scan completed! Processed cluster resources successfully.
+
+User: Now I need a PostgreSQL database
+
+Agent: Let me get enhanced recommendations using your capability data.
+[Uses recommend tool with capability pre-filtering]
+
+Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a managed database solution supporting PostgreSQL with multi-cloud capabilities and low complexity. Much better than the generic StatefulSet approach I would have suggested before!
 ```
 
 **Example: Documentation Testing**
