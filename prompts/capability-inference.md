@@ -1,56 +1,57 @@
-# Capability Inference Prompt
+# Generic Kubernetes Resource Capability Analysis
 
-Analyze this Kubernetes resource and identify its capabilities for semantic resource matching.
+Analyze this Kubernetes resource and identify its capabilities for semantic matching and AI recommendations.
 
 ## Resource Information
 - **Resource**: {resourceName}
-- **Analysis Context**: {analysisContext}
 
-## Resource Schema
+## Resource Definition
 ```yaml
-{schema}
-```
-
-## Resource Metadata
-```json
-{metadata}
+{resourceDefinition}
 ```
 
 ## Analysis Instructions
 
-Please identify the following capabilities for this resource:
+Analyze the provided resource definition to understand what this resource does and extract its capabilities. Use only information present in the definition - do not guess or assume.
 
-### 1. Primary Capabilities
-What does this resource actually do? Consider all domains:
-- **Database**: postgresql, mysql, redis, mongodb, database, managed database
-- **Storage**: object storage, block storage, backup, storage
-- **Application**: web service, api, microservice, application
-- **Networking**: ingress, load balancer, service mesh, networking
-- **Observability**: metrics, logging, tracing, monitoring
-- **Security**: authentication, authorization, certificates, security
-- **Compute**: containers, serverless, batch, compute
-- **Other**: Any domain-specific capabilities
+### 1. Functional Capabilities
+From the resource definition, identify what this resource enables users to do:
+- Look at schema properties, descriptions, and field names
+- Identify the core functionality (e.g., "database", "storage", "networking")
+- Be specific about technologies (e.g., "postgresql" vs generic "database")
+- Extract capabilities from field names, descriptions, and structure
 
-### 2. Cloud Providers Supported
-Which cloud providers does this resource support?
-- **Specific**: azure, aws, gcp, digitalocean, etc.
-- **Multi-cloud**: if it works across multiple providers
-- **On-premises**: if it supports on-prem deployments
+### 2. Provider/Platform Support  
+Identify what platforms or providers this resource works with:
+- Look for provider-specific configuration sections or fields
+- Check for multi-provider abstractions vs single-provider resources
+- Identify on-premises vs cloud-only resources
+- Only list providers explicitly mentioned or configured in the definition
 
 ### 3. Abstraction Level
-What abstractions does this resource provide?
-- **managed service**: Fully managed, minimal configuration
-- **high availability**: Built-in HA and redundancy
-- **auto scaling**: Automatic scaling capabilities
-- **backup**: Built-in backup and restore
-- **monitoring**: Built-in observability
-- **security**: Built-in security features
+Determine what abstractions this resource provides:
+- High-level managed services with minimal configuration
+- Infrastructure abstractions (auto-scaling, high availability, etc.)
+- Integration capabilities (backup, monitoring, security features)
+- Look at required vs optional fields to gauge abstraction level
 
-### 4. User Complexity Assessment
-How complex is this resource for end users?
-- **low**: Simple, high-level, minimal configuration needed
-- **medium**: Moderate complexity, some configuration required
-- **high**: Complex, requires detailed knowledge and extensive configuration
+### 4. User Experience Complexity
+Assess complexity considering both configuration and assembly requirements:
+
+**Configuration Complexity:**
+- Number and difficulty of required fields
+- Technical knowledge needed for the resource itself
+- Clarity of purpose and abstractions provided
+
+**Assembly Complexity:**
+- **Standalone**: Resource works independently, creates/manages all dependencies
+- **Coordinated**: Requires 2-3 other resources to be functional
+- **Orchestrated**: Needs many resources and complex relationships to work
+
+**Final Complexity Rating:**
+- **Low**: Simple configuration AND works standalone or with minimal dependencies
+- **Medium**: Moderate configuration OR needs some coordination with other resources  
+- **High**: Complex configuration OR requires orchestrating many resources OR both
 
 ## Response Format
 

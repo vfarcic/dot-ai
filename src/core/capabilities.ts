@@ -61,20 +61,18 @@ export class CapabilityInferenceEngine {
    */
   async inferCapabilities(
     resourceName: string,
-    schema?: string,
-    metadata?: any
+    resourceDefinition?: string
   ): Promise<ResourceCapability> {
     const requestId = `capability-inference-${Date.now()}`;
     
     this.logger.info('Starting capability inference', {
       requestId,
       resource: resourceName,
-      hasSchema: !!schema,
-      hasMetadata: !!metadata
+      hasDefinition: !!resourceDefinition
     });
 
     // Use AI to analyze all available information
-    const aiResult = await this.inferWithAI(resourceName, schema, metadata, requestId);
+    const aiResult = await this.inferWithAI(resourceName, resourceDefinition, requestId);
 
     // Convert AI result to final capability structure
     const finalCapability = this.buildResourceCapability(resourceName, aiResult);
@@ -98,8 +96,7 @@ export class CapabilityInferenceEngine {
    */
   private async inferWithAI(
     resourceName: string,
-    schema?: string,
-    metadata?: any,
+    resourceDefinition?: string,
     requestId?: string
   ): Promise<{
     capabilities: string[];
@@ -111,7 +108,7 @@ export class CapabilityInferenceEngine {
     confidence: number;
   }> {
     try {
-      const prompt = await this.buildInferencePrompt(resourceName, schema, metadata);
+      const prompt = await this.buildInferencePrompt(resourceName, resourceDefinition);
       const response = await this.claudeIntegration.sendMessage(prompt);
       return this.parseCapabilitiesFromAI(response.content);
     } catch (error) {
@@ -130,8 +127,7 @@ export class CapabilityInferenceEngine {
    */
   private async buildInferencePrompt(
     resourceName: string,
-    schema?: string,
-    metadata?: any
+    resourceDefinition?: string
   ): Promise<string> {
     // Load prompt template using standard pattern from existing codebase
     const promptPath = path.join(__dirname, '..', '..', 'prompts', 'capability-inference.md');
@@ -148,16 +144,9 @@ export class CapabilityInferenceEngine {
     }
 
     // Replace template variables using standard pattern
-    const analysisContext = schema && metadata ? 
-      'Schema and metadata available' :
-      schema ? 'Schema only' : 
-      metadata ? 'Metadata only' : 'Limited context';
-
     const finalPrompt = template
       .replace(/\{resourceName\}/g, resourceName)
-      .replace(/\{analysisContext\}/g, analysisContext)
-      .replace(/\{schema\}/g, schema || 'No schema provided')
-      .replace(/\{metadata\}/g, metadata ? JSON.stringify(metadata, null, 2) : 'No metadata provided');
+      .replace(/\{resourceDefinition\}/g, resourceDefinition || 'No resource definition provided');
 
     return finalPrompt;
   }

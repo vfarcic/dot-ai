@@ -239,11 +239,11 @@ describe.skip('Kubernetes Discovery Module', () => {
         { name: 'services', singularName: 'service', kind: 'Service', group: '', apiVersion: 'v1', namespaced: true, verbs: ['list'], shortNames: ['svc'] }
       ];
       const mockCRDs = [
-        { name: 'test-crd', group: 'test.io', version: 'v1', kind: 'TestCRD', scope: 'Namespaced', versions: [], schema: {} }
+        { name: 'test-crd', group: 'test.io', version: 'v1', kind: 'TestCRD', scope: 'Namespaced' as const, versions: [], schema: {} }
       ];
       
       const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue(mockAPIResources);
-      const discoverCRDDetailsSpy = jest.spyOn(discovery, 'discoverCRDDetails').mockResolvedValue(mockCRDs);
+      const discoverCRDsSpy = jest.spyOn(discovery, 'discoverCRDs').mockResolvedValue(mockCRDs);
       
       const resources = await discovery.discoverResources();
       expect(resources).toBeDefined();
@@ -251,7 +251,7 @@ describe.skip('Kubernetes Discovery Module', () => {
       expect(resources.custom).toBeInstanceOf(Array);
       
       getAPIResourcesSpy.mockRestore();
-      discoverCRDDetailsSpy.mockRestore();
+      discoverCRDsSpy.mockRestore();
     });
 
     test('should return comprehensive resource discovery without arbitrary categorization', async () => {
@@ -337,8 +337,7 @@ describe.skip('Kubernetes Discovery Module', () => {
     test('should handle empty clusters gracefully without hardcoded fallbacks', async () => {
       // Mock empty getAPIResources response
       const getAPIResourcesSpy = jest.spyOn(discovery, 'getAPIResources').mockResolvedValue([]);
-      const discoverCRDDetailsSpy = jest.spyOn(discovery, 'discoverCRDDetails').mockResolvedValue([]);
-      const discoverCRDsSpy = jest.spyOn(discovery, 'discoverCRDs').mockResolvedValue([]);
+      const discoverCRDsSpy2 = jest.spyOn(discovery, 'discoverCRDs').mockResolvedValue([]);
       
       const resources = await discovery.discoverResources();
       
@@ -347,8 +346,7 @@ describe.skip('Kubernetes Discovery Module', () => {
       expect(resources.custom).toEqual([]);
       
       getAPIResourcesSpy.mockRestore();
-      discoverCRDDetailsSpy.mockRestore();
-      discoverCRDsSpy.mockRestore();
+      discoverCRDsSpy2.mockRestore();
     });
 
     test('should not contain hardcoded resource filtering logic', async () => {

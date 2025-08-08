@@ -23,11 +23,10 @@ def "main setup" [] {
 
     main apply ingress nginx --provider kind
 
-    # (
-    #     main apply crossplane --provider $provider
-    #         --preview true --app-config true --db-config true
-    # )
-    main apply crossplane --preview true --app-config true
+    (
+        main apply crossplane --preview true --app-config true
+            --db-config true
+    )
 
     kubectl create namespace a-team
 

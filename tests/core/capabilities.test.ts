@@ -114,11 +114,37 @@ describe('CapabilityInferenceEngine', () => {
       mockClaudeIntegration.sendMessage.mockResolvedValue(mockAIResponse);
     });
 
-    it('should successfully infer capabilities with schema and metadata', async () => {
-      const schema = 'apiVersion: devopstoolkit.live/v1beta1\nkind: SQL';
-      const metadata = { annotations: { 'example.com/database': 'true' } };
+    it('should successfully infer capabilities with complete resource definition', async () => {
+      const resourceDefinition = `
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sqls.devopstoolkit.live
+  labels:
+    database.postgresql: "true"
+    provider.multicloud: "true"
+spec:
+  group: devopstoolkit.live
+  names:
+    kind: SQL
+    categories: [database, postgresql]
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: "Multi-cloud PostgreSQL database service"
+        properties:
+          spec:
+            properties:
+              size:
+                enum: [small, medium, large]
+              version:
+                type: string
+              region:
+                type: string
+`;
 
-      const result = await engine.inferCapabilities(sampleResourceName, schema, metadata);
+      const result = await engine.inferCapabilities(sampleResourceName, resourceDefinition);
 
       expect(result.resourceName).toBe('SQL.devopstoolkit.live');
       expect(result.capabilities).toEqual(['postgresql', 'mysql', 'database']);
@@ -128,34 +154,30 @@ describe('CapabilityInferenceEngine', () => {
       expect(result.analyzedAt).toBeDefined();
     });
 
-    it('should successfully infer capabilities with schema only', async () => {
-      const schema = 'apiVersion: devopstoolkit.live/v1beta1\nkind: SQL';
-
-      const result = await engine.inferCapabilities(sampleResourceName, schema);
+    it('should successfully infer capabilities without resource definition', async () => {
+      const result = await engine.inferCapabilities(sampleResourceName);
 
       expect(result.capabilities).toEqual(['postgresql', 'mysql', 'database']);
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Starting capability inference',
         expect.objectContaining({
           resource: 'SQL.devopstoolkit.live',
-          hasSchema: true,
-          hasMetadata: false
+          hasDefinition: false
         })
       );
     });
 
-    it('should successfully infer capabilities with metadata only', async () => {
-      const metadata = { annotations: { 'example.com/database': 'true' } };
+    it('should successfully infer capabilities with resource definition', async () => {
+      const resourceDefinition = 'apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: app\n    image: nginx';
 
-      const result = await engine.inferCapabilities(sampleResourceName, undefined, metadata);
+      const result = await engine.inferCapabilities('Pod', resourceDefinition);
 
       expect(result.capabilities).toEqual(['postgresql', 'mysql', 'database']);
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Starting capability inference',
         expect.objectContaining({
-          resource: 'SQL.devopstoolkit.live',
-          hasSchema: false,
-          hasMetadata: true
+          resource: 'Pod',
+          hasDefinition: true
         })
       );
     });
@@ -168,8 +190,7 @@ describe('CapabilityInferenceEngine', () => {
         'Starting capability inference',
         expect.objectContaining({
           resource: 'SQL.devopstoolkit.live',
-          hasSchema: false,
-          hasMetadata: false
+          hasDefinition: false
         })
       );
     });
@@ -221,7 +242,7 @@ describe('CapabilityInferenceEngine', () => {
     });
 
     it('should replace template variables correctly', async () => {
-      const mockTemplate = 'Resource: {resourceName} Context: {analysisContext} Schema: {schema} Metadata: {metadata}';
+      const mockTemplate = 'Resource: {resourceName} Definition: {resourceDefinition}';
       mockFs.readFileSync.mockReturnValue(mockTemplate);
       mockClaudeIntegration.sendMessage.mockResolvedValue({
         content: JSON.stringify({
@@ -236,27 +257,20 @@ describe('CapabilityInferenceEngine', () => {
         usage: { input_tokens: 100, output_tokens: 50 }
       });
 
-      const schema = 'kind: SQL';
-      const metadata = { test: 'data' };
+      const resourceDefinition = 'apiVersion: v1\nkind: SQL\nmetadata:\n  name: test-sql';
 
-      await engine.inferCapabilities(sampleResourceName, schema, metadata);
+      await engine.inferCapabilities(sampleResourceName, resourceDefinition);
 
       expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
         expect.stringContaining('Resource: SQL.devopstoolkit.live')
       );
       expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('Context: Schema and metadata available')
-      );
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('Schema: kind: SQL')
-      );
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('Metadata: {\n  "test": "data"\n}')
+        expect.stringContaining('Definition: apiVersion: v1')
       );
     });
 
     it('should handle different analysis contexts', async () => {
-      const mockTemplate = 'Context: {analysisContext}';
+      const mockTemplate = 'Context: {resourceDefinition}';
       mockFs.readFileSync.mockReturnValue(mockTemplate);
       mockClaudeIntegration.sendMessage.mockResolvedValue({
         content: JSON.stringify({
@@ -271,17 +285,13 @@ describe('CapabilityInferenceEngine', () => {
         usage: { input_tokens: 100, output_tokens: 50 }
       });
 
-      // Test schema only
-      await engine.inferCapabilities(sampleResourceName, 'schema');
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: Schema only');
+      // Test with resource definition
+      await engine.inferCapabilities(sampleResourceName, 'apiVersion: v1\nkind: Pod');
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: apiVersion: v1\nkind: Pod');
 
-      // Test metadata only
-      await engine.inferCapabilities(sampleResourceName, undefined, { test: 'data' });
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: Metadata only');
-
-      // Test limited context
+      // Test without resource definition
       await engine.inferCapabilities(sampleResourceName);
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: Limited context');
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: No resource definition provided');
     });
 
     it('should throw error if prompt template file does not exist', async () => {

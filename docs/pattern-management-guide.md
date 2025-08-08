@@ -69,7 +69,7 @@ Pattern Management requires a Vector DB service for semantic pattern storage and
 
 ```bash
 # Run local Qdrant with Docker (detached/background)
-docker run -d --name qdrant -p 6333:6333 -v $(pwd)/tmp/qdrant_storage:/qdrant/storage qdrant/qdrant
+docker container run --detach --name qdrant --publish 6333:6333 --volume $(pwd)/tmp/qdrant_storage:/qdrant/storage qdrant/qdrant
 ```
 
 **Configuration**:
