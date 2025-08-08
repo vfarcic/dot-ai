@@ -1305,6 +1305,26 @@ async function handleProcessingMode(
 }
 
 /**
+ * Create user-friendly error message for resource definition failures
+ */
+function createResourceDefinitionErrorMessage(resourceName: string, error: unknown): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  let userFriendlyMessage = `Cannot analyze resource '${resourceName}': `;
+  
+  if (errorMessage.includes('not found') || errorMessage.includes('NotFound')) {
+    userFriendlyMessage += `Resource does not exist in cluster. Please ensure the CRD is installed.`;
+  } else if (errorMessage.includes('connection refused') || errorMessage.includes('timeout')) {
+    userFriendlyMessage += `Cannot connect to Kubernetes cluster. Please check cluster connectivity.`;
+  } else if (errorMessage.includes('forbidden') || errorMessage.includes('Forbidden')) {
+    userFriendlyMessage += `Insufficient permissions to read resource definitions. Please check RBAC settings.`;
+  } else {
+    userFriendlyMessage += `${errorMessage}`;
+  }
+  
+  return userFriendlyMessage;
+}
+
+/**
  * Handle scanning step (actual capability analysis)
  */
 async function handleScanning(
@@ -1508,43 +1528,47 @@ async function handleScanning(
       throw new Error('Invalid selectedResources in session state');
     }
     
-    // Get actual CRD schema and metadata for comprehensive analysis
-    let resourceSchema: string | undefined;
-    let resourceMetadata: any | undefined;
+    // Get complete resource definition for comprehensive analysis
+    let resourceDefinition: string | undefined;
     
     try {
-      // Import and connect to discovery engine
+      // Import and connect to discovery engine for kubectl access
       const { KubernetesDiscovery } = await import('../core/discovery');
       const discovery = new KubernetesDiscovery();
       await discovery.connect();
       
-      // Get CRD definition with schema and metadata if it's a custom resource
+      // Get complete CRD definition if it's a custom resource
       if (resourceName.includes('.')) {
-        const crdList = await discovery.discoverCRDDetails();
-        const matchingCRD = crdList.find((crd: any) => crd.name === resourceName);
+        const crdOutput = await discovery.executeKubectl(['get', 'crd', resourceName, '-o', 'yaml']);
+        resourceDefinition = crdOutput;
         
-        if (matchingCRD) {
-          resourceSchema = JSON.stringify(matchingCRD.schema, null, 2);
-          resourceMetadata = matchingCRD.metadata;
-          
-          logger.info('Found CRD schema and metadata for capability analysis', {
-            requestId,
-            sessionId: session.sessionId,
-            resource: resourceName,
-            hasSchema: !!resourceSchema,
-            hasMetadata: !!resourceMetadata,
-            metadataLabels: Object.keys(resourceMetadata?.labels || {}),
-            categories: resourceMetadata?.categories?.length || 0
-          });
-        }
+        logger.info('Found complete CRD definition for capability analysis', {
+          requestId,
+          sessionId: session.sessionId,
+          resource: resourceName,
+          hasDefinition: !!resourceDefinition,
+          definitionSize: resourceDefinition?.length || 0
+        });
+      } else {
+        // For core resources, use kubectl explain to get schema information
+        const explainOutput = await discovery.explainResource(resourceName);
+        resourceDefinition = explainOutput;
+        
+        logger.info('Found core resource explanation for capability analysis', {
+          requestId,
+          sessionId: session.sessionId,
+          resource: resourceName,
+          hasDefinition: !!resourceDefinition
+        });
       }
     } catch (error) {
-      logger.warn('Could not retrieve CRD schema and metadata, using name-based inference', {
+      logger.error('Failed to retrieve resource definition for capability analysis', error as Error, {
         requestId,
         sessionId: session.sessionId,
-        resource: resourceName,
-        error: error instanceof Error ? error.message : String(error)
+        resource: resourceName
       });
+      
+      throw new Error(createResourceDefinitionErrorMessage(resourceName, error));
     }
     
     logger.info('Analyzing resource for capability inference', { 
@@ -1556,7 +1580,7 @@ async function handleScanning(
     
     if (session.processingMode === 'manual') {
       // Manual mode: Show capability data for user review
-      const capability = await engine.inferCapabilities(resourceName, resourceSchema, resourceMetadata);
+      const capability = await engine.inferCapabilities(resourceName, resourceDefinition);
       const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
       
       return {
@@ -1646,21 +1670,19 @@ async function handleScanning(
         }, args);
       };
       
-      // Get all CRD definitions once for efficiency
-      let availableCRDs: any[] = [];
+      // Setup kubectl access for getting complete resource definitions
+      let discovery: any;
       try {
         const { KubernetesDiscovery } = await import('../core/discovery');
-        const discovery = new KubernetesDiscovery();
+        discovery = new KubernetesDiscovery();
         await discovery.connect();
-        availableCRDs = await discovery.discoverCRDDetails();
         
-        logger.info('Retrieved CRD definitions for batch processing', {
+        logger.info('Connected to Kubernetes for batch resource definition retrieval', {
           requestId,
-          sessionId: session.sessionId,
-          totalCRDs: availableCRDs.length
+          sessionId: session.sessionId
         });
       } catch (error) {
-        logger.warn('Could not retrieve CRDs for batch processing, falling back to name-based inference', {
+        logger.warn('Could not connect to Kubernetes for batch processing, falling back to name-based inference', {
           requestId,
           sessionId: session.sessionId,
           error: error instanceof Error ? error.message : String(error)
@@ -1671,15 +1693,34 @@ async function handleScanning(
       for (let i = 0; i < resources.length; i++) {
         const currentResource = resources[i];
         
-        // Get CRD schema and metadata for this resource
-        let currentSchema: string | undefined;
-        let currentMetadata: any | undefined;
+        // Get complete resource definition for this resource
+        let currentResourceDefinition: string | undefined;
         
-        if (currentResource.includes('.')) {
-          const matchingCRD = availableCRDs.find((crd: any) => crd.name === currentResource);
-          if (matchingCRD) {
-            currentSchema = JSON.stringify(matchingCRD.schema, null, 2);
-            currentMetadata = matchingCRD.metadata;
+        if (discovery) {
+          try {
+            if (currentResource.includes('.')) {
+              // Get complete CRD definition
+              currentResourceDefinition = await discovery.executeKubectl(['get', 'crd', currentResource, '-o', 'yaml']);
+            } else {
+              // Get core resource explanation
+              currentResourceDefinition = await discovery.explainResource(currentResource);
+            }
+          } catch (error) {
+            logger.error(`Failed to get resource definition for ${currentResource}`, error as Error, {
+              requestId,
+              sessionId: session.sessionId,
+              resource: currentResource
+            });
+            
+            // Add to errors array and skip processing this resource
+            errors.push({
+              resource: currentResource,
+              error: createResourceDefinitionErrorMessage(currentResource, error),
+              timestamp: new Date().toISOString()
+            });
+            
+            // Skip processing this resource
+            continue;
           }
         }
         
@@ -1694,7 +1735,7 @@ async function handleScanning(
             percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
-          const capability = await engine.inferCapabilities(currentResource, currentSchema, currentMetadata);
+          const capability = await engine.inferCapabilities(currentResource, currentResourceDefinition);
           const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
           
           // Store capability in Vector DB

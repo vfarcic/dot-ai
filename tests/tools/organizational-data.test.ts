@@ -149,29 +149,41 @@ jest.mock('../../src/core/discovery', () => ({
         }
       ]
     }),
-    discoverCRDDetails: jest.fn().mockResolvedValue([
-      {
-        name: 'compositions.apiextensions.crossplane.io',
-        group: 'apiextensions.crossplane.io',
-        version: 'v1',
-        kind: 'Composition',
-        scope: 'Cluster',
-        versions: [
-          {
-            name: 'v1',
-            served: true,
-            storage: true
-          }
-        ],
-        metadata: {
-          labels: {},
-          annotations: {},
-          description: 'Crossplane Composition resource',
-          categories: ['crossplane']
-        },
-        schema: {}
+    executeKubectl: jest.fn().mockImplementation((args: string[]) => {
+      // Mock kubectl get crd commands for capability analysis
+      if (args[0] === 'get' && args[1] === 'crd') {
+        const crdName = args[2];
+        return Promise.resolve(`
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ${crdName}
+  labels:
+    database.postgresql: "true"
+    provider.multicloud: "true"
+spec:
+  group: ${crdName.split('.').slice(1).join('.')}
+  names:
+    kind: ${crdName.split('.')[0].charAt(0).toUpperCase() + crdName.split('.')[0].slice(1)}
+    categories: [database, postgresql]
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: "Multi-cloud database service for ${crdName}"
+        properties:
+          spec:
+            properties:
+              size:
+                enum: [small, medium, large]
+              version:
+                type: string
+        `);
       }
-    ])
+      // Default fallback
+      return Promise.resolve('');
+    }),
+    explainResource: jest.fn().mockResolvedValue('Mock resource explanation')
   }))
 }));
 
