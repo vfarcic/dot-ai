@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-AI recommendation system frequently produces incomplete solutions that fail during deployment because it misses critical resource dependencies like ResourceGroup for Azure resources or supporting infrastructure components. This PRD implements dependency discovery through Kubernetes schema analysis and Vector DB storage, enabling automatic assembly of complete, deployable solutions with all required dependencies included.
+AI recommendation system frequently produces incomplete solutions that fail during deployment because it misses critical resource dependencies like ResourceGroup for Azure resources or supporting infrastructure components. This PRD implements dependency discovery through Kubernetes schema analysis and Graph DB storage, enabling automatic assembly of complete, deployable solutions with all required dependencies included.
 
 ## Problem Statement
 
@@ -51,7 +51,7 @@ Dependency Pattern Recognition
 ↓
 Relationship Mapping
 ↓
-Vector DB Storage (searchable relationships)
+Graph DB Storage (explicit relationships + traversal queries)
 ↓
 Complete Solution Assembly
 ```
@@ -62,7 +62,7 @@ Complete Solution Assembly
 const primaryResources = await capabilitySearch("PostgreSQL Azure");
 // Result: [server.dbforpostgresql.azure]
 
-// Phase 2: PRD #49 finds dependencies  
+// Phase 2: PRD #49 finds dependencies via graph traversal
 const dependencies = await dependencySearch(primaryResources[0]);
 // Result: {required: [resourcegroup.azure], optional: [firewallrule]}
 
@@ -302,56 +302,177 @@ class DependencyDiscoveryEngine {
 }
 ```
 
-### Vector DB Integration for Dependencies
+### Graph DB Integration for Dependencies
 ```typescript
-class DependencyVectorService {
-  async storeDependency(dependency: ResourceDependency): Promise<void> {
-    // Create searchable embedding from dependency relationship
-    const embedding = await this.generateEmbedding(
-      `${dependency.dependent.kind} requires ${dependency.dependency.kind} ${dependency.reason}`
-    );
-    
-    await this.vectorDB.store({
-      id: `dependency-${dependency.dependent.kind}-${dependency.dependent.group}-${dependency.dependency.kind}`,
-      type: 'dependency',
-      embedding,
-      metadata: dependency
-    });
-  }
-  
-  async findDependencies(resource: ResourceReference): Promise<ResourceDependency[]> {
-    const searchQuery = `dependencies for ${resource.kind} ${resource.group}`;
-    const results = await this.vectorDB.search(searchQuery, {
-      type: 'dependency',
-      limit: 20
-    });
-    
-    return results
-      .map(result => result.metadata as ResourceDependency)
-      .filter(dep => 
-        dep.dependent.kind === resource.kind && 
-        dep.dependent.group === resource.group
+// Example using Neo4j driver-type API (any graph DB is fine)
+class DependencyGraphService {
+  constructor(private driver: any) {}
+
+  async upsertResource(resource: ResourceReference): Promise<void> {
+    const session = this.driver.session();
+    try {
+      await session.run(
+        'MERGE (r:ResourceKind {kind: $kind, group: $group, apiVersion: $apiVersion})',
+        resource
       );
+    } finally {
+      await session.close();
+    }
   }
-  
-  async getCompleteSolution(primaryResource: ResourceReference): Promise<CompleteSolution> {
-    const dependencies = await this.findDependencies(primaryResource);
-    
-    const required = dependencies
-      .filter(dep => dep.type === 'required')
-      .map(dep => dep.dependency);
-      
-    const optional = dependencies
-      .filter(dep => dep.type === 'optional')
-      .map(dep => dep.dependency);
-    
+
+  async upsertDependency(dep: ResourceDependency): Promise<void> {
+    const session = this.driver.session();
+    try {
+      const relType = dep.type.toUpperCase(); // REQUIRED|OPTIONAL|ENHANCES
+      await session.run(
+        `MERGE (a:ResourceKind {kind: $ak, group: $ag, apiVersion: $aa})
+         MERGE (b:ResourceKind {kind: $bk, group: $bg, apiVersion: $ba})
+         MERGE (a)-[r:${'${relType}'} {field: $field}]->(b)
+         SET r.reason = $reason, r.pattern = $pattern, r.confidence = $confidence, r.discoveredAt = $discoveredAt`,
+        {
+          ak: dep.dependent.kind, ag: dep.dependent.group, aa: dep.dependent.apiVersion,
+          bk: dep.dependency.kind, bg: dep.dependency.group, ba: dep.dependency.apiVersion,
+          field: dep.field, reason: dep.reason, pattern: dep.pattern,
+          confidence: dep.confidence, discoveredAt: dep.discoveredAt
+        }
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  async findDirectDependencies(resource: ResourceReference): Promise<ResourceDependency[]> {
+    const session = this.driver.session();
+    try {
+      const res = await session.run(
+        `MATCH (a:ResourceKind {kind: $kind, group: $group})
+         MATCH (a)-[r]->(b:ResourceKind)
+         RETURN type(r) as type, r.field as field, r.pattern as pattern, r.reason as reason,
+                r.confidence as confidence, r.discoveredAt as discoveredAt,
+                a.kind as ak, a.group as ag, a.apiVersion as aa,
+                b.kind as bk, b.group as bg, b.apiVersion as ba`,
+        { kind: resource.kind, group: resource.group }
+      );
+      return res.records.map((row: any) => ({
+        dependent: { kind: row.get('ak'), group: row.get('ag'), apiVersion: row.get('aa') },
+        dependency: { kind: row.get('bk'), group: row.get('bg'), apiVersion: row.get('ba') },
+        type: (row.get('type') as string).toLowerCase() as 'required' | 'optional' | 'enhances',
+        field: row.get('field'), pattern: row.get('pattern'), reason: row.get('reason'),
+        discoveredAt: row.get('discoveredAt'), confidence: row.get('confidence')
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  async expandTransitiveDependencies(resource: ResourceReference): Promise<{
+    required: ResourceReference[]; optional: ResourceReference[]; enhances: ResourceReference[]; all: ResourceDependency[];
+  }> {
+    const session = this.driver.session();
+    try {
+      // REQUIRES transitive closure
+      const requiredRes = await session.run(
+        `MATCH (a:ResourceKind {kind: $kind, group: $group})-[:REQUIRES*1..5]->(b:ResourceKind)
+         RETURN DISTINCT b.kind as kind, b.group as group, b.apiVersion as apiVersion`,
+        { kind: resource.kind, group: resource.group }
+      );
+      const required = requiredRes.records.map((r: any) => ({ kind: r.get('kind'), group: r.get('group'), apiVersion: r.get('apiVersion') }));
+
+      // Direct OPTIONAL/ENHANCES for primary
+      const optEnh = await session.run(
+        `MATCH (a:ResourceKind {kind: $kind, group: $group})-[r:OPTIONAL|ENHANCES]->(b:ResourceKind)
+         RETURN type(r) as type, b.kind as kind, b.group as group, b.apiVersion as apiVersion`,
+        { kind: resource.kind, group: resource.group }
+      );
+      const optional: ResourceReference[] = [];
+      const enhances: ResourceReference[] = [];
+      for (const row of optEnh.records) {
+        const ref = { kind: row.get('kind'), group: row.get('group'), apiVersion: row.get('apiVersion') };
+        (row.get('type') === 'OPTIONAL' ? optional : enhances).push(ref);
+      }
+
+      // Collect all direct edges for rationale
+      const all = await this.findDirectDependencies(resource);
+      return { required, optional, enhances, all };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async hasCycles(resource: ResourceReference): Promise<boolean> {
+    const session = this.driver.session();
+    try {
+      const res = await session.run(
+        `MATCH p=(a:ResourceKind {kind: $kind, group: $group})-[:REQUIRES*1..10]->(a)
+         RETURN count(p) as cycles`,
+        { kind: resource.kind, group: resource.group }
+      );
+      return (res.records[0]?.get('cycles') || 0) > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getCompleteSolution(primary: ResourceReference): Promise<CompleteSolution> {
+    const { required, optional, all } = await this.expandTransitiveDependencies(primary);
+    const ordered = this.computeTopologicalOrder(primary, all);
     return {
-      primary: primaryResource,
+      primary,
       required: this.removeDuplicates(required),
       optional: this.removeDuplicates(optional),
-      dependencies,
-      rationale: this.generateSolutionRationale(primaryResource, dependencies)
+      dependencies: all,
+      order: ordered,
+      rationale: this.generateSolutionRationale(primary, all)
     };
+  }
+
+  private computeTopologicalOrder(primary: ResourceReference, deps: ResourceDependency[]): ResourceReference[] {
+    // Build adjacency for REQUIRES only
+    const adj = new Map<string, Set<string>>();
+    const nodes = new Map<string, ResourceReference>();
+    const key = (r: ResourceReference) => `${r.group}/${r.kind}`;
+    nodes.set(key(primary), primary);
+    for (const d of deps) {
+      nodes.set(key(d.dependent), d.dependent);
+      nodes.set(key(d.dependency), d.dependency);
+      if (d.type === 'required') {
+        const from = key(d.dependency); // dependency must come before dependent
+        const to = key(d.dependent);
+        if (!adj.has(from)) adj.set(from, new Set());
+        adj.get(from)!.add(to);
+      }
+    }
+    // Kahn's algorithm
+    const indeg = new Map<string, number>();
+    for (const n of nodes.keys()) indeg.set(n, 0);
+    for (const [from, tos] of adj) for (const to of tos) indeg.set(to, (indeg.get(to) || 0) + 1);
+    const queue: string[] = Array.from(nodes.keys()).filter(k => (indeg.get(k) || 0) === 0);
+    const ordered: string[] = [];
+    while (queue.length) {
+      const n = queue.shift()!;
+      ordered.push(n);
+      for (const m of Array.from(adj.get(n) || [])) {
+        indeg.set(m, (indeg.get(m) || 0) - 1);
+        if ((indeg.get(m) || 0) === 0) queue.push(m);
+      }
+    }
+    return ordered.map(k => nodes.get(k)!).filter(Boolean);
+  }
+
+  private removeDuplicates(list: ResourceReference[]): ResourceReference[] {
+    const seen = new Set<string>();
+    const out: ResourceReference[] = [];
+    for (const r of list) {
+      const k = `${r.group}/${r.kind}`;
+      if (!seen.has(k)) { seen.add(k); out.push(r); }
+    }
+    return out;
+  }
+
+  private generateSolutionRationale(primary: ResourceReference, deps: ResourceDependency[]): string {
+    // Build a concise rationale string from edge reasons
+    const lines = deps.map(d => `${d.dependent.kind} -> ${d.type.toUpperCase()} -> ${d.dependency.kind}: ${d.reason}`);
+    return [`Primary: ${primary.kind}`, ...lines].join('\n');
   }
 }
 ```
@@ -390,14 +511,14 @@ Deployment: ✅ SUCCESS (all dependencies included)
 
 ### Modified Recommendation Integration
 ```typescript
-// Enhanced findBestSolutions with dependency completion
+// Enhanced findBestSolutions with dependency completion via graph
 async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<ResourceSolution[]> {
   // Phase 1: Capability-based resource discovery (PRD #48)
   const capabilityService = new CapabilityVectorService(this.vectorDB);
   const primaryCandidates = await capabilityService.searchCapabilities(intent, 5);
   
-  // Phase 2: Dependency completion (PRD #49) 
-  const dependencyService = new DependencyVectorService(this.vectorDB);
+  // Phase 2: Dependency completion (PRD #49)
+  const dependencyService = new DependencyGraphService(this.graphDB);
   const completeSolutions: CompleteSolution[] = [];
   
   for (const candidate of primaryCandidates) {
@@ -441,6 +562,21 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 }
 ```
 
+## Decision Log
+
+- Decision: Use Graph DB for dependency relationships in PRD-49
+  - Date: 2025-08-08
+  - Rationale: Requires transitive traversal, reverse lookups, cycle detection, and topological ordering; graph databases provide correctness and efficient queries for these operations.
+  - Impact: Architecture updated to graph storage and traversal; Milestone 2 changed to Graph DB; Technical Dependencies updated; code examples updated to `DependencyGraphService`.
+  - Code Impact: Introduce graph driver (e.g., `neo4j-driver`), implement node/edge upserts, traversal APIs, cycle detection, and deploy ordering; update recommendation integration to call graph service.
+  - Owner: Viktor Farcic
+
+- Decision: Keep capability storage/search on Vector DB (PRD-48)
+  - Date: 2025-08-08
+  - Rationale: Primary operations are semantic intent matching with simple filters; no multi-hop reasoning required.
+  - Impact: No change to PRD-49 aside from integration still using `CapabilityVectorService` for Phase 1.
+  - Code Impact: None for this PRD.
+
 ## Implementation Milestones
 
 ### Milestone 1: Dependency Discovery Engine
@@ -449,11 +585,12 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 - [ ] Build operational dependency detection (networking, security, storage)
 - **Success Criteria**: ResourceGroup dependency discovered for Azure Server resources
 
-### Milestone 2: Vector DB Dependency Storage
+### Milestone 2: Graph DB Dependency Storage
 - [ ] Integrate with PRD #47's cluster data management tool  
-- [ ] Implement dependency storage and retrieval in Vector DB
-- [ ] Create dependency relationship embeddings for semantic search
-- **Success Criteria**: Dependencies stored and retrievable via resource queries
+- [ ] Implement dependency storage and retrieval in Graph DB (nodes/edges)
+- [ ] Support traversal for transitive dependencies and reverse dependents
+- [ ] Implement cycle detection and topological ordering for deploy sequence
+- **Success Criteria**: Dependencies stored and retrievable via graph queries; complete deploy order produced with cycle safeguards
 
 ### Milestone 3: Cluster Dependency Scanning
 - [ ] Add dependency scanning operation to manageClusterData tool
@@ -492,7 +629,7 @@ async findBestSolutions(intent: string, discovery: DiscoveryFunctions): Promise<
 ### Technical Dependencies
 - **PRD #47**: Generic cluster data management tool provides interface
 - **PRD #48**: Resource capabilities provide context for dependency inference
-- Vector DB infrastructure for relationship storage
+- Graph DB infrastructure for relationship storage and traversal (e.g., Neo4j)
 - Kubernetes API access for schema analysis
 
 ### Assumptions

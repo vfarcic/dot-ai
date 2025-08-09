@@ -82,6 +82,41 @@ describe('Recommend Tool', () => {
       expect(sourceCode).toContain('DO NOT automatically call chooseSolution() without user input');
       expect(sourceCode).toContain('Stop here and wait for user selection');
     });
+
+    test('should include resource list information in solution summaries', () => {
+      // Read the source code to verify resource information is included
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify resources field is added to solution summaries
+      expect(sourceCode).toContain('resources: solution.resources.map(r => ({');
+      expect(sourceCode).toContain('kind: r.kind,');
+      expect(sourceCode).toContain('apiVersion: r.apiVersion,');
+      expect(sourceCode).toContain('group: r.group,');
+      expect(sourceCode).toContain('description: r.description?.split');
+      
+      // Verify guidance mentions showing resources
+      expect(sourceCode).toContain('Show the list of Kubernetes resources');
+      expect(sourceCode).toContain('from the \'resources\' field');
+      expect(sourceCode).toContain('helps users understand what gets deployed');
+    });
+
+    test('should maintain backward compatibility with primaryResources', () => {
+      // Read the source code to verify primaryResources field is still present
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify primaryResources field is still present for backward compatibility
+      expect(sourceCode).toContain('primaryResources: solution.resources.slice(0, 3).map(r => r.kind)');
+    });
   });
 
   describe('Intent Validation', () => {

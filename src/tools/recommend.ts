@@ -326,6 +326,12 @@ export async function handleRecommendTool(
           score: solution.score,
           description: solution.description,
           primaryResources: solution.resources.slice(0, 3).map(r => r.kind),
+          resources: solution.resources.map(r => ({
+            kind: r.kind,
+            apiVersion: r.apiVersion,
+            group: r.group,
+            description: r.description?.split('\n')[0] || `${r.kind} resource` // Use first line of description or fallback
+          })),
           reasons: solution.reasons,
           analysis: solution.analysis,
           usedPatterns: solution.usedPatterns || false,
@@ -348,7 +354,7 @@ export async function handleRecommendTool(
           patternsAvailable: totalPatternInfluences > 0 ? "Yes" : "None found or pattern search failed"
         },
         nextAction: "Call chooseSolution with your preferred solutionId",
-        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
+        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
         timestamp
       };
 
