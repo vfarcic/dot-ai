@@ -96,12 +96,9 @@ describe('Version Tool', () => {
     });
 
     it('should have valid input schema', () => {
-      expect(VERSION_TOOL_INPUT_SCHEMA).toEqual({
-        type: 'object',
-        properties: {},
-        required: [],
-        additionalProperties: false
-      });
+      expect(typeof VERSION_TOOL_INPUT_SCHEMA).toBe('object');
+      expect(VERSION_TOOL_INPUT_SCHEMA).toBeDefined();
+      expect(Object.keys(VERSION_TOOL_INPUT_SCHEMA).length).toBe(0);
     });
   });
 

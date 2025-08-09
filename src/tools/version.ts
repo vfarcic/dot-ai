@@ -12,12 +12,7 @@ import { VectorDBService, PatternVectorService, CapabilityVectorService, Embeddi
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, and pattern management health check';
-export const VERSION_TOOL_INPUT_SCHEMA = {
-  type: 'object',
-  properties: {},
-  required: [],
-  additionalProperties: false
-};
+export const VERSION_TOOL_INPUT_SCHEMA = {};
 
 export interface VersionInfo {
   version: string;
