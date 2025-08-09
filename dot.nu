@@ -9,7 +9,7 @@ source scripts/anthropic.nu
 
 def main [] {}
 
-def "main setup" [] {
+def "main setup" [--qdrant-tag: string = "latest"] {
     
     rm --force .env
 
@@ -29,8 +29,7 @@ def "main setup" [] {
     (
         docker container run --detach --name qdrant
             --publish 6333:6333
-            --volume $"($env.PWD)/tmp/qdrant_storage:/qdrant/storage"
-            qdrant/qdrant
+            $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
     )
 
     main create kubernetes kind
