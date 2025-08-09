@@ -1,69 +1,70 @@
 /**
  * Model Context Protocol (MCP) Interface for DevOps AI Toolkit
- * 
+ *
  * Provides MCP server capabilities that expose DevOps AI Toolkit functionality
  * to AI assistants like Claude through standardized protocol
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ListPromptsRequestSchema, GetPromptRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { DotAI } from '../core/index';
-import { 
-  ConsoleLogger,
-  Logger 
-} from '../core/error-handling';
-import { 
-  RECOMMEND_TOOL_NAME, 
-  RECOMMEND_TOOL_DESCRIPTION, 
+import { ConsoleLogger, Logger } from '../core/error-handling';
+import {
+  RECOMMEND_TOOL_NAME,
+  RECOMMEND_TOOL_DESCRIPTION,
   RECOMMEND_TOOL_INPUT_SCHEMA,
-  handleRecommendTool 
+  handleRecommendTool,
 } from '../tools/recommend';
-import { 
-  CHOOSESOLUTION_TOOL_NAME, 
-  CHOOSESOLUTION_TOOL_DESCRIPTION, 
+import {
+  CHOOSESOLUTION_TOOL_NAME,
+  CHOOSESOLUTION_TOOL_DESCRIPTION,
   CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
-  handleChooseSolutionTool 
+  handleChooseSolutionTool,
 } from '../tools/choose-solution';
-import { 
-  ANSWERQUESTION_TOOL_NAME, 
-  ANSWERQUESTION_TOOL_DESCRIPTION, 
+import {
+  ANSWERQUESTION_TOOL_NAME,
+  ANSWERQUESTION_TOOL_DESCRIPTION,
   ANSWERQUESTION_TOOL_INPUT_SCHEMA,
-  handleAnswerQuestionTool 
+  handleAnswerQuestionTool,
 } from '../tools/answer-question';
-import { 
-  GENERATEMANIFESTS_TOOL_NAME, 
-  GENERATEMANIFESTS_TOOL_DESCRIPTION, 
+import {
+  GENERATEMANIFESTS_TOOL_NAME,
+  GENERATEMANIFESTS_TOOL_DESCRIPTION,
   GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
-  handleGenerateManifestsTool 
+  handleGenerateManifestsTool,
 } from '../tools/generate-manifests';
-import { 
-  DEPLOYMANIFESTS_TOOL_NAME, 
-  DEPLOYMANIFESTS_TOOL_DESCRIPTION, 
+import {
+  DEPLOYMANIFESTS_TOOL_NAME,
+  DEPLOYMANIFESTS_TOOL_DESCRIPTION,
   DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
-  handleDeployManifestsTool 
+  handleDeployManifestsTool,
 } from '../tools/deploy-manifests';
-import { 
-  VERSION_TOOL_NAME, 
-  VERSION_TOOL_DESCRIPTION, 
+import {
+  VERSION_TOOL_NAME,
+  VERSION_TOOL_DESCRIPTION,
   VERSION_TOOL_INPUT_SCHEMA,
-  handleVersionTool 
+  handleVersionTool,
 } from '../tools/version';
-import { 
-  TESTDOCS_TOOL_NAME, 
-  TESTDOCS_TOOL_DESCRIPTION, 
+import {
+  TESTDOCS_TOOL_NAME,
+  TESTDOCS_TOOL_DESCRIPTION,
   TESTDOCS_TOOL_INPUT_SCHEMA,
-  handleTestDocsTool 
+  handleTestDocsTool,
 } from '../tools/test-docs';
-import { 
-  ORGANIZATIONAL_DATA_TOOL_NAME, 
-  ORGANIZATIONAL_DATA_TOOL_DESCRIPTION, 
+import {
+  ORGANIZATIONAL_DATA_TOOL_NAME,
+  ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
   ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
-  handleOrganizationalDataTool 
+  handleOrganizationalDataTool,
 } from '../tools/organizational-data';
-import { 
+
+import {
   handlePromptsListRequest,
-  handlePromptsGetRequest 
+  handlePromptsGetRequest,
 } from '../tools/prompts';
 
 export interface MCPServerConfig {
@@ -83,25 +84,25 @@ export class MCPServer {
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
     this.logger = new ConsoleLogger('MCPServer');
-    
+
     // Create McpServer instance
     this.server = new McpServer(
       {
         name: config.name,
-        version: config.version
+        version: config.version,
       },
       {
         capabilities: {
           tools: {},
-          prompts: {}
-        }
+          prompts: {},
+        },
       }
     );
 
     this.logger.info('Initializing MCP Server', {
       name: config.name,
       version: config.version,
-      author: config.author
+      author: config.author,
     });
 
     // Register all tools and prompts directly with McpServer
@@ -120,8 +121,15 @@ export class MCPServer {
       RECOMMEND_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${RECOMMEND_TOOL_NAME} tool request`, { requestId });
-        return await handleRecommendTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(`Processing ${RECOMMEND_TOOL_NAME} tool request`, {
+          requestId,
+        });
+        return await handleRecommendTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
 
@@ -132,8 +140,16 @@ export class MCPServer {
       CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${CHOOSESOLUTION_TOOL_NAME} tool request`, { requestId });
-        return await handleChooseSolutionTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(
+          `Processing ${CHOOSESOLUTION_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleChooseSolutionTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
 
@@ -144,8 +160,16 @@ export class MCPServer {
       ANSWERQUESTION_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${ANSWERQUESTION_TOOL_NAME} tool request`, { requestId });
-        return await handleAnswerQuestionTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(
+          `Processing ${ANSWERQUESTION_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleAnswerQuestionTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
 
@@ -156,8 +180,16 @@ export class MCPServer {
       GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${GENERATEMANIFESTS_TOOL_NAME} tool request`, { requestId });
-        return await handleGenerateManifestsTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(
+          `Processing ${GENERATEMANIFESTS_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleGenerateManifestsTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
 
@@ -168,8 +200,16 @@ export class MCPServer {
       DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${DEPLOYMANIFESTS_TOOL_NAME} tool request`, { requestId });
-        return await handleDeployManifestsTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(
+          `Processing ${DEPLOYMANIFESTS_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleDeployManifestsTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
 
@@ -180,7 +220,9 @@ export class MCPServer {
       VERSION_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, { requestId });
+        this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, {
+          requestId,
+        });
         return await handleVersionTool(args, this.logger, requestId);
       }
     );
@@ -192,7 +234,9 @@ export class MCPServer {
       TESTDOCS_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${TESTDOCS_TOOL_NAME} tool request`, { requestId });
+        this.logger.info(`Processing ${TESTDOCS_TOOL_NAME} tool request`, {
+          requestId,
+        });
         return await handleTestDocsTool(args, null, this.logger, requestId);
       }
     );
@@ -204,12 +248,20 @@ export class MCPServer {
       ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
       async (args: any) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${ORGANIZATIONAL_DATA_TOOL_NAME} tool request`, { requestId });
-        return await handleOrganizationalDataTool(args, this.dotAI, this.logger, requestId);
+        this.logger.info(
+          `Processing ${ORGANIZATIONAL_DATA_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleOrganizationalDataTool(
+          args,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
       }
     );
-    
-    this.logger.info('Registered all tools with McpServer', { 
+
+    this.logger.info('Registered all tools with McpServer', {
       tools: [
         RECOMMEND_TOOL_NAME,
         CHOOSESOLUTION_TOOL_NAME,
@@ -218,9 +270,9 @@ export class MCPServer {
         DEPLOYMANIFESTS_TOOL_NAME,
         VERSION_TOOL_NAME,
         TESTDOCS_TOOL_NAME,
-        ORGANIZATIONAL_DATA_TOOL_NAME
+        ORGANIZATIONAL_DATA_TOOL_NAME,
       ],
-      totalTools: 8
+      totalTools: 8,
     });
   }
 
@@ -229,28 +281,44 @@ export class MCPServer {
    */
   private registerPrompts(): void {
     // Register prompts/list handler
-    this.server.server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
-      const requestId = this.generateRequestId();
-      this.logger.info('Processing prompts/list request', { requestId });
-      return await handlePromptsListRequest(request.params || {}, this.logger, requestId);
-    });
+    this.server.server.setRequestHandler(
+      ListPromptsRequestSchema,
+      async request => {
+        const requestId = this.generateRequestId();
+        this.logger.info('Processing prompts/list request', { requestId });
+        return await handlePromptsListRequest(
+          request.params || {},
+          this.logger,
+          requestId
+        );
+      }
+    );
 
     // Register prompts/get handler
-    this.server.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      const requestId = this.generateRequestId();
-      this.logger.info('Processing prompts/get request', { requestId, promptName: request.params?.name });
-      return await handlePromptsGetRequest(request.params || {}, this.logger, requestId);
-    });
+    this.server.server.setRequestHandler(
+      GetPromptRequestSchema,
+      async request => {
+        const requestId = this.generateRequestId();
+        this.logger.info('Processing prompts/get request', {
+          requestId,
+          promptName: request.params?.name,
+        });
+        return await handlePromptsGetRequest(
+          request.params || {},
+          this.logger,
+          requestId
+        );
+      }
+    );
 
     this.logger.info('Registered prompts capability with McpServer', {
-      endpoints: ['prompts/list', 'prompts/get']
+      endpoints: ['prompts/list', 'prompts/get'],
     });
   }
 
   private generateRequestId(): string {
     return `mcp_${Date.now()}_${++this.requestIdCounter}`;
   }
-
 
   async start(): Promise<void> {
     const transport = new StdioServerTransport();
@@ -263,8 +331,7 @@ export class MCPServer {
     this.initialized = false;
   }
 
-
   isReady(): boolean {
     return this.initialized;
   }
-} 
+}
