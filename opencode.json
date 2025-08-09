@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "dot-ai": {
+      "type": "local",
+      "command": ["node", "./dist/mcp/server.js"],
+      "enabled": true,
+      "environment": {
+        "KUBECONFIG": "./kubeconfig.yaml",
+        "DOT_AI_SESSION_DIR": "./tmp/sessions",
+        "QDRANT_URL": "http://localhost:6333"
+      }
+    }
+  },
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  }
+}

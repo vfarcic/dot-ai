@@ -5,7 +5,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../core/error-handling';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+} from '../core/error-handling';
 
 export interface PromptMetadata {
   name: string;
@@ -25,19 +29,21 @@ export interface Prompt {
 export function loadPromptFile(filePath: string): Prompt {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
-    
+
     // Parse YAML frontmatter
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (!frontmatterMatch) {
-      throw new Error(`Invalid prompt file format: missing YAML frontmatter in ${filePath}`);
+      throw new Error(
+        `Invalid prompt file format: missing YAML frontmatter in ${filePath}`
+      );
     }
-    
+
     const [, frontmatterYaml, promptContent] = frontmatterMatch;
-    
+
     // Simple YAML parsing for our specific format
     const metadata: Partial<PromptMetadata> = {};
     const lines = frontmatterYaml.split('\n');
-    
+
     for (const line of lines) {
       const match = line.match(/^([^:]+):\s*(.+)$/);
       if (match) {
@@ -47,38 +53,43 @@ export function loadPromptFile(filePath: string): Prompt {
         metadata[key.trim() as keyof PromptMetadata] = cleanValue;
       }
     }
-    
+
     if (!metadata.name || !metadata.description || !metadata.category) {
-      throw new Error(`Missing required metadata in ${filePath}: name, description, category`);
+      throw new Error(
+        `Missing required metadata in ${filePath}: name, description, category`
+      );
     }
-    
+
     return {
       name: metadata.name,
       description: metadata.description,
-      content: promptContent.trim()
+      content: promptContent.trim(),
     };
   } catch (error) {
-    throw new Error(`Failed to load prompt file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to load prompt file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
 /**
  * Loads all prompts from the shared-prompts directory
  */
-export function loadAllPrompts(logger: Logger): Prompt[] {
+export function loadAllPrompts(logger: Logger, baseDir?: string): Prompt[] {
   try {
-    const promptsDir = path.join(process.cwd(), 'shared-prompts');
-    
+    const promptsDir =
+      baseDir ?? path.join(__dirname, '..', '..', 'shared-prompts');
+
     if (!fs.existsSync(promptsDir)) {
       logger.warn('Shared prompts directory not found', { path: promptsDir });
       return [];
     }
-    
+
     const files = fs.readdirSync(promptsDir);
     const promptFiles = files.filter(file => file.endsWith('.md'));
-    
+
     const prompts: Prompt[] = [];
-    
+
     for (const file of promptFiles) {
       try {
         const filePath = path.join(promptsDir, file);
@@ -89,12 +100,12 @@ export function loadAllPrompts(logger: Logger): Prompt[] {
         logger.error(`Failed to load prompt file ${file}`, error as Error);
       }
     }
-    
-    logger.info('Loaded prompts from shared library', { 
-      total: prompts.length, 
-      promptsDir 
+
+    logger.info('Loaded prompts from shared library', {
+      total: prompts.length,
+      promptsDir,
     });
-    
+
     return prompts;
   } catch (error) {
     logger.error('Failed to load prompts directory', error as Error);
@@ -112,26 +123,29 @@ export async function handlePromptsListRequest(
 ): Promise<any> {
   try {
     logger.info('Processing prompts/list request', { requestId });
-    
-    const prompts = loadAllPrompts(logger);
-    
+
+    const prompts = loadAllPrompts(
+      logger,
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+    );
+
     // Convert to MCP prompts/list response format
     const promptList = prompts.map(prompt => ({
       name: prompt.name,
-      description: prompt.description
+      description: prompt.description,
     }));
-    
-    logger.info('Prompts list generated', { 
-      requestId, 
-      promptCount: promptList.length 
+
+    logger.info('Prompts list generated', {
+      requestId,
+      promptCount: promptList.length,
     });
-    
+
     return {
-      prompts: promptList
+      prompts: promptList,
     };
   } catch (error) {
     logger.error('Prompts list request failed', error as Error);
-    
+
     throw ErrorHandler.createError(
       ErrorCategory.OPERATION,
       ErrorSeverity.HIGH,
@@ -140,7 +154,7 @@ export async function handlePromptsListRequest(
         operation: 'prompts_list',
         component: 'PromptsHandler',
         requestId,
-        input: args
+        input: args,
       }
     );
   }
@@ -155,18 +169,21 @@ export async function handlePromptsGetRequest(
   requestId: string
 ): Promise<any> {
   try {
-    logger.info('Processing prompts/get request', { 
-      requestId, 
-      promptName: args.name 
+    logger.info('Processing prompts/get request', {
+      requestId,
+      promptName: args.name,
     });
-    
+
     if (!args.name) {
       throw new Error('Missing required parameter: name');
     }
-    
-    const prompts = loadAllPrompts(logger);
+
+    const prompts = loadAllPrompts(
+      logger,
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+    );
     const prompt = prompts.find(p => p.name === args.name);
-    
+
     if (!prompt) {
       throw ErrorHandler.createError(
         ErrorCategory.VALIDATION,
@@ -175,37 +192,37 @@ export async function handlePromptsGetRequest(
         {
           operation: 'prompts_get',
           component: 'PromptsHandler',
-          requestId
+          requestId,
         }
       );
     }
-    
-    logger.info('Prompt found and returned', { 
-      requestId, 
-      promptName: prompt.name 
+
+    logger.info('Prompt found and returned', {
+      requestId,
+      promptName: prompt.name,
     });
-    
+
     // Convert to MCP prompts/get response format
     return {
       description: prompt.description,
       messages: [
         {
-          role: "user",
+          role: 'user',
           content: {
-            type: "text",
-            text: prompt.content
-          }
-        }
-      ]
+            type: 'text',
+            text: prompt.content,
+          },
+        },
+      ],
     };
   } catch (error) {
     logger.error('Prompts get request failed', error as Error);
-    
+
     // Re-throw if already an AppError
     if (error instanceof Error && 'category' in error) {
       throw error;
     }
-    
+
     throw ErrorHandler.createError(
       ErrorCategory.OPERATION,
       ErrorSeverity.HIGH,
@@ -214,7 +231,7 @@ export async function handlePromptsGetRequest(
         operation: 'prompts_get',
         component: 'PromptsHandler',
         requestId,
-        input: args
+        input: args,
       }
     );
   }
