@@ -17,6 +17,22 @@ def "main setup" [] {
 
     let anthropic_data = main get anthropic
 
+    mut openai_key = ""
+    if "OPENAI_API_KEY" in $env {
+        $openai_key = $env.OPENAI_API_KEY
+    } else {
+        let value = input $"(ansi green_bold)Enter OpenAI API key:(ansi reset) "
+        $openai_key = $value
+    }
+    $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
+
+    (
+        docker container run --detach --name qdrant
+            --publish 6333:6333
+            --volume $"($env.PWD)/tmp/qdrant_storage:/qdrant/storage"
+            qdrant/qdrant
+    )
+
     main create kubernetes kind
 
     cp kubeconfig-dot.yaml kubeconfig.yaml
@@ -32,11 +48,11 @@ def "main setup" [] {
 
     kubectl create namespace b-team
 
-    (
-        main apply mcp --location [".mcp.json"]
-            --enable-dot-ai true
-            --kubeconfig "./kubeconfig.yaml"
-    )
+    # (
+    #     main apply mcp --location [".mcp.json"]
+    #         --enable-dot-ai true
+    #         --kubeconfig "./kubeconfig.yaml"
+    # )
 
     main print source
 
@@ -45,5 +61,7 @@ def "main setup" [] {
 def "main destroy" [] {
 
     main destroy kubernetes kind
+
+    docker container rm qdrant --force
 
 }
