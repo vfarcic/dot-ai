@@ -154,6 +154,7 @@ jobs:
         git add package.json
         git commit -m "chore: bump version to $VERSION [skip ci]"
         git tag -a "v$VERSION" -m "Release version $VERSION"
+        git pull --rebase origin main
         git push origin main
         git push origin "v$VERSION"
     
