@@ -154,15 +154,16 @@ When organizational patterns match user intent AND suggested resources are avail
 ## Milestones
 
 ### Milestone 1: Problem Diagnosis ⭐
-- [ ] Complete root cause investigation of pattern non-application
-- [ ] Document actual data flow from patterns to AI recommendations
-- [ ] Identify specific failure points in pattern prioritization
-- **Success Criteria**: Clear understanding of why patterns are ignored
+- [x] Complete root cause investigation of pattern non-application
+- [x] Document actual data flow from patterns to AI recommendations
+- [x] Identify specific failure points in pattern prioritization
+- **Success Criteria**: Clear understanding of why patterns are ignored ✅
 
 ### Milestone 2: Solution Implementation ⭐  
-- [ ] Implement fix based on root cause analysis
+- [x] Implement fix for Problem 1 (AI ignoring patterns) based on root cause analysis
+- [ ] Implement fix for Problem 2 (missing auxiliary pattern resources)
 - [ ] sqls.devopstoolkit.live test case passes consistently
-- [ ] Pattern influence visible in recommendation explanations
+- [x] Pattern influence visible in recommendation explanations
 - **Success Criteria**: Patterns are properly applied when applicable
 
 ### Milestone 3: Comprehensive Validation ⭐
@@ -189,3 +190,43 @@ When organizational patterns match user intent AND suggested resources are avail
 - Advanced pattern conflict resolution  
 - Pattern analytics and effectiveness metrics
 - Dynamic pattern weighting based on success rates
+
+## Work Log
+
+### 2025-08-11: Investigation Complete - Two Distinct Problems Identified and First Problem Solved
+**Duration**: ~3 hours  
+**Primary Focus**: Root cause analysis and solution implementation for pattern prioritization issues
+
+**Problems Identified**:
+1. **Problem 1 - AI ignoring patterns**: AI was making retroactive pattern claims instead of proactively using patterns to guide resource selection
+2. **Problem 2 - Missing auxiliary pattern resources**: Resources suggested by patterns (like ResourceGroup) not appearing in capability search results due to semantic similarity gaps
+
+**Completed PRD Items**:
+- [x] **Root cause investigation complete** - Evidence: Identified two distinct failure modes through systematic analysis
+- [x] **Data flow documentation** - Evidence: Traced pattern information from discovery through AI prompts, confirmed patterns reach AI correctly
+- [x] **Failure point identification** - Evidence: Found AI cognitive workflow issue + auxiliary resource discovery gap
+- [x] **Problem 1 solution implemented** - Evidence: Updated `prompts/resource-solution-ranking.md` with mandatory pattern analysis phase and pattern-aware scoring
+- [x] **Pattern influence visibility** - Evidence: Updated prompts to show pattern reasoning in AI explanations
+
+**Key Technical Insights**:
+- Pattern-aware solution assembly was partially working - `sqls.devopstoolkit.live` correctly got high score (95) and ranked #1
+- Real issue was twofold: AI wasn't following pattern-first workflow + auxiliary resources missing from search
+- ResourceGroup exists in system but has low semantic similarity to "postgresql" queries, so never appears in capability results
+
+**Problem 1 Solution Implemented**:
+- Added mandatory pattern analysis phase before resource evaluation
+- Implemented pattern-compliant scoring adjustments (+5-15 points for compliance)
+- Changed cognitive workflow to: Pattern Analysis → Solution Construction → Scoring with Pattern Context
+
+**Problem 2 Solution Designed** (not yet implemented):
+- Runtime aggregation of auxiliary pattern resources into capability search results
+- Pattern resources positioned at bottom of list without artificial scoring
+- Only add pattern resources if not already present in capability results
+
+**Next Session Priorities**:
+- Implement pattern resource aggregation logic in schema.ts
+- Add capability lookup for pattern-suggested resources  
+- End-to-end testing with PostgreSQL/Azure scenario to validate both fixes together
+- Comprehensive regression testing to ensure non-pattern cases still work
+
+**Current Status**: Milestone 1 complete ✅, Milestone 2 partially complete (1 of 2 problems solved)
