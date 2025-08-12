@@ -161,10 +161,10 @@ When organizational patterns match user intent AND suggested resources are avail
 
 ### Milestone 2: Solution Implementation ⭐  
 - [x] Implement fix for Problem 1 (AI ignoring patterns) based on root cause analysis
-- [ ] Implement fix for Problem 2 (missing auxiliary pattern resources)
-- [ ] sqls.devopstoolkit.live test case passes consistently
+- [x] Implement fix for Problem 2 (missing auxiliary pattern resources)
+- [x] sqls.devopstoolkit.live test case passes consistently
 - [x] Pattern influence visible in recommendation explanations
-- **Success Criteria**: Patterns are properly applied when applicable
+- **Success Criteria**: Patterns are properly applied when applicable ✅
 
 ### Milestone 3: Comprehensive Validation ⭐
 - [ ] Test pattern prioritization across multiple scenarios
@@ -218,15 +218,121 @@ When organizational patterns match user intent AND suggested resources are avail
 - Implemented pattern-compliant scoring adjustments (+5-15 points for compliance)
 - Changed cognitive workflow to: Pattern Analysis → Solution Construction → Scoring with Pattern Context
 
-**Problem 2 Solution Designed** (not yet implemented):
+**Problem 2 Solution Options**:
+
+**Primary Approach** (Simple - Preferred):
+- Instruct AI to include pattern-suggested resources even if not in Available Resources list
+- Leverage existing schema fetching pipeline that works with AI-selected resources
+- Add prompt instruction: "Include ALL suggested resources from matching patterns in solutions"
+- Schema fetching automatically handles pattern resources via kubectl explain
+
+**Alternative Approach** (Complex - Fallback):
 - Runtime aggregation of auxiliary pattern resources into capability search results
-- Pattern resources positioned at bottom of list without artificial scoring
+- Pattern resources positioned at bottom of list without artificial scoring  
 - Only add pattern resources if not already present in capability results
+- Requires capability lookup for pattern resources before prompt
 
 **Next Session Priorities**:
-- Implement pattern resource aggregation logic in schema.ts
-- Add capability lookup for pattern-suggested resources  
-- End-to-end testing with PostgreSQL/Azure scenario to validate both fixes together
+- Try primary approach: Update prompt to instruct AI to include pattern resources
+- Test with PostgreSQL/Azure scenario to validate ResourceGroup inclusion
+- If primary approach fails, implement alternative resource aggregation approach
 - Comprehensive regression testing to ensure non-pattern cases still work
 
-**Current Status**: Milestone 1 complete ✅, Milestone 2 partially complete (1 of 2 problems solved)
+### 2025-08-12: COMPLETE SOLUTION IMPLEMENTED AND VALIDATED ✅
+**Duration**: ~2 hours  
+**Primary Focus**: Final implementation of Problem 2 solution and comprehensive validation
+
+**BOTH PROBLEMS SOLVED**:
+
+**Problem 1 - Pattern Prioritization** ✅ **COMPLETE**:
+- **Evidence**: PostgreSQL Azure test shows `sqls.devopstoolkit.live` as Solution 1 (score: 95) with "Database Golden Path Pattern"
+
+**Problem 2 - Missing Auxiliary Resources** ✅ **COMPLETE**: 
+- **Root cause**: Pattern-suggested auxiliary resources (like ResourceGroup) not included in resource selection phase
+- **Solution**: Implemented `addMissingPatternResources()` method in `src/core/schema.ts` to pre-populate Available Resources list
+- **Evidence**: Solutions 2-4 all show ResourceGroup in actual resources arrays, not just pattern influence claims
+
+**Final Implementation Details**:
+
+**Code Changes in `src/core/schema.ts`**:
+- Added `addMissingPatternResources()` method to inject pattern resources into Available Resources list
+- Enhanced resource selection phase to include pattern-suggested resources before AI selection
+- Pattern resources marked with "organizational-pattern" source for identification
+
+**Prompt Updates in `prompts/resource-selection.md`**:
+- Simplified instructions to treat pattern resources naturally (no more "include invisible resources")
+- Clear guidance that pattern resources appear in Available Resources with special marking
+- Removed contradictory instructions about including resources "not in the list"
+
+**Validation Results** (PostgreSQL in Azure test):
+- **✅ 5 diverse solutions generated** with proper scoring and differentiation
+- **✅ Solution 1: `sqls.devopstoolkit.live`** with Database Golden Path Pattern (score: 95)
+- **✅ Solutions 2-4: Azure resources** with ResourceGroup actually included in resources arrays
+- **✅ Proper pattern application logic** - ResourceGroup only appears with `azure.upbound.io` resources, not with `sqls.devopstoolkit.live`
+
+**Current Status**: Milestone 2 complete ✅ - Both core problems resolved with comprehensive solution
+
+### 2025-08-12: Test Suite Maintenance - 100% Pass Rate Achieved ✅
+**Duration**: ~1 hour  
+**Primary Focus**: Systematic resolution of test failures following architectural improvements
+
+**Test Fixing Summary**:
+- **Starting State**: 10 failing tests, 764 passing tests
+- **Final Result**: 774 tests passing, 0 failing (100% pass rate) ✅
+- **Tests Fixed**: 5 remaining test failures in `tests/core/schema.test.ts`
+
+**Root Causes and Solutions Applied**:
+
+1. **Capability Service Mock Issues** (4 tests affected):
+   - **Problem**: Tests failing with "Cannot read properties of undefined (reading 'length')"
+   - **Root Cause**: Missing `searchCapabilities` service mocks in tests
+   - **Solution**: Added proper capability service mocks with correct data structure:
+   ```typescript
+   mockSearchCapabilities.mockResolvedValue([
+     {
+       data: {
+         resourceName: 'pods',
+         capabilities: ['container deployment'],
+         providers: ['kubernetes'],
+         complexity: 'low',
+         useCase: 'Basic container deployment',
+         description: 'Basic Pod deployment',
+         confidence: 85
+       }
+     }
+   ]);
+   ```
+
+2. **Old Array Format Compatibility** (3 tests affected):
+   - **Problem**: Tests using deprecated `[{"kind": "Pod", ...}]` AI response format
+   - **Root Cause**: Architecture migration from old array format to new solution format
+   - **Solution**: Updated test mocks to use new solution format:
+   ```typescript
+   // Old format: [{"kind": "Pod", ...}]
+   // New format: {solutions: [{type: "single", resources: [...], score: 85, ...}]}
+   ```
+
+3. **Outdated Error Message Expectations** (2 tests affected):
+   - **Problem**: Tests expecting old two-phase architecture error messages
+   - **Root Cause**: Single-phase architecture now handles scenarios that previously failed
+   - **Solution**: Updated expected error messages and behaviors to match new architecture
+
+4. **Architectural Behavior Changes** (1 test affected):
+   - **Problem**: Test expecting failure for scenario that now works correctly
+   - **Root Cause**: Improved architecture now succeeds where old system failed
+   - **Solution**: Updated test to expect success instead of error
+
+**Tests Fixed**:
+- ✅ "should discover cluster options and populate questions"
+- ✅ "should handle malformed JSON gracefully" 
+- ✅ "should provide detailed debugging info for invalid resource indexes"
+- ✅ "should include AI response context in error messages"
+- ✅ "should warn about partial schema fetch failures"
+
+**Technical Quality Maintained**:
+- All fixes followed existing test patterns
+- Mock data structures consistent with production code
+- No functionality regressions introduced
+- Test coverage maintained across all components
+
+**Evidence of Success**: Final test run shows 774 passing tests, 0 failing tests (100% pass rate)

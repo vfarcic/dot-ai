@@ -410,7 +410,7 @@ export class ResourceRecommender {
    */
   async findBestSolutions(
     intent: string,
-    explainResource: (resource: string) => Promise<any>
+    _explainResource: (resource: string) => Promise<any>
   ): Promise<ResourceSolution[]> {
     if (!this.claudeIntegration.isInitialized()) {
       throw new Error('Claude integration not initialized. API key required for AI-powered resource ranking.');
@@ -463,15 +463,242 @@ export class ResourceRecommender {
         capabilities: cap.data // Include capability data for AI decision-making
       }));
 
-      // Phase 1b: AI selects best candidates from capability-filtered resources (maintains existing logic)
-      const candidates = await this.selectResourceCandidates(intent, capabilityFilteredResources, relevantPatterns);
+      // Phase 1: Add missing pattern-suggested resources to available resources list
+      const enhancedResources = await this.addMissingPatternResources(capabilityFilteredResources, relevantPatterns);
 
-      // Phase 2: Fetch detailed schemas for AI-selected candidates and rank (unchanged)
-      const schemas = await this.fetchDetailedSchemas(candidates, explainResource);
-      return await this.rankWithDetailedSchemas(intent, schemas, relevantPatterns);
+      // Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking phases)
+      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns);
+      
+      // Phase 3: Generate questions for each solution
+      for (const solution of solutions) {
+        solution.questions = await this.generateQuestionsWithAI(intent, solution);
+      }
+      
+      return solutions;
     } catch (error) {
       throw new Error(`AI-powered resource solution analysis failed: ${error}`);
     }
+  }
+
+  /**
+   * Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking)
+   */
+  private async assembleAndRankSolutions(
+    intent: string, 
+    availableResources: Array<{
+      kind: string;
+      group: string;
+      apiVersion: string; 
+      resourceName: string;
+      namespaced: boolean;
+      capabilities: any;
+    }>,
+    patterns: OrganizationalPattern[]
+  ): Promise<ResourceSolution[]> {
+    const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
+    const response = await this.claudeIntegration.sendMessage(prompt, 'solution-assembly');
+    return this.parseSimpleSolutionResponse(response.content);
+  }
+
+  /**
+   * Parse AI response for simple solution structure (no schema matching needed)
+   */
+  private parseSimpleSolutionResponse(aiResponse: string): ResourceSolution[] {
+    try {
+      // Use robust JSON extraction
+      const parsed = this.extractJsonFromAIResponse(aiResponse);
+      
+      const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
+        const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
+        
+        if (isDebugMode) {
+          console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));
+        }
+        
+        // Convert resource references to ResourceSchema format for compatibility
+        const resources: ResourceSchema[] = (solution.resources || []).map((resource: any) => ({
+          kind: resource.kind,
+          apiVersion: resource.apiVersion,
+          group: resource.group || '',
+          description: `${resource.kind} resource from ${resource.group || 'core'} group`,
+          properties: new Map(),
+          namespace: true // Default assumption for new architecture
+        }));
+        
+        return {
+          type: solution.type,
+          resources,
+          score: solution.score,
+          description: solution.description,
+          reasons: solution.reasons || [],
+          analysis: solution.analysis || '',
+          questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } },
+          patternInfluences: solution.patternInfluences || [],
+          usedPatterns: solution.usedPatterns || false
+        };
+      });
+
+      // Sort by score descending
+      return solutions.sort((a, b) => b.score - a.score);
+      
+    } catch (error) {
+      // Enhanced error message with more context
+      const errorMsg = `Failed to parse AI solution response: ${(error as Error).message}`;
+      const contextMsg = `\nAI Response (first 500 chars): "${aiResponse.substring(0, 500)}..."`;
+      throw new Error(errorMsg + contextMsg);
+    }
+  }
+
+  /**
+   * Load and format solution assembly prompt from file
+   */
+  private async loadSolutionAssemblyPrompt(
+    intent: string, 
+    resources: Array<{
+      kind: string;
+      group: string;
+      apiVersion: string;
+      resourceName: string;
+      namespaced: boolean;
+      capabilities: any;
+    }>,
+    patterns: OrganizationalPattern[]
+  ): Promise<string> {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
+    const template = fs.readFileSync(promptPath, 'utf8');
+    
+    // Format resources for the prompt with capability information
+    const resourcesText = resources.map((resource, index) => {
+      return `${index}: ${resource.kind.toUpperCase()} (${resource.apiVersion})
+   Group: ${resource.group || 'core'}
+   Namespaced: ${resource.namespaced}
+   Resource Name: ${resource.resourceName}
+   Capabilities: ${Array.isArray(resource.capabilities.capabilities) ? resource.capabilities.capabilities.join(', ') : 'Not specified'}
+   Providers: ${Array.isArray(resource.capabilities.providers) ? resource.capabilities.providers.join(', ') : resource.capabilities.providers || 'kubernetes'}
+   Complexity: ${resource.capabilities.complexity || 'medium'}
+   Use Case: ${resource.capabilities.useCase || resource.capabilities.description || 'General purpose'}
+   Description: ${resource.capabilities.description || 'Kubernetes resource'}
+   Confidence: ${resource.capabilities.confidence || 1.0}`;
+    }).join('\n\n');
+
+    // Format organizational patterns for AI context
+    const patternsContext = patterns.length > 0 
+      ? patterns.map(pattern => 
+          `- ID: ${pattern.id}
+            Description: ${pattern.description}
+            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
+            Rationale: ${pattern.rationale}
+            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
+        ).join('\n')
+      : 'No organizational patterns found for this request.';
+    
+    return template
+      .replace('{intent}', intent)
+      .replace('{resources}', resourcesText)
+      .replace('{patterns}', patternsContext);
+  }
+
+  /**
+   * Add pattern-suggested resources that are missing from capability search results
+   */
+  private async addMissingPatternResources(
+    capabilityResources: Array<{
+      kind: string;
+      group: string; 
+      apiVersion: string;
+      resourceName: string;
+      namespaced: boolean;
+      capabilities: any;
+    }>,
+    patterns: OrganizationalPattern[]
+  ): Promise<Array<{
+    kind: string;
+    group: string;
+    apiVersion: string; 
+    resourceName: string;
+    namespaced: boolean;
+    capabilities: any;
+  }>> {
+    if (!patterns.length) {
+      return capabilityResources;
+    }
+
+    // Extract all resource names already in capability results
+    const existingResourceNames = new Set(capabilityResources.map(r => r.resourceName));
+
+    // Collect missing pattern resources
+    const missingPatternResources: Array<{
+      kind: string;
+      group: string;
+      apiVersion: string;
+      resourceName: string; 
+      namespaced: boolean;
+      capabilities: any;
+    }> = [];
+
+    for (const pattern of patterns) {
+      if (pattern.suggestedResources) {
+        for (const suggestedResource of pattern.suggestedResources) {
+          // Skip null/undefined resources
+          if (!suggestedResource || typeof suggestedResource !== 'string') {
+            continue;
+          }
+          
+          // Convert pattern resource format to resource name (e.g., "resourcegroups.azure.upbound.io" -> resourceName)
+          const resourceName = suggestedResource.includes('.') ? suggestedResource : `${suggestedResource}.core`;
+          
+          // Only add if not already present in capability results
+          if (!existingResourceNames.has(resourceName)) {
+            try {
+              // Parse resource components
+              const parts = suggestedResource.split('.');
+              const kind = parts[0]; // Use resource name as-is: resourcegroups, servicemonitors, etc.
+              const group = parts.length > 1 ? parts.slice(1).join('.') : '';
+              const version = 'v1beta1'; // Default version for CRDs, could be enhanced
+              const apiVersion = group ? `${group}/${version}` : version;
+
+              missingPatternResources.push({
+                kind,
+                group,
+                apiVersion,
+                resourceName,
+                namespaced: true, // Default assumption for pattern resources
+                capabilities: {
+                  resourceName,
+                  description: `Resource suggested by organizational pattern: ${pattern.description}`,
+                  capabilities: [`organizational pattern`, pattern.description.toLowerCase()],
+                  providers: this.inferProvidersFromResourceName(suggestedResource),
+                  complexity: 'medium',
+                  useCase: `Pattern-suggested resource for: ${pattern.rationale}`,
+                  confidence: 1.0, // High confidence since it's from organizational pattern
+                  source: 'organizational-pattern',
+                  patternId: pattern.id
+                }
+              });
+
+              existingResourceNames.add(resourceName);
+            } catch (error) {
+              console.warn(`Failed to parse pattern resource ${suggestedResource}:`, error);
+            }
+          }
+        }
+      }
+    }
+
+    return [...capabilityResources, ...missingPatternResources];
+  }
+
+  /**
+   * Infer cloud providers from resource name
+   */
+  private inferProvidersFromResourceName(resourceName: string): string[] {
+    if (resourceName.includes('azure')) return ['azure'];
+    if (resourceName.includes('aws')) return ['aws'];
+    if (resourceName.includes('gcp') || resourceName.includes('google')) return ['gcp'];
+    return ['kubernetes'];
   }
 
   /**
@@ -538,27 +765,10 @@ export class ResourceRecommender {
   }
 
 
-  /**
-   * Phase 1: AI selects promising resource candidates from lightweight list
-   */
-  private async selectResourceCandidates(intent: string, resources: any[], patterns: OrganizationalPattern[] = []): Promise<any[]> {
-    // Normalize resource structures between standard resources and CRDs
-    const normalizedResources = resources.map(resource => {
-      // Handle both standard resources and CRDs
-      const apiVersion = resource.apiVersion || 
-                        (resource.group ? `${resource.group}/${resource.version}` : resource.version);
-      const isNamespaced = resource.namespaced !== undefined ? 
-                          resource.namespaced : 
-                          resource.scope === 'Namespaced';
-      
-      return {
-        ...resource,
-        apiVersion,
-        namespaced: isNamespaced
-      };
-    });
+  // REMOVED: selectResourceCandidates - replaced by single-phase assembleAndRankSolutions
+  // REMOVED: fetchDetailedSchemas - no longer needed in single-phase architecture
 
-    const resourceSummary = normalizedResources.map((resource, index) => {
+  /**
       const basic = `${index}: ${resource.kind} (${resource.apiVersion})
    Group: ${resource.group || 'core'}
    Namespaced: ${resource.namespaced}`;
@@ -705,140 +915,8 @@ export class ResourceRecommender {
     return schemas;
   }
 
-  /**
-   * Phase 3: Rank resources with detailed schema information
-   */
-  private async rankWithDetailedSchemas(intent: string, schemas: ResourceSchema[], patterns: OrganizationalPattern[] = []): Promise<ResourceSolution[]> {
-    const prompt = await this.loadPromptTemplate(intent, schemas, patterns);
-    const response = await this.claudeIntegration.sendMessage(prompt, 'resource-ranking');
-    const solutions = this.parseAISolutionResponse(response.content, schemas);
-    
-    // Generate AI-powered questions for each solution
-    for (const solution of solutions) {
-      solution.questions = await this.generateQuestionsWithAI(intent, solution);
-    }
-    
-    return solutions;
-  }
 
-  /**
-   * Load and format prompt template from file
-   */
-  private async loadPromptTemplate(intent: string, schemas: ResourceSchema[], patterns: OrganizationalPattern[] = []): Promise<string> {
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-solution-ranking.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
-    
-    // Format resources for the prompt with detailed schema information
-    const resourcesText = schemas.map((schema, index) => {
-      let resourceInfo = `${index}: ${schema.kind} (${schema.apiVersion})
-   Group: ${schema.group || 'core'}
-   Description: ${schema.description}
-   Namespaced: ${schema.namespace}`;
-      
-      // Include detailed schema information for capability analysis
-      if (schema.rawExplanation) {
-        resourceInfo += `\n\n   Complete Schema Information:\n${schema.rawExplanation}`;
-      }
-      
-      return resourceInfo;
-    }).join('\n\n');
 
-    // Format organizational patterns for AI context
-    const patternsContext = patterns.length > 0 
-      ? patterns.map(pattern => 
-          `- ID: ${pattern.id}
-            Description: ${pattern.description}
-            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
-            Rationale: ${pattern.rationale}
-            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
-        ).join('\n')
-      : 'No organizational patterns found for this request.';
-    
-    return template
-      .replace('{intent}', intent)
-      .replace('{resources}', resourcesText)
-      .replace('{patterns}', patternsContext);
-  }
-
-  /**
-   * Parse AI response into solution results
-   */
-  private parseAISolutionResponse(aiResponse: string, schemas: ResourceSchema[]): ResourceSolution[] {
-    try {
-      // Use robust JSON extraction
-      const parsed = this.extractJsonFromAIResponse(aiResponse);
-      
-      const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
-        const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
-        
-        if (isDebugMode) {
-          console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));
-        }
-        
-        // Find matching schemas for the requested resources
-        const resources: ResourceSchema[] = [];
-        const notFound: any[] = [];
-        
-        for (const requestedResource of solution.resources || []) {
-          const matchingSchema = schemas.find(schema => 
-            schema.kind === requestedResource.kind &&
-            schema.apiVersion === requestedResource.apiVersion &&
-            schema.group === requestedResource.group
-          );
-          
-          if (matchingSchema) {
-            resources.push(matchingSchema);
-          } else {
-            notFound.push(requestedResource);
-          }
-        }
-        
-        if (resources.length === 0) {
-          if (isDebugMode) {
-            console.debug('DEBUG: No matching resources found');
-            console.debug('DEBUG: Requested resources:', solution.resources);
-            console.debug('DEBUG: Available schemas:', schemas.map(s => ({ kind: s.kind, apiVersion: s.apiVersion, group: s.group })));
-          }
-          
-          const debugInfo = {
-            requestedResources: solution.resources || [],
-            notFoundResources: notFound,
-            availableSchemas: schemas.map(s => ({ kind: s.kind, apiVersion: s.apiVersion, group: s.group }))
-          };
-          throw new Error(`No matching resources found: ${JSON.stringify(debugInfo, null, 2)}`);
-        }
-        
-        if (notFound.length > 0 && isDebugMode) {
-          console.debug('DEBUG: Some resources not found:', notFound);
-        }
-        
-        return {
-          type: solution.type,
-          resources,
-          score: solution.score,
-          description: solution.description,
-          reasons: solution.reasons || [],
-          analysis: solution.analysis || '',
-          questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } },
-          patternInfluences: solution.patternInfluences || [],
-          usedPatterns: solution.usedPatterns || false
-        };
-      });
-
-      // Sort by score descending
-      return solutions.sort((a, b) => b.score - a.score);
-      
-    } catch (error) {
-      // Enhanced error message with more context
-      const errorMsg = `Failed to parse AI solution response: ${(error as Error).message}`;
-      const contextMsg = `\nAI Response (first 500 chars): "${aiResponse.substring(0, 500)}..."`;
-      const schemasMsg = `\nAvailable schemas: ${schemas.map(s => s.kind).join(', ')} (total: ${schemas.length})`;
-      throw new Error(errorMsg + contextMsg + schemasMsg);
-    }
-  }
 
   /**
    * Discover cluster options for dynamic question generation

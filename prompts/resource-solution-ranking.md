@@ -28,14 +28,17 @@ Before building solutions, analyze organizational patterns:
 Build complete solutions that satisfy user intent while respecting pattern constraints:
 
 1. **Start with pattern-suggested resources** when patterns provide specific technology choices
-2. **Assemble complete solutions** by adding necessary supporting resources (networking, storage, security, etc.)
-3. **Apply pattern policies** throughout solution (region preferences, security requirements, etc.)
-4. **Create multiple alternatives** - pattern-compliant solution + alternatives for comparison
+2. **Include ALL pattern-suggested resources**: When organizational patterns are applicable to a solution, you MUST include ALL suggested resources from matching patterns, even if they don't appear in the Available Resources list above
+3. **Assemble complete solutions** by adding necessary supporting resources (networking, storage, security, etc.)
+4. **Apply pattern policies** throughout solution (region preferences, security requirements, etc.)
+5. **Create multiple alternatives** - pattern-compliant solution + alternatives for comparison
 
 **Provide multiple alternative approaches** ranked by effectiveness, such as:
-- A single resource that fully addresses the need
-- A combination of resources that can actually integrate and work together to create a complete solution
-- Different approaches with varying complexity and capabilities
+- **Pattern-based solutions**: Solutions using resources suggested by applicable organizational patterns
+- **Cloud-native solutions**: Solutions using cloud provider-specific resources (Azure, AWS, GCP)
+- **Hybrid approaches**: Solutions combining pattern resources with cloud-native resources
+- **Complexity variations**: Same architectural approach with different levels of configuration
+- **Single vs multi-resource**: Simple single-resource solutions vs comprehensive multi-resource deployments
 
 **Organizational Patterns**: Multiple organizational patterns may be provided, each addressing different aspects of the deployment:
 
@@ -52,7 +55,7 @@ Build complete solutions that satisfy user intent while respecting pattern const
 - **Pattern resource completeness** - Organizational patterns represent battle-tested, complete solutions. Missing pattern resources often leads to incomplete deployments
 - **Avoid conflicts** - If patterns conflict, prioritize user intent and technical accuracy
 
-**IMPORTANT**: Always provide at least 2-3 different solution alternatives when possible, even if some score lower than others. Users benefit from seeing multiple options to choose from.
+**IMPORTANT**: Always provide multiple solution alternatives when possible - ideally 3-5 different approaches, even if some score lower than others. Users benefit from seeing diverse options including different architectural approaches, complexity levels, and technology choices. Generate fewer solutions only when truly distinct alternatives don't exist.
 
 ## Validation Requirements
 
