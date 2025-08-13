@@ -29,9 +29,11 @@ You are a Kubernetes expert. Given this user intent, available resources, and or
 
 **CRITICAL: Pattern Conditional Logic**
 - **Read each pattern's "Rationale" field carefully** - it specifies WHEN the pattern applies
-- **Apply patterns conditionally** - only include pattern resources when their conditions are met
-- **Example**: If a pattern says "All web applications must include monitoring", only include monitoring resources in solutions that deploy web applications
-- **Pattern compliance increases solution score** - solutions following organizational patterns should rank higher
+- **Apply patterns conditionally** - only include pattern resources when their technical conditions are met
+- **Resource compatibility analysis**: Before including pattern resources in a solution, verify the pattern's rationale matches the resources you're selecting
+- **API group dependencies**: If a pattern rationale mentions specific API groups (e.g., "solutions using X.api"), only apply that pattern when the solution actually uses resources from those API groups
+- **Multi-provider abstractions**: Higher-level abstractions that work across providers should not automatically trigger provider-specific auxiliary patterns unless technically required
+- **Pattern compliance increases solution score** - solutions following organizational patterns should rank higher, but only when patterns are correctly applied based on technical compatibility
 
 Create multiple alternative solutions. Consider:
 - **🥇 FIRST: Pattern-based solutions** - Complete solutions using organizational patterns when applicable
@@ -50,7 +52,7 @@ Create multiple alternative solutions. Consider:
 - **Operator patterns**: Look for operators that provide simplified management of complex infrastructure
 - **CRD Selection Priority**: If you see multiple CRDs from the same group with similar purposes (like "App" and "AppClaim"), include the namespace-scoped ones (marked as "Namespaced: true") rather than cluster-scoped ones, as they're more appropriate for application deployments
 
-**Generate 3-5 different solutions** that address the user intent with varying approaches, complexity levels, and technology choices.
+**Generate 2-5 different solutions** that genuinely address the user intent. Prioritize relevance over quantity - it's better to provide 2-3 high-quality, relevant solutions than to include irrelevant alternatives just to reach a target number.
 
 ## Response Format
 

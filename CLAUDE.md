@@ -66,7 +66,6 @@ All AI prompts are stored as markdown files in the `prompts/` directory and load
 prompts/
 ├── intent-validation.md        # Validates user intent specificity
 ├── resource-selection.md       # AI resource candidate selection
-├── resource-solution-ranking.md # AI resource ranking/scoring
 ├── question-generation.md      # Generate configuration questions
 ├── solution-enhancement.md     # Enhance solutions with requirements
 ├── resource-analysis.md        # Analyze resource capabilities
