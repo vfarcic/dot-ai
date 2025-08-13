@@ -216,7 +216,7 @@ claude
 
 3. **Test manual startup:**
    ```bash
-   npx @vfarcic/dot-ai@latest mcp
+   npx @vfarcic/dot-ai@latest dot-ai-mcp
    # Should start and show "MCP server listening"
    ```
 
@@ -352,7 +352,7 @@ For troubleshooting MCP server issues:
 1. **Check MCP server logs** in your AI tool's output panel
 2. **Test direct connection:**
    ```bash
-   npx @vfarcic/dot-ai@latest mcp --verbose
+   npx @vfarcic/dot-ai@latest dot-ai-mcp --verbose
    ```
 3. **Verify MCP tools are loaded:**
    - Ask your AI assistant: "What MCP tools do you have available?"
