@@ -104,6 +104,12 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Pull latest changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git pull origin main
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
@@ -149,12 +155,9 @@ jobs:
       if: steps.version-check.outputs.version-changed == 'true'
       run: |
         VERSION=${{ steps.version-check.outputs.new-version }}
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
         git add package.json
         git commit -m "chore: bump version to $VERSION [skip ci]"
         git tag -a "v$VERSION" -m "Release version $VERSION"
-        git pull --rebase origin main
         git push origin main
         git push origin "v$VERSION"
     
