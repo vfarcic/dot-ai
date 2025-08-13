@@ -1,6 +1,6 @@
-# Resource Selection Prompt
+# Solution Assembly and Ranking Prompt
 
-You are a Kubernetes expert. Given this user intent and available resources, select the resources that could be relevant for detailed analysis.
+You are a Kubernetes expert. Given this user intent, available resources, and organizational patterns, create and rank complete solutions that address the user's needs.
 
 ## User Intent
 {intent}
@@ -15,14 +15,30 @@ You are a Kubernetes expert. Given this user intent and available resources, sel
 
 ## 🏆 PATTERN PRIORITIZATION (HIGHEST PRIORITY)
 
-**If any organizational pattern above matches this intent (based on pattern triggers), prioritize those resources above all others:**
-- **Golden Path Priority** - Pattern resources represent approved organizational standards and should rank higher than cloud-native alternatives
-- **Pattern Recognition** - Match pattern triggers against user intent keywords. If triggers match, the pattern's "Suggested Resources" become high-priority candidates
+**Pattern-Aware Resource Selection:**
+- **Pattern resources are included** in the Available Resources list below with source marked as "organizational-pattern"
+- **Golden Path Priority** - Pattern resources represent approved organizational standards and should rank higher than alternatives
 - **Higher-Level Abstractions** - Pattern resources often provide better user experience than low-level cloud provider resources
-- **Resource Name Matching** - Find exact "Suggested Resources" names in the "Resource Name" field of available resources
 
-Select all resources that could be relevant for this intent. Consider:
-- **🥇 FIRST: Organizational pattern resources** - When patterns match the intent, their suggested resources should appear early in your selection
+**SOLUTION ASSEMBLY APPROACH:**
+
+1. **Analyze Available Resources**: Review capabilities, providers, complexity, and use cases
+2. **Apply Pattern Logic**: Read pattern rationales to understand when they apply
+3. **Create Complete Solutions**: Assemble resources into working combinations
+4. **Rank by Effectiveness**: Score based on capability match, pattern compliance, and user intent
+
+**CRITICAL: Pattern Conditional Logic**
+- **Read each pattern's "Rationale" field carefully** - it specifies WHEN the pattern applies
+- **Apply patterns conditionally** - only include pattern resources when their technical conditions are met
+- **Resource compatibility analysis**: Before including pattern resources in a solution, verify the pattern's rationale matches the resources you're selecting
+- **API group dependencies**: If a pattern rationale mentions specific API groups (e.g., "solutions using X.api"), only apply that pattern when the solution actually uses resources from those API groups
+- **Multi-provider abstractions**: Higher-level abstractions that work across providers should not automatically trigger provider-specific auxiliary patterns unless technically required
+- **Pattern compliance increases solution score** - solutions following organizational patterns should rank higher, but only when patterns are correctly applied based on technical compatibility
+
+Create multiple alternative solutions. Consider:
+- **🥇 FIRST: Pattern-based solutions** - Complete solutions using organizational patterns when applicable
+- **🥈 SECOND: Technology-focused solutions** - Solutions optimized for specific technologies or providers  
+- **🥉 THIRD: Complexity variations** - Simple vs comprehensive approaches
 - Direct relevance to the user's needs (applications, infrastructure, operators, networking, storage)  
 - Common Kubernetes patterns and best practices
 - Resource relationships and combinations
@@ -36,28 +52,47 @@ Select all resources that could be relevant for this intent. Consider:
 - **Operator patterns**: Look for operators that provide simplified management of complex infrastructure
 - **CRD Selection Priority**: If you see multiple CRDs from the same group with similar purposes (like "App" and "AppClaim"), include the namespace-scoped ones (marked as "Namespaced: true") rather than cluster-scoped ones, as they're more appropriate for application deployments
 
-Don't limit yourself - if the intent is complex, select as many resources as needed. **Be extra inclusive** - the detailed schema analysis phase will filter out inappropriate resources, so it's better to include more candidates initially.
+**Generate 2-5 different solutions** that genuinely address the user intent. Prioritize relevance over quantity - it's better to provide 2-3 high-quality, relevant solutions than to include irrelevant alternatives just to reach a target number.
 
 ## Response Format
 
-Respond with ONLY a JSON array of resource objects with full identifiers. Do NOT wrap in an object - just return the array:
+Respond with ONLY a JSON object containing an array of complete solutions. Each solution should include resources, description, scoring, and pattern compliance:
 
 ```json
-[
-  {
-    "kind": "Deployment",
-    "apiVersion": "apps/v1",
-    "group": "apps"
-  },
-  {
-    "kind": "Service", 
-    "apiVersion": "v1",
-    "group": ""
-  }
-]
+{
+  "solutions": [
+    {
+      "type": "combination",
+      "resources": [
+        {
+          "kind": "Deployment",
+          "apiVersion": "apps/v1",
+          "group": "apps"
+        },
+        {
+          "kind": "Service",
+          "apiVersion": "v1",
+          "group": ""
+        }
+      ],
+      "score": 95,
+      "description": "Complete web application deployment with networking",
+      "reasons": ["High capability match for web applications", "Includes essential networking"],
+      "patternInfluences": [
+        {
+          "patternId": "web-app-pattern-123",
+          "description": "Web application deployment pattern",
+          "influence": "high",
+          "matchedTriggers": ["web application", "frontend"]
+        }
+      ],
+      "usedPatterns": true
+    }
+  ]
+}
 ```
 
-IMPORTANT: Your response must be ONLY the JSON array, nothing else.
+IMPORTANT: Your response must be ONLY the JSON object, nothing else.
 
 ## Selection Philosophy
 
