@@ -478,7 +478,7 @@ describe('DocTestingSessionManager', () => {
     });
 
     test('should store section test results and mark section as completed', () => {
-      const testResults = '{"whatWasDone": "Section 1 test results: All commands executed successfully.", "issues": [], "recommendations": []}';
+      const testResults = '{"whatWasDone": "Section 1 test results: All commands executed successfully.", "issues": []}';
       
       sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', testResults, { sessionDir: mockSessionDir });
 
@@ -489,7 +489,7 @@ describe('DocTestingSessionManager', () => {
     });
 
     test('should update section status to completed', () => {
-      const testResults = '{"whatWasDone": "Test results", "issues": [], "recommendations": []}';
+      const testResults = '{"whatWasDone": "Test results", "issues": []}';
       const updatedSession = { ...mockSession };
       
       // Mock writeFileSync to capture the saved session
@@ -511,7 +511,7 @@ describe('DocTestingSessionManager', () => {
       delete sessionWithoutResults.sectionResults;
       mockFs.readFileSync.mockReturnValue(JSON.stringify(sessionWithoutResults));
 
-      const testResults = '{"whatWasDone": "Test results", "issues": [], "recommendations": []}';
+      const testResults = '{"whatWasDone": "Test results", "issues": []}';
       let savedSession: ValidationSession;
       mockFs.writeFileSync.mockImplementation((path, data) => {
         if (typeof data === 'string') {
@@ -525,7 +525,6 @@ describe('DocTestingSessionManager', () => {
       expect(savedSession!.sectionResults!['section1']).toEqual({
         whatWasDone: "Test results",
         issues: [],
-        recommendations: []
       });
     });
 
@@ -533,13 +532,13 @@ describe('DocTestingSessionManager', () => {
       mockFs.existsSync.mockReturnValue(false);
 
       expect(() => {
-        sessionManager.storeSectionTestResults('nonexistent-session', 'section1', '{"whatWasDone":"test","issues":[],"recommendations":[]}', { sessionDir: mockSessionDir });
+        sessionManager.storeSectionTestResults('nonexistent-session', 'section1', '{"whatWasDone":"test","issues":[]}', { sessionDir: mockSessionDir });
       }).toThrow('Session nonexistent-session not found');
     });
 
     test('should handle multiple section results', () => {
-      const results1 = '{"whatWasDone": "Results for section 1", "issues": [], "recommendations": []}';
-      const results2 = '{"whatWasDone": "Results for section 2", "issues": [], "recommendations": []}';
+      const results1 = '{"whatWasDone": "Results for section 1", "issues": []}';
+      const results2 = '{"whatWasDone": "Results for section 2", "issues": []}';
       
       let savedSession: ValidationSession;
       mockFs.writeFileSync.mockImplementation((path, data) => {
@@ -561,12 +560,10 @@ describe('DocTestingSessionManager', () => {
       expect(savedSession!.sectionResults!['section1']).toEqual({
         whatWasDone: "Results for section 1",
         issues: [],
-        recommendations: []
       });
       expect(savedSession!.sectionResults!['section2']).toEqual({
         whatWasDone: "Results for section 2", 
         issues: [],
-        recommendations: []
       });
       expect(savedSession!.metadata.completedSections).toBe(2);
     });
@@ -578,46 +575,40 @@ describe('DocTestingSessionManager', () => {
     });
 
     test('should validate required fields and reject missing whatWasDone', () => {
-      const invalidResults = '{"issues": [], "recommendations": []}';
+      const invalidResults = '{"issues": []}';
       expect(() => {
         sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
       }).toThrow('Missing or invalid "whatWasDone" field');
     });
 
     test('should validate required fields and reject missing issues array', () => {
-      const invalidResults = '{"whatWasDone": "test", "recommendations": []}';
+      const invalidResults = '{"whatWasDone": "test"}';
       expect(() => {
         sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
       }).toThrow('Missing or invalid "issues" field - must be array');
     });
 
-    test('should validate required fields and reject missing recommendations array', () => {
-      const invalidResults = '{"whatWasDone": "test", "issues": []}';
+    test('should accept valid results without recommendations field (consolidated format)', () => {
+      const validResults = '{"whatWasDone": "test", "issues": []}';
       expect(() => {
-        sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
-      }).toThrow('Missing or invalid "recommendations" field - must be array');
+        sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', validResults, { sessionDir: mockSessionDir });
+      }).not.toThrow();
     });
 
     test('should validate field types and reject non-string whatWasDone', () => {
-      const invalidResults = '{"whatWasDone": 123, "issues": [], "recommendations": []}';
+      const invalidResults = '{"whatWasDone": 123, "issues": []}';
       expect(() => {
         sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
       }).toThrow('Missing or invalid "whatWasDone" field');
     });
 
     test('should validate field types and reject non-array issues', () => {
-      const invalidResults = '{"whatWasDone": "test", "issues": "not an array", "recommendations": []}';
+      const invalidResults = '{"whatWasDone": "test", "issues": "not an array"}';
       expect(() => {
         sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
       }).toThrow('Missing or invalid "issues" field - must be array');
     });
 
-    test('should validate field types and reject non-array recommendations', () => {
-      const invalidResults = '{"whatWasDone": "test", "issues": [], "recommendations": "not an array"}';
-      expect(() => {
-        sessionManager.storeSectionTestResults('2025-07-18T10-30-00-abc12345', 'section1', invalidResults, { sessionDir: mockSessionDir });
-      }).toThrow('Missing or invalid "recommendations" field - must be array');
-    });
   });
 
   describe('processScanResults', () => {
@@ -1008,9 +999,7 @@ describe('DocTestingSessionManager', () => {
           whatWasDone: 'Tested section 1',
           issues: [
             { id: 1, text: 'Fix broken command', status: 'pending' },
-            { id: 2, text: 'Update outdated link', status: 'fixed', explanation: 'Updated URL' }
-          ],
-          recommendations: [
+            { id: 2, text: 'Update outdated link', status: 'fixed', explanation: 'Updated URL' },
             { id: 3, text: 'Add error handling example', status: 'pending' },
             { id: 4, text: 'Improve documentation clarity', status: 'deferred', explanation: 'Created GitHub issue' }
           ]
@@ -1019,8 +1008,7 @@ describe('DocTestingSessionManager', () => {
           whatWasDone: 'Tested section 2',
           issues: [
             { id: 5, text: 'Fix typo in code example', status: 'failed', explanation: 'Initial fix attempt failed' }
-          ],
-          recommendations: []
+          ]
         }
       }
     });
@@ -1048,7 +1036,7 @@ describe('DocTestingSessionManager', () => {
       test('should show completion message when all items addressed', () => {
         const completedSession = createMockSessionWithResults();
         completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
-        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].issues[2].status = 'fixed';
         completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
 
         const summary = (sessionManager as any).generateStatusSummary(completedSession);
@@ -1071,12 +1059,12 @@ describe('DocTestingSessionManager', () => {
       test('should handle session with empty results', () => {
         const emptyResultsSession = createMockSessionWithResults();
         emptyResultsSession.sectionResults = {
-          'section_1': { whatWasDone: 'Nothing found', issues: [], recommendations: [] }
+          'section_1': { whatWasDone: 'Nothing found', issues: [] }
         };
 
         const summary = (sessionManager as any).generateStatusSummary(emptyResultsSession);
         
-        expect(summary).toBe('No issues or recommendations found during testing.');
+        expect(summary).toBe('No issues found during testing.');
       });
     });
 
@@ -1085,10 +1073,10 @@ describe('DocTestingSessionManager', () => {
         const testSession = createMockSessionWithResults();
         const list = (sessionManager as any).generatePendingItemsList(testSession);
         
-        expect(list).toContain('### Issues Found (Items requiring fixes)');
+        expect(list).toContain('### Items Requiring Attention');
         expect(list).toContain('1. Fix broken command');
         expect(list).toContain('5. Fix typo in code example ❌ [RETRY]');
-        expect(list).toContain('### Recommendations (Items suggesting improvements)');
+        expect(list).toContain('*Each item includes both the problem and its fix*');
         expect(list).toContain('3. Add error handling example');
         
         // Should not include fixed or deferred items
@@ -1099,24 +1087,25 @@ describe('DocTestingSessionManager', () => {
       test('should show completion message when no pending items', () => {
         const completedSession = createMockSessionWithResults();
         completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
-        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].issues[2].status = 'fixed';
         completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
 
         const list = (sessionManager as any).generatePendingItemsList(completedSession);
         
-        expect(list).toBe('No pending items - all issues and recommendations have been addressed!');
+        expect(list).toBe('No pending items - all issues have been addressed!');
       });
 
-      test('should handle only issues or only recommendations', () => {
-        const issuesOnlySession = createMockSessionWithResults();
-        issuesOnlySession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+      test('should handle consolidated format with mixed items', () => {
+        const mixedSession = createMockSessionWithResults();
+        mixedSession.sectionResults!['section_1'].issues[2].status = 'fixed';
 
-        const list = (sessionManager as any).generatePendingItemsList(issuesOnlySession);
+        const list = (sessionManager as any).generatePendingItemsList(mixedSession);
         
-        expect(list).toContain('### Issues Found (Items requiring fixes)');
-        expect(list).not.toContain('### Recommendations (Items suggesting improvements)');
+        expect(list).toContain('### Items Requiring Attention');
+        expect(list).toContain('*Each item includes both the problem and its fix*');
         expect(list).toContain('1. Fix broken command');
         expect(list).toContain('5. Fix typo in code example ❌ [RETRY]');
+        expect(list).not.toContain('3. Add error handling example'); // This one should be fixed
       });
     });
 
@@ -1145,8 +1134,8 @@ describe('DocTestingSessionManager', () => {
 
         sessionManager.updateFixableItemStatus('fix-test-session', 3, 'deferred', 'Created GitHub issue #123', { sessionDir: mockSessionDir });
 
-        expect(savedSession!.sectionResults!['section_1'].recommendations[0].status).toBe('deferred');
-        expect(savedSession!.sectionResults!['section_1'].recommendations[0].explanation).toBe('Created GitHub issue #123');
+        expect(savedSession!.sectionResults!['section_1'].issues[2].status).toBe('deferred');
+        expect(savedSession!.sectionResults!['section_1'].issues[2].explanation).toBe('Created GitHub issue #123');
       });
 
       test('should throw error for non-existent item ID', () => {
@@ -1183,8 +1172,8 @@ describe('DocTestingSessionManager', () => {
 
         expect(savedSession!.sectionResults!['section_1'].issues[0].status).toBe('fixed');
         expect(savedSession!.sectionResults!['section_1'].issues[0].explanation).toBe('Command updated');
-        expect(savedSession!.sectionResults!['section_1'].recommendations[0].status).toBe('deferred');
-        expect(savedSession!.sectionResults!['section_1'].recommendations[0].explanation).toBe('Added to backlog');
+        expect(savedSession!.sectionResults!['section_1'].issues[2].status).toBe('deferred');
+        expect(savedSession!.sectionResults!['section_1'].issues[2].explanation).toBe('Added to backlog');
         expect(savedSession!.sectionResults!['section_2'].issues[0].status).toBe('failed');
         expect(savedSession!.sectionResults!['section_2'].issues[0].explanation).toBe('Still broken after retry');
       });
@@ -1284,7 +1273,7 @@ describe('DocTestingSessionManager', () => {
       test('should handle fix phase when all items are resolved', () => {
         const completedSession = createMockSessionWithResults();
         completedSession.sectionResults!['section_1'].issues[0].status = 'fixed';
-        completedSession.sectionResults!['section_1'].recommendations[0].status = 'fixed';
+        completedSession.sectionResults!['section_1'].issues[2].status = 'fixed';
         completedSession.sectionResults!['section_2'].issues[0].status = 'fixed';
 
         mockFs.readFileSync.mockImplementation((path) => {
@@ -1297,7 +1286,7 @@ describe('DocTestingSessionManager', () => {
         const step = sessionManager.getNextStep('fix-test-session', { sessionDir: mockSessionDir }, ValidationPhase.FIX);
 
         expect(step!.prompt).toContain('🎉 All items have been addressed!');
-        expect(step!.prompt).toContain('No pending items - all issues and recommendations have been addressed!');
+        expect(step!.prompt).toContain('No pending items - all issues have been addressed!');
       });
     });
   });

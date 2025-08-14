@@ -94,11 +94,13 @@ export interface FixableItem {
 
 /**
  * Structured test results for a section (JSON format from client agent)
+ * 
+ * Note: Format was consolidated in PRD #34 - issues now contain both problems and solutions
+ * in format "[Location]: [Problem]. Fix: [Solution]"
  */
 export interface SectionTestResult {
   whatWasDone: string;          // Summary of what was tested
-  issues: FixableItem[];        // List of problems found with tracking
-  recommendations: FixableItem[]; // List of improvement suggestions with tracking
+  issues: FixableItem[];        // List of problems with integrated solutions (consolidated format)
 }
 
 /**
