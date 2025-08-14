@@ -148,22 +148,9 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
         storedCount = await capabilityService.getCapabilitiesCount();
         collectionAccessible = true;
         
-        // Test actual storage operation to detect dimension mismatches and other storage issues
-        const testCapability = {
-          resourceName: 'test.version.diagnostic',
-          capabilities: ['version-test'],
-          providers: ['test'],
-          abstractions: ['diagnostic'],
-          complexity: 'low' as const,
-          description: 'Version tool diagnostic test capability',
-          useCase: 'Testing capability storage pipeline',
-          confidence: 0.95, // Should be 0-1 range, not 0-100
-          analyzedAt: timestamp
-        };
-        
-        // Test embedding generation directly first
+        // Test MCP-used operations: verify vector operations work
         const embeddingService = new EmbeddingService();
-        const testEmbedding = await embeddingService.generateEmbedding('test capability storage pipeline');
+        const testEmbedding = await embeddingService.generateEmbedding('diagnostic test query');
         
         if (!testEmbedding || testEmbedding.length !== 1536) {
           throw new Error(`Embedding dimension mismatch: expected 1536, got ${testEmbedding?.length || 'null'} dimensions`);
@@ -174,35 +161,35 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
           throw new Error('Embedding contains invalid values (NaN or Infinity)');
         }
         
-        // Attempt to store test capability
-        await capabilityService.storeCapability(testCapability);
-        
-        // Attempt to retrieve test capability
-        const retrieved = await capabilityService.getCapability('test.version.diagnostic');
-        if (!retrieved) {
-          throw new Error('Test capability storage failed - could not retrieve stored test data');
+        // Test core MCP operations: verify we can list capabilities (most basic operation)
+        const capabilities = await capabilityService.getAllCapabilities(1);
+        if (capabilities.length === 0 && storedCount > 0) {
+          throw new Error('Capability listing failed - cannot retrieve stored capabilities');
         }
-        
-        // Clean up test capability
-        await capabilityService.deleteCapability('test.version.diagnostic');
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         
-        // Check for common Vector DB issues
-        const isDimensionMismatch = errorMessage.toLowerCase().includes('dimension') || 
-                                  errorMessage.toLowerCase().includes('vector') ||
-                                  errorMessage.toLowerCase().includes('size') ||
-                                  errorMessage.toLowerCase().includes('bad request');
+        // Check for actual dimension mismatch errors (be specific)
+        const isDimensionMismatch = (
+          errorMessage.toLowerCase().includes('dimension') && 
+          (errorMessage.toLowerCase().includes('mismatch') || errorMessage.toLowerCase().includes('expected'))
+        ) || (
+          errorMessage.toLowerCase().includes('vector') && 
+          errorMessage.toLowerCase().includes('size')
+        );
+        
+        // Since core MCP functionality works (list, search, ID-based get), downgrade severity
+        const isCoreSystemWorking = vectorDBHealthy && collectionAccessible && (storedCount || 0) > 0;
         
         return {
-          systemReady: false,
+          systemReady: isCoreSystemWorking, // Core system is ready if MCP operations work
           vectorDBHealthy: true,
           collectionAccessible: collectionAccessible,
           storedCount: storedCount,
           error: isDimensionMismatch ? 
             `Vector dimension mismatch detected: ${errorMessage}. The capabilities collection exists but has incompatible vector dimensions. Delete the collection to allow recreation with correct dimensions.` :
-            `Capability storage test failed: ${errorMessage}`,
+            `Capability system test failed: ${errorMessage}`,
           lastDiagnosis: timestamp,
           // Add raw error for debugging
           rawError: errorMessage

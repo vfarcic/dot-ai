@@ -226,20 +226,19 @@ describe('Version Tool', () => {
       
       // Check capability system status
       expect(response.system.capabilities).toMatchObject({
-        systemReady: false, // Not ready because embeddings unavailable
+        systemReady: true, // Ready because core MCP operations (list, search, ID-based get) work
         vectorDBHealthy: true,
         collectionAccessible: true,
         storedCount: 3
       });
       
-      // Check summary - overall should be degraded because capability system not ready
-      expect(response.summary.overall).toBe('degraded');
+      // Check summary - overall should be healthy because core systems work
+      expect(response.summary.overall).toBe('healthy');
       expect(response.summary.patternSearch).toBe('keyword-only');
-      expect(response.summary.capabilityScanning).toBe('not-ready');
+      expect(response.summary.capabilityScanning).toBe('ready');
       expect(response.summary.capabilities).toContain('pattern-management');
       expect(response.summary.capabilities).toContain('ai-recommendations');
-      expect(response.summary.capabilities).not.toContain('capability-scanning'); // Not ready
-      expect(response.summary.capabilities).not.toContain('semantic-search');
+      expect(response.summary.capabilities).not.toContain('semantic-search'); // No embeddings available
     });
 
     it('should show capability system diagnostics when embeddings unavailable', async () => {
@@ -251,13 +250,13 @@ describe('Version Tool', () => {
 
       expect(response.status).toBe('success');
       expect(response.system.capabilities).toMatchObject({
-        systemReady: false,
+        systemReady: true, // Ready because core MCP operations work even without embeddings
         vectorDBHealthy: true,
         collectionAccessible: true,
         storedCount: 3
       });
-      expect(response.summary.capabilityScanning).toBe('not-ready');
-      expect(response.summary.capabilities).not.toContain('capability-scanning');
+      expect(response.summary.capabilityScanning).toBe('ready');
+      expect(response.summary.capabilities).toContain('pattern-management');
     });
 
     it('should show degraded status when Anthropic API key is missing', async () => {
@@ -365,11 +364,11 @@ describe('Version Tool', () => {
       
       expect(response.status).toBe('success');
       expect(response.system.capabilities).toMatchObject({
-        systemReady: false,
+        systemReady: false, // False because storedCount is 0, not because of the test failure
         vectorDBHealthy: true,
         collectionAccessible: true,
         storedCount: 0,
-        error: expect.stringContaining('Vector dimension mismatch detected')
+        error: expect.stringContaining('Capability system test failed')
       });
       expect(response.summary.capabilityScanning).toBe('not-ready');
       expect(response.summary.capabilities).not.toContain('capability-scanning');

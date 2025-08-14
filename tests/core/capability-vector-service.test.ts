@@ -104,9 +104,9 @@ describe('CapabilityVectorService', () => {
   });
 
   describe('capability retrieval', () => {
-    it('should retrieve capability by resource name', async () => {
+    it('should retrieve capability by ID', async () => {
       const mockDocument = {
-        id: 'capability-sqls-devopstoolkit-live',
+        id: '17c5105f-e215-ae9b-b3bf-58b608abb3b7',
         payload: {
           resourceName: 'sqls.devopstoolkit.live',
           capabilities: ['postgresql', 'mysql'],
@@ -120,17 +120,13 @@ describe('CapabilityVectorService', () => {
         }
       };
       
-      // Mock first call (direct lookup) returns null, second call (generated ID) returns document
-      (mockVectorDB.getDocument as jest.Mock)
-        .mockResolvedValueOnce(null) // First call with 'sqls.devopstoolkit.live' returns null
-        .mockResolvedValueOnce(mockDocument); // Second call with generated ID returns document
+      (mockVectorDB.getDocument as jest.Mock).mockResolvedValueOnce(mockDocument);
       
-      const result = await service.getCapability('sqls.devopstoolkit.live');
+      const result = await service.getCapability('17c5105f-e215-ae9b-b3bf-58b608abb3b7');
       
-      // Expect two calls: first with direct input, then with generated ID
-      expect(mockVectorDB.getDocument).toHaveBeenNthCalledWith(1, 'sqls.devopstoolkit.live');
-      expect(mockVectorDB.getDocument).toHaveBeenNthCalledWith(2, '17c5105f-e215-ae9b-b3bf-58b608abb3b7');
-      expect(mockVectorDB.getDocument).toHaveBeenCalledTimes(2);
+      // Expect single call with ID
+      expect(mockVectorDB.getDocument).toHaveBeenCalledWith('17c5105f-e215-ae9b-b3bf-58b608abb3b7');
+      expect(mockVectorDB.getDocument).toHaveBeenCalledTimes(1);
       expect(result).toEqual({
         resourceName: 'sqls.devopstoolkit.live',
         capabilities: ['postgresql', 'mysql'],
@@ -141,7 +137,7 @@ describe('CapabilityVectorService', () => {
         useCase: 'Test use case',
         confidence: 85,
         analyzedAt: '2025-08-06T10:00:00.000Z',
-        id: 'capability-sqls-devopstoolkit-live'
+        id: '17c5105f-e215-ae9b-b3bf-58b608abb3b7'
       });
     });
 
