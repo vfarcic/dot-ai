@@ -3,7 +3,7 @@
 You are testing a specific section of documentation to validate both functionality AND accuracy. You must verify that instructions work AND that the documentation text truthfully describes what actually happens.
 
 **Important**: 
-- Skip content that has ignore comments containing "dotai-ignore" (e.g., `<!-- dotai-ignore -->`, `.. dotai-ignore`, `// dotai-ignore`). Do not generate issues or recommendations for ignored content.
+- Skip content that has ignore comments containing "dotai-ignore" (e.g., `<!-- dotai-ignore -->`, `.. dotai-ignore`, `// dotai-ignore`). Do not generate issues for ignored content.
 - Look for testing hints in comments containing "dotai-test-hint" (e.g., `<!-- dotai-test-hint: use mcp__dot-ai__prompts to verify slash commands -->`, `.. dotai-test-hint: run command X to test claim Y`, `// dotai-test-hint: check actual behavior with tool Z`). Follow these hints when testing the associated content.
 
 ## CRITICAL MINDSET: User Behavior Simulation
@@ -124,12 +124,8 @@ Return your results as JSON in this exact format:
 {
   "whatWasDone": "Brief summary of what you tested and executed in this section",
   "issues": [
-    "Specific problem or issue you found while testing",
-    "Another issue that prevents users from succeeding"
-  ],
-  "recommendations": [
-    "Specific actionable suggestion to fix an issue",
-    "Improvement that would help users succeed"
+    "In 'Section Name': Specific problem or issue you found while testing. Fix: Specific actionable solution to resolve this issue",
+    "Under 'Code Example': Another issue that prevents users from succeeding. Fix: Detailed steps to correct this problem"
   ]
 }
 ```
@@ -138,13 +134,23 @@ Return your results as JSON in this exact format:
 
 **whatWasDone** (string): Concise summary covering BOTH functional testing AND semantic analysis - what commands/procedures you executed and what claims you analyzed.
 
-**issues** (array): CRITICAL PROBLEMS that prevent users from succeeding (broken functionality, incorrect information, missing required steps). Include precise location and explain user impact. Each issue must be ACTIONABLE - describe what needs to be changed/fixed.
+**issues** (array): Each issue must contain BOTH the problem AND its solution in a single string using this exact format:
+- **Location**: Start with precise location: "In 'Section Name':", "Under 'Heading':", "At line X:", etc.
+- **Problem**: Clear description of what's wrong, broken, or prevents user success
+- **Solution**: Follow with " Fix: " and provide specific actionable steps to resolve the issue
 
-**recommendations** (array): OPTIONAL IMPROVEMENTS that would enhance user experience (NOT critical problems). Must be genuinely optional - user can succeed without these changes. Each recommendation must be ACTIONABLE - describe a specific change to make. Do NOT include statements that validate existing content is correct (e.g., "The format matches actual behavior - this is accurate"). Only include suggestions for actual changes or additions. Do NOT repeat anything from issues array.
+**Format Requirements:**
+- **Include both critical problems AND optional improvements** - All actionable findings go in the issues array
+- **Location specificity**: Every issue must identify exactly where the problem is found
+- **Complete solutions**: Each fix must be detailed enough for implementation
+- **User impact focus**: Emphasize how problems affect user success and how fixes improve experience
+- **Consistent pattern**: "[Location]: [Problem description]. Fix: [Detailed solution]"
 
-**ACTIONABILITY REQUIREMENT**: Both issues and recommendations must suggest concrete changes. Avoid validation statements like "X is correct" or "Y matches expected behavior." If something is working correctly, don't mention it unless suggesting an enhancement.
+**ACTIONABILITY REQUIREMENT**: Every issue must be actionable with a concrete fix. Avoid validation statements like "X is correct." If something is working correctly, don't mention it unless suggesting a specific enhancement.
 
-**ANTI-DUPLICATION RULES**: If something is broken/incorrect → issues only. If something could be enhanced but works fine → recommendations only. Never put the same concept in both arrays.
+**Examples:**
+- "In 'Installation' section: Missing kubectl prerequisite causes setup failure. Fix: Add 'kubectl installation required' note before cluster setup steps"
+- "Under 'API Examples': Outdated endpoint URL returns 404 errors. Fix: Update endpoint from '/v1/api' to '/v2/api' throughout examples"
 
 ## Instructions
 
