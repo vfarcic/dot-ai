@@ -208,4 +208,27 @@ describe('Recommend Tool', () => {
       expect(analysisIndex).toBeLessThan(recommenderIndex);
     });
   });
+
+  describe('Schema and Tool Integration', () => {
+    test('should include final parameter in tool schema', () => {
+      const { RECOMMEND_TOOL_INPUT_SCHEMA } = require('../../src/tools/recommend');
+      
+      expect(RECOMMEND_TOOL_INPUT_SCHEMA.final).toBeDefined();
+      expect(RECOMMEND_TOOL_INPUT_SCHEMA.final.optional()).toBeTruthy();
+    });
+
+    test('should have proper type signature for clarification workflow', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const sourceCode = fs.readFileSync(
+        path.join(__dirname, '../../src/tools/recommend.ts'), 
+        'utf8'
+      );
+      
+      // Verify function signature includes final parameter
+      expect(sourceCode).toContain('args: { intent: string; final?: boolean }');
+      expect(sourceCode).toContain('if (!args.final)');
+      expect(sourceCode).toContain('clarification_available');
+    });
+  });
 });
