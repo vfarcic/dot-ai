@@ -40,7 +40,7 @@ Your session data is stored at: `{sessionDir}/{sessionId}.json`
 
 This contains:
 - Complete test results for each section
-- Status of all issues and recommendations  
+- Status of all issues and their fixes  
 - Timestamps and progress tracking
 - Applied fixes and user decisions
 
