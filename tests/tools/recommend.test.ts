@@ -134,7 +134,7 @@ describe('Recommend Tool', () => {
       expect(sourceCode).toContain('analyzeIntentForClarification(intent)');
       
       // Check that analysis is called in the handler
-      expect(sourceCode).toContain('analyzeIntentForClarification(args.intent, claudeIntegration)');
+      expect(sourceCode).toContain('analyzeIntentForClarification(args.intent, claudeIntegration, logger)');
       expect(sourceCode).toContain('clarificationOpportunities');
     });
 
@@ -161,7 +161,7 @@ describe('Recommend Tool', () => {
       );
       
       // Verify error handling continues on AI service issues  
-      expect(sourceCode).toContain('console.warn(\'Intent analysis failed, proceeding without clarification:\', error);');
+      expect(sourceCode).toMatch(/logger\.warn\?\.\(['"']Intent analysis failed, proceeding without clarification['"]/);
       expect(sourceCode).toContain('analyzeIntentForClarification');
     });
 
@@ -200,8 +200,8 @@ describe('Recommend Tool', () => {
       );
       
       // Intent analysis should happen before ResourceRecommender initialization
-      const analysisIndex = sourceCode.indexOf('analyzeIntentForClarification');
-      const recommenderIndex = sourceCode.indexOf('new ResourceRecommender');
+      const analysisIndex = sourceCode.search(/\banalyzeIntentForClarification\s*\(/);
+      const recommenderIndex = sourceCode.search(/\bnew\s+ResourceRecommender\b/);
       
       expect(analysisIndex).toBeGreaterThan(-1);
       expect(recommenderIndex).toBeGreaterThan(-1);

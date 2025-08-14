@@ -30,14 +30,17 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
  */
 async function analyzeIntentForClarification(
   intent: string, 
-  claudeIntegration: ClaudeIntegration
+  claudeIntegration: ClaudeIntegration,
+  logger: Logger
 ): Promise<any> {
   try {
     // Use the Claude service method for intent analysis
     const analysisResult = await claudeIntegration.analyzeIntentForClarification(intent);
     return analysisResult;
   } catch (error) {
-    console.warn('Intent analysis failed, proceeding without clarification:', error);
+    logger.warn?.('Intent analysis failed, proceeding without clarification', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
     // Return minimal analysis that indicates no clarification available
     return {
       clarificationOpportunities: [],
@@ -154,9 +157,6 @@ export async function handleRecommendTool(
         );
       }
 
-      // Ensure cluster connectivity before proceeding
-      await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
-
       logger.info('Starting resource recommendation process', {
         requestId,
         intent: args.intent,
@@ -170,7 +170,7 @@ export async function handleRecommendTool(
       if (!args.final) {
         logger.debug('Analyzing intent for clarification opportunities', { requestId, intent: args.intent });
         
-        const analysisResult = await analyzeIntentForClarification(args.intent, claudeIntegration);
+        const analysisResult = await analyzeIntentForClarification(args.intent, claudeIntegration, logger);
         
         // If clarification opportunities exist, return them to the client agent
         if (analysisResult.clarificationOpportunities && 
@@ -223,6 +223,9 @@ export async function handleRecommendTool(
       } else {
         logger.debug('Skipping intent clarification (final=true), proceeding directly with recommendations', { requestId });
       }
+
+      // Ensure cluster connectivity before proceeding with recommendations
+      await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
 
       // Initialize AI-powered ResourceRecommender
       const rankingConfig: AIRankingConfig = { claudeApiKey };

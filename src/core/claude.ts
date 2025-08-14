@@ -29,6 +29,37 @@ export interface Interaction {
   timestamp?: Date;
 }
 
+export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type ClarificationCategory =
+  | 'TECHNICAL_SPECIFICATIONS'
+  | 'ARCHITECTURAL_CONTEXT'
+  | 'OPERATIONAL_REQUIREMENTS'
+  | 'SECURITY_COMPLIANCE'
+  | 'ORGANIZATIONAL_ALIGNMENT';
+
+export interface ClarificationOpportunity {
+  category: ClarificationCategory;
+  missingContext: string;
+  impactLevel: ImpactLevel;
+  reasoning: string;
+  suggestedQuestions?: string[];
+  patternAlignment?: string;
+}
+
+export interface IntentAnalysisResult {
+  clarificationOpportunities: ClarificationOpportunity[];
+  overallAssessment: {
+    enhancementPotential: ImpactLevel;
+    primaryGaps: string[];
+    recommendedFocus: string;
+  };
+  intentQuality: {
+    currentSpecificity: string;
+    strengthAreas: string[];
+    improvementAreas: string[];
+  };
+}
+
 export class ClaudeIntegration {
   private client: Anthropic | null = null;
   private apiKey: string;
@@ -349,7 +380,7 @@ spec:
    * @param organizationalPatterns Available organizational patterns context
    * @returns Analysis result with clarification opportunities
    */
-  async analyzeIntentForClarification(intent: string, organizationalPatterns: string = ''): Promise<any> {
+  async analyzeIntentForClarification(intent: string, organizationalPatterns: string = ''): Promise<IntentAnalysisResult> {
     if (!this.client) {
       throw new Error('Claude client not initialized');
     }
@@ -361,8 +392,8 @@ spec:
       
       // Replace template variables
       const analysisPrompt = template
-        .replace('{intent}', intent)
-        .replace('{organizational_patterns}', organizationalPatterns || 'No specific organizational patterns available');
+        .replaceAll('{intent}', intent)
+        .replaceAll('{organizational_patterns}', organizationalPatterns || 'No specific organizational patterns available');
       
       // Send to Claude for analysis
       const response = await this.sendMessage(analysisPrompt, 'intent-analysis');
