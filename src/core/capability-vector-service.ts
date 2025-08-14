@@ -126,23 +126,11 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   }
 
   /**
-   * Get capability by ID or resource name
-   * Handles both Vector DB IDs (from list operations) and resource names
+   * Get capability by ID
+   * Used by MCP operations with IDs from list/search results
    */
-  async getCapability(idOrResourceName: string): Promise<ResourceCapability | null> {
-    // First try direct ID lookup (for Vector DB IDs from list operations)
-    let capability = await this.getData(idOrResourceName);
-    
-    if (!capability) {
-      // If not found, try generating ID from resource name (for direct resource queries)
-      const generatedId = CapabilityInferenceEngine.generateCapabilityId(idOrResourceName);
-      if (generatedId !== idOrResourceName) {
-        capability = await this.getData(generatedId);
-      }
-    }
-    
-    
-    return capability;
+  async getCapability(id: string): Promise<ResourceCapability | null> {
+    return await this.getData(id);
   }
 
   /**
