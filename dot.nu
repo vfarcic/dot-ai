@@ -38,10 +38,7 @@ def "main setup" [--qdrant-tag: string = "latest"] {
 
     main apply ingress nginx --provider kind
 
-    (
-        main apply crossplane --preview true --app-config true
-            --db-config true
-    )
+    main apply crossplane --app-config true --db-config true
 
     kubectl create namespace a-team
 
