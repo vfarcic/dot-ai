@@ -120,8 +120,8 @@ describe('Recommend Tool', () => {
   });
 
   describe('Intent Validation', () => {
-    test('should include intent validation in source code', () => {
-      // Verify intent validation is implemented in the source
+    test('should include intent analysis in source code', () => {
+      // Verify intent analysis is implemented in the source
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
@@ -129,30 +129,30 @@ describe('Recommend Tool', () => {
         'utf8'
       );
       
-      // Check that validation function exists
-      expect(sourceCode).toContain('async function validateIntentWithAI');
-      expect(sourceCode).toContain('intent-validation.md');
+      // Check that analysis function exists
+      expect(sourceCode).toContain('async function analyzeIntentForClarification');
+      expect(sourceCode).toContain('analyzeIntentForClarification(intent)');
       
-      // Check that validation is called in the handler
-      expect(sourceCode).toContain('await validateIntentWithAI(args.intent, claudeIntegration)');
-      expect(sourceCode).toContain('Intent needs more specificity');
+      // Check that analysis is called in the handler
+      expect(sourceCode).toContain('analyzeIntentForClarification(args.intent, claudeIntegration)');
+      expect(sourceCode).toContain('clarificationOpportunities');
     });
 
-    test('should validate prompt file exists', () => {
+    test('should validate analysis prompt file exists', () => {
       const fs = require('fs');
       const path = require('path');
       
-      const promptPath = path.join(__dirname, '../../prompts/intent-validation.md');
+      const promptPath = path.join(__dirname, '../../prompts/intent-analysis.md');
       expect(fs.existsSync(promptPath)).toBe(true);
       
       const promptContent = fs.readFileSync(promptPath, 'utf8');
-      expect(promptContent).toContain('Intent Validation for Kubernetes Deployment Recommendations');
+      expect(promptContent).toContain('Intent Analysis for Clarification Opportunities');
       expect(promptContent).toContain('{intent}');
-      expect(promptContent).toContain('isSpecific');
-      expect(promptContent).toContain('suggestions');
+      expect(promptContent).toContain('clarificationOpportunities');
+      expect(promptContent).toContain('organizational_patterns');
     });
 
-    test('should handle AI validation gracefully on service failures', () => {
+    test('should handle AI analysis gracefully on service failures', () => {
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
@@ -161,11 +161,11 @@ describe('Recommend Tool', () => {
       );
       
       // Verify error handling continues on AI service issues  
-      expect(sourceCode).toContain('console.warn(\'Intent validation failed, continuing with original intent:\', error);');
-      expect(sourceCode).toContain('logger.warn(\'Intent validation failed, continuing with recommendation\'');
+      expect(sourceCode).toContain('console.warn(\'Intent analysis failed, proceeding without clarification:\', error);');
+      expect(sourceCode).toContain('analyzeIntentForClarification');
     });
 
-    test('should validate proper error structure for vague intents', () => {
+    test('should support intent clarification workflow', () => {
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
@@ -173,11 +173,11 @@ describe('Recommend Tool', () => {
         'utf8'
       );
       
-      // Check that validation errors are properly structured
-      expect(sourceCode).toContain('ErrorCategory.VALIDATION');
-      expect(sourceCode).toContain('ErrorSeverity.MEDIUM');
-      expect(sourceCode).toContain('intent_validation');
-      expect(sourceCode).toContain('Provide more specific details about your deployment');
+      // Check that clarification workflow is properly implemented
+      expect(sourceCode).toContain('final?: boolean');
+      expect(sourceCode).toContain('clarification_available');
+      expect(sourceCode).toContain('agentInstructions');
+      expect(sourceCode).toContain('final: true');
     });
 
     test('should include ClaudeIntegration import', () => {
@@ -191,7 +191,7 @@ describe('Recommend Tool', () => {
       expect(sourceCode).toContain('import { ClaudeIntegration } from \'../core/claude\'');
     });
 
-    test('should validate before expensive resource discovery', () => {
+    test('should analyze intent before expensive resource discovery', () => {
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
@@ -199,13 +199,13 @@ describe('Recommend Tool', () => {
         'utf8'
       );
       
-      // Validation should happen before ResourceRecommender initialization
-      const validationIndex = sourceCode.indexOf('await validateIntentWithAI');
+      // Intent analysis should happen before ResourceRecommender initialization
+      const analysisIndex = sourceCode.indexOf('analyzeIntentForClarification');
       const recommenderIndex = sourceCode.indexOf('new ResourceRecommender');
       
-      expect(validationIndex).toBeGreaterThan(-1);
+      expect(analysisIndex).toBeGreaterThan(-1);
       expect(recommenderIndex).toBeGreaterThan(-1);
-      expect(validationIndex).toBeLessThan(recommenderIndex);
+      expect(analysisIndex).toBeLessThan(recommenderIndex);
     });
   });
 });

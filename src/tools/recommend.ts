@@ -20,86 +20,38 @@ export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, setup, install, or ru
 
 // Zod schema for MCP registration
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
-  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"')
+  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'),
+  final: z.boolean().optional().describe('Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.')
 };
 
 
 /**
- * Validate intent meaningfulness using AI
+ * Analyze intent for clarification opportunities using AI
  */
-async function validateIntentWithAI(intent: string, claudeIntegration: any): Promise<void> {
+async function analyzeIntentForClarification(
+  intent: string, 
+  claudeIntegration: ClaudeIntegration
+): Promise<any> {
   try {
-    // Load prompt template
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'intent-validation.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
-    
-    // Replace template variables
-    const validationPrompt = template.replace('{intent}', intent);
-    
-    // Send to Claude for validation
-    const response = await claudeIntegration.sendMessage(validationPrompt, 'intent-validation');
-    
-    // Parse JSON response with robust error handling
-    let jsonContent = response.content;
-    
-    // Try to find JSON object wrapped in code blocks
-    const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (codeBlockMatch) {
-      jsonContent = codeBlockMatch[1];
-    } else {
-      // Try to find JSON object that starts with { and find the matching closing }
-      const startIndex = response.content.indexOf('{');
-      if (startIndex !== -1) {
-        let braceCount = 0;
-        let endIndex = startIndex;
-        
-        for (let i = startIndex; i < response.content.length; i++) {
-          if (response.content[i] === '{') braceCount++;
-          if (response.content[i] === '}') braceCount--;
-          if (braceCount === 0) {
-            endIndex = i;
-            break;
-          }
-        }
-        
-        if (braceCount === 0) {
-          jsonContent = response.content.substring(startIndex, endIndex + 1);
-        }
-      }
-    }
-    
-    const validation = JSON.parse(jsonContent.trim());
-    
-    // Validate response structure
-    if (typeof validation.isSpecific !== 'boolean' || 
-        typeof validation.reason !== 'string' ||
-        !Array.isArray(validation.suggestions)) {
-      throw new Error('AI response has invalid structure');
-    }
-    
-    // If intent is not specific enough, throw error with suggestions
-    if (!validation.isSpecific) {
-      const suggestions = validation.suggestions.length 
-        ? validation.suggestions.map((s: string) => `• ${s}`).join('\n')
-        : '• Include specific technology (Node.js, PostgreSQL, React, etc.)\n• Describe the purpose or function\n• Add context about requirements';
-      
-      throw new Error(
-        `Intent needs more specificity: ${validation.reason}\n\n` +
-        `Suggestions to improve your intent:\n${suggestions}\n\n` +
-        `Original intent: "${intent}"`
-      );
-    }
-    
+    // Use the Claude service method for intent analysis
+    const analysisResult = await claudeIntegration.analyzeIntentForClarification(intent);
+    return analysisResult;
   } catch (error) {
-    // If it's our validation error, re-throw it
-    if (error instanceof Error && error.message.includes('Intent needs more specificity')) {
-      throw error;
-    }
-    
-    // For other errors (AI service issues, JSON parsing, etc.), 
-    // continue without blocking the user - log the issue but don't fail
-    console.warn('Intent validation failed, continuing with original intent:', error);
-    return;
+    console.warn('Intent analysis failed, proceeding without clarification:', error);
+    // Return minimal analysis that indicates no clarification available
+    return {
+      clarificationOpportunities: [],
+      overallAssessment: {
+        enhancementPotential: 'LOW',
+        primaryGaps: [],
+        recommendedFocus: 'Proceeding with original intent - analysis unavailable'
+      },
+      intentQuality: {
+        currentSpecificity: 'Analysis unavailable',
+        strengthAreas: ['User provided deployment intent'],
+        improvementAreas: []
+      }
+    };
   }
 }
 
@@ -146,7 +98,7 @@ function writeSolutionFile(sessionDir: string, solutionId: string, solutionData:
  * Direct MCP tool handler for recommend functionality
  */
 export async function handleRecommendTool(
-  args: { intent: string },
+  args: { intent: string; final?: boolean },
   dotAI: DotAI,
   logger: Logger,
   requestId: string
@@ -211,35 +163,65 @@ export async function handleRecommendTool(
         hasApiKey: !!claudeApiKey
       });
 
-      // Validate intent specificity with AI before expensive resource discovery
-      logger.debug('Validating intent specificity', { requestId, intent: args.intent });
-      try {
-        const claudeIntegration = new ClaudeIntegration(claudeApiKey);
-        await validateIntentWithAI(args.intent, claudeIntegration);
-        logger.debug('Intent validation passed', { requestId });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('Intent needs more specificity')) {
-          // This is a validation error that should be returned to the user
-          throw ErrorHandler.createError(
-            ErrorCategory.VALIDATION,
-            ErrorSeverity.MEDIUM,
-            error.message,
-            {
-              operation: 'intent_validation',
-              component: 'RecommendTool',
-              requestId,
-              input: { intent: args.intent },
-              suggestedActions: [
-                'Provide more specific details about your deployment',
-                'Include technology stack information',
-                'Describe the purpose or function of what you want to deploy'
-              ]
+      // Initialize Claude integration for potential clarification analysis
+      const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+
+      // Check if intent clarification is needed (unless final=true)
+      if (!args.final) {
+        logger.debug('Analyzing intent for clarification opportunities', { requestId, intent: args.intent });
+        
+        const analysisResult = await analyzeIntentForClarification(args.intent, claudeIntegration);
+        
+        // If clarification opportunities exist, return them to the client agent
+        if (analysisResult.clarificationOpportunities && 
+            analysisResult.clarificationOpportunities.length > 0 &&
+            analysisResult.overallAssessment.enhancementPotential !== 'LOW') {
+          
+          // Convert analysis to structured questions for client agent
+          const questions = analysisResult.clarificationOpportunities
+            .filter((opp: any) => opp.impactLevel === 'HIGH' || opp.impactLevel === 'MEDIUM')
+            .slice(0, 5) // Limit to 5 most important questions
+            .map((opp: any, index: number) => ({
+              id: `clarification-${index + 1}`,
+              question: opp.suggestedQuestions?.[0] || `Can you provide more details about ${opp.missingContext.toLowerCase()}?`,
+              category: opp.category,
+              reasoning: opp.reasoning,
+              examples: opp.suggestedQuestions?.slice(1) || []
+            }));
+
+          const clarificationResponse = {
+            status: 'clarification_available',
+            intent: args.intent,
+            analysis: {
+              enhancementPotential: analysisResult.overallAssessment.enhancementPotential,
+              recommendedFocus: analysisResult.overallAssessment.recommendedFocus,
+              currentSpecificity: analysisResult.intentQuality.currentSpecificity,
+              strengthAreas: analysisResult.intentQuality.strengthAreas,
+              improvementAreas: analysisResult.intentQuality.improvementAreas
             },
-            error
-          );
+            questions,
+            agentInstructions: 'Present these clarification questions to help the user provide a more specific intent. When the user provides a refined intent (or confirms the current intent is sufficient), call the recommend tool again with final: true to proceed with recommendations.'
+          };
+
+          logger.debug('Returning clarification questions', { 
+            requestId, 
+            questionsCount: questions.length,
+            enhancementPotential: analysisResult.overallAssessment.enhancementPotential
+          });
+
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(clarificationResponse, null, 2)
+              }
+            ]
+          };
         }
-        // For other errors, log but continue (don't block user due to AI service issues)
-        logger.warn('Intent validation failed, continuing with recommendation', { requestId, error: error instanceof Error ? error.message : 'Unknown error' });
+
+        logger.debug('No significant clarification opportunities found, proceeding with recommendations', { requestId });
+      } else {
+        logger.debug('Skipping intent clarification (final=true), proceeding directly with recommendations', { requestId });
       }
 
       // Initialize AI-powered ResourceRecommender

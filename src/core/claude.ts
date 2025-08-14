@@ -342,6 +342,79 @@ spec:
     };
   }
 
+  /**
+   * Analyze user intent for clarification opportunities
+   * 
+   * @param intent User's deployment intent
+   * @param organizationalPatterns Available organizational patterns context
+   * @returns Analysis result with clarification opportunities
+   */
+  async analyzeIntentForClarification(intent: string, organizationalPatterns: string = ''): Promise<any> {
+    if (!this.client) {
+      throw new Error('Claude client not initialized');
+    }
+
+    try {
+      // Load intent analysis prompt template
+      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'intent-analysis.md');
+      const template = fs.readFileSync(promptPath, 'utf8');
+      
+      // Replace template variables
+      const analysisPrompt = template
+        .replace('{intent}', intent)
+        .replace('{organizational_patterns}', organizationalPatterns || 'No specific organizational patterns available');
+      
+      // Send to Claude for analysis
+      const response = await this.sendMessage(analysisPrompt, 'intent-analysis');
+      
+      // Parse JSON response with robust error handling
+      let jsonContent = response.content;
+      
+      // Try to find JSON object wrapped in code blocks
+      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      } else {
+        // Try to find JSON object that starts with { and find the matching closing }
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+      }
+      
+      // Parse the JSON
+      const analysisResult = JSON.parse(jsonContent);
+      
+      // Validate the response structure
+      if (!analysisResult.clarificationOpportunities || !Array.isArray(analysisResult.clarificationOpportunities)) {
+        throw new Error('Invalid analysis result structure: missing clarificationOpportunities array');
+      }
+      
+      if (!analysisResult.overallAssessment || !analysisResult.intentQuality) {
+        throw new Error('Invalid analysis result structure: missing overallAssessment or intentQuality');
+      }
+      
+      return analysisResult;
+      
+    } catch (error) {
+      // If parsing fails or API call fails, return a fallback minimal analysis
+      console.warn('Intent analysis failed, returning minimal analysis:', error);
+      return {
+        clarificationOpportunities: [],
+        overallAssessment: {
+          enhancementPotential: 'LOW',
+          primaryGaps: [],
+          recommendedFocus: 'Proceed with original intent - analysis unavailable'
+        },
+        intentQuality: {
+          currentSpecificity: 'Unable to analyze - using original intent',
+          strengthAreas: ['User provided clear deployment intent'],
+          improvementAreas: []
+        }
+      };
+    }
+  }
+
   isInitialized(): boolean {
     return this.client !== null;
   }
