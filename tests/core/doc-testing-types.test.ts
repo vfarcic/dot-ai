@@ -125,7 +125,6 @@ describe('Doc Testing Types', () => {
           'main': {
             whatWasDone: 'Test results for main section...',
             issues: [],
-            recommendations: []
           }
         }
       };
@@ -135,8 +134,7 @@ describe('Doc Testing Types', () => {
       expect(session.sections).toHaveLength(1);
       expect(session.sectionResults?.['main']).toEqual({
         whatWasDone: 'Test results for main section...',
-        issues: [],
-        recommendations: []
+        issues: []
       });
     });
   });
@@ -155,9 +153,7 @@ describe('Doc Testing Types', () => {
             id: 2,
             text: 'Missing verification step in documentation',
             status: 'pending'
-          }
-        ],
-        recommendations: [
+          },
           {
             id: 3,
             text: 'Add --global flag to npm install command',
@@ -172,21 +168,17 @@ describe('Doc Testing Types', () => {
       };
 
       expect(result.whatWasDone).toBe('Tested 3 installation commands and verified outputs');
-      expect(result.issues).toHaveLength(2);
-      expect(result.recommendations).toHaveLength(2);
+      expect(result.issues).toHaveLength(4);
       expect(Array.isArray(result.issues)).toBe(true);
-      expect(Array.isArray(result.recommendations)).toBe(true);
     });
 
     test('should accept empty arrays', () => {
       const result: SectionTestResult = {
         whatWasDone: 'All tests passed without issues',
-        issues: [],
-        recommendations: []
+        issues: []
       };
 
       expect(result.issues).toHaveLength(0);
-      expect(result.recommendations).toHaveLength(0);
     });
   });
 

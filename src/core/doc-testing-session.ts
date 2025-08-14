@@ -97,14 +97,14 @@ DOCUMENTATION TESTING WORKFLOW:
 RESULT SUBMISSION:
 - Always include the sessionId when submitting results
 - Include sectionId when testing individual sections  
-- For section testing: use JSON format {"whatWasDone": "...", "issues": [...], "recommendations": [...]}
+- For section testing: use JSON format {"whatWasDone": "...", "issues": [...]}
 - For scan results: use JSON format {"sections": ["Section 1", "Section 2", ...]}
 - After submitting, the system automatically provides the next step
 
 WORKFLOW PHASES:
 - scan: Identify testable sections → submit {"sections": [...]} JSON
-- test: Test individual sections → submit {"whatWasDone": "...", "issues": [...], "recommendations": [...]} JSON
-- analyze: Review all test results → submit analysis and recommendations
+- test: Test individual sections → submit {"whatWasDone": "...", "issues": [...]} JSON
+- analyze: Review all test results → submit analysis
 - fix: Apply fixes based on analysis → submit fix results
 
 The system manages session state and workflow progression automatically.`;
@@ -202,7 +202,7 @@ The system manages session state and workflow progression automatically.`;
     // Count all items by status
     const allItems: FixableItem[] = [];
     Object.values(session.sectionResults).forEach(result => {
-      allItems.push(...result.issues, ...result.recommendations);
+      allItems.push(...result.issues);
     });
 
     if (allItems.length === 0) {
@@ -572,15 +572,12 @@ The system manages session state and workflow progression automatically.`;
       if (!Array.isArray(parsedResults.issues)) {
         throw new Error('Missing or invalid "issues" field - must be array');
       }
-      if (!Array.isArray(parsedResults.recommendations)) {
-        throw new Error('Missing or invalid "recommendations" field - must be array');
-      }
 
-      // Convert string arrays to FixableItem arrays if needed
+      // Convert string array to FixableItem array with tracking
+      // Note: Format consolidated in PRD #34 - issues now contain both problems and solutions
       const processedResults: SectionTestResult = {
         whatWasDone: parsedResults.whatWasDone,
-        issues: this.convertToFixableItems(parsedResults.issues, session),
-        recommendations: this.convertToFixableItems(parsedResults.recommendations, session)
+        issues: this.convertToFixableItems(parsedResults.issues, session)
       };
       
       parsedResults = processedResults;
@@ -651,11 +648,11 @@ The system manages session state and workflow progression automatically.`;
     
     // Collect all FixableItems from all sections
     Object.values(session.sectionResults).forEach(result => {
-      allItems.push(...result.issues, ...result.recommendations);
+      allItems.push(...result.issues);
     });
 
     if (allItems.length === 0) {
-      return "No issues or recommendations found during testing.";
+      return "No issues found during testing.";
     }
 
     // Count by status
@@ -690,43 +687,28 @@ The system manages session state and workflow progression automatically.`;
     }
 
     const pendingItems: FixableItem[] = [];
-    const issues: FixableItem[] = [];
-    const recommendations: FixableItem[] = [];
     
     // Collect all pending/failed items from all sections
+    // Note: Format consolidated in PRD #34 - all issues now include problems and solutions
     Object.values(session.sectionResults).forEach(result => {
       const pendingIssues = result.issues.filter(item => 
         item.status === 'pending' || item.status === 'failed'
       );
-      const pendingRecs = result.recommendations.filter(item => 
-        item.status === 'pending' || item.status === 'failed'
-      );
       
-      issues.push(...pendingIssues);
-      recommendations.push(...pendingRecs);
-      pendingItems.push(...pendingIssues, ...pendingRecs);
+      pendingItems.push(...pendingIssues);
     });
 
     if (pendingItems.length === 0) {
-      return "No pending items - all issues and recommendations have been addressed!";
+      return "No pending items - all issues have been addressed!";
     }
 
     let output = "";
 
-    // Format issues section
-    if (issues.length > 0) {
-      output += "### Issues Found (Items requiring fixes)\n";
-      issues.forEach(item => {
-        const statusIndicator = item.status === 'failed' ? ' ❌ [RETRY]' : '';
-        output += `${item.id}. ${item.text}${statusIndicator}\n`;
-      });
-      output += "\n";
-    }
-
-    // Format recommendations section  
-    if (recommendations.length > 0) {
-      output += "### Recommendations (Items suggesting improvements)\n";
-      recommendations.forEach(item => {
+    // Format all pending items (consolidated format with problems and solutions)
+    if (pendingItems.length > 0) {
+      output += "### Items Requiring Attention\n";
+      output += "*Each item includes both the problem and its fix*\n\n";
+      pendingItems.forEach(item => {
         const statusIndicator = item.status === 'failed' ? ' ❌ [RETRY]' : '';
         output += `${item.id}. ${item.text}${statusIndicator}\n`;
       });
@@ -754,20 +736,11 @@ The system manages session state and workflow progression automatically.`;
 
     // Search through all sections to find the item with the specified ID
     Object.values(session.sectionResults).forEach(result => {
-      // Check issues
+      // Check issues (consolidated format - all items are in issues array)
       const issueIndex = result.issues.findIndex(item => item.id === itemId);
       if (issueIndex !== -1) {
         result.issues[issueIndex].status = status;
         if (explanation) result.issues[issueIndex].explanation = explanation;
-        itemFound = true;
-        return;
-      }
-
-      // Check recommendations  
-      const recIndex = result.recommendations.findIndex(item => item.id === itemId);
-      if (recIndex !== -1) {
-        result.recommendations[recIndex].status = status;
-        if (explanation) result.recommendations[recIndex].explanation = explanation;
         itemFound = true;
         return;
       }
@@ -804,20 +777,11 @@ The system manages session state and workflow progression automatically.`;
       let itemFound = false;
 
       Object.values(session.sectionResults!).forEach(result => {
-        // Check issues
+        // Check issues (consolidated format - all items are in issues array)
         const issueIndex = result.issues.findIndex(item => item.id === update.itemId);
         if (issueIndex !== -1) {
           result.issues[issueIndex].status = update.status;
           if (update.explanation) result.issues[issueIndex].explanation = update.explanation;
-          itemFound = true;
-          return;
-        }
-
-        // Check recommendations  
-        const recIndex = result.recommendations.findIndex(item => item.id === update.itemId);
-        if (recIndex !== -1) {
-          result.recommendations[recIndex].status = update.status;
-          if (update.explanation) result.recommendations[recIndex].explanation = update.explanation;
           itemFound = true;
           return;
         }
@@ -846,15 +810,13 @@ The system manages session state and workflow progression automatically.`;
 
     const pendingItems: FixableItem[] = [];
     
+    // Collect all pending/failed items (consolidated format)
     Object.values(session.sectionResults).forEach(result => {
       const pendingIssues = result.issues.filter(item => 
         item.status === 'pending' || item.status === 'failed'
       );
-      const pendingRecs = result.recommendations.filter(item => 
-        item.status === 'pending' || item.status === 'failed'
-      );
       
-      pendingItems.push(...pendingIssues, ...pendingRecs);
+      pendingItems.push(...pendingIssues);
     });
 
     return pendingItems.sort((a, b) => a.id - b.id); // Sort by ID for consistent ordering
