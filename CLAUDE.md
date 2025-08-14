@@ -52,7 +52,7 @@
 # Development commands
 npm test                                            # Run all tests
 npm run build                                       # Build the project
-npm run mcp:start                                   # Start MCP server
+npm run start:mcp                                   # Start MCP server
 ```
 
 ## AI Prompt Management 🤖
