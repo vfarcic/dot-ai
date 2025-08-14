@@ -88,14 +88,10 @@ Testing installation commands:
 ❌ `my-tool init` - Command fails with "config directory not found" 
 ⚠️  Documentation claims "works out of the box" but requires manual setup
 
-**Issues Found:**
-1. Installation doesn't create required config directory
-2. "Out of the box" claim is inaccurate - setup steps missing
-
-**Recommendations:**
-1. Add mkdir ~/.my-tool to installation steps  
-2. Update description to "Quick setup after installation"
-3. Include troubleshooting note about config directory
+**Items Requiring Attention:**
+1. In 'Installation Instructions': Installation doesn't create required config directory. Fix: Add mkdir ~/.my-tool to installation steps
+2. In 'Installation Instructions': "Out of the box" claim is inaccurate - setup steps missing. Fix: Update description to "Quick setup after installation"
+3. In 'Installation Instructions': Missing troubleshooting information for users. Fix: Include troubleshooting note about config directory
 
 Continue to next section?
 
@@ -108,7 +104,7 @@ Agent: I'll track your fix decisions and continue testing.
 Agent: **Testing Complete! Summary:**
 
 **Tested:** 8 sections
-**Issues Found:** 15 total
+**Items Found:** 15 total
 - 6 marked for GitHub issues  
 - 4 fixed directly in documentation
 - 3 deferred for later review
@@ -137,7 +133,7 @@ Agent: **Session Complete!**
 
 Your README.md testing is finished:
 - 8 sections tested
-- 15 issues identified and resolved
+- 15 items identified and resolved
 - Documentation accuracy significantly improved
 
 The session results are saved and this document won't show the same issues in future testing sessions.
