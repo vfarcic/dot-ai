@@ -18,7 +18,7 @@ Complete the PRD implementation workflow including branch management, pull reque
 - ✅ No source code changes
 - ✅ No configuration changes
 - ✅ Feature was already implemented in previous work
-- → **Use Simplified Workflow** (Steps 1, 5 only)
+- → **Use Simplified Workflow** (Steps 1, 2-simplified, 5 only)
 
 **Code Implementation Completion** (Full PR workflow):
 - ✅ Contains source code changes
@@ -35,6 +35,15 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Update PRD status**: Mark PRD as "Complete" with completion date
 
 ### 2. Branch and Commit Management
+
+**For Documentation-Only Completions:**
+- [ ] **Commit directly to main**: `git add [prd-files]` and commit with skip CI flag
+- [ ] **Use skip CI commit message**: Include CI skip pattern in commit message to avoid unnecessary CI runs
+  - Common patterns: `[skip ci]`, `[ci skip]`, `***NO_CI***`, `[skip actions]`
+  - Check project's CI configuration for the correct pattern
+- [ ] **Push to remote**: `git push origin main` to sync changes
+
+**For Code Implementation Completions:**
 - [ ] **Create feature branch**: `git checkout -b feature/prd-[issue-id]-[feature-name]`
 - [ ] **Commit all changes**: Ensure all implementation work is committed
 - [ ] **Clean commit history**: Squash or organize commits for clear history
