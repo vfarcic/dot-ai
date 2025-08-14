@@ -15,7 +15,6 @@ def --env "main apply crossplane" [
     --github-token: string,  # GitHub token required for the DOT GitHub Configuration and optinal for the DOT App Configuration
     --policies = false,      # Whether to create Validating Admission Policies
     --skip-login = false,    # Whether to skip the login (only for Azure)
-    --preview = false        # Whether to use the preview version of Crossplane
     --db-provider = false    # Whether to apply database provider (not needed if --db-config is `true`)
 ] {
 
@@ -23,29 +22,14 @@ def --env "main apply crossplane" [
 
     helm repo add crossplane https://charts.crossplane.io/stable
 
-    helm repo add crossplane-preview https://charts.crossplane.io/preview
-
     helm repo update
 
-    if $preview {
-
-        (
-            helm upgrade --install crossplane "crossplane-preview/crossplane"
-                --namespace crossplane-system --create-namespace
-                --set args='{"--enable-usages"}'
-                --wait --devel
-        )
-    
-    } else {
-
-        (
-            helm upgrade --install crossplane "crossplane/crossplane"
-                --namespace crossplane-system --create-namespace
-                --set args='{"--enable-usages"}'
-                --wait
-        )
-
-    }
+    (
+        helm upgrade --install crossplane "crossplane/crossplane"
+            --namespace crossplane-system --create-namespace
+            --set args='{"--enable-usages"}'
+            --wait
+    )
 
     mut provider_data = {}
     if $provider == "google" {
@@ -62,11 +46,7 @@ def --env "main apply crossplane" [
 
         print $"\n(ansi green_bold)Applying `dot-application` Configuration...(ansi reset)\n"
 
-        mut version = "v2.0.2"
-        if not $preview {
-            $version = "v0.7.41"
-        }
-
+        let version = "v3.0.31"
         {
             apiVersion: "pkg.crossplane.io/v1"
             kind: "Configuration"
@@ -129,11 +109,7 @@ def --env "main apply crossplane" [
 
         print $"\n(ansi green_bold)Applying `dot-sql` Configuration...(ansi reset)\n"
 
-        mut version = "v2.1.59"
-        if not $preview {
-            $version = "v1.1.21"
-        }
-
+        let version = "v2.1.68"
         {
             apiVersion: "pkg.crossplane.io/v1"
             kind: "Configuration"
@@ -390,15 +366,12 @@ def "main publish crossplane" [
 
     package generate --sources $sources
 
-    crossplane xpkg login --token $env.UP_TOKEN
+    up login --token $env.UP_TOKEN
+
+    up xpkg build --package-root package --output $"($package).xpkg"
 
     (
-        crossplane xpkg build --package-root package
-            --package-file $"($package).xpkg"
-    )
-
-    (
-        crossplane xpkg push --package-files $"($package).xpkg"
+        up xpkg push
             $"xpkg.upbound.io/($env.UP_ACCOUNT)/dot-($package):($version)"
     )
 

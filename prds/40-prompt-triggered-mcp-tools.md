@@ -1,9 +1,10 @@
 # PRD-40: Extend Prompts as Triggers for External MCP Tools
 
 **GitHub Issue**: [#40](https://github.com/vfarcic/dot-ai/issues/40)
-**Status**: Draft
+**Status**: Complete
 **Created**: 2025-07-31
-**Owner**: TBD
+**Completed**: 2025-08-14
+**Owner**: Claude Code Assistant
 
 ## Problem Statement
 
@@ -40,10 +41,10 @@ Extend the existing file-based prompt system to serve as intelligent triggers th
 ## Success Criteria
 
 ### Must Have (MVP)
-- [ ] Prompt templates can specify target MCP tools and parameter mappings
-- [ ] AI can generate tool parameters from natural language descriptions
-- [ ] Basic workflow orchestration through sequential tool chaining
-- [ ] Integration with existing dot-ai MCP tools (recommend, deploy, etc.)
+- [x] Prompt templates can specify target MCP tools and parameter mappings
+- [x] AI can generate tool parameters from natural language descriptions
+- [x] Basic workflow orchestration through sequential tool chaining
+- [x] Integration with existing dot-ai MCP tools (recommend, deploy, etc.)
 
 ### Should Have  
 - [ ] Tool discovery mechanism for external MCP tools
