@@ -137,6 +137,9 @@ jobs:
     needs: [version]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.version.outputs.version-changed == 'true'
+    permissions:
+      contents: read
+      packages: write
     
     steps:
     - name: Checkout code
