@@ -58,9 +58,21 @@ Complete the PRD implementation workflow including branch management, pull reque
 ### 4. Review and Merge Process
 - [ ] **Check ongoing processes**: Use `gh pr checks [pr-number]` to check for any ongoing CI/CD, security analysis, or automated reviews (CodeRabbit, CodeQL, etc.)
 - [ ] **Check PR details**: Use `gh pr view [pr-number]` to check for human review comments and PR metadata
+- [ ] **Review all automated feedback**: Check PR comments section for automated code review feedback (bots, linters, analyzers)
+  - Look for actionable suggestions about code quality, security, performance, or maintainability
+  - Check for recommendations about test coverage, error handling, or architectural improvements
+  - Review suggestions for refactoring, type safety, or code organization
+- [ ] **Assess feedback priority**: Categorize review feedback
+  - **Critical**: Security issues, breaking changes, test failures - MUST address before merge
+  - **Important**: Code quality, maintainability, performance - SHOULD address for production readiness
+  - **Optional**: Style preferences, minor optimizations - MAY address based on project standards
 - [ ] **Wait for completion**: Do NOT merge if checks show pending processes or PR comments indicate reviews still in progress
-- [ ] **Address review feedback**: Make any required changes from code review (both automated and human)
+- [ ] **Address review feedback**: Make required changes from code review (both automated and human)
+  - Create additional commits on the feature branch to address feedback
+  - Update tests if needed to cover suggested improvements
+  - Document any feedback that was intentionally not addressed and why
 - [ ] **Verify all checks pass**: Ensure all CI/CD, tests, security analysis, and automated processes are complete and passing
+- [ ] **Final review**: Confirm the PR addresses the original PRD requirements and maintains code quality
 - [ ] **Merge to main**: Complete the pull request merge only after all feedback addressed and processes complete
 - [ ] **Verify deployment**: Ensure feature works in production environment
 - [ ] **Monitor for issues**: Watch for any post-deployment problems
