@@ -61,3 +61,33 @@ def "main destroy" [] {
     docker container rm qdrant --force
 
 }
+
+def "main build-image" [version: string] {
+    
+    let repo = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
+    
+    print "Extracting data from running Qdrant container..."
+    
+    # Create tmp directory if it doesn't exist
+    mkdir tmp
+    
+    # Remove existing qdrant_storage directory if it exists
+    if (ls tmp | where name == "tmp/qdrant_storage" | length) > 0 {
+        rm --recursive --force tmp/qdrant_storage
+    }
+    
+    # Extract data from the running Qdrant container
+    docker container cp qdrant:/qdrant/storage ./tmp/qdrant_storage
+    
+    print $"Building qdrant image with version ($version)..."
+    docker image build --tag $"($repo):($version)" --tag $"($repo):latest" .
+    
+    print "Cleaning up extracted data files..."
+    rm --recursive --force tmp/qdrant_storage
+    
+    print $"Pushing qdrant image..."
+    docker image push $"($repo):($version)"
+    docker image push $"($repo):latest"
+    
+    print $"Image pushed successfully: ($repo):($version) and ($repo):latest"
+}
