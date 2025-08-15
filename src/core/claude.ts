@@ -29,6 +29,37 @@ export interface Interaction {
   timestamp?: Date;
 }
 
+export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type ClarificationCategory =
+  | 'TECHNICAL_SPECIFICATIONS'
+  | 'ARCHITECTURAL_CONTEXT'
+  | 'OPERATIONAL_REQUIREMENTS'
+  | 'SECURITY_COMPLIANCE'
+  | 'ORGANIZATIONAL_ALIGNMENT';
+
+export interface ClarificationOpportunity {
+  category: ClarificationCategory;
+  missingContext: string;
+  impactLevel: ImpactLevel;
+  reasoning: string;
+  suggestedQuestions?: string[];
+  patternAlignment?: string;
+}
+
+export interface IntentAnalysisResult {
+  clarificationOpportunities: ClarificationOpportunity[];
+  overallAssessment: {
+    enhancementPotential: ImpactLevel;
+    primaryGaps: string[];
+    recommendedFocus: string;
+  };
+  intentQuality: {
+    currentSpecificity: string;
+    strengthAreas: string[];
+    improvementAreas: string[];
+  };
+}
+
 export class ClaudeIntegration {
   private client: Anthropic | null = null;
   private apiKey: string;
@@ -340,6 +371,79 @@ spec:
       phase: 'Discovery',
       suggestions: ['Start by exploring your cluster resources']
     };
+  }
+
+  /**
+   * Analyze user intent for clarification opportunities
+   * 
+   * @param intent User's deployment intent
+   * @param organizationalPatterns Available organizational patterns context
+   * @returns Analysis result with clarification opportunities
+   */
+  async analyzeIntentForClarification(intent: string, organizationalPatterns: string = ''): Promise<IntentAnalysisResult> {
+    if (!this.client) {
+      throw new Error('Claude client not initialized');
+    }
+
+    try {
+      // Load intent analysis prompt template
+      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'intent-analysis.md');
+      const template = fs.readFileSync(promptPath, 'utf8');
+      
+      // Replace template variables
+      const analysisPrompt = template
+        .replaceAll('{intent}', intent)
+        .replaceAll('{organizational_patterns}', organizationalPatterns || 'No specific organizational patterns available');
+      
+      // Send to Claude for analysis
+      const response = await this.sendMessage(analysisPrompt, 'intent-analysis');
+      
+      // Parse JSON response with robust error handling
+      let jsonContent = response.content;
+      
+      // Try to find JSON object wrapped in code blocks
+      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1];
+      } else {
+        // Try to find JSON object that starts with { and find the matching closing }
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+      }
+      
+      // Parse the JSON
+      const analysisResult = JSON.parse(jsonContent);
+      
+      // Validate the response structure
+      if (!analysisResult.clarificationOpportunities || !Array.isArray(analysisResult.clarificationOpportunities)) {
+        throw new Error('Invalid analysis result structure: missing clarificationOpportunities array');
+      }
+      
+      if (!analysisResult.overallAssessment || !analysisResult.intentQuality) {
+        throw new Error('Invalid analysis result structure: missing overallAssessment or intentQuality');
+      }
+      
+      return analysisResult;
+      
+    } catch (error) {
+      // If parsing fails or API call fails, return a fallback minimal analysis
+      console.warn('Intent analysis failed, returning minimal analysis:', error);
+      return {
+        clarificationOpportunities: [],
+        overallAssessment: {
+          enhancementPotential: 'LOW',
+          primaryGaps: [],
+          recommendedFocus: 'Proceed with original intent - analysis unavailable'
+        },
+        intentQuality: {
+          currentSpecificity: 'Unable to analyze - using original intent',
+          strengthAreas: ['User provided clear deployment intent'],
+          improvementAreas: []
+        }
+      };
+    }
   }
 
   isInitialized(): boolean {

@@ -215,4 +215,173 @@ describe('Claude Debug Logging', () => {
       expect(promptPrefix).toBe(responsePrefix);
     });
   });
+
+  describe('Intent Analysis for Clarification', () => {
+    test('should analyze intent and return structured clarification opportunities', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      
+      // Mock the sendMessage method to return a valid JSON response
+      const mockAnalysisResponse = `{
+        "clarificationOpportunities": [
+          {
+            "category": "TECHNICAL_SPECIFICATIONS",
+            "missingContext": "Specific framework or technology stack",
+            "impactLevel": "HIGH",
+            "reasoning": "Knowing the technology would enable specific deployment recommendations",
+            "suggestedQuestions": [
+              "What technology stack are you using (Node.js, Python, Java, etc.)?",
+              "Do you have any specific framework requirements?"
+            ],
+            "patternAlignment": "Aligns with standardized technology patterns"
+          }
+        ],
+        "overallAssessment": {
+          "enhancementPotential": "HIGH",
+          "primaryGaps": ["Technology specification"],
+          "recommendedFocus": "Clarify technology stack for better recommendations"
+        },
+        "intentQuality": {
+          "currentSpecificity": "Generic deployment request",
+          "strengthAreas": ["Clear deployment intent"],
+          "improvementAreas": ["Technology details", "Environment requirements"]
+        }
+      }`;
+
+      // Mock sendMessage to return our test response
+      jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: mockAnalysisResponse,
+        usage: { input_tokens: 50, output_tokens: 200 }
+      });
+
+      const result = await claude.analyzeIntentForClarification('deploy web application');
+
+      expect(result).toBeDefined();
+      expect(result.clarificationOpportunities).toHaveLength(1);
+      expect(result.clarificationOpportunities[0].category).toBe('TECHNICAL_SPECIFICATIONS');
+      expect(result.clarificationOpportunities[0].impactLevel).toBe('HIGH');
+      expect(result.overallAssessment.enhancementPotential).toBe('HIGH');
+      expect(result.intentQuality.strengthAreas).toContain('Clear deployment intent');
+    });
+
+    test('should handle JSON response wrapped in code blocks', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      
+      const mockResponseWithCodeBlocks = `Here's my analysis:
+
+\`\`\`json
+{
+  "clarificationOpportunities": [],
+  "overallAssessment": {
+    "enhancementPotential": "LOW",
+    "primaryGaps": [],
+    "recommendedFocus": "Intent is sufficiently specific"
+  },
+  "intentQuality": {
+    "currentSpecificity": "Well-defined deployment request",
+    "strengthAreas": ["Specific technology", "Clear purpose"],
+    "improvementAreas": []
+  }
+}
+\`\`\``;
+
+      jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: mockResponseWithCodeBlocks,
+        usage: { input_tokens: 30, output_tokens: 100 }
+      });
+
+      const result = await claude.analyzeIntentForClarification('deploy Node.js REST API');
+
+      expect(result).toBeDefined();
+      expect(result.clarificationOpportunities).toHaveLength(0);
+      expect(result.overallAssessment.enhancementPotential).toBe('LOW');
+    });
+
+    test('should include organizational patterns in analysis when provided', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      const organizationalPatterns = 'Security-first architecture with OAuth integration';
+
+      // Verify that sendMessage is called with the right prompt
+      const sendMessageSpy = jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: '{"clarificationOpportunities": [], "overallAssessment": {"enhancementPotential": "LOW", "primaryGaps": [], "recommendedFocus": "test"}, "intentQuality": {"currentSpecificity": "test", "strengthAreas": [], "improvementAreas": []}}',
+        usage: { input_tokens: 40, output_tokens: 80 }
+      });
+
+      await claude.analyzeIntentForClarification('deploy API', organizationalPatterns);
+
+      // Check that the prompt was constructed with organizational patterns
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        expect.stringContaining(organizationalPatterns),
+        'intent-analysis'
+      );
+    });
+
+    test('should return fallback analysis when sendMessage fails', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      
+      // Mock sendMessage to throw an error
+      jest.spyOn(claude, 'sendMessage').mockRejectedValue(new Error('API failure'));
+
+      const result = await claude.analyzeIntentForClarification('deploy web app');
+
+      expect(result).toBeDefined();
+      expect(result.clarificationOpportunities).toHaveLength(0);
+      expect(result.overallAssessment.enhancementPotential).toBe('LOW');
+      expect(result.overallAssessment.recommendedFocus).toContain('analysis unavailable');
+    });
+
+    test('should return fallback analysis when JSON parsing fails', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      
+      // Mock sendMessage to return invalid JSON
+      jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: 'This is not valid JSON response',
+        usage: { input_tokens: 20, output_tokens: 10 }
+      });
+
+      const result = await claude.analyzeIntentForClarification('deploy database');
+
+      expect(result).toBeDefined();
+      expect(result.clarificationOpportunities).toHaveLength(0);
+      expect(result.intentQuality.currentSpecificity).toContain('Unable to analyze');
+    });
+
+    test('should validate required response structure', async () => {
+      const claude = new ClaudeIntegration('test-key');
+      
+      // Mock response missing required fields
+      const invalidResponse = `{
+        "clarificationOpportunities": [],
+        "overallAssessment": {
+          "enhancementPotential": "LOW"
+        }
+      }`;
+
+      jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: invalidResponse,
+        usage: { input_tokens: 20, output_tokens: 30 }
+      });
+
+      const result = await claude.analyzeIntentForClarification('deploy app');
+
+      // Should return fallback when structure is invalid
+      expect(result.overallAssessment.recommendedFocus).toContain('analysis unavailable');
+    });
+
+    test('should use default organizational patterns when none provided', async () => {
+      const claude = new ClaudeIntegration('test-key');
+
+      const sendMessageSpy = jest.spyOn(claude, 'sendMessage').mockResolvedValue({
+        content: '{"clarificationOpportunities": [], "overallAssessment": {"enhancementPotential": "LOW", "primaryGaps": [], "recommendedFocus": "test"}, "intentQuality": {"currentSpecificity": "test", "strengthAreas": [], "improvementAreas": []}}',
+        usage: { input_tokens: 30, output_tokens: 70 }
+      });
+
+      await claude.analyzeIntentForClarification('deploy microservice');
+
+      // Should use default message for patterns
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No specific organizational patterns available'),
+        'intent-analysis'
+      );
+    });
+  });
 });
