@@ -19,8 +19,8 @@ describe('Package.json Configuration', () => {
     test('should have correct package metadata', () => {
       expect(packageJson.name).toBe('@vfarcic/dot-ai');
       expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
-      expect(packageJson.description).toContain('Kubernetes');
-      expect(packageJson.description).toContain('MCP');
+      expect(packageJson.description).toContain('AI-powered');
+      expect(packageJson.description).toContain('development productivity');
       expect(packageJson.license).toBe('MIT');
       expect(packageJson.author).toBeDefined();
     });

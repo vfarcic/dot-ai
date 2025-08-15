@@ -2,3 +2,12 @@ FROM qdrant/qdrant:latest
 
 # Copy pre-loaded qdrant data to the container
 COPY tmp/qdrant_storage/ /qdrant/storage/
+
+# Build argument for version
+ARG VERSION=latest
+
+# OCI labels for GitHub package association
+LABEL org.opencontainers.image.source="https://github.com/vfarcic/dot-ai"
+LABEL org.opencontainers.image.description="Qdrant vector database with pre-loaded DevOps AI Toolkit data"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.version="${VERSION}"
