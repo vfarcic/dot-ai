@@ -80,7 +80,7 @@ def "main build-image" [version: string] {
     docker container cp qdrant:/qdrant/storage ./tmp/qdrant_storage
     
     print $"Building qdrant image with version ($version)..."
-    docker image build --tag $"($repo):($version)" --tag $"($repo):latest" .
+    docker image build --file Dockerfile-qdrant --tag $"($repo):($version)" --tag $"($repo):latest" .
     
     print "Cleaning up extracted data files..."
     rm --recursive --force tmp/qdrant_storage

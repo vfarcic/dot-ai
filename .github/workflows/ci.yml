@@ -13,6 +13,7 @@ permissions:
   contents: write
   security-events: write
   id-token: write
+  packages: write
 
 jobs:
   test:
@@ -92,10 +93,93 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
 
-  publish:
+  version:
     needs: [test, security]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      new-version: ${{ steps.version-check.outputs.new-version }}
+      version-changed: ${{ steps.version-check.outputs.version-changed }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Pull latest changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git pull origin main
+    
+    - name: Auto-increment version and check for changes
+      id: version-check
+      run: |
+        PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
+        echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
+        
+        # Parse published version and increment minor version
+        MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
+        MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
+        PATCH=$(echo $PUBLISHED_VERSION | cut -d. -f3)
+        
+        # Increment minor version, reset patch to 0
+        NEW_MINOR=$((MINOR + 1))
+        NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+        
+        # Update package.json with new version
+        npm version $NEW_VERSION --no-git-tag-version
+        
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Version incremented from $PUBLISHED_VERSION to $NEW_VERSION"
+        echo "version-changed=true" >> $GITHUB_OUTPUT
+        
+    - name: Commit version bump
+      if: steps.version-check.outputs.version-changed == 'true'
+      run: |
+        VERSION=${{ steps.version-check.outputs.new-version }}
+        git add package.json
+        git commit -m "chore: bump version to $VERSION [skip ci]"
+        git push origin main
+
+  docker:
+    needs: [version]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.version.outputs.version-changed == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Pull latest changes
+      run: git pull origin main
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ghcr.io/vfarcic/dot-ai:${{ needs.version.outputs.new-version }}
+          ghcr.io/vfarcic/dot-ai:latest
+        platforms: linux/amd64,linux/arm64
+
+  publish:
+    needs: [version, docker]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.version.outputs.version-changed == 'true'
     
     steps:
     - name: Checkout code
@@ -123,61 +207,32 @@ jobs:
     - name: Build project
       run: npm run build
     
-    - name: Auto-increment version and check for changes
-      id: version-check
-      run: |
-        PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
-        echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
-        
-        # Parse published version and increment minor version
-        MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
-        MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
-        PATCH=$(echo $PUBLISHED_VERSION | cut -d. -f3)
-        
-        # Increment minor version, reset patch to 0
-        NEW_MINOR=$((MINOR + 1))
-        NEW_VERSION="$MAJOR.$NEW_MINOR.0"
-        
-        # Update package.json with new version
-        npm version $NEW_VERSION --no-git-tag-version
-        
-        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        echo "Version incremented from $PUBLISHED_VERSION to $NEW_VERSION"
-        echo "version-changed=true" >> $GITHUB_OUTPUT
-    
     - name: Publish to npm
-      if: steps.version-check.outputs.version-changed == 'true'
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
-    - name: Commit version bump and create Git tag
-      if: steps.version-check.outputs.version-changed == 'true'
+    - name: Create Git tag
       run: |
-        VERSION=${{ steps.version-check.outputs.new-version }}
-        git add package.json
-        git commit -m "chore: bump version to $VERSION [skip ci]"
+        VERSION=${{ needs.version.outputs.new-version }}
         git tag -a "v$VERSION" -m "Release version $VERSION"
-        git push origin main
         git push origin "v$VERSION"
     
     - name: Generate release notes
-      if: steps.version-check.outputs.version-changed == 'true'
       run: |
-        VERSION=$(node -p "require('./package.json').version")
+        VERSION=${{ needs.version.outputs.new-version }}
         echo "# Release v$VERSION" > RELEASE_NOTES.md
         echo "" >> RELEASE_NOTES.md
         echo "## Changes" >> RELEASE_NOTES.md
         git log --oneline $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md 2>/dev/null || echo "Initial release" >> RELEASE_NOTES.md
     
     - name: Create GitHub Release
-      if: steps.version-check.outputs.version-changed == 'true'
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: v${{ steps.version-check.outputs.new-version }}
-        release_name: Release v${{ steps.version-check.outputs.new-version }}
+        tag_name: v${{ needs.version.outputs.new-version }}
+        release_name: Release v${{ needs.version.outputs.new-version }}
         body_path: RELEASE_NOTES.md
         draft: false
         prerelease: false
