@@ -114,7 +114,7 @@ jobs:
         git config --local user.name "GitHub Action"
         git pull origin main
     
-    - name: Auto-increment version and check for changes
+    - name: Calculate next version
       id: version-check
       run: |
         PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
@@ -129,20 +129,9 @@ jobs:
         NEW_MINOR=$((MINOR + 1))
         NEW_VERSION="$MAJOR.$NEW_MINOR.0"
         
-        # Update package.json with new version
-        npm version $NEW_VERSION --no-git-tag-version
-        
         echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        echo "Version incremented from $PUBLISHED_VERSION to $NEW_VERSION"
+        echo "Version will be incremented from $PUBLISHED_VERSION to $NEW_VERSION"
         echo "version-changed=true" >> $GITHUB_OUTPUT
-        
-    - name: Commit version bump
-      if: steps.version-check.outputs.version-changed == 'true'
-      run: |
-        VERSION=${{ steps.version-check.outputs.new-version }}
-        git add package.json
-        git commit -m "chore: bump version to $VERSION [skip ci]"
-        git push origin main
 
   docker:
     needs: [version]
@@ -212,15 +201,23 @@ jobs:
     - name: Build project
       run: npm run build
     
+    - name: Update package.json version
+      run: |
+        VERSION=${{ needs.version.outputs.new-version }}
+        npm version $VERSION --no-git-tag-version
+    
     - name: Publish to npm
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
-    - name: Create Git tag
+    - name: Commit version bump and create Git tag
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
+        git add package.json
+        git commit -m "chore: bump version to $VERSION [skip ci]"
         git tag -a "v$VERSION" -m "Release version $VERSION"
+        git push origin main
         git push origin "v$VERSION"
     
     - name: Generate release notes
