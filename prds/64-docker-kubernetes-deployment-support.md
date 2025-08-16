@@ -216,13 +216,7 @@ examples/deployments/
 - [x] kubectl CLI tool integration in containers
 - [x] Host networking configuration for KinD cluster connectivity
 - [x] Enhanced version tool with Kubernetes connectivity checking
-- [ ] **Comprehensive MCP Registry Publications** (HIGH PRIORITY)
-  - [ ] **Docker MCP Catalog** (Primary target - enhanced security)
-    - [ ] Install Task CLI tool required for submission process
-    - [ ] Fork docker/mcp-registry repository
-    - [ ] Generate server.yaml configuration using task wizard
-    - [ ] Test Docker MCP Catalog submission locally
-    - [ ] Submit pull request to docker/mcp-registry
+- [ ] **Alternative MCP Registry Publications**
   - [ ] **Official ModelContextProtocol/servers Registry** (Anthropic-backed)
     - [ ] Create PR to add dot-ai reference in README.md (alphabetical order)
     - [ ] Ensure unique functionality and security best practices documentation
@@ -426,6 +420,19 @@ examples/deployments/
 
 **Owner**: Implementation Team
 
+### Decision: Remove Docker MCP Catalog from Project Scope
+**Date**: 2025-08-16  
+**Decision**: Remove Docker MCP Catalog submission from PRD scope due to integration limitations  
+**Rationale**: Research revealed Claude Code has documented timeout issues (120-second tool timeouts) with Docker MCP Gateway integration, while same functionality works in Claude Desktop. Integration problems make Docker MCP Catalog unsuitable for Claude Code users, which are our primary target audience.  
+**Impact**:
+- **Scope**: Docker MCP Catalog work removed from Milestone 1 deliverables
+- **Focus**: Concentrate on alternative MCP registries (Official, PulseMCP, MCP.so) that work reliably with Claude Code
+- **Resources**: Redirect effort to documentation creation and other registry submissions
+- **Timeline**: Milestone 1 completion accelerated by removing blocked Docker MCP Catalog work
+- **Future**: Can revisit when Claude Code + Docker Desktop integration issues are resolved
+
+**Owner**: Implementation Team
+
 ### Work Log
 
 #### 2025-01-16: Docker Infrastructure Implementation Complete
@@ -529,6 +536,36 @@ examples/deployments/
 - **HIGH PRIORITY**: Execute Docker MCP Catalog submission (Task CLI setup → submission)
 - Continue with Docker-first documentation creation (Milestone 1)
 - Begin Kubernetes deployment pattern research (Milestone 2)
+
+#### 2025-08-16: Docker Infrastructure Completion and Scope Refinement
+**Duration**: ~4 hours (Docker MCP Catalog research, testing, and strategic scope refinement)
+**Commits**: 1 commit (PRD updates and strategic decisions)
+**Primary Focus**: Complete Docker infrastructure validation and finalize project scope
+
+**Docker MCP Catalog Research and Testing**:
+- [x] **Docker MCP Catalog Process Mastery** - Evidence: Complete submission workflow researched and documented
+- [x] **Task CLI Integration** - Evidence: go-task@3.44.1 installed via DevBox and working
+- [x] **Repository Fork and Setup** - Evidence: docker/mcp-registry forked, cloned, and configured
+- [x] **Server Configuration Creation** - Evidence: server.yaml generated using task wizard and optimized
+- [x] **Local Build and Validation** - Evidence: `task build` and `task catalog` successful
+- [x] **Docker Desktop Integration Testing** - Evidence: MCP Toolkit showing DevOps AI Toolkit with proper configuration
+
+**Strategic Scope Decisions**:
+- ✅ **Integration Issues Identified**: Claude Code has documented 120-second timeout issues with Docker MCP Gateway
+- ✅ **Target Audience Alignment**: Claude Code users are primary audience, Docker Desktop integration unreliable
+- ✅ **Scope Refinement**: Removed Docker MCP Catalog from deliverables to focus on working solutions
+- ✅ **Alternative Strategy**: Prioritized ModelContextProtocol/servers, PulseMCP, and MCP.so registries
+
+**Technical Achievements**:
+- ✅ **Complete Docker Infrastructure**: All 5 core Docker implementation items validated and working
+- ✅ **File Management Optimization**: Resolved project conflicts with `docker-compose-dot-ai.yaml` naming
+- ✅ **MCP Client Integration**: Validated `.mcp-docker.json` configuration works with Claude Code
+
+**Next Session Priorities**:
+- **HIGH PRIORITY**: Create comprehensive Docker documentation (`docs/docker-deployment-guide.md`)
+- Update `README.md` with Docker deployment overview
+- Restructure `docs/mcp-setup.md` to make Docker primary deployment method
+- Create working examples in `examples/deployments/docker/`
 
 ## Risk Assessment
 
