@@ -216,7 +216,20 @@ examples/deployments/
 - [x] kubectl CLI tool integration in containers
 - [x] Host networking configuration for KinD cluster connectivity
 - [x] Enhanced version tool with Kubernetes connectivity checking
-- [ ] Docker MCP Catalog submission preparation  
+- [ ] **Comprehensive MCP Registry Publications** (HIGH PRIORITY)
+  - [ ] **Docker MCP Catalog** (Primary target - enhanced security)
+    - [ ] Install Task CLI tool required for submission process
+    - [ ] Fork docker/mcp-registry repository
+    - [ ] Generate server.yaml configuration using task wizard
+    - [ ] Test Docker MCP Catalog submission locally
+    - [ ] Submit pull request to docker/mcp-registry
+  - [ ] **Official ModelContextProtocol/servers Registry** (Anthropic-backed)
+    - [ ] Create PR to add dot-ai reference in README.md (alphabetical order)
+    - [ ] Ensure unique functionality and security best practices documentation
+  - [ ] **PulseMCP Directory** (5,560+ servers, largest directory)
+    - [ ] Submit via online form for directory inclusion
+  - [ ] **MCP.so Community Platform** (Community engagement)
+    - [ ] Submit via platform form or GitHub issue
 - [ ] Updated `README.md` with Docker deployment overview
 - [ ] Restructured `docs/mcp-setup.md` to make Docker primary deployment method
 - [ ] Working examples in `examples/deployments/docker/`
@@ -358,6 +371,61 @@ examples/deployments/
 
 **Owner**: Implementation Team
 
+### Decision: Rename Docker Compose File to Avoid Project Conflicts
+**Date**: 2025-08-16  
+**Decision**: Rename `docker-compose.yml` to `docker-compose-dot-ai.yaml` and update MCP configuration to use `-f` flag  
+**Rationale**: Users often have existing `docker-compose.yml` files in their projects for other purposes. Using a specific filename prevents conflicts and makes it clear the file is for dot-ai deployment.  
+**Impact**:
+- **Requirements**: Added requirement for non-conflicting file naming in setup process
+- **Implementation**: File renamed and `.mcp-docker.json` updated with `-f docker-compose-dot-ai.yaml` flag
+- **Code**: MCP client configuration now includes explicit file reference
+- **User Experience**: Simplified setup instructions with clear file purpose
+- **Timeline**: Immediate implementation - completed in current session
+- **Risk**: Low - improves usability without compromising functionality
+
+**Owner**: Implementation Team
+
+### Decision: Simplify Docker Setup with Download Instructions Over Remote URLs
+**Date**: 2025-08-16  
+**Decision**: Provide curl-based download instructions instead of exploring complex remote Docker Compose URL approaches  
+**Rationale**: Docker Compose cannot directly reference remote files via URL. Rather than using complex workarounds, simple curl download instructions provide clean, understandable setup for users.  
+**Impact**:
+- **Requirements**: Documentation must include clear download instructions using curl commands
+- **Implementation**: Two-step setup process: download compose file, download MCP config
+- **User Experience**: Standard developer workflow (curl download) that's familiar and reliable
+- **Code**: No code changes required - leverages existing Docker infrastructure
+- **Timeline**: Documentation update required in current milestone
+- **Risk**: Low - follows standard community practices
+
+**Owner**: Implementation Team
+
+### Decision: Accelerate Docker MCP Catalog Submission to High Priority
+**Date**: 2025-08-16  
+**Decision**: Immediately prioritize Docker MCP Catalog submission using Docker-built tier for enhanced security and discoverability  
+**Rationale**: With Docker infrastructure complete and tested, Docker MCP Catalog submission provides immediate high-value benefits: access to 20+ million developers, enhanced security with cryptographic signatures and SBOMs, and automatic maintenance by Docker. The submission process is well-defined and dot-ai meets all prerequisites.  
+**Impact**:
+- **Requirements**: Docker MCP Catalog submission moved from pending to active high-priority task
+- **Implementation**: Use Docker-built tier for maximum security and trust (mcp/dot-ai namespace)
+- **Process**: Fork docker/mcp-registry, use Task CLI wizard, generate server.yaml configuration
+- **Timeline**: 24-hour turnaround after approval for catalog listing
+- **Benefits**: Cryptographic signatures, provenance tracking, automatic security updates, broader discoverability
+- **Prerequisites Met**: Docker image exists, Dockerfile ready, documentation comprehensive, license compatible
+
+**Owner**: Implementation Team
+
+### Decision: Comprehensive MCP Registry Publication Strategy
+**Date**: 2025-08-16  
+**Decision**: Target multiple high-value MCP registries for maximum discoverability and community reach  
+**Rationale**: MCP ecosystem has rapidly expanded since November 2024 launch with multiple major registries emerging. Comprehensive publication strategy maximizes discoverability across developer communities while establishing dot-ai as a recognized Kubernetes deployment solution.  
+**Impact**:
+- **Requirements**: Multi-registry publication plan for broader market penetration
+- **Target Registries**: Docker MCP Catalog (20M+ developers), Official ModelContextProtocol/servers, PulseMCP (5560+ servers), MCP.so community platform
+- **Publication Benefits**: Official recognition, community engagement, enterprise discoverability, security validation
+- **Timeline**: Parallel submissions after Docker MCP Catalog completion
+- **Validation Strategy**: Each registry provides different audience and validation (enterprise, community, official)
+
+**Owner**: Implementation Team
+
 ### Work Log
 
 #### 2025-01-16: Docker Infrastructure Implementation Complete
@@ -422,6 +490,45 @@ examples/deployments/
 **Next Session Priorities**:
 - Create documentation for Docker deployment (`.env.example`, deployment guide)
 - Research and decide on Kubernetes deployment patterns (Milestone 2)
+
+#### 2025-08-16: Docker Setup Simplification and Conflict Resolution
+**Duration**: ~1 hour (focused file management and user experience improvements)
+**Commits**: Docker Compose file renaming and MCP configuration updates
+**Primary Focus**: Eliminate setup conflicts and simplify user experience
+
+**Setup Simplification Achievements**:
+- [x] **File Conflict Resolution** - Evidence: Renamed to `docker-compose-dot-ai.yaml` to avoid project conflicts
+- [x] **MCP Configuration Update** - Evidence: Updated `.mcp-docker.json` with `-f` flag for explicit file reference
+- [x] **Download Instructions Created** - Evidence: Simple two-step curl commands for file download
+- [x] **Configuration Validation** - Evidence: Tested compose file syntax and MCP command structure
+
+**User Experience Improvements**:
+- ✅ **Eliminated File Conflicts**: Users can now use dot-ai alongside existing Docker Compose projects
+- ✅ **Clear File Purpose**: Naming makes it obvious which file is for dot-ai deployment
+- ✅ **Standard Download Pattern**: Follows familiar curl-based setup workflows
+- ✅ **Maintained Functionality**: All Docker deployment capabilities preserved
+
+**Strategic Validation**:
+- ✅ **Simple Over Complex**: Chose curl downloads over complex remote URL workarounds
+- ✅ **Developer-Friendly**: Used standard patterns developers expect (curl, explicit filenames)
+- ✅ **Conflict Avoidance**: Proactive approach to prevent common setup issues
+
+**Docker MCP Catalog Research and Planning**:
+- ✅ **Submission Requirements Research** - Evidence: Docker MCP Catalog process, requirements, and timeline documented
+- ✅ **Prerequisites Assessment** - Evidence: Confirmed dot-ai meets all submission requirements (Docker image, Dockerfile, docs, license)
+- ✅ **Strategic Decision Made** - Evidence: Docker-built tier chosen for maximum security and trust benefits
+- ✅ **Action Plan Created** - Evidence: Detailed 6-step submission process with Task CLI workflow defined
+
+**Strategic Validation**:
+- ✅ **High-Value Opportunity**: Access to 20+ million developers with 24-hour turnaround
+- ✅ **Security Enhancement**: Cryptographic signatures, SBOMs, provenance tracking via Docker-built tier
+- ✅ **Maintenance Benefits**: Docker handles image building and security updates automatically
+- ✅ **Prerequisites Met**: All technical requirements satisfied with existing Docker infrastructure
+
+**Next Session Priorities**:
+- **HIGH PRIORITY**: Execute Docker MCP Catalog submission (Task CLI setup → submission)
+- Continue with Docker-first documentation creation (Milestone 1)
+- Begin Kubernetes deployment pattern research (Milestone 2)
 
 ## Risk Assessment
 
