@@ -67,6 +67,27 @@ jest.mock('../../src/core/claude', () => ({
   }))
 }));
 
+jest.mock('../../src/core/kubernetes-utils', () => ({
+  executeKubectl: jest.fn().mockImplementation((args: string[]) => {
+    if (args.includes('cluster-info')) {
+      return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
+    }
+    if (args.includes('current-context')) {
+      return Promise.resolve('kind-dot');
+    }
+    if (args.includes('version')) {
+      return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
+    }
+    return Promise.resolve('');
+  }),
+  ErrorClassifier: {
+    classifyError: jest.fn().mockReturnValue({
+      type: 'network',
+      enhancedMessage: 'Network connectivity issue detected.'
+    })
+  }
+}));
+
 describe('Version Tool', () => {
   let logger: Logger;
   let requestId: string;
@@ -92,7 +113,7 @@ describe('Version Tool', () => {
     });
 
     it('should have proper description', () => {
-      expect(VERSION_TOOL_DESCRIPTION).toBe('Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, and pattern management health check');
+      expect(VERSION_TOOL_DESCRIPTION).toBe('Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, and pattern management health check');
     });
 
     it('should have valid input schema', () => {
@@ -155,6 +176,7 @@ describe('Version Tool', () => {
       expect(responseData.system).toHaveProperty('vectorDB');
       expect(responseData.system).toHaveProperty('embedding');
       expect(responseData.system).toHaveProperty('anthropic');
+      expect(responseData.system).toHaveProperty('kubernetes');
 
       // Check version info
       expect(responseData.system.version).toHaveProperty('version');
@@ -224,6 +246,17 @@ describe('Version Tool', () => {
         keyConfigured: true
       });
       
+      // Check Kubernetes status
+      expect(response.system.kubernetes).toMatchObject({
+        connected: true,
+        clusterInfo: {
+          endpoint: 'https://127.0.0.1:64942',
+          version: 'v1.27.3+k3s1',
+          context: 'kind-dot'
+        },
+        kubeconfig: expect.any(String)
+      });
+      
       // Check capability system status
       expect(response.system.capabilities).toMatchObject({
         systemReady: true, // Ready because core MCP operations (list, search, ID-based get) work
@@ -236,8 +269,10 @@ describe('Version Tool', () => {
       expect(response.summary.overall).toBe('healthy');
       expect(response.summary.patternSearch).toBe('keyword-only');
       expect(response.summary.capabilityScanning).toBe('ready');
+      expect(response.summary.kubernetesAccess).toBe('connected');
       expect(response.summary.capabilities).toContain('pattern-management');
       expect(response.summary.capabilities).toContain('ai-recommendations');
+      expect(response.summary.capabilities).toContain('kubernetes-integration');
       expect(response.summary.capabilities).not.toContain('semantic-search'); // No embeddings available
     });
 
@@ -403,6 +438,90 @@ describe('Version Tool', () => {
       }));
     });
 
+    it('should handle Kubernetes connection failures', async () => {
+      // Mock kubectl to throw connection error
+      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
+      mockExecuteKubectl.mockRejectedValueOnce(new Error('ECONNREFUSED: Connection refused'));
+
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      const result = await handleVersionTool({}, logger, requestId);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.system.kubernetes.connected).toBe(false);
+      expect(response.system.kubernetes.error).toContain('ECONNREFUSED');
+      expect(response.system.kubernetes.errorType).toBe('network');
+      expect(response.summary.kubernetesAccess).toBe('disconnected');
+      expect(response.summary.capabilityScanning).toBe('not-ready'); // Not ready when K8s disconnected
+      expect(response.summary.capabilities).not.toContain('kubernetes-integration');
+      expect(response.summary.capabilities).not.toContain('capability-scanning');
+      
+      // Reset mock for other tests
+      mockExecuteKubectl.mockImplementation((args: string[]) => {
+        if (args.includes('cluster-info')) {
+          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
+        }
+        if (args.includes('current-context')) {
+          return Promise.resolve('kind-dot');
+        }
+        if (args.includes('version')) {
+          return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
+        }
+        return Promise.resolve('');
+      });
+    });
+
+    it('should show correct kubeconfig path from environment', async () => {
+      process.env.KUBECONFIG = '/custom/path/kubeconfig.yaml';
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      const result = await handleVersionTool({}, logger, requestId);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.system.kubernetes.kubeconfig).toBe('/custom/path/kubeconfig.yaml');
+      
+      // Clean up
+      delete process.env.KUBECONFIG;
+    });
+
+    it('should handle partial Kubernetes info retrieval', async () => {
+      // Mock kubectl to succeed for cluster-info but fail for context/version
+      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
+      mockExecuteKubectl.mockImplementation((args: string[]) => {
+        if (args.includes('cluster-info')) {
+          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
+        }
+        if (args.includes('current-context') || args.includes('version')) {
+          return Promise.reject(new Error('Command failed'));
+        }
+        return Promise.resolve('');
+      });
+
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      const result = await handleVersionTool({}, logger, requestId);
+      const response = JSON.parse(result.content[0].text);
+      
+      expect(response.system.kubernetes.connected).toBe(true);
+      expect(response.system.kubernetes.clusterInfo.endpoint).toBe('https://127.0.0.1:64942');
+      expect(response.system.kubernetes.clusterInfo.context).toBeUndefined();
+      expect(response.system.kubernetes.clusterInfo.version).toBeUndefined();
+      
+      // Reset mock
+      mockExecuteKubectl.mockImplementation((args: string[]) => {
+        if (args.includes('cluster-info')) {
+          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
+        }
+        if (args.includes('current-context')) {
+          return Promise.resolve('kind-dot');
+        }
+        if (args.includes('version')) {
+          return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
+        }
+        return Promise.resolve('');
+      });
+    });
+
     it('should log diagnostic progress', async () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';
       
@@ -424,7 +543,8 @@ describe('Version Tool', () => {
           requestId,
           vectorDBConnected: expect.any(Boolean),
           embeddingAvailable: expect.any(Boolean),
-          anthropicConnected: expect.any(Boolean)
+          anthropicConnected: expect.any(Boolean),
+          kubernetesConnected: expect.any(Boolean)
         })
       );
     });

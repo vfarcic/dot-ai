@@ -1,11 +1,15 @@
-# Docker Compose configuration for DevOps AI Toolkit MCP Server
-# Development and testing deployment with MCP server + Qdrant
+# Docker Compose configuration for DevOps AI Toolkit MCP Server - DEVELOPMENT
+# Always builds from local source code for testing changes
 
 services:
-  # DevOps AI Toolkit MCP Server
+  # DevOps AI Toolkit MCP Server - Development Build
   dot-ai:
-    image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
-    container_name: dot-ai
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      pull: true
+      no_cache: true
+    container_name: dot-ai-dev
     network_mode: "host"
     environment:
       # Required: Anthropic API key for AI analysis
@@ -22,14 +26,14 @@ services:
     depends_on:
       - qdrant
 
-  # Qdrant Vector Database
+  # Qdrant Vector Database (same as production)
   qdrant:
     image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
-    container_name: qdrant
+    container_name: qdrant-dev
     ports:
       - "${QDRANT_PORT:-6333}:6333"
     volumes:
-      - qdrant_data:/qdrant/storage
+      - qdrant_dev_data:/qdrant/storage
     networks:
       - dot-ai-network
     healthcheck:
@@ -39,7 +43,7 @@ services:
       retries: 3
 
 volumes:
-  qdrant_data:
+  qdrant_dev_data:
 
 networks:
   dot-ai-network:

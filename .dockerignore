@@ -1,0 +1,38 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+
+# Temporary and storage directories
+tmp/
+temp/
+kind-storage/
+
+# Git
+.git/
+.gitignore
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# MCP configs
+.mcp*.json
+
+# Tests
+tests/
+coverage/
+
+# Documentation
+*.md
+docs/
+
+# Examples
+examples/

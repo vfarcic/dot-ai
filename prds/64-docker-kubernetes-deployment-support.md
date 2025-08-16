@@ -55,7 +55,7 @@ Implement comprehensive containerization and Kubernetes deployment support throu
 <!-- PRD-64 -->
 **New Documentation Files:**
 - `docs/docker-deployment-guide.md` - Complete Docker deployment guide
-- Update `docs/mcp-setup.md` with Docker alternatives
+- Update `docs/mcp-setup.md` to make Docker primary deployment method (restructure to lead with Docker)
 - Update main `README.md` with Docker deployment overview
 
 **Docker Deployment Scenarios:**
@@ -177,8 +177,8 @@ ghcr.io/vfarcic/dot-ai-chart:latest
 #### 4.1 Updated Documentation Architecture
 <!-- PRD-64 -->
 **Updated Files:**
-- `README.md` - Add Docker and Kubernetes deployment sections
-- `docs/mcp-setup.md` - Include Docker and Kubernetes alternatives
+- `README.md` - Add Docker and Kubernetes deployment sections  
+- `docs/mcp-setup.md` - Restructure to make Docker primary deployment method (lead with Docker section)
 - `docs/mcp-recommendation-guide.md` - Update for containerized environments
 
 **Cross-Reference Updates:**
@@ -205,14 +205,20 @@ examples/deployments/
 ## Implementation Plan
 
 ### Milestone 1: Enhanced Docker Documentation and Examples
-**Timeline:** 2 weeks
+**Timeline:** 2 weeks  
+**Status:** 🟢 Implementation Complete - Documentation Pending
 **Deliverables:**
 - [ ] `docs/docker-deployment-guide.md` with comprehensive Docker deployment instructions
 - [x] Docker Compose configurations for development and production
-- [x] MCP client connection configuration (`.mcp-docker.json`)
+- [x] MCP client connection configuration (`.mcp-docker.json`) with container lifecycle management
 - [x] Configurable Docker images via environment variables
-- [ ] Docker MCP Catalog submission preparation
+- [x] Multi-stage Docker builds for development workflow
+- [x] kubectl CLI tool integration in containers
+- [x] Host networking configuration for KinD cluster connectivity
+- [x] Enhanced version tool with Kubernetes connectivity checking
+- [ ] Docker MCP Catalog submission preparation  
 - [ ] Updated `README.md` with Docker deployment overview
+- [ ] Restructured `docs/mcp-setup.md` to make Docker primary deployment method
 - [ ] Working examples in `examples/deployments/docker/`
 
 ### Milestone 2: Kubernetes Deployment Research and Decision
@@ -326,7 +332,70 @@ examples/deployments/
 
 **Owner**: Implementation Team
 
+### Decision: Make Docker Primary Deployment Method Over npx
+**Date**: 2025-01-16  
+**Decision**: Position Docker as the primary deployment method rather than alternative to npx  
+**Rationale**: Docker provides superior isolation, consistency, and enterprise readiness compared to npx-based deployment. Users prefer containerized deployments for production and development environments.  
+**Impact**:
+- **Requirements**: Documentation architecture restructured to present Docker first
+- **Implementation**: Update `docs/mcp-setup.md` to lead with Docker deployment section
+- **Scope**: Docker becomes primary focus with comprehensive examples and troubleshooting
+- **Timeline**: Documentation restructuring required in Milestone 1
+- **Risk**: Low - improves user experience by leading with preferred deployment method
+
+**Owner**: Implementation Team
+
+### Decision: Container Lifecycle Management with MCP Protocol Compatibility  
+**Date**: 2025-01-16  
+**Decision**: Use `docker compose run --rm --remove-orphans` instead of `docker compose up --abort-on-container-exit`  
+**Rationale**: MCP protocol requires direct stdin/stdout communication. `docker compose up` adds log prefixes (`dot-ai |`) that break MCP protocol communication, while `docker compose run` provides clean stdio interface required by MCP clients.  
+**Impact**:
+- **Requirements**: MCP client configuration must use `run` command for protocol compatibility
+- **Implementation**: Updated `.mcp.json` and `.mcp-docker.json` with working configuration
+- **Code**: Container cleanup handled by `--remove-orphans` flag
+- **Timeline**: Resolved in current implementation session
+- **Risk**: Low - maintains MCP functionality while providing container cleanup
+
+**Owner**: Implementation Team
+
 ### Work Log
+
+#### 2025-01-16: Docker Infrastructure Implementation Complete
+**Duration**: ~8 hours (comprehensive implementation session)
+**Commits**: Multiple commits with Docker deployment infrastructure
+**Primary Focus**: Complete Docker containerization with MCP client connectivity and Kubernetes integration
+
+**Core Implementation Achievements**:
+- [x] **Working Docker Compose Setup** - Evidence: `docker-compose.yml` successfully tested with Claude Code
+- [x] **Development Docker Environment** - Evidence: `docker-compose.dev.yml` with multi-stage builds (`Dockerfile.dev`)
+- [x] **MCP Client Connectivity** - Evidence: `.mcp-docker.json` and `.mcp-dev.json` configurations working
+- [x] **Container Environment Configuration** - Evidence: `${DOT_AI_IMAGE}`, `${QDRANT_IMAGE}` variables working
+- [x] **Kubernetes Integration** - Evidence: `KUBECONFIG` mounting and host networking for KinD clusters
+- [x] **CLI Tool Management** - Evidence: kubectl installed in both production and development containers
+
+**Technical Problem Solving**:
+- ✅ **Qdrant Health Check Issue**: Fixed using bash TCP approach instead of curl dependency
+- ✅ **MCP Protocol Communication**: Resolved log prefix pollution with `docker compose run` approach
+- ✅ **Container Lifecycle Management**: Implemented `--remove-orphans` for proper cleanup
+- ✅ **KinD Cluster Connectivity**: Added `network_mode: "host"` for localhost cluster access
+- ✅ **Missing Runtime Dependencies**: Added kubectl to containers, confirmed no other CLIs needed
+- ✅ **Development Build Process**: Created proper multi-stage build mirroring npm package structure
+
+**Enhanced Infrastructure**:
+- [x] **Version Tool Enhancement** - Evidence: `src/tools/version.ts:getKubernetesStatus()` with cluster connectivity checking
+- [x] **Docker Build Context Optimization** - Evidence: `.dockerignore` preventing KinD storage issues
+- [x] **Container Architecture Alignment** - Evidence: Both dev and production images have identical CLI tools
+
+**Validated Strategic Decisions**:
+- ✅ **Docker Compose Simplification**: Removing production complexity improved development usability
+- ✅ **Gordon MCP Rejection**: Focus on Kubernetes practitioners confirmed as correct approach
+- ✅ **Standard Environment Variables**: `KUBECONFIG` pattern works seamlessly across environments
+- ✅ **Docker as Primary Method**: Container approach superior to npx for target users
+
+**Next Phase Priorities**:
+- 📝 **Documentation Creation**: Docker deployment guide, README updates, mcp-setup restructuring
+- 🔬 **Kubernetes Research**: Evaluate deployment patterns (Toolhive, native manifests, operators)
+- ⚙️ **Examples Repository**: Create working examples in `examples/deployments/`
 
 #### 2025-01-16: Milestone 1 Implementation Complete - Docker Deployment Working
 **Duration**: ~6 hours (across implementation session)
@@ -448,7 +517,8 @@ spec:
 
 ---
 
-**Implementation Status**: Not Started  
+**Implementation Status**: Phase 1 Complete - Docker Infrastructure Working ✅  
+**Current Phase**: Phase 1 Documentation + Phase 2 Kubernetes Research  
 **Priority**: High  
 **Dependencies**: Docker images already exist, CI/CD pipeline already builds images  
-**Owner**: TBD
+**Owner**: Implementation Team

@@ -5,7 +5,8 @@
       "args": [
         "compose", 
         "run", 
-        "--rm", 
+        "--rm",
+        "--remove-orphans",
         "dot-ai"
       ]
     }

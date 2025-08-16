@@ -4,7 +4,8 @@
       "command": "docker",
       "args": [
         "compose", 
-        "run", 
+        "-f", "docker-compose.dev.yml",
+        "run",
         "--rm",
         "--remove-orphans",
         "dot-ai"

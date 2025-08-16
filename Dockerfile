@@ -1,7 +1,20 @@
 FROM node:20
 
+# Build argument for package version
+ARG PACKAGE_VERSION=latest
+
+# Install kubectl (required for Kubernetes operations)
+RUN apt-get update && \
+    apt-get install -y curl && \
+    ARCH=$(dpkg --print-architecture) && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/ && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install dot-ai globally
-RUN npm install -g @vfarcic/dot-ai@latest
+RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
 
 # Set working directory
 WORKDIR /app
