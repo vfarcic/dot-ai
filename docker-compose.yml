@@ -1,0 +1,46 @@
+# Docker Compose configuration for DevOps AI Toolkit MCP Server
+# Development and testing deployment with MCP server + Qdrant
+
+services:
+  # DevOps AI Toolkit MCP Server
+  dot-ai:
+    image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
+    container_name: dot-ai
+    environment:
+      # Required: Anthropic API key for AI analysis
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Qdrant connection
+      QDRANT_URL: http://qdrant:6333
+      # Optional: OpenAI API key for enhanced semantic search
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Kubernetes configuration
+      KUBECONFIG: /root/.kube/config
+    volumes:
+      # Mount kubeconfig - uses standard KUBECONFIG environment variable
+      - ${KUBECONFIG:-~/.kube/config}:/root/.kube/config:ro
+    depends_on:
+      - qdrant
+    networks:
+      - dot-ai-network
+
+  # Qdrant Vector Database
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
+    container_name: qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - dot-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  qdrant_data:
+
+networks:
+  dot-ai-network:

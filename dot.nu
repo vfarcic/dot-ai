@@ -26,6 +26,7 @@ def "main setup" [--qdrant-tag: string = "latest"] {
         $openai_key = $value
     }
     $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
+    $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant\n" | save --append .env
 
     (
         docker container run --detach --name qdrant
