@@ -33,6 +33,8 @@ Implement comprehensive containerization and Kubernetes deployment support throu
 
 ### Technical Success
 - [ ] Docker Compose setup working with MCP + Qdrant in <5 minutes
+- [ ] Docker Desktop one-click deployment integration
+- [ ] Docker MCP Catalog submission approved and listed
 - [ ] Kubernetes deployment successful across chosen orchestration patterns
 - [ ] Helm chart automated build and deployment via CI/CD
 - [ ] All deployment methods documented with working examples
@@ -57,6 +59,8 @@ Implement comprehensive containerization and Kubernetes deployment support throu
 **Docker Deployment Scenarios:**
 - **Single Container**: MCP server only (external Qdrant)
 - **Docker Compose**: MCP + Qdrant together
+- **Docker Desktop Integration**: One-click deployment via Docker MCP Catalog
+- **Gordon MCP Format**: `gordon-mcp.yml` configuration pattern alignment
 - **Development Setup**: Hot-reload and debugging support
 - **Production Setup**: Multi-stage builds, security hardening
 
@@ -66,6 +70,12 @@ Implement comprehensive containerization and Kubernetes deployment support throu
 - Qdrant container with persistent storage
 - Network configuration for service discovery
 - Volume mounts for session persistence and configuration
+
+**File:** `gordon-mcp.yml` (new)
+- Docker's official MCP configuration format
+- Aligned with Docker MCP Catalog patterns
+- Docker Desktop integration compatibility
+- Simplified deployment configuration
 
 **File:** `docker-compose.dev.yml` (new)
 - Development-focused overrides
@@ -197,6 +207,9 @@ examples/deployments/
 **Deliverables:**
 - [ ] `docs/docker-deployment-guide.md` with comprehensive Docker deployment instructions
 - [ ] Docker Compose configurations for development and production
+- [ ] `gordon-mcp.yml` configuration aligned with Docker's official MCP patterns
+- [ ] Docker Desktop integration documentation and testing
+- [ ] Docker MCP Catalog submission preparation
 - [ ] Updated `README.md` with Docker deployment overview
 - [ ] Working examples in `examples/deployments/docker/`
 
@@ -269,6 +282,21 @@ examples/deployments/
 - [ ] Documentation feedback indicates improved setup experience
 - [ ] GitHub issues related to deployment complexity are resolved
 - [ ] Community adoption of containerized deployment methods
+
+## Decision Log
+
+### Decision: Integrate with Docker's Official MCP Ecosystem
+**Date**: 2025-01-16  
+**Decision**: Align Docker deployment approach with Docker's official MCP Catalog and Toolkit patterns  
+**Rationale**: Docker provides official MCP support through MCP Catalog (100+ verified servers) and MCP Toolkit (one-click deployment). This provides enterprise validation, broader discoverability, and simplified user experience.  
+**Impact**: 
+- **Requirements**: Added Docker Desktop integration and Docker MCP Catalog submission
+- **Implementation**: Added `gordon-mcp.yml` configuration and Docker Desktop documentation
+- **Code**: No MCP server code changes required - existing implementation compatible
+- **Timeline**: Minimal impact - leverages existing Docker approach
+- **Risk**: Low - additive improvements with fallback to standard Docker Compose
+
+**Owner**: Implementation Team
 
 ## Risk Assessment
 
