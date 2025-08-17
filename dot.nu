@@ -9,7 +9,10 @@ source scripts/anthropic.nu
 
 def main [] {}
 
-def "main setup" [--qdrant-tag: string = "latest"] {
+def "main setup" [
+    --dot-ai-tag: string = "latest",
+    --qdrant-tag: string = "latest"
+] {
     
     rm --force .env
 
@@ -25,7 +28,8 @@ def "main setup" [--qdrant-tag: string = "latest"] {
         $openai_key = $value
     }
     $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
-    $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant\n" | save --append .env
+    $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)\n" | save --append .env
+    $"export DOT_AI_IMAGE=ghcr.io/vfarcic/dot-ai:($dot_ai_tag)\n" | save --append .env
 
     main create kubernetes kind
 
