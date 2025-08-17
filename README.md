@@ -118,58 +118,60 @@ DevOps AI Toolkit is designed to be used through AI development tools via MCP (M
 
 ### Usage
 
-**AI Agent Integration (Claude Code Example)**
-Perfect for conversational AI-driven workflows:
+**🎯 Recommended: Docker Setup (Complete Stack)**
+Perfect for getting all features working immediately with minimal setup:
 
-1. **Create `.mcp.json` in your project:**
-<!-- dotai-ignore: MCP server binary (dot-ai-mcp) only works through MCP client connections -->
-```json
+1. **Download Docker Compose configuration:**
+```bash
+curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot-ai/main/docker-compose-dot-ai.yaml
+```
+
+2. **Set environment variables and create MCP configuration:**
+```bash
+# Set your API keys
+export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
+export OPENAI_API_KEY="sk-proj-your-openai-key-here"
+
+# Create MCP configuration for Claude Code
+cat > .mcp.json << 'EOF'
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npx",
-      "args": ["-y", "--package=@vfarcic/dot-ai@latest", "dot-ai-mcp"],
-      "env": {
-        "ANTHROPIC_API_KEY": "your_key_here",
-        "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "KUBECONFIG": "~/.kube/config",
-        "QDRANT_URL": "https://your-cluster.qdrant.io",
-        "QDRANT_API_KEY": "your_qdrant_key",
-        "OPENAI_API_KEY": "sk-proj-your_openai_key"
-      }
+      "command": "docker",
+      "args": [
+        "compose", 
+        "-f",
+        "docker-compose-dot-ai.yaml",
+        "--env-file",
+        ".env",
+        "run", 
+        "--rm",
+        "--remove-orphans",
+        "dot-ai"
+      ]
     }
   }
 }
+EOF
 ```
 
-**Note**: Replace all placeholder values (like `your_key_here`, `your-cluster.qdrant.io`) with your actual API keys and service URLs.
+**What you get:**
+- ✅ **Complete Stack**: MCP server + Qdrant vector database included
+- ✅ **All Features Working**: Capability management, pattern storage, semantic search
+- ✅ **No External Dependencies**: Everything runs in containers
+- ✅ **Kubernetes Integration**: Direct kubectl access to your clusters
 
-**Environment Variable Setup**: You can set these variables either:
-- **In the `.mcp.json` file** (as shown above in the `env` section), OR  
-- **As shell environment variables** (e.g., `export ANTHROPIC_API_KEY=your_key_here`), OR
-- **A combination of both** (shell variables take precedence)
+**Alternative Methods**: See the [MCP Setup Guide](docs/mcp-setup.md) for NPX (Node.js) and Development setup options.
 
-**Environment Variables:**
-- `ANTHROPIC_API_KEY`: Required for AI analysis (Kubernetes deployments, documentation testing, pattern management). Not required for shared prompts library.
-- `DOT_AI_SESSION_DIR`: Required session directory (relative paths are relative to where the AI agent is started)
-- `KUBECONFIG`: Optional kubeconfig path for Kubernetes deployments (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
-- `QDRANT_URL`: Required for pattern management - Vector DB endpoint
-- `QDRANT_API_KEY`: Required for pattern management - Vector DB authentication  
-- `OPENAI_API_KEY`: Required for semantic search operations (capability management, pattern management, enhanced recommendations)
-
-2. **Start Claude Code with MCP enabled:**
+3. **Start your MCP client:**
 ```bash
-# Create session directory (relative to the project)
-mkdir -p tmp/sessions
+claude  # or your preferred MCP-enabled AI tool
 
-claude
-
-# Verify MCP server connection by running `/mcp` command
-# Example: type `/mcp` in Claude Code to see server status
-# Expected output shows "dot-ai" server connected with available tools
+# Verify everything works by asking:
+"Show dot-ai status"
 ```
 
-3. **Use conversational workflows:**
+4. **Use conversational workflows:**
 
 **Example: Kubernetes Deployment**
 ```

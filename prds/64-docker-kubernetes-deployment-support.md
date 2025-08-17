@@ -234,7 +234,7 @@ examples/deployments/
 - [x] **Tools and Features Overview Created** - Comprehensive `docs/mcp-tools-overview.md` serving as navigation hub for all available tools
 - [x] **Documentation Cross-References Updated** - All setup guides and tool guides updated with consistent "See Also" sections
 - [x] **Version References Corrected** - Fixed version pinning examples with actual published versions and added helpful links
-- [ ] Updated `README.md` with Docker deployment overview
+- [x] Updated `README.md` with Docker deployment overview
 - [x] Restructured `docs/mcp-setup.md` as hub with method comparison and Docker as recommended method
 - [x] All individual setup method guides created and linked from hub (3/3 complete: Docker ✅, NPX ✅, Development ✅)
 - [ ] Working examples in `examples/deployments/docker/`
@@ -758,9 +758,34 @@ examples/deployments/
 - Primary diagnostic approach established (`"Show dot-ai status"` as first troubleshooting step)
 
 **Next Session Priorities**:
-- **HIGH PRIORITY**: Update main README.md with Docker deployment overview
 - Create working examples in `examples/deployments/docker/` directory
 - Begin Kubernetes deployment research (Milestone 2)
+
+#### 2025-08-17: README Docker-First Update and Milestone 1 Near-Completion
+**Duration**: ~1 hour (README restructuring and PRD updates)
+**Commits**: Implementation in progress (1 modified file)
+**Primary Focus**: Align main README with established Docker-first documentation architecture
+
+**Completed PRD Items**:
+- [x] Updated README.md with Docker deployment overview - Evidence: Usage section completely restructured to lead with Docker Compose as recommended method
+
+**Implementation Details**:
+- Replaced NPX-first Usage section with Docker Compose as primary example
+- Simplified setup from complex environment variable management to 2-command setup (curl + configure)
+- Added clear value proposition (complete stack, all features working, no external dependencies)
+- Maintained conversational workflow examples but updated initial setup approach
+- Added reference to MCP Setup Guide for alternative methods (NPX, Development)
+
+**Documentation Architecture Alignment**:
+- README now matches established Docker-as-recommended strategy from setup guides
+- Consistent messaging across all documentation (hub guide, individual setup guides, main README)
+- Users get best first experience with complete working stack rather than manual Qdrant setup
+
+**Milestone 1 Status Update**:
+- **Overall Progress**: 90% complete (only examples directory remaining)
+- **Documentation Foundation**: Complete ✅ (all guides created, README updated, cross-references aligned)
+- **Implementation Infrastructure**: Complete ✅ (Docker Compose, MCP configurations, environment patterns)
+- **Ready for Milestone 2**: Kubernetes deployment research can begin
 
 ## Risk Assessment
 
