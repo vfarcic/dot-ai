@@ -169,6 +169,9 @@ prompts/                 # AI prompt templates
 - **Run tests**: `npm test`
 - **Build**: `npm run build`
 
+**Git Commit Guidelines:**
+- **Skip CI**: When user requests to skip CI, avoid triggering CI, or mentions bypassing CI/builds, automatically add `[skip ci]` to the commit message to prevent GitHub Actions from running
+
 ### Environment Setup
 
 ```bash
