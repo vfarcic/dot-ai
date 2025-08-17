@@ -84,6 +84,12 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 
 **Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.
 
+## See It In Action
+
+[![DevOps AI Toolkit: AI-Powered Application Deployment](https://img.youtube.com/vi/8Yzn-9qQpQI/maxresdefault.jpg)](https://youtu.be/8Yzn-9qQpQI)
+
+This video explains the platform engineering problem and demonstrates the Kubernetes deployment recommendation workflow from intent to running applications.
+
 ## Quick Start
 
 ### Prerequisites
