@@ -206,9 +206,16 @@ examples/deployments/
 
 ### Milestone 1: Enhanced Docker Documentation and Examples
 **Timeline:** 2 weeks  
-**Status:** 🟢 Implementation Complete - Documentation Pending
+**Status:** 🟢 Implementation Complete - Documentation Architecture Foundation Complete
 **Deliverables:**
-- [ ] `docs/docker-deployment-guide.md` with comprehensive Docker deployment instructions
+- [x] **Documentation Architecture Design** - Hub-and-spoke pattern implemented with `docs/setup/` directory structure
+- [x] **Method Comparison Framework** - Comprehensive decision tree and comparison table completed  
+- [x] **Docker Positioning Strategy** - Docker correctly positioned as recommended method (not quick trial)
+- [x] **Setup Approach Simplification** - Removed dev Docker complexity, clarified to 3 methods (NPX, Docker, Development)
+- [ ] **Individual Setup Guides Creation** (following established documentation patterns):
+  - [x] `docs/setup/docker-setup.md` - Comprehensive Docker deployment guide (pattern established)
+  - [ ] `docs/setup/npx-setup.md` - NPX setup guide (apply Docker patterns)
+  - [ ] `docs/setup/development-setup.md` - Development setup guide (apply Docker patterns)
 - [x] Docker Compose configurations for development and production
 - [x] MCP client connection configuration (`.mcp-docker.json`) with container lifecycle management
 - [x] Configurable Docker images via environment variables
@@ -225,7 +232,8 @@ examples/deployments/
   - [ ] **MCP.so Community Platform** (Community engagement)
     - [ ] Submit via platform form or GitHub issue
 - [ ] Updated `README.md` with Docker deployment overview
-- [ ] Restructured `docs/mcp-setup.md` to make Docker primary deployment method
+- [x] Restructured `docs/mcp-setup.md` as hub with method comparison and Docker as recommended method
+- [ ] All individual setup method guides created and linked from hub
 - [ ] Working examples in `examples/deployments/docker/`
 
 ### Milestone 2: Kubernetes Deployment Research and Decision
@@ -433,6 +441,80 @@ examples/deployments/
 
 **Owner**: Implementation Team
 
+### Decision: Hub-and-Spoke Documentation Architecture Pattern
+**Date**: 2025-08-17  
+**Decision**: Establish centralized hub documentation pattern with method-specific spokes for all setup documentation  
+**Rationale**: Docker setup documentation revealed that duplicating common concepts (environment variables, troubleshooting, security) across method guides creates maintenance overhead and inconsistent user experience. Hub-and-spoke pattern provides single source of truth for shared concepts while allowing method-specific details.  
+**Impact**:
+- **Architecture**: `docs/mcp-setup.md` as hub, `docs/setup/[method]-setup.md` as spokes
+- **Content Strategy**: Shared concepts (env vars, troubleshooting, security) centralized in hub
+- **Method Guides**: Focus purely on method-specific setup steps and configurations
+- **Maintenance**: Single update point for shared concepts, reduced duplication
+- **User Experience**: Consistent guidance with clear method-specific instructions
+- **Applied To**: All setup methods (NPX, Docker, Development) must follow this pattern
+
+**Code Impact**: Documentation structure standardized across all setup methods
+**Owner**: Implementation Team
+
+### Decision: Environment Variable Management Centralization
+**Date**: 2025-08-17  
+**Decision**: Centralize generic `.env` file concepts and security practices in hub, keep only method-specific variables in individual setup guides  
+**Rationale**: Environment variable management is universal across all setup methods. Docker guide initially duplicated `.env` creation, security practices, and usage patterns that apply equally to NPX and development setups. Centralization eliminates duplication and ensures consistency.  
+**Impact**:
+- **Hub Content**: Generic `.env` creation, security best practices, usage patterns
+- **Method-Specific Content**: Only variables unique to that setup method (e.g., Docker image names)
+- **Reference Pattern**: Individual guides reference hub for general `.env` guidance
+- **Consistency**: All setup methods use same environment variable security practices
+- **Applied To**: NPX and development setup guides must follow this centralization pattern
+
+**Code Impact**: Documentation references standardized for environment variable management
+**Owner**: Implementation Team
+
+### Decision: MCP Client Workflow-Focused Documentation
+**Date**: 2025-08-17  
+**Decision**: Eliminate manual commands that users won't run in actual MCP client workflow from all setup documentation  
+**Rationale**: Docker documentation initially included manual Docker Compose commands (service management, health checks, performance monitoring) that users never run because MCP clients handle container lifecycle automatically. This pattern applies to all setup methods.  
+**Impact**:
+- **Content Focus**: Document only commands users actually run in MCP workflow
+- **Elimination Strategy**: Remove manual service management, debugging, and diagnostic commands
+- **MCP Client Integration**: Focus on MCP configuration and client-based diagnostics (`"Show dot-ai status"`)
+- **Applied To**: NPX setup should not include manual npm/node commands users won't run
+- **Applied To**: Development setup should focus on contributor workflow, not user workflow
+- **User Experience**: Documentation matches actual usage patterns
+
+**Code Impact**: All setup guides must align with MCP client interaction patterns
+**Owner**: Implementation Team
+
+### Decision: Centralized Troubleshooting with Status Tool Priority
+**Date**: 2025-08-17  
+**Decision**: Establish `"Show dot-ai status"` as primary diagnostic approach across all setup methods, centralize generic troubleshooting in hub  
+**Rationale**: Docker documentation initially duplicated troubleshooting guidance that applies universally (connection issues, environment variables, basic diagnostics). The version tool provides comprehensive diagnostics that work regardless of setup method.  
+**Impact**:
+- **Primary Diagnostic**: `"Show dot-ai status"` command established as first troubleshooting step
+- **Hub Troubleshooting**: Generic issues (API keys, connectivity) documented centrally
+- **Method-Specific**: Only setup-method-specific issues documented in individual guides
+- **Tool Integration**: Version tool provides consistent diagnostics across all deployment methods
+- **Applied To**: NPX and development guides should reference hub troubleshooting
+- **User Experience**: Consistent diagnostic approach regardless of setup method
+
+**Code Impact**: Troubleshooting approach standardized across all documentation
+**Owner**: Implementation Team
+
+### Decision: Content Deduplication and Reference Strategy
+**Date**: 2025-08-17  
+**Decision**: Establish strict deduplication strategy where individual setup guides reference hub content instead of repeating information  
+**Rationale**: Docker guide initially repeated MCP client configuration, Next Steps, Security Considerations, and other content already covered elsewhere. This creates maintenance overhead and version drift between duplicated sections.  
+**Impact**:
+- **Reference Pattern**: "See [Section](../hub-guide.md#section)" instead of content duplication
+- **Hub Expansion**: Hub contains all shared concepts (security, next steps, client integration)
+- **Method Focus**: Individual guides focus purely on setup mechanics specific to that method
+- **Maintenance Efficiency**: Single update point for shared concepts
+- **Applied To**: NPX and development guides must follow same reference strategy
+- **Quality Control**: No content should appear in multiple places unless method-specific
+
+**Code Impact**: Documentation cross-referencing standardized to prevent duplication
+**Owner**: Implementation Team
+
 ### Work Log
 
 #### 2025-01-16: Docker Infrastructure Implementation Complete
@@ -537,6 +619,31 @@ examples/deployments/
 - Continue with Docker-first documentation creation (Milestone 1)
 - Begin Kubernetes deployment pattern research (Milestone 2)
 
+#### 2025-08-16: Documentation Architecture Foundation and Hub Restructuring
+**Duration**: ~3 hours (documentation restructuring and architecture decisions)
+**Commits**: Documentation architecture improvements with hub-and-spoke pattern
+**Primary Focus**: Complete documentation structure overhaul and method positioning
+
+**Documentation Architecture Achievements**:
+- [x] **Hub-and-Spoke Pattern Implemented** - Evidence: `docs/mcp-setup.md` restructured as central hub with method comparison
+- [x] **Method Comparison Framework** - Evidence: Comprehensive decision tree and comparison table completed
+- [x] **Docker Positioning Corrected** - Evidence: Docker positioned as recommended method (not "quick trial")
+- [x] **Setup Approach Simplified** - Evidence: Removed `docker-compose.dev.yml` and `.mcp-dev.json`, clarified 3 methods
+- [x] **Requirements Clarification** - Evidence: Qdrant positioned as required (not "advanced"), version tool as primary diagnostic
+
+**Strategic Decisions Validated**:
+- ✅ **Docker as Primary Method**: Positioned as recommended due to complete stack inclusion (Qdrant bundled)
+- ✅ **Hub Documentation Pattern**: Central setup guide linking to method-specific detailed guides
+- ✅ **Diagnostic-First Troubleshooting**: Version tool replaces generic troubleshooting documentation
+- ✅ **MCP Client Agnostic**: Documentation clarified to work with any MCP client, not just Claude Code
+
+**Critical Architecture Decision**: Documentation split into hub (method selection) + spokes (detailed setup) for better user experience and maintainability.
+
+**Next Session Priorities**:
+- **HIGH PRIORITY**: Create all individual setup guides (`docs/setup/docker-setup.md`, `npx-setup.md`, `development-setup.md`)
+- Create Docker examples directory (`examples/deployments/docker/`)
+- Update README.md with new documentation structure
+
 #### 2025-08-16: Docker Infrastructure Completion and Scope Refinement
 **Duration**: ~4 hours (Docker MCP Catalog research, testing, and strategic scope refinement)
 **Commits**: 1 commit (PRD updates and strategic decisions)
@@ -566,6 +673,44 @@ examples/deployments/
 - Update `README.md` with Docker deployment overview
 - Restructure `docs/mcp-setup.md` to make Docker primary deployment method
 - Create working examples in `examples/deployments/docker/`
+
+#### 2025-08-17: Documentation Pattern Establishment and Docker Setup Guide Completion
+**Duration**: ~3 hours (documentation pattern refinement and content optimization)
+**Commits**: 1 commit (Docker setup guide completion and pattern establishment)
+**Primary Focus**: Establish reusable documentation patterns and complete Docker setup guide
+
+**Documentation Pattern Achievements**:
+- [x] **Hub-and-Spoke Architecture Validated** - Evidence: Docker setup guide follows centralized pattern
+- [x] **Environment Variable Centralization** - Evidence: Generic `.env` concepts moved to hub, Docker-specific variables kept in guide
+- [x] **MCP Client Workflow Alignment** - Evidence: Removed all manual Docker commands users don't run
+- [x] **Troubleshooting Centralization** - Evidence: Generic troubleshooting referenced from hub
+- [x] **Content Deduplication Strategy** - Evidence: Eliminated repeated security, next steps, and integration content
+
+**Strategic Pattern Establishment**:
+- ✅ **Workflow-Focused Documentation**: Only document commands users actually run in MCP workflow
+- ✅ **Reference Over Repetition**: Link to hub content instead of duplicating information
+- ✅ **Method-Specific Focus**: Individual guides cover only setup mechanics unique to that method
+- ✅ **Centralized Shared Concepts**: Environment variables, troubleshooting, security in hub
+- ✅ **Primary Diagnostic Approach**: `"Show dot-ai status"` established as first troubleshooting step
+
+**Docker Setup Guide Completion**:
+- ✅ **Clean Architecture**: Quick Start → Configuration Reference → Advanced Configuration → References
+- ✅ **MCP Integration**: Proper `--env-file .env` configuration for automatic environment loading
+- ✅ **External Qdrant Support**: Clear instructions for removing bundled Qdrant and using external
+- ✅ **Container Lifecycle Management**: MCP client handles all Docker operations automatically
+
+**Established Patterns for NPX and Development Guides**:
+- **Environment Variables**: Reference hub for `.env` concepts, document method-specific variables only
+- **Troubleshooting**: Reference hub troubleshooting, document method-specific issues only
+- **Security**: Reference hub security practices, document method-specific security considerations only
+- **Client Integration**: Reference hub MCP client integration, show method-specific configuration only
+- **Content Strategy**: Focus on setup mechanics, eliminate manual commands users won't run
+
+**Next Session Priorities**:
+- **HIGH PRIORITY**: Create NPX setup guide following established Docker patterns
+- **HIGH PRIORITY**: Create development setup guide following established Docker patterns
+- Update `README.md` with new documentation structure
+- Create `examples/deployments/` directory structure
 
 ## Risk Assessment
 
