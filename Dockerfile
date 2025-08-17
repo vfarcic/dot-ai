@@ -1,4 +1,4 @@
-FROM node:20
+FROM node:20-slim
 
 # Build argument for package version
 ARG PACKAGE_VERSION=latest
