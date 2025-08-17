@@ -42,7 +42,7 @@ Choose the method that best fits your environment and workflow:
 
 **🛠️ Development work** → [Development Setup](setup/development-setup.md) - Source code access and fast iteration
 
-**🏗️ Production deployment** → Kubernetes Setup (coming in future release)
+**🏗️ Production deployment** → Use Docker with external orchestration
 
 ## Configuration Overview
 
@@ -196,7 +196,7 @@ Once your MCP server is running:
 - **[Tools and Features Overview](mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
 
 ### 2. Production Considerations
-- For production workloads, plan for Kubernetes-based deployment (coming in future release)
+- For production workloads, plan for Docker deployment with external orchestration
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
 
 ## Support

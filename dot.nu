@@ -6,7 +6,6 @@ source scripts/crossplane.nu
 source scripts/ingress.nu
 source scripts/mcp.nu
 source scripts/anthropic.nu
-source scripts/toolhive.nu
 
 def main [] {}
 
@@ -39,14 +38,6 @@ def "main setup" [--qdrant-tag: string = "latest"] {
     kubectl create namespace a-team
 
     kubectl create namespace b-team
-
-    main apply toolhive
-
-    # (
-    #     main apply mcp --location [".mcp.json"]
-    #         --enable-dot-ai true
-    #         --kubeconfig "./kubeconfig.yaml"
-    # )
 
     main print source
 

@@ -13,7 +13,7 @@
 ❌ **Consider alternatives for:**
 - Full-featured setup out-of-the-box (use [Docker](docker-setup.md) - includes Qdrant automatically)
 - Local development and testing (use [Docker](docker-setup.md) for complete isolation)
-- Production deployments (use Kubernetes - coming soon)
+- Production deployments (use Docker with external orchestration)
 
 → See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
 

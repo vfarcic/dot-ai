@@ -12,7 +12,7 @@
 
 ❌ **Consider alternatives for:**
 - Using the toolkit as an MCP server (use [Docker](docker-setup.md) or [NPX](npx-setup.md))
-- Production environments (use Kubernetes - coming soon)
+- Production environments (use Docker with external orchestration)
 - Quick evaluations (use [Docker](docker-setup.md) for complete setup)
 
 → See [other setup methods](../mcp-setup.md#setup-methods) for alternatives

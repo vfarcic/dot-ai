@@ -11,7 +11,7 @@
 - Users who want everything working without external dependencies
 
 ❌ **Consider alternatives for:**
-- Company-wide or centralized deployments (use Kubernetes - coming soon)
+- Company-wide or centralized deployments (use Docker with external orchestration)
 - Environments without Docker
 
 → See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
