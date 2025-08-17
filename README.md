@@ -58,7 +58,7 @@ AI: Gets pre-filtered relevant resources with rich context
 Result: Finds sqls.devopstoolkit.live as perfect match ✨
 ```
 
-**Get Started**: See the [Capability Management Guide](./docs/mcp-capability-management-guide.md) for complete workflows including cluster scanning, capability search, and recommendation enhancement.
+**Get Started**: See the [Tools and Features Overview](./docs/mcp-tools-overview.md) for complete guide to all available tools including capability management, deployment recommendations, and workflow integration.
 
 ### Documentation Testing & Validation
 📖 **Automated Testing**: Validates documentation by executing commands and testing examples  
@@ -109,7 +109,7 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **OpenAI API key** (optional) for semantic pattern matching - falls back to keyword matching if not available
+- **OpenAI API key** (required) for semantic pattern matching and vector operations
 - See the [Pattern Management Guide](./docs/pattern-management-guide.md) for complete setup
 
 ### Installation
@@ -155,7 +155,7 @@ Perfect for conversational AI-driven workflows:
 - `KUBECONFIG`: Optional kubeconfig path for Kubernetes deployments (adjust to your actual kubeconfig location, defaults to `~/.kube/config`)
 - `QDRANT_URL`: Required for pattern management - Vector DB endpoint
 - `QDRANT_API_KEY`: Required for pattern management - Vector DB authentication  
-- `OPENAI_API_KEY`: Optional for semantic pattern matching - enables enhanced pattern search
+- `OPENAI_API_KEY`: Required for semantic search operations (capability management, pattern management, enhanced recommendations)
 
 2. **Start Claude Code with MCP enabled:**
 ```bash
@@ -271,10 +271,8 @@ Agent: I'm executing the PRD creation workflow. Please describe the feature you 
 ## Documentation
 
 ### 🚀 Getting Started
-- **[MCP Setup Guide](docs/mcp-setup.md)** - AI tools integration (Claude Code, Cursor)
-- **[MCP Recommendation Guide](docs/mcp-recommendation-guide.md)** - Kubernetes deployment recommendations  
-- **[MCP Documentation Testing Guide](docs/mcp-documentation-testing-guide.md)** - Automated documentation validation
-- **[MCP Prompts Guide](docs/mcp-prompts-guide.md)** - Shared prompt library and slash commands
+- **[MCP Setup Guide](docs/mcp-setup.md)** - Complete configuration instructions for AI tools integration
+- **[Tools and Features Overview](docs/mcp-tools-overview.md)** - Comprehensive guide to all available tools and features
 
 ## Support
 

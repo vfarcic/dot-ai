@@ -50,7 +50,7 @@ export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
 
 # Optional: Custom Docker images and ports (defaults shown)
-export DOT_AI_IMAGE="ghcr.io/vfarcic/dot-ai:0.1.4"
+export DOT_AI_IMAGE="ghcr.io/vfarcic/dot-ai:0.68.0"  # See available versions: https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai
 export QDRANT_IMAGE="qdrant/qdrant:v1.7.4"  
 export QDRANT_PORT="6333"
 
@@ -187,4 +187,4 @@ Once your Docker setup is complete, see the [Next Steps section](../mcp-setup.md
 - [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
 - [NPX Setup](npx-setup.md) - Alternative setup without Docker
 - [Development Setup](development-setup.md) - For toolkit development
-- [Capability Management Guide](../mcp-capability-management-guide.md) - Advanced feature usage
+- [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools

@@ -309,3 +309,8 @@ Your prompt instructions go here...
 - **Cause**: Agent-specific MCP implementation differences
 - **Solution**: Check agent-specific compatibility notes above
 - **Alternative**: Use a fully compatible agent for prompt-heavy workflows
+
+## See Also
+
+- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features

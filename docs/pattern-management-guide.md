@@ -683,6 +683,11 @@ A: The system is tested with 100+ patterns. Qdrant can scale to much larger volu
 **Documentation**: Complete guides available in `docs/` directory  
 **Issues**: Report bugs and feature requests at [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
 
+## See Also
+
+- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
+
 ---
 
 <!-- dotai-test-hint: Clean up Qdrant container after testing: docker stop qdrant-testing && docker rm qdrant-testing -->

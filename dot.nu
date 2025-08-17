@@ -28,12 +28,6 @@ def "main setup" [--qdrant-tag: string = "latest"] {
     $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
     $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant\n" | save --append .env
 
-    (
-        docker container run --detach --name qdrant
-            --publish 6333:6333
-            $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
-    )
-
     main create kubernetes kind
 
     cp kubeconfig-dot.yaml kubeconfig.yaml

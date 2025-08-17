@@ -214,7 +214,7 @@ examples/deployments/
 - [x] **Setup Approach Simplification** - Removed dev Docker complexity, clarified to 3 methods (NPX, Docker, Development)
 - [ ] **Individual Setup Guides Creation** (following established documentation patterns):
   - [x] `docs/setup/docker-setup.md` - Comprehensive Docker deployment guide (pattern established)
-  - [ ] `docs/setup/npx-setup.md` - NPX setup guide (apply Docker patterns)
+  - [x] `docs/setup/npx-setup.md` - Complete NPX setup guide following Docker patterns
   - [ ] `docs/setup/development-setup.md` - Development setup guide (apply Docker patterns)
 - [x] Docker Compose configurations for development and production
 - [x] MCP client connection configuration (`.mcp-docker.json`) with container lifecycle management
@@ -231,9 +231,12 @@ examples/deployments/
     - [ ] Submit via online form for directory inclusion
   - [ ] **MCP.so Community Platform** (Community engagement)
     - [ ] Submit via platform form or GitHub issue
+- [x] **Tools and Features Overview Created** - Comprehensive `docs/mcp-tools-overview.md` serving as navigation hub for all available tools
+- [x] **Documentation Cross-References Updated** - All setup guides and tool guides updated with consistent "See Also" sections
+- [x] **Version References Corrected** - Fixed version pinning examples with actual published versions and added helpful links
 - [ ] Updated `README.md` with Docker deployment overview
 - [x] Restructured `docs/mcp-setup.md` as hub with method comparison and Docker as recommended method
-- [ ] All individual setup method guides created and linked from hub
+- [ ] All individual setup method guides created and linked from hub (2/3 complete: Docker ✅, NPX ✅, Development pending)
 - [ ] Working examples in `examples/deployments/docker/`
 
 ### Milestone 2: Kubernetes Deployment Research and Decision
@@ -294,6 +297,9 @@ examples/deployments/
 - [ ] Setup time reduced from 30+ minutes to <5 minutes for containerized deployments
 - [ ] Zero external dependencies (Node.js/npm) required for deployment
 - [ ] Complete troubleshooting guides for common deployment issues
+- [ ] **MCP Workflow Alignment**: All documentation follows actual user workflow (no manual server commands)
+- [ ] **Client-Centric Approach**: Documentation focuses on MCP client interaction patterns only
+- [ ] **Diagnostic Consistency**: Primary troubleshooting uses `"Show dot-ai status"` command
 
 ### Feature Completeness  
 - [ ] Docker Compose deployment working end-to-end
@@ -706,11 +712,28 @@ examples/deployments/
 - **Client Integration**: Reference hub MCP client integration, show method-specific configuration only
 - **Content Strategy**: Focus on setup mechanics, eliminate manual commands users won't run
 
+#### 2025-08-17: NPX Setup Guide and Documentation Architecture Completion
+**Duration**: ~3 hours (documentation creation and architecture refinement)
+**Primary Focus**: Complete NPX setup guide and establish comprehensive documentation navigation
+
+**Completed PRD Items**:
+- [x] NPX Setup Guide Created - Evidence: `docs/setup/npx-setup.md` with MCP configuration, environment variables, Qdrant integration
+- [x] Tools Overview Document - Evidence: `docs/mcp-tools-overview.md` serving as comprehensive tool index
+- [x] Documentation Cross-References - Evidence: Updated 9 documentation files with consistent "See Also" sections  
+- [x] Documentation Architecture - Evidence: Hub-and-spoke pattern, content deduplication, MCP workflow alignment
+- [x] Version References Corrected - Evidence: Fixed npm package and container image versions with helpful discovery links
+
+**Additional Work Done**:
+- Fixed OpenAI API key documentation inconsistencies (marked as required vs optional)
+- Corrected version pinning examples with actual published versions (0.69.0 npm, 0.68.0 container)
+- Added helpful links to npm packages and GitHub container registry for version discovery
+- Established reusable documentation patterns for future setup guides
+
 **Next Session Priorities**:
-- **HIGH PRIORITY**: Create NPX setup guide following established Docker patterns
 - **HIGH PRIORITY**: Create development setup guide following established Docker patterns
-- Update `README.md` with new documentation structure
+- Update `README.md` with Docker deployment overview  
 - Create `examples/deployments/` directory structure
+- Consider MCP registry publication strategy
 
 ## Risk Assessment
 

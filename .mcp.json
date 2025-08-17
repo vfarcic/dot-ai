@@ -1,15 +1,16 @@
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "node",
+      "command": "docker",
       "args": [
-        "./dist/mcp/server.js"
-      ],
-      "env": {
-        "KUBECONFIG": "./kubeconfig.yaml",
-        "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "QDRANT_URL": "http://localhost:6333"
-      }
+        "compose", 
+        "-f",
+        "docker-compose-dot-ai.yaml",
+        "run", 
+        "--rm",
+        "--remove-orphans",
+        "dot-ai"
+      ]
     }
   }
 }

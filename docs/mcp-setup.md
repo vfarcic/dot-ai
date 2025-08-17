@@ -192,12 +192,8 @@ This will show the status of all system components and help identify any problem
 
 Once your MCP server is running:
 
-### 1. Explore Feature Guides
-- **[Capability Management Guide](mcp-capability-management-guide.md)** - Semantic resource discovery (recommended first step for Kubernetes users)
-- **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - AI-powered deployment recommendations
-- **[Pattern Management Guide](pattern-management-guide.md)** - Organizational deployment patterns
-- **[Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation
-- **[Prompts Guide](mcp-prompts-guide.md)** - Shared prompt library and slash commands
+### 1. Explore Available Tools and Features
+- **[Tools and Features Overview](mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
 
 ### 2. Production Considerations
 - For production workloads, plan for Kubernetes-based deployment (coming in future release)
