@@ -9,9 +9,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { executeKubectl, ErrorClassifier } from '../core/kubernetes-utils';
 
 export const VERSION_TOOL_NAME = 'version';
-export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, and pattern management health check';
+export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, and pattern management health check';
 export const VERSION_TOOL_INPUT_SCHEMA = {};
 
 export interface VersionInfo {
@@ -41,6 +42,17 @@ export interface SystemStatus {
     connected: boolean;
     keyConfigured: boolean;
     error?: string;
+  };
+  kubernetes: {
+    connected: boolean;
+    clusterInfo?: {
+      endpoint?: string;
+      version?: string;
+      context?: string;
+    };
+    kubeconfig: string;
+    error?: string;
+    errorType?: string;
   };
   capabilities: {
     systemReady: boolean;
@@ -224,6 +236,66 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
 }
 
 /**
+ * Test Kubernetes cluster connectivity
+ */
+async function getKubernetesStatus(): Promise<SystemStatus['kubernetes']> {
+  const kubeconfig = process.env.KUBECONFIG || '~/.kube/config';
+  
+  try {
+    // Test basic connectivity with cluster-info
+    const clusterInfo = await executeKubectl(['cluster-info'], { 
+      kubeconfig: kubeconfig,
+      timeout: 10000 // 10 second timeout
+    });
+    
+    // Parse cluster info to extract endpoint
+    const endpointMatch = clusterInfo.match(/Kubernetes control plane is running at (https?:\/\/[^\s]+)/);
+    const endpoint = endpointMatch ? endpointMatch[1] : undefined;
+    
+    // Get current context
+    let context: string | undefined;
+    try {
+      context = await executeKubectl(['config', 'current-context'], { kubeconfig });
+    } catch (error) {
+      // Context retrieval is optional
+      context = undefined;
+    }
+    
+    // Get server version
+    let version: string | undefined;
+    try {
+      const versionInfo = await executeKubectl(['version', '--short'], { kubeconfig, timeout: 5000 });
+      const serverMatch = versionInfo.match(/Server Version: (.+)/);
+      version = serverMatch ? serverMatch[1] : undefined;
+    } catch (error) {
+      // Version retrieval is optional
+      version = undefined;
+    }
+    
+    return {
+      connected: true,
+      clusterInfo: {
+        endpoint,
+        version,
+        context
+      },
+      kubeconfig
+    };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const classified = ErrorClassifier.classifyError(error as Error);
+    
+    return {
+      connected: false,
+      kubeconfig,
+      error: errorMessage,
+      errorType: classified.type
+    };
+  }
+}
+
+/**
  * Test Anthropic API connectivity
  */
 async function getAnthropicStatus(): Promise<SystemStatus['anthropic']> {
@@ -300,10 +372,11 @@ export async function handleVersionTool(
     
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId });
-    const [vectorDBStatus, embeddingStatus, anthropicStatus, capabilityStatus] = await Promise.all([
+    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
       getAnthropicStatus(),
+      getKubernetesStatus(),
       getCapabilityStatus()
     ]);
     
@@ -312,6 +385,7 @@ export async function handleVersionTool(
       vectorDB: vectorDBStatus,
       embedding: embeddingStatus,
       anthropic: anthropicStatus,
+      kubernetes: kubernetesStatus,
       capabilities: capabilityStatus
     };
     
@@ -322,6 +396,7 @@ export async function handleVersionTool(
       vectorDBConnected: vectorDBStatus.connected,
       embeddingAvailable: embeddingStatus.available,
       anthropicConnected: anthropicStatus.connected,
+      kubernetesConnected: kubernetesStatus.connected,
       capabilitySystemReady: capabilityStatus.systemReady
     });
     
@@ -332,14 +407,16 @@ export async function handleVersionTool(
           status: 'success',
           system: systemStatus,
           summary: {
-            overall: vectorDBStatus.connected && anthropicStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
+            overall: vectorDBStatus.connected && anthropicStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
             patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
-            capabilityScanning: capabilityStatus.systemReady ? 'ready' : 'not-ready',
+            capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
+            kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
             capabilities: [
               vectorDBStatus.connected ? 'pattern-management' : null,
-              capabilityStatus.systemReady ? 'capability-scanning' : null,
+              capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
-              anthropicStatus.connected ? 'ai-recommendations' : null
+              anthropicStatus.connected ? 'ai-recommendations' : null,
+              kubernetesStatus.connected ? 'kubernetes-integration' : null
             ].filter(Boolean)
           },
           timestamp: new Date().toISOString()

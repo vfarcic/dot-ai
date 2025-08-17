@@ -1,9 +1,6 @@
 FROM node:20
 
-# Build argument for package version
-ARG PACKAGE_VERSION=latest
-
-# Install kubectl (required for Kubernetes operations)
+# Install kubectl and curl
 RUN apt-get update && \
     apt-get install -y curl && \
     ARCH=$(dpkg --print-architecture) && \
@@ -13,14 +10,25 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install dot-ai globally
-RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
-
 # Set working directory
 WORKDIR /app
 
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy built application
+COPY dist/ ./dist/
+COPY prompts/ ./prompts/
+COPY shared-prompts/ ./shared-prompts/
+
 # Create sessions directory
 RUN mkdir -p /app/sessions
+
+# Create symlink for the binary
+RUN ln -s /app/dist/mcp/server.js /usr/local/bin/dot-ai-mcp && chmod +x /usr/local/bin/dot-ai-mcp
 
 # Set default environment variables
 ENV DOT_AI_SESSION_DIR=/app/sessions

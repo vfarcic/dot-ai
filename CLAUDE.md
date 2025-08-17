@@ -27,14 +27,8 @@
 
 ## 🛑 TESTING REMINDERS
 
-- **Current test suite**: Comprehensive test coverage across 21 suites - maintain this standard
 - **Implementation flow**: Code → Tests → `npm test` → Mark complete
-- **Pattern matching**: Look at `tests/schema.test.ts`, `tests/mcp.test.ts` for testing patterns
-- **Test organization**: Mirror source code structure - tests should be organized using the same naming convention as the code they're testing
-  - `src/core/schema.ts` → `tests/core/schema.test.ts`
-  - `src/interfaces/mcp.ts` → `tests/interfaces/mcp.test.ts`
-  - `src/mcp/server.ts` → `tests/mcp/server.test.ts`
-  - Keep integration tests separate in `tests/integration/`
+- **Test organization**: Mirror source code structure (`src/core/schema.ts` → `tests/core/schema.test.ts`)
 
 ## Project Overview
 
@@ -63,16 +57,8 @@ All AI prompts are stored as markdown files in the `prompts/` directory and load
 
 ### Prompt File Structure
 ```
-prompts/
-├── intent-validation.md        # Validates user intent specificity
-├── resource-selection.md       # AI resource candidate selection
-├── question-generation.md      # Generate configuration questions
-├── solution-enhancement.md     # Enhance solutions with requirements
-├── resource-analysis.md        # Analyze resource capabilities
-└── tool-instructions/          # Agent instructions for tools
-    ├── recommend.md           # User interaction requirements
-    ├── enhance-solution.md    # Enhancement tool instructions
-    └── recommendation-workflow.md # Workflow instructions
+prompts/                        # MCP internal AI instructions (loaded by MCP server)
+shared-prompts/                 # MCP prompt templates (exposed to users via prompts interaction)
 ```
 
 ### Loading Pattern (ALWAYS USE THIS)
@@ -129,6 +115,48 @@ tests/                   # Comprehensive test suite (349+ tests)
 prompts/                 # AI prompt templates
 ```
 
+## ⚠️ MCP DOCUMENTATION ANTI-PATTERNS (NEVER DO THIS)
+
+**CRITICAL: MCP Client Workflow Alignment**
+
+❌ **Manual Server Commands**: Never document commands users run directly:
+- `npx @vfarcic/dot-ai` (users never run this)
+- `docker compose up` (users never run this) 
+- `node dist/mcp/server.js` (users never run this)
+
+✅ **MCP Client Workflow**: Document only what users actually do:
+- Create `.mcp.json` configuration
+- Start MCP client (Claude Code, Cursor, etc.)
+- Use features through MCP client interaction
+
+❌ **Server Lifecycle Management**: Never document manual server operations:
+- Starting/stopping servers manually
+- Restarting services for troubleshooting
+- Manual container/process management
+
+✅ **Client-Managed Lifecycle**: Document that MCP client handles everything:
+- Client starts servers automatically
+- Client manages server lifecycle
+- Client handles cleanup when needed
+
+❌ **Manual Debugging Commands**: Never document CLI debugging:
+- `docker logs dot-ai` (users won't run this)
+- `curl http://localhost:6333` (users won't run this)
+- Manual health checks or status commands
+
+✅ **MCP-Based Diagnostics**: Use client-integrated diagnostics:
+- `"Show dot-ai status"` command (primary diagnostic)
+- Client-visible error messages
+- MCP tool-based troubleshooting
+
+**WHY THIS MATTERS:**
+- Users interact with MCP servers through clients, not directly
+- Manual commands create documentation that doesn't match actual user workflow
+- Creates confusion between "how it works" vs "how users use it"
+- Violates the fundamental MCP interaction pattern
+
+**VALIDATION CHECK**: If documentation includes commands users type in terminal (other than MCP client setup), it's probably wrong.
+
 ### Testing & Development
 
 **MANDATORY TESTING WORKFLOW:**
@@ -138,16 +166,15 @@ prompts/                 # AI prompt templates
 - **Always check CLAUDE.md** after task completion for needed updates
 
 **Commands:**
-- **Run tests**: `npm test` (462+ tests across 19 suites)
+- **Run tests**: `npm test`
 - **Build**: `npm run build`
-- **Manual testing**: Follow examples in MCP guides
-- **Documentation**: See `docs/` directory for complete guides
 
 ### Environment Setup
 
 ```bash
 # Required for AI features
 export ANTHROPIC_API_KEY=your_api_key_here
+export OPENAI_API_KEY=your_openai_key_here
 
 # Optional: Custom kubeconfig
 export KUBECONFIG=/path/to/kubeconfig.yaml
