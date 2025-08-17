@@ -557,5 +557,4 @@ Your payment API microservice is now live with intelligent autoscaling!
 ## See Also
 
 - **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
-- **[Pattern Management Guide](pattern-management-guide.md)** - Create organizational deployment patterns
-- **[MCP Documentation Testing Guide](mcp-documentation-testing-guide.md)** - Automated documentation validation
+- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features

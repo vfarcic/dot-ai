@@ -25,12 +25,7 @@ def "main setup" [--qdrant-tag: string = "latest"] {
         $openai_key = $value
     }
     $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
-
-    (
-        docker container run --detach --name qdrant
-            --publish 6333:6333
-            $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
-    )
+    $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant\n" | save --append .env
 
     main create kubernetes kind
 
@@ -43,12 +38,6 @@ def "main setup" [--qdrant-tag: string = "latest"] {
     kubectl create namespace a-team
 
     kubectl create namespace b-team
-
-    # (
-    #     main apply mcp --location [".mcp.json"]
-    #         --enable-dot-ai true
-    #         --kubeconfig "./kubeconfig.yaml"
-    # )
 
     main print source
 

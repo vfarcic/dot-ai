@@ -1,0 +1,14 @@
+# Node.js
+node_modules/
+
+# Temporary and storage directories  
+tmp/
+temp/
+kind-storage/
+
+# Git
+.git/
+
+# Tests
+tests/
+coverage/

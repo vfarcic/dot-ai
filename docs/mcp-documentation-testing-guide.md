@@ -486,6 +486,5 @@ Agent: I have access to the mcp__dot-ai__testDocs tool for comprehensive documen
 
 ## See Also
 
-- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
-- **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Kubernetes deployment recommendations
-- **[Best Practices Guide](docs-testing-best-practices.md)** - Advanced documentation testing methodology
+- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration  
+- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features

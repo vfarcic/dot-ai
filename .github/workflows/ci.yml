@@ -172,6 +172,8 @@ jobs:
       with:
         context: .
         push: true
+        build-args: |
+          PACKAGE_VERSION=${{ needs.version.outputs.new-version }}
         tags: |
           ghcr.io/vfarcic/dot-ai:${{ needs.version.outputs.new-version }}
           ghcr.io/vfarcic/dot-ai:latest
