@@ -71,6 +71,8 @@ Create your MCP configuration file with this content:
         "compose", 
         "-f",
         "docker-compose-dot-ai.yaml",
+        "-p",
+        "my-project-dot-ai",
         "--env-file",
         ".env",
         "run", 
@@ -87,7 +89,10 @@ Create your MCP configuration file with this content:
 - **`"dot-ai"`** - Server name (you'll see this in your MCP client)
 - **`"command": "docker"`** - Uses Docker to run the MCP server
 - **`"compose"` and `-f` flag** - Runs the specific Docker Compose file
+- **`"-p my-project-dot-ai"`** - Sets project name to avoid conflicts with other projects
 - **`"run --rm --remove-orphans"`** - Runs container and cleans up after use
+
+**🔧 Multi-Project Support**: Change `"my-project-dot-ai"` to a unique name for each project (e.g., `"backend-dot-ai"`, `"frontend-dot-ai"`) to run multiple instances simultaneously without conflicts.
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
@@ -97,7 +102,7 @@ Create your MCP configuration file with this content:
 
 Start your MCP client (e.g., `claude` for Claude Code). The client will automatically manage the Docker containers.
 
-**Note:** When you stop your MCP client, the `dot-ai` container is automatically removed, but the `qdrant` container keeps running to preserve your vector database data (patterns and capabilities). This is intentional to avoid losing your organizational data between sessions.
+**Multi-Project Isolation:** Each project name creates completely isolated containers, volumes, and networks. Projects can run simultaneously without conflicts.
 
 ### 5. Verify Everything Works
 
@@ -116,9 +121,11 @@ For easier variable management, consider using a `.env` file (see [Environment V
 
 ## Data Persistence
 
-**Qdrant Vector Database**: Data is automatically persisted using Docker volumes. Your organizational patterns and capabilities are preserved between container restarts.
+**Qdrant Vector Database**: Data is automatically persisted using project-scoped Docker volumes (e.g., `my-project-dot-ai-qdrant-data`). Each project maintains separate organizational patterns and capabilities.
 
 **Session Data**: Not persisted by default. Sessions are temporary and cleared when containers restart.
+
+**Multi-Project Data Isolation**: Each project name creates its own isolated volume, so different projects don't share organizational data.
 
 ## Advanced Configuration
 

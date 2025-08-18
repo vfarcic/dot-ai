@@ -47,5 +47,6 @@
   },
   "prHourlyLimit": 3,
   "prConcurrentLimit": 5,
-  "rebaseWhen": "conflicted"
+  "rebaseWhen": "conflicted",
+  "commitMessageSuffix": " [skip ci]"
 } 

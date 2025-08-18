@@ -5,13 +5,14 @@ services:
   # DevOps AI Toolkit MCP Server
   dot-ai:
     image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
-    container_name: dot-ai
-    network_mode: "host"
+    container_name: ${COMPOSE_PROJECT_NAME:-dot-ai}-dot-ai
+    networks:
+      - dot-ai-network
     environment:
       # Required: Anthropic API key for AI analysis
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # Qdrant connection (localhost since using host networking)
-      QDRANT_URL: http://localhost:6333
+      # Qdrant connection (internal service name)
+      QDRANT_URL: http://qdrant:6333
       # Optional: OpenAI API key for enhanced semantic search
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Kubernetes configuration
@@ -25,9 +26,7 @@ services:
   # Qdrant Vector Database
   qdrant:
     image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
-    container_name: qdrant
-    ports:
-      - "${QDRANT_PORT:-6333}:6333"
+    container_name: ${COMPOSE_PROJECT_NAME:-dot-ai}-qdrant
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -35,6 +34,8 @@ services:
 
 volumes:
   qdrant_data:
+    name: ${COMPOSE_PROJECT_NAME:-dot-ai}-qdrant-data
 
 networks:
   dot-ai-network:
+    name: ${COMPOSE_PROJECT_NAME:-dot-ai}-network
