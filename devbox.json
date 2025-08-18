@@ -3,7 +3,7 @@
   "packages": [
     "kind@0.29.0",
     "path:gcloud#google-cloud-sdk",
-    "git@2.49.0",
+    "git@2.50.1",
     "teller@2.0.7",
     "kubernetes-helm@3.18.4",
     "nushell@0.106.1",
