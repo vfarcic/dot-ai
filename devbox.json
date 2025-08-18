@@ -6,7 +6,7 @@
     "git@2.49.0",
     "teller@2.0.7",
     "kubernetes-helm@3.18.4",
-    "nushell@0.105.1",
+    "nushell@0.106.1",
     "kubectl@1.33.3",
     "azure-cli@2.75.0"
   ],
