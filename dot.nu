@@ -27,9 +27,17 @@ def "main setup" [
         let value = input $"(ansi green_bold)Enter OpenAI API key:(ansi reset) "
         $openai_key = $value
     }
+
+    let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
+    let dot_ai_image = $"ghcr.io/vfarcic/dot-ai:($dot_ai_tag)"
+
     $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
-    $"export QDRANT_IMAGE=ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)\n" | save --append .env
-    $"export DOT_AI_IMAGE=ghcr.io/vfarcic/dot-ai:($dot_ai_tag)\n" | save --append .env
+    $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
+    $"export DOT_AI_IMAGE=($dot_ai_image)\n" | save --append .env
+
+    docker image pull $qdrant_image
+
+    docker image pull $dot_ai_image
 
     main create kubernetes kind
 
