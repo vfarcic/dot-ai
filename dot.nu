@@ -6,6 +6,7 @@ source scripts/crossplane.nu
 source scripts/ingress.nu
 source scripts/mcp.nu
 source scripts/anthropic.nu
+source scripts/kyverno.nu
 
 def main [] {}
 
@@ -39,6 +40,11 @@ def "main setup" [
 
     docker image pull $dot_ai_image
 
+    (
+        docker container run --detach --name qdrant
+            --publish 6333:6333 $qdrant_image
+    )
+
     main create kubernetes kind
 
     cp kubeconfig-dot.yaml kubeconfig.yaml
@@ -46,6 +52,8 @@ def "main setup" [
     main apply ingress nginx --provider kind
 
     main apply crossplane --app-config true --db-config true
+
+    main apply kyverno
 
     kubectl create namespace a-team
 
