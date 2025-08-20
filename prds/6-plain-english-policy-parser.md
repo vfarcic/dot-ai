@@ -1,11 +1,25 @@
 # PRD: Plain English Policy Parser for Enterprise Governance
 
 **Created**: 2025-07-28
-**Status**: Draft
+**Status**: SUPERSEDED
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-01-28
+**Last Updated**: 2025-08-20
+**Superseded By**: [PRD #74: Pattern-Driven Policy Generation System](./74-pattern-driven-policy-generation.md)
 
-## Executive Summary
+## Superseded Notice
+
+**This PRD has been superseded by [PRD #74: Pattern-Driven Policy Generation System](./74-pattern-driven-policy-generation.md).**
+
+**Evolution**: After developing Vector DB pattern storage capabilities, we discovered a more elegant solution: generate Kyverno policies directly from organizational patterns. This creates unified governance where patterns guide AI recommendations and policies enforce those patterns as the last line of defense.
+
+**Key Improvements in PRD #74**:
+- **Unified Governance**: Single source of truth for patterns and policies
+- **Automatic Generation**: Policies generated from existing patterns
+- **Schema Validation**: Ensures policies reference actual resource fields
+- **Lifecycle Management**: Pattern-policy references maintained automatically
+- **Deny-Only Focus**: Simpler, safer policy generation approach
+
+## Original Executive Summary
 Create a three-tool system for intelligent policy management: (1) AI-assisted Kyverno policy creation from plain English, (2) Policy analyzer that converts Kyverno policies to searchable embeddings, and (3) Policy-aware resource assembly that consults these embeddings to create compliant resources on the first attempt.
 
 ## Architecture Overview
