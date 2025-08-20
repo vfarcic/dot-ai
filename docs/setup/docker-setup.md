@@ -71,10 +71,6 @@ Create your MCP configuration file with this content:
         "compose", 
         "-f",
         "docker-compose-dot-ai.yaml",
-        "-p",
-        "my-project-dot-ai",
-        "--env-file",
-        ".env",
         "run", 
         "--rm",
         "--remove-orphans",
@@ -89,10 +85,22 @@ Create your MCP configuration file with this content:
 - **`"dot-ai"`** - Server name (you'll see this in your MCP client)
 - **`"command": "docker"`** - Uses Docker to run the MCP server
 - **`"compose"` and `-f` flag** - Runs the specific Docker Compose file
-- **`"-p my-project-dot-ai"`** - Sets project name to avoid conflicts with other projects
 - **`"run --rm --remove-orphans"`** - Runs container and cleans up after use
 
-**🔧 Multi-Project Support**: Change `"my-project-dot-ai"` to a unique name for each project (e.g., `"backend-dot-ai"`, `"frontend-dot-ai"`) to run multiple instances simultaneously without conflicts.
+**🔧 Multi-Project Support**: To run multiple dot-ai instances simultaneously, use environment variables to create isolated containers and data:
+
+**For additional projects**, set these environment variables:
+```bash
+export QDRANT_NAME=my-project-qdrant
+export QDRANT_PORT=6334
+```
+
+This creates:
+- **Unique containers**: `my-project-qdrant` (vs default `qdrant`)
+- **Separate ports**: `6334` (vs default `6333`) 
+- **Isolated data**: `my-project-qdrant-data` volume
+
+**Benefits**: Complete isolation between projects with separate Qdrant databases and no port conflicts.
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
