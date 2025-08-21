@@ -2284,7 +2284,7 @@ describe('Organizational Data Tool', () => {
       const response = JSON.parse(result.content[0].text);
       expect(response.success).toBe(false);
       expect(response.error.message).toContain('Unsupported data type: unsupported');
-      expect(response.error.message).toContain('pattern, capabilities');
+      expect(response.error.message).toContain('pattern, policy, capabilities');
     });
 
     it('should route pattern operations to pattern handler (not capabilities/dependencies)', async () => {
