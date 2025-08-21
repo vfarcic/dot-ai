@@ -15,6 +15,7 @@ import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternCreationSessionManager } from '../core/pattern-creation-session';
 import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityInferenceEngine } from '../core/capabilities';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import * as fs from 'fs';
@@ -22,11 +23,11 @@ import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns and resource capabilities. For patterns: supports step-by-step creation workflow. For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns, policy intents, and resource capabilities. For patterns and policies: supports create, list, get, delete, and search operations (patterns also support step-by-step creation workflow). For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "policy" for policy intents, "capabilities" for resource capabilities.';
 
-// Extensible schema - supports patterns and capabilities
+// Extensible schema - supports patterns, policies, and capabilities
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
-  dataType: z.enum(['pattern', 'capabilities']).describe('Type of cluster data to manage: "pattern" for organizational patterns, "capabilities" for resource capabilities'),
+  dataType: z.enum(['pattern', 'policy', 'capabilities']).describe('Type of cluster data to manage: "pattern" for organizational patterns, "policy" for policy intents, "capabilities" for resource capabilities'),
   operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress', 'search']).describe('Operation to perform on the cluster data'),
   
   // Workflow fields for step-by-step pattern creation
@@ -72,14 +73,34 @@ async function getPatternService(): Promise<PatternVectorService> {
 }
 
 /**
+ * Get Vector DB-based policy service with optional embedding support
+ */
+async function getPolicyService(): Promise<PolicyVectorService> {
+  const vectorDB = new VectorDBService();
+  const embeddingService = new EmbeddingService(); // Optional - gracefully handles missing API keys
+  const policyService = new PolicyVectorService(vectorDB, embeddingService);
+  
+  // Always ensure proper collection initialization
+  try {
+    await policyService.initialize();
+  } catch (error) {
+    // If initialization fails, try to provide helpful error context
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Vector DB collection initialization failed: ${errorMessage}. This may be due to dimension mismatch or collection configuration issues.`);
+  }
+  
+  return policyService;
+}
+
+/**
  * Validate Vector DB connection and return helpful error if unavailable
  */
 async function validateVectorDBConnection(
-  patternService: PatternVectorService,
+  vectorService: PatternVectorService | PolicyVectorService,
   logger: Logger,
   requestId: string
 ): Promise<{ success: boolean; error?: any }> {
-  const isHealthy = await patternService.healthCheck();
+  const isHealthy = await vectorService.healthCheck();
   
   if (!isHealthy) {
     logger.warn('Vector DB connection not available', { requestId });
@@ -534,6 +555,220 @@ function createCapabilityScanCompletionResponse(
     },
     userNote: "The above options are available for you to choose from - the system will not execute them automatically."
   };
+}
+
+/**
+ * Handle policy operations - PRD #74 Implementation
+ */
+async function handlePolicyOperation(
+  operation: string,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  // Get policy service and validate Vector DB connection
+  const policyService = await getPolicyService();
+  const connectionCheck = await validateVectorDBConnection(policyService, logger, requestId);
+  
+  if (!connectionCheck.success) {
+    return {
+      success: false,
+      operation,
+      dataType: 'policy',
+      error: connectionCheck.error,
+      message: 'Vector DB connection required for policy management'
+    };
+  }
+
+  // Validate embedding service and fail if unavailable
+  const embeddingCheck = await validateEmbeddingService(logger, requestId);
+  
+  if (!embeddingCheck.success) {
+    return {
+      success: false,
+      operation,
+      dataType: 'policy',
+      error: embeddingCheck.error,
+      message: 'OpenAI API key required for policy management'
+    };
+  }
+
+  switch (operation) {
+    case 'create': {
+      // Simple policy intent creation (no workflow needed)
+      if (!args.description) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Policy description is required',
+          error: 'Missing required field: description'
+        };
+      }
+
+      // Create policy intent directly (simpler than patterns - no workflow needed)
+      const { randomUUID } = await import('crypto');
+      
+      const policyData = {
+        id: randomUUID(),
+        description: args.description,
+        triggers: args.triggers || [],
+        rationale: args.rationale || '',
+        createdAt: new Date().toISOString(),
+        createdBy: args.createdBy || 'user'
+      };
+
+      try {
+        await policyService.storePolicyIntent(policyData);
+        
+        return {
+          success: true,
+          operation,
+          dataType: 'policy',
+          message: 'Policy intent created successfully',
+          policyIntent: policyData
+        };
+      } catch (error) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Failed to create policy intent',
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
+
+    case 'list': {
+      const limit = args.limit || 10;
+      const policyIntents = await policyService.getAllPolicyIntents();
+      const totalCount = await policyService.getPolicyIntentsCount();
+
+      const limitedPolicyIntents = policyIntents.slice(0, limit);
+
+      return {
+        success: true,
+        operation,
+        dataType: 'policy',
+        message: `Found ${totalCount} policy intents (showing ${limitedPolicyIntents.length})`,
+        policyIntents: limitedPolicyIntents,
+        totalCount,
+        note: totalCount > limit ? `Showing first ${limit} of ${totalCount} policy intents. Use limit parameter to see more.` : undefined
+      };
+    }
+
+    case 'get': {
+      if (!args.id) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Policy intent ID is required for get operation',
+          error: 'Missing required parameter: id'
+        };
+      }
+
+      const policyIntent = await policyService.getPolicyIntent(args.id);
+      
+      if (!policyIntent) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: `Policy intent not found: ${args.id}`,
+          error: 'Policy intent not found'
+        };
+      }
+
+      return {
+        success: true,
+        operation,
+        dataType: 'policy',
+        message: 'Policy intent retrieved successfully',
+        policyIntent
+      };
+    }
+
+    case 'search': {
+      if (!args.id) { // For search, 'id' parameter contains the search query
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Search query is required (use id parameter)',
+          error: 'Missing required parameter: id (search query)'
+        };
+      }
+
+      const limit = args.limit || 10;
+      const searchResults = await policyService.searchPolicyIntents(args.id, { limit });
+
+      return {
+        success: true,
+        operation,
+        dataType: 'policy',
+        message: `Found ${searchResults.length} policy intents matching "${args.id}"`,
+        policyIntents: searchResults.map(result => result.data),
+        searchResults: searchResults.map(result => ({
+          policyIntent: result.data,
+          score: result.score
+        }))
+      };
+    }
+
+    case 'delete': {
+      if (!args.id) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Policy intent ID is required for delete operation',
+          error: 'Missing required parameter: id'
+        };
+      }
+
+      try {
+        // Check if policy intent exists first
+        const existingPolicyIntent = await policyService.getPolicyIntent(args.id);
+        if (!existingPolicyIntent) {
+          return {
+            success: false,
+            operation,
+            dataType: 'policy',
+            message: `Policy intent not found: ${args.id}`,
+            error: 'Policy intent not found'
+          };
+        }
+
+        await policyService.deletePolicyIntent(args.id);
+        
+        return {
+          success: true,
+          operation,
+          dataType: 'policy',
+          message: 'Policy intent deleted successfully',
+          deletedPolicyIntent: existingPolicyIntent
+        };
+      } catch (error) {
+        return {
+          success: false,
+          operation,
+          dataType: 'policy',
+          message: 'Failed to delete policy intent',
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
+
+    default:
+      return {
+        success: false,
+        operation,
+        dataType: 'policy',
+        message: `Unsupported operation: ${operation}. Supported operations: create, list, get, search, delete`,
+        error: 'Unsupported operation'
+      };
+  }
 }
 
 /**
@@ -2533,6 +2768,10 @@ export async function handleOrganizationalDataTool(
         result = await handlePatternOperation(args.operation, args, logger, requestId);
         break;
       
+      case 'policy':
+        result = await handlePolicyOperation(args.operation, args, logger, requestId);
+        break;
+      
       case 'capabilities':
         result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
         break;
@@ -2541,12 +2780,12 @@ export async function handleOrganizationalDataTool(
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          `Unsupported data type: ${args.dataType}. Currently supported: pattern, capabilities`,
+          `Unsupported data type: ${args.dataType}. Currently supported: pattern, policy, capabilities`,
           {
             operation: 'data_type_validation',
             component: 'OrganizationalDataTool',
             requestId,
-            input: { dataType: args.dataType, supportedTypes: ['pattern', 'capabilities'] }
+            input: { dataType: args.dataType, supportedTypes: ['pattern', 'policy', 'capabilities'] }
           }
         );
     }
