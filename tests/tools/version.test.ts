@@ -257,8 +257,18 @@ describe('Version Tool', () => {
       expect(response.system.vectorDB).toMatchObject({
         connected: true,
         url: 'http://localhost:6333',
-        collectionName: 'patterns',
-        patternsCount: 5
+        collections: {
+          patterns: {
+            exists: true,
+            documentsCount: 5
+          },
+          policies: {
+            exists: expect.any(Boolean)
+          },
+          capabilities: {
+            exists: expect.any(Boolean)
+          }
+        }
       });
       
       // Check embedding status

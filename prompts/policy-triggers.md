@@ -1,0 +1,1 @@
+Ask the user: "What keywords or phrases should trigger this policy intent? For example, if someone asks to "add resource limits" or "ensure security", this policy should be suggested. Please provide keywords separated by commas."

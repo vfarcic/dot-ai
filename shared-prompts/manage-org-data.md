@@ -1,6 +1,6 @@
 ---
 name: manage-org-data
-description: Manage organizational patterns and cluster resource capabilities
+description: Manage organizational patterns, policy intents, and cluster resource capabilities
 category: administration
 ---
 
@@ -14,18 +14,24 @@ category: administration
 3. Get pattern details
 4. Search patterns
 
-### Resource Capabilities:
-5. Scan cluster for resource capabilities
-6. List discovered capabilities
-7. Get capability details
-8. Delete capability data
-9. Delete all capabilities
-10. Check scan progress
+### Policy Intents:
+5. Create a new policy intent
+6. List existing policy intents
+7. Get policy intent details
+8. Search policy intents
 
-**Your choice**: [Type the number (1-10) or describe what you want to do]
+### Resource Capabilities:
+9. Scan cluster for resource capabilities
+10. List discovered capabilities
+11. Get capability details
+12. Delete capability data
+13. Delete all capabilities
+14. Check scan progress
+
+**Your choice**: [Type the number (1-14) or describe what you want to do]
 
 ---
 
-Examples: Type "1" or "Create a new organizational pattern" or "5" or "Scan cluster"
+Examples: Type "1" or "Create a new organizational pattern" or "5" or "Create a new policy intent" or "9" or "Scan cluster"
 
 Once you make your choice, I'll call the `manageOrgData` tool with the appropriate parameters.

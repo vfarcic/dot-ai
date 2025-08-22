@@ -1,0 +1,1 @@
+Ask the user: "Which Kubernetes resources should be suggested for {description}? Please list the resource types you want this pattern to suggest, separated by commas. For example: Deployment, Service, ConfigMap or StatefulSet, PersistentVolumeClaim, Secret."

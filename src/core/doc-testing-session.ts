@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadPrompt } from './shared-prompt-loader';
 import { getAndValidateSessionDirectory } from './session-utils';
 import { 
   ValidationSession, 
@@ -285,55 +286,41 @@ The system manages session state and workflow progression automatically.`;
    * Load phase prompt from file (following CLAUDE.md pattern)
    */
   private loadPhasePrompt(phase: ValidationPhase, session: ValidationSession): string {
-    const promptPath = path.join(process.cwd(), 'prompts', `doc-testing-${phase}.md`);
+    // Prepare template variables for all phases
+    const templateVariables: Record<string, string> = {
+      filePath: session.filePath,
+      sessionId: session.sessionId,
+      phase: phase,
+      totalSections: session.metadata.totalSections.toString(),
+      completedSections: session.metadata.completedSections.toString()
+    };
+
+    // Handle phase-specific template variables
+    if (phase === ValidationPhase.FIX) {
+      templateVariables.statusSummary = this.generateStatusSummary(session);
+      templateVariables.pendingItems = this.generatePendingItemsList(session);
+    }
+
+    if (phase === ValidationPhase.DONE) {
+      templateVariables.finalSummary = this.generateFinalSummary(session);
+      templateVariables.completionTime = session.metadata.lastUpdated;
+      templateVariables.sessionDir = session.metadata.sessionDir;
+    }
+
+    const result = loadPrompt(`doc-testing-${phase}`, templateVariables);
     
-    if (!fs.existsSync(promptPath)) {
-      // Fallback to basic prompt if file doesn't exist
+    // Check if prompt loading failed and return fallback
+    if (result.startsWith('Error loading prompt:')) {
       return `Read the file at "${session.filePath}" and process it for phase ${phase}.`;
     }
 
-    try {
-      const template = fs.readFileSync(promptPath, 'utf8');
-      
-      // Replace all template variables with actual values
-      let processedPrompt = template
-        .replace(/\{filePath\}/g, session.filePath)
-        .replace(/\{sessionId\}/g, session.sessionId)
-        .replace(/\{phase\}/g, phase)
-        .replace(/\{totalSections\}/g, session.metadata.totalSections.toString())
-        .replace(/\{completedSections\}/g, session.metadata.completedSections.toString());
-      
-      // Handle fix phase specific template variables
-      if (phase === ValidationPhase.FIX) {
-        const statusSummary = this.generateStatusSummary(session);
-        const pendingItems = this.generatePendingItemsList(session);
-        
-        processedPrompt = processedPrompt
-          .replace(/\{statusSummary\}/g, statusSummary)
-          .replace(/\{pendingItems\}/g, pendingItems);
-      }
-      
-      // Handle done phase specific template variables
-      if (phase === ValidationPhase.DONE) {
-        const finalSummary = this.generateFinalSummary(session);
-        
-        processedPrompt = processedPrompt
-          .replace(/\{completionTime\}/g, session.metadata.lastUpdated)
-          .replace(/\{finalSummary\}/g, finalSummary)
-          .replace(/\{sessionDir\}/g, session.metadata.sessionDir);
-      }
-      
-      // Check for unreplaced template variables
-      const unreplacedVars = processedPrompt.match(/\{[^}]+\}/g);
-      if (unreplacedVars) {
-        console.error(`Warning: Unreplaced template variables in ${phase} prompt:`, unreplacedVars);
-      }
-      
-      return processedPrompt;
-    } catch (error) {
-      console.error(`Failed to load prompt for phase ${phase}:`, error);
-      return `Read the file at "${session.filePath}" and process it for phase ${phase}.`;
+    // Check for unreplaced template variables and warn
+    const unreplacedVars = result.match(/\{[^}]+\}/g);
+    if (unreplacedVars) {
+      console.error(`Warning: Unreplaced template variables in ${phase} prompt:`, unreplacedVars);
     }
+
+    return result;
   }
 
   private getNextPhase(currentPhase: ValidationPhase): ValidationPhase | undefined {
@@ -499,35 +486,27 @@ The system manages session state and workflow progression automatically.`;
    * Load section-specific test prompt
    */
   private loadSectionTestPrompt(section: DocumentSection, session: ValidationSession): string {
-    const promptPath = path.join(process.cwd(), 'prompts', 'doc-testing-test-section.md');
-    
-    if (!fs.existsSync(promptPath)) {
-      // Fallback prompt
+    const result = loadPrompt('doc-testing-test-section', {
+      filePath: session.filePath,
+      sessionId: session.sessionId,
+      sectionId: section.id,
+      sectionTitle: section.title,
+      totalSections: session.sections?.length.toString() || '0',
+      sectionsRemaining: this.getRemainingTestSections(session).length.toString()
+    });
+
+    // Check if prompt loading failed and return fallback
+    if (result.startsWith('Error loading prompt:')) {
       return `Test the "${section.title}" section of ${session.filePath}.\n\nAnalyze this section and test everything you determine is testable within it.`;
     }
 
-    try {
-      const template = fs.readFileSync(promptPath, 'utf8');
-      
-      const processedPrompt = template
-        .replace(/\{filePath\}/g, session.filePath)
-        .replace(/\{sessionId\}/g, session.sessionId)
-        .replace(/\{sectionId\}/g, section.id)
-        .replace(/\{sectionTitle\}/g, section.title)
-        .replace(/\{totalSections\}/g, session.sections?.length.toString() || '0')
-        .replace(/\{sectionsRemaining\}/g, this.getRemainingTestSections(session).length.toString());
-      
-      // Check for unreplaced template variables
-      const unreplacedVars = processedPrompt.match(/\{[^}]+\}/g);
-      if (unreplacedVars) {
-        console.error(`Warning: Unreplaced template variables in section test prompt:`, unreplacedVars);
-      }
-      
-      return processedPrompt;
-    } catch (error) {
-      console.error(`Failed to load section test prompt:`, error);
-      return `Test the "${section.title}" section of ${session.filePath}.`;
+    // Check for unreplaced template variables and warn
+    const unreplacedVars = result.match(/\{[^}]+\}/g);
+    if (unreplacedVars) {
+      console.error(`Warning: Unreplaced template variables in section test prompt:`, unreplacedVars);
     }
+
+    return result;
   }
 
   /**

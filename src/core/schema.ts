@@ -14,6 +14,7 @@ import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
 import { CapabilityVectorService } from './capability-vector-service';
+import { loadPrompt } from './shared-prompt-loader';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -564,11 +565,7 @@ export class ResourceRecommender {
     }>,
     patterns: OrganizationalPattern[]
   ): Promise<string> {
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
+    const template = loadPrompt('resource-selection');
     
     // Format resources for the prompt with capability information
     const resourcesText = resources.map((resource, index) => {
@@ -801,11 +798,7 @@ export class ResourceRecommender {
       : 'No organizational patterns found for this request.';
 
 
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
+    const template = loadPrompt('resource-selection');
     
     const selectionPrompt = template
       .replace('{intent}', intent)
@@ -1063,11 +1056,7 @@ Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterO
 Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
 
       // Load and format the question generation prompt
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'question-generation.md');
-      const template = fs.readFileSync(promptPath, 'utf8');
+      const template = loadPrompt('question-generation');
       
       const questionPrompt = template
         .replace('{intent}', intent)

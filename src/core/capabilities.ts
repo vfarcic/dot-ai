@@ -9,8 +9,7 @@
 
 import { Logger } from './error-handling';
 import { ClaudeIntegration } from './claude';
-import * as fs from 'fs';
-import * as path from 'path';
+import { loadPrompt } from './shared-prompt-loader';
 
 
 /**
@@ -129,24 +128,11 @@ export class CapabilityInferenceEngine {
     resourceName: string,
     resourceDefinition?: string
   ): Promise<string> {
-    // Load prompt template using standard pattern from existing codebase
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'capability-inference.md');
-    
-    if (!fs.existsSync(promptPath)) {
-      throw new Error(`Capability inference prompt template not found: ${promptPath}`);
-    }
-    
-    let template: string;
-    try {
-      template = fs.readFileSync(promptPath, 'utf8');
-    } catch (error) {
-      throw new Error(`Failed to read capability inference prompt: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
-    // Replace template variables using standard pattern
-    const finalPrompt = template
-      .replace(/\{resourceName\}/g, resourceName)
-      .replace(/\{resourceDefinition\}/g, resourceDefinition || 'No resource definition provided');
+    // Load prompt template using shared prompt loader
+    const finalPrompt = loadPrompt('capability-inference', {
+      resourceName,
+      resourceDefinition: resourceDefinition || 'No resource definition provided'
+    });
 
     return finalPrompt;
   }
