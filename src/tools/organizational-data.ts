@@ -13,8 +13,8 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
-import { PatternCreationSessionManager } from '../core/pattern-creation-session';
-import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { UnifiedCreationSessionManager } from '../core/unified-creation-session';
+import { VectorDBService, PatternVectorService, CapabilityVectorService } from '../core/index';
 import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityInferenceEngine } from '../core/capabilities';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
@@ -56,9 +56,7 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
  * Get Vector DB-based pattern service with optional embedding support
  */
 async function getPatternService(): Promise<PatternVectorService> {
-  const vectorDB = new VectorDBService();
-  const embeddingService = new EmbeddingService(); // Optional - gracefully handles missing API keys
-  const patternService = new PatternVectorService(vectorDB, embeddingService);
+  const patternService = new PatternVectorService();
   
   // Always ensure proper collection initialization
   try {
@@ -76,9 +74,7 @@ async function getPatternService(): Promise<PatternVectorService> {
  * Get Vector DB-based policy service with optional embedding support
  */
 async function getPolicyService(): Promise<PolicyVectorService> {
-  const vectorDB = new VectorDBService();
-  const embeddingService = new EmbeddingService(); // Optional - gracefully handles missing API keys
-  const policyService = new PolicyVectorService(vectorDB, embeddingService);
+  const policyService = new PolicyVectorService();
   
   // Always ensure proper collection initialization
   try {
@@ -221,7 +217,7 @@ async function handlePatternOperation(
     };
   }
 
-  const sessionManager = new PatternCreationSessionManager();
+  const sessionManager = new UnifiedCreationSessionManager('pattern');
 
   switch (operation) {
     case 'create': {
@@ -236,10 +232,25 @@ async function handlePatternOperation(
         
         if (args.response) {
           // Process user response and move to next step
-          workflowStep = sessionManager.processResponse(args.sessionId, args.response, args);
+          const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
+          workflowStep = sessionManager.getNextWorkflowStep(updatedSession);
         } else {
           // Just get current step without processing response
-          workflowStep = sessionManager.getNextStep(args.sessionId, args);
+          const session = sessionManager.loadSession(args.sessionId, args);
+          if (!session) {
+            throw ErrorHandler.createError(
+              ErrorCategory.VALIDATION,
+              ErrorSeverity.HIGH,
+              `Session not found: ${args.sessionId}`,
+              {
+                operation: 'pattern_workflow_continue',
+                component: 'OrganizationalDataTool',
+                requestId,
+                input: { sessionId: args.sessionId }
+              }
+            );
+          }
+          workflowStep = sessionManager.getNextWorkflowStep(session);
         }
         
         if (!workflowStep) {
@@ -260,7 +271,7 @@ async function handlePatternOperation(
         logger.info('Starting new pattern creation workflow', { requestId });
         
         const session = sessionManager.createSession(args);
-        workflowStep = sessionManager.getNextStep(session.sessionId, args);
+        workflowStep = sessionManager.getNextWorkflowStep(session);
         
         if (!workflowStep) {
           throw ErrorHandler.createError(
@@ -279,17 +290,20 @@ async function handlePatternOperation(
       // Always check if workflow is complete and store pattern in Vector DB
       let storageInfo: any = {};
       
+      const isComplete = !('step' in workflowStep);
+      const hasPattern = !!workflowStep.data?.pattern;
+      
       logger.info('Checking workflow completion', {
         requestId,
-        step: workflowStep.step,
-        hasPattern: !!workflowStep.data?.pattern,
+        step: 'step' in workflowStep ? workflowStep.step : 'complete',
+        hasPattern,
         patternId: workflowStep.data?.pattern?.id
       });
       
-      if (workflowStep.step === 'complete' && workflowStep.data?.pattern) {
+      if (isComplete && hasPattern) {
         try {
           await patternService.storePattern(workflowStep.data.pattern);
-          const vectorDBConfig = new VectorDBService().getConfig();
+          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
           storageInfo = {
             stored: true,
             vectorDbUrl: vectorDBConfig.url,
@@ -324,7 +338,7 @@ async function handlePatternOperation(
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          const vectorDBConfig = new VectorDBService().getConfig();
+          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
           storageInfo = {
             stored: false,
             error: errorMessage,
@@ -341,7 +355,6 @@ async function handlePatternOperation(
       }
       
       // For completed patterns, storage failure means creation failure
-      const isComplete = workflowStep.step === 'complete';
       const storageSucceeded = storageInfo.stored === true;
       const operationSucceeded = !isComplete || storageSucceeded;
 
@@ -496,6 +509,61 @@ async function handlePatternOperation(
       };
     }
 
+    case 'search': {
+      if (!args.id) { // For search, 'id' parameter contains the search query
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          'Search query is required for pattern search operation',
+          {
+            operation: 'pattern_search_validation',
+            component: 'OrganizationalDataTool',
+            requestId,
+            input: args
+          }
+        );
+      }
+
+      const searchQuery = args.id;
+      const limit = args.limit || 10;
+
+      logger.info('Searching patterns', { 
+        requestId, 
+        query: searchQuery,
+        limit 
+      });
+
+      const searchResults = await patternService.searchPatterns(searchQuery, { limit });
+
+      logger.info('Pattern search completed', { 
+        requestId, 
+        query: searchQuery,
+        resultsCount: searchResults.length 
+      });
+
+      return {
+        success: true,
+        operation: 'search',
+        dataType: 'pattern',
+        data: {
+          query: searchQuery,
+          patterns: searchResults.map(result => ({
+            id: result.data.id,
+            description: result.data.description.substring(0, 100) + (result.data.description.length > 100 ? '...' : ''),
+            triggersCount: result.data.triggers.length,
+            resourcesCount: result.data.suggestedResources.length,
+            createdAt: result.data.createdAt,
+            createdBy: result.data.createdBy,
+            relevanceScore: result.score
+          })),
+          totalCount: searchResults.length,
+          returnedCount: searchResults.length,
+          limit
+        },
+        message: `Found ${searchResults.length} patterns matching "${searchQuery}"`
+      };
+    }
+
     default:
       throw ErrorHandler.createError(
         ErrorCategory.VALIDATION,
@@ -505,7 +573,7 @@ async function handlePatternOperation(
           operation: 'pattern_operation_validation',
           component: 'OrganizationalDataTool',
           requestId,
-          input: { operation, supportedOperations: ['create', 'list', 'get', 'delete'] }
+          input: { operation, supportedOperations: ['create', 'list', 'get', 'search', 'delete'] }
         }
       );
   }
@@ -593,50 +661,134 @@ async function handlePolicyOperation(
     };
   }
 
+  const sessionManager = new UnifiedCreationSessionManager('policy');
+
   switch (operation) {
     case 'create': {
-      // Simple policy intent creation (no workflow needed)
-      if (!args.description) {
-        return {
-          success: false,
-          operation,
-          dataType: 'policy',
-          message: 'Policy description is required',
-          error: 'Missing required field: description'
-        };
-      }
-
-      // Create policy intent directly (simpler than patterns - no workflow needed)
-      const { randomUUID } = await import('crypto');
+      let workflowStep;
       
-      const policyData = {
-        id: randomUUID(),
-        description: args.description,
-        triggers: args.triggers || [],
-        rationale: args.rationale || '',
-        createdAt: new Date().toISOString(),
-        createdBy: args.createdBy || 'user'
-      };
-
-      try {
-        await policyService.storePolicyIntent(policyData);
+      if (args.sessionId) {
+        // Continue existing session
+        logger.info('Continuing policy creation workflow', { 
+          requestId, 
+          sessionId: args.sessionId 
+        });
         
-        return {
-          success: true,
-          operation,
-          dataType: 'policy',
-          message: 'Policy intent created successfully',
-          policyIntent: policyData
-        };
-      } catch (error) {
-        return {
-          success: false,
-          operation,
-          dataType: 'policy',
-          message: 'Failed to create policy intent',
-          error: error instanceof Error ? error.message : String(error)
-        };
+        if (args.response) {
+          // Process user response and move to next step
+          const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
+          workflowStep = sessionManager.getNextWorkflowStep(updatedSession);
+        } else {
+          // Just get current step without processing response
+          const session = sessionManager.loadSession(args.sessionId, args);
+          if (!session) {
+            throw ErrorHandler.createError(
+              ErrorCategory.VALIDATION,
+              ErrorSeverity.HIGH,
+              `Session not found: ${args.sessionId}`,
+              {
+                operation: 'policy_workflow_continue',
+                component: 'OrganizationalDataTool',
+                requestId,
+                input: { sessionId: args.sessionId }
+              }
+            );
+          }
+          workflowStep = sessionManager.getNextWorkflowStep(session);
+        }
+        
+        if (!workflowStep) {
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.HIGH,
+            `Session not found or workflow failed`,
+            {
+              operation: 'policy_workflow_continue',
+              component: 'OrganizationalDataTool',
+              requestId,
+              input: { sessionId: args.sessionId }
+            }
+          );
+        }
+      } else {
+        // Start new workflow session
+        logger.info('Starting new policy creation workflow', { requestId });
+        
+        const session = sessionManager.createSession(args);
+        workflowStep = sessionManager.getNextWorkflowStep(session);
+        
+        if (!workflowStep) {
+          throw ErrorHandler.createError(
+            ErrorCategory.OPERATION,
+            ErrorSeverity.HIGH,
+            'Failed to initialize policy creation workflow',
+            {
+              operation: 'policy_workflow_start',
+              component: 'OrganizationalDataTool',
+              requestId
+            }
+          );
+        }
       }
+
+      // Always check if workflow is complete and store policy in Vector DB
+      let storageInfo: any = {};
+      
+      const isComplete = !('step' in workflowStep);
+      const hasPolicy = !!workflowStep.data?.policy;
+      
+      logger.info('Checking workflow completion', {
+        requestId,
+        step: 'step' in workflowStep ? workflowStep.step : 'complete',
+        hasPolicy,
+        policyId: workflowStep.data?.policy?.id
+      });
+      
+      if (isComplete && hasPolicy) {
+        try {
+          await policyService.storePolicyIntent(workflowStep.data.policy);
+          const vectorDBConfig = new VectorDBService({ collectionName: 'policies' }).getConfig();
+          storageInfo = {
+            stored: true,
+            vectorDbUrl: vectorDBConfig.url,
+            collectionName: vectorDBConfig.collectionName,
+            policyId: workflowStep.data.policy.id
+          };
+          
+          logger.info('Policy stored in Vector DB successfully', { 
+            requestId, 
+            policyId: workflowStep.data.policy.id,
+            description: workflowStep.data.policy.description.substring(0, 50) + (workflowStep.data.policy.description.length > 50 ? '...' : '')
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          storageInfo = {
+            stored: false,
+            error: errorMessage,
+            policyId: workflowStep.data.policy.id
+          };
+          
+          logger.error('Failed to store policy in Vector DB', error instanceof Error ? error : new Error(String(error)), { 
+            requestId, 
+            policyId: workflowStep.data.policy.id
+          });
+        }
+      }
+      
+      // For completed policies, storage failure means creation failure
+      const storageSucceeded = storageInfo.stored === true;
+      const operationSucceeded = !isComplete || storageSucceeded;
+
+      return {
+        success: operationSucceeded,
+        operation: 'create',
+        dataType: 'policy',
+        workflow: workflowStep,
+        storage: storageInfo,
+        message: isComplete ? 
+          (storageSucceeded ? 'Policy created and stored successfully' : 'Policy creation failed - storage error') :
+          'Workflow step ready'
+      };
     }
 
     case 'list': {

@@ -8,7 +8,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Logger } from '../core/error-handling';
-import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { executeKubectl, ErrorClassifier } from '../core/kubernetes-utils';
 
 export const VERSION_TOOL_NAME = 'version';
@@ -27,9 +27,24 @@ export interface SystemStatus {
   vectorDB: {
     connected: boolean;
     url: string;
-    collectionName: string;
     error?: string;
-    patternsCount?: number;
+    collections: {
+      patterns: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+      policies: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+      capabilities: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+    };
   };
   embedding: {
     available: boolean;
@@ -74,47 +89,99 @@ export interface SystemStatus {
 }
 
 /**
- * Test Vector DB connectivity and get status
+ * Test Vector DB connectivity and get status for all collections
  */
 async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
-  const vectorDB = new VectorDBService();
-  const config = vectorDB.getConfig();
+  // Create a test service just to get connection config
+  const testVectorDB = new VectorDBService({ collectionName: 'test' });
+  const config = testVectorDB.getConfig();
   
   try {
-    const isHealthy = await vectorDB.healthCheck();
+    // Test basic Vector DB connectivity (independent of collections)
+    const isHealthy = await testVectorDB.healthCheck();
     if (!isHealthy) {
       return {
         connected: false,
         url: config.url || 'unknown',
-        collectionName: config.collectionName || 'patterns',
-        error: 'Health check failed - Vector DB not responding'
+        error: 'Health check failed - Vector DB not responding',
+        collections: {
+          patterns: { exists: false, error: 'Vector DB not accessible' },
+          policies: { exists: false, error: 'Vector DB not accessible' },
+          capabilities: { exists: false, error: 'Vector DB not accessible' }
+        }
       };
     }
 
-    // Try to get patterns count to verify collection access
+    // Test each collection separately
     const embeddingService = new EmbeddingService();
-    const patternService = new PatternVectorService(vectorDB, embeddingService);
-    let patternsCount: number | undefined;
     
-    try {
-      patternsCount = await patternService.getPatternsCount();
-    } catch (error) {
-      // Collection might not exist yet - that's okay
-      patternsCount = 0;
-    }
+    // Test patterns collection
+    const patternsStatus = await testCollectionStatus('patterns', () => {
+      const patternVectorDB = new VectorDBService({ collectionName: 'patterns' });
+      const patternService = new PatternVectorService(patternVectorDB, embeddingService);
+      return patternService.getPatternsCount();
+    });
+
+    // Test policies collection
+    const policiesStatus = await testCollectionStatus('policies', () => {
+      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
+      const policyService = new PolicyVectorService(policyVectorDB, embeddingService);
+      return policyService.getDataCount();
+    });
+
+    // Test capabilities collection
+    const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
+      const capabilityService = new CapabilityVectorService();
+      return capabilityService.getCapabilitiesCount();
+    });
 
     return {
       connected: true,
       url: config.url || 'unknown',
-      collectionName: config.collectionName || 'patterns',
-      patternsCount
+      collections: {
+        patterns: patternsStatus,
+        policies: policiesStatus,
+        capabilities: capabilitiesStatus
+      }
     };
   } catch (error) {
     return {
       connected: false,
       url: config.url || 'unknown',
-      collectionName: config.collectionName || 'patterns',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      collections: {
+        patterns: { exists: false, error: 'Vector DB connection failed' },
+        policies: { exists: false, error: 'Vector DB connection failed' },
+        capabilities: { exists: false, error: 'Vector DB connection failed' }
+      }
+    };
+  }
+}
+
+/**
+ * Helper function to test individual collection status
+ */
+async function testCollectionStatus(
+  collectionName: string, 
+  getCountFn: () => Promise<number>
+): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
+  try {
+    const documentsCount = await getCountFn();
+    return {
+      exists: true,
+      documentsCount
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Check if error indicates collection doesn't exist (vs other errors)
+    const collectionNotExists = errorMessage.toLowerCase().includes('collection') && 
+      (errorMessage.toLowerCase().includes('not exist') || 
+       errorMessage.toLowerCase().includes('does not exist'));
+    
+    return {
+      exists: false,
+      error: collectionNotExists ? `${collectionName} collection does not exist` : errorMessage
     };
   }
 }
@@ -565,7 +632,8 @@ export async function handleVersionTool(
             kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
             policyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
             capabilities: [
-              vectorDBStatus.connected ? 'pattern-management' : null,
+              vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
+              vectorDBStatus.connected && vectorDBStatus.collections.policies.exists ? 'policy-management' : null,
               capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
               anthropicStatus.connected ? 'ai-recommendations' : null,

@@ -10,6 +10,7 @@ import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadPrompt } from '../core/shared-prompt-loader';
 import * as yaml from 'js-yaml';
 import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
@@ -245,8 +246,7 @@ async function generateManifestsWithAI(
 ): Promise<string> {
   
   // Load prompt template
-  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'manifest-generation.md');
-  const template = fs.readFileSync(promptPath, 'utf8');
+  const template = loadPrompt('manifest-generation');
   
   // Retrieve schemas for solution resources
   const resourceSchemas = await retrieveResourceSchemas(solution, dotAI, logger);

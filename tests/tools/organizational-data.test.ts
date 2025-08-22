@@ -79,6 +79,29 @@ jest.mock('../../src/core/capabilities', () => ({
   }))
 }));
 
+// Mock PolicyVectorService methods
+const mockStorePolicyIntent = jest.fn();
+const mockSearchPolicyIntents = jest.fn();
+const mockGetPolicyIntent = jest.fn();
+const mockGetAllPolicyIntents = jest.fn();
+const mockGetPolicyIntentsCount = jest.fn();
+const mockDeletePolicyIntent = jest.fn();
+const mockPolicyHealthCheck = jest.fn();
+const mockPolicyInitialize = jest.fn();
+
+jest.mock('../../src/core/policy-vector-service', () => ({
+  PolicyVectorService: jest.fn().mockImplementation(() => ({
+    storePolicyIntent: mockStorePolicyIntent,
+    searchPolicyIntents: mockSearchPolicyIntents,
+    getPolicyIntent: mockGetPolicyIntent,
+    getAllPolicyIntents: mockGetAllPolicyIntents,
+    getPolicyIntentsCount: mockGetPolicyIntentsCount,
+    deletePolicyIntent: mockDeletePolicyIntent,
+    healthCheck: mockPolicyHealthCheck,
+    initialize: mockPolicyInitialize
+  })),
+}));
+
 // Mock the static method separately
 const mockCapabilityInferenceEngine = require('../../src/core/capabilities').CapabilityInferenceEngine;
 mockCapabilityInferenceEngine.generateCapabilityId = jest.fn().mockReturnValue('mock-capability-id');
@@ -2426,6 +2449,501 @@ describe('Organizational Data Tool', () => {
       } else {
         delete process.env.OPENAI_API_KEY;
       }
+    });
+  });
+
+  // Policy Operations Tests - PRD #74
+  describe('Policy Operations', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      
+      // Set default mock implementations
+      mockPolicyInitialize.mockResolvedValue(undefined);
+      mockPolicyHealthCheck.mockResolvedValue(true);
+      mockStorePolicyIntent.mockResolvedValue(undefined);
+      mockGetAllPolicyIntents.mockResolvedValue([]);
+      mockGetPolicyIntentsCount.mockResolvedValue(0);
+      mockGetPolicyIntent.mockResolvedValue(null);
+      mockSearchPolicyIntents.mockResolvedValue([]);
+      mockDeletePolicyIntent.mockResolvedValue(undefined);
+    });
+
+    describe('Policy Creation', () => {
+      it('should start policy creation workflow successfully', async () => {
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create'
+          },
+          null,
+          testLogger,
+          'test-request-policy-create'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('create');
+        expect(response.dataType).toBe('policy');
+        expect(response.message).toBe('Workflow step ready');
+        expect(response.workflow).toEqual(
+          expect.objectContaining({
+            entityType: 'policy',
+            step: 'description',
+            sessionId: expect.any(String),
+            nextStep: 'triggers'
+          })
+        );
+        expect(response.workflow.prompt).toContain('Please describe the policy intent');
+      });
+
+      it('should start workflow even without initial description', async () => {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create'
+          },
+          null,
+          testLogger,
+          'test-request-policy-no-desc'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.workflow.step).toBe('description');
+        expect(response.workflow.prompt).toContain('Please describe the policy intent');
+      });
+
+      it('should progress through workflow with user responses', async () => {
+        // Start workflow
+        const startResult = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create'
+          },
+          null,
+          testLogger,
+          'test-request-policy-minimal'
+        );
+
+        const startResponse = JSON.parse(startResult.content[0].text);
+        expect(startResponse.success).toBe(true);
+        expect(startResponse.workflow.step).toBe('description');
+
+        // Progress to next step with description
+        const descResult = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create',
+            sessionId: startResponse.workflow.sessionId,
+            step: 'description',
+            response: 'Application security'
+          },
+          null,
+          testLogger,
+          'test-request-policy-description'
+        );
+
+        const descResponse = JSON.parse(descResult.content[0].text);
+        expect(descResponse.success).toBe(true);
+        expect(descResponse.workflow.step).toBe('triggers');
+        expect(descResponse.workflow.nextStep).toBe('trigger-expansion');
+      });
+
+      it('should handle workflow session errors gracefully', async () => {
+        // Try to continue non-existent session
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create',
+            sessionId: 'non-existent-session',
+            step: 'description',
+            response: 'test'
+          },
+          null,
+          testLogger,
+          'test-request-policy-error'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.error.message).toContain('session non-existent-session not found');
+      });
+    });
+
+    describe('Policy Listing', () => {
+      it('should list policy intents successfully', async () => {
+        const mockPolicyIntents = [{
+          id: 'policy-1',
+          description: 'Resource limits policy',
+          triggers: ['resource limits'],
+          rationale: 'Prevent resource exhaustion',
+          createdAt: '2025-08-21T10:00:00Z',
+          createdBy: 'admin',
+          deployedPolicies: []
+        }, {
+          id: 'policy-2',
+          description: 'Security policy',
+          triggers: ['security', 'rbac'],
+          rationale: 'Enforce security standards',
+          createdAt: '2025-08-21T11:00:00Z',
+          createdBy: 'security-team',
+          deployedPolicies: [{
+            name: 'security-policy-123',
+            appliedAt: '2025-08-21T12:00:00Z'
+          }]
+        }];
+
+        mockGetAllPolicyIntents.mockResolvedValue(mockPolicyIntents);
+        mockGetPolicyIntentsCount.mockResolvedValue(2);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'list'
+          },
+          null,
+          testLogger,
+          'test-request-policy-list'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('list');
+        expect(response.dataType).toBe('policy');
+        expect(response.policyIntents).toHaveLength(2);
+        expect(response.totalCount).toBe(2);
+        expect(response.policyIntents[0].id).toBe('policy-1');
+        expect(response.policyIntents[1].deployedPolicies).toHaveLength(1);
+      });
+
+      it('should handle empty policy list', async () => {
+        mockGetAllPolicyIntents.mockResolvedValue([]);
+        mockGetPolicyIntentsCount.mockResolvedValue(0);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'list'
+          },
+          null,
+          testLogger,
+          'test-request-policy-empty'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.policyIntents).toHaveLength(0);
+        expect(response.totalCount).toBe(0);
+      });
+
+      it('should respect limit parameter', async () => {
+        const mockPolicyIntents = Array.from({ length: 15 }, (_, i) => ({
+          id: `policy-${i}`,
+          description: `Policy ${i}`,
+          triggers: [`trigger-${i}`],
+          rationale: `Rationale ${i}`,
+          createdAt: '2025-08-21T10:00:00Z',
+          createdBy: 'user',
+          deployedPolicies: []
+        }));
+
+        mockGetAllPolicyIntents.mockResolvedValue(mockPolicyIntents);
+        mockGetPolicyIntentsCount.mockResolvedValue(15);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'list',
+            limit: 5
+          },
+          null,
+          testLogger,
+          'test-request-policy-limit'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.policyIntents).toHaveLength(5);
+        expect(response.totalCount).toBe(15);
+        expect(response.note).toContain('Showing first 5 of 15 policy intents');
+      });
+    });
+
+    describe('Policy Retrieval', () => {
+      it('should get policy intent by ID', async () => {
+        const mockPolicyIntent = {
+          id: 'policy-123',
+          description: 'Test policy',
+          triggers: ['test'],
+          rationale: 'Test rationale',
+          createdAt: '2025-08-21T10:00:00Z',
+          createdBy: 'user',
+          deployedPolicies: []
+        };
+
+        mockGetPolicyIntent.mockResolvedValue(mockPolicyIntent);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'get',
+            id: 'policy-123'
+          },
+          null,
+          testLogger,
+          'test-request-policy-get'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('get');
+        expect(response.policyIntent.id).toBe('policy-123');
+        expect(mockGetPolicyIntent).toHaveBeenCalledWith('policy-123');
+      });
+
+      it('should handle non-existent policy ID', async () => {
+        mockGetPolicyIntent.mockResolvedValue(null);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'get',
+            id: 'non-existent'
+          },
+          null,
+          testLogger,
+          'test-request-policy-not-found'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.message).toBe('Policy intent not found: non-existent');
+      });
+
+      it('should require ID for get operation', async () => {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'get'
+          },
+          null,
+          testLogger,
+          'test-request-policy-no-id'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.message).toBe('Policy intent ID is required for get operation');
+      });
+    });
+
+    describe('Policy Search', () => {
+      it('should search policy intents successfully', async () => {
+        const mockSearchResults = [{
+          data: {
+            id: 'policy-1',
+            description: 'Resource limits policy',
+            triggers: ['resource limits'],
+            rationale: 'Prevent resource exhaustion',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'admin',
+            deployedPolicies: []
+          },
+          score: 0.85
+        }];
+
+        mockSearchPolicyIntents.mockResolvedValue(mockSearchResults);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'search',
+            id: 'resource limits'
+          },
+          null,
+          testLogger,
+          'test-request-policy-search'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('search');
+        expect(response.searchResults).toHaveLength(1);
+        expect(response.searchResults[0].policyIntent.id).toBe('policy-1');
+        expect(response.searchResults[0].score).toBe(0.85);
+        expect(mockSearchPolicyIntents).toHaveBeenCalledWith(
+          'resource limits',
+          { limit: 10 }
+        );
+      });
+
+      it('should handle empty search results', async () => {
+        const mockSearchResults: any[] = [];
+
+        mockSearchPolicyIntents.mockResolvedValue(mockSearchResults);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'search',
+            id: 'nonexistent query'
+          },
+          null,
+          testLogger,
+          'test-request-policy-search-empty'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.searchResults).toHaveLength(0);
+      });
+
+      it('should require search query', async () => {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'search'
+          },
+          null,
+          testLogger,
+          'test-request-policy-search-no-query'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.message).toBe('Search query is required (use id parameter)');
+      });
+    });
+
+    describe('Policy Deletion', () => {
+      it('should delete policy intent successfully', async () => {
+        // Mock the policy exists
+        mockGetPolicyIntent.mockResolvedValue({
+          id: 'policy-123',
+          description: 'Test policy',
+          triggers: ['test'],
+          rationale: 'Testing',
+          createdAt: '2025-08-21T10:00:00Z',
+          createdBy: 'test-user',
+          deployedPolicies: []
+        });
+        mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'delete',
+            id: 'policy-123'
+          },
+          null,
+          testLogger,
+          'test-request-policy-delete'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(true);
+        expect(response.operation).toBe('delete');
+        expect(response.message).toBe('Policy intent deleted successfully');
+        expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-123');
+      });
+
+      it('should require ID for delete operation', async () => {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'delete'
+          },
+          null,
+          testLogger,
+          'test-request-policy-delete-no-id'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.message).toBe('Policy intent ID is required for delete operation');
+      });
+
+      it('should handle deletion errors', async () => {
+        mockDeletePolicyIntent.mockRejectedValue(
+          new Error('Policy not found')
+        );
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'delete',
+            id: 'policy-123'
+          },
+          null,
+          testLogger,
+          'test-request-policy-delete-error'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.error).toContain('Policy intent not found');
+      });
+    });
+
+    describe('Policy Service Integration', () => {
+      it('should validate Vector DB connection', async () => {
+        mockPolicyHealthCheck.mockResolvedValue(false);
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'list'
+          },
+          null,
+          testLogger,
+          'test-request-policy-db-down'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.message).toContain('Vector DB connection required for policy management');
+      });
+
+      it('should handle service initialization errors', async () => {
+        // Mock service creation failure by making healthCheck throw
+        mockPolicyHealthCheck.mockRejectedValue(
+          new Error('Service initialization failed')
+        );
+
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'create',
+            description: 'Test policy'
+          },
+          null,
+          testLogger,
+          'test-request-policy-init-error'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.error.message).toContain('Service initialization failed');
+      });
+    });
+
+    describe('Policy Operation Validation', () => {
+      it('should handle unsupported policy operations', async () => {
+        const result = await handleOrganizationalDataTool(
+          {
+            dataType: 'policy',
+            operation: 'unsupported'
+          },
+          null,
+          testLogger,
+          'test-request-policy-unsupported'
+        );
+
+        const response = JSON.parse(result.content[0].text);
+        expect(response.success).toBe(false);
+        expect(response.error).toContain('Unsupported operation');
+      });
     });
   });
 });

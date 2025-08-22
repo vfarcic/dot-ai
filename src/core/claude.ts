@@ -7,6 +7,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadPrompt } from './shared-prompt-loader';
 import * as crypto from 'crypto';
 
 export interface ClaudeResponse {
@@ -387,13 +388,10 @@ spec:
 
     try {
       // Load intent analysis prompt template
-      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'intent-analysis.md');
-      const template = fs.readFileSync(promptPath, 'utf8');
-      
-      // Replace template variables
-      const analysisPrompt = template
-        .replaceAll('{intent}', intent)
-        .replaceAll('{organizational_patterns}', organizationalPatterns || 'No specific organizational patterns available');
+      const analysisPrompt = loadPrompt('intent-analysis', {
+        intent,
+        organizational_patterns: organizationalPatterns || 'No specific organizational patterns available'
+      });
       
       // Send to Claude for analysis
       const response = await this.sendMessage(analysisPrompt, 'intent-analysis');
