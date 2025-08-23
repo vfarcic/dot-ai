@@ -194,11 +194,11 @@ interface PolicyIntent {
 **Goal**: Integrate policy intents with AI question generation
 
 **Implementation**:
-- [ ] Modify `generateQuestionsWithAI` to search for relevant policy intents
-- [ ] Update `prompts/question-generation.md` to include policy context
-- [ ] Add policy requirements to question generation (required fields, defaults, validation)
-- [ ] Implement policy-aware manifest generation
-- [ ] Add policy compliance indicators in generated questions
+- [x] Modify `generateQuestionsWithAI` to search for relevant policy intents
+- [x] Update `prompts/question-generation.md` to include policy context
+- [x] Add policy requirements to question generation (required fields, defaults, validation)
+- [x] Implement policy-aware manifest generation
+- [x] Add policy compliance indicators in generated questions
 
 **Integration Requirements**:
 - Policy search occurs after resource selection (Deployment, Service, etc.)
@@ -208,10 +208,10 @@ interface PolicyIntent {
 - Generated manifests comply with policy intents from the start
 
 **Success Criteria**:
-- Questions correctly include policy requirements as REQUIRED fields
-- Policy-driven defaults and validation work in questions
-- Generated manifests are compliant with policy intents
-- Clear user feedback about policy influence on configuration
+- [x] Questions correctly include policy requirements as REQUIRED fields
+- [x] Policy-driven defaults and validation work in questions
+- [x] Generated manifests are compliant with policy intents
+- [x] Clear user feedback about policy influence on configuration
 
 ### Phase 4: Kyverno Policy Generation and Enforcement
 
@@ -390,15 +390,15 @@ All documentation changes will include `<!-- PRD-74 -->` comments for traceabili
 ## Success Criteria
 
 ### Technical Metrics
-- [ ] Policy intents correctly enhance questions with requirements and defaults
-- [ ] Generated manifests comply with policy intents from the start
+- [x] Policy intents correctly enhance questions with requirements and defaults
+- [x] Generated manifests comply with policy intents from the start
 - [ ] 100% of generated Kyverno policies pass dry-run validation
 - [x] Policy search finds relevant intents within 1 second
 - [x] Policy intent lifecycle operations (create, update, delete) work correctly
 
 ### User Experience Metrics
-- [ ] Users receive clear indication of policy-required fields in questions
-- [ ] Policy-driven defaults and validation work seamlessly in questions
+- [x] Users receive clear indication of policy-required fields in questions
+- [x] Policy-driven defaults and validation work seamlessly in questions
 - [x] Users can create policy intents using natural language descriptions
 - [ ] Clear separation between guidance (intents) and enforcement (Kyverno)
 - [ ] GitOps compatibility through optional Kyverno policy file generation
@@ -668,6 +668,50 @@ All documentation changes will include `<!-- PRD-74 -->` comments for traceabili
 - Implement `PolicyVectorService` extending `BaseVectorService<PolicyIntent>`
 - Add policy CRUD operations to `manageOrgData` tool
 - Begin policy lifecycle management implementation
+
+### 2025-08-23: Phase 3 Complete - Policy-Aware Question Generation Integration
+**Duration**: ~6 hours implementation + comprehensive testing + validation
+**Commits**: Multiple implementation commits with live system validation
+**Primary Focus**: Complete policy integration with question generation system
+
+**Completed Phase 3 Items**:
+- [x] **Policy Search Integration**: Added PolicyVectorService to ResourceRecommender with semantic search after resource selection (`src/core/schema.ts:1037-1058`)
+- [x] **Template Enhancement**: Updated `prompts/question-generation.md` with detailed policy instructions following pattern management approach (lines 15-42)
+- [x] **Policy Context Processing**: Implemented structured policy formatting and template replacement for `{policy_context}` placeholder
+- [x] **Compliance Indicators**: AI now adds "⚠️ required by [policy]" indicators to policy-driven questions
+- [x] **Comprehensive Testing**: Added 4 test cases covering policy search, error handling, graceful degradation, and context formatting (`tests/core/schema.test.ts:2706-2990`)
+
+**Technical Achievements**:
+- **End-to-End Working System**: Full policy-aware question generation pipeline operational
+- **Graceful Degradation**: System works seamlessly with or without policies/Vector DB
+- **Policy-First UX**: Policies proactively guide users during configuration instead of reactively rejecting manifests
+- **Test Coverage**: 924 tests passing (849 passed + 75 skipped) with comprehensive policy integration validation
+- **Performance Validated**: Policy search completes within semantic search timeframes
+
+**Live System Validation**:
+- **Policy Creation**: Successfully created policy "Application images should NEVER use the latest tag" with comprehensive trigger keywords
+- **Semantic Discovery**: Policy correctly triggered during application deployment for container images
+- **Question Enhancement**: Image question automatically included policy compliance warning and guidance
+- **Compliant Deployment**: User guided to specify `ghcr.io/vfarcic/silly-demo:v1.5.165` instead of latest tag
+- **Manifest Generation**: Generated manifests complied with policy requirements from the start
+
+**Architecture Improvements**:
+- Policy search occurs after resource selection but before question generation (optimal timing)
+- Structured policy context formatting matches proven pattern management approach
+- Clear separation of concerns: policies for configuration enforcement, patterns for resource selection
+- Comprehensive AI instructions enable intelligent policy application based on resource compatibility
+
+**User Experience Validation**:
+- Clear policy compliance indicators in generated questions
+- Policy rationale included in question hints for user understanding
+- Proactive compliance prevents manifest rejections
+- Seamless integration - users don't need to learn new workflows
+
+**Next Session Priorities**:
+- **Phase 4 Ready**: All infrastructure complete for Kyverno policy generation
+- Begin AI prompt template for Kyverno YAML generation from policy intents
+- Implement schema validation pipeline and dry-run validation
+- Add policy deployment and cleanup operations
 
 ---
 

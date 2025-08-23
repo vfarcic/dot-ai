@@ -35,6 +35,18 @@ jest.mock('../../src/core/capability-vector-service', () => ({
   }))
 }));
 
+// Mock PolicyVectorService to prevent real policy calls
+const mockSearchPolicyIntents = jest.fn();
+jest.mock('../../src/core/policy-vector-service', () => ({
+  PolicyVectorService: jest.fn().mockImplementation(() => ({
+    searchPolicyIntents: mockSearchPolicyIntents,
+    storePolicyIntent: jest.fn().mockResolvedValue(undefined),
+    getPolicyIntent: jest.fn().mockResolvedValue(null),
+    deletePolicyIntent: jest.fn().mockResolvedValue(undefined),
+    getAllPolicyIntents: jest.fn().mockResolvedValue([])
+  }))
+}));
+
 describe('ResourceSchema Interface and Core Types', () => {
   describe('ResourceSchema interface', () => {
     it('should define complete schema structure with all required fields', () => {
@@ -2687,6 +2699,294 @@ FIELDS:
       expect(solutions[0].patternInfluences).toEqual([]);
       
       consoleSpy.mockRestore();
+    });
+  });
+});
+
+describe('ResourceRecommender - Policy-Aware Question Generation', () => {
+  let ranker: ResourceRecommender;
+  let config: AIRankingConfig;
+  let mockClaudeIntegration: any;
+  let mockExplainResource: jest.Mock;
+  
+  beforeEach(() => {
+    config = { claudeApiKey: 'test-key' };
+    
+    mockExplainResource = jest.fn();
+    mockExplainResource.mockResolvedValue('KIND: Deployment\nDESCRIPTION: Test deployment\nFIELDS:\n  spec.replicas: <integer>');
+
+    // Mock Claude integration
+    const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
+    mockClaudeIntegration = {
+      isInitialized: jest.fn().mockReturnValue(true),
+      sendMessage: jest.fn()
+    };
+    jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
+    jest.spyOn(ClaudeIntegration.prototype, 'sendMessage').mockImplementation(mockClaudeIntegration.sendMessage);
+
+    ranker = new ResourceRecommender(config);
+    
+    // Reset mocks
+    mockSearchCapabilities.mockReset();
+    mockSearchPolicyIntents.mockReset();
+    
+    // Default capability search results
+    mockSearchCapabilities.mockResolvedValue([
+      {
+        data: {
+          resourceName: 'deployments.apps',
+          capabilities: ['workload'],
+          providers: ['kubernetes'], 
+          description: 'Deployment resource',
+          confidence: 90
+        },
+        score: 0.9
+      }
+    ]);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('policy search integration', () => {
+    it('should search for relevant policies and include them in question generation prompt', async () => {
+      const intent = 'deploy web application';
+      
+      // Mock policy search results
+      const mockPolicyIntents = [
+        {
+          data: {
+            id: 'pol-resource-limits',
+            description: 'All containers must specify CPU and memory resource limits',
+            rationale: 'Prevents resource exhaustion and ensures fair scheduling',
+            triggers: ['resource limits', 'cpu', 'memory'],
+            createdAt: '2025-01-01T00:00:00Z',
+            createdBy: 'platform-team'
+          }
+        }
+      ];
+      mockSearchPolicyIntents.mockResolvedValue(mockPolicyIntents);
+
+      // Mock solution assembly response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "score": 95,
+            "description": "Web application deployment",
+            "reasons": ["Matches web application intent"],
+            "usedPatterns": false,
+            "patternInfluences": []
+          }]
+        }`
+      });
+
+      // Mock question generation response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [{"id": "cpu_limit", "question": "CPU limit (⚠️ required by resource limits policy)?", "type": "text"}], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      // Mock prompt loading
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('Template: {intent} {resources} {patterns}') // Solution assembly
+        .mockReturnValueOnce('Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nOptions: {cluster_options}\nPolicies: {policy_context}'); // Question generation
+
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(mockSearchPolicyIntents).toHaveBeenCalledWith(
+        expect.stringContaining(intent),
+        { limit: 5 }
+      );
+      
+      // Verify policy context was included in question generation prompt
+      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
+      expect(questionGenCall[0]).toContain('- ID: pol-resource-limits');
+      expect(questionGenCall[0]).toContain('Description: All containers must specify CPU and memory resource limits');
+      expect(questionGenCall[0]).toContain('Rationale: Prevents resource exhaustion and ensures fair scheduling');
+    });
+
+    it('should handle policy search failures gracefully', async () => {
+      const intent = 'deploy web application';
+      
+      // Mock policy search to fail
+      mockSearchPolicyIntents.mockRejectedValue(new Error('Policy search failed'));
+
+      // Mock solution assembly response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single",
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "score": 95,
+            "description": "Web application deployment",
+            "reasons": ["Matches web application intent"],
+            "usedPatterns": false
+          }]
+        }`
+      });
+
+      // Mock question generation response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      // Mock prompt loading
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('Template: {intent} {resources} {patterns}')
+        .mockReturnValueOnce('Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nOptions: {cluster_options}\nPolicies: {policy_context}');
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Policy search failed during question generation'),
+        expect.any(Error)
+      );
+      
+      // Should proceed with "No organizational policies" context
+      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
+      expect(questionGenCall[0]).toContain('No organizational policies found for this request.');
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should work when policyService is undefined (Vector DB unavailable)', async () => {
+      const intent = 'deploy web application';
+      
+      // Simply test by directly setting policyService to undefined
+      (ranker as any).policyService = undefined;
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      // Mock solution assembly response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{
+          "solutions": [{
+            "type": "single", 
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "score": 95,
+            "description": "Web application deployment",
+            "reasons": ["Matches web application intent"],
+            "usedPatterns": false,
+            "patternInfluences": []
+          }]
+        }`
+      });
+
+      // Mock question generation response
+      mockClaudeIntegration.sendMessage.mockResolvedValueOnce({
+        content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+      });
+
+      // Mock prompt loading
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('Template: {intent} {resources} {patterns}')
+        .mockReturnValueOnce('Intent: {intent}\nSolution: {solution_description}\nResources: {resource_details}\nOptions: {cluster_options}\nPolicies: {policy_context}');
+
+      const solutions = await ranker.findBestSolutions(intent, mockExplainResource);
+
+      expect(solutions).toHaveLength(1);
+      expect(mockSearchPolicyIntents).not.toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Policy service unavailable, skipping policy search')
+      );
+      
+      // Should use "No organizational policies" context
+      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
+      expect(questionGenCall[0]).toContain('No organizational policies found for this request.');
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should format policy context correctly for question generation prompt', async () => {
+      const intent = 'deploy database';
+      
+      // Reset capability mocks to ensure they're working
+      mockSearchCapabilities.mockReset();
+      mockSearchCapabilities.mockResolvedValue([
+        {
+          data: {
+            resourceName: 'deployments.apps',
+            capabilities: ['database', 'workload'],
+            providers: ['kubernetes'], 
+            description: 'Database deployment resource',
+            confidence: 95
+          },
+          score: 0.95
+        }
+      ]);
+      
+      // Mock multiple policy search results
+      const mockPolicyIntents = [
+        {
+          data: {
+            id: 'pol-security-contexts',
+            description: 'All containers must run with security contexts',
+            rationale: 'Enhances security by preventing privilege escalation',
+            triggers: ['security', 'containers'],
+            createdAt: '2025-01-01T00:00:00Z',
+            createdBy: 'security-team'
+          }
+        },
+        {
+          data: {
+            id: 'pol-resource-limits',
+            description: 'Database workloads must specify resource limits',
+            rationale: 'Prevents database from consuming all cluster resources',
+            triggers: ['database', 'resources', 'limits'],
+            createdAt: '2025-01-02T00:00:00Z',
+            createdBy: 'platform-team'
+          }
+        }
+      ];
+      mockSearchPolicyIntents.mockResolvedValue(mockPolicyIntents);
+
+      // Mock solution assembly and question generation
+      mockClaudeIntegration.sendMessage
+        .mockResolvedValueOnce({
+          content: `{
+            "solutions": [{
+              "type": "single",
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+              "score": 95,
+              "description": "Database deployment",
+              "usedPatterns": false
+            }]
+          }`
+        })
+        .mockResolvedValueOnce({
+          content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "test", "placeholder": "test"}}`
+        });
+
+      // Mock prompt loading
+      const fs = require('fs');
+      jest.spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce('Template: {intent}')
+        .mockReturnValueOnce('Policies: {policy_context}');
+
+      await ranker.findBestSolutions(intent, mockExplainResource);
+
+      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
+      const prompt = questionGenCall[0];
+      
+      // Should format both policies correctly
+      expect(prompt).toContain('- ID: pol-security-contexts');
+      expect(prompt).toContain('Description: All containers must run with security contexts');
+      expect(prompt).toContain('Rationale: Enhances security by preventing privilege escalation');
+      expect(prompt).toContain('Triggers: security, containers');
+      
+      expect(prompt).toContain('- ID: pol-resource-limits');
+      expect(prompt).toContain('Description: Database workloads must specify resource limits');
+      expect(prompt).toContain('Rationale: Prevents database from consuming all cluster resources');
+      expect(prompt).toContain('Triggers: database, resources, limits');
     });
   });
 });
