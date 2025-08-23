@@ -484,7 +484,7 @@ FIELDS:
   "solutions": [
     {
       "type": "single",
-      "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+      "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
       "score": 85,
       "description": "Pod for simple container execution",
       "reasons": ["Direct container hosting", "Simple use case"],
@@ -588,7 +588,8 @@ FIELDS:
               "resources": [{
                 "kind": "Cluster",
                 "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
-                "group": "infrastructure.cluster.x-k8s.io"
+                "group": "infrastructure.cluster.x-k8s.io",
+                "resourceName": "clusters.infrastructure.cluster.x-k8s.io"
               }],
               "score": 98,
               "description": "Custom resource for cluster provisioning",
@@ -603,7 +604,7 @@ FIELDS:
           content: `{
             "solutions": [{
               "type": "single",
-              "resources": [{"kind": "Cluster", "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "group": "infrastructure.cluster.x-k8s.io"}],
+              "resources": [{"kind": "Cluster", "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "group": "infrastructure.cluster.x-k8s.io", "resourceName": "clusters.infrastructure.cluster.x-k8s.io"}],
               "score": 98,
               "description": "Custom resource for cluster provisioning",
               "reasons": ["Cluster management", "Infrastructure as code"],
@@ -768,7 +769,7 @@ FIELDS:
           content: `{
             "solutions": [{
               "type": "combination",
-              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}, {"kind": "Service", "apiVersion": "v1", "group": ""}],
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}, {"kind": "Service", "apiVersion": "v1", "group": "", "resourceName": "services"}],
               "score": 95,
               "description": "Complete web application stack",
               "reasons": ["Scalable architecture", "Load balancing"],
@@ -904,8 +905,8 @@ FIELDS:
           "solutions": [{
             "type": "combination",
             "resources": [
-              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
-              {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}
+              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"},
+              {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live", "resourceName": "appclaims.devopstoolkit.live"}
             ],
             "score": 95,
             "description": "Complete application deployment with custom resource",
@@ -953,7 +954,7 @@ FIELDS:
             "type": "combination",
             "score": 95,
             "description": "Complete app deployment with AppClaim",
-            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}],
+            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live", "resourceName": "appclaims.devopstoolkit.live"}],
             "reasons": ["AppClaim provides simple app deployment"],
             "analysis": "AppClaim simplifies application deployment",
             "patternInfluences": [],
@@ -1080,7 +1081,7 @@ FIELDS:
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "score": 95,
             "description": "Deployment with persistent storage support",
             "reasons": ["Has volume mounting capabilities", "Supports persistent storage"],
@@ -1089,7 +1090,7 @@ FIELDS:
             "usedPatterns": false
           }, {
             "type": "single",
-            "resources": [{"kind": "App", "apiVersion": "example.com/v1", "group": "example.com"}],
+            "resources": [{"kind": "App", "apiVersion": "example.com/v1", "group": "example.com", "resourceName": "apps.example.com"}],
             "score": 15,
             "description": "App CRD without storage support",
             "reasons": ["Lacks persistent storage fields"],
@@ -1191,8 +1192,8 @@ FIELDS:
           "solutions": [{
             "type": "combination",
             "resources": [
-              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
-              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": ""}
+              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"},
+              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": "", "resourceName": "persistentvolumeclaims"}
             ],
             "score": 95,
             "description": "Complete stateful application with persistent storage",
@@ -1203,8 +1204,8 @@ FIELDS:
           }, {
             "type": "combination",
             "resources": [
-              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": ""},
-              {"kind": "PersistentVolume", "apiVersion": "v1", "group": ""}
+              {"kind": "PersistentVolumeClaim", "apiVersion": "v1", "group": "", "resourceName": "persistentvolumeclaims"},
+              {"kind": "PersistentVolume", "apiVersion": "v1", "group": "", "resourceName": "persistentvolumes"}
             ],
             "score": 35,
             "description": "Persistent storage infrastructure only",
@@ -1284,7 +1285,7 @@ FIELDS:
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "TestResource", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "TestResource", "apiVersion": "v1", "group": "", "resourceName": "testresources"}],
             "score": 80,
             "description": "Test resource solution",
             "reasons": ["TestResource for testing"],
@@ -1312,7 +1313,7 @@ FIELDS:
             "type": "single",
             "score": 80,
             "description": "Test resource solution",
-            "resources": [{"kind": "TestResource", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "TestResource", "apiVersion": "v1", "group": "", "resourceName": "testresources"}],
             "reasons": ["TestResource for testing"],
             "analysis": "Basic test resource",
             "patternInfluences": [],
@@ -1398,7 +1399,7 @@ FIELDS:
           "solutions": [{
             "type": "single",
             "resources": [
-              {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}
+              {"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live", "resourceName": "appclaims.devopstoolkit.live"}
             ],
             "score": 90,
             "description": "Simple application deployment using AppClaim",
@@ -1409,8 +1410,8 @@ FIELDS:
           }, {
             "type": "combination",
             "resources": [
-              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"},
-              {"kind": "Service", "apiVersion": "v1", "group": ""}
+              {"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"},
+              {"kind": "Service", "apiVersion": "v1", "group": "", "resourceName": "services"}
             ],
             "score": 80,
             "description": "Traditional Kubernetes deployment",
@@ -1462,7 +1463,7 @@ FIELDS:
             "type": "single",
             "score": 90,
             "description": "Simple application deployment using AppClaim",
-            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live"}],
+            "resources": [{"kind": "AppClaim", "apiVersion": "devopstoolkit.live/v1alpha1", "group": "devopstoolkit.live", "resourceName": "appclaims.devopstoolkit.live"}],
             "reasons": ["AppClaim provides declarative app deployment", "Higher-level abstraction"],
             "analysis": "AppClaim offers simpler deployment",
             "patternInfluences": [],
@@ -1471,7 +1472,7 @@ FIELDS:
             "type": "combination", 
             "score": 80,
             "description": "Traditional Kubernetes deployment",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}, {"kind": "Service", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}, {"kind": "Service", "apiVersion": "v1", "group": "", "resourceName": "services"}],
             "reasons": ["Standard Kubernetes pattern"],
             "analysis": "Traditional approach",
             "patternInfluences": [],
@@ -1685,7 +1686,7 @@ FIELDS:
           content: `{
             "solutions": [{
               "type": "single",
-              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
               "score": 85,
               "description": "Application deployment",
               "reasons": ["Deployment provides application management"],
@@ -1773,7 +1774,7 @@ FIELDS:
         .mockResolvedValueOnce({ content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
             "score": 50,
             "description": "Pod deployment",
             "reasons": ["Simple container deployment"],
@@ -1783,7 +1784,7 @@ FIELDS:
           }]
         }` }) // Solution assembly
         .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
+          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
         }) // Resource ranking
         .mockResolvedValueOnce({
           content: `{"required": [], "basic": [], "advanced": [], "open": {"question": "fallback", "placeholder": "fallback"}}`
@@ -1832,7 +1833,7 @@ FIELDS:
         .mockResolvedValueOnce({ content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
             "score": 50,
             "description": "Pod deployment",
             "reasons": ["Simple container deployment"],
@@ -1842,7 +1843,7 @@ FIELDS:
           }]
         }` })
         .mockResolvedValueOnce({
-          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
+          content: `{"solutions": [{"type": "single", "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}], "score": 50, "description": "Pod", "reasons": [], "analysis": "", "patternInfluences": [], "usedPatterns": false}]}`
         })
         .mockRejectedValueOnce(new Error('AI service unavailable'));
 
@@ -1910,7 +1911,7 @@ FIELDS:
 {
   "solutions": [{
     "type": "single",
-    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
     "score": 90,
     "description": "Pod for basic deployment",
     "reasons": ["Pod handles the deployment"],
@@ -1932,7 +1933,7 @@ These resources should work well.`
     "type": "single",
     "score": 90,
     "description": "Pod for basic deployment",
-    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
     "reasons": ["Pod handles the deployment"],
     "analysis": "Simple pod deployment",
     "patternInfluences": [],
@@ -1999,7 +2000,7 @@ FIELDS:
         content: `{
   "solutions": [{
     "type": "single",
-    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
     "score": 85,
     "description": "Pod solution",
     "reasons": ["Pod works"],
@@ -2019,7 +2020,7 @@ Some additional text after the JSON array.`
     "type": "single",
     "score": 85,
     "description": "Pod solution",
-    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
     "reasons": ["Pod works"],
     "analysis": "Basic analysis",
     "patternInfluences": [],
@@ -2088,7 +2089,7 @@ FIELDS:
         content: `{
   "solutions": [{
     "type": "single",
-    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+    "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
     "score": 85,
     // This comment breaks JSON
     "description": "Pod deployment"
@@ -2182,7 +2183,7 @@ FIELDS:
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
             "score": 85,
             "description": "Pod deployment",
             "reasons": ["Simple container deployment"],
@@ -2356,8 +2357,8 @@ FIELDS:
           "solutions": [{
             "type": "combination",
             "resources": [
-              {"kind": "Pod", "apiVersion": "v1", "group": ""},
-              {"kind": "Service", "apiVersion": "v1", "group": ""}
+              {"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"},
+              {"kind": "Service", "apiVersion": "v1", "group": "", "resourceName": "services"}
             ],
             "score": 85,
             "description": "Pod and Service deployment",
@@ -2442,8 +2443,8 @@ FIELDS:
           "solutions": [{
             "type": "combination",
             "resources": [
-              {"kind": "Pod", "apiVersion": "v1", "group": ""},
-              {"kind": "Service", "apiVersion": "v1", "group": ""}
+              {"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"},
+              {"kind": "Service", "apiVersion": "v1", "group": "", "resourceName": "services"}
             ],
             "score": 85,
             "description": "Pod and Service deployment with partial schema fetch",
@@ -2460,7 +2461,7 @@ FIELDS:
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
             "score": 90,
             "description": "Pod solution",
             "reasons": ["test"],
@@ -2536,7 +2537,7 @@ FIELDS:
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "score": 90,
             "description": "Web application deployment with organizational patterns",
             "reasons": ["Supports web application deployment", "Follows organizational patterns"],
@@ -2556,7 +2557,7 @@ FIELDS:
             "description": "Deploy using Kubernetes Deployment with organizational best practices",
             "reasons": ["Matches organizational patterns for web applications"],
             "analysis": "Standard deployment pattern enhanced with organizational guidelines",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "patternInfluences": [{
               "patternId": "test-pattern-123",
               "description": "Web application pattern",
@@ -2653,7 +2654,7 @@ FIELDS:
         .mockResolvedValueOnce({ content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+            "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
             "score": 85,
             "description": "Pod deployment",
             "reasons": ["Simple container deployment"],
@@ -2670,7 +2671,7 @@ FIELDS:
               "description": "Deploy using Pod",
               "reasons": ["Direct pod deployment"],
               "analysis": "Simple pod deployment",
-              "resources": [{"kind": "Pod", "apiVersion": "v1", "group": ""}],
+              "resources": [{"kind": "Pod", "apiVersion": "v1", "group": "", "resourceName": "pods"}],
               "patternInfluences": [],
               "usedPatterns": false
             }]
@@ -2773,7 +2774,7 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "score": 95,
             "description": "Web application deployment",
             "reasons": ["Matches web application intent"],
@@ -2820,7 +2821,7 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
         content: `{
           "solutions": [{
             "type": "single",
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "score": 95,
             "description": "Web application deployment",
             "reasons": ["Matches web application intent"],
@@ -2870,7 +2871,7 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
         content: `{
           "solutions": [{
             "type": "single", 
-            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+            "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
             "score": 95,
             "description": "Web application deployment",
             "reasons": ["Matches web application intent"],
@@ -2955,7 +2956,7 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
           content: `{
             "solutions": [{
               "type": "single",
-              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps"}],
+              "resources": [{"kind": "Deployment", "apiVersion": "apps/v1", "group": "apps", "resourceName": "deployments.apps"}],
               "score": 95,
               "description": "Database deployment",
               "usedPatterns": false
@@ -3307,6 +3308,82 @@ describe('Pattern Resource Injection (PRD #54)', () => {
       // Only 'invalid-resource' should be processed (empty string, null, undefined are filtered out)
       expect(result.length).toBe(1);
       expect(result[0].kind).toBe('invalid-resource');
+    });
+  });
+
+  describe('Schema Fetching with resourceName', () => {
+    let recommender: ResourceRecommender;
+    let mockExplainResource: jest.Mock;
+
+    beforeEach(() => {
+      const config: AIRankingConfig = { claudeApiKey: 'test-key' };
+      recommender = new ResourceRecommender(config);
+      mockExplainResource = jest.fn();
+      
+      // Mock Claude integration
+      const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
+      jest.spyOn(ClaudeIntegration.prototype, 'isInitialized').mockReturnValue(true);
+    });
+
+    it('should use resourceName when available for schema fetching', async () => {
+      const solution = {
+        solutionId: 'test-solution',
+        type: 'single' as const,
+        score: 90,
+        description: 'Test solution',
+        reasons: ['test'],
+        resources: [{
+          kind: 'SQL',
+          group: 'devopstoolkit.live',
+          apiVersion: 'devopstoolkit.live/v1beta1',
+          description: 'SQL resource',
+          resourceName: 'sqls.devopstoolkit.live' // Correct plural form
+        }],
+        questions: { required: [], basic: [], advanced: [], open: { question: 'test', placeholder: 'test' } }
+      };
+
+      mockExplainResource.mockResolvedValue('GROUP: devopstoolkit.live\nKIND: SQL\nVERSION: v1beta1\nFIELDS:\n  spec: <Object>');
+
+      const generateMethod = (recommender as any).generateQuestionsWithAI.bind(recommender);
+      await generateMethod('test intent', solution, mockExplainResource);
+
+      // Verify explainResource was called with the correct resourceName
+      expect(mockExplainResource).toHaveBeenCalledWith('sqls.devopstoolkit.live');
+    });
+
+    it('should throw clear error when resourceName is missing', async () => {
+      // Mock policy service to prevent errors
+      mockSearchPolicyIntents.mockResolvedValue([]);
+
+      // Mock Claude integration to return basic questions
+      const ClaudeIntegration = require('../../src/core/claude').ClaudeIntegration;
+      const mockSendMessage = jest.spyOn(ClaudeIntegration.prototype, 'sendMessage');
+      
+      const solution = {
+        solutionId: 'test-solution',
+        type: 'single' as const,
+        score: 90,
+        description: 'Test solution',
+        reasons: ['test'],
+        resources: [{
+          kind: 'SQL',
+          group: 'devopstoolkit.live',
+          apiVersion: 'devopstoolkit.live/v1beta1',
+          description: 'SQL resource'
+          // Missing resourceName
+        }],
+        questions: { required: [], basic: [], advanced: [], open: { question: 'test', placeholder: 'test' } }
+      };
+
+      const generateMethod = (recommender as any).generateQuestionsWithAI.bind(recommender);
+      
+      await expect(generateMethod('test intent', solution, mockExplainResource))
+        .rejects.toThrow('Resource SQL is missing resourceName field. This indicates a bug in solution construction.');
+      
+      // Verify explainResource was never called
+      expect(mockExplainResource).not.toHaveBeenCalled();
+      // Claude AI should not be called either since we error before schema fetching
+      expect(mockSendMessage).not.toHaveBeenCalled();
     });
   });
 });

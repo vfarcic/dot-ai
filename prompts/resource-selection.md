@@ -58,6 +58,8 @@ Create multiple alternative solutions. Consider:
 
 Respond with ONLY a JSON object containing an array of complete solutions. Each solution should include resources, description, scoring, and pattern compliance:
 
+**CRITICAL**: For each resource in your solutions, you MUST include the `resourceName` field. This field contains the correct plural, lowercase resource name used for kubectl explain calls. Extract this from the Available Resources list - each resource shows its `resourceName` field that you should copy exactly.
+
 ```json
 {
   "solutions": [
@@ -67,12 +69,14 @@ Respond with ONLY a JSON object containing an array of complete solutions. Each 
         {
           "kind": "Deployment",
           "apiVersion": "apps/v1",
-          "group": "apps"
+          "group": "apps",
+          "resourceName": "deployments.apps"
         },
         {
           "kind": "Service",
           "apiVersion": "v1",
-          "group": ""
+          "group": "",
+          "resourceName": "services"
         }
       ],
       "score": 95,
