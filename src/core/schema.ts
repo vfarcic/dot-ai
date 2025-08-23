@@ -14,6 +14,8 @@ import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
 import { CapabilityVectorService } from './capability-vector-service';
+import { PolicyVectorService } from './policy-vector-service';
+import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
 
 // Core type definitions for schema structure
@@ -380,6 +382,7 @@ export class ResourceRecommender {
   private config: AIRankingConfig;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
+  private policyService?: PolicyVectorService;
 
   constructor(config: AIRankingConfig) {
     this.config = config;
@@ -403,6 +406,16 @@ export class ResourceRecommender {
     } catch (error) {
       console.warn('⚠️ Vector DB not available, patterns disabled:', error);
       this.patternService = undefined;
+    }
+    
+    // Initialize policy service only if Vector DB is available
+    try {
+      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
+      this.policyService = new PolicyVectorService(policyVectorDB);
+      console.log('✅ Policy service initialized with Vector DB');
+    } catch (error) {
+      console.warn('⚠️ Vector DB not available, policies disabled:', error);
+      this.policyService = undefined;
     }
   }
 
@@ -433,15 +446,19 @@ export class ResourceRecommender {
 
       let relevantCapabilities: any[] = [];
       
-      try {
-        relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
-      } catch (error) {
-        // Capability search failed - fail fast with clear guidance
-        throw new Error(
-          `Capability search failed for intent "${intent}". Please scan your cluster first:\n` +
-          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
-          `Error: ${error}`
-        );
+      if (this.capabilityService) {
+        try {
+          relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
+        } catch (error) {
+          // Capability search failed - fail fast with clear guidance
+          throw new Error(
+            `Capability search failed for intent "${intent}". Please scan your cluster first:\n` +
+            `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+            `Error: ${error}`
+          );
+        }
+      } else {
+        console.warn('⚠️ Capability service not available (Vector DB not reachable), proceeding without capabilities');
       }
       
       if (relevantCapabilities.length === 0) {
@@ -1021,6 +1038,24 @@ export class ResourceRecommender {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
+      
+      // Search for relevant policy intents based on the selected resources
+      let relevantPolicies: PolicyIntent[] = [];
+      if (this.policyService) {
+        try {
+          const resourceContext = solution.resources.map(r => `${r.kind} ${r.description}`).join(' ');
+          const policyResults = await this.policyService.searchPolicyIntents(
+            `${intent} ${resourceContext}`,
+            { limit: 5 }
+          );
+          relevantPolicies = policyResults.map(result => result.data);
+          console.log(`🛡️ Found ${relevantPolicies.length} relevant policy intents for question generation`);
+        } catch (error) {
+          console.warn('⚠️ Policy search failed during question generation, proceeding without policies:', error);
+        }
+      } else {
+        console.log('🛡️ Policy service unavailable, skipping policy search - proceeding without policy guidance');
+      }
 
       // Format resource details for the prompt using raw explanation when available
       const resourceDetails = solution.resources.map(resource => {
@@ -1055,6 +1090,16 @@ Available Storage Classes: ${clusterOptions.storageClasses.length > 0 ? clusterO
 Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterOptions.ingressClasses.join(', ') : 'None discovered'}
 Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
 
+      // Format organizational policies for AI context - structured like patterns
+      const policyContextText = relevantPolicies.length > 0 
+        ? relevantPolicies.map(policy => 
+            `- ID: ${policy.id}
+  Description: ${policy.description}
+  Rationale: ${policy.rationale}
+  Triggers: ${policy.triggers?.join(', ') || 'None'}`
+          ).join('\n')
+        : 'No organizational policies found for this request.';
+
       // Load and format the question generation prompt
       const template = loadPrompt('question-generation');
       
@@ -1062,7 +1107,8 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{intent}', intent)
         .replace('{solution_description}', solution.description)
         .replace('{resource_details}', resourceDetails)
-        .replace('{cluster_options}', clusterOptionsText);
+        .replace('{cluster_options}', clusterOptionsText)
+        .replace('{policy_context}', policyContextText);
 
       const response = await this.claudeIntegration.sendMessage(questionPrompt, 'question-generation');
       

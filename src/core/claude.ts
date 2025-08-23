@@ -167,7 +167,7 @@ ${response.content}`;
         // Make real API call to Claude
         const completion = await this.client.messages.create({
           model: 'claude-sonnet-4-20250514', // Latest Claude Sonnet 4 - check for newer versions periodically
-          max_tokens: 4000,
+          max_tokens: 64000,
           messages: [{ role: 'user', content: message }]
         });
 
