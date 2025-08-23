@@ -199,6 +199,9 @@ interface PolicyIntent {
 - [x] Add policy requirements to question generation (required fields, defaults, validation)
 - [x] Implement policy-aware manifest generation
 - [x] Add policy compliance indicators in generated questions
+- [x] **Schema Validation Enhancement**: Fix question generation to use actual resource schemas via kubectl explain
+- [x] **Resource Name Handling**: Implement proper `resourceName` field usage for schema fetching
+- [x] **AI Template Updates**: Update `prompts/resource-selection.md` to include resourceName in AI responses
 
 **Integration Requirements**:
 - Policy search occurs after resource selection (Deployment, Service, etc.)
@@ -212,6 +215,9 @@ interface PolicyIntent {
 - [x] Policy-driven defaults and validation work in questions
 - [x] Generated manifests are compliant with policy intents
 - [x] Clear user feedback about policy influence on configuration
+- [x] **Schema Accuracy**: Questions only generated for fields that actually exist in resource schemas
+- [x] **Resource Name Resolution**: kubectl explain calls use correct plural resource names
+- [x] **End-to-End Validation**: Complete system tested with live database creation and policy enforcement
 
 ### Phase 4: Kyverno Policy Generation and Enforcement
 
@@ -712,6 +718,59 @@ All documentation changes will include `<!-- PRD-74 -->` comments for traceabili
 - Begin AI prompt template for Kyverno YAML generation from policy intents
 - Implement schema validation pipeline and dry-run validation
 - Add policy deployment and cleanup operations
+
+### 2025-08-23: Phase 3 Extensions - Schema Validation and System Reliability
+**Duration**: ~4 hours debugging + comprehensive system fixes + end-to-end validation
+**Branch**: feature/prd-74-pattern-driven-policy-generation (uncommitted changes)
+**Primary Focus**: Critical bug fixes for schema validation and resource name handling
+
+**Critical Bug Discovery and Resolution**:
+- **Bug**: AI generating questions for non-existent resource fields (cpu-target, memory-target on App CRD, database-name on SQL CRD)
+- **Root Cause**: `generateQuestionsWithAI` only received generic resource descriptions, not actual schemas from kubectl explain
+- **Investigation**: kubectl explain calls were using incorrect resource names (SQL.devopstoolkit.live vs sqls.devopstoolkit.live)
+- **Impact**: Users receiving invalid configuration questions that don't match actual resource capabilities
+
+**Completed Schema Validation Enhancements**:
+- [x] **Schema Fetching Integration**: Modified `generateQuestionsWithAI` to fetch actual kubectl explain data before question generation (`src/core/schema.ts`)
+- [x] **Resource Name Resolution**: Fixed kubectl explain calls to use `resourceName` field from capability data (proper plural forms)
+- [x] **Error Handling**: Added clear error messages for missing resourceName fields instead of silent fallback to broken behavior
+- [x] **AI Prompt Updates**: Enhanced `prompts/resource-selection.md` to instruct AI to include resourceName in resource definitions
+- [x] **Response Parsing Fix**: Updated `parseSimpleSolutionResponse` to preserve resourceName from AI responses
+- [x] **Test Coverage**: Updated 22 test mocks to include resourceName fields, ensuring comprehensive validation
+
+**Technical Achievements**:
+- **Zero Invalid Questions**: Questions now only generated for fields that actually exist in resource schemas
+- **Robust Resource Naming**: kubectl explain calls use correct plural resource names consistently
+- **Graceful Error Handling**: Clear user feedback when resource schemas cannot be fetched
+- **Comprehensive Testing**: All tests pass with new validation requirements
+
+**Live System Validation**:
+- **Policy Testing**: Created Azure region policy and successfully tested database creation with policy enforcement
+- **Schema Accuracy**: Generated questions match actual SQL CRD schema fields (size, region, version, databases, crossplane.compositionRef)
+- **End-to-End Flow**: Complete user workflow validated from policy creation through compliant manifest generation
+- **Debug Analysis**: Examined debug prompts to confirm Properties section correctly populated with actual schema data
+
+**User Experience Improvements**:
+- **Accurate Questions**: Users only see questions for fields they can actually configure
+- **Clear Error Messages**: Helpful feedback when resource schemas are unavailable
+- **Policy Integration**: Seamless policy enforcement with schema-accurate question generation
+- **Reliable Recommendations**: Recommendations based on actual cluster capabilities, not assumptions
+
+**Technical Impact**:
+- Fixed fundamental issue where recommendation system diverged from actual resource capabilities
+- Established reliable pattern for schema-driven question generation
+- Improved system trustworthiness through accurate field validation
+- Enhanced policy system effectiveness by ensuring generated questions match enforceable fields
+
+**Files Modified** (Uncommitted):
+- `src/core/schema.ts`: Enhanced schema fetching and resource name validation (36 line changes)
+- `prompts/resource-selection.md`: Added resourceName instructions for AI (8 line changes)  
+- `tests/core/schema.test.ts`: Updated test coverage for new validation requirements (165 line changes)
+
+**Next Session Priorities**:
+- Commit schema validation improvements with comprehensive test coverage
+- **Phase 4 Ready**: Begin Kyverno policy generation with validated schema foundation
+- Leverage improved schema accuracy for Kyverno policy field validation
 
 ---
 

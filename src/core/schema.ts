@@ -48,6 +48,7 @@ export interface ResourceSchema {
   properties: Map<string, SchemaField>;
   required?: string[];
   namespace?: boolean;
+  resourceName?: string; // Proper plural resource name for kubectl explain
   rawExplanation?: string; // Raw kubectl explain output for AI processing
 }
 
@@ -489,7 +490,7 @@ export class ResourceRecommender {
       
       // Phase 3: Generate questions for each solution
       for (const solution of solutions) {
-        solution.questions = await this.generateQuestionsWithAI(intent, solution);
+        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource);
       }
       
       return solutions;
@@ -538,6 +539,7 @@ export class ResourceRecommender {
           kind: resource.kind,
           apiVersion: resource.apiVersion,
           group: resource.group || '',
+          resourceName: resource.resourceName, // Preserve resourceName from AI response
           description: `${resource.kind} resource from ${resource.group || 'core'} group`,
           properties: new Map(),
           namespace: true // Default assumption for new architecture
@@ -1034,7 +1036,7 @@ export class ResourceRecommender {
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
@@ -1057,8 +1059,31 @@ export class ResourceRecommender {
         console.log('🛡️ Policy service unavailable, skipping policy search - proceeding without policy guidance');
       }
 
+      // Fetch actual schema information for each resource in the solution
+      const resourcesWithSchemas = await Promise.all(solution.resources.map(async (resource) => {
+        try {
+          // Use resourceName from capability data - this contains the correct plural form
+          if (!resource.resourceName) {
+            throw new Error(`Resource ${resource.kind} is missing resourceName field. This indicates a bug in solution construction. All resources must have a proper resourceName for schema fetching.`);
+          }
+          const rawExplanation = await explainResource(resource.resourceName);
+          
+          return {
+            ...resource,
+            rawExplanation: rawExplanation
+          };
+        } catch (error) {
+          // Re-throw errors about missing resourceName - these are bugs, not schema fetch failures
+          if (error instanceof Error && error.message.includes('missing resourceName field')) {
+            throw error;
+          }
+          console.warn(`Failed to fetch schema for ${resource.kind}: ${error}. Using generic info.`);
+          return resource; // Return original resource if schema fetch fails
+        }
+      }));
+
       // Format resource details for the prompt using raw explanation when available
-      const resourceDetails = solution.resources.map(resource => {
+      const resourceDetails = resourcesWithSchemas.map(resource => {
         if (resource.rawExplanation) {
           // Use raw kubectl explain output for comprehensive field information
           return `${resource.kind} (${resource.apiVersion}):
@@ -1122,6 +1147,11 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       
       return questions as QuestionGroup;
     } catch (error) {
+      // Re-throw errors about missing resourceName - these are bugs, not generation failures
+      if (error instanceof Error && error.message.includes('missing resourceName field')) {
+        throw error;
+      }
+      
       console.warn(`Failed to generate AI questions for solution: ${error}`);
       
       // Fallback to basic open question
