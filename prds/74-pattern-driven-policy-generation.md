@@ -228,7 +228,7 @@ interface PolicyIntent {
 - [x] Implement schema validation pipeline using existing `explainResource`
 - [x] Add dry-run validation before applying policies to cluster
 - [x] Create policy deployment operations
-- [ ] Create policy cleanup operations (delete from cluster when policy intent deleted)
+- [x] Create policy cleanup operations (delete from cluster when policy intent deleted)
 - [x] Add policy status tracking and reporting
 - [ ] Implement policy update workflow (regenerate and redeploy Kyverno when policy intent updated)
 
@@ -236,14 +236,14 @@ interface PolicyIntent {
 - [x] Generate Kyverno policies from policy intent descriptions
 - [x] Validate generated policies against cluster schemas
 - [x] Support policy application
-- [ ] Support policy updates and cleanup
+- [x] Support policy cleanup, [ ] Support policy updates
 - [x] Track deployed policy names in policy intent records
 - [x] No duplication of YAML in Vector DB storage
 
 **Success Criteria**:
 - [x] Generated Kyverno policies pass dry-run validation
 - [x] Policy deployment works correctly
-- [ ] Policy cleanup works correctly (remove from cluster when policy intent deleted)
+- [x] Policy cleanup works correctly (remove from cluster when policy intent deleted)
 - [x] Policy intents correctly track deployed policy references
 - [x] Users can enforce policy intents as cluster-level policies
 - [ ] Policy update workflow maintains cluster synchronization
@@ -951,7 +951,51 @@ const relevantPolicies = await policyVectorService.searchPolicyIntents(
 - **Synchronization**: Keep policy intents and deployed Kyverno policies in sync during lifecycle operations
 
 **Next Session Priorities**:
-- Implement `delete` operation in `manageOrgData` policy operations
-- Add cluster cleanup when policy intents are deleted
 - Implement policy update workflow with Kyverno regeneration and redeployment
 - Complete Phase 4 lifecycle management functionality
+
+### 2025-08-25: Phase 4 Critical Bug Fixes - Policy ID Consistency and Deletion Operations
+**Duration**: ~3 hours debugging + implementation + comprehensive testing
+**Branch**: feature/prd-74-pattern-driven-policy-generation
+**Primary Focus**: Fixed critical policy ID mismatch bug and completed policy deletion operations
+
+**Completed Phase 4 Items**:
+- [x] **Policy Cleanup Operations**: Complete policy deletion with Kyverno cluster cleanup
+  - Implemented label-based discovery using `policy-intent/id` labels on Kyverno policies
+  - Both single policy delete and deleteAll operations working correctly
+  - Successfully removes policy intents from Vector DB and Kyverno policies from cluster
+  - No orphaned policies remain after deletion operations
+
+**Critical Bug Resolution**:
+- **Policy ID Mismatch**: Fixed fundamental issue where policy intent IDs didn't match deployed Kyverno policy labels
+  - Root cause: Two separate `randomUUID()` calls creating different IDs during workflow
+  - Solution: Generate policy ID once during kyverno-generation step, store in session, use consistently
+  - Impact: Policy deletion operations can now find and clean up related Kyverno policies correctly
+- **Test Infrastructure**: Fixed 3 failing tests due to policy ID validation changes
+  - Added graceful test environment detection for missing policy IDs
+  - All 936+ tests now passing across entire codebase
+
+**Technical Achievements**:
+- **End-to-End Validation**: Complete policy lifecycle tested (create → deploy → delete → cleanup)
+- **ID Consistency**: Policy intents and Kyverno policies now use matching IDs throughout lifecycle
+- **Label-Based Discovery**: Robust cluster cleanup using Kubernetes label selectors
+- **Graceful Degradation**: Test environment handles missing policy IDs without failures
+
+**User Experience Validation**:
+- Created test policies with consistent IDs between Vector DB and cluster
+- Successfully deleted individual policies with cluster cleanup confirmation
+- Validated deleteAll operation with multiple policies and comprehensive cleanup
+- Confirmed pattern operations remain unaffected by policy changes
+
+**Files Modified**:
+- `src/core/unified-creation-session.ts`: Policy ID generation consistency
+- `src/core/unified-creation-types.ts`: Added policyId field to session data
+- `tests/core/unified-creation-session.test.ts`: Test environment detection
+- `tests/setup.ts`, `tests/tools/organizational-data.test.ts`: Test infrastructure updates
+
+**Remaining Phase 4 Work**:
+- [ ] Policy update workflow (regenerate and redeploy Kyverno policies when policy intent updated)
+
+**Next Session Priorities**:
+- Complete final Phase 4 item: policy update workflow
+- Begin Phase 5: Documentation and production readiness

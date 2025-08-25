@@ -42,6 +42,7 @@ export interface UnifiedCreationSession {
     createdBy?: string;
     source?: string;
     // Kyverno generation data (only used for policies)
+    policyId?: string; // Generated once during kyverno-generation step for consistency
     generatedKyvernoPolicy?: string;
     kyvernoGenerationError?: string;
     deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
