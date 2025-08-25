@@ -8,11 +8,11 @@ import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
+import { ManifestValidator, ValidationResult } from '../core/schema';
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import * as yaml from 'js-yaml';
-import { spawn } from 'child_process';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
 
@@ -26,24 +26,12 @@ export const GENERATEMANIFESTS_TOOL_INPUT_SCHEMA = {
 };
 
 
-interface ValidationResult {
-  success: boolean;
-  yamlSyntaxValid: boolean;
-  kubectlOutput?: string;
-  exitCode?: number;
-  stderr?: string;
-  stdout?: string;
-  error?: string;
-}
+
 
 interface ErrorContext {
   attempt: number;
   previousManifests: string;
-  yamlSyntaxValid: boolean;
-  kubectlOutput?: string;
-  exitCode?: number;
-  stderr?: string;
-  stdout?: string;
+  validationResult: ValidationResult;
 }
 
 
@@ -158,50 +146,6 @@ function validateYamlSyntax(yamlContent: string): { valid: boolean; error?: stri
   }
 }
 
-/**
- * Run kubectl dry-run validation
- */
-async function runKubectlDryRun(yamlPath: string): Promise<ValidationResult> {
-  return new Promise((resolve) => {
-    const kubectl = spawn('kubectl', ['apply', '--dry-run=server', '-f', yamlPath], {
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    
-    let stdout = '';
-    let stderr = '';
-    
-    kubectl.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-    
-    kubectl.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-    
-    kubectl.on('close', (code) => {
-      resolve({
-        success: code === 0,
-        yamlSyntaxValid: true, // If we get here, YAML was parseable
-        kubectlOutput: stderr || stdout,
-        exitCode: code || 0,
-        stderr,
-        stdout
-      });
-    });
-    
-    kubectl.on('error', (error) => {
-      resolve({
-        success: false,
-        yamlSyntaxValid: true,
-        error: `Failed to run kubectl: ${error.message}`,
-        kubectlOutput: `kubectl command failed: ${error.message}`,
-        exitCode: -1,
-        stderr: error.message,
-        stdout: ''
-      });
-    });
-  });
-}
 
 /**
  * Validate manifests using multi-layer approach
@@ -210,28 +154,28 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
   // First check if file exists
   if (!fs.existsSync(yamlPath)) {
     return {
-      success: false,
-      yamlSyntaxValid: false,
-      error: `Manifest file not found: ${yamlPath}`
+      valid: false,
+      errors: [`Manifest file not found: ${yamlPath}`],
+      warnings: []
     };
   }
   
-  // Read YAML content
+  // Read YAML content for syntax validation
   const yamlContent = fs.readFileSync(yamlPath, 'utf8');
   
   // 1. YAML syntax validation
   const syntaxCheck = validateYamlSyntax(yamlContent);
   if (!syntaxCheck.valid) {
     return {
-      success: false,
-      yamlSyntaxValid: false,
-      error: `YAML syntax error: ${syntaxCheck.error}`,
-      kubectlOutput: `YAML parsing failed: ${syntaxCheck.error}`
+      valid: false,
+      errors: [`YAML syntax error: ${syntaxCheck.error}`],
+      warnings: []
     };
   }
   
-  // 2. kubectl dry-run validation
-  return await runKubectlDryRun(yamlPath);
+  // 2. kubectl dry-run validation using ManifestValidator
+  const validator = new ManifestValidator();
+  return await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
 }
 
 /**
@@ -262,10 +206,8 @@ ${errorContext.previousManifests}
   
   const errorDetails = errorContext ? `
 **Attempt**: ${errorContext.attempt}
-**YAML Syntax Valid**: ${errorContext.yamlSyntaxValid}
-**kubectl Output**: ${errorContext.kubectlOutput}
-**Exit Code**: ${errorContext.exitCode}
-**Error Details**: ${errorContext.stderr}
+**Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
+**Validation Warnings**: ${errorContext.validationResult.warnings.join(', ')}
 ` : 'None - this is the first attempt.';
   
   // Replace template variables
@@ -496,7 +438,7 @@ export async function handleGenerateManifestsTool(
           // Validate manifests
           const validation = await validateManifests(yamlPath);
           
-          if (validation.success) {
+          if (validation.valid) {
             logger.info('Manifest validation successful', { 
               attempt, 
               yamlPath,
@@ -526,18 +468,14 @@ export async function handleGenerateManifestsTool(
           lastError = {
             attempt,
             previousManifests: manifests,
-            yamlSyntaxValid: validation.yamlSyntaxValid,
-            kubectlOutput: validation.kubectlOutput,
-            exitCode: validation.exitCode,
-            stderr: validation.stderr,
-            stdout: validation.stdout
+            validationResult: validation
           };
           
           logger.warn('Manifest validation failed', {
             attempt,
             maxAttempts,
-            yamlSyntaxValid: validation.yamlSyntaxValid,
-            kubectlOutput: validation.kubectlOutput,
+            validationErrors: validation.errors,
+            validationWarnings: validation.warnings,
             requestId
           });
           
@@ -558,17 +496,17 @@ export async function handleGenerateManifestsTool(
           lastError = {
             attempt,
             previousManifests: lastError?.previousManifests || '',
-            yamlSyntaxValid: false,
-            kubectlOutput: errorMessage,
-            exitCode: -1,
-            stderr: errorMessage,
-            stdout: ''
+            validationResult: {
+              valid: false,
+              errors: [errorMessage],
+              warnings: []
+            }
           };
         }
       }
       
       // If we reach here, all attempts failed
-      throw new Error(`Failed to generate valid manifests after ${maxAttempts} attempts. Last error: ${lastError?.kubectlOutput}`);
+      throw new Error(`Failed to generate valid manifests after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`);
     },
     {
       operation: 'generate_manifests',

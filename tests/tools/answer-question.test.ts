@@ -16,6 +16,9 @@ import {
 jest.mock('fs');
 const mockFs = fs as jest.Mocked<typeof fs>;
 
+// Mock the Anthropic SDK to prevent real API calls
+jest.mock('@anthropic-ai/sdk');
+
 // Test constants
 const TEST_SESSION_DIR = '/test/session';
 const TEST_SOLUTION_ID = 'sol_2025-01-01T123456_abcdef';
@@ -115,6 +118,29 @@ describe('Answer Question Tool Metadata', () => {
     expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.stage).toBeDefined();
     expect(ANSWERQUESTION_TOOL_INPUT_SCHEMA.answers).toBeDefined();
   });
+});
+
+// Mock the Anthropic SDK to prevent real API calls
+jest.mock('@anthropic-ai/sdk', () => {
+  const mockClient = {
+    messages: {
+      // @ts-ignore - Suppress TypeScript error for Jest mock
+      create: jest.fn().mockResolvedValue({
+        content: [{
+          type: 'text',
+          text: 'Mock response from Claude API for testing purposes'
+        }],
+        usage: {
+          input_tokens: 50,
+          output_tokens: 20
+        }
+      })
+    }
+  };
+  
+  return {
+    default: jest.fn().mockImplementation(() => mockClient)
+  };
 });
 
 describe('Answer Question Tool Handler - Stage-Based Implementation', () => {

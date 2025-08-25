@@ -8,6 +8,28 @@ import { ClaudeIntegration } from '../../src/core/claude';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Mock the Anthropic SDK to prevent real API calls
+jest.mock('@anthropic-ai/sdk', () => {
+  const mockClient = {
+    messages: {
+      create: jest.fn().mockResolvedValue({
+        content: [{
+          type: 'text',
+          text: 'Mock response from Claude API for testing purposes'
+        }],
+        usage: {
+          input_tokens: 50,
+          output_tokens: 20
+        }
+      })
+    }
+  };
+  
+  return {
+    default: jest.fn().mockImplementation(() => mockClient)
+  };
+});
+
 describe('Claude Debug Logging', () => {
   let originalEnv: string | undefined;
   let debugDir: string;

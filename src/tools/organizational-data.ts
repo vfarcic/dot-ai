@@ -233,7 +233,7 @@ async function handlePatternOperation(
         if (args.response) {
           // Process user response and move to next step
           const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
-          workflowStep = sessionManager.getNextWorkflowStep(updatedSession);
+          workflowStep = await sessionManager.getNextWorkflowStep(updatedSession, args);
         } else {
           // Just get current step without processing response
           const session = sessionManager.loadSession(args.sessionId, args);
@@ -250,7 +250,7 @@ async function handlePatternOperation(
               }
             );
           }
-          workflowStep = sessionManager.getNextWorkflowStep(session);
+          workflowStep = await sessionManager.getNextWorkflowStep(session, args);
         }
         
         if (!workflowStep) {
@@ -271,7 +271,7 @@ async function handlePatternOperation(
         logger.info('Starting new pattern creation workflow', { requestId });
         
         const session = sessionManager.createSession(args);
-        workflowStep = sessionManager.getNextWorkflowStep(session);
+        workflowStep = await sessionManager.getNextWorkflowStep(session, args);
         
         if (!workflowStep) {
           throw ErrorHandler.createError(
@@ -290,12 +290,12 @@ async function handlePatternOperation(
       // Always check if workflow is complete and store pattern in Vector DB
       let storageInfo: any = {};
       
-      const isComplete = !('step' in workflowStep);
+      const isComplete = !('nextStep' in workflowStep) || !workflowStep.nextStep; // Complete when no next step
       const hasPattern = !!workflowStep.data?.pattern;
       
       logger.info('Checking workflow completion', {
         requestId,
-        step: 'step' in workflowStep ? workflowStep.step : 'complete',
+        nextStep: ('nextStep' in workflowStep) ? workflowStep.nextStep : 'complete',
         hasPattern,
         patternId: workflowStep.data?.pattern?.id
       });
@@ -677,7 +677,7 @@ async function handlePolicyOperation(
         if (args.response) {
           // Process user response and move to next step
           const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
-          workflowStep = sessionManager.getNextWorkflowStep(updatedSession);
+          workflowStep = await sessionManager.getNextWorkflowStep(updatedSession, args);
         } else {
           // Just get current step without processing response
           const session = sessionManager.loadSession(args.sessionId, args);
@@ -694,7 +694,7 @@ async function handlePolicyOperation(
               }
             );
           }
-          workflowStep = sessionManager.getNextWorkflowStep(session);
+          workflowStep = await sessionManager.getNextWorkflowStep(session, args);
         }
         
         if (!workflowStep) {
@@ -715,7 +715,7 @@ async function handlePolicyOperation(
         logger.info('Starting new policy creation workflow', { requestId });
         
         const session = sessionManager.createSession(args);
-        workflowStep = sessionManager.getNextWorkflowStep(session);
+        workflowStep = await sessionManager.getNextWorkflowStep(session, args);
         
         if (!workflowStep) {
           throw ErrorHandler.createError(
@@ -734,12 +734,12 @@ async function handlePolicyOperation(
       // Always check if workflow is complete and store policy in Vector DB
       let storageInfo: any = {};
       
-      const isComplete = !('step' in workflowStep);
+      const isComplete = !('nextStep' in workflowStep) || !workflowStep.nextStep; // Complete when no next step
       const hasPolicy = !!workflowStep.data?.policy;
       
       logger.info('Checking workflow completion', {
         requestId,
-        step: 'step' in workflowStep ? workflowStep.step : 'complete',
+        nextStep: ('nextStep' in workflowStep) ? workflowStep.nextStep : 'complete',
         hasPolicy,
         policyId: workflowStep.data?.policy?.id
       });
