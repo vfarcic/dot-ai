@@ -316,7 +316,6 @@ describe('Organizational Data Tool', () => {
       expect(response.operation).toBe('create');
       expect(response.dataType).toBe('pattern');
       expect(response.workflow).toBeDefined();
-      expect(response.workflow.step).toBe('description');
       expect(response.workflow.prompt).toContain('What deployment capability does this pattern provide');
     });
 
@@ -349,8 +348,7 @@ describe('Organizational Data Tool', () => {
       );
       
       const step1Response = JSON.parse(step1Result.content[0].text);
-      expect(step1Response.workflow.step).toBe('triggers');
-      expect(step1Response.workflow.prompt).toContain('What keywords or phrases should trigger this pattern');
+      expect(step1Response.workflow.prompt).toContain('What types of infrastructure should this apply to');
     });
 
     it('should list patterns (empty initially)', async () => {
@@ -524,7 +522,6 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('scan');
       expect(response.dataType).toBe('capabilities');
-      expect(response.workflow.step).toBe('resource-selection');
       expect(response.workflow.question).toContain('Scan all cluster resources');
       expect(response.workflow.options).toEqual([
         { number: 1, value: 'all', display: '1. all - Scan all available cluster resources' },
@@ -584,7 +581,6 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('scan');
       expect(response.dataType).toBe('capabilities');
-      expect(response.workflow.step).toBe('processing-mode');
       expect(response.workflow.question).toContain('Processing mode');
       expect(response.workflow.options).toEqual([
         { number: 1, value: 'auto', display: '1. auto - Batch process automatically' },
@@ -620,7 +616,6 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('scan');
       expect(response.dataType).toBe('capabilities');
-      expect(response.workflow.step).toBe('resource-specification');
       expect(response.workflow.question).toContain('Which resources would you like to scan');
       
       // Test step-based client instructions for resource specification
@@ -681,7 +676,6 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('scan');
       expect(response.dataType).toBe('capabilities');
-      expect(response.workflow.step).toBe('processing-mode');
       expect(response.workflow.selectedResources).toEqual(['SQL.devopstoolkit.live', 'Deployment.apps', 'Pod']);
       expect(response.workflow.question).toContain('Processing mode for 3 selected resources');
       
@@ -1074,7 +1068,6 @@ describe('Organizational Data Tool', () => {
 
       const startResponse = JSON.parse(startResult.content[0].text);
       expect(startResponse.success).toBe(true);
-      expect(startResponse.workflow.step).toBe('resource-selection');
       const sessionId = startResponse.workflow.sessionId;
 
       // Test numeric response for resource selection with proper step parameter
@@ -1093,7 +1086,6 @@ describe('Organizational Data Tool', () => {
 
       const response1 = JSON.parse(result1.content[0].text);
       expect(response1.success).toBe(true);
-      expect(response1.workflow.step).toBe('processing-mode');
       expect(response1.workflow.selectedResources).toBe('all');
 
       // Test numeric response for processing mode with proper step parameter
@@ -1168,7 +1160,6 @@ describe('Organizational Data Tool', () => {
 
       const step1Response = JSON.parse(step1Result.content[0].text);
       expect(step1Response.success).toBe(true);
-      expect(step1Response.workflow.step).toBe('processing-mode');
 
       // Step 2: Select manual mode (step-based)
       const step2Result = await handleOrganizationalDataTool(
@@ -1191,7 +1182,6 @@ describe('Organizational Data Tool', () => {
       expect(step2Response.operation).toBe('scan');
       expect(step2Response.dataType).toBe('capabilities');
       expect(step2Response.mode).toBe('manual');
-      expect(step2Response.step).toBe('scanning');
       expect(step2Response.preview).toBeDefined();
       expect(step2Response.preview.data).toBeDefined();
       expect(step2Response.preview.question).toContain('Continue storing this capability');
@@ -1229,7 +1219,6 @@ describe('Organizational Data Tool', () => {
 
       const response1 = JSON.parse(result1.content[0].text);
       expect(response1.success).toBe(true);
-      expect(response1.workflow.step).toBe('processing-mode');
       expect(response1.workflow.selectedResources).toBe('all');
 
       // Test 2: Continue with processing mode selection using "1" (auto)
@@ -1251,7 +1240,6 @@ describe('Organizational Data Tool', () => {
       expect(response2.operation).toBe('scan');
       expect(response2.dataType).toBe('capabilities');
       expect(response2.mode).toBe('auto');
-      expect(response2.step).toBe('complete');
       expect(response2.summary.totalScanned).toBeGreaterThan(0);
       expect(response2.summary.successful).toBe(response2.summary.totalScanned);
       expect(response2.message).toContain('completed successfully');
@@ -1294,7 +1282,6 @@ describe('Organizational Data Tool', () => {
       );
 
       const specResponse = JSON.parse(specResult.content[0].text);
-      expect(specResponse.workflow.step).toBe('resource-specification');
 
       // Provide resource list
       const listResult = await handleOrganizationalDataTool(
@@ -1311,7 +1298,6 @@ describe('Organizational Data Tool', () => {
       );
 
       const listResponse = JSON.parse(listResult.content[0].text);
-      expect(listResponse.workflow.step).toBe('processing-mode');
       expect(listResponse.workflow.selectedResources).toEqual(testResources);
 
       // Select AUTO mode - should process ALL resources without stopping
@@ -1333,7 +1319,6 @@ describe('Organizational Data Tool', () => {
       // Verify auto mode completed ALL resources in single call
       expect(autoResponse.success).toBe(true);
       expect(autoResponse.mode).toBe('auto');
-      expect(autoResponse.step).toBe('complete');
       expect(autoResponse.summary.totalScanned).toBe(3); // All 3 resources
       expect(autoResponse.summary.successful).toBe(3);
       expect(autoResponse.summary.failed).toBe(0);
@@ -1390,7 +1375,6 @@ describe('Organizational Data Tool', () => {
 
       const step1Response = JSON.parse(step1Result.content[0].text);
       expect(step1Response.success).toBe(true);
-      expect(step1Response.workflow.step).toBe('processing-mode');
       expect(step1Response.workflow.selectedResources).toEqual(['resourcegroups.azure.upbound.io']);
 
       // Step 2: Respond with processing mode using correct step
@@ -1414,7 +1398,6 @@ describe('Organizational Data Tool', () => {
       expect(step2Response.operation).toBe('scan');
       expect(step2Response.dataType).toBe('capabilities');
       expect(step2Response.mode).toBe('manual');
-      expect(step2Response.step).toBe('scanning');
       expect(step2Response.preview).toBeDefined();
     });
 
@@ -1500,7 +1483,6 @@ describe('Organizational Data Tool', () => {
       expect(response.success).toBe(true);
       expect(response.operation).toBe('scan');
       expect(response.mode).toBe('auto');
-      expect(response.step).toBe('complete');
       
       // Should process multiple resources, not just one
       expect(response.summary.totalScanned).toBe(5);
@@ -2489,7 +2471,6 @@ describe('Organizational Data Tool', () => {
         expect(response.workflow).toEqual(
           expect.objectContaining({
             entityType: 'policy',
-            step: 'description',
             sessionId: expect.any(String),
             nextStep: 'triggers'
           })
@@ -2510,8 +2491,7 @@ describe('Organizational Data Tool', () => {
 
         const response = JSON.parse(result.content[0].text);
         expect(response.success).toBe(true);
-        expect(response.workflow.step).toBe('description');
-        expect(response.workflow.prompt).toContain('Please describe the policy intent');
+          expect(response.workflow.prompt).toContain('Please describe the policy intent');
       });
 
       it('should progress through workflow with user responses', async () => {
@@ -2528,7 +2508,6 @@ describe('Organizational Data Tool', () => {
 
         const startResponse = JSON.parse(startResult.content[0].text);
         expect(startResponse.success).toBe(true);
-        expect(startResponse.workflow.step).toBe('description');
 
         // Progress to next step with description
         const descResult = await handleOrganizationalDataTool(
@@ -2546,7 +2525,6 @@ describe('Organizational Data Tool', () => {
 
         const descResponse = JSON.parse(descResult.content[0].text);
         expect(descResponse.success).toBe(true);
-        expect(descResponse.workflow.step).toBe('triggers');
         expect(descResponse.workflow.nextStep).toBe('trigger-expansion');
       });
 

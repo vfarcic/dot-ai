@@ -1036,7 +1036,7 @@ export class ResourceRecommender {
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
@@ -1059,26 +1059,24 @@ export class ResourceRecommender {
         console.log('🛡️ Policy service unavailable, skipping policy search - proceeding without policy guidance');
       }
 
-      // Fetch actual schema information for each resource in the solution
+      // Fetch resource schemas for each resource in the solution
       const resourcesWithSchemas = await Promise.all(solution.resources.map(async (resource) => {
+        // Validate that resource has resourceName field for kubectl explain
+        if (!resource.resourceName) {
+          throw new Error(`Resource ${resource.kind} is missing resourceName field. This indicates a bug in solution construction.`);
+        }
+        
         try {
-          // Use resourceName from capability data - this contains the correct plural form
-          if (!resource.resourceName) {
-            throw new Error(`Resource ${resource.kind} is missing resourceName field. This indicates a bug in solution construction. All resources must have a proper resourceName for schema fetching.`);
-          }
-          const rawExplanation = await explainResource(resource.resourceName);
+          // Use resourceName for kubectl explain - this should be the plural form like 'pods', 'services', etc.
+          const schemaExplanation = await _explainResource(resource.resourceName);
           
           return {
             ...resource,
-            rawExplanation: rawExplanation
+            rawExplanation: schemaExplanation
           };
         } catch (error) {
-          // Re-throw errors about missing resourceName - these are bugs, not schema fetch failures
-          if (error instanceof Error && error.message.includes('missing resourceName field')) {
-            throw error;
-          }
-          console.warn(`Failed to fetch schema for ${resource.kind}: ${error}. Using generic info.`);
-          return resource; // Return original resource if schema fetch fails
+          console.warn(`Failed to fetch schema for ${resource.kind}: ${error}`);
+          return resource;
         }
       }));
 

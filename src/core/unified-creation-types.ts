@@ -12,7 +12,9 @@ export type WorkflowStep =
   | 'resources'
   | 'rationale'
   | 'created-by'
+  | 'kyverno-generation'
   | 'review'
+  | 'apply-save-discard'
   | 'complete';
 
 export type EntityType = 'pattern' | 'policy';
@@ -39,14 +41,17 @@ export interface UnifiedCreationSession {
     rationale?: string;
     createdBy?: string;
     source?: string;
+    // Kyverno generation data (only used for policies)
+    generatedKyvernoPolicy?: string;
+    kyvernoGenerationError?: string;
+    deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
   };
 }
 
 export interface UnifiedWorkflowStepResponse {
   sessionId: string;
   entityType: EntityType;
-  step: WorkflowStep;
-  prompt: string;
+  prompt?: string;
   instruction: string;
   nextStep?: WorkflowStep;
   data?: any;
@@ -59,22 +64,28 @@ export interface UnifiedWorkflowCompletionResponse {
   data?: any;
 }
 
-// Policy workflow - the base workflow without resources
-const POLICY_WORKFLOW: WorkflowStep[] = [
+// Pattern workflow - unchanged, no Kyverno generation needed
+const PATTERN_WORKFLOW: WorkflowStep[] = [
   'description', 
   'triggers', 
   'trigger-expansion', 
+  'resources',
   'rationale', 
   'created-by', 
   'review', 
   'complete'
 ];
 
-// Pattern workflow - extends policy workflow with resources step
-const PATTERN_WORKFLOW: WorkflowStep[] = [
-  ...POLICY_WORKFLOW.slice(0, 3), // description, triggers, trigger-expansion
-  'resources',                    // Insert resources step
-  ...POLICY_WORKFLOW.slice(3)     // rationale, created-by, review, complete
+// Policy workflow - includes Kyverno generation after data collection
+const POLICY_WORKFLOW: WorkflowStep[] = [
+  'description', 
+  'triggers', 
+  'trigger-expansion', 
+  'rationale', 
+  'created-by',
+  'kyverno-generation',
+  'review', 
+  'complete'
 ];
 
 // Predefined workflow configurations

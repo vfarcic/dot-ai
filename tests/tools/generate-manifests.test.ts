@@ -38,13 +38,25 @@ jest.mock('../../src/core/claude', () => ({
 
 // Mock child process for kubectl commands
 jest.mock('child_process', () => ({
-  spawn: jest.fn()
+  spawn: jest.fn(),
+  exec: jest.fn()
 }));
 
 // Mock yaml library
 jest.mock('js-yaml', () => ({
   loadAll: jest.fn(),
   dump: jest.fn()
+}));
+
+// Mock ManifestValidator to prevent kubectl calls
+jest.mock('../../src/core/schema', () => ({
+  ManifestValidator: jest.fn().mockImplementation(() => ({
+    validateManifest: jest.fn().mockResolvedValue({
+      valid: true,
+      errors: [],
+      warnings: []
+    })
+  }))
 }));
 
 const mockYaml = require('js-yaml');
@@ -68,6 +80,10 @@ describe('Generate Manifests Tool', () => {
     jest.clearAllMocks();
     // Reset environment
     delete process.env.DOT_AI_SESSION_DIR;
+    
+    // Configure mock to resolve properly
+    mockDotAI.discovery.connect.mockResolvedValue(undefined);
+    mockDotAI.discovery.explainResource.mockResolvedValue('mock schema');
   });
 
   describe('Input Validation', () => {
@@ -137,12 +153,8 @@ describe('Generate Manifests Tool', () => {
         solutionId: 'invalid-format'
       };
 
-      try {
-        await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
-      } catch (error) {
-        // Should throw validation error before logging execution error
-        expect(error).toBeDefined();
-      }
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toBeDefined();
     });
 
     it('should handle tool execution context properly', async () => {
@@ -150,12 +162,10 @@ describe('Generate Manifests Tool', () => {
         solutionId: 'sol_2025-01-01T120000_abc123def456'
       };
 
-      try {
-        await handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId);
-      } catch (error) {
-        // Should fail with session directory error, not context error
-        expect((error as Error).message).toContain('Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable');
-      }
+      await expect(handleGenerateManifestsTool(args, mockContext.dotAI, mockContext.logger, mockContext.requestId))
+        .rejects.toMatchObject({
+          message: 'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
+        });
     });
   });
 

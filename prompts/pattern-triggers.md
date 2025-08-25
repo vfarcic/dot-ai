@@ -1,1 +1,0 @@
-Ask the user: "What keywords or phrases should trigger this pattern? For example, if someone asks to "add scaling" or "make it scalable", this pattern should be suggested. Please provide keywords separated by commas."
