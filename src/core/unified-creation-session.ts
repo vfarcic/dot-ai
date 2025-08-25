@@ -15,6 +15,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { ClaudeIntegration } from './claude';
 import { ManifestValidator } from './schema';
+import { getKyvernoStatus } from '../tools/version';
 import * as yaml from 'js-yaml';
 import { 
   UnifiedCreationSession, 
@@ -145,8 +146,16 @@ export class UnifiedCreationSessionManager {
       case 'review':
         // Handle review step based on entity type
         if (this.config.entityType === 'policy') {
-          // For policies, user provided deployment choice during review
-          session.data.deploymentChoice = response.trim();
+          // For policies, user provided deployment choice during review (semantic response)
+          const deploymentChoice = response.trim();
+          if (deploymentChoice === 'apply-to-cluster') {
+            session.data.deploymentChoice = 'apply';
+          } else if (deploymentChoice === 'store-intent-only') {
+            session.data.deploymentChoice = 'policy-only';
+          } else {
+            // Handle cancel or any other response as discard
+            session.data.deploymentChoice = 'discard';
+          }
           session.currentStep = 'complete';
         } else {
           // For patterns, user confirmed review
@@ -358,14 +367,24 @@ export class UnifiedCreationSessionManager {
       // Policy review - include both policy intent and generated Kyverno policy
       templateData.generatedKyvernoPolicy = data.generatedKyvernoPolicy || '';
       templateData.kyvernoGenerationError = data.kyvernoGenerationError || '';
+      templateData.kyvernoGenerationSkipped = data.kyvernoGenerationSkipped || false;
+      templateData.kyvernoSkipReason = data.kyvernoSkipReason || '';
       
       const prompt = loadPrompt(`${this.config.entityType}-review`, templateData);
+      
+      // Adjust instruction based on whether Kyverno generation was skipped
+      let instruction: string;
+      if (data.kyvernoGenerationSkipped) {
+        instruction = `Present the policy intent with explanation that Kyverno generation was skipped (${data.kyvernoSkipReason}). Show these numbered options: "1. Store policy intent only (for AI guidance)", "2. Cancel (do nothing)". If user chooses option 1, call this tool again with "store-intent-only". If user chooses option 2 (cancel), do not call this tool again.`;
+      } else {
+        instruction = `Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review. Show these numbered options: "1. Apply Kyverno policy to cluster", "2. Store policy intent only (don't apply)", "3. Cancel (do nothing)". If user chooses option 1, call this tool again with "apply-to-cluster". If user chooses option 2, call this tool again with "store-intent-only". If user chooses option 3 (cancel), do not call this tool again.`;
+      }
       
       return {
         sessionId: session.sessionId,
         entityType: this.config.entityType,
         prompt,
-        instruction: `Present the policy intent and generated Kyverno policy for user review. Show these numbered options: "1. Apply Kyverno policy to cluster", "2. Store policy intent only (don't apply)", "3. Cancel (do nothing)". If user chooses 1 or 2, call this tool again with "1" or "2". If user chooses 3 (cancel), do not call this tool again.`,
+        instruction,
         nextStep: getNextStep('review', this.config) || undefined,
         data: session.data
       };
@@ -466,8 +485,16 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
    */
   private async handlePolicyDeploymentChoice(session: UnifiedCreationSession, policy: PolicyIntent, deploymentChoice: string): Promise<UnifiedWorkflowCompletionResponse> {
     const generatedKyvernoPolicy = session.data.generatedKyvernoPolicy;
+    const kyvernoSkipped = session.data.kyvernoGenerationSkipped;
     
-    if (!generatedKyvernoPolicy) {
+    // If Kyverno generation was skipped, only allow intent-only storage
+    if (kyvernoSkipped && !generatedKyvernoPolicy) {
+      if (deploymentChoice.trim() === '1' || deploymentChoice.toLowerCase() === 'apply-to-cluster') {
+        throw new Error('Cannot apply to cluster: Kyverno generation was skipped because Kyverno is not available');
+      }
+      // Force intent-only storage when Kyverno is not available
+      deploymentChoice = 'store-intent-only';
+    } else if (!generatedKyvernoPolicy) {
       throw new Error('No Kyverno policy generated');
     }
     
@@ -484,7 +511,7 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
       fs.mkdirSync(sessionDir, { recursive: true });
       
       // Save Kyverno policy to file
-      fs.writeFileSync(kyvernoFilePath, generatedKyvernoPolicy, 'utf8');
+      fs.writeFileSync(kyvernoFilePath, generatedKyvernoPolicy!, 'utf8');
       
       // Apply to cluster using existing DeployOperation
       try {
@@ -540,10 +567,9 @@ The policy intent has been stored in the database, but the Kyverno policy could 
       }
     } else {
       // Store only the policy intent, no Kyverno deployment
-      return {
-        sessionId: session.sessionId,
-        entityType: this.config.entityType,
-        instruction: `**Policy Intent Stored Successfully!**
+      const skipReason = session.data.kyvernoSkipReason;
+      const instruction = kyvernoSkipped ? 
+        `**Policy Intent Stored Successfully!**
 
 **Policy ID**: ${policy.id}
 **Description**: ${policy.description}
@@ -551,8 +577,23 @@ The policy intent has been stored in the database, but the Kyverno policy could 
 **Rationale**: ${policy.rationale}
 **Created By**: ${policy.createdBy}
 
-The policy intent has been stored in the database. The Kyverno policy was not applied to the cluster.`,
-        data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false }
+The policy intent has been stored in the database for AI guidance. 
+**Note**: ${skipReason}` :
+        `**Policy Intent Stored Successfully!**
+
+**Policy ID**: ${policy.id}
+**Description**: ${policy.description}
+**Triggers**: ${policy.triggers.join(', ')}
+**Rationale**: ${policy.rationale}
+**Created By**: ${policy.createdBy}
+
+The policy intent has been stored in the database. The Kyverno policy was not applied to the cluster.`;
+
+      return {
+        sessionId: session.sessionId,
+        entityType: this.config.entityType,
+        instruction,
+        data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false, kyvernoSkipped }
       };
     }
   }
@@ -617,6 +658,24 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
    * Generate Kyverno policy step - automatically generates policy from intent data with validation loop
    */
   private async generateKyvernoStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse> {
+    // Check if Kyverno is available before attempting policy generation
+    const kyvernoStatus = await getKyvernoStatus();
+    if (!kyvernoStatus.policyGenerationReady) {
+      // Skip Kyverno generation and go directly to review with intent-only option
+      session.currentStep = getNextStep('kyverno-generation', this.config)!;
+      session.data.kyvernoGenerationSkipped = true;
+      session.data.kyvernoSkipReason = kyvernoStatus.reason || 'Kyverno not available for policy generation';
+      // Generate policy ID since we skipped the normal generation step
+      session.data.policyId = randomUUID();
+      
+      // Save session and proceed to review
+      if (args) {
+        this.saveSession(session, args);
+      }
+      
+      return this.generateReviewStep(session);
+    }
+    
     const data = session.data;
     const finalTriggers = data.expandedTriggers || data.initialTriggers || [];
     const maxAttempts = 5;
@@ -667,17 +726,8 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           
           const response = await claudeIntegration.sendMessage(prompt, 'kyverno-generation');
           
-          // Extract YAML content from response
-          let kyvernoPolicy = response.content;
-          
-          // Try to extract YAML from code blocks if wrapped
-          const yamlBlockMatch = kyvernoPolicy.match(/```(?:yaml|yml)?\s*([^`]+)\s*```/);
-          if (yamlBlockMatch) {
-            kyvernoPolicy = yamlBlockMatch[1];
-          }
-          
-          // Clean up any leading/trailing whitespace
-          kyvernoPolicy = kyvernoPolicy.trim();
+          // Response should be clean YAML with analysis comments
+          const kyvernoPolicy = response.content.trim();
           
           // Save policy to file immediately after generation
           const yamlPath = path.join(policySessionDir, `${session.sessionId}-kyverno.yaml`);

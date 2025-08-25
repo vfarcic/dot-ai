@@ -313,7 +313,7 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
 /**
  * Test Kyverno installation and readiness for policy generation
  */
-async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
+export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
   const kubeconfig = process.env.KUBECONFIG || '~/.kube/config';
   
   try {

@@ -1042,16 +1042,20 @@ export class ResourceRecommender {
       const clusterOptions = await this.discoverClusterOptions();
       
       // Search for relevant policy intents based on the selected resources
-      let relevantPolicies: PolicyIntent[] = [];
+      let relevantPolicyResults: Array<{policy: PolicyIntent, score: number, matchType: string}> = [];
       if (this.policyService) {
         try {
           const resourceContext = solution.resources.map(r => `${r.kind} ${r.description}`).join(' ');
           const policyResults = await this.policyService.searchPolicyIntents(
             `${intent} ${resourceContext}`,
-            { limit: 5 }
+            { limit: 25 }
           );
-          relevantPolicies = policyResults.map(result => result.data);
-          console.log(`🛡️ Found ${relevantPolicies.length} relevant policy intents for question generation`);
+          relevantPolicyResults = policyResults.map(result => ({
+            policy: result.data,
+            score: result.score,
+            matchType: result.matchType
+          }));
+          console.log(`🛡️ Found ${relevantPolicyResults.length} relevant policy intents for question generation`);
         } catch (error) {
           console.warn('⚠️ Policy search failed during question generation, proceeding without policies:', error);
         }
@@ -1113,13 +1117,14 @@ Available Storage Classes: ${clusterOptions.storageClasses.length > 0 ? clusterO
 Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterOptions.ingressClasses.join(', ') : 'None discovered'}
 Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
 
-      // Format organizational policies for AI context - structured like patterns
-      const policyContextText = relevantPolicies.length > 0 
-        ? relevantPolicies.map(policy => 
-            `- ID: ${policy.id}
-  Description: ${policy.description}
-  Rationale: ${policy.rationale}
-  Triggers: ${policy.triggers?.join(', ') || 'None'}`
+      // Format organizational policies for AI context with relevance scores
+      const policyContextText = relevantPolicyResults.length > 0 
+        ? relevantPolicyResults.map(result => 
+            `- ID: ${result.policy.id}
+  Description: ${result.policy.description}
+  Rationale: ${result.policy.rationale}
+  Triggers: ${result.policy.triggers?.join(', ') || 'None'}
+  Score: ${result.score.toFixed(3)} (${result.matchType})`
           ).join('\n')
         : 'No organizational policies found for this request.';
 

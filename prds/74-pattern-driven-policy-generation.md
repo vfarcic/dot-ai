@@ -1124,3 +1124,38 @@ const relevantPolicies = await policyVectorService.searchPolicyIntents(
 **Status Update**: **FUNCTIONALLY COMPLETE** - All core features implemented, documented, and validated. Performance optimization and monitoring identified as separate future initiatives to be prioritized based on real-world usage data and scaling requirements.
 
 **Recommendation**: Consider PRD 74 complete for initial release. Future optimization work can be tracked in separate PRDs focused specifically on performance and observability requirements driven by production usage patterns.
+
+### 2025-08-25: Policy Selection Enhancement - User-Requested Scoring System
+**Duration**: ~2 hours implementation + testing + bug fixes
+**Primary Focus**: Enhanced policy selection transparency with relevance scoring
+**User Request**: "Add the score" and "increase the limit to 25 policies"
+
+**Completed Enhancement Items**:
+- [x] **Policy Relevance Scoring**: Enhanced `schema.ts` to preserve and display Vector DB similarity scores
+  - Policy context now shows format: `Score: 0.825 (semantic)` with match type indicators
+  - Increased policy search limit from 5 to 25 as requested
+  - No score-based filtering - all policies shown for AI evaluation transparency
+- [x] **Review Instruction Enhancement**: Updated review workflow instruction to explicitly request Kyverno YAML display
+  - Changed from "Present the policy intent and generated Kyverno policy" 
+  - To "Present the policy intent and display the complete generated Kyverno policy YAML manifest"
+  - Improves client visibility of generated policies
+- [x] **Test Infrastructure Updates**: Fixed policy scoring test expectations and all 873 tests passing
+
+**User Experience Improvements**:
+- **Score Transparency**: Users can see which policies are most relevant to their deployment intent
+- **AI Decision Support**: AI gets relevance scores to make better policy application decisions
+- **No False Filtering**: All policies displayed regardless of score, trusting AI to ignore irrelevant ones
+- **Better Client Display**: Explicit instruction ensures generated Kyverno YAML is properly displayed
+
+**Technical Achievements**:
+- Preserved Vector DB search metadata (score, matchType) through the recommendation pipeline
+- Updated policy context formatting to include score information for user transparency
+- Fixed test mocks to match new data structure requirements
+- Maintained backward compatibility while enhancing functionality
+
+**Business Impact**:
+- Improved policy selection transparency supports better governance decisions
+- Enhanced user understanding of why specific policies are applied
+- Better debugging capability for policy search effectiveness
+
+**Status**: Enhancement complete - PRD 74 remains functionally complete with additional UX improvements

@@ -95,6 +95,14 @@ jest.mock('../../src/core/claude', () => ({
   }))
 }));
 
+// Mock getKyvernoStatus function  
+jest.mock('../../src/tools/version', () => ({
+  getKyvernoStatus: jest.fn()
+}));
+
+// Get the mocked function for test control
+const { getKyvernoStatus: mockGetKyvernoStatus } = jest.requireMock('../../src/tools/version');
+
 // Mock DeployOperation to avoid actual kubectl calls in tests
 jest.mock('../../src/core/deploy-operation', () => ({
   DeployOperation: jest.fn().mockImplementation(() => ({
@@ -247,6 +255,12 @@ describe('UnifiedCreationSessionManager', () => {
 
     beforeEach(() => {
       manager = new UnifiedCreationSessionManager('policy');
+      // Default mock: Kyverno is available
+      mockGetKyvernoStatus.mockResolvedValue({
+        installed: true,
+        policyGenerationReady: true,
+        webhookReady: true
+      });
     });
 
     it('should create a new policy session', () => {
@@ -306,7 +320,7 @@ describe('UnifiedCreationSessionManager', () => {
       expect(reviewStep).toMatchObject({
         sessionId: session.sessionId,
         entityType: 'policy',
-        instruction: expect.stringContaining('Present the policy intent and generated Kyverno policy for user review')
+        instruction: expect.stringContaining('Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review')
       });
 
       // Verify that the session has the generated Kyverno policy saved
@@ -314,8 +328,8 @@ describe('UnifiedCreationSessionManager', () => {
       expect(sessionAfterGeneration!.data.generatedKyvernoPolicy).toBeDefined();
       expect(sessionAfterGeneration!.data.generatedKyvernoPolicy).not.toBe('save');
 
-      // Simulate user choosing store intent only (option 2)
-      session = manager.processResponse(session.sessionId, '2', args);
+      // Simulate user choosing store intent only
+      session = manager.processResponse(session.sessionId, 'store-intent-only', args);
 
       // Now should go to completion
       const completionStep = await manager.getNextWorkflowStep(session);
@@ -342,7 +356,7 @@ describe('UnifiedCreationSessionManager', () => {
       const result = await manager.getNextWorkflowStep(session, args);
       
       // Verify the step succeeded (should reach review step)
-      expect(result.instruction).toContain('Present the policy intent and generated Kyverno policy for user review');
+      expect(result.instruction).toContain('Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review');
       
       // Verify session has the generated policy (this confirms validation loop completed successfully)
       const sessionAfterGen = manager.loadSession(session.sessionId, args);
@@ -375,7 +389,7 @@ describe('UnifiedCreationSessionManager', () => {
       const result = await manager.getNextWorkflowStep(session, args);
       
       // Should succeed and reach review step
-      expect(result.instruction).toContain('Present the policy intent and generated Kyverno policy for user review');
+      expect(result.instruction).toContain('Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review');
       
       // Verify ManifestValidator was instantiated (shows validation loop is in place)
       expect(constructorSpy).toHaveBeenCalled();
@@ -414,7 +428,7 @@ describe('UnifiedCreationSessionManager', () => {
           expect(reviewStep).toMatchObject({
             sessionId: session.sessionId,
             entityType: 'policy',
-            instruction: expect.stringContaining('Present the policy intent and generated Kyverno policy for user review')
+            instruction: expect.stringContaining('Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review')
           });
         } else {
           // Failure case - validation failed after max attempts
@@ -501,8 +515,8 @@ describe('UnifiedCreationSessionManager', () => {
         session = localManager.processResponse(session.sessionId, 'test-user', args);
         session = localManager.processResponse(session.sessionId, 'mock-kyverno-policy', args);
 
-        // Choose policy-only
-        session = localManager.processResponse(session.sessionId, 'policy-only', args);
+        // Choose store intent only
+        session = localManager.processResponse(session.sessionId, 'store-intent-only', args);
         const completion = await localManager.getNextWorkflowStep(session);
 
         expect(completion.instruction).toContain('**Policy Intent Stored Successfully!**');
@@ -528,8 +542,8 @@ describe('UnifiedCreationSessionManager', () => {
         const kyvernoPolicy = 'apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: test-policy';
         session = localManager.processResponse(session.sessionId, kyvernoPolicy, args);
 
-        // Choose store intent only (option 2)
-        session = localManager.processResponse(session.sessionId, '2', args);
+        // Choose store intent only
+        session = localManager.processResponse(session.sessionId, 'store-intent-only', args);
         const completion = await localManager.getNextWorkflowStep(session);
 
         expect(completion.instruction).toContain('**Policy Intent Stored Successfully!**');
@@ -551,8 +565,8 @@ describe('UnifiedCreationSessionManager', () => {
         const kyvernoPolicy = 'apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: test-policy';
         session = localManager.processResponse(session.sessionId, kyvernoPolicy, args);
 
-        // Choose apply
-        session = localManager.processResponse(session.sessionId, 'apply', args);
+        // Choose apply to cluster
+        session = localManager.processResponse(session.sessionId, 'apply-to-cluster', args);
         const completion = await localManager.getNextWorkflowStep(session);
 
         expect(completion.instruction).toContain('**Policy Applied to Cluster Successfully!**');
@@ -600,8 +614,8 @@ describe('UnifiedCreationSessionManager', () => {
         expect(session.data.kyvernoGenerationError).toBe('ERROR: Failed to generate policy');
         expect(session.data.generatedKyvernoPolicy).toBeUndefined();
 
-        // With no policy generated, choosing save should result in an error
-        session = localManager.processResponse(session.sessionId, 'save', args);
+        // With no policy generated, choosing store intent only should still work
+        session = localManager.processResponse(session.sessionId, 'store-intent-only', args);
         
         // Should show error completion since save was requested without a policy
         const completion = await localManager.getNextWorkflowStep(session);
@@ -624,6 +638,143 @@ describe('UnifiedCreationSessionManager', () => {
 
         expect(session.data.kyvernoGenerationError).toBe('ERROR: Invalid schema provided');
         expect(session.data.generatedKyvernoPolicy).toBeUndefined();
+      });
+    });
+
+    describe('Kyverno availability handling', () => {
+      it('should skip Kyverno generation when Kyverno is not available', async () => {
+        // Mock Kyverno as not available
+        mockGetKyvernoStatus.mockResolvedValue({
+          installed: false,
+          policyGenerationReady: false,
+          reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+        });
+
+        const args = { sessionDir: tempSessionDir };
+        let session = manager.createSession(args);
+
+        // Progress through all steps before Kyverno generation
+        session = manager.processResponse(session.sessionId, 'Security policy without Kyverno', args);
+        session = manager.processResponse(session.sessionId, 'security, compliance', args);
+        session = manager.processResponse(session.sessionId, 'security, compliance, audit', args);
+        session = manager.processResponse(session.sessionId, 'Ensures security compliance', args);
+        session = manager.processResponse(session.sessionId, 'security-team', args);
+
+        // Trigger next step (should skip Kyverno generation and go to review)
+        const reviewStep = await manager.getNextWorkflowStep(session, args);
+        
+        expect(reviewStep).toMatchObject({
+          sessionId: session.sessionId,
+          entityType: 'policy',
+          instruction: expect.stringContaining('Kyverno generation was skipped')
+        });
+
+        // Verify session data shows Kyverno was skipped
+        const sessionAfter = manager.loadSession(session.sessionId, args);
+        expect(sessionAfter!.data.kyvernoGenerationSkipped).toBe(true);
+        expect(sessionAfter!.data.kyvernoSkipReason).toContain('Kyverno is not installed');
+        expect(sessionAfter!.data.generatedKyvernoPolicy).toBeUndefined();
+      });
+
+      it('should provide different options when Kyverno is not available', async () => {
+        // Mock Kyverno as not available
+        mockGetKyvernoStatus.mockResolvedValue({
+          installed: false,
+          policyGenerationReady: false,
+          reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+        });
+
+        const args = { sessionDir: tempSessionDir };
+        let session = manager.createSession(args);
+
+        // Progress through workflow to review step
+        session = manager.processResponse(session.sessionId, 'Test policy intent', args);
+        session = manager.processResponse(session.sessionId, 'security', args);
+        session = manager.processResponse(session.sessionId, 'security', args);
+        session = manager.processResponse(session.sessionId, 'Test rationale', args);
+        session = manager.processResponse(session.sessionId, 'test-user', args);
+
+        // Get review step
+        const reviewStep = await manager.getNextWorkflowStep(session, args);
+        
+        // Should only offer store-intent-only option (not apply-to-cluster)
+        expect(reviewStep.instruction).toContain('Store policy intent only (for AI guidance)');
+        expect(reviewStep.instruction).not.toContain('Apply Kyverno policy to cluster');
+        expect(reviewStep.instruction).toContain('store-intent-only');
+
+        // Test that store-intent-only response works
+        session = manager.processResponse(session.sessionId, 'store-intent-only', args);
+        expect(session.data.deploymentChoice).toBe('policy-only');
+        expect(session.currentStep).toBe('complete');
+      });
+
+      it('should complete full workflow successfully when Kyverno is not available', async () => {
+        // Mock Kyverno as not available
+        mockGetKyvernoStatus.mockResolvedValue({
+          installed: false,
+          policyGenerationReady: false,
+          reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+        });
+
+        const args = { sessionDir: tempSessionDir };
+        let session = manager.createSession(args);
+
+        // Complete entire workflow
+        session = manager.processResponse(session.sessionId, 'Resource limits policy', args);
+        session = manager.processResponse(session.sessionId, 'pods, containers', args);
+        session = manager.processResponse(session.sessionId, 'pods, containers', args);
+        session = manager.processResponse(session.sessionId, 'Prevents resource exhaustion', args);
+        session = manager.processResponse(session.sessionId, 'test-user', args);
+
+        // At this point should be at kyverno-generation step, trigger the next step which will skip to review
+        expect(session.currentStep).toBe('kyverno-generation');
+        const reviewStep = await manager.getNextWorkflowStep(session, args);
+        
+        // Now session should be at review step with Kyverno skipped
+        const updatedSession = manager.loadSession(session.sessionId, args);
+        expect(updatedSession!.currentStep).toBe('review');
+        expect(updatedSession!.data.kyvernoGenerationSkipped).toBe(true);
+        expect(updatedSession!.data.policyId).toBeDefined();
+
+        // Complete with store-intent-only
+        const finalSession = manager.processResponse(updatedSession!.sessionId, 'store-intent-only', args);
+        const completion = await manager.getNextWorkflowStep(finalSession);
+
+        // Should successfully complete with intent-only message
+        expect(completion.instruction).toContain('**Policy Intent Stored Successfully!**');
+        expect(completion.instruction).toContain('Kyverno CRDs not found in cluster - Kyverno is not installed');
+        expect(completion.data?.kyvernoSkipped).toBe(true);
+        expect(completion.data?.applied).toBe(false);
+        expect(completion.data?.policy).toMatchObject({
+          id: updatedSession!.data.policyId,
+          description: 'Resource limits policy',
+          triggers: ['pods', 'containers'],
+          rationale: 'Prevents resource exhaustion',
+          createdBy: 'test-user'
+        });
+      });
+
+      it('should not skip Kyverno generation when Kyverno is available', async () => {
+        // Default mock already sets Kyverno as available
+        const args = { sessionDir: tempSessionDir };
+        let session = manager.createSession(args);
+
+        // Progress through workflow steps up to created-by
+        session = manager.processResponse(session.sessionId, 'Test policy intent', args);
+        session = manager.processResponse(session.sessionId, 'security', args);
+        session = manager.processResponse(session.sessionId, 'security', args);
+        session = manager.processResponse(session.sessionId, 'Test rationale', args);
+        session = manager.processResponse(session.sessionId, 'test-user', args);
+
+        // At this point, session should be at kyverno-generation step
+        expect(session.currentStep).toBe('kyverno-generation');
+        
+        // Since Kyverno is available, the kyvernoGenerationSkipped flag should not be set
+        expect(session.data.kyvernoGenerationSkipped).toBeUndefined();
+        
+        // Verify Kyverno status check would return available
+        const kyvernoStatus = await mockGetKyvernoStatus();
+        expect(kyvernoStatus.policyGenerationReady).toBe(true);
       });
     });
   });

@@ -2764,7 +2764,9 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
             triggers: ['resource limits', 'cpu', 'memory'],
             createdAt: '2025-01-01T00:00:00Z',
             createdBy: 'platform-team'
-          }
+          },
+          score: 0.825,
+          matchType: 'semantic'
         }
       ];
       mockSearchPolicyIntents.mockResolvedValue(mockPolicyIntents);
@@ -2800,14 +2802,20 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
       expect(solutions).toHaveLength(1);
       expect(mockSearchPolicyIntents).toHaveBeenCalledWith(
         expect.stringContaining(intent),
-        { limit: 5 }
+        { limit: 25 }
       );
       
       // Verify policy context was included in question generation prompt
-      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
-      expect(questionGenCall[0]).toContain('- ID: pol-resource-limits');
-      expect(questionGenCall[0]).toContain('Description: All containers must specify CPU and memory resource limits');
-      expect(questionGenCall[0]).toContain('Rationale: Prevents resource exhaustion and ensures fair scheduling');
+      console.log('Mock calls count:', mockClaudeIntegration.sendMessage.mock.calls.length);
+      // Find the call that contains policy context
+      const policyCall = mockClaudeIntegration.sendMessage.mock.calls.find((call: any) => 
+        call[0] && call[0].includes('- ID: pol-resource-limits')
+      );
+      expect(policyCall).toBeDefined();
+      expect(policyCall[0]).toContain('- ID: pol-resource-limits');
+      expect(policyCall[0]).toContain('Description: All containers must specify CPU and memory resource limits');
+      expect(policyCall[0]).toContain('Score:');
+      expect(policyCall[0]).toContain('Rationale: Prevents resource exhaustion and ensures fair scheduling');
     });
 
     it('should handle policy search failures gracefully', async () => {
@@ -2935,7 +2943,9 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
             triggers: ['security', 'containers'],
             createdAt: '2025-01-01T00:00:00Z',
             createdBy: 'security-team'
-          }
+          },
+          score: 0.850,
+          matchType: 'hybrid'
         },
         {
           data: {
@@ -2945,7 +2955,9 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
             triggers: ['database', 'resources', 'limits'],
             createdAt: '2025-01-02T00:00:00Z',
             createdBy: 'platform-team'
-          }
+          },
+          score: 0.720,
+          matchType: 'keyword'
         }
       ];
       mockSearchPolicyIntents.mockResolvedValue(mockPolicyIntents);
@@ -2975,18 +2987,24 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
 
       await ranker.findBestSolutions(intent, mockExplainResource);
 
-      const questionGenCall = mockClaudeIntegration.sendMessage.mock.calls[1];
-      const prompt = questionGenCall[0];
+      // Find the call that contains policy context
+      const policyCall = mockClaudeIntegration.sendMessage.mock.calls.find((call: any) => 
+        call[0] && call[0].includes('- ID: pol-security-contexts')
+      );
+      expect(policyCall).toBeDefined();
+      const prompt = policyCall[0];
       
-      // Should format both policies correctly
+      // Should format both policies correctly with scores
       expect(prompt).toContain('- ID: pol-security-contexts');
       expect(prompt).toContain('Description: All containers must run with security contexts');
       expect(prompt).toContain('Rationale: Enhances security by preventing privilege escalation');
       expect(prompt).toContain('Triggers: security, containers');
+      expect(prompt).toContain('Score: 0.850');
       
       expect(prompt).toContain('- ID: pol-resource-limits');
       expect(prompt).toContain('Description: Database workloads must specify resource limits');
       expect(prompt).toContain('Rationale: Prevents database from consuming all cluster resources');
+      expect(prompt).toContain('Score: 0.720');
       expect(prompt).toContain('Triggers: database, resources, limits');
     });
   });
