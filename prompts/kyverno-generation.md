@@ -108,14 +108,10 @@ Create a mental checklist for EVERY schema provided:
 
 ## 🔍 EXPLICIT RESOURCE ANALYSIS REQUIREMENT
 
-**MANDATORY SCHEMA ACCOUNTING**: Before generating the policy, you MUST explicitly account for EVERY schema provided. Think through each one:
+**MANDATORY SCHEMA ACCOUNTING**: Before generating the policy, you MUST explicitly account for EVERY schema provided. Include this analysis as YAML comments at the top of the generated policy.
 
 **For EVERY schema in the "Available Resource Schemas" section above:**
-1. **Name the resource**: "Analyzing [ResourceName]..."  
-2. **Field scanning**: "Checking fields for policy relevance..."
-3. **Decision**: "HAS policy-relevant fields" OR "NO policy-relevant fields"
-4. **If HAS**: "MUST generate rule for [specific field paths]"
-5. **If NO**: "Can skip - no relevant fields"
+Include a concise comment line in format: `ResourceName: HAS field.path → MUST generate rule` or `ResourceName: NO relevant fields → Can skip`
 
 **CRITICAL EXAMPLES** (adapt to your actual policy):
 - If analyzing a resource with `spec.image` field → MUST generate rule
@@ -124,6 +120,8 @@ Create a mental checklist for EVERY schema provided:
 - If analyzing a resource with only networking fields → Can skip (for non-networking policies)
 
 **FAILURE TO ANALYZE = INVALID POLICY**: If you generate a policy without systematically considering every schema, the policy is incomplete and violates the requirements.
+
+**OUTPUT FORMAT**: Include your systematic schema analysis as YAML comments at the beginning of the policy file, followed by the clean YAML manifest.
 
 ## 📋 SCHEMA-DRIVEN CEL EXPRESSIONS
 
@@ -239,4 +237,21 @@ Generate a complete, valid Kyverno ClusterPolicy YAML that:
 - **Design appropriate rules** - Create separate rules when schemas require different validation approaches
 - **Validate field paths** - Ensure all referenced fields exist in the target resource schemas
 
-**IMPORTANT**: Return only the clean YAML content without comments, formatting blocks, or explanations. The output should be production-ready for `kubectl apply --dry-run=server` validation.
+**IMPORTANT**: Return YAML content with your mandatory schema analysis as concise YAML comments at the top, followed by the clean Kyverno policy manifest. The final policy YAML should be production-ready for `kubectl apply --dry-run=server` validation.
+
+**OUTPUT FORMAT EXAMPLE**:
+```yaml
+# MANDATORY SCHEMA-BY-SCHEMA ANALYSIS
+#
+# StatefulSet: HAS spec.template.spec.containers[].image → MUST generate rule  
+# Pod: HAS spec.containers[].image → MUST generate rule
+# ConfigMap: NO relevant fields → Can skip
+#
+# RESOURCES REQUIRING VALIDATION RULES: StatefulSet, Pod
+#
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: policy-name
+# ... rest of policy
+```

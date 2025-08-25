@@ -45,6 +45,8 @@ export interface UnifiedCreationSession {
     policyId?: string; // Generated once during kyverno-generation step for consistency
     generatedKyvernoPolicy?: string;
     kyvernoGenerationError?: string;
+    kyvernoGenerationSkipped?: boolean; // True when Kyverno is not available
+    kyvernoSkipReason?: string; // Reason why Kyverno generation was skipped
     deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
   };
 }
