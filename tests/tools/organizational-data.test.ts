@@ -106,6 +106,11 @@ jest.mock('../../src/core/policy-vector-service', () => ({
 const mockCapabilityInferenceEngine = require('../../src/core/capabilities').CapabilityInferenceEngine;
 mockCapabilityInferenceEngine.generateCapabilityId = jest.fn().mockReturnValue('mock-capability-id');
 
+// Mock kubernetes-utils for Kyverno operations
+jest.mock('../../src/core/kubernetes-utils', () => ({
+  executeKubectl: jest.fn()
+}));
+
 // Mock CapabilityVectorService
 jest.mock('../../src/core/capability-vector-service', () => ({
   CapabilityVectorService: jest.fn().mockImplementation(() => ({
@@ -221,15 +226,17 @@ const testLogger: Logger = {
 
 describe('Organizational Data Tool', () => {
   let testSessionDir: string;
+  let mockExecuteKubectl: jest.MockedFunction<any>;
 
   beforeEach(() => {
     // Create a unique test directory for each test
     testSessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dot-ai-test-'));
+    
+    // Get reference to mocked kubectl function
+    mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
+    
+    // Set test session directory (this is OK since it's test-specific)
     process.env.DOT_AI_SESSION_DIR = testSessionDir;
-    // Set OpenAI API key for tests to pass embedding service validation
-    process.env.OPENAI_API_KEY = 'test-api-key';
-    // Set Anthropic API key for capability scanning tests
-    process.env.ANTHROPIC_API_KEY = 'test-api-key';
 
     // Reset all mocks to default state
     mockHealthCheck.mockResolvedValue(true);
@@ -245,17 +252,13 @@ describe('Organizational Data Tool', () => {
       reason: 'OPENAI_API_KEY not set - vector operations will fail'
     });
 
-    // Reset embedding service mocks to default (available) state
-    mockIsAvailable.mockReturnValue(!!process.env.OPENAI_API_KEY);
-    mockGetStatus.mockReturnValue(process.env.OPENAI_API_KEY ? {
+    // Reset embedding service mocks to default (available) state - always available in tests
+    mockIsAvailable.mockReturnValue(true);
+    mockGetStatus.mockReturnValue({
       available: true,
       provider: 'openai',
       model: 'text-embedding-3-small',
       dimensions: 1536
-    } : {
-      available: false,
-      provider: null,
-      reason: 'OPENAI_API_KEY not set - vector operations will fail'
     });
 
     // Clear all mocks
@@ -2795,72 +2798,427 @@ describe('Organizational Data Tool', () => {
     });
 
     describe('Policy Deletion', () => {
-      it('should delete policy intent successfully', async () => {
-        // Mock the policy exists
-        mockGetPolicyIntent.mockResolvedValue({
-          id: 'policy-123',
-          description: 'Test policy',
-          triggers: ['test'],
-          rationale: 'Testing',
-          createdAt: '2025-08-21T10:00:00Z',
-          createdBy: 'test-user',
-          deployedPolicies: []
+      beforeEach(() => {
+        // Reset all mocks before each test
+        jest.clearAllMocks();
+        mockPolicyHealthCheck.mockResolvedValue(true);
+        mockPolicyInitialize.mockResolvedValue(undefined);
+        mockIsAvailable.mockResolvedValue(true);
+        mockGetStatus.mockResolvedValue({ healthy: true });
+      });
+
+      describe('Individual Delete', () => {
+        it('should delete policy intent with no deployed Kyverno policies', async () => {
+          // Mock policy without deployed policies
+          mockGetPolicyIntent.mockResolvedValue({
+            id: 'policy-123',
+            description: 'Test policy',
+            triggers: ['test'],
+            rationale: 'Testing',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'test-user',
+            deployedPolicies: []
+          });
+          
+          // Mock kubectl to return no policies found
+          mockExecuteKubectl.mockResolvedValue(JSON.stringify({ items: [] }));
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'policy-123'
+            },
+            null,
+            testLogger,
+            'test-policy-delete-simple'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.operation).toBe('delete');
+          expect(response.message).toContain('no Kyverno policies to cleanup');
+          expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-123');
+          expect(mockExecuteKubectl).toHaveBeenCalledWith(
+            ['get', 'clusterpolicy', '-l', 'policy-intent/id=policy-123', '-o', 'json'],
+            { kubeconfig: undefined, timeout: 15000 }
+          );
         });
-        mockDeletePolicyIntent.mockResolvedValue(undefined);
 
-        const result = await handleOrganizationalDataTool(
-          {
-            dataType: 'policy',
-            operation: 'delete',
-            id: 'policy-123'
-          },
-          null,
-          testLogger,
-          'test-request-policy-delete'
-        );
+        it('should show confirmation when policy has deployed Kyverno policies', async () => {
+          // Mock policy with deployed policies
+          mockGetPolicyIntent.mockResolvedValue({
+            id: 'policy-456',
+            description: 'Resource limits policy',
+            triggers: ['resource limits'],
+            rationale: 'Testing',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'test-user',
+            deployedPolicies: []
+          });
+          
+          // Mock kubectl to return deployed policies
+          mockExecuteKubectl.mockResolvedValue(JSON.stringify({
+            items: [
+              {
+                metadata: {
+                  name: 'require-resource-limits',
+                  labels: { 'policy-intent/id': 'policy-456' },
+                  creationTimestamp: '2025-08-21T10:30:00Z'
+                }
+              }
+            ]
+          }));
 
-        const response = JSON.parse(result.content[0].text);
-        expect(response.success).toBe(true);
-        expect(response.operation).toBe('delete');
-        expect(response.message).toBe('Policy intent deleted successfully');
-        expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-123');
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'policy-456'
+            },
+            null,
+            testLogger,
+            'test-policy-delete-confirmation'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.requiresConfirmation).toBe(true);
+          expect(response.confirmation.question).toContain('require-resource-limits');
+          expect(response.confirmation.question).toContain('Delete everything');
+          expect(response.confirmation.question).toContain('Keep Kyverno policies');
+          expect(mockDeletePolicyIntent).not.toHaveBeenCalled(); // Should not delete yet
+        });
+
+        it('should delete everything when user chooses option 1', async () => {
+          // Mock policy with deployed policies
+          mockGetPolicyIntent.mockResolvedValue({
+            id: 'policy-789',
+            description: 'Security policy',
+            triggers: ['security'],
+            rationale: 'Testing',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'test-user',
+            deployedPolicies: []
+          });
+          
+          // Mock kubectl get to return deployed policies
+          mockExecuteKubectl
+            .mockResolvedValueOnce(JSON.stringify({
+              items: [
+                {
+                  metadata: {
+                    name: 'security-policy',
+                    labels: { 'policy-intent/id': 'policy-789' },
+                    creationTimestamp: '2025-08-21T10:30:00Z'
+                  }
+                }
+              ]
+            }))
+            // Mock kubectl delete to succeed
+            .mockResolvedValueOnce('clusterpolicy.kyverno.io/security-policy deleted');
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'policy-789',
+              response: '1' // Delete everything
+            },
+            null,
+            testLogger,
+            'test-policy-delete-everything'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.message).toContain('with Kyverno cleanup');
+          expect(response.kyvernoCleanup.successful).toHaveLength(1);
+          expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-789');
+          expect(mockExecuteKubectl).toHaveBeenCalledWith(
+            ['delete', 'clusterpolicy', '-l', 'policy-intent/id=policy-789'],
+            { kubeconfig: undefined, timeout: 30000 }
+          );
+        });
+
+        it('should preserve Kyverno policies when user chooses option 2', async () => {
+          // Mock policy with deployed policies
+          mockGetPolicyIntent.mockResolvedValue({
+            id: 'policy-999',
+            description: 'Network policy',
+            triggers: ['network'],
+            rationale: 'Testing',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'test-user',
+            deployedPolicies: []
+          });
+          
+          // Mock kubectl to return deployed policies
+          mockExecuteKubectl.mockResolvedValue(JSON.stringify({
+            items: [
+              {
+                metadata: {
+                  name: 'network-policy',
+                  labels: { 'policy-intent/id': 'policy-999' },
+                  creationTimestamp: '2025-08-21T10:30:00Z'
+                }
+              }
+            ]
+          }));
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'policy-999',
+              response: '2' // Keep Kyverno policies
+            },
+            null,
+            testLogger,
+            'test-policy-delete-preserve'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.message).toContain('Kyverno policies preserved');
+          expect(response.kyvernoCleanup.preserved).toBe(true);
+          expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-999');
+          // Should not call kubectl delete
+          expect(mockExecuteKubectl).toHaveBeenCalledTimes(1); // Only the get command
+        });
+
+        it('should handle kubectl errors gracefully', async () => {
+          mockGetPolicyIntent.mockResolvedValue({
+            id: 'policy-error',
+            description: 'Error policy',
+            triggers: ['error'],
+            rationale: 'Testing',
+            createdAt: '2025-08-21T10:00:00Z',
+            createdBy: 'test-user',
+            deployedPolicies: []
+          });
+          
+          // Mock kubectl to fail
+          mockExecuteKubectl.mockRejectedValue(new Error('Cluster connection failed'));
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'policy-error'
+            },
+            null,
+            testLogger,
+            'test-policy-delete-kubectl-error'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.message).toContain('no Kyverno policies to cleanup');
+          expect(mockDeletePolicyIntent).toHaveBeenCalledWith('policy-error');
+        });
+
+        it('should require ID for delete operation', async () => {
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete'
+            },
+            null,
+            testLogger,
+            'test-policy-delete-no-id'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(false);
+          expect(response.message).toBe('Policy intent ID is required for delete operation');
+        });
+
+        it('should handle non-existent policy', async () => {
+          mockGetPolicyIntent.mockResolvedValue(null);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'delete',
+              id: 'non-existent'
+            },
+            null,
+            testLogger,
+            'test-policy-delete-not-found'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(false);
+          expect(response.message).toBe('Policy intent not found: non-existent');
+        });
       });
 
-      it('should require ID for delete operation', async () => {
-        const result = await handleOrganizationalDataTool(
-          {
-            dataType: 'policy',
-            operation: 'delete'
-          },
-          null,
-          testLogger,
-          'test-request-policy-delete-no-id'
-        );
+      describe('Delete All', () => {
+        it('should delete all policies with no deployed Kyverno policies', async () => {
+          // Mock multiple policies without deployed policies
+          mockGetAllPolicyIntents.mockResolvedValue([
+            {
+              id: 'policy-1',
+              description: 'Policy 1',
+              triggers: ['test1'],
+              rationale: 'Testing',
+              createdAt: '2025-08-21T10:00:00Z',
+              createdBy: 'test-user'
+            },
+            {
+              id: 'policy-2', 
+              description: 'Policy 2',
+              triggers: ['test2'],
+              rationale: 'Testing',
+              createdAt: '2025-08-21T10:00:00Z',
+              createdBy: 'test-user'
+            }
+          ]);
+          
+          // Mock kubectl to return no deployed policies
+          mockExecuteKubectl.mockResolvedValue(JSON.stringify({ items: [] }));
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
 
-        const response = JSON.parse(result.content[0].text);
-        expect(response.success).toBe(false);
-        expect(response.message).toBe('Policy intent ID is required for delete operation');
-      });
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'deleteAll'
+            },
+            null,
+            testLogger,
+            'test-policy-deleteall-simple'
+          );
 
-      it('should handle deletion errors', async () => {
-        mockDeletePolicyIntent.mockRejectedValue(
-          new Error('Policy not found')
-        );
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.operation).toBe('deleteAll');
+          expect(response.deletedCount).toBe(2);
+          expect(response.message).toContain('no Kyverno policies to cleanup');
+          expect(mockDeletePolicyIntent).toHaveBeenCalledTimes(2);
+        });
 
-        const result = await handleOrganizationalDataTool(
-          {
-            dataType: 'policy',
-            operation: 'delete',
-            id: 'policy-123'
-          },
-          null,
-          testLogger,
-          'test-request-policy-delete-error'
-        );
+        it('should show confirmation when policies have deployed Kyverno policies', async () => {
+          mockGetAllPolicyIntents.mockResolvedValue([
+            {
+              id: 'policy-1',
+              description: 'Policy 1',
+              triggers: ['test1'],
+              rationale: 'Testing',
+              createdAt: '2025-08-21T10:00:00Z',
+              createdBy: 'test-user'
+            }
+          ]);
+          
+          // Mock kubectl to return deployed policies
+          mockExecuteKubectl.mockResolvedValue(JSON.stringify({
+            items: [
+              {
+                metadata: {
+                  name: 'policy-1-kyverno',
+                  labels: { 'policy-intent/id': 'policy-1' },
+                  creationTimestamp: '2025-08-21T10:30:00Z'
+                }
+              }
+            ]
+          }));
 
-        const response = JSON.parse(result.content[0].text);
-        expect(response.success).toBe(false);
-        expect(response.error).toContain('Policy intent not found');
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'deleteAll'
+            },
+            null,
+            testLogger,
+            'test-policy-deleteall-confirmation'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.requiresConfirmation).toBe(true);
+          expect(response.confirmation.question).toContain('1 policy intents');
+          expect(response.confirmation.question).toContain('1 deployed Kyverno policies');
+          expect(mockDeletePolicyIntent).not.toHaveBeenCalled();
+        });
+
+        it('should delete everything when user chooses option 1', async () => {
+          mockGetAllPolicyIntents.mockResolvedValue([
+            {
+              id: 'policy-batch-1',
+              description: 'Batch Policy 1',
+              triggers: ['batch1'],
+              rationale: 'Testing',
+              createdAt: '2025-08-21T10:00:00Z',
+              createdBy: 'test-user'
+            }
+          ]);
+          
+          // Mock kubectl get and delete
+          mockExecuteKubectl
+            .mockResolvedValueOnce(JSON.stringify({
+              items: [
+                {
+                  metadata: {
+                    name: 'batch-policy-1',
+                    labels: { 'policy-intent/id': 'policy-batch-1' },
+                    creationTimestamp: '2025-08-21T10:30:00Z'
+                  }
+                }
+              ]
+            }))
+            .mockResolvedValueOnce('clusterpolicy.kyverno.io/batch-policy-1 deleted');
+          
+          mockDeletePolicyIntent.mockResolvedValue(undefined);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'deleteAll',
+              response: '1' // Delete everything
+            },
+            null,
+            testLogger,
+            'test-policy-deleteall-everything'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.message).toContain('with Kyverno cleanup');
+          expect(response.deletedCount).toBe(1);
+          expect(mockDeletePolicyIntent).toHaveBeenCalledTimes(1);
+          expect(mockExecuteKubectl).toHaveBeenCalledWith(
+            ['delete', 'clusterpolicy', '-l', 'policy-intent/id'],
+            { kubeconfig: undefined, timeout: 30000 }
+          );
+        });
+
+        it('should handle empty policy list', async () => {
+          mockGetAllPolicyIntents.mockResolvedValue([]);
+
+          const result = await handleOrganizationalDataTool(
+            {
+              dataType: 'policy',
+              operation: 'deleteAll'
+            },
+            null,
+            testLogger,
+            'test-policy-deleteall-empty'
+          );
+
+          const response = JSON.parse(result.content[0].text);
+          expect(response.success).toBe(true);
+          expect(response.deletedCount).toBe(0);
+          expect(response.message).toBe('No policy intents found to delete');
+        });
       });
     });
 

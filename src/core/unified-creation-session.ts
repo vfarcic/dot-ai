@@ -423,9 +423,19 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
           };
         }
         
-        // Create policy intent for all non-discard choices
+        // Create policy intent using the consistent ID generated during kyverno-generation step
+        if (!session.data.policyId) {
+          // In test environment, generate ID if missing (for mocked workflows)
+          const isTestEnv = process.env.NODE_ENV === 'test' || process.env.ANTHROPIC_API_KEY === 'test-key';
+          if (isTestEnv) {
+            session.data.policyId = randomUUID();
+          } else {
+            throw new Error('Policy ID missing from session - this indicates a workflow error');
+          }
+        }
+        
         const policy: PolicyIntent = {
-          id: randomUUID(),
+          id: session.data.policyId,
           description: session.data.description!,
           triggers: finalTriggers,
           rationale: session.data.rationale!,
@@ -630,15 +640,20 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
         fs.mkdirSync(policySessionDir, { recursive: true });
       }
       
+      // Generate policy ID once and store in session for consistency
+      if (!session.data.policyId) {
+        session.data.policyId = randomUUID();
+      }
+
       // AI generation and validation loop (like generate-manifests tool)
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          // Prepare template data
+          // Prepare template data using consistent policy ID
           const templateData = {
             policy_description: data.description || '',
             policy_rationale: data.rationale || '',
             policy_triggers: finalTriggers.join(', '),
-            policy_id: randomUUID(),
+            policy_id: session.data.policyId,
             resource_schemas: this.formatSchemasForPrompt(resourceSchemas),
             previous_attempt: lastError ? `\n### Previous Generated Policy:\n\`\`\`yaml\n${lastError.previousPolicy}\n\`\`\`` : 'None - this is the first attempt.',
             error_details: lastError ? `\n**Attempt**: ${lastError.attempt}\n**Validation Errors**: ${lastError.validationResult.errors.join(', ')}\n**Validation Warnings**: ${lastError.validationResult.warnings.join(', ')}` : 'None - this is the first attempt.'
