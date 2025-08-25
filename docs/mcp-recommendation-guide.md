@@ -83,7 +83,7 @@ Which approach interests you most?
 - AI received pre-filtered capability-rich resources with semantic context instead of raw resource names
 - Generated 3 solution alternatives with different complexity/capability tradeoffs, scoring based on capability relevance and pattern influence
 
-**Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md).
+**Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
 ```
 User: I'll go with option 1
@@ -101,15 +101,21 @@ I need some required details to configure your deployment:
 - Which namespace should the application be deployed to? (options: a-team, b-team, default, kube-public)
 - What is the container image for your Go application? (e.g., "registry.example.com/go-app:v1.0.0")
 - What port does your Go application listen on? (1-65535)
+
+🛡️ **Policy Requirements:**
+- **CPU resource limit** ⚠️ required by Resource Limits Policy (minimum: 100m, maximum: 2000m)
+- **Memory resource limit** ⚠️ required by Resource Limits Policy (minimum: 128Mi, maximum: 4Gi)
 ```
 
 **What happened behind the scenes:**
 - chooseSolution loaded the selected solution and returned only the required stage questions
 - Questions generated from resource schema analysis: Deployment needs name/image/port, Service needs port configuration
+- Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.89)
+- Policy requirements promoted to REQUIRED questions with compliance indicators and constraints
 - System categorizes questions as required (must answer) to proceed
 
 ```
-User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080.
+User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080. CPU limit 500m, memory limit 512Mi.
 ```
 
 ```
@@ -117,7 +123,10 @@ Agent: Perfect! Let me configure the required settings.
 
 [Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
 
-Great! Now for some basic configuration options:
+Great! Your configuration meets all policy requirements:
+✅ **Resource Limits Policy**: CPU (500m) and memory (512Mi) within acceptable ranges
+
+Now for some basic configuration options:
 
 **Basic Configuration (optional):**
 - How many replicas of the application should run? (default: 3)
@@ -225,6 +234,13 @@ spec:
         image: ghcr.io/vfarcic/silly-demo:v1.5.151
         ports:
         - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
@@ -284,6 +300,7 @@ Ready to deploy to your cluster?
 **What happened behind the scenes:**
 - generateManifests loaded the fully configured solution file
 - AI generated YAML manifests using all collected configuration answers
+- Policy requirements enforced: Resource limits (CPU: 500m, memory: 512Mi) applied to containers
 - System performed up to 10 validation loops with `kubectl apply --dry-run=server --validate=true`
 - Each resource includes dot-ai.io/ labels for tracking and proper resource linking via labels/selectors
 - Organizational patterns influenced the final YAML (NetworkPolicy added for security, HPA configured for scaling)
@@ -356,7 +373,7 @@ Which approach fits your API requirements?
 - The "variable traffic" requirement strongly influenced resource selection toward HorizontalPodAutoscaler
 - Generated 3 solutions with different external vs internal capabilities, scoring based on traffic handling requirements
 
-**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns.
+**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns. Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
 ```
 User: Option 2 please
@@ -374,15 +391,21 @@ I need some required details to configure your API deployment:
 - Target namespace for deployment?
 - Container image for your API? (e.g., "myregistry/api:v2.1.0")
 - API port your service listens on?
+
+🛡️ **Policy Requirements:**
+- **CPU resource limit** ⚠️ required by Resource Limits Policy (minimum: 100m, maximum: 2000m)
+- **Memory resource limit** ⚠️ required by Resource Limits Policy (minimum: 128Mi, maximum: 4Gi)
 ```
 
 **What happened behind the scenes:**
 - chooseSolution loaded the Internal API Service solution and returned only required stage questions
 - Questions focused on API-specific needs: service naming, microservice namespace, container image, port
+- Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.91) 
+- Policy requirements promoted to REQUIRED questions with compliance constraints
 - System recognizes this is for "variable traffic" and will emphasize scaling in later stages
 
 ```
-User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080.
+User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080. CPU limit 500m, memory limit 1Gi.
 ```
 
 ```
@@ -390,7 +413,10 @@ Agent: Perfect! Let me configure the required settings.
 
 [Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
 
-Great! Now for scaling configuration:
+Great! Your configuration meets all policy requirements:
+✅ **Resource Limits Policy**: CPU (500m) and memory (1Gi) within acceptable ranges
+
+Now for scaling configuration:
 
 **Basic Configuration (optional):**
 - Initial number of replicas? (default: 2)
@@ -477,10 +503,10 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 128Mi
+            memory: 256Mi
           limits:
             cpu: 500m
-            memory: 512Mi
+            memory: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -521,7 +547,8 @@ Ready to deploy your payment API?
 **What happened behind the scenes:**
 - generateManifests loaded the fully configured solution file
 - AI generated YAML using scaling-focused configuration
-- Stateless Apps Pattern influenced resource requests/limits (cpu: 100m-500m, memory: 128Mi-512Mi) for predictable scaling
+- Policy requirements enforced: Resource limits (CPU: 500m, memory: 1Gi) applied to containers
+- Stateless Apps Pattern influenced resource requests/limits for predictable scaling
 - Service.spec.type: ClusterIP set appropriately for internal microservices
 - HPA configured with your specific parameters (2-15 replicas, 70% CPU target)
 - System validated manifests with kubectl apply --dry-run=server --validate=true
