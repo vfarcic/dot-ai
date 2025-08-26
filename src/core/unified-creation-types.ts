@@ -12,6 +12,7 @@ export type WorkflowStep =
   | 'resources'
   | 'rationale'
   | 'created-by'
+  | 'namespace-scope'
   | 'kyverno-generation'
   | 'review'
   | 'apply-save-discard'
@@ -48,6 +49,11 @@ export interface UnifiedCreationSession {
     kyvernoGenerationSkipped?: boolean; // True when Kyverno is not available
     kyvernoSkipReason?: string; // Reason why Kyverno generation was skipped
     deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
+    // Namespace scope data (only used for policies)
+    namespaceScope?: {
+      type: 'all' | 'include' | 'exclude';
+      namespaces?: string[];  // Selected namespace names
+    };
   };
 }
 
@@ -86,6 +92,7 @@ const POLICY_WORKFLOW: WorkflowStep[] = [
   'trigger-expansion', 
   'rationale', 
   'created-by',
+  'namespace-scope',
   'kyverno-generation',
   'review', 
   'complete'

@@ -1,9 +1,9 @@
 # PRD: Organizational Policy Management and Enforcement System
 
 **Created**: 2025-08-20
-**Status**: Draft
+**Status**: Complete
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-08-21
+**Last Updated**: 2025-08-26
 **GitHub Issue**: [#74](https://github.com/vfarcic/dot-ai/issues/74)
 
 ## Executive Summary
@@ -231,6 +231,10 @@ interface PolicyIntent {
 - [x] Create policy cleanup operations (delete from cluster when policy intent deleted)
 - [x] Add policy status tracking and reporting
 - [~] Implement policy update workflow (deferred - users can delete + create for same functionality)
+- [x] Implement namespace scope selection during policy creation
+- [x] Support namespace include/exclude lists in ClusterPolicy generation
+- [x] Retrieve and display available namespaces from cluster
+- [x] Only show namespace options when Kyverno is installed
 
 **Technical Requirements**:
 - [x] Generate Kyverno policies from policy intent descriptions
@@ -420,6 +424,27 @@ All documentation changes will include `<!-- PRD-74 -->` comments for traceabili
 - Applies consistently to both patterns and policies for architectural consistency
 
 **Code Impact**: Mark policy update workflow as deferred in Phase 4, update success criteria to reflect decision
+
+### Decision 10: Namespace Scope Selection for Policies
+**Date**: 2025-08-26  
+**Decision**: Always generate ClusterPolicy with optional namespace selectors  
+**Rationale**: 
+- Simpler than managing multiple Policy resources per namespace
+- Kyverno's match/exclude syntax provides flexible namespace targeting
+- Consistent with cluster-wide governance model
+- Allows both inclusion and exclusion patterns
+
+**Impact**: 
+- Add namespace-scope step to policy workflow (only if Kyverno installed)
+- Retrieve actual namespaces from cluster for user selection
+- Generate ClusterPolicy with appropriate namespace selectors
+- Enhanced user experience with namespace-aware policy creation
+
+**Code Impact**: 
+- Add namespace-scope to POLICY_WORKFLOW steps
+- Extend UnifiedCreationSessionData with namespaceScope field
+- Update Kyverno generation to include namespace match/exclude rules
+- Create policy-namespace-scope.md prompt for user interaction
 
 ## Success Criteria
 
@@ -1159,3 +1184,64 @@ const relevantPolicies = await policyVectorService.searchPolicyIntents(
 - Better debugging capability for policy search effectiveness
 
 **Status**: Enhancement complete - PRD 74 remains functionally complete with additional UX improvements
+
+### 2025-08-26: Namespace Limitation Feature Complete - Policy Scope Control Implementation
+**Duration**: ~6 hours comprehensive implementation + testing + documentation
+**Primary Focus**: Complete namespace scope selection for Kyverno policy generation
+**User Request**: "We should add a task to the PRD to ask the user whether to limit Kyverno policies to specific namespaces"
+
+**Completed Namespace Limitation Items**:
+- [x] **Namespace-Scope Workflow Step**: Added new step to policy creation workflow (only shown when Kyverno installed)
+  - Added 'namespace-scope' to POLICY_WORKFLOW in unified-creation-types.ts  
+  - Implemented conditional step logic - skipped automatically when Kyverno not detected
+  - Enhanced UnifiedCreationSession data structure with namespaceScope field
+- [x] **Live Namespace Discovery**: Retrieve actual namespaces from cluster for user selection
+  - Implemented getNamespaces() integration with cluster connection validation
+  - Confirmed code reuse - no duplication with existing pattern namespace functionality
+  - Fixed cluster connection issue by adding await this.discovery.connect() before namespace calls
+- [x] **ClusterPolicy Generation**: Always generate ClusterPolicy with namespace selectors
+  - Three namespace scope modes: 'all' (no restrictions), 'include' (specific namespaces), 'exclude' (specific namespaces)
+  - Kyverno match/exclude syntax properly implemented in generated policies
+  - All modes tested and validated with different namespace combinations
+- [x] **Conditional UI Logic**: Only show namespace options when Kyverno is installed
+  - Fixed prompt generation to match instruction logic by building prompts conditionally in code
+  - Eliminated incorrect "Apply Kyverno policy to cluster" option when Kyverno missing
+  - Clean separation between Kyverno-dependent and Kyverno-independent workflows
+- [x] **YAML Generation Format Fix**: Fixed AI generation to output clean YAML without markdown formatting
+  - Updated kyverno-generation.md prompt with explicit "NO MARKDOWN FORMATTING" requirements
+  - Generated policies now kubectl-ready without manual cleanup
+  - Comments preserved inside YAML for policy documentation
+- [x] **All Tests Passing**: Fixed 13 test failures related to new namespace-scope step
+  - Updated test expectations to include namespace-scope in workflow progression
+  - Added proper ESLint compliance with lexical declaration scoping
+  - Handled AI generation failures gracefully in test environment
+- [x] **Documentation Updates**: Enhanced policy-management-guide.md with Step 6: Namespace Scope Selection
+  - Added complete workflow documentation for namespace limitation feature
+  - Fixed step numbering consistency (Step 8: Review, Step 9: Deployment)
+  - Comprehensive examples for all three namespace scope permutations
+
+**Technical Achievements**:
+- **Complete Namespace Workflow**: Three-option namespace scope selection (all/include/exclude) fully implemented
+- **Conditional Prompt Logic**: Smart prompt generation based on Kyverno installation status
+- **Schema Accuracy**: Generated ClusterPolicies use proper Kyverno namespace selector syntax
+- **Test Reliability**: All namespace permutations validated through comprehensive testing
+- **Code Quality**: No duplication of namespace discovery logic, proper error handling
+- **Clean YAML Output**: AI generates kubectl-ready policies without markdown formatting
+
+**User Experience Validation**:
+- **Namespace Scope Testing**: All three permutations successfully tested
+  - Test 1: "Apply to all namespaces" - no namespace restrictions (PASSED)
+  - Test 2: "Apply to specific namespaces" - include a-team, b-team, default (PASSED)  
+  - Test 3: "Exclude specific namespaces" - exclude kube-system, kube-public, kyverno (PASSED)
+- **Smart Workflow**: Namespace questions automatically skipped when Kyverno not installed
+- **Accurate Display**: Live namespace list retrieved from actual cluster for selection
+- **Policy Enforcement**: Generated ClusterPolicies correctly implement namespace targeting
+
+**Files Modified/Enhanced**:
+- **Core Workflow**: `src/core/unified-creation-session.ts` - added namespace-scope step logic
+- **Type System**: `src/core/unified-creation-types.ts` - added namespace-scope step and data structure
+- **AI Prompts**: `prompts/kyverno-generation.md` - fixed YAML output formatting requirements
+- **Documentation**: `docs/policy-management-guide.md` - added Step 6 with complete examples
+- **Test Suite**: Multiple test files updated for new workflow step and AI generation expectations
+
+**Status**: Namespace limitation feature fully implemented, tested, and documented - PRD 74 Phase 4 now complete.

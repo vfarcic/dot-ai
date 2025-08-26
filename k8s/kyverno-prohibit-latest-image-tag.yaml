@@ -1,0 +1,151 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  annotations:
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/description: Prohibits the use of 'latest' image tags across
+      all workloads to ensure deployment predictability and enable proper change management.
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Image
+    policy-intent/description: Applications must NEVER use the `latest` tag.
+    policy-intent/rationale: Using the 'latest' tag creates unpredictable deployments
+      and makes rollbacks difficult. Specific version tags ensure reproducible builds
+      and enable proper change management.
+  labels:
+    policy-intent/id: a4450918-578f-4185-8aa4-e3b67cd7151a
+  name: prohibit-latest-image-tag
+spec:
+  rules:
+  - match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    name: prohibit-latest-tag-pods
+    skipBackgroundRequests: true
+    validate:
+      allowExistingViolations: true
+      cel:
+        expressions:
+        - expression: |-
+            has(object.spec.containers) ? object.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Pod containers must not use the 'latest' image tag. Specify an
+            explicit version tag for predictable deployments.
+        - expression: |-
+            has(object.spec.initContainers) ? object.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Pod init containers must not use the 'latest' image tag. Specify
+            an explicit version tag for predictable deployments.
+        - expression: |-
+            has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Pod ephemeral containers must not use the 'latest' image tag. Specify
+            an explicit version tag for predictable deployments.
+        generate: false
+  - match:
+      any:
+      - resources:
+          kinds:
+          - apps/v1/Deployment
+          - apps/v1/StatefulSet
+          - apps/v1/DaemonSet
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    name: prohibit-latest-tag-workloads
+    skipBackgroundRequests: true
+    validate:
+      allowExistingViolations: true
+      cel:
+        expressions:
+        - expression: |-
+            has(object.spec.template.spec.containers) ? object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Workload containers must not use the 'latest' image tag. Specify
+            an explicit version tag for predictable deployments.
+        - expression: |-
+            has(object.spec.template.spec.initContainers) ? object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Workload init containers must not use the 'latest' image tag. Specify
+            an explicit version tag for predictable deployments.
+        - expression: |-
+            has(object.spec.template.spec.ephemeralContainers) ? object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
+              : true
+            ) : true
+          message: Workload ephemeral containers must not use the 'latest' image tag.
+            Specify an explicit version tag for predictable deployments.
+        generate: false
+  - match:
+      any:
+      - resources:
+          kinds:
+          - devopstoolkit.live/v1beta1/App
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    name: prohibit-latest-tag-custom-app
+    skipBackgroundRequests: true
+    validate:
+      allowExistingViolations: true
+      cel:
+        expressions:
+        - expression: 'has(object.spec.tag) && object.spec.tag != '''' ? object.spec.tag
+            != ''latest'' : true'
+          message: Custom App must not use the 'latest' tag. Specify an explicit version
+            tag for predictable deployments.
+        generate: false
+  - match:
+      any:
+      - resources:
+          kinds:
+          - pkg.crossplane.io/v1/FunctionRevision
+          - pkg.crossplane.io/v1/ProviderRevision
+          - pkg.crossplane.io/v1/ConfigurationRevision
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    name: prohibit-latest-tag-packages
+    skipBackgroundRequests: true
+    validate:
+      allowExistingViolations: true
+      cel:
+        expressions:
+        - expression: 'has(object.spec.image) && object.spec.image != '''' ? !object.spec.image.endsWith('':latest'')
+            && !object.spec.image.matches(''^[^/:]+$'') : true'
+          message: Package revisions must not use the 'latest' image tag. Specify
+            an explicit version tag for predictable deployments.
+        generate: false
+  validationFailureAction: Enforce

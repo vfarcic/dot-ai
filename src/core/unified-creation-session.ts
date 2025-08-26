@@ -131,6 +131,22 @@ export class UnifiedCreationSessionManager {
         session.currentStep = getNextStep('created-by', this.config)!;
         break;
         
+      case 'namespace-scope': {
+        // Parse user's namespace selection
+        const scopeChoice = response.trim().toLowerCase();
+        if (scopeChoice === 'all' || scopeChoice === '1') {
+          session.data.namespaceScope = { type: 'all' };
+        } else if (scopeChoice.startsWith('include:')) {
+          const namespaces = scopeChoice.replace('include:', '').split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
+          session.data.namespaceScope = { type: 'include', namespaces };
+        } else if (scopeChoice.startsWith('exclude:')) {
+          const namespaces = scopeChoice.replace('exclude:', '').split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
+          session.data.namespaceScope = { type: 'exclude', namespaces };
+        }
+        session.currentStep = getNextStep('namespace-scope', this.config)!;
+        break;
+      }
+        
       case 'kyverno-generation':
         // Kyverno generation completed, store result in session
         if (response.startsWith('ERROR:')) {
@@ -232,6 +248,35 @@ export class UnifiedCreationSessionManager {
           instruction: 'Wait for the user to provide creator information. Once received, call this tool again with their response.',
           nextStep: getNextStep('created-by', this.config) || undefined
         };
+        
+      case 'namespace-scope': {
+        // Check if Kyverno is installed - only show namespace options if it is
+        const kyvernoStatus = await getKyvernoStatus();
+        if (!kyvernoStatus.installed) {
+          // Skip namespace-scope if Kyverno not installed, go to next step
+          session.currentStep = getNextStep('namespace-scope', this.config)!;
+          return this.getNextWorkflowStep(session, args);
+        }
+        
+        // Ensure discovery service is connected to cluster before retrieving namespaces
+        await this.discovery.connect();
+        
+        // Get actual namespaces from cluster
+        const namespaces = await this.discovery.getNamespaces();
+        
+        const prompt = loadPrompt('policy-namespace-scope', {
+          namespaces: namespaces.join(', ')
+        });
+        
+        return {
+          sessionId,
+          entityType: this.config.entityType,
+          prompt,
+          instruction: 'Ask user to select namespace scope. Options: "all" for cluster-wide, "include: ns1,ns2" for specific namespaces, "exclude: ns1,ns2" to exclude namespaces.',
+          nextStep: getNextStep('namespace-scope', this.config) || undefined,
+          data: { availableNamespaces: namespaces }
+        };
+      }
         
       case 'kyverno-generation':
         return await this.generateKyvernoStep(session, args);
@@ -364,19 +409,44 @@ export class UnifiedCreationSessionManager {
         data: session.data
       };
     } else {
-      // Policy review - include both policy intent and generated Kyverno policy
-      templateData.generatedKyvernoPolicy = data.generatedKyvernoPolicy || '';
-      templateData.kyvernoGenerationError = data.kyvernoGenerationError || '';
-      templateData.kyvernoGenerationSkipped = data.kyvernoGenerationSkipped || false;
-      templateData.kyvernoSkipReason = data.kyvernoSkipReason || '';
-      
-      const prompt = loadPrompt(`${this.config.entityType}-review`, templateData);
-      
-      // Adjust instruction based on whether Kyverno generation was skipped
+      // Policy review - build prompt conditionally based on Kyverno status
+      let prompt: string;
       let instruction: string;
+      
+      const baseReview = `Please review your policy intent:
+
+**Description**: ${data.description}
+**Triggers**: ${finalTriggers.join(', ')}
+**Rationale**: ${data.rationale}
+**Created By**: ${data.createdBy}
+
+`;
+      
       if (data.kyvernoGenerationSkipped) {
+        prompt = baseReview + `**Kyverno Generation**: Skipped (${data.kyvernoSkipReason})
+
+**Choose what to do:**
+
+1. **Store policy intent only** - Save for AI guidance without cluster enforcement
+2. **Cancel** - Do nothing`;
+        
         instruction = `Present the policy intent with explanation that Kyverno generation was skipped (${data.kyvernoSkipReason}). Show these numbered options: "1. Store policy intent only (for AI guidance)", "2. Cancel (do nothing)". If user chooses option 1, call this tool again with "store-intent-only". If user chooses option 2 (cancel), do not call this tool again.`;
       } else {
+        prompt = baseReview + `I've also generated a Kyverno ClusterPolicy that enforces this requirement:
+
+**Generated Kyverno Policy**:
+\`\`\`yaml
+${data.generatedKyvernoPolicy || ''}
+\`\`\`
+
+**Choose what to do:**
+
+1. **Apply Kyverno policy to cluster** - Store policy intent AND deploy enforcement to cluster
+2. **Store policy intent only** - Save for AI guidance without cluster enforcement  
+3. **Cancel** - Do nothing
+
+⚠️ **Warning**: Option 1 will deploy active policy enforcement to your cluster.`;
+        
         instruction = `Present the policy intent and display the complete generated Kyverno policy YAML manifest for user review. Show these numbered options: "1. Apply Kyverno policy to cluster", "2. Store policy intent only (don't apply)", "3. Cancel (do nothing)". If user chooses option 1, call this tool again with "apply-to-cluster". If user chooses option 2, call this tool again with "store-intent-only". If user chooses option 3 (cancel), do not call this tool again.`;
       }
       
@@ -714,6 +784,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
             policy_triggers: finalTriggers.join(', '),
             policy_id: session.data.policyId,
             resource_schemas: this.formatSchemasForPrompt(resourceSchemas),
+            namespace_scope: this.formatNamespaceScope(session.data.namespaceScope),
             previous_attempt: lastError ? `\n### Previous Generated Policy:\n\`\`\`yaml\n${lastError.previousPolicy}\n\`\`\`` : 'None - this is the first attempt.',
             error_details: lastError ? `\n**Attempt**: ${lastError.attempt}\n**Validation Errors**: ${lastError.validationResult.errors.join(', ')}\n**Validation Warnings**: ${lastError.validationResult.warnings.join(', ')}` : 'None - this is the first attempt.'
           };
@@ -915,6 +986,19 @@ Please try again or modify your policy description.`,
     });
     
     return schemas;
+  }
+
+  /**
+   * Format namespace scope for inclusion in the Kyverno generation prompt
+   */
+  private formatNamespaceScope(scope?: { type: 'all' | 'include' | 'exclude'; namespaces?: string[] }): string {
+    if (!scope || scope.type === 'all') {
+      return 'Apply to all namespaces (no restrictions)';
+    } else if (scope.type === 'include') {
+      return `Apply ONLY to these namespaces: ${scope.namespaces?.join(', ')}`;
+    } else {
+      return `Apply to all namespaces EXCEPT: ${scope.namespaces?.join(', ')}`;
+    }
   }
 
   /**

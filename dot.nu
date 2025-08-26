@@ -59,6 +59,8 @@ def "main setup" [
 
     kubectl create namespace b-team
 
+    kubectl apply --filename k8s/
+
     main print source
 
 }
