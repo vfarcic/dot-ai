@@ -14,21 +14,16 @@ Pattern Management allows you to:
 - **Enhance AI recommendations** with organizational context and best practices
 - **Share institutional knowledge** across teams through standardized deployment approaches
 
-### Capabilities vs Patterns
+### Understanding Organizational Data Types
 
-**Important**: Pattern Management is distinct from Capability Management:
+Pattern Management works alongside Capability Management and Policy Management to provide comprehensive organizational intelligence for AI recommendations.
 
-- **[Capability Management](mcp-capability-management-guide.md)**: Discovers what each Kubernetes resource actually does (semantic understanding)
-  - **Required for recommendations**: Enables intelligent resource discovery and semantic matching
-  - **Example**: Teaches AI that `sqls.devopstoolkit.live` provides PostgreSQL database capabilities
-  - **Goal**: Make AI smarter about your cluster's existing resources
+**Quick Overview**:
+- **Capabilities**: What resources can do (required foundation)
+- **Patterns**: What resources to deploy together (organizational preferences)  
+- **Policies**: How resources should be configured (governance requirements)
 
-- **Pattern Management**: Defines your organization's preferred resource combinations (institutional knowledge)
-  - **Optional enhancement**: Adds organizational best practices to AI recommendations  
-  - **Example**: Defines that web applications should include Deployment + Service + Ingress + HPA
-  - **Goal**: Make AI follow your team's deployment standards
-
-**Workflow Order**: Run capability scanning first (required), then create organizational patterns (optional but recommended).
+For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
 
 ### How It Works
 
@@ -691,5 +686,3 @@ A: The system is tested with 100+ patterns. Qdrant can scale to much larger volu
 ---
 
 <!-- dotai-test-hint: Clean up Qdrant container after testing: docker stop qdrant-testing && docker rm qdrant-testing -->
-
-*This guide covers Pattern Management v1.0. Features like pattern analytics, approval workflows, and advanced pattern organization are planned for future versions.*

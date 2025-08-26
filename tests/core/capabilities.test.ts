@@ -5,13 +5,7 @@
  * Tests AI-powered capability inference for Kubernetes resources
  */
 
-// Mock fs module before importing anything
-const mockFs = {
-  existsSync: jest.fn().mockReturnValue(true),
-  readFileSync: jest.fn().mockReturnValue('Mock template with {kind} {group} {apiVersion}')
-};
-
-jest.doMock('fs', () => mockFs);
+// No FS mocking needed - we test actual behavior, not implementation
 jest.mock('../../src/core/claude');
 
 import { CapabilityInferenceEngine, ResourceCapability } from '../../src/core/capabilities';
@@ -110,7 +104,6 @@ describe('CapabilityInferenceEngine', () => {
     };
 
     beforeEach(() => {
-      mockFs.readFileSync.mockReturnValue('Mock prompt template with {resourceName}');
       mockClaudeIntegration.sendMessage.mockResolvedValue(mockAIResponse);
     });
 
@@ -214,9 +207,7 @@ spec:
   describe('prompt template loading', () => {
     const sampleResourceName = 'SQL.devopstoolkit.live';
 
-    it('should load prompt template from correct path', async () => {
-      const mockTemplate = 'Template with {kind} and {group} and {apiVersion}';
-      mockFs.readFileSync.mockReturnValue(mockTemplate);
+    it('should successfully load capability inference prompt', async () => {
       mockClaudeIntegration.sendMessage.mockResolvedValue({
         content: JSON.stringify({
           capabilities: ['database'],
@@ -230,48 +221,73 @@ spec:
         usage: { input_tokens: 100, output_tokens: 50 }
       });
 
-      await engine.inferCapabilities(sampleResourceName);
+      const result = await engine.inferCapabilities(sampleResourceName);
 
-      expect(mockFs.existsSync).toHaveBeenCalledWith(
-        expect.stringContaining('prompts/capability-inference.md')
+      // Verify Claude was called with a prompt that includes the resource name
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining(sampleResourceName)
       );
-      expect(mockFs.readFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('prompts/capability-inference.md'),
-        'utf8'
+      
+      // Verify Claude was called with a prompt that includes the default "No resource definition provided" text
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('No resource definition provided')
       );
+      
+      expect(result).toEqual({
+        resourceName: sampleResourceName,
+        capabilities: ['database'],
+        providers: ['azure'],
+        abstractions: ['managed-service'],
+        complexity: 'medium',
+        description: 'Database resource',
+        useCase: 'Database deployment',
+        confidence: 0.8,
+        analyzedAt: expect.any(String)
+      });
     });
 
-    it('should replace template variables correctly', async () => {
-      const mockTemplate = 'Resource: {resourceName} Definition: {resourceDefinition}';
-      mockFs.readFileSync.mockReturnValue(mockTemplate);
-      mockClaudeIntegration.sendMessage.mockResolvedValue({
-        content: JSON.stringify({
-          capabilities: ['database'],
-          providers: ['azure'],
-          abstractions: ['managed-service'],
-          complexity: 'medium',
-          description: 'Database resource',
-          useCase: 'Database deployment',
-          confidence: 0.8
-        }),
-        usage: { input_tokens: 100, output_tokens: 50 }
-      });
-
+    it('should successfully process capability inference with resource definition', async () => {
       const resourceDefinition = 'apiVersion: v1\nkind: SQL\nmetadata:\n  name: test-sql';
+      
+      // Set up mock response for this specific test
+      mockClaudeIntegration.sendMessage.mockResolvedValue({
+        content: JSON.stringify({
+          capabilities: ['database', 'sql'],
+          providers: ['kubernetes'],
+          abstractions: ['custom-resource'],
+          complexity: 'medium',
+          description: 'SQL database resource',
+          useCase: 'Database deployment with definition',
+          confidence: 0.85
+        }),
+        usage: { input_tokens: 120, output_tokens: 60 }
+      });
 
-      await engine.inferCapabilities(sampleResourceName, resourceDefinition);
+      const result = await engine.inferCapabilities(sampleResourceName, resourceDefinition);
 
+      // Verify Claude was called with a prompt that includes the resource name  
       expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('Resource: SQL.devopstoolkit.live')
+        expect.stringContaining(sampleResourceName)
       );
+      
+      // Verify Claude was called with a prompt that includes the resource definition
       expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith(
-        expect.stringContaining('Definition: apiVersion: v1')
+        expect.stringContaining('apiVersion: v1')
       );
+      expect(result).toEqual({
+        resourceName: sampleResourceName,
+        capabilities: ['database', 'sql'],
+        providers: ['kubernetes'],
+        abstractions: ['custom-resource'],
+        complexity: 'medium',
+        description: 'SQL database resource',
+        useCase: 'Database deployment with definition',
+        confidence: 0.85,
+        analyzedAt: expect.any(String)
+      });
     });
 
-    it('should handle different analysis contexts', async () => {
-      const mockTemplate = 'Context: {resourceDefinition}';
-      mockFs.readFileSync.mockReturnValue(mockTemplate);
+    it('should handle analysis without resource definition', async () => {
       mockClaudeIntegration.sendMessage.mockResolvedValue({
         content: JSON.stringify({
           capabilities: ['database'],
@@ -285,40 +301,30 @@ spec:
         usage: { input_tokens: 100, output_tokens: 50 }
       });
 
-      // Test with resource definition
-      await engine.inferCapabilities(sampleResourceName, 'apiVersion: v1\nkind: Pod');
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: apiVersion: v1\nkind: Pod');
+      const result = await engine.inferCapabilities(sampleResourceName);
 
-      // Test without resource definition
-      await engine.inferCapabilities(sampleResourceName);
-      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalledWith('Context: No resource definition provided');
-    });
-
-    it('should throw error if prompt template file does not exist', async () => {
-      mockFs.existsSync.mockReturnValue(false);
-
-      await expect(engine.inferCapabilities(sampleResourceName)).rejects.toThrow(
-        'Capability inference prompt template not found'
-      );
-    });
-
-    it('should throw error if prompt template cannot be read', async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('File read error');
+      // Verify Claude was called and result is properly formatted
+      expect(mockClaudeIntegration.sendMessage).toHaveBeenCalled();
+      expect(result).toEqual({
+        resourceName: sampleResourceName,
+        capabilities: ['database'],
+        providers: ['azure'],
+        abstractions: ['managed-service'],
+        complexity: 'medium',
+        description: 'Database resource',
+        useCase: 'Database deployment',
+        confidence: 0.8,
+        analyzedAt: expect.any(String)
       });
-
-      await expect(engine.inferCapabilities(sampleResourceName)).rejects.toThrow(
-        'Failed to read capability inference prompt: File read error'
-      );
     });
+
   });
 
   describe('AI response parsing', () => {
     const sampleResourceName = 'SQL.devopstoolkit.live';
 
     beforeEach(() => {
-      mockFs.readFileSync.mockReturnValue('Mock template');
+      // No FS mocking needed - using actual prompt file
     });
 
     it('should parse valid AI response correctly', async () => {

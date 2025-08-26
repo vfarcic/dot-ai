@@ -6,6 +6,7 @@ source scripts/crossplane.nu
 source scripts/ingress.nu
 source scripts/mcp.nu
 source scripts/anthropic.nu
+source scripts/kyverno.nu
 
 def main [] {}
 
@@ -39,6 +40,11 @@ def "main setup" [
 
     docker image pull $dot_ai_image
 
+    (
+        docker container run --detach --name qdrant
+            --publish 6333:6333 $qdrant_image
+    )
+
     main create kubernetes kind
 
     cp kubeconfig-dot.yaml kubeconfig.yaml
@@ -47,9 +53,13 @@ def "main setup" [
 
     main apply crossplane --app-config true --db-config true
 
+    main apply kyverno
+
     kubectl create namespace a-team
 
     kubectl create namespace b-team
+
+    kubectl apply --filename k8s/
 
     main print source
 
@@ -69,22 +79,24 @@ def "main build-image" [version: string] {
     
     print "Extracting data from running Qdrant container..."
     
-    # Create tmp directory if it doesn't exist
-    mkdir tmp
-    
-    # Remove existing qdrant_storage directory if it exists
-    if (ls tmp | where name == "tmp/qdrant_storage" | length) > 0 {
-        rm --recursive --force tmp/qdrant_storage
+    # Remove existing qdrant_storage directory if it exists at root
+    if (ls . | where name == "qdrant_storage" and type == "dir" | length) > 0 {
+        rm --recursive --force qdrant_storage
     }
     
-    # Extract data from the running Qdrant container
-    docker container cp qdrant:/qdrant/storage ./tmp/qdrant_storage
+    # Extract data from the running Qdrant container to root directory
+    docker container cp qdrant:/qdrant/storage ./qdrant_storage
+    
+    # Verify the data was extracted successfully
+    if (ls . | where name == "qdrant_storage" and type == "dir" | length) == 0 {
+        error "Failed to extract qdrant_storage from container"
+    }
     
     print $"Building qdrant image with version ($version)..."
     docker image build --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" .
     
     print "Cleaning up extracted data files..."
-    rm --recursive --force tmp/qdrant_storage
+    rm --recursive --force qdrant_storage
     
     print $"Pushing qdrant image..."
     docker image push $"($repo):($version)"

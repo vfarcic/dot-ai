@@ -22,6 +22,12 @@ Captures organizational deployment knowledge as reusable patterns that enhance A
 - **Use when**: Standardizing deployments across teams or enforcing organizational standards
 - **📖 Full Guide**: [Pattern Management](pattern-management-guide.md)
 
+### 🛡️ Policy Management
+Enables proactive governance through policy intents that guide users toward compliant configurations.
+- **What it does**: Creates governance policies that integrate into AI recommendations with optional Kyverno enforcement
+- **Use when**: Implementing security requirements, compliance standards, or configuration governance
+- **📖 Full Guide**: [Policy Management](policy-management-guide.md)
+
 ### 📋 Documentation Testing
 Automated validation of documentation accuracy through functionality testing and AI analysis.
 - **What it does**: Tests commands, examples, and descriptions in documentation files
@@ -39,19 +45,20 @@ Centralized prompt sharing via native slash commands in MCP-enabled coding agent
 1. **Complete Setup**: Follow the [MCP Setup Guide](mcp-setup.md)
 2. **Start with Capability Management** to scan your cluster (required for recommendations)
 3. **Try Deployment Recommendations** with a simple application
-4. **Optional**: Create organizational patterns or test documentation
+4. **Optional**: Create organizational patterns, policy intents, or test documentation
 
 ## Prerequisites
 
 - **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)  
 - **API keys**: `ANTHROPIC_API_KEY` for AI features
 - **Cluster access**: `KUBECONFIG` for Kubernetes integration
-- **Vector database**: Qdrant for capability and pattern storage
+- **Vector database**: Qdrant for capability, pattern, and policy storage
 
 ## Tool Dependencies
 
 - **Deployment Recommendations** ← requires **Capability Management**
 - **Pattern Management** → enhances **Deployment Recommendations** 
+- **Policy Management** → enhances **Deployment Recommendations**
 - **Documentation Testing** ← independent
 - **Shared Prompts Library** ← independent
 

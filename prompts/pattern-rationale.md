@@ -1,0 +1,1 @@
+Ask the user: "Why does this combination of resources work well together for {description}? This helps others understand when and why to use this pattern."

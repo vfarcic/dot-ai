@@ -35,10 +35,14 @@ export class VectorDBService {
   private collectionName: string;
 
   constructor(config: VectorDBConfig = {}) {
+    if (!config.collectionName) {
+      throw new Error('Collection name is required for Vector DB service');
+    }
+    
     this.config = {
       url: config.url !== undefined ? config.url : (process.env.QDRANT_URL || 'http://localhost:6333'),
       apiKey: config.apiKey || process.env.QDRANT_API_KEY,
-      collectionName: config.collectionName || 'patterns'
+      collectionName: config.collectionName
     };
     
     this.collectionName = this.config.collectionName!;
@@ -329,6 +333,16 @@ export class VectorDBService {
     }
 
     try {
+      // Check if collection exists first
+      const collections = await this.client.getCollections();
+      const collectionExists = collections.collections.some(
+        col => col.name === this.collectionName
+      );
+
+      if (!collectionExists) {
+        throw new Error(`Collection '${this.collectionName}' does not exist. No data has been stored yet.`);
+      }
+
       const scrollResult = await this.client.scroll(this.collectionName, {
         limit,
         with_payload: true,

@@ -12,7 +12,34 @@
 ## Available Cluster Options
 {cluster_options}
 
+## Organizational Policies
+{policy_context}
+
 ## Instructions
+
+## 🛡️ POLICY-AWARE QUESTION GENERATION (HIGHEST PRIORITY)
+
+**Policy Requirements Integration:**
+- **Policy-driven questions** represent organizational governance requirements and must be enforced through configuration
+- **Conditional applicability** - Only apply policies when their rationale matches the selected resources
+- **REQUIRED question promotion** - Applicable policy requirements should become REQUIRED questions with helpful defaults
+- **Compliance indicators** - Mark policy-driven questions with "⚠️ required by [policy description]" in question text
+- **Policy rationale** - Include policy rationale as question hints to help users understand WHY they're required
+
+**POLICY APPLICATION APPROACH:**
+
+1. **Analyze Resource Match**: Review each policy's rationale to determine if it applies to the selected resources
+2. **Extract Requirements**: Identify what configuration properties the policy requires
+3. **Create REQUIRED Questions**: Convert applicable policy requirements into REQUIRED questions
+4. **Add Compliance Context**: Include policy context in question text and hints
+5. **Set Sensible Defaults**: Provide policy-compliant defaults when possible
+
+**CRITICAL: Policy Conditional Logic**
+- **Read each policy's "Rationale" field carefully** - it specifies WHEN and TO WHAT the policy applies  
+- **Apply policies selectively** - only convert policy requirements to questions when the policy technically applies to the selected resource types
+- **Resource type matching** - If a policy rationale mentions specific resource types (e.g., "All Deployments must..."), only apply when Deployment resources are selected
+- **Field-specific requirements** - Match policy requirements to actual resource schema fields available in the "Resources in Solution" section
+- **Policy compliance increases user success** - policy-driven questions help users create compliant configurations from the start
 
 Based on the user's intent and the Kubernetes resources in this solution, generate appropriate questions to gather the information needed to create working manifests.
 

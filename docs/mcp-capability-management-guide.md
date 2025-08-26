@@ -37,6 +37,17 @@ Result: Optimal recommendations whether using 1 resource, 5 resources, or 50 res
 3. **Smart Recommendations** → Deployment requests get pre-filtered, relevant resources with rich context
 4. **Informed AI Decisions** → AI makes better choices based on capability understanding
 
+### Understanding Organizational Data Types
+
+Capability Management provides the foundation for other organizational intelligence features in the DevOps AI Toolkit.
+
+**Quick Overview**:
+- **Capabilities**: What resources can do (this guide - required foundation)
+- **Patterns**: What resources to deploy together (organizational preferences)  
+- **Policies**: How resources should be configured (governance requirements)
+
+For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
+
 ## Prerequisites
 
 Before using Capability Management, ensure you have:

@@ -17,12 +17,8 @@ describe('VectorDBService', () => {
   });
 
   describe('Configuration', () => {
-    it('should initialize with default configuration', () => {
-      const service = new VectorDBService();
-      const config = service.getConfig();
-      
-      expect(config.url).toBe('http://localhost:6333');
-      expect(config.collectionName).toBe('patterns');
+    it('should require collection name', () => {
+      expect(() => new VectorDBService()).toThrow('Collection name is required for Vector DB service');
     });
 
     it('should initialize with custom configuration', () => {
@@ -44,7 +40,7 @@ describe('VectorDBService', () => {
       process.env.QDRANT_URL = 'http://env:6333';
       process.env.QDRANT_API_KEY = 'env-key';
       
-      const service = new VectorDBService();
+      const service = new VectorDBService({ collectionName: 'test-collection' });
       const config = service.getConfig();
       
       expect(config.url).toBe('http://env:6333');
@@ -61,12 +57,12 @@ describe('VectorDBService', () => {
     });
 
     it('should validate required configuration', () => {
-      expect(() => new VectorDBService({ url: '' })).toThrow('Qdrant URL is required');
+      expect(() => new VectorDBService({ url: '', collectionName: 'test' })).toThrow('Qdrant URL is required');
     });
 
     it('should allow test configurations', () => {
-      expect(() => new VectorDBService({ url: 'test-url' })).not.toThrow();
-      expect(() => new VectorDBService({ url: 'mock-url' })).not.toThrow();
+      expect(() => new VectorDBService({ url: 'test-url', collectionName: 'test' })).not.toThrow();
+      expect(() => new VectorDBService({ url: 'mock-url', collectionName: 'test' })).not.toThrow();
     });
   });
 
@@ -131,7 +127,7 @@ describe('VectorDBService', () => {
       };
 
       // Create service with mock client
-      mockService = new VectorDBService({ url: 'http://test:6333' });
+      mockService = new VectorDBService({ url: 'http://test:6333', collectionName: 'test-collection' });
       // Inject mock client for testing
       (mockService as any).client = mockClient;
     });
@@ -142,7 +138,7 @@ describe('VectorDBService', () => {
       await mockService.initializeCollection(1536);
 
       expect(mockClient.getCollections).toHaveBeenCalled();
-      expect(mockClient.createCollection).toHaveBeenCalledWith('patterns', {
+      expect(mockClient.createCollection).toHaveBeenCalledWith('test-collection', {
         vectors: {
           size: 1536,
           distance: 'Cosine',
@@ -156,7 +152,7 @@ describe('VectorDBService', () => {
 
     it('should keep existing collection with correct dimensions', async () => {
       mockClient.getCollections.mockResolvedValue({
-        collections: [{ name: 'patterns' }]
+        collections: [{ name: 'test-collection' }]
       });
       mockClient.getCollection.mockResolvedValue({
         config: {
@@ -169,14 +165,14 @@ describe('VectorDBService', () => {
       await mockService.initializeCollection(1536);
 
       expect(mockClient.getCollections).toHaveBeenCalled();
-      expect(mockClient.getCollection).toHaveBeenCalledWith('patterns');
+      expect(mockClient.getCollection).toHaveBeenCalledWith('test-collection');
       expect(mockClient.deleteCollection).not.toHaveBeenCalled();
       expect(mockClient.createCollection).not.toHaveBeenCalled();
     });
 
     it('should recreate collection when dimensions mismatch', async () => {
       mockClient.getCollections.mockResolvedValue({
-        collections: [{ name: 'patterns' }]
+        collections: [{ name: 'test-collection' }]
       });
       mockClient.getCollection.mockResolvedValue({
         config: {
@@ -191,9 +187,9 @@ describe('VectorDBService', () => {
 
       await mockService.initializeCollection(1536);
 
-      expect(mockClient.getCollection).toHaveBeenCalledWith('patterns');
-      expect(mockClient.deleteCollection).toHaveBeenCalledWith('patterns');
-      expect(mockClient.createCollection).toHaveBeenCalledWith('patterns', {
+      expect(mockClient.getCollection).toHaveBeenCalledWith('test-collection');
+      expect(mockClient.deleteCollection).toHaveBeenCalledWith('test-collection');
+      expect(mockClient.createCollection).toHaveBeenCalledWith('test-collection', {
         vectors: {
           size: 1536,
           distance: 'Cosine',
@@ -212,7 +208,7 @@ describe('VectorDBService', () => {
 
     it('should recreate collection when getCollection fails', async () => {
       mockClient.getCollections.mockResolvedValue({
-        collections: [{ name: 'patterns' }]
+        collections: [{ name: 'test-collection' }]
       });
       mockClient.getCollection.mockRejectedValue(new Error('Collection corrupted'));
 
@@ -220,7 +216,7 @@ describe('VectorDBService', () => {
 
       await mockService.initializeCollection(1536);
 
-      expect(mockClient.deleteCollection).toHaveBeenCalledWith('patterns');
+      expect(mockClient.deleteCollection).toHaveBeenCalledWith('test-collection');
       expect(mockClient.createCollection).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to get collection info, recreating collection')
