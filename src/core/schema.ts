@@ -14,6 +14,9 @@ import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
 import { CapabilityVectorService } from './capability-vector-service';
+import { PolicyVectorService } from './policy-vector-service';
+import { PolicyIntent } from './organizational-types';
+import { loadPrompt } from './shared-prompt-loader';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -45,6 +48,7 @@ export interface ResourceSchema {
   properties: Map<string, SchemaField>;
   required?: string[];
   namespace?: boolean;
+  resourceName?: string; // Proper plural resource name for kubectl explain
   rawExplanation?: string; // Raw kubectl explain output for AI processing
 }
 
@@ -379,6 +383,7 @@ export class ResourceRecommender {
   private config: AIRankingConfig;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
+  private policyService?: PolicyVectorService;
 
   constructor(config: AIRankingConfig) {
     this.config = config;
@@ -402,6 +407,16 @@ export class ResourceRecommender {
     } catch (error) {
       console.warn('⚠️ Vector DB not available, patterns disabled:', error);
       this.patternService = undefined;
+    }
+    
+    // Initialize policy service only if Vector DB is available
+    try {
+      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
+      this.policyService = new PolicyVectorService(policyVectorDB);
+      console.log('✅ Policy service initialized with Vector DB');
+    } catch (error) {
+      console.warn('⚠️ Vector DB not available, policies disabled:', error);
+      this.policyService = undefined;
     }
   }
 
@@ -432,15 +447,19 @@ export class ResourceRecommender {
 
       let relevantCapabilities: any[] = [];
       
-      try {
-        relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
-      } catch (error) {
-        // Capability search failed - fail fast with clear guidance
-        throw new Error(
-          `Capability search failed for intent "${intent}". Please scan your cluster first:\n` +
-          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
-          `Error: ${error}`
-        );
+      if (this.capabilityService) {
+        try {
+          relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
+        } catch (error) {
+          // Capability search failed - fail fast with clear guidance
+          throw new Error(
+            `Capability search failed for intent "${intent}". Please scan your cluster first:\n` +
+            `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+            `Error: ${error}`
+          );
+        }
+      } else {
+        console.warn('⚠️ Capability service not available (Vector DB not reachable), proceeding without capabilities');
       }
       
       if (relevantCapabilities.length === 0) {
@@ -471,7 +490,7 @@ export class ResourceRecommender {
       
       // Phase 3: Generate questions for each solution
       for (const solution of solutions) {
-        solution.questions = await this.generateQuestionsWithAI(intent, solution);
+        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource);
       }
       
       return solutions;
@@ -520,6 +539,7 @@ export class ResourceRecommender {
           kind: resource.kind,
           apiVersion: resource.apiVersion,
           group: resource.group || '',
+          resourceName: resource.resourceName, // Preserve resourceName from AI response
           description: `${resource.kind} resource from ${resource.group || 'core'} group`,
           properties: new Map(),
           namespace: true // Default assumption for new architecture
@@ -564,11 +584,7 @@ export class ResourceRecommender {
     }>,
     patterns: OrganizationalPattern[]
   ): Promise<string> {
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
+    const template = loadPrompt('resource-selection');
     
     // Format resources for the prompt with capability information
     const resourcesText = resources.map((resource, index) => {
@@ -801,11 +817,7 @@ export class ResourceRecommender {
       : 'No organizational patterns found for this request.';
 
 
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-selection.md');
-    const template = fs.readFileSync(promptPath, 'utf8');
+    const template = loadPrompt('resource-selection');
     
     const selectionPrompt = template
       .replace('{intent}', intent)
@@ -1024,13 +1036,56 @@ export class ResourceRecommender {
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
+      
+      // Search for relevant policy intents based on the selected resources
+      let relevantPolicyResults: Array<{policy: PolicyIntent, score: number, matchType: string}> = [];
+      if (this.policyService) {
+        try {
+          const resourceContext = solution.resources.map(r => `${r.kind} ${r.description}`).join(' ');
+          const policyResults = await this.policyService.searchPolicyIntents(
+            `${intent} ${resourceContext}`,
+            { limit: 25 }
+          );
+          relevantPolicyResults = policyResults.map(result => ({
+            policy: result.data,
+            score: result.score,
+            matchType: result.matchType
+          }));
+          console.log(`🛡️ Found ${relevantPolicyResults.length} relevant policy intents for question generation`);
+        } catch (error) {
+          console.warn('⚠️ Policy search failed during question generation, proceeding without policies:', error);
+        }
+      } else {
+        console.log('🛡️ Policy service unavailable, skipping policy search - proceeding without policy guidance');
+      }
+
+      // Fetch resource schemas for each resource in the solution
+      const resourcesWithSchemas = await Promise.all(solution.resources.map(async (resource) => {
+        // Validate that resource has resourceName field for kubectl explain
+        if (!resource.resourceName) {
+          throw new Error(`Resource ${resource.kind} is missing resourceName field. This indicates a bug in solution construction.`);
+        }
+        
+        try {
+          // Use resourceName for kubectl explain - this should be the plural form like 'pods', 'services', etc.
+          const schemaExplanation = await _explainResource(resource.resourceName);
+          
+          return {
+            ...resource,
+            rawExplanation: schemaExplanation
+          };
+        } catch (error) {
+          console.warn(`Failed to fetch schema for ${resource.kind}: ${error}`);
+          return resource;
+        }
+      }));
 
       // Format resource details for the prompt using raw explanation when available
-      const resourceDetails = solution.resources.map(resource => {
+      const resourceDetails = resourcesWithSchemas.map(resource => {
         if (resource.rawExplanation) {
           // Use raw kubectl explain output for comprehensive field information
           return `${resource.kind} (${resource.apiVersion}):
@@ -1062,18 +1117,26 @@ Available Storage Classes: ${clusterOptions.storageClasses.length > 0 ? clusterO
 Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterOptions.ingressClasses.join(', ') : 'None discovered'}
 Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
 
+      // Format organizational policies for AI context with relevance scores
+      const policyContextText = relevantPolicyResults.length > 0 
+        ? relevantPolicyResults.map(result => 
+            `- ID: ${result.policy.id}
+  Description: ${result.policy.description}
+  Rationale: ${result.policy.rationale}
+  Triggers: ${result.policy.triggers?.join(', ') || 'None'}
+  Score: ${result.score.toFixed(3)} (${result.matchType})`
+          ).join('\n')
+        : 'No organizational policies found for this request.';
+
       // Load and format the question generation prompt
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const promptPath = path.join(__dirname, '..', '..', 'prompts', 'question-generation.md');
-      const template = fs.readFileSync(promptPath, 'utf8');
+      const template = loadPrompt('question-generation');
       
       const questionPrompt = template
         .replace('{intent}', intent)
         .replace('{solution_description}', solution.description)
         .replace('{resource_details}', resourceDetails)
-        .replace('{cluster_options}', clusterOptionsText);
+        .replace('{cluster_options}', clusterOptionsText)
+        .replace('{policy_context}', policyContextText);
 
       const response = await this.claudeIntegration.sendMessage(questionPrompt, 'question-generation');
       
@@ -1087,6 +1150,11 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       
       return questions as QuestionGroup;
     } catch (error) {
+      // Re-throw errors about missing resourceName - these are bugs, not generation failures
+      if (error instanceof Error && error.message.includes('missing resourceName field')) {
+        throw error;
+      }
+      
       console.warn(`Failed to generate AI questions for solution: ${error}`);
       
       // Fallback to basic open question

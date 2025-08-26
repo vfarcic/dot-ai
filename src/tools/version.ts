@@ -8,11 +8,11 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Logger } from '../core/error-handling';
-import { VectorDBService, PatternVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { executeKubectl, ErrorClassifier } from '../core/kubernetes-utils';
 
 export const VERSION_TOOL_NAME = 'version';
-export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, and pattern management health check';
+export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
 export const VERSION_TOOL_INPUT_SCHEMA = {};
 
 export interface VersionInfo {
@@ -27,9 +27,24 @@ export interface SystemStatus {
   vectorDB: {
     connected: boolean;
     url: string;
-    collectionName: string;
     error?: string;
-    patternsCount?: number;
+    collections: {
+      patterns: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+      policies: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+      capabilities: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
+    };
   };
   embedding: {
     available: boolean;
@@ -63,50 +78,110 @@ export interface SystemStatus {
     rawError?: string;
     lastDiagnosis: string;
   };
+  kyverno: {
+    installed: boolean;
+    version?: string;
+    webhookReady?: boolean;
+    policyGenerationReady: boolean;
+    error?: string;
+    reason?: string;
+  };
 }
 
 /**
- * Test Vector DB connectivity and get status
+ * Test Vector DB connectivity and get status for all collections
  */
 async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
-  const vectorDB = new VectorDBService();
-  const config = vectorDB.getConfig();
+  // Create a test service just to get connection config
+  const testVectorDB = new VectorDBService({ collectionName: 'test' });
+  const config = testVectorDB.getConfig();
   
   try {
-    const isHealthy = await vectorDB.healthCheck();
+    // Test basic Vector DB connectivity (independent of collections)
+    const isHealthy = await testVectorDB.healthCheck();
     if (!isHealthy) {
       return {
         connected: false,
         url: config.url || 'unknown',
-        collectionName: config.collectionName || 'patterns',
-        error: 'Health check failed - Vector DB not responding'
+        error: 'Health check failed - Vector DB not responding',
+        collections: {
+          patterns: { exists: false, error: 'Vector DB not accessible' },
+          policies: { exists: false, error: 'Vector DB not accessible' },
+          capabilities: { exists: false, error: 'Vector DB not accessible' }
+        }
       };
     }
 
-    // Try to get patterns count to verify collection access
+    // Test each collection separately
     const embeddingService = new EmbeddingService();
-    const patternService = new PatternVectorService(vectorDB, embeddingService);
-    let patternsCount: number | undefined;
     
-    try {
-      patternsCount = await patternService.getPatternsCount();
-    } catch (error) {
-      // Collection might not exist yet - that's okay
-      patternsCount = 0;
-    }
+    // Test patterns collection
+    const patternsStatus = await testCollectionStatus('patterns', () => {
+      const patternVectorDB = new VectorDBService({ collectionName: 'patterns' });
+      const patternService = new PatternVectorService(patternVectorDB, embeddingService);
+      return patternService.getPatternsCount();
+    });
+
+    // Test policies collection
+    const policiesStatus = await testCollectionStatus('policies', () => {
+      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
+      const policyService = new PolicyVectorService(policyVectorDB, embeddingService);
+      return policyService.getDataCount();
+    });
+
+    // Test capabilities collection
+    const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
+      const capabilityService = new CapabilityVectorService();
+      return capabilityService.getCapabilitiesCount();
+    });
 
     return {
       connected: true,
       url: config.url || 'unknown',
-      collectionName: config.collectionName || 'patterns',
-      patternsCount
+      collections: {
+        patterns: patternsStatus,
+        policies: policiesStatus,
+        capabilities: capabilitiesStatus
+      }
     };
   } catch (error) {
     return {
       connected: false,
       url: config.url || 'unknown',
-      collectionName: config.collectionName || 'patterns',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      collections: {
+        patterns: { exists: false, error: 'Vector DB connection failed' },
+        policies: { exists: false, error: 'Vector DB connection failed' },
+        capabilities: { exists: false, error: 'Vector DB connection failed' }
+      }
+    };
+  }
+}
+
+/**
+ * Helper function to test individual collection status
+ */
+async function testCollectionStatus(
+  collectionName: string, 
+  getCountFn: () => Promise<number>
+): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
+  try {
+    const documentsCount = await getCountFn();
+    return {
+      exists: true,
+      documentsCount
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Check if error indicates collection doesn't exist (vs other errors)
+    const collectionNotExists = errorMessage.toLowerCase().includes('collection') && 
+      (errorMessage.toLowerCase().includes('not exist') || 
+       errorMessage.toLowerCase().includes('does not exist'));
+    
+    return {
+      exists: false,
+      error: collectionNotExists ? `${collectionName} collection does not exist` : errorMessage
     };
   }
 }
@@ -231,6 +306,147 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
       collectionAccessible: false,
       error: `Capability diagnostics failed: ${error instanceof Error ? error.message : String(error)}`,
       lastDiagnosis: timestamp
+    };
+  }
+}
+
+/**
+ * Test Kyverno installation and readiness for policy generation
+ */
+export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
+  const kubeconfig = process.env.KUBECONFIG || '~/.kube/config';
+  
+  try {
+    // Check if Kyverno CRDs are installed
+    const crdOutput = await executeKubectl(['get', 'crd', '--no-headers'], { 
+      kubeconfig: kubeconfig,
+      timeout: 10000 
+    });
+    
+    const kyvernoCRDs = crdOutput.split('\n').filter(line => 
+      line.includes('kyverno.io') && (
+        line.includes('clusterpolicies') || 
+        line.includes('policies') ||
+        line.includes('policyreports')
+      )
+    );
+    
+    if (kyvernoCRDs.length === 0) {
+      return {
+        installed: false,
+        policyGenerationReady: false,
+        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+      };
+    }
+    
+    // Check if Kyverno deployment is ready
+    let deploymentReady = false;
+    let webhookReady = false;
+    let version: string | undefined;
+    
+    try {
+      const deploymentOutput = await executeKubectl([
+        'get', 'deployment', '-n', 'kyverno', '--no-headers'
+      ], { kubeconfig, timeout: 5000 });
+      
+      // Check if kyverno deployment exists and is ready
+      const kyvernoDeployment = deploymentOutput.split('\n').find(line => 
+        line.trim().startsWith('kyverno')
+      );
+      
+      if (kyvernoDeployment) {
+        // Parse deployment status (format: NAME READY UP-TO-DATE AVAILABLE AGE)
+        const parts = kyvernoDeployment.trim().split(/\s+/);
+        const ready = parts[1]; // e.g., "1/1", "0/1"
+        if (ready && ready.includes('/')) {
+          const [current, desired] = ready.split('/');
+          deploymentReady = current === desired && current !== '0';
+        }
+      }
+    } catch (error) {
+      // Kyverno might be in a different namespace or not exist
+      deploymentReady = false;
+    }
+    
+    // Check admission controller webhook
+    try {
+      const webhookOutput = await executeKubectl([
+        'get', 'validatingwebhookconfigurations', '--no-headers'
+      ], { kubeconfig, timeout: 5000 });
+      
+      webhookReady = webhookOutput.includes('kyverno-');
+    } catch (error) {
+      webhookReady = false;
+    }
+    
+    // Try to get version from deployment labels or image
+    try {
+      const deploymentDetails = await executeKubectl([
+        'get', 'deployment', 'kyverno', '-n', 'kyverno', '-o', 'jsonpath={.metadata.labels.version}'
+      ], { kubeconfig, timeout: 5000 });
+      
+      if (deploymentDetails && deploymentDetails.trim()) {
+        version = deploymentDetails.trim();
+      } else {
+        // Fallback: try to get version from image tag
+        const imageOutput = await executeKubectl([
+          'get', 'deployment', 'kyverno', '-n', 'kyverno', '-o', 'jsonpath={.spec.template.spec.containers[0].image}'
+        ], { kubeconfig, timeout: 5000 });
+        
+        const imageMatch = imageOutput.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
+        if (imageMatch) {
+          version = imageMatch[1];
+        }
+      }
+    } catch (error) {
+      // Version detection is optional
+    }
+    
+    // Determine if policy generation is ready
+    const policyGenerationReady = deploymentReady && webhookReady;
+    
+    if (!policyGenerationReady) {
+      let reason = 'Kyverno is partially installed but not fully operational';
+      if (!deploymentReady && !webhookReady) {
+        reason = 'Kyverno deployment and admission webhook are not ready';
+      } else if (!deploymentReady) {
+        reason = 'Kyverno deployment is not ready';
+      } else if (!webhookReady) {
+        reason = 'Kyverno admission webhook is not ready';
+      }
+      
+      return {
+        installed: true,
+        version,
+        webhookReady,
+        policyGenerationReady,
+        reason
+      };
+    }
+    
+    return {
+      installed: true,
+      version,
+      webhookReady: true,
+      policyGenerationReady: true
+    };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // If Kubernetes is not available, we can't detect Kyverno
+    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connection refused')) {
+      return {
+        installed: false,
+        policyGenerationReady: false,
+        error: 'Cannot detect Kyverno - Kubernetes cluster is not accessible'
+      };
+    }
+    
+    return {
+      installed: false,
+      policyGenerationReady: false,
+      error: `Kyverno detection failed: ${errorMessage}`
     };
   }
 }
@@ -372,12 +588,13 @@ export async function handleVersionTool(
     
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId });
-    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus] = await Promise.all([
+    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus, kyvernoStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
       getAnthropicStatus(),
       getKubernetesStatus(),
-      getCapabilityStatus()
+      getCapabilityStatus(),
+      getKyvernoStatus()
     ]);
     
     const systemStatus: SystemStatus = {
@@ -386,7 +603,8 @@ export async function handleVersionTool(
       embedding: embeddingStatus,
       anthropic: anthropicStatus,
       kubernetes: kubernetesStatus,
-      capabilities: capabilityStatus
+      capabilities: capabilityStatus,
+      kyverno: kyvernoStatus
     };
     
     // Log summary of system health
@@ -397,7 +615,8 @@ export async function handleVersionTool(
       embeddingAvailable: embeddingStatus.available,
       anthropicConnected: anthropicStatus.connected,
       kubernetesConnected: kubernetesStatus.connected,
-      capabilitySystemReady: capabilityStatus.systemReady
+      capabilitySystemReady: capabilityStatus.systemReady,
+      kyvernoReady: kyvernoStatus.policyGenerationReady
     });
     
     return {
@@ -411,12 +630,15 @@ export async function handleVersionTool(
             patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
             capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
             kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
+            policyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
             capabilities: [
-              vectorDBStatus.connected ? 'pattern-management' : null,
+              vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
+              vectorDBStatus.connected && vectorDBStatus.collections.policies.exists ? 'policy-management' : null,
               capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
               anthropicStatus.connected ? 'ai-recommendations' : null,
-              kubernetesStatus.connected ? 'kubernetes-integration' : null
+              kubernetesStatus.connected ? 'kubernetes-integration' : null,
+              kyvernoStatus.policyGenerationReady ? 'policy-generation' : null
             ].filter(Boolean)
           },
           timestamp: new Date().toISOString()

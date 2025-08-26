@@ -151,12 +151,13 @@ export { WorkflowEngine } from './workflow';
 export { ClaudeIntegration } from './claude';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
+export { BaseOrganizationalEntity, PolicyIntent, CreatePolicyIntentRequest, DeployedPolicyReference } from './organizational-types';
 export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
-export { PatternCreationStep, PatternCreationSession, PatternWorkflowStep } from './pattern-creation-types';
-export { PatternCreationSessionManager } from './pattern-creation-session';
+// Removed obsolete pattern creation types - now using unified creation system
 export { VectorDBService, VectorDBConfig, VectorDocument, SearchResult } from './vector-db-service';
 export { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
+export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './policy-vector-service';
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, OpenAIEmbeddingProvider } from './embedding-service';
 

@@ -14,6 +14,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 ### Kubernetes Deployment
 - **Developers**: Deploy applications without needing deep Kubernetes expertise
 - **Platform Engineers**: Create organizational deployment patterns that enhance AI recommendations with institutional knowledge and best practices, and scan cluster resources to enable semantic matching for dramatically improved recommendation accuracy
+- **Security Engineers**: Define governance policies that integrate into deployment workflows with optional Kyverno enforcement
 
 ### Documentation Testing  
 - **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
@@ -72,6 +73,12 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 🔍 **Semantic Search**: Uses Vector DB technology for intelligent pattern matching based on user intent  
 📋 **Best Practices**: Share deployment standards across teams through reusable patterns
 
+### Policy Management & Governance
+🛡️ **Policy Creation**: Define governance policies that guide users toward compliant configurations  
+⚠️ **Compliance Integration**: Policies create required questions with compliance indicators during deployment  
+🤖 **Kyverno Generation**: Automatically generates Kyverno ClusterPolicies for active enforcement  
+🎯 **Proactive Governance**: Prevents configuration drift by embedding compliance into the recommendation workflow
+
 ### Shared Prompts Library
 🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
 📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
@@ -118,6 +125,12 @@ This video explains the platform engineering problem and demonstrates the Kubern
 - **OpenAI API key** (required) for semantic pattern matching and vector operations
 - See the [Pattern Management Guide](./docs/pattern-management-guide.md) for complete setup
 
+**For policy management and governance:**
+- **Vector DB service** (Qdrant) for policy storage and semantic search
+- **OpenAI API key** (required) for semantic policy matching and vector operations  
+- **Optional**: Kyverno installed in cluster for active policy enforcement
+- See the [Policy Management Guide](./docs/policy-management-guide.md) for complete setup
+
 ### Installation
 
 DevOps AI Toolkit is designed to be used through AI development tools via MCP (Model Context Protocol). No direct installation needed - simply configure your AI tool to connect to the MCP server.
@@ -163,7 +176,7 @@ EOF
 
 **What you get:**
 - ✅ **Complete Stack**: MCP server + Qdrant vector database included
-- ✅ **All Features Working**: Capability management, pattern storage, semantic search
+- ✅ **All Features Working**: Capability management, pattern storage, policy governance, semantic search
 - ✅ **No External Dependencies**: Everything runs in containers
 - ✅ **Kubernetes Integration**: Direct kubectl access to your clusters
 
@@ -218,6 +231,28 @@ Agent: Let me get enhanced recommendations using your capability data.
 [Uses recommend tool with capability pre-filtering]
 
 Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a managed database solution supporting PostgreSQL with multi-cloud capabilities and low complexity. Much better than the generic StatefulSet approach I would have suggested before!
+```
+
+**Example: Policy Management**
+```
+User: I want to create a policy requiring resource limits on all deployments
+
+Agent: I'll help you create a governance policy for resource limits. Let me start the creation workflow.
+[Uses manageOrgData with policy creation]
+
+Agent: Please describe your resource limits policy intent:
+
+User: All container deployments must have CPU and memory limits to prevent resource exhaustion. CPU limits should be between 100m-2000m, memory between 128Mi-4Gi.
+
+Agent: Excellent! I've created your Resource Limits Policy and generated a Kyverno ClusterPolicy for enforcement. 
+
+Would you like to:
+1. Store policy intent only (for AI guidance)  
+2. Apply Kyverno policy to cluster (active enforcement)
+
+User: Apply the Kyverno policy for active enforcement
+
+Agent: ✅ Policy deployed! Now when users deploy applications, they'll get required questions for CPU/memory limits with your specified ranges, and any non-compliant deployments will be blocked by Kyverno.
 ```
 
 **Example: Documentation Testing**

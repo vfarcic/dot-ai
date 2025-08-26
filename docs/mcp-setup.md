@@ -4,13 +4,14 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides five main capabilities through MCP (Model Context Protocol):
+The DevOps AI Toolkit provides six main capabilities through MCP (Model Context Protocol):
 
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance with enhanced semantic understanding
 2. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
 3. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
-4. **Documentation Testing** - Automated validation of documentation accuracy
-5. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
+4. **Policy Management** - Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
+5. **Documentation Testing** - Automated validation of documentation accuracy
+6. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
 
 This guide helps you choose the right setup method and get started quickly.
 

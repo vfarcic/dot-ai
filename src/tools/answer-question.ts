@@ -9,6 +9,7 @@ import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadPrompt } from '../core/shared-prompt-loader';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import { extractUserAnswers } from '../core/solution-utils';
 
@@ -372,8 +373,7 @@ async function analyzeResourceNeeds(
   openResponse: string,
   context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
-  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'resource-analysis.md');
-  const template = fs.readFileSync(promptPath, 'utf8');
+  const template = loadPrompt('resource-analysis');
   
   // Get available resources from solution or use defaults
   const availableResources = currentSolution.availableResources || {
@@ -475,8 +475,7 @@ async function autoPopulateQuestions(
   openResponse: string,
   analysisResult: any
 ): Promise<any> {
-  const promptPath = path.join(__dirname, '..', '..', 'prompts', 'solution-enhancement.md');
-  const template = fs.readFileSync(promptPath, 'utf8');
+  const template = loadPrompt('solution-enhancement');
   
   const enhancementPrompt = template
     .replace('{current_solution}', JSON.stringify(solution, null, 2))

@@ -1,5 +1,25 @@
 // Jest setup file for configuring test environment and mocks
 
+// Environment variable isolation - prevent tests from using real external services
+beforeAll(() => {
+  const envVarsToIsolate = [
+    'ANTHROPIC_API_KEY',
+    'OPENAI_API_KEY', 
+    'KUBECONFIG',
+    'QDRANT_URL',
+    // DOT_AI_SESSION_DIR - removed from isolation as tests need it for workflow sessions
+    'KUBERNETES_SERVICE_HOST', // Kubernetes in-cluster detection
+    'KUBERNETES_SERVICE_PORT'
+  ];
+
+  // Unset environment variables to prevent real API/cluster connections during tests
+  envVarsToIsolate.forEach(key => {
+    delete process.env[key];
+  });
+  
+  console.log('🔒 Environment variables isolated for testing - no external services will be used');
+});
+
 // Mock console methods to reduce noise in test output (but allow console.error for actual errors)
 const originalConsoleLog = console.log;
 const originalConsoleWarn = console.warn;
