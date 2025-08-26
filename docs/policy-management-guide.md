@@ -140,7 +140,42 @@ Assistant: Who should be credited as the creator of this policy intent? (This ca
 You: platform-team
 ```
 
-#### Step 6: Kyverno Policy Generation
+#### Step 6: Namespace Scope Selection (Kyverno Only)
+If Kyverno is installed in your cluster, you can choose which namespaces the policy should apply to:
+
+**Example**:
+```
+Assistant: # Policy Namespace Scope
+
+Your policy can be applied cluster-wide or limited to specific namespaces.
+
+## Available Namespaces in Your Cluster:
+production, staging, development, default, kube-system, kube-public
+
+## Choose the scope for your policy:
+
+1. **Apply to all namespaces** (cluster-wide enforcement)
+   - Type: `all` or `1`
+
+2. **Apply only to specific namespaces** (inclusive list)
+   - Type: `include: namespace1, namespace2, namespace3`
+   - Example: `include: production, staging`
+
+3. **Apply to all namespaces EXCEPT specific ones** (exclusion list)
+   - Type: `exclude: namespace1, namespace2`
+   - Example: `exclude: kube-system, kube-public`
+
+You: include: production, staging
+```
+
+**Namespace Options**:
+- **All namespaces**: Policy applies cluster-wide with no restrictions
+- **Include specific**: Policy applies only to the namespaces you specify
+- **Exclude specific**: Policy applies everywhere except the namespaces you specify
+
+**Note**: This step only appears when Kyverno is installed. For policy intents without Kyverno, skip to Step 7.
+
+#### Step 7: Kyverno Policy Generation
 The system generates a Kyverno policy and presents options:
 
 **Example**:
@@ -197,8 +232,38 @@ spec:
 You: 1
 ```
 
-#### Step 7: Kyverno Policy Deployment
-The system validates and deploys the policy to your cluster:
+#### Step 8: Policy Review and Deployment Choice  
+The system shows the generated policy and asks what you want to do:
+
+**Example**:
+```
+Assistant: Please review your policy intent:
+
+**Description**: All containers must have CPU and memory resource limits defined to prevent resource starvation and ensure fair resource allocation
+**Triggers**: applications, microservices, web applications, containerized applications, workloads, pods, containers, deployments  
+**Rationale**: Resource limits prevent any single container from consuming excessive CPU or memory, which could starve other applications and degrade cluster performance. This ensures fair resource allocation and prevents noisy neighbor problems in multi-tenant environments.
+**Created By**: platform-team
+
+I've also generated a Kyverno ClusterPolicy that enforces this requirement:
+
+**Generated Kyverno Policy**:
+```yaml
+# YAML policy content shown here with namespace restrictions based on Step 6 choice
+```
+
+**Choose what to do:**
+
+1. **Apply Kyverno policy to cluster** - Store policy intent AND deploy enforcement to cluster
+2. **Store policy intent only** - Save for AI guidance without cluster enforcement  
+3. **Cancel** - Do nothing
+
+⚠️ **Warning**: Option 1 will deploy active policy enforcement to your cluster.
+
+You: 1
+```
+
+#### Step 9: Policy Deployment (if chosen)
+If you chose option 1, the system validates and deploys the policy to your cluster:
 
 **Example**:
 ```

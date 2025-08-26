@@ -11,6 +11,9 @@
 ## Available Resource Schemas
 {resource_schemas}
 
+## Namespace Scope Configuration
+{namespace_scope}
+
 ## Previous Attempt Analysis
 {previous_attempt}
 
@@ -69,6 +72,13 @@ You are a Kubernetes governance expert specializing in Kyverno policy generation
    - **Schema-specific validation** tailored to each resource type's field paths
    - **Consistent governance intent** across all rules in the policy
    - **Clear rule names** that indicate which resource types they target
+
+5. **Namespace Targeting Rules**:
+   - If namespace scope is 'Apply to all namespaces': No namespace restrictions needed
+   - If namespace scope starts with 'Apply ONLY to these namespaces': Add `match.any` with `resources.namespaces` list
+   - If namespace scope starts with 'Apply to all namespaces EXCEPT': Add `exclude.any` with `resources.namespaces` list
+   - Always use the exact namespace names provided in the scope configuration
+   - Never add namespace restrictions if scope indicates "all namespaces"
 
 ## 🎯 MANDATORY PRE-GENERATION SCHEMA ANALYSIS
 
@@ -218,7 +228,7 @@ expression: >-
 
 Generate a complete, valid Kyverno ClusterPolicy YAML that:
 
-1. **Uses Clean YAML Format** - No analysis comments, production-ready manifest
+1. **Uses Clean YAML Format** - Raw YAML with analysis as YAML comments, no markdown formatting
 2. **Uses Descriptive Naming** - Generate clear policy name from description + policy_id
 3. **Includes Machine-Readable Metadata** - Add policy-intent/id label for lookup
 4. **Enforces the Policy Intent** - Addresses the specific governance requirement described
@@ -237,10 +247,61 @@ Generate a complete, valid Kyverno ClusterPolicy YAML that:
 - **Design appropriate rules** - Create separate rules when schemas require different validation approaches
 - **Validate field paths** - Ensure all referenced fields exist in the target resource schemas
 
-**IMPORTANT**: Return YAML content with your mandatory schema analysis as concise YAML comments at the top, followed by the clean Kyverno policy manifest. The final policy YAML should be production-ready for `kubectl apply --dry-run=server` validation.
+## 📋 NAMESPACE TARGETING EXAMPLES
+
+**For "Apply ONLY to these namespaces: production, staging":**
+```yaml
+spec:
+  rules:
+  - name: rule-name
+    match:
+      any:
+      - resources:
+          kinds: [Deployment]
+          namespaces:
+          - production
+          - staging
+```
+
+**For "Apply to all namespaces EXCEPT: kube-system, kube-public":**
+```yaml
+spec:
+  rules:
+  - name: rule-name
+    match:
+      any:
+      - resources:
+          kinds: [Deployment]
+    exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+```
+
+**For "Apply to all namespaces (no restrictions)":**
+```yaml
+spec:
+  rules:
+  - name: rule-name
+    match:
+      any:
+      - resources:
+          kinds: [Deployment]
+    # No namespace restrictions - applies cluster-wide
+```
+
+**IMPORTANT**: Return only the YAML content with your mandatory schema analysis as concise YAML comments at the top, followed by the clean Kyverno policy manifest. The final policy YAML should be production-ready for `kubectl apply --dry-run=server` validation.
+
+**CRITICAL OUTPUT FORMAT REQUIREMENTS**:
+
+- **NO MARKDOWN FORMATTING**: Do not wrap the YAML in markdown code blocks (no ```yaml or ```)
+- **NO PROSE EXPLANATION**: Do not include any explanatory text before or after the YAML
+- **RAW YAML ONLY**: Return only the YAML content with analysis comments inside as YAML comments
+- **KUBECTL READY**: The output must be directly usable with kubectl apply
 
 **OUTPUT FORMAT EXAMPLE**:
-```yaml
 # MANDATORY SCHEMA-BY-SCHEMA ANALYSIS
 #
 # StatefulSet: HAS spec.template.spec.containers[].image → MUST generate rule  
@@ -254,4 +315,3 @@ kind: ClusterPolicy
 metadata:
   name: policy-name
 # ... rest of policy
-```
