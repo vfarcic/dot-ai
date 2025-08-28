@@ -15,7 +15,9 @@ import * as path from 'path';
  */
 export function loadPrompt(promptName: string, variables: Record<string, string> = {}): string {
   try {
-    const promptPath = path.join(process.cwd(), 'prompts', `${promptName}.md`);
+    // Use __dirname to resolve paths relative to the module location
+    // This works both locally and when installed as an npm package
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', `${promptName}.md`);
     let template = fs.readFileSync(promptPath, 'utf8');
     
     // Replace template variables
