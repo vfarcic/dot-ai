@@ -180,7 +180,8 @@ ${response.content}`;
         const completion = await this.client.messages.create({
           model: 'claude-sonnet-4-20250514', // Latest Claude Sonnet 4 - check for newer versions periodically
           max_tokens: 64000,
-          messages: [{ role: 'user', content: message }]
+          messages: [{ role: 'user', content: message }],
+          stream: false // Explicitly disable streaming to avoid MCP compatibility issues
         });
 
         const content = completion.content[0].type === 'text' ? completion.content[0].text : '';
