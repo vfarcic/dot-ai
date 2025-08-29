@@ -176,20 +176,35 @@ ${response.content}`;
 
       // Use real Claude API if we have a real API key, otherwise fall back to mocks
       if (this.apiKey.startsWith('sk-ant-') && this.client) {
-        // Make real API call to Claude
-        const completion = await this.client.messages.create({
+        // Make real API call to Claude with streaming
+        const stream = await this.client.messages.create({
           model: 'claude-sonnet-4-20250514', // Latest Claude Sonnet 4 - check for newer versions periodically
           max_tokens: 64000,
           messages: [{ role: 'user', content: message }],
-          stream: false // Explicitly disable streaming to avoid MCP compatibility issues
+          stream: true // Enable streaming by default to support long operations (>10 minutes)
         });
 
-        const content = completion.content[0].type === 'text' ? completion.content[0].text : '';
+        let content = '';
+        let input_tokens = 0;
+        let output_tokens = 0;
+
+        for await (const chunk of stream) {
+          if (chunk.type === 'message_start') {
+            input_tokens = chunk.message.usage.input_tokens;
+          } else if (chunk.type === 'content_block_delta') {
+            if (chunk.delta.type === 'text_delta') {
+              content += chunk.delta.text;
+            }
+          } else if (chunk.type === 'message_delta') {
+            output_tokens = chunk.usage.output_tokens;
+          }
+        }
+
         const response: ClaudeResponse = {
           content,
           usage: {
-            input_tokens: completion.usage.input_tokens,
-            output_tokens: completion.usage.output_tokens
+            input_tokens,
+            output_tokens
           }
         };
 
