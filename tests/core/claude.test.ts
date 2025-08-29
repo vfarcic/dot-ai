@@ -238,6 +238,7 @@ describe('Claude Debug Logging', () => {
     });
   });
 
+
   describe('Intent Analysis for Clarification', () => {
     test('should analyze intent and return structured clarification opportunities', async () => {
       const claude = new ClaudeIntegration('test-key');

@@ -12,7 +12,7 @@ def main [] {}
 
 def "main setup" [
     --dot-ai-tag: string = "latest",
-    --qdrant-run: bool = true,
+    --qdrant-run = true,
     --qdrant-tag: string = "latest"
 ] {
     
@@ -41,7 +41,7 @@ def "main setup" [
 
     docker image pull $dot_ai_image
 
-    if not $qdrant_run {(
+    if $qdrant_run {(
         docker container run --detach --name qdrant
             --publish 6333:6333 $qdrant_image
     )}
