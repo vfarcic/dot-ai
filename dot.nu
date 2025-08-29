@@ -72,6 +72,8 @@ def "main destroy" [] {
 
     docker container rm qdrant --force
 
+    docker volume rm qdrant-data
+
 }
 
 def "main build-image" [version: string] {
