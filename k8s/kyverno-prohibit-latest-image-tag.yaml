@@ -1,108 +1,48 @@
+# MANDATORY SCHEMA-BY-SCHEMA ANALYSIS
+#
+# App (devopstoolkit.live): HAS spec.image + spec.tag → MUST generate rule
+# Deployment: HAS spec.template.spec.containers[].image + spec.template.spec.initContainers[].image → MUST generate rule  
+# StatefulSet: HAS spec.template.spec.containers[].image + spec.template.spec.initContainers[].image → MUST generate rule
+# EnvironmentDeploymentPolicy: NO container/image fields → Can skip
+# Tag (EC2): NO container/image fields → Can skip
+# Pod: HAS spec.containers[].image + spec.initContainers[].image → MUST generate rule
+# ConfigMap: NO container/image fields → Can skip
+# ReplicationController: HAS spec.template.spec.containers[].image + spec.template.spec.initContainers[].image → MUST generate rule
+# DaemonSet: HAS spec.template.spec.containers[].image + spec.template.spec.initContainers[].image → MUST generate rule
+# Service: NO container/image fields → Can skip
+# ProviderRevision: NO container/image fields → Can skip
+# ConfigurationRevision: NO container/image fields → Can skip
+# Snapshot (RDS): NO container/image fields → Can skip
+# Usage: NO container/image fields → Can skip
+# ReplicaSet: HAS spec.template.spec.containers[].image + spec.template.spec.initContainers[].image → MUST generate rule
+# DeploymentRuntimeConfig: HAS spec.deploymentTemplate.spec.template.spec.containers[].image + spec.deploymentTemplate.spec.template.spec.initContainers[].image → MUST generate rule
+# PodDisruptionBudget: NO container/image fields → Can skip
+# AtlasSchema: HAS spec.devDB.spec.containers[].image + spec.devDB.spec.initContainers[].image → MUST generate rule
+# LaunchTemplate: NO container/image fields → Can skip
+# Namespace: NO container/image fields → Can skip
+# Environment: NO container/image fields → Can skip
+# ProviderConfigUsage: NO container/image fields → Can skip
+# KubernetesCluster: NO container/image fields → Can skip
+# FunctionRevision: NO container/image fields → Can skip
+# DeployKey: NO container/image fields → Can skip
+#
+# RESOURCES REQUIRING VALIDATION RULES: App, Deployment, StatefulSet, Pod, ReplicationController, DaemonSet, ReplicaSet, DeploymentRuntimeConfig, AtlasSchema
+#
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  annotations:
-    policies.kyverno.io/category: Best Practices
-    policies.kyverno.io/description: Prohibits the use of 'latest' image tags across
-      all workloads to ensure deployment predictability and enable proper change management.
-    policies.kyverno.io/severity: high
-    policies.kyverno.io/subject: Image
-    policy-intent/description: Applications must NEVER use the `latest` tag.
-    policy-intent/rationale: Using the 'latest' tag creates unpredictable deployments
-      and makes rollbacks difficult. Specific version tags ensure reproducible builds
-      and enable proper change management.
-  labels:
-    policy-intent/id: a4450918-578f-4185-8aa4-e3b67cd7151a
   name: prohibit-latest-image-tag
+  labels:
+    policy-intent/id: "7a95808e-1829-4084-b06f-0ef538fd48eb"
+  annotations:
+    policy-intent/description: "Applications must NEVER use the `latest` tag."
+    policy-intent/rationale: "Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Specific version tags ensure reproducible builds and enable proper change management."
 spec:
+  background: false
+  validationFailureAction: Enforce
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-          namespaces:
-          - a-team
-          - b-team
-          operations:
-          - CREATE
-          - UPDATE
-    name: prohibit-latest-tag-pods
-    skipBackgroundRequests: true
-    validate:
-      allowExistingViolations: true
-      cel:
-        expressions:
-        - expression: |-
-            has(object.spec.containers) ? object.spec.containers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Pod containers must not use the 'latest' image tag. Specify an
-            explicit version tag for predictable deployments.
-        - expression: |-
-            has(object.spec.initContainers) ? object.spec.initContainers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Pod init containers must not use the 'latest' image tag. Specify
-            an explicit version tag for predictable deployments.
-        - expression: |-
-            has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Pod ephemeral containers must not use the 'latest' image tag. Specify
-            an explicit version tag for predictable deployments.
-        generate: false
-  - match:
-      any:
-      - resources:
-          kinds:
-          - apps/v1/Deployment
-          - apps/v1/StatefulSet
-          - apps/v1/DaemonSet
-          namespaces:
-          - a-team
-          - b-team
-          operations:
-          - CREATE
-          - UPDATE
-    name: prohibit-latest-tag-workloads
-    skipBackgroundRequests: true
-    validate:
-      allowExistingViolations: true
-      cel:
-        expressions:
-        - expression: |-
-            has(object.spec.template.spec.containers) ? object.spec.template.spec.containers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Workload containers must not use the 'latest' image tag. Specify
-            an explicit version tag for predictable deployments.
-        - expression: |-
-            has(object.spec.template.spec.initContainers) ? object.spec.template.spec.initContainers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Workload init containers must not use the 'latest' image tag. Specify
-            an explicit version tag for predictable deployments.
-        - expression: |-
-            has(object.spec.template.spec.ephemeralContainers) ? object.spec.template.spec.ephemeralContainers.all(container,
-              has(container.image) && container.image != '' ?
-              !container.image.endsWith(':latest') && !container.image.matches('^[^/:]+$')
-              : true
-            ) : true
-          message: Workload ephemeral containers must not use the 'latest' image tag.
-            Specify an explicit version tag for predictable deployments.
-        generate: false
-  - match:
+  - name: prohibit-latest-in-custom-app
+    match:
       any:
       - resources:
           kinds:
@@ -113,39 +53,347 @@ spec:
           operations:
           - CREATE
           - UPDATE
-    name: prohibit-latest-tag-custom-app
-    skipBackgroundRequests: true
     validate:
-      allowExistingViolations: true
       cel:
         expressions:
-        - expression: 'has(object.spec.tag) && object.spec.tag != '''' ? object.spec.tag
-            != ''latest'' : true'
-          message: Custom App must not use the 'latest' tag. Specify an explicit version
-            tag for predictable deployments.
-        generate: false
-  - match:
+        - expression: >-
+            has(object.spec.tag) && object.spec.tag != '' ?
+            object.spec.tag != 'latest'
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-pod-containers
+    match:
       any:
       - resources:
           kinds:
-          - pkg.crossplane.io/v1/FunctionRevision
-          - pkg.crossplane.io/v1/ProviderRevision
-          - pkg.crossplane.io/v1/ConfigurationRevision
+          - Pod
           namespaces:
           - a-team
           - b-team
           operations:
           - CREATE
           - UPDATE
-    name: prohibit-latest-tag-packages
-    skipBackgroundRequests: true
     validate:
-      allowExistingViolations: true
       cel:
         expressions:
-        - expression: 'has(object.spec.image) && object.spec.image != '''' ? !object.spec.image.endsWith('':latest'')
-            && !object.spec.image.matches(''^[^/:]+$'') : true'
-          message: Package revisions must not use the 'latest' image tag. Specify
-            an explicit version tag for predictable deployments.
-        generate: false
-  validationFailureAction: Enforce
+        - expression: >-
+            has(object.spec.containers) ?
+            object.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.initContainers) ?
+            object.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.ephemeralContainers) ?
+            object.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-deployment-containers
+    match:
+      any:
+      - resources:
+          kinds:
+          - apps/v1/Deployment
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.template.spec.containers) ?
+            object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.initContainers) ?
+            object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.ephemeralContainers) ?
+            object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-statefulset-containers
+    match:
+      any:
+      - resources:
+          kinds:
+          - apps/v1/StatefulSet
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.template.spec.containers) ?
+            object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.initContainers) ?
+            object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.ephemeralContainers) ?
+            object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-replicationcontroller-containers
+    match:
+      any:
+      - resources:
+          kinds:
+          - ReplicationController
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.template.spec.containers) ?
+            object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.initContainers) ?
+            object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.ephemeralContainers) ?
+            object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-daemonset-containers
+    match:
+      any:
+      - resources:
+          kinds:
+          - apps/v1/DaemonSet
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.template.spec.containers) ?
+            object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.initContainers) ?
+            object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.ephemeralContainers) ?
+            object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-replicaset-containers
+    match:
+      any:
+      - resources:
+          kinds:
+          - apps/v1/ReplicaSet
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.template.spec.containers) ?
+            object.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.initContainers) ?
+            object.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.template.spec.ephemeralContainers) ?
+            object.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-deployment-runtime-config
+    match:
+      any:
+      - resources:
+          kinds:
+          - pkg.crossplane.io/v1beta1/DeploymentRuntimeConfig
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.deploymentTemplate.spec.template.spec.containers) ?
+            object.spec.deploymentTemplate.spec.template.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.deploymentTemplate.spec.template.spec.initContainers) ?
+            object.spec.deploymentTemplate.spec.template.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.deploymentTemplate.spec.template.spec.ephemeralContainers) ?
+            object.spec.deploymentTemplate.spec.template.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+  - name: prohibit-latest-in-atlasschema-devdb
+    match:
+      any:
+      - resources:
+          kinds:
+          - db.atlasgo.io/v1alpha1/AtlasSchema
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.devDB.spec.containers) ?
+            object.spec.devDB.spec.containers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.devDB.spec.initContainers) ?
+            object.spec.devDB.spec.initContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in init containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."
+        - expression: >-
+            has(object.spec.devDB.spec.ephemeralContainers) ?
+            object.spec.devDB.spec.ephemeralContainers.all(container,
+              has(container.image) && container.image != '' ?
+              !container.image.matches('.*:latest$') && !container.image.matches('^[^:]+$')
+              : true
+            )
+            : true
+          message: "Applications must NEVER use the 'latest' tag in ephemeral containers. Using the 'latest' tag creates unpredictable deployments and makes rollbacks difficult. Please specify an explicit version tag to ensure reproducible builds and enable proper change management."

@@ -121,3 +121,4 @@ spec:
             'East US' region (us-east1) when specified
         generate: false
   validationFailureAction: Enforce
+  background: false

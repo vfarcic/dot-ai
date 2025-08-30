@@ -328,8 +328,13 @@ export class ManifestValidator {
       // Add best practice warnings by reading the manifest
       const fs = await import('fs');
       const yaml = await import('yaml');
-      const manifestContent = yaml.parse(fs.readFileSync(manifestPath, 'utf8')) as any;
-      this.addBestPracticeWarnings(manifestContent, warnings);
+      const documents = yaml.parseAllDocuments(fs.readFileSync(manifestPath, 'utf8'));
+      // Process all documents for best practice warnings
+      documents.forEach(doc => {
+        if (doc.contents) {
+          this.addBestPracticeWarnings(doc.toJS(), warnings);
+        }
+      });
       
       return {
         valid: true,
