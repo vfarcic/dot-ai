@@ -247,9 +247,7 @@ describe('Claude Debug Logging', () => {
       const mockAnalysisResponse = `{
         "clarificationOpportunities": [
           {
-            "category": "TECHNICAL_SPECIFICATIONS",
             "missingContext": "Specific framework or technology stack",
-            "impactLevel": "HIGH",
             "reasoning": "Knowing the technology would enable specific deployment recommendations",
             "suggestedQuestions": [
               "What technology stack are you using (Node.js, Python, Java, etc.)?",
@@ -280,8 +278,11 @@ describe('Claude Debug Logging', () => {
 
       expect(result).toBeDefined();
       expect(result.clarificationOpportunities).toHaveLength(1);
-      expect(result.clarificationOpportunities[0].category).toBe('TECHNICAL_SPECIFICATIONS');
-      expect(result.clarificationOpportunities[0].impactLevel).toBe('HIGH');
+      expect(result.clarificationOpportunities[0].missingContext).toBe('Specific framework or technology stack');
+      expect(result.clarificationOpportunities[0].reasoning).toBe('Knowing the technology would enable specific deployment recommendations');
+      expect(result.clarificationOpportunities[0].suggestedQuestions).toBeDefined();
+      expect(Array.isArray(result.clarificationOpportunities[0].suggestedQuestions)).toBe(true);
+      expect(result.clarificationOpportunities[0].suggestedQuestions!.length).toBeGreaterThan(0);
       expect(result.overallAssessment.enhancementPotential).toBe('HIGH');
       expect(result.intentQuality.strengthAreas).toContain('Clear deployment intent');
     });

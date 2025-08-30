@@ -179,12 +179,9 @@ export async function handleRecommendTool(
           
           // Convert analysis to structured questions for client agent
           const questions = analysisResult.clarificationOpportunities
-            .filter((opp: any) => opp.impactLevel === 'HIGH' || opp.impactLevel === 'MEDIUM')
-            .slice(0, 5) // Limit to 5 most important questions
             .map((opp: any, index: number) => ({
               id: `clarification-${index + 1}`,
               question: opp.suggestedQuestions?.[0] || `Can you provide more details about ${opp.missingContext.toLowerCase()}?`,
-              category: opp.category,
               reasoning: opp.reasoning,
               examples: opp.suggestedQuestions?.slice(1) || []
             }));
