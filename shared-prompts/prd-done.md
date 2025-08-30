@@ -62,11 +62,21 @@ Complete the PRD implementation workflow including branch management, pull reque
   - Look for actionable suggestions about code quality, security, performance, or maintainability
   - Check for recommendations about test coverage, error handling, or architectural improvements
   - Review suggestions for refactoring, type safety, or code organization
+- [ ] **Present code review findings**: ALWAYS summarize automated review feedback for the user (unless there are no findings)
+  - **Categorize findings**: Critical, Important, Optional based on impact
+  - **Provide specific examples**: Quote actual suggestions and their locations
+  - **Explain assessment**: Why each category was assigned and which items should be addressed
+  - **User decision**: Let user decide which optional improvements to implement before merge
 - [ ] **Assess feedback priority**: Categorize review feedback
   - **Critical**: Security issues, breaking changes, test failures - MUST address before merge
   - **Important**: Code quality, maintainability, performance - SHOULD address for production readiness
   - **Optional**: Style preferences, minor optimizations - MAY address based on project standards
-- [ ] **Wait for completion**: Do NOT merge if checks show pending processes or PR comments indicate reviews still in progress
+- [ ] **Wait for ALL reviews to complete**: Do NOT merge if any reviews are pending or in progress, including:
+  - **Automated code reviews** (CodeRabbit, CodeQL, etc.) - Must wait until complete even if CI passes
+  - **Security analysis** - Must complete and pass
+  - **CI/CD processes** - All builds and tests must pass
+  - **Human reviews** - If requested reviewers haven't approved
+  - **CRITICAL**: Never skip automated code reviews - they provide valuable feedback even when CI passes
 - [ ] **Address review feedback**: Make required changes from code review (both automated and human)
   - Create additional commits on the feature branch to address feedback
   - Update tests if needed to cover suggested improvements
