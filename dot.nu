@@ -79,7 +79,7 @@ def "main destroy" [] {
 
 }
 
-def "main build-image" [version: string] {
+def "main build qdrant-image" [version: string] {
     
     let repo = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
     
