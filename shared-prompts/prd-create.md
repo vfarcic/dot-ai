@@ -8,11 +8,10 @@ category: project-management
 
 ## Instructions
 
-You are helping create a documentation-first Product Requirements Document (PRD) for a new feature. This process involves three components:
+You are helping create a Product Requirements Document (PRD) for a new feature. This process involves two main components:
 
 1. **GitHub Issue**: Short, immutable concept description that links to the detailed PRD
-2. **PRD File**: Project management document with milestone tracking, progress logs, and references to documentation
-3. **Documentation Updates**: Actual user-facing content written directly into documentation files with PRD traceability comments
+2. **PRD File**: Project management document with milestone tracking, progress logs, and implementation plan
 
 ## Process
 
@@ -30,55 +29,8 @@ Create the PRD file using the actual GitHub issue ID: `prds/[issue-id]-[feature-
 ### Step 4: Update GitHub Issue with PRD Link
 Add the PRD file link to the GitHub issue description now that the filename is known.
 
-### Step 5: Analyze Existing Documentation Architecture
-BEFORE making any documentation changes, perform systematic analysis of ALL documentation files:
-
-**A. Discover All Documentation Files**
-```bash
-# Find all documentation files (adapt for your project's documentation format)
-find . -name "*.md" -not -path "*/node_modules/*" | sort
-
-# Or for other formats:
-find . -name "*.rst" -o -name "*.txt" -o -name "*.adoc" | sort
-```
-
-**B. Identify Feature/Capability References**
-```bash  
-# Search for existing feature lists and capability references
-grep -r -i "capability\|feature\|guide.*\|provides.*\|main.*\|Key.*Features" docs/ README*
-
-# Look for documentation indexes and cross-reference patterns
-grep -r "- \*\*\[.*\]\|### .*Guide\|## Documentation" docs/ README*
-```
-
-**C. Use Task Tool for Pattern Analysis**
-Use the Task tool to analyze ALL discovered files to understand:
-- Current documentation structure and patterns
-- Consistent section naming conventions  
-- How features are introduced and described
-- Whether there are verification/setup patterns for features
-- Cross-reference architecture between docs
-- Tone and style consistency
-- Documentation indexes/lists that should include new content
-
-### Step 6: Plan Complete Documentation Changes
-Based on the analysis, create comprehensive checklist of ALL documentation files that need updates:
-
-**Create systematic checklist:**
-- [ ] New documentation files to create
-- [ ] Existing files with capability/feature lists that need updates
-- [ ] Documentation indexes (like README.md sections) that should include new content  
-- [ ] Setup/configuration guides that need new sections
-- [ ] Cross-reference sections ("See Also") that should link to new content
-- [ ] Any files that mention related functionality and should acknowledge new capability
-
-**Document the rationale for each update to ensure nothing is missed.**
-
-### Step 7: Write Documentation Content First
-Create/update ALL user-facing documentation content with `<!-- PRD-[issue-id] -->` comments for traceability, following established patterns.
-
-### Step 8: Create PRD as Project Tracker
-Work through the PRD template focusing on project management, milestone tracking, and references to the documentation content.
+### Step 5: Create PRD as Project Management Document
+Work through the PRD template focusing on project management, milestone tracking, and implementation planning. Documentation updates should be included as part of the implementation milestones.
 
 **Key Principle**: Focus on 5-10 major milestones rather than exhaustive task lists. Each milestone should represent meaningful progress that can be clearly validated.
 
@@ -133,26 +85,17 @@ Work through the PRD template focusing on project management, milestone tracking
 
 ## Discussion Guidelines
 
-### Documentation-First Planning Questions:
-1. **Architecture Analysis**: "What are the existing documentation patterns and structures I need to follow?"
-2. **User Experience**: "Walk me through the complete user journey - what will they read and do?"
-3. **Documentation Impact**: "Which existing docs need updates? What new docs are needed?"
-4. **Content Planning**: "What specific examples, commands, and workflows need to be documented?"
-5. **Cross-File Story**: "How does the user story flow across multiple documentation files?"
-6. **Pattern Consistency**: "How do other features handle setup, verification, and cross-references?"
-7. **Testable Claims**: "What commands and examples can be automatically tested to ensure accuracy?"
-8. **Implementation Phases**: "How can we deliver value incrementally through documentation updates?"
-9. **Terminology Consistency**: "How do we ensure terminology and examples are consistent across ALL affected files?"
-10. **Traceability**: "How will we track which documentation changes relate to this feature?"
-
-### Content Creation Process:
-1. **Analyze Documentation Architecture**: Use Task tool to understand existing patterns across ALL docs
-2. **Map Complete Documentation Changes**: Identify all files that need updates (don't miss any!)
-3. **Write User-Facing Content**: Create actual documentation content with examples following established patterns
-4. **Add Traceability**: Include `<!-- PRD-[issue-id] -->` comments in documentation
-5. **Update ALL Affected Files**: Ensure every file mentioned in PRD documentation map gets updated
-6. **Plan Implementation**: Break down development tasks that enable documented functionality
-7. **Validation Strategy**: Ensure all documented claims can be automatically tested
+### PRD Planning Questions:
+1. **Problem Understanding**: "What specific problem does this feature solve for users?"
+2. **User Impact**: "Walk me through the complete user journey - what will change for them?"
+3. **Technical Scope**: "What are the core technical changes required?"
+4. **Documentation Impact**: "Which existing docs need updates? What new docs are needed?"
+5. **Integration Points**: "How does this feature integrate with existing systems?"
+6. **Success Criteria**: "How will we know this feature is working well?"
+7. **Implementation Phases**: "How can we deliver value incrementally?"
+8. **Risk Assessment**: "What are the main risks and how do we mitigate them?"
+9. **Dependencies**: "What other systems or features does this depend on?"
+10. **Validation Strategy**: "How will we test and validate the implementation?"
 
 ### Discussion Tips:
 - **Clarify ambiguity**: If something isn't clear, ask follow-up questions until you understand
