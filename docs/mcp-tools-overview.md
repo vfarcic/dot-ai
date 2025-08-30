@@ -5,9 +5,9 @@
 ## Available Tools
 
 ### 🚀 Kubernetes Deployment Recommendations
-AI-powered application deployment assistance with semantic resource matching and automated manifest generation.
-- **What it does**: Get intelligent deployment suggestions based on your cluster capabilities
-- **Use when**: Deploying applications to Kubernetes clusters
+AI-powered application deployment assistance with smart intent clarification, semantic resource matching, and automated manifest generation.
+- **What it does**: Clarifies deployment intents through adaptive questioning, then provides intelligent deployment suggestions based on your cluster capabilities
+- **Use when**: Deploying applications to Kubernetes clusters, especially when requirements are not fully specified
 - **📖 Full Guide**: [Kubernetes Deployment Recommendations](mcp-recommendation-guide.md)
 
 ### 🔍 Capability Management  

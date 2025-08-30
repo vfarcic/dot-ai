@@ -34,7 +34,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 ### Kubernetes Deployment Intelligence
 🔍 **Smart Discovery**: Automatically finds all available resources and operators in your cluster  
 🧠 **Semantic Capability Management**: Discovers what each resource actually does for intelligent matching  
-🤖 **AI Recommendations**: Get deployment suggestions tailored to your specific cluster setup with enhanced semantic understanding  
+🤖 **AI Recommendations**: Smart intent clarification gathers missing context, then provides deployment suggestions tailored to your specific cluster setup with enhanced semantic understanding  
 🔧 **Operator-Aware**: Leverages custom operators and CRDs when available  
 🚀 **Complete Workflow**: From discovery to deployment with automated Kubernetes integration
 
@@ -196,18 +196,25 @@ claude  # or your preferred MCP-enabled AI tool
 ```
 User: I want to deploy a web application to my cluster
 
-Agent: I'll help you deploy a web application. Let me get recommendations based on your cluster.
-[Uses recommend tool]
+Agent: I'll help you deploy a web application. Let me get recommendations. First, a few questions to provide better suggestions:
 
-Agent: I found 3 options. Let's use Kubernetes Deployment + Service. 
+What type of web application is this? Is it for development or production? 
+Does it need external access?
+[Uses recommend tool for clarification]
+
+User: It's a production Node.js API that needs external access
+
+Agent: Perfect! Based on your production requirements, I found 3 deployment options. 
+Let's use the Production Web Stack with external access.
 What's your application name and container image?
+[Uses recommend tool with refined intent]
 
-User: App name is "myapp" and image is "nginx:latest"
+User: App name is "myapp" and image is "myapp:v1.0.0"
 
-Agent: Perfect! Generating manifests and deploying now...
+Agent: Excellent! Generating production-ready manifests and deploying...
 [Uses chooseSolution, answerQuestion, generateManifests, deployManifests]
 
-Agent: ✅ Successfully deployed! Your application is running.
+Agent: ✅ Successfully deployed! Your production API is running with external access.
 ```
 
 **Example: Capability Management**
