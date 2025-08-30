@@ -7,6 +7,7 @@ source scripts/ingress.nu
 source scripts/mcp.nu
 source scripts/anthropic.nu
 source scripts/kyverno.nu
+source scripts/atlas.nu
 
 def main [] {}
 
@@ -55,6 +56,8 @@ def "main setup" [
     main apply crossplane --app-config true --db-config true
 
     main apply kyverno
+
+    main apply atlas
 
     kubectl create namespace a-team
 

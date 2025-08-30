@@ -291,8 +291,9 @@ export class VectorDBService {
   }
 
   /**
-   * Delete all documents by recreating the collection
+   * Delete all documents by clearing all points from the collection
    * More efficient than retrieving and deleting individual records
+   * Collection structure is preserved, avoiding Qdrant storage cleanup issues
    */
   async deleteAllDocuments(): Promise<void> {
     if (!this.client) {
@@ -300,24 +301,25 @@ export class VectorDBService {
     }
 
     try {
-      // Get current collection info to preserve vector dimensions
-      let vectorSize = 1536; // Default OpenAI embedding size
-      try {
-        const collectionInfo = await this.client.getCollection(this.collectionName);
-        const vectorConfig = collectionInfo.config?.params?.vectors;
-        // Handle both legacy format (number) and new format (object with size)
-        if (typeof vectorConfig === 'number') {
-          vectorSize = vectorConfig;
-        } else if (vectorConfig && typeof vectorConfig.size === 'number') {
-          vectorSize = vectorConfig.size;
-        }
-      } catch (error) {
-        // If we can't get collection info, use default
+      // Check if collection exists first
+      const collections = await this.client.getCollections();
+      const collectionExists = collections.collections.some(col => col.name === this.collectionName);
+      
+      if (!collectionExists) {
+        // Collection doesn't exist, nothing to delete
+        return;
       }
 
-      // Delete and recreate collection - more efficient than individual deletions
-      await this.client.deleteCollection(this.collectionName);
-      await this.createCollection(vectorSize);
+      // Delete all points from collection instead of deleting entire collection
+      // This avoids Qdrant's known storage directory cleanup bug
+      await this.client.delete(this.collectionName, {
+        filter: {
+          must: [] // Empty must array matches all points
+        },
+        wait: true // Wait for operation to complete synchronously
+      });
+      
+      console.warn(`All points deleted from collection ${this.collectionName} (collection structure preserved)`);
     } catch (error) {
       throw new Error(`Failed to delete all documents: ${error}`);
     }
