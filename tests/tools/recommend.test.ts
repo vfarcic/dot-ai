@@ -146,7 +146,7 @@ describe('Recommend Tool', () => {
       expect(fs.existsSync(promptPath)).toBe(true);
       
       const promptContent = fs.readFileSync(promptPath, 'utf8');
-      expect(promptContent).toContain('Intent Analysis for Clarification Opportunities');
+      expect(promptContent).toContain('Intent Analysis for Comprehensive Clarification');
       expect(promptContent).toContain('{intent}');
       expect(promptContent).toContain('clarificationOpportunities');
       expect(promptContent).toContain('organizational_patterns');
