@@ -1,0 +1,70 @@
+# MANDATORY SCHEMA-BY-SCHEMA ANALYSIS
+#
+# sqls.devopstoolkit.live: HAS spec.crossplane.compositionRef.name → MUST generate rule
+# databases.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# databases.mssql.sql.crossplane.io: NO relevant fields → Can skip
+# providerconfigs.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# databases.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# flexibleserverconfigurations.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# databases.sql.gcp.m.upbound.io: NO relevant fields → Can skip
+# manageddatabaselogicaldatabases.database.upcloud.com: NO relevant fields → Can skip
+# flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# servers.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# databaseinstances.sql.gcp.m.upbound.io: NO relevant fields → Can skip
+# providerconfigs.mssql.sql.crossplane.io: NO relevant fields → Can skip
+# schemas.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# flexibleservers.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# roles.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# flexibleserveractivedirectoryadministrators.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# virtualnetworkrules.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# configurations.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# providerconfigusages.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# manageddatabasepostgresqls.database.upcloud.com: NO relevant fields → Can skip
+# flexibleserverfirewallrules.dbforpostgresql.azure.m.upbound.io: NO relevant fields → Can skip
+# grants.postgresql.sql.crossplane.io: NO relevant fields → Can skip
+# databases.mysql.sql.crossplane.io: NO relevant fields → Can skip
+# users.sql.gcp.m.upbound.io: NO relevant fields → Can skip
+# sslcerts.sql.gcp.m.upbound.io: NO relevant fields → Can skip
+#
+# RESOURCES REQUIRING VALIDATION RULES: sqls.devopstoolkit.live
+#
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-crossplane-composition-ref-cloud-alignment
+  labels:
+    policy-intent/id: ef434183-7872-4d32-bf1f-dc1c3c270f21
+  annotations:
+    policy-intent/description: "sqls.devopstoolkit.live must have `spec.crossplane.compositionRef.name` set. If using AWS, it MUST be `aws-postgresql`, if Google Cloud (GCP) it MUST be `google-postgresql`, and if Azure it MUST be `azure-postgresql`."
+    policy-intent/rationale: "Ensures proper cloud provider alignment for PostgreSQL databases by enforcing correct Crossplane composition references. This prevents deployment failures, maintains consistency across environments, and ensures database resources are provisioned using the appropriate cloud-specific configurations for AWS, GCP, or Azure platforms."
+spec:
+  background: false
+  validationFailureAction: Enforce
+  rules:
+  - name: require-sql-crossplane-composition-ref
+    match:
+      any:
+      - resources:
+          kinds:
+          - devopstoolkit.live/v1beta1/SQL
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            has(object.spec.crossplane) && 
+            has(object.spec.crossplane.compositionRef) && 
+            has(object.spec.crossplane.compositionRef.name) &&
+            object.spec.crossplane.compositionRef.name != '' &&
+            (object.spec.crossplane.compositionRef.name == 'aws-postgresql' ||
+             object.spec.crossplane.compositionRef.name == 'google-postgresql' ||
+             object.spec.crossplane.compositionRef.name == 'azure-postgresql')
+          message: >-
+            SQL resource must have spec.crossplane.compositionRef.name set to a valid cloud-specific composition.
+            Required values: 'aws-postgresql' for AWS, 'google-postgresql' for Google Cloud (GCP), or 'azure-postgresql' for Azure.
+            This ensures proper cloud provider alignment for PostgreSQL database provisioning.
