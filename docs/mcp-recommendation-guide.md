@@ -21,6 +21,7 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 ## Overview
 
 The DevOps AI Toolkit recommendation feature provides:
+- **Smart intent clarification** - Adaptive questioning to gather missing context for better recommendations
 - **Semantic capability understanding** - Uses discovered resource capabilities for intelligent semantic matching
 - **AI-powered recommendations** - Suggests optimal deployment approaches based on capability-filtered resources with rich context
 - **Enhanced resource discovery** - Finds resources like `sqls.devopstoolkit.live` for "PostgreSQL database" requests through semantic search
@@ -50,9 +51,39 @@ User: I want to deploy a stateless Golang web application
 ```
 
 ```
-Agent: I'll help you deploy a stateless Golang web application. Let me analyze your cluster and get recommendations.
+Agent: I'll help you deploy a stateless Golang web application. To provide the best recommendations, I have a few clarification questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy a stateless Golang web application"]
+
+**Application Details:**
+1. What is the expected traffic pattern and scaling requirements for your application?
+
+**Environment & Infrastructure:**
+2. Is this for development, staging, or production use?
+
+**Security & Networking:**
+3. Does your application need external access or will it only serve internal traffic?
+
+**Performance & Resources:**
+4. Do you have specific CPU, memory, or storage requirements?
+
+**Integration:**
+5. Are there any other services this application needs to connect to?
+
+**Additional Context:**
+6. Are there any other specific requirements or constraints we should consider?
+
+You can answer the questions that are relevant to your needs, or let me know if you'd like to proceed with the information provided.
+```
+
+```
+User: It's for production, needs external access, expects moderate traffic with occasional spikes, and needs to connect to a PostgreSQL database.
+```
+
+```
+Agent: Perfect! Based on your clarified requirements, let me get production-focused deployment recommendations.
+
+[Uses mcp__dot-ai__recommend with refined intent "deploy a production stateless Golang web application with external access, auto-scaling for traffic spikes, and PostgreSQL database connectivity" and final: true]
 
 Based on your cluster capabilities, I found 3 deployment options:
 
@@ -340,9 +371,42 @@ User: I want to deploy a REST API microservice that needs to handle variable tra
 ```
 
 ```
-Agent: I'll help you deploy a REST API microservice optimized for variable traffic. Let me analyze your cluster capabilities.
+Agent: I'll help you deploy a REST API microservice for variable traffic. To provide optimal scaling recommendations, I have some questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy REST API microservice with variable traffic loads"]
+
+**API Architecture:**
+1. What type of API are you deploying (REST, GraphQL, gRPC) and what's the expected request/response pattern?
+
+**Traffic & Scaling:**
+2. What are your expected traffic patterns - steady load, burst traffic, or unpredictable spikes?
+
+**External Access:**
+3. Does this API need external internet access, or will it only serve internal microservices?
+
+**Data & Dependencies:**
+4. What external dependencies does your API have (databases, other services, third-party APIs)?
+
+**Environment & Security:**
+5. Is this for production use, and do you have specific security or compliance requirements?
+
+**Performance Requirements:**
+6. Do you have specific latency, throughput, or availability requirements?
+
+**Additional Context:**
+7. Are there any other specific requirements for this microservice deployment?
+
+You can answer the relevant questions, or let me know if you'd like recommendations based on the current information.
+```
+
+```
+User: It's a REST API for internal services, expects unpredictable traffic spikes, needs to connect to PostgreSQL and Redis, for production with high availability requirements.
+```
+
+```
+Agent: Excellent! Based on your production requirements with traffic spikes and high availability needs, let me get deployment recommendations.
+
+[Uses mcp__dot-ai__recommend with refined intent "deploy production REST API microservice for internal services with unpredictable traffic spikes, PostgreSQL and Redis connectivity, high availability requirements" and final: true]
 
 Based on your requirements, I found 3 scalable deployment options:
 
@@ -368,10 +432,12 @@ Which approach fits your API requirements?
 ```
 
 **What happened behind the scenes:**
-- AI extracted key concepts: "REST API service", "microservice architecture", "variable traffic handling"
+- Initial intent triggered clarification with 7 targeted questions covering API architecture, traffic patterns, dependencies, and production requirements
+- User provided specific clarification: internal REST API, unpredictable traffic spikes, PostgreSQL/Redis dependencies, production HA requirements
+- Enhanced intent analysis extracted key concepts: "production REST API", "internal microservices", "unpredictable traffic spikes", "PostgreSQL/Redis connectivity", "high availability"
 - Pattern matching found: API Service Pattern (high relevance), Stateless Apps Pattern (medium relevance)
-- The "variable traffic" requirement strongly influenced resource selection toward HorizontalPodAutoscaler
-- Generated 3 solutions with different external vs internal capabilities, scoring based on traffic handling requirements
+- The clarified "unpredictable traffic spikes" and "high availability" requirements strongly influenced resource selection toward HorizontalPodAutoscaler and monitoring
+- Generated 3 solutions prioritizing internal access and scaling capabilities based on clarified production requirements
 
 **Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns. Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
