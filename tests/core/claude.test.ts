@@ -280,6 +280,9 @@ describe('Claude Debug Logging', () => {
       expect(result.clarificationOpportunities).toHaveLength(1);
       expect(result.clarificationOpportunities[0].missingContext).toBe('Specific framework or technology stack');
       expect(result.clarificationOpportunities[0].reasoning).toBe('Knowing the technology would enable specific deployment recommendations');
+      expect(result.clarificationOpportunities[0].suggestedQuestions).toBeDefined();
+      expect(Array.isArray(result.clarificationOpportunities[0].suggestedQuestions)).toBe(true);
+      expect(result.clarificationOpportunities[0].suggestedQuestions!.length).toBeGreaterThan(0);
       expect(result.overallAssessment.enhancementPotential).toBe('HIGH');
       expect(result.intentQuality.strengthAreas).toContain('Clear deployment intent');
     });

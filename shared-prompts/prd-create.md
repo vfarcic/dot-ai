@@ -29,7 +29,7 @@ Create the PRD file using the actual GitHub issue ID: `prds/[issue-id]-[feature-
 ### Step 4: Update GitHub Issue with PRD Link
 Add the PRD file link to the GitHub issue description now that the filename is known.
 
-### Step 5: Create PRD as Project Management Document
+### Step 5: Create PRD as a Project Management Document
 Work through the PRD template focusing on project management, milestone tracking, and implementation planning. Documentation updates should be included as part of the implementation milestones.
 
 **Key Principle**: Focus on 5-10 major milestones rather than exhaustive task lists. Each milestone should represent meaningful progress that can be clearly validated.
@@ -85,9 +85,9 @@ Work through the PRD template focusing on project management, milestone tracking
 
 ## Discussion Guidelines
 
-### PRD Planning Questions:
+### PRD Planning Questions
 1. **Problem Understanding**: "What specific problem does this feature solve for users?"
-2. **User Impact**: "Walk me through the complete user journey - what will change for them?"
+2. **User Impact**: "Walk me through the complete user journey — what will change for them?"
 3. **Technical Scope**: "What are the core technical changes required?"
 4. **Documentation Impact**: "Which existing docs need updates? What new docs are needed?"
 5. **Integration Points**: "How does this feature integrate with existing systems?"

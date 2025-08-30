@@ -149,6 +149,10 @@ describe('Recommend Tool', () => {
       expect(promptContent).toContain('Intent Analysis for Comprehensive Clarification');
       expect(promptContent).toContain('{intent}');
       expect(promptContent).toContain('clarificationOpportunities');
+      expect(promptContent).toContain('reasoning');
+      expect(promptContent).toContain('suggestedQuestions');
+      expect(promptContent).not.toContain('category');
+      expect(promptContent).not.toContain('impactLevel');
       expect(promptContent).toContain('organizational_patterns');
     });
 
