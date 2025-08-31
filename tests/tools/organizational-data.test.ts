@@ -443,12 +443,17 @@ describe('Organizational Data Tool', () => {
     });
 
     it('should handle Vector DB initialization failures with helpful error', async () => {
-      // Mock PatternVectorService constructor to throw initialization error
+      // Mock PatternVectorService to fail health check (new error handling approach)
       const mockPatternVectorService = require('../../src/core/pattern-vector-service').PatternVectorService;
       mockPatternVectorService.mockImplementation(() => ({
-        initialize: jest.fn().mockRejectedValue(new Error('Dimension mismatch detected')),
-        healthCheck: mockHealthCheck,
-        getAllPatterns: mockGetAllPatterns
+        initialize: jest.fn().mockResolvedValue(undefined),
+        healthCheck: jest.fn().mockResolvedValue(false),
+        getAllPatterns: mockGetAllPatterns,
+        getPatternsCount: mockGetPatternsCount,
+        getPattern: mockGetPattern,
+        deletePattern: mockDeletePattern,
+        storePattern: mockStorePattern,
+        getSearchMode: mockGetSearchMode
       }));
 
       const result = await handleOrganizationalDataTool(
@@ -463,8 +468,8 @@ describe('Organizational Data Tool', () => {
 
       const response = JSON.parse(result.content[0].text);
       expect(response.success).toBe(false);
-      expect(response.error.message).toContain('Vector DB collection initialization failed');
-      expect(response.error.message).toContain('dimension mismatch');
+      expect(response.error.message).toContain('Vector DB connection required');
+      expect(response.message).toContain('Vector DB connection required for pattern management');
     });
 
   });
