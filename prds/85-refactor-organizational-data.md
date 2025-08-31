@@ -87,16 +87,16 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 - **Applies to ALL Modules**: patterns, policies, capabilities, and any future domains
 
 ### Milestone 3: Capability CRUD Operations ✅ Testable
-- [ ] Create `src/core/capability-operations.ts`
-- [ ] Move capability CRUD handlers one by one:
-  - [ ] `handleCapabilityList`
-  - [ ] `handleCapabilityGet`
-  - [ ] `handleCapabilityDelete`
-  - [ ] `handleCapabilityDeleteAll`
-  - [ ] `handleCapabilitySearch`
-  - [ ] `handleCapabilityProgress`
-- [ ] Test after each function move
-- [ ] Verify all tests pass (`npm test`)
+- [x] Create `src/core/capability-operations.ts`
+- [x] Move capability CRUD handlers one by one:
+  - [x] `handleCapabilityList`
+  - [x] `handleCapabilityGet`
+  - [x] `handleCapabilityDelete`
+  - [x] `handleCapabilityDeleteAll`
+  - [x] `handleCapabilitySearch`
+  - [x] `handleCapabilityProgress`
+- [x] Test after each function move
+- [x] Verify all tests pass (`npm test`)
 
 **Success Criteria**: All capability CRUD operations working from new module
 
@@ -158,7 +158,7 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 ## Success Metrics
 
 ### Quantitative
-- [x] File size: `organizational-data.ts` reduced significantly (3,329 → 2,275 lines, 32% reduction)
+- [x] File size: `organizational-data.ts` reduced significantly (3,329 → 1,646 lines, 51% reduction)
 - [x] Test coverage: 100% of existing tests continue to pass
 - [ ] Build time: No degradation in `npm run build`
 - [x] Module count: 3 focused modules created (policies, patterns, capabilities)
@@ -176,6 +176,17 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 3. Should this refactoring include any performance optimizations?
 
 ## Progress Log
+
+**2025-08-31 - Session 4**: Milestone 3 Complete - Capability CRUD Operations Migration
+- **Duration**: ~1 hour
+- **Primary Focus**: Capability CRUD operations module extraction
+- **Code Reduction**: 2,275 → 1,646 lines (-629 lines, 28% additional reduction)
+- **Total Reduction**: 3,329 → 1,646 lines (-1,683 lines, 51% total reduction)
+- **Module Created**: `src/core/capability-operations.ts` (6 functions: list, get, delete, deleteAll, search, progress)
+- **Functions Migrated**: All capability CRUD operations with session management and search functionality
+- **Architecture Consistency**: Followed established dependency injection pattern for shared utilities
+- **Validation**: All 866 tests passing across 38 suites ✅
+- **Next Priority**: Milestone 4 (Capability scan workflow migration - remaining ~1,200 lines)
 
 **2025-08-31 - Session 3**: Milestone 2 Complete - Pattern Operations Migration
 - **Duration**: ~1 hour  
