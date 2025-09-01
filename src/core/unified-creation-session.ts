@@ -926,7 +926,7 @@ Please try again or modify your policy description.`,
     
     // Use existing searchCapabilities function - no fallback, let it throw if it fails
     const searchResults = await capabilityService.searchCapabilities(searchQuery, { 
-      limit: 25 // Higher limit to get more relevant resources
+      limit: 50 // Higher limit to get more relevant resources - aligns with recommendation tool
     });
     
     if (searchResults.length === 0) {

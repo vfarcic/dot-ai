@@ -1053,7 +1053,7 @@ export class ResourceRecommender {
           const resourceContext = solution.resources.map(r => `${r.kind} ${r.description}`).join(' ');
           const policyResults = await this.policyService.searchPolicyIntents(
             `${intent} ${resourceContext}`,
-            { limit: 25 }
+            { limit: 50 }
           );
           relevantPolicyResults = policyResults.map(result => ({
             policy: result.data,
