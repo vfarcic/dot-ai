@@ -1,0 +1,120 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-database-regional-deployment
+  labels:
+    policy-intent/id: e6406071-4f25-4a11-86a6-600870d8a503
+  annotations:
+    policy-intent/description: "Databases in Google Cloud (GCP) should always run in the us-east1 region, those in Azure should always run in the eastus region, and those in AWS should run in the us-east-1 region."
+    policy-intent/rationale: "This policy ensures consistent data locality and compliance by standardizing database regions across cloud providers. It reduces latency for applications deployed in eastern regions, simplifies disaster recovery planning, and helps meet data residency requirements. Standardized regional placement also reduces operational complexity and prevents data from being accidentally deployed in non-compliant regions."
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+  - name: validate-gcp-database-region
+    match:
+      any:
+      - resources:
+          kinds:
+          - sql.gcp.m.upbound.io/v1beta1/DatabaseInstance
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            !has(object.spec.forProvider.region) || 
+            object.spec.forProvider.region == 'us-east1'
+          message: "GCP databases must be deployed in the us-east1 region for compliance and data locality requirements"
+        - expression: >-
+            !has(object.spec.initProvider.region) || 
+            object.spec.initProvider.region == 'us-east1'
+          message: "GCP databases must be deployed in the us-east1 region for compliance and data locality requirements"
+
+  - name: validate-aws-rds-region
+    match:
+      any:
+      - resources:
+          kinds:
+          - rds.aws.m.upbound.io/v1beta1/GlobalCluster
+          - rds.aws.m.upbound.io/v1beta1/Cluster
+          - rds.aws.m.upbound.io/v1beta1/Instance
+          - rds.aws.m.upbound.io/v1beta1/ClusterInstance
+          - rds.aws.m.upbound.io/v1beta1/OptionGroup
+          - rds.aws.m.upbound.io/v1beta1/ParameterGroup
+          - rds.aws.m.upbound.io/v1beta1/DBSnapshotCopy
+          - rds.aws.m.upbound.io/v1beta1/ClusterParameterGroup
+          - rds.aws.m.upbound.io/v1beta1/SubnetGroup
+          - rds.aws.m.upbound.io/v1beta1/ClusterSnapshot
+          - rds.aws.m.upbound.io/v1beta1/DBInstanceAutomatedBackupsReplication
+          - rds.aws.m.upbound.io/v1beta1/InstanceState
+          - rds.aws.m.upbound.io/v1beta1/Proxy
+          - rds.aws.m.upbound.io/v1beta1/Snapshot
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            !has(object.spec.forProvider.region) || 
+            object.spec.forProvider.region == 'us-east-1'
+          message: "AWS RDS resources must be deployed in the us-east-1 region for compliance and data locality requirements"
+        - expression: >-
+            !has(object.spec.initProvider.region) || 
+            object.spec.initProvider.region == 'us-east-1'
+          message: "AWS RDS resources must be deployed in the us-east-1 region for compliance and data locality requirements"
+
+  - name: validate-azure-postgresql-region
+    match:
+      any:
+      - resources:
+          kinds:
+          - dbforpostgresql.azure.m.upbound.io/v1beta1/Server
+          - dbforpostgresql.azure.m.upbound.io/v1beta1/FlexibleServer
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            !has(object.spec.forProvider.location) || 
+            object.spec.forProvider.location == 'eastus'
+          message: "Azure PostgreSQL databases must be deployed in the eastus region for compliance and data locality requirements"
+        - expression: >-
+            !has(object.spec.initProvider.location) || 
+            object.spec.initProvider.location == 'eastus'
+          message: "Azure PostgreSQL databases must be deployed in the eastus region for compliance and data locality requirements"
+
+  - name: validate-multicloud-sql-region
+    match:
+      any:
+      - resources:
+          kinds:
+          - devopstoolkit.live/v1beta1/SQL
+          namespaces:
+          - a-team
+          - b-team
+          operations:
+          - CREATE
+          - UPDATE
+    validate:
+      cel:
+        expressions:
+        - expression: >-
+            !has(object.spec.region) || 
+            object.spec.region == 'us-east1' || 
+            object.spec.region == 'us-east-1' || 
+            object.spec.region == 'eastus'
+          message: "Multi-cloud SQL databases must be deployed in approved eastern regions for compliance and data locality requirements"
