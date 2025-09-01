@@ -2802,7 +2802,7 @@ describe('ResourceRecommender - Policy-Aware Question Generation', () => {
       expect(solutions).toHaveLength(1);
       expect(mockSearchPolicyIntents).toHaveBeenCalledWith(
         expect.stringContaining(intent),
-        { limit: 25 }
+        { limit: 50 }
       );
       
       // Verify policy context was included in question generation prompt
