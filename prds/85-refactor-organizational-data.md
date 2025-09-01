@@ -101,18 +101,18 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 **Success Criteria**: All capability CRUD operations working from new module
 
 ### Milestone 4: Capability Scan Workflow Migration ✅ Testable
-- [ ] Create `src/core/capability-scan-workflow.ts`
-- [ ] Move scan workflow handlers one by one:
-  - [ ] `handleCapabilityScan`
-  - [ ] `handleResourceSelection`
-  - [ ] `handleResourceSpecification`
-  - [ ] `handleProcessingMode`
-  - [ ] `handleScanning`
-- [ ] Move session management helpers
-- [ ] Test after each function move
-- [ ] Verify all tests pass (`npm test`)
+- [x] Create `src/core/capability-scan-workflow.ts`
+- [x] Move 4 workflow step handlers (keep orchestration in main file):
+  - [x] `handleResourceSelection`
+  - [x] `handleResourceSpecification` 
+  - [x] `handleProcessingMode`
+  - [x] `handleScanning`
+- [x] Update `handleCapabilityScan` to call workflow step functions from new module
+- [x] Test migration with `npm test`
 
-**Success Criteria**: Capability scanning workflow fully functional in new module
+**Success Criteria**: Workflow steps in focused module, orchestration remains in main file, all tests pass
+
+**Architecture Decision**: Keep `handleCapabilityScan` orchestration and session management in main file to avoid complex dependency injection. Only move the 4 specific workflow step functions to reduce file size while maintaining clear boundaries.
 
 ### Milestone 5: Router Simplification ✅ Testable
 - [ ] Simplify `handleCapabilitiesOperation` to route to handlers
@@ -158,7 +158,7 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 ## Success Metrics
 
 ### Quantitative
-- [x] File size: `organizational-data.ts` reduced significantly (3,329 → 1,646 lines, 51% reduction)
+- [x] File size: `organizational-data.ts` reduced significantly (3,329 → 794 lines, 76% reduction)
 - [x] Test coverage: 100% of existing tests continue to pass
 - [ ] Build time: No degradation in `npm run build`
 - [x] Module count: 3 focused modules created (policies, patterns, capabilities)
@@ -176,6 +176,19 @@ src/core/pattern-operations.ts      # Extend existing (~150 lines)
 3. Should this refactoring include any performance optimizations?
 
 ## Progress Log
+
+**2025-09-01 - Session 5**: Milestone 4 Complete - Capability Scan Workflow Migration
+- **Duration**: ~2 hours
+- **Primary Focus**: Capability scan workflow module extraction and comprehensive test migration
+- **Code Reduction**: 1,646 → 794 lines (-852 lines, 52% additional reduction)
+- **Total Reduction**: 3,329 → 794 lines (-2,535 lines, 76% total reduction)
+- **Module Created**: `src/core/capability-scan-workflow.ts` (914 lines with 4 workflow step handlers)
+- **Test Migration**: 12 workflow tests moved to `tests/core/capability-scan-workflow.test.ts`
+- **Functions Migrated**: `handleResourceSelection`, `handleResourceSpecification`, `handleProcessingMode`, `handleScanning`
+- **Mock Cleanup**: Removed unnecessary workflow-specific mocks from organizational-data.test.ts
+- **Architecture Consistency**: Maintained dependency injection pattern, kept orchestration in main file
+- **Validation**: All 866 tests passing across 39 suites ✅
+- **Next Priority**: Milestone 5 (Router simplification to target ~200-300 lines)
 
 **2025-08-31 - Session 4**: Milestone 3 Complete - Capability CRUD Operations Migration
 - **Duration**: ~1 hour
