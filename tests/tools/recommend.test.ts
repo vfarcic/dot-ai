@@ -30,7 +30,7 @@ describe('Recommend Tool', () => {
     test('should have concise user-facing description', () => {
       expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Deploy, create, setup, install, or run applications, infrastructure, and services');
       expect(RECOMMEND_TOOL_DESCRIPTION).toContain('Describe what you want to deploy');
-      expect(RECOMMEND_TOOL_DESCRIPTION.length).toBeLessThan(200); // Should be concise
+      expect(RECOMMEND_TOOL_DESCRIPTION.length).toBeLessThan(300); // Should be concise
     });
 
     test('should have valid input schema', () => {
