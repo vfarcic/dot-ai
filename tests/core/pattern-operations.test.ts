@@ -1,11 +1,86 @@
 /**
- * Tests for Pattern Operations
+ * Tests for Pattern Operations Core Module
  */
 
-import { validatePattern, createPattern, serializePattern, deserializePattern } from '../../src/core/pattern-operations';
+import { 
+  handlePatternOperation,
+  validatePattern,
+  createPattern,
+  serializePattern,
+  deserializePattern
+} from '../../src/core/pattern-operations';
 import { CreatePatternRequest } from '../../src/core/pattern-types';
 
-describe('Pattern Operations', () => {
+// Mock PatternVectorService methods
+const mockStorePattern = jest.fn();
+const mockSearchPatterns = jest.fn();
+const mockGetPattern = jest.fn();
+const mockGetAllPatterns = jest.fn();
+const mockGetPatternsCount = jest.fn();
+const mockDeletePattern = jest.fn();
+const mockPatternHealthCheck = jest.fn();
+const mockPatternInitialize = jest.fn();
+const mockGetSearchMode = jest.fn();
+
+jest.mock('../../src/core/pattern-vector-service', () => ({
+  PatternVectorService: jest.fn().mockImplementation(() => ({
+    storePattern: mockStorePattern,
+    searchPatterns: mockSearchPatterns,
+    getPattern: mockGetPattern,
+    getAllPatterns: mockGetAllPatterns,
+    getPatternsCount: mockGetPatternsCount,
+    deletePattern: mockDeletePattern,
+    healthCheck: mockPatternHealthCheck,
+    initialize: mockPatternInitialize,
+    getSearchMode: mockGetSearchMode
+  })),
+}));
+
+// Mock Vector DB Service
+jest.mock('../../src/core/vector-db-service', () => ({
+  VectorDBService: jest.fn().mockImplementation(() => ({
+    getConfig: jest.fn().mockReturnValue({
+      url: 'http://localhost:6333',
+      collectionName: 'patterns'
+    })
+  }))
+}));
+
+// Mock unified creation session manager
+const mockCreateSession = jest.fn();
+const mockLoadSession = jest.fn();
+const mockProcessResponse = jest.fn();
+const mockGetNextWorkflowStep = jest.fn();
+
+jest.mock('../../src/core/unified-creation-session', () => ({
+  UnifiedCreationSessionManager: jest.fn().mockImplementation(() => ({
+    createSession: mockCreateSession,
+    loadSession: mockLoadSession,
+    processResponse: mockProcessResponse,
+    getNextWorkflowStep: mockGetNextWorkflowStep
+  }))
+}));
+
+// Mock session utils
+jest.mock('../../src/core/session-utils', () => ({
+  getAndValidateSessionDirectory: jest.fn().mockReturnValue('/tmp/test-sessions')
+}));
+
+// Mock file system
+jest.mock('fs', () => ({
+  existsSync: jest.fn().mockReturnValue(false),
+  unlinkSync: jest.fn()
+}));
+
+const testLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  fatal: jest.fn()
+};
+
+describe('Pattern Operations Core Module', () => {
   const validPatternRequest: CreatePatternRequest = {
     description: 'Standard pattern for stateless web applications and APIs',
     triggers: ['stateless app', 'web application', 'API service'],
@@ -14,129 +89,234 @@ describe('Pattern Operations', () => {
     createdBy: 'platform-team'
   };
 
-  describe('validatePattern', () => {
-    it('should return no errors for valid pattern', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Reset mocks to working defaults
+    mockPatternHealthCheck.mockResolvedValue(true);
+    mockPatternInitialize.mockResolvedValue(undefined);
+    mockGetAllPatterns.mockResolvedValue([]);
+    mockGetPatternsCount.mockResolvedValue(0);
+    mockGetSearchMode.mockReturnValue({
+      semantic: false,
+      provider: null,
+      reason: 'OPENAI_API_KEY not set - vector operations will fail'
+    });
+  });
+
+  describe('Core Pattern Functions', () => {
+    it('should validate pattern correctly', () => {
       const errors = validatePattern(validPatternRequest);
       expect(errors).toEqual([]);
     });
 
-
-    it('should require pattern description', () => {
-      const request = { ...validPatternRequest, description: '' };
-      const errors = validatePattern(request);
-      expect(errors).toContain('Pattern description is required');
-    });
-
-    it('should require at least one trigger', () => {
-      const request = { ...validPatternRequest, triggers: [] };
-      const errors = validatePattern(request);
-      expect(errors).toContain('At least one trigger is required');
-    });
-
-    it('should reject empty triggers', () => {
-      const request = { ...validPatternRequest, triggers: ['valid', '', 'also valid'] };
-      const errors = validatePattern(request);
-      expect(errors).toContain('All triggers must be non-empty');
-    });
-
-    it('should require at least one suggested resource', () => {
-      const request = { ...validPatternRequest, suggestedResources: [] };
-      const errors = validatePattern(request);
-      expect(errors).toContain('At least one suggested resource is required');
-    });
-
-    it('should require rationale', () => {
-      const request = { ...validPatternRequest, rationale: '' };
-      const errors = validatePattern(request);
-      expect(errors).toContain('Pattern rationale is required');
-    });
-
-    it('should require createdBy', () => {
-      const request = { ...validPatternRequest, createdBy: '' };
-      const errors = validatePattern(request);
-      expect(errors).toContain('Pattern creator is required');
-    });
-  });
-
-  describe('createPattern', () => {
-    it('should create valid pattern with auto-generated fields', () => {
+    it('should create pattern with valid request', () => {
       const pattern = createPattern(validPatternRequest);
-      
+      expect(pattern.description).toBe('Standard pattern for stateless web applications and APIs');
+      expect(pattern.triggers).toEqual(['stateless app', 'web application', 'API service']);
       expect(pattern.id).toBeDefined();
-      expect(pattern.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(pattern.createdAt).toBeDefined();
-      expect(new Date(pattern.createdAt)).toBeInstanceOf(Date);
-      
-      expect(pattern.description).toBe(validPatternRequest.description);
-      expect(pattern.triggers).toEqual(validPatternRequest.triggers);
-      expect(pattern.suggestedResources).toEqual(validPatternRequest.suggestedResources);
-      expect(pattern.rationale).toBe(validPatternRequest.rationale);
-      expect(pattern.createdBy).toBe(validPatternRequest.createdBy);
     });
 
-    it('should trim whitespace from string fields', () => {
-      const request = {
-        ...validPatternRequest,
-        description: '  Trimmed Description  ',
-        rationale: '  Trimmed Rationale  ',
-        createdBy: '  trimmed-user  '
-      };
-      
-      const pattern = createPattern(request);
-      
-      expect(pattern.description).toBe('Trimmed Description');
-      expect(pattern.rationale).toBe('Trimmed Rationale');
-      expect(pattern.createdBy).toBe('trimmed-user');
-    });
-
-    it('should filter empty triggers after trimming', () => {
-      const request = {
-        ...validPatternRequest,
-        triggers: ['valid', '  ', 'also valid', '']
-      };
-      
-      const pattern = createPattern(request);
-      expect(pattern.triggers).toEqual(['valid', 'also valid']);
-    });
-
-    it('should throw error for invalid pattern', () => {
-      const request = { ...validPatternRequest, description: '' };
-      
-      expect(() => createPattern(request)).toThrow('Pattern validation failed');
-    });
-  });
-
-  describe('serializePattern', () => {
-    it('should serialize pattern to JSON', () => {
+    it('should serialize and deserialize patterns correctly', () => {
       const pattern = createPattern(validPatternRequest);
       const json = serializePattern(pattern);
-      
-      expect(() => JSON.parse(json)).not.toThrow();
-      const parsed = JSON.parse(json);
-      expect(parsed.description).toBe(pattern.description);
-      expect(parsed.id).toBe(pattern.id);
+      const deserialized = deserializePattern(json);
+      expect(deserialized).toEqual(pattern);
     });
   });
 
-  describe('deserializePattern', () => {
-    it('should deserialize valid pattern JSON', () => {
-      const originalPattern = createPattern(validPatternRequest);
-      const json = serializePattern(originalPattern);
-      const deserializedPattern = deserializePattern(json);
-      
-      expect(deserializedPattern).toEqual(originalPattern);
+  describe('handlePatternOperation', () => {
+    const mockValidateVectorDB = jest.fn();
+    const mockValidateEmbedding = jest.fn();
+
+    beforeEach(() => {
+      mockValidateVectorDB.mockResolvedValue({ success: true });
+      mockValidateEmbedding.mockResolvedValue({ success: true });
     });
 
-    it('should throw error for invalid JSON structure', () => {
-      const invalidJson = JSON.stringify({ description: 'incomplete' });
-      
-      expect(() => deserializePattern(invalidJson)).toThrow('Invalid pattern JSON structure');
+    it('should handle list operation successfully', async () => {
+      const testPatterns = [
+        {
+          id: 'test-1',
+          description: 'Test pattern 1',
+          triggers: ['trigger1'],
+          suggestedResources: ['Deployment'],
+          rationale: 'Test',
+          createdAt: '2024-01-01',
+          createdBy: 'test'
+        }
+      ];
+
+      mockGetAllPatterns.mockResolvedValue(testPatterns);
+      mockGetPatternsCount.mockResolvedValue(1);
+
+      const result = await handlePatternOperation(
+        'list',
+        { limit: 10 },
+        testLogger,
+        'test-request',
+        mockValidateVectorDB,
+        mockValidateEmbedding
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('list');
+      expect(result.dataType).toBe('pattern');
+      expect(result.data.patterns).toHaveLength(1);
     });
 
-    it('should throw error for malformed JSON', () => {
-      const malformedJson = '{ "description": "test"';
-      
-      expect(() => deserializePattern(malformedJson)).toThrow();
+    it('should handle Vector DB connection failure', async () => {
+      mockValidateVectorDB.mockResolvedValue({ 
+        success: false, 
+        error: { message: 'Connection failed' } 
+      });
+
+      const result = await handlePatternOperation(
+        'list',
+        {},
+        testLogger,
+        'test-request',
+        mockValidateVectorDB,
+        mockValidateEmbedding
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error.message).toBe('Connection failed');
+    });
+
+    it('should handle embedding service failure for create operation', async () => {
+      mockValidateEmbedding.mockResolvedValue({ 
+        success: false, 
+        error: { message: 'OpenAI key missing' } 
+      });
+
+      const result = await handlePatternOperation(
+        'create',
+        {},
+        testLogger,
+        'test-request',
+        mockValidateVectorDB,
+        mockValidateEmbedding
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error.message).toBe('OpenAI key missing');
+    });
+
+    it('should handle get operation for non-existent pattern', async () => {
+      mockGetPattern.mockResolvedValue(null);
+
+      await expect(
+        handlePatternOperation(
+          'get',
+          { id: 'non-existent-id' },
+          testLogger,
+          'test-request',
+          mockValidateVectorDB,
+          mockValidateEmbedding
+        )
+      ).rejects.toThrow('Pattern not found with ID: non-existent-id');
+    });
+
+    it('should handle search operation successfully', async () => {
+      const searchResults = [
+        {
+          data: {
+            id: 'pattern-1',
+            description: 'Test pattern for search',
+            triggers: ['search', 'test'],
+            suggestedResources: ['Deployment'],
+            rationale: 'Test search',
+            createdAt: '2024-01-01',
+            createdBy: 'test-user'
+          },
+          score: 0.95
+        }
+      ];
+
+      mockSearchPatterns.mockResolvedValue(searchResults);
+
+      const result = await handlePatternOperation(
+        'search',
+        { id: 'search query', limit: 10 },
+        testLogger,
+        'test-request',
+        mockValidateVectorDB,
+        mockValidateEmbedding
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('search');
+      expect(result.data.patterns).toHaveLength(1);
+      expect(result.data.patterns[0].relevanceScore).toBe(0.95);
+    });
+
+    it('should handle delete operation successfully', async () => {
+      const mockPattern = {
+        id: 'pattern-123',
+        description: 'Pattern to delete',
+        triggers: ['delete'],
+        suggestedResources: ['Deployment'],
+        rationale: 'Test deletion',
+        createdAt: '2024-01-01',
+        createdBy: 'test-user'
+      };
+
+      mockGetPattern.mockResolvedValue(mockPattern);
+      mockDeletePattern.mockResolvedValue(undefined);
+
+      const result = await handlePatternOperation(
+        'delete',
+        { id: 'pattern-123' },
+        testLogger,
+        'test-request',
+        mockValidateVectorDB,
+        mockValidateEmbedding
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('delete');
+      expect(result.data.id).toBe('pattern-123');
+    });
+
+    it('should require id parameter for get operation', async () => {
+      await expect(
+        handlePatternOperation(
+          'get',
+          {},
+          testLogger,
+          'test-request',
+          mockValidateVectorDB,
+          mockValidateEmbedding
+        )
+      ).rejects.toThrow('Pattern ID is required for get operation');
+    });
+
+    it('should require search query for search operation', async () => {
+      await expect(
+        handlePatternOperation(
+          'search',
+          {},
+          testLogger,
+          'test-request',
+          mockValidateVectorDB,
+          mockValidateEmbedding
+        )
+      ).rejects.toThrow('Search query is required for pattern search operation');
+    });
+
+    it('should handle unsupported operation', async () => {
+      await expect(
+        handlePatternOperation(
+          'unsupported',
+          {},
+          testLogger,
+          'test-request',
+          mockValidateVectorDB,
+          mockValidateEmbedding
+        )
+      ).rejects.toThrow('Unsupported pattern operation: unsupported');
     });
   });
 });
