@@ -6,7 +6,7 @@
  */
 
 import { Logger } from './error-handling';
-import { CapabilityVectorService } from './index';
+import { CapabilityVectorService } from './capability-vector-service';
 import { CapabilityInferenceEngine } from './capabilities';
 import { getAndValidateSessionDirectory } from './session-utils';
 import * as fs from 'fs';
@@ -43,8 +43,9 @@ export async function handleCapabilityList(
   capabilityService: CapabilityVectorService
 ): Promise<any> {
   try {
-    // Get all capabilities with optional limit
-    const limit = args.limit || 10;
+    // Get all capabilities with validated limit
+    const rawLimit = Number(args.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 10;
     const capabilities = await capabilityService.getAllCapabilities(limit);
     const count = await capabilityService.getCapabilitiesCount();
     
@@ -60,15 +61,18 @@ export async function handleCapabilityList(
       operation: 'list',
       dataType: 'capabilities',
       data: {
-        capabilities: capabilities.map(cap => ({
-          id: (cap as any).id,
-          resourceName: cap.resourceName,
-          capabilities: cap.capabilities,
-          description: cap.description.length > 100 ? cap.description.substring(0, 100) + '...' : cap.description,
-          complexity: cap.complexity,
-          confidence: cap.confidence,
-          analyzedAt: cap.analyzedAt
-        })),
+        capabilities: capabilities.map(cap => {
+          const desc = typeof cap.description === 'string' ? cap.description : '';
+          return {
+            id: (cap as any).id ?? CapabilityInferenceEngine.generateCapabilityId(cap.resourceName),
+            resourceName: cap.resourceName,
+            capabilities: cap.capabilities,
+            description: desc.length > 100 ? desc.slice(0, 100) + '...' : desc,
+            complexity: cap.complexity,
+            confidence: cap.confidence,
+            analyzedAt: cap.analyzedAt
+          };
+        }),
         totalCount: count,
         returnedCount: capabilities.length,
         limit

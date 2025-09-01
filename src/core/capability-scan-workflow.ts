@@ -6,7 +6,7 @@
  */
 
 import { Logger } from './error-handling';
-import { CapabilityVectorService } from './index';
+import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { CapabilityInferenceEngine } from './capabilities';
 import { ClaudeIntegration } from './claude';
