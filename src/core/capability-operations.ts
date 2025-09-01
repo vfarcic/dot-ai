@@ -697,3 +697,64 @@ export async function handleCapabilitySearch(
     };
   }
 }
+
+/**
+ * Consolidated CRUD operations handler with service initialization
+ * Handles list, get, search, delete, deleteAll operations with proper Vector DB setup
+ */
+export async function handleCapabilityCRUD(
+  operation: string,
+  args: any,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  // Create and initialize capability service for CRUD operations
+  const capabilityService = new CapabilityVectorService();
+  try {
+    const vectorDBHealthy = await capabilityService.healthCheck();
+    if (!vectorDBHealthy) {
+      return {
+        success: false,
+        operation,
+        dataType: 'capabilities',
+        error: {
+          message: 'Vector DB (Qdrant) connection required',
+          details: 'Capability operations require a working Qdrant connection.',
+          setup: {
+            docker: 'docker run -p 6333:6333 qdrant/qdrant',
+            config: 'export QDRANT_URL=http://localhost:6333'
+          }
+        }
+      };
+    }
+    
+    await capabilityService.initialize();
+    
+    // Route to specific CRUD operation
+    switch (operation) {
+      case 'list':
+        return await handleCapabilityList(args, logger, requestId, capabilityService);
+      case 'get':
+        return await handleCapabilityGet(args, logger, requestId, capabilityService);
+      case 'search':
+        return await handleCapabilitySearch(args, logger, requestId, capabilityService);
+      case 'delete':
+        return await handleCapabilityDelete(args, logger, requestId, capabilityService);
+      case 'deleteAll':
+        return await handleCapabilityDeleteAll(args, logger, requestId, capabilityService);
+      default:
+        throw new Error(`Unexpected CRUD operation: ${operation}`);
+    }
+  } catch (error) {
+    logger.error(`Capability ${operation} operation failed`, error as Error, { requestId });
+    return {
+      success: false,
+      operation,
+      dataType: 'capabilities',
+      error: {
+        message: `Capability ${operation} failed`,
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}

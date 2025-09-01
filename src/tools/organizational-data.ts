@@ -19,7 +19,7 @@ import { getAndValidateSessionDirectory } from '../core/session-utils';
 import { EmbeddingService } from '../core/embedding-service';
 import { handlePolicyOperation as handlePolicyOperationCore } from '../core/policy-operations';
 import { handlePatternOperation as handlePatternOperationCore } from '../core/pattern-operations';
-import { handleCapabilityList, handleCapabilityGet, handleCapabilityDelete, handleCapabilityDeleteAll, handleCapabilityProgress, handleCapabilitySearch } from '../core/capability-operations';
+import { handleCapabilityProgress, handleCapabilityCRUD } from '../core/capability-operations';
 import { handleResourceSelection as handleResourceSelectionCore, handleResourceSpecification as handleResourceSpecificationCore, handleProcessingMode as handleProcessingModeCore, handleScanning as handleScanningCore } from '../core/capability-scan-workflow';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -216,69 +216,29 @@ async function handleCapabilitiesOperation(
     case 'get':
     case 'search':
     case 'delete':
-    case 'deleteAll': {
-      // Create and initialize capability service for list/get/delete operations
-      const capabilityService = new CapabilityVectorService();
-      try {
-        const vectorDBHealthy = await capabilityService.healthCheck();
-        if (!vectorDBHealthy) {
-          return {
-            success: false,
-            operation,
-            dataType: 'capabilities',
-            error: {
-              message: 'Vector DB (Qdrant) connection required',
-              details: 'Capability operations require a working Qdrant connection.',
-              setup: {
-                docker: 'docker run -p 6333:6333 qdrant/qdrant',
-                config: 'export QDRANT_URL=http://localhost:6333'
-              }
-            }
-          };
-        }
-        
-        await capabilityService.initialize();
-        
-        if (operation === 'list') {
-          return await handleCapabilityList(args, logger, requestId, capabilityService);
-        } else if (operation === 'get') {
-          return await handleCapabilityGet(args, logger, requestId, capabilityService);
-        } else if (operation === 'search') {
-          return await handleCapabilitySearch(args, logger, requestId, capabilityService);
-        } else if (operation === 'delete') {
-          return await handleCapabilityDelete(args, logger, requestId, capabilityService);
-        } else if (operation === 'deleteAll') {
-          return await handleCapabilityDeleteAll(args, logger, requestId, capabilityService);
-        } else {
-          // This should never happen since we already check the operation in the switch case
-          throw new Error(`Unexpected operation: ${operation}`);
-        }
-      } catch (error) {
-        logger.error(`Capability ${operation} operation failed`, error as Error, { requestId });
-        return {
-          success: false,
-          operation,
-          dataType: 'capabilities',
-          error: {
-            message: `Capability ${operation} failed`,
-            details: error instanceof Error ? error.message : String(error)
-          }
-        };
-      }
-    }
+    case 'deleteAll':
+      return await handleCapabilityCRUD(operation, args, logger, requestId);
     
     default:
-      return {
-        success: false,
-        operation,
-        dataType: 'capabilities',
-        error: {
-          message: `Unsupported capabilities operation: ${operation}`,
-          supportedOperations: ['scan', 'list', 'get', 'delete', 'deleteAll']
-        }
-      };
+      return createUnsupportedOperationError(operation, 'capabilities', ['scan', 'progress', 'list', 'get', 'search', 'delete', 'deleteAll']);
   }
 }
+
+/**
+ * Create unsupported operation error response
+ */
+function createUnsupportedOperationError(operation: string, dataType: string, supportedOperations: string[]) {
+  return {
+    success: false,
+    operation,
+    dataType,
+    error: {
+      message: `Unsupported ${dataType} operation: ${operation}`,
+      supportedOperations
+    }
+  };
+}
+
 
 /**
  * Convert numeric response to option value
