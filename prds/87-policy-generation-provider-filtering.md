@@ -48,41 +48,49 @@ Through investigation, we identified multiple contributing factors:
 ## Solution Approach
 
 ### Core Strategy
-Enhance policy generation with provider-aware filtering by ensuring the AI has both rich schema information AND explicit filtering instructions that work for ANY provider.
+Enhance policy generation with provider-aware filtering through enhanced AI prompt instructions while maintaining lightweight, reliable schema retrieval that mirrors the successful recommendation tool architecture.
 
 ### Solution Components
 
-#### 1. Schema Information Enhancement
+#### 1. Schema Retrieval Strategy ✅ RESOLVED
 **Problem**: Policy generation AI gets minimal schema info compared to capability inference AI.
 
-**Solution**: Update schema retrieval in policy generation to match capability inference approach:
-- **Custom Resources (CRDs)**: Use `kubectl get crd resourcename -o yaml` instead of `kubectl explain`
-- **Core Resources**: Continue using `kubectl explain --recursive`
-- **Result**: Policy AI gets same rich descriptions, validation rules, and metadata that capability AI uses
+**Original Solution**: Use comprehensive CRD YAML retrieval for richer metadata
+**ARCHITECTURAL DECISION**: Use lightweight `kubectl explain --recursive` for all resources
+**Final Approach**: 
+- **All Resources**: Use `kubectl explain --recursive` (lightweight, reliable)
+- **Enhanced AI Filtering**: Comprehensive provider filtering instructions in prompt
+- **Result**: Equivalent filtering capability without token limit issues (mirrors recommendation tool)
+**Status**: Implemented and validated
 
-#### 2. AI Prompt Enhancement
+#### 2. AI Prompt Enhancement ✅ RESOLVED
 **Problem**: No instructions for provider context filtering.
 
-**Solution**: Add provider filtering section to `prompts/kyverno-generation.md`:
+**Solution**: Enhanced `prompts/kyverno-generation.md` with Universal Provider Filtering section:
 - Instructions to extract provider context from policy intent (any provider, not just major ones)
 - Guidelines to match resources to providers using schema metadata and naming patterns
 - Requirements to document filtering decisions in generated policy comments
 - Examples covering various provider types (major clouds, niche providers, custom operators)
+**Status**: Implemented and tested successfully
 
-#### 3. Metadata Integration (Fallback)
-**Problem**: If CRD definitions don't provide sufficient provider context.
+#### 3. Metadata Integration (Fallback) ✅ NOT NEEDED
+**Original Problem**: If CRD definitions don't provide sufficient provider context.
 
-**Solution**: Pass capability metadata alongside schemas:
-- Include providers, capabilities, description, use case from vector database
-- Format metadata clearly for AI consumption
-- Provide both schema structure AND analyzed metadata
+**ARCHITECTURAL DECISION**: Enhanced AI prompt filtering provides sufficient capability
+**Resolution**: AI prompt approach handles provider detection effectively using:
+- CRD descriptions and field documentation analysis
+- API group domain pattern recognition  
+- Provider-specific configuration section detection
+**Status**: Fallback approach not required
 
 ### Technical Implementation
 
-The solution involves changes to:
-1. `src/core/unified-creation-session.ts` - Schema retrieval logic
-2. `prompts/kyverno-generation.md` - AI filtering instructions for any provider
-3. Test suites - Comprehensive provider filtering validation across diverse providers
+**FINAL IMPLEMENTATION** (based on architectural decisions):
+1. ✅ **NO CHANGES** to `src/core/unified-creation-session.ts` - Kept existing lightweight schema retrieval
+2. ✅ **ENHANCED** `prompts/kyverno-generation.md` - Added Universal Provider Filtering section
+3. 🔄 **PENDING** Test suites - Comprehensive provider filtering validation across diverse providers
+
+**Key Implementation Insight**: Minimal code changes required. Solution achieved through prompt engineering rather than system architecture changes, resulting in more maintainable and flexible approach.
 
 ## Success Criteria
 
@@ -161,7 +169,26 @@ The solution involves changes to:
 
 **Success Criteria**: Full test coverage for provider filtering functionality across all provider types
 
-### Milestone 5: Documentation and Launch
+### Milestone 5: Resource Discovery Optimization
+**Goal**: Optimize resource discovery for better coverage and accuracy
+
+**Tasks**:
+- [ ] Increase resource discovery limit from 25 to 50 resources
+- [ ] Update unified-creation-session.ts with new limit configuration
+- [ ] Test policy generation with increased resource discovery across different policy types
+- [ ] Monitor performance impact and token usage with 50 resources
+- [ ] Validate filtering quality doesn't degrade with additional resources
+- [ ] Add logging for resource discovery metrics (count, relevance scores, timing)
+
+**Success Criteria**: Improved resource discovery accuracy without performance or quality degradation
+
+**Implementation Notes**:
+- Analysis shows 50 resources = 34K tokens (17% of 200K limit, plenty of headroom)
+- Expected performance impact: ~2.5 seconds additional kubectl calls
+- Aligns with recommendation tool which successfully uses 50-resource limit
+- Should improve coverage for complex policies in large clusters
+
+### Milestone 6: Documentation and Launch
 **Goal**: Feature is documented and ready for users
 
 **Tasks**:
@@ -172,16 +199,67 @@ The solution involves changes to:
 
 **Success Criteria**: Feature is documented and launched with clear universal provider support
 
+## Architectural Decisions
+
+### Decision Log
+
+#### Decision #1: Schema Retrieval Strategy (2025-09-01) ✅ RESOLVED
+**Decision**: Use lightweight `kubectl explain` instead of comprehensive CRD YAML retrieval
+**Original Plan**: Milestone 1 aimed to use full CRD definitions for richer metadata
+**Chosen Approach**: Reverted to `kubectl explain --recursive` + enhanced AI prompt filtering
+**Rationale**: 
+- Comprehensive approach caused token limit issues (225KB > 200K limit)
+- Lightweight approach works reliably (58KB well under limit)
+- Mirrors successful recommendation tool architecture
+- Enhanced AI prompt provides equivalent filtering capability
+**Impact**: Major architectural simplification that improved reliability while maintaining functionality
+**Owner**: Development team based on testing evidence
+
+#### Decision #2: Provider Filtering Implementation (2025-09-01) ✅ RESOLVED
+**Decision**: Implement provider filtering in AI prompt rather than code pre-filtering
+**Alternative Considered**: Filter search results before schema retrieval in TypeScript code
+**Chosen Approach**: Enhanced AI prompt with comprehensive provider filtering instructions
+**Rationale**: 
+- More flexible for handling edge cases and unknown providers
+- Leverages AI's natural language processing capabilities
+- Easier to maintain and extend for new provider types
+- Works within existing architecture without major code changes
+**Impact**: Achieved universal provider support with minimal implementation complexity
+**Owner**: Development team based on prompt engineering success
+
+#### Decision #3: Resource Discovery Limit (2025-09-01) 🤔 UNDER CONSIDERATION
+**Decision**: Consider increasing resource limit from 25 to 50
+**Current State**: 25 resources with 20K tokens (10% of limit usage)
+**Proposed Change**: 50 resources with 34K tokens (17% of limit usage)
+**Rationale**: 
+- Better coverage for complex policies in large clusters
+- Consistency with recommendation tool (already uses 50)
+- Significant headroom available (83% remaining capacity)
+- Minimal performance impact (~2.5 seconds additional kubectl calls)
+**Impact**: Would improve accuracy without technical risks
+**Status**: Analysis complete, implementation pending decision
+
+### Open Architecture Questions
+- Should we implement resource limit as configurable parameter?
+- Do we need score-based filtering for very low relevance resources?
+- Should we add performance monitoring for policy generation timing?
+
 ## Risk Assessment
 
 ### Technical Risks
-- **Risk**: CRD definitions might not contain sufficient provider context for all providers
-  - **Mitigation**: Fallback to passing capability metadata if CRD approach insufficient
-  - **Probability**: Low (investigation shows CRDs typically have rich provider information)
+- ✅ **RESOLVED**: ~~CRD definitions might not contain sufficient provider context~~ 
+  - **Resolution**: Architectural Decision #1 - Using AI prompt filtering with kubectl explain provides sufficient context
+  
+- ✅ **RESOLVED**: ~~Performance impact from retrieving full CRD definitions~~
+  - **Resolution**: Architectural Decision #1 - Lightweight kubectl explain approach eliminates performance concerns
 
-- **Risk**: Performance impact from retrieving full CRD definitions
-  - **Mitigation**: Monitor policy generation time, optimize if needed
-  - **Probability**: Low (capability inference already does this successfully)
+- **Risk**: Resource discovery limit (25) might miss relevant resources in large clusters
+  - **Mitigation**: Analysis shows 50-resource limit is feasible (Decision #3 under consideration)
+  - **Probability**: Medium (dependent on cluster size and policy complexity)
+
+- **Risk**: Token limit issues if increasing resource discovery
+  - **Mitigation**: Current analysis shows 50 resources = 34K tokens (83% headroom remaining)
+  - **Probability**: Low (well within Claude's 200K token limit)
 
 ### User Experience Risks
 - **Risk**: AI might over-filter and exclude valid resources for lesser-known providers
