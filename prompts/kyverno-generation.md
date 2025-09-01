@@ -247,7 +247,7 @@ Include a concise comment line explaining why each resource is included or skipp
 **CRITICAL CEL SYNTAX RULES:**
 - ✅ **CORRECT**: `object.spec.containers` - Use `object` to reference the resource being validated
 - ❌ **WRONG**: `request.object.spec.containers` - Do NOT use `request.object` prefix  
-- ✅ **CORRECT**: `has(object.metadata.labels['app'])`
+- ✅ **CORRECT**: `'app' in object.metadata.labels`
 - ❌ **WRONG**: `has(request.object.metadata.labels['app'])`
 
 **KYVERNO MATCH SCHEMA RULES:**
