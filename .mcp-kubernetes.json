@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "dot-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "http://localhost:3456"
+      ]
+    }
+  }
+}

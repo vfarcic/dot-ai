@@ -7,6 +7,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
@@ -72,6 +75,10 @@ export interface MCPServerConfig {
   version: string;
   description: string;
   author?: string;
+  transport?: 'stdio' | 'http';
+  port?: number;
+  host?: string;
+  sessionMode?: 'stateful' | 'stateless';
 }
 
 export class MCPServer {
@@ -80,9 +87,13 @@ export class MCPServer {
   private initialized: boolean = false;
   private logger: Logger;
   private requestIdCounter: number = 0;
+  private config: MCPServerConfig;
+  private httpServer?: ReturnType<typeof createServer>;
+  private httpTransport?: StreamableHTTPServerTransport;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
+    this.config = config;
     this.logger = new ConsoleLogger('MCPServer');
 
     // Create McpServer instance
@@ -321,13 +332,122 @@ export class MCPServer {
   }
 
   async start(): Promise<void> {
+    // Get transport type from environment or config
+    const transportType = process.env.TRANSPORT_TYPE || this.config.transport || 'stdio';
+    
+    this.logger.info('Starting MCP Server', { 
+      transportType,
+      sessionMode: this.config.sessionMode || 'stateful'
+    });
+
+    if (transportType === 'http') {
+      await this.startHttpTransport();
+    } else {
+      await this.startStdioTransport();
+    }
+    
+    this.initialized = true;
+  }
+
+  private async startStdioTransport(): Promise<void> {
+    this.logger.info('Using STDIO transport');
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    this.initialized = true;
+  }
+
+  private async startHttpTransport(): Promise<void> {
+    const port = parseInt(process.env.PORT || '') || this.config.port || 3456;
+    const host = process.env.HOST || this.config.host || '0.0.0.0';
+    const sessionMode = process.env.SESSION_MODE || this.config.sessionMode || 'stateful';
+    
+    this.logger.info('Using HTTP/SSE transport', { port, host, sessionMode });
+
+    // Create HTTP transport with session management
+    this.httpTransport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: sessionMode === 'stateful' ? () => randomUUID() : undefined,
+      enableJsonResponse: false, // Use SSE for streaming
+      onsessioninitialized: (sessionId: string) => {
+        this.logger.info('Session initialized', { sessionId });
+      }
+    });
+
+    // Connect MCP server to transport
+    await this.server.connect(this.httpTransport);
+
+    // Create HTTP server
+    this.httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      this.logger.debug('HTTP request received', { 
+        method: req.method, 
+        url: req.url,
+        headers: req.headers 
+      });
+
+      // Handle CORS for browser-based clients
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id');
+      
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      // Parse request body for POST requests
+      let body: any = undefined;
+      if (req.method === 'POST') {
+        body = await this.parseRequestBody(req);
+      }
+
+      // Handle the request using the transport
+      try {
+        await this.httpTransport!.handleRequest(req, res, body);
+      } catch (error) {
+        this.logger.error('Error handling HTTP request', error as Error);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      }
+    });
+
+    // Start listening
+    await new Promise<void>((resolve, reject) => {
+      this.httpServer!.listen(port, host, () => {
+        this.logger.info(`HTTP server listening on ${host}:${port}`);
+        resolve();
+      }).on('error', reject);
+    });
+  }
+
+  private async parseRequestBody(req: IncomingMessage): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', () => {
+        try {
+          resolve(body ? JSON.parse(body) : undefined);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      req.on('error', reject);
+    });
   }
 
   async stop(): Promise<void> {
     await this.server.close();
+    
+    // Stop HTTP server if running
+    if (this.httpServer) {
+      await new Promise<void>((resolve) => {
+        this.httpServer!.close(() => {
+          this.logger.info('HTTP server stopped');
+          resolve();
+        });
+      });
+    }
+    
     this.initialized = false;
   }
 

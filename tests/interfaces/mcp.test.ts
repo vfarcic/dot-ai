@@ -10,6 +10,7 @@ import { DotAI } from '../../src/core/index';
 import { ListToolsRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as http from 'http';
 
 describe('MCP Interface Layer', () => {
   let mcpServerInstance: MCPServer;
@@ -136,6 +137,245 @@ describe('MCP Interface Layer', () => {
         expect(server).toBeDefined();
         expect(server.isReady()).toBe(false);
       }).not.toThrow();
+    });
+  });
+
+  describe('HTTP Transport', () => {
+    let originalEnv: NodeJS.ProcessEnv;
+
+    beforeEach(() => {
+      originalEnv = { ...process.env };
+    });
+
+    afterEach(async () => {
+      process.env = originalEnv;
+      if (mcpServerInstance) {
+        await mcpServerInstance.stop();
+      }
+    });
+
+    describe('Transport Selection', () => {
+      test('should use STDIO transport by default', async () => {
+        const consoleInfoSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        expect(mcpServerInstance.isReady()).toBe(true);
+        // Logger formats with [timestamp] INFO [MCPServer] message
+        expect(consoleInfoSpy).toHaveBeenCalledWith(
+          expect.stringMatching(/\[MCPServer\].*Using STDIO transport/)
+        );
+        
+        consoleInfoSpy.mockRestore();
+      });
+
+      test('should use HTTP transport when TRANSPORT_TYPE=http', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.PORT = '0'; // Use random port for testing
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        expect(mcpServerInstance.isReady()).toBe(true);
+        // Check that HTTP transport message was logged
+        const httpTransportCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport')
+        );
+        expect(httpTransportCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should use config transport when specified', async () => {
+        const httpConfig = {
+          ...config,
+          transport: 'http' as const,
+          port: 0
+        };
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, httpConfig);
+        
+        await mcpServerInstance.start();
+        
+        expect(mcpServerInstance.isReady()).toBe(true);
+        const httpTransportCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport')
+        );
+        expect(httpTransportCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should prefer environment variable over config', async () => {
+        process.env.TRANSPORT_TYPE = 'stdio';
+        
+        const httpConfig = {
+          ...config,
+          transport: 'http' as const
+        };
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, httpConfig);
+        
+        await mcpServerInstance.start();
+        
+        expect(mcpServerInstance.isReady()).toBe(true);
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringMatching(/\[MCPServer\].*Using STDIO transport/)
+        );
+        
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('HTTP Server Configuration', () => {
+      test('should use default port 3456 when not specified', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Check for HTTP transport log with port 3456
+        const httpCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport') && call[0]?.includes('3456')
+        );
+        expect(httpCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should use PORT environment variable when set', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.PORT = '3000';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Check for HTTP transport log with port 3000
+        const httpCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport') && call[0]?.includes('3000')
+        );
+        expect(httpCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should use default host 0.0.0.0 when not specified', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.PORT = '0';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Check for HTTP transport log with host 0.0.0.0
+        const httpCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport') && call[0]?.includes('0.0.0.0')
+        );
+        expect(httpCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should use HOST environment variable when set', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.HOST = 'localhost';
+        process.env.PORT = '0';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Check for HTTP transport log with host localhost
+        const httpCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Using HTTP/SSE transport') && call[0]?.includes('localhost')
+        );
+        expect(httpCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('Session Management', () => {
+      test('should use stateful session mode by default', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.PORT = '0';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Check for starting log with stateful session mode
+        const startCall = consoleSpy.mock.calls.find(call => 
+          call[0]?.includes('Starting MCP Server') && call[0]?.includes('stateful')
+        );
+        expect(startCall).toBeDefined();
+        
+        consoleSpy.mockRestore();
+      });
+
+      test('should support stateless session mode', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.SESSION_MODE = 'stateless';
+        process.env.PORT = '0';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+        
+        await mcpServerInstance.start();
+        
+        // Logger outputs message and JSON on same call but formatted
+        // Check that we have a Starting MCP Server log
+        const hasStartLog = consoleSpy.mock.calls.some(call => 
+          call[0]?.includes('Starting MCP Server')
+        );
+        expect(hasStartLog).toBe(true);
+        
+        // Check that stateless was used (in the JSON data part)
+        const hasStateless = consoleSpy.mock.calls.some(call => 
+          call[0]?.includes('stateless')
+        );
+        expect(hasStateless).toBe(true);
+        
+        consoleSpy.mockRestore();
+      });
+    });
+
+    // Note: HTTP request handling tests removed as they test the MCP SDK's 
+    // StreamableHTTPServerTransport implementation, not our code.
+    // Our transport selection and configuration tests above verify our implementation.
+
+    describe('Server Lifecycle with HTTP', () => {
+      test('should start and stop HTTP server cleanly', async () => {
+        process.env.TRANSPORT_TYPE = 'http';
+        process.env.PORT = '0';
+        
+        const consoleSpy = jest.spyOn(console, 'info');
+        mcpServerInstance = new MCPServer(mockDotAI, config);
+
+        await mcpServerInstance.start();
+        expect(mcpServerInstance.isReady()).toBe(true);
+        
+        await mcpServerInstance.stop();
+        expect(mcpServerInstance.isReady()).toBe(false);
+        
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('HTTP server stopped')
+        );
+        
+        consoleSpy.mockRestore();
+      });
     });
   });
 
