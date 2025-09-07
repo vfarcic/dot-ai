@@ -63,7 +63,7 @@ def "main setup" [
 
     kubectl create namespace b-team
 
-    kubectl apply --filename k8s/
+    kubectl apply --filename k8s/policies
 
     main print source
 

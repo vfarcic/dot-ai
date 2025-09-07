@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dot-ai
+  labels:
+    app: dot-ai
+    component: mcp-server
+  annotations:
+    # NGINX specific annotations for SSE support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    # Enable CORS if needed
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, X-Session-Id"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: dot-ai.127.0.0.1.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dot-ai
+            port:
+              number: 3456
+  # Uncomment and configure TLS if needed
+  # tls:
+  # - hosts:
+  #   - dot-ai.127.0.0.1.nip.io
+  #   secretName: dot-ai-tls

@@ -337,11 +337,13 @@ graph TD
 
 **Success Criteria**:
 - [x] Dockerfile updated with HTTP transport support (PORT, HOST, EXPOSE)
-- [ ] Base manifests created (Deployment, Service, ConfigMap, Secret)
+- [x] Base manifests created (Deployment, Service, Secret, Ingress)
+- [ ] Resource profiling: Monitor actual CPU/memory usage under load
+- [ ] Add resource requests/limits based on profiling data
 - [ ] Optional resources created (Ingress, HPA, NetworkPolicy)
 - [ ] Kustomize overlays for dev/staging/prod
 - [ ] Health check endpoints implemented and configured
-- [ ] RBAC policies defined with minimal permissions
+- [x] RBAC policies defined with full permissions for discovery and deployment
 
 **Validation**: Successful deployment to test Kubernetes cluster
 
@@ -547,6 +549,47 @@ graph TD
 1. Create Traditional Kubernetes manifests (Deployment, Service, ConfigMap, Secret)
 2. Test Docker image build and HTTP transport functionality
 3. Create Kustomize overlays for different environments
+
+---
+
+### 2025-09-07 (Session 2)
+**Duration**: ~2 hours
+**Primary Focus**: Traditional Kubernetes Manifests Creation
+
+**Completed PRD Items**:
+- [x] Base manifests created (Milestone 3 partial)
+  - Created Deployment with HTTP transport configuration
+  - Created Service for ClusterIP access on port 3456
+  - Created Secret template for API keys
+  - Created Ingress with NGINX annotations for SSE support
+  - Created ServiceAccount for pod identity
+  - Created ClusterRole with full permissions for resource discovery
+  - Created ClusterRoleBinding to connect ServiceAccount to ClusterRole
+
+**Additional Work Done**:
+- Decided to use charts/templates/ structure for future Helm conversion
+- Used dot-ai.127.0.0.1.nip.io for local testing domain
+- Built and pushed test Docker image (0.83.0-test.1)
+- Applied manifests to dot-ai namespace successfully
+- Added PRD task for resource profiling before setting limits
+
+**Technical Discoveries**:
+- No health check endpoint exists in current implementation
+- Resource limits should be based on actual profiling, not guesses
+- Using namespace-scoped deployment (dot-ai namespace)
+
+**Important Notes**:
+- **NOT YET TESTED**: Manifests applied but functionality not verified
+- Need to test if MCP server actually works in cluster
+- Need to verify HTTP transport is accessible
+- Need to test with actual client connections
+
+**Next Session Priorities**:
+1. Test deployed MCP server functionality
+2. Verify HTTP transport works correctly
+3. Profile resource usage under load
+4. Create HPA and NetworkPolicy (optional)
+5. Begin Helm chart templating
 
 ---
 

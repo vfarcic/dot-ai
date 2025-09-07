@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dot-ai
+  labels:
+    app: dot-ai
+    component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dot-ai
+      component: mcp-server
+  template:
+    metadata:
+      labels:
+        app: dot-ai
+        component: mcp-server
+    spec:
+      serviceAccountName: dot-ai
+      containers:
+      - name: mcp-server
+        image: ghcr.io/vfarcic/dot-ai:0.83.0-test.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3456
+          name: http
+          protocol: TCP
+        env:
+        - name: TRANSPORT_TYPE
+          value: "http"
+        - name: PORT
+          value: "3456"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: SESSION_MODE
+          value: "stateless"
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dot-ai-secrets
+              key: anthropic-api-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dot-ai-secrets
+              key: openai-api-key
+              optional: true
+        # Note: @kubernetes/client-node will auto-detect in-cluster config
+        # No KUBECONFIG needed when running in cluster with ServiceAccount
+      terminationGracePeriodSeconds: 30
