@@ -5,7 +5,8 @@
       "args": [
         "-y",
         "mcp-remote@latest",
-        "http://localhost:3456"
+        "http://dot-ai.127.0.0.1.nip.io",
+        "--allow-http"
       ]
     }
   }

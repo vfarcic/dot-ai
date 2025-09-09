@@ -49,4 +49,24 @@ spec:
         - name: QDRANT_URL
           value: "http://qdrant.dot-ai.svc.cluster.local:6333"
         # Note: KUBERNETES_SERVICE_HOST is automatically set by k8s and triggers in-cluster config
+        resources:
+          requests:
+            memory: "512Mi"  # Conservative baseline - 2x estimated usage
+            cpu: "200m"      # Higher baseline for JSON parsing operations
+          limits:
+            memory: "2Gi"    # High ceiling for large clusters and concurrent AI operations
+            cpu: "1000m"     # Full CPU core for peak concurrent operations
+        # Health checks will be added once /health endpoint is implemented
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 3456
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /ready
+        #     port: 3456
+        #   initialDelaySeconds: 15
+        #   periodSeconds: 5
       terminationGracePeriodSeconds: 30

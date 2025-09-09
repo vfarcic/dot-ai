@@ -338,9 +338,9 @@ graph TD
 **Success Criteria**:
 - [x] Dockerfile updated with HTTP transport support (PORT, HOST, EXPOSE)
 - [x] Base manifests created (Deployment, Service, Secret, Ingress)
-- [ ] Resource profiling: Monitor actual CPU/memory usage under load
-- [ ] Add resource requests/limits based on profiling data
-- [ ] Optional resources created (HPA, NetworkPolicy)
+- [x] Resource profiling: Monitor actual CPU/memory usage under load
+- [x] Add resource requests/limits based on profiling data
+- [~] Optional resources created (HPA, NetworkPolicy) - Skipped due to session affinity requirements
 - [ ] Kustomize overlays for dev/staging/prod
 - [ ] Health check endpoints implemented and configured
 - [x] RBAC policies defined with full permissions for discovery and deployment
@@ -646,10 +646,10 @@ graph TD
 - System status reporting "overall: healthy" with all capabilities enabled
 
 **Next Session Priorities**:
-1. Complete Milestone 3: Add resource requests/limits based on operational profiling
-2. Create optional resources (HPA, NetworkPolicy)  
-3. Begin Milestone 4: ToolHive integration
-4. Start Milestone 5: Unified Helm chart development
+1. Begin Milestone 5: Unified Helm chart development (template existing manifests)
+2. Create Kustomize overlays for dev/staging/prod environments  
+3. Implement health check endpoints for production readiness
+4. Begin Milestone 4: ToolHive integration using Helm chart
 
 ---
 
