@@ -1,0 +1,17 @@
+{{- if eq .Values.deployment.method "standard" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dot-ai.fullname" . }}
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "dot-ai.selectorLabels" . | nindent 4 }}
+  ports:
+  - port: 3456
+    targetPort: 3456
+    protocol: TCP
+    name: http
+{{- end }}

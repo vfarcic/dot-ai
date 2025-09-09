@@ -133,7 +133,12 @@ export class KubernetesDiscovery {
       return path.isAbsolute(kubeconfigPath) ? kubeconfigPath : path.resolve(kubeconfigPath);
     }
 
-    // Priority 3: Default location
+    // Priority 3: Default location (only when not in cluster)
+    // When KUBERNETES_SERVICE_HOST is set, we should use in-cluster config instead
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      return ''; // Empty string indicates in-cluster should be used
+    }
+
     return path.join(os.homedir(), '.kube', 'config');
   }
 
@@ -152,17 +157,119 @@ export class KubernetesDiscovery {
     this.connected = false; // Force reconnection with new path
   }
 
+  /**
+   * Get connection status and configuration info for diagnostics
+   */
+  getConnectionInfo(): {
+    connected: boolean;
+    kubeconfig: string;
+    mode: 'file' | 'in-cluster' | 'default';
+    server?: string;
+    context?: string;
+  } {
+    const isInCluster = process.env.KUBERNETES_SERVICE_HOST && (!this.kubeconfigPath || this.kubeconfigPath === '');
+    
+    if (isInCluster) {
+      return {
+        connected: this.connected,
+        kubeconfig: 'in-cluster',
+        mode: 'in-cluster',
+        server: `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`,
+        context: 'in-cluster'
+      };
+    }
+
+    // For file-based or default configs
+    const mode = this.kubeconfigPath ? 'file' : 'default';
+    const kubeconfig = this.kubeconfigPath || '~/.kube/config';
+    
+    let server: string | undefined;
+    let context: string | undefined;
+    
+    if (this.connected && this.kc) {
+      try {
+        context = this.kc.getCurrentContext();
+        const cluster = this.kc.getCurrentCluster();
+        server = cluster?.server;
+      } catch (error) {
+        // Ignore errors getting context/cluster info
+      }
+    }
+
+    return {
+      connected: this.connected,
+      kubeconfig,
+      mode,
+      server,
+      context
+    };
+  }
+
+  /**
+   * Test connection to the cluster with detailed result
+   */
+  async testConnection(): Promise<{
+    connected: boolean;
+    version?: string;
+    error?: string;
+    errorType?: string;
+  }> {
+    if (!this.connected || !this.k8sApi) {
+      return { connected: false, error: 'No connection established' };
+    }
+
+    try {
+      // Simple API call to test connectivity
+      await this.k8sApi.listNamespace();
+      
+      // Try to get server version
+      let version: string | undefined;
+      try {
+        const versionClient = this.kc!.makeApiClient(k8s.VersionApi);
+        const versionResponse = await versionClient.getCode();
+        version = versionResponse.gitVersion;
+      } catch (error) {
+        // Version is optional
+      }
+      
+      return { connected: true, version };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const classified = ErrorClassifier.classifyError(error as Error);
+      
+      return {
+        connected: false,
+        error: errorMessage,
+        errorType: classified.type
+      };
+    }
+  }
+
+  /**
+   * Get the Kubernetes client for direct API access (used by other tools)
+   */
+  getClient(): k8s.KubeConfig {
+    if (!this.kc) {
+      throw new Error('Kubernetes client not initialized. Call connect() first.');
+    }
+    return this.kc;
+  }
+
   async connect(): Promise<void> {
     try {
       this.kc = new k8s.KubeConfig();
       
       if (this.kubeconfigPath) {
-        // Check if the kubeconfig file exists before trying to load it
+        // Priority 1: Explicit kubeconfig file (constructor param or KUBECONFIG env)
         if (!require('fs').existsSync(this.kubeconfigPath)) {
           throw new Error(`Kubeconfig file not found: ${this.kubeconfigPath}`);
         }
         this.kc.loadFromFile(this.kubeconfigPath);
+      } else if (process.env.KUBERNETES_SERVICE_HOST) {
+        // Priority 2: In-cluster configuration (when KUBERNETES_SERVICE_HOST is set by k8s)
+        this.kc.loadFromCluster();
       } else {
+        // Priority 3: Default kubeconfig location
         this.kc.loadFromDefault();
       }
 
@@ -334,7 +441,12 @@ export class KubernetesDiscovery {
    * Delegates to shared utility function
    */
   async executeKubectl(args: string[], config?: KubectlConfig): Promise<string> {
-    return executeKubectl(args, { ...config, kubeconfig: this.kubeconfigPath });
+    // Don't pass kubeconfig if it's empty (in-cluster configuration)
+    const kubectlConfig = { ...config };
+    if (this.kubeconfigPath && this.kubeconfigPath !== '') {
+      kubectlConfig.kubeconfig = this.kubeconfigPath;
+    }
+    return executeKubectl(args, kubectlConfig);
   }
 
 

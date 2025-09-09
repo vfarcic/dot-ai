@@ -7,9 +7,11 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
-import { executeKubectl, ErrorClassifier } from '../core/kubernetes-utils';
+import { KubernetesDiscovery } from '../core/discovery';
+import { ErrorClassifier } from '../core/kubernetes-utils';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
@@ -311,17 +313,26 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
 }
 
 /**
- * Test Kyverno installation and readiness for policy generation
+ * Test Kyverno installation and readiness for policy generation using shared client
  */
 export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
-  const kubeconfig = process.env.KUBECONFIG || '~/.kube/config';
-  
   try {
-    // Check if Kyverno CRDs are installed
-    const crdOutput = await executeKubectl(['get', 'crd', '--no-headers'], { 
-      kubeconfig: kubeconfig,
-      timeout: 10000 
-    });
+    // Create discovery instance and establish connection
+    const discovery = new KubernetesDiscovery({});
+    await discovery.connect();
+    
+    // First test if we can connect to Kubernetes at all
+    const testResult = await discovery.testConnection();
+    if (!testResult.connected) {
+      return {
+        installed: false,
+        policyGenerationReady: false,
+        error: 'Cannot detect Kyverno - Kubernetes cluster is not accessible'
+      };
+    }
+    
+    // Check if Kyverno CRDs are installed using the original approach
+    const crdOutput = await discovery.executeKubectl(['get', 'crd', '--no-headers']);
     
     const kyvernoCRDs = crdOutput.split('\n').filter(line => 
       line.includes('kyverno.io') && (
@@ -339,28 +350,39 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
       };
     }
     
-    // Check if Kyverno deployment is ready
+    // Check if Kyverno deployment is ready using the client
     let deploymentReady = false;
     let webhookReady = false;
     let version: string | undefined;
     
     try {
-      const deploymentOutput = await executeKubectl([
-        'get', 'deployment', '-n', 'kyverno', '--no-headers'
-      ], { kubeconfig, timeout: 5000 });
+      // Get client and check deployment status
+      const client = discovery.getClient();
+      const appsV1Api = client.makeApiClient(k8s.AppsV1Api);
       
-      // Check if kyverno deployment exists and is ready
-      const kyvernoDeployment = deploymentOutput.split('\n').find(line => 
-        line.trim().startsWith('kyverno')
+      const deploymentResponse = await appsV1Api.listNamespacedDeployment({
+        namespace: 'kyverno'
+      });
+      const kyvernoDeployments = deploymentResponse.items.filter((deployment: any) => 
+        deployment.metadata?.name?.startsWith('kyverno-')
       );
       
-      if (kyvernoDeployment) {
-        // Parse deployment status (format: NAME READY UP-TO-DATE AVAILABLE AGE)
-        const parts = kyvernoDeployment.trim().split(/\s+/);
-        const ready = parts[1]; // e.g., "1/1", "0/1"
-        if (ready && ready.includes('/')) {
-          const [current, desired] = ready.split('/');
-          deploymentReady = current === desired && current !== '0';
+      if (kyvernoDeployments.length > 0) {
+        // Check if all Kyverno deployments are ready
+        deploymentReady = kyvernoDeployments.every((deployment: any) => {
+          const readyReplicas = deployment.status?.readyReplicas || 0;
+          const replicas = deployment.status?.replicas || 0;
+          return readyReplicas > 0 && readyReplicas === replicas;
+        });
+        
+        // Try to get version from image tag of the first deployment (usually admission controller)
+        const firstDeployment = kyvernoDeployments[0];
+        const container = firstDeployment.spec?.template.spec?.containers?.[0];
+        if (container?.image) {
+          const imageMatch = container.image.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
+          if (imageMatch) {
+            version = imageMatch[1];
+          }
         }
       }
     } catch (error) {
@@ -370,36 +392,15 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
     
     // Check admission controller webhook
     try {
-      const webhookOutput = await executeKubectl([
-        'get', 'validatingwebhookconfigurations', '--no-headers'
-      ], { kubeconfig, timeout: 5000 });
+      const client = discovery.getClient();
+      const admissionApi = client.makeApiClient(k8s.AdmissionregistrationV1Api);
       
-      webhookReady = webhookOutput.includes('kyverno-');
+      const webhookResponse = await admissionApi.listValidatingWebhookConfiguration();
+      webhookReady = webhookResponse.items.some((webhook: any) => 
+        webhook.metadata?.name?.includes('kyverno')
+      );
     } catch (error) {
       webhookReady = false;
-    }
-    
-    // Try to get version from deployment labels or image
-    try {
-      const deploymentDetails = await executeKubectl([
-        'get', 'deployment', 'kyverno', '-n', 'kyverno', '-o', 'jsonpath={.metadata.labels.version}'
-      ], { kubeconfig, timeout: 5000 });
-      
-      if (deploymentDetails && deploymentDetails.trim()) {
-        version = deploymentDetails.trim();
-      } else {
-        // Fallback: try to get version from image tag
-        const imageOutput = await executeKubectl([
-          'get', 'deployment', 'kyverno', '-n', 'kyverno', '-o', 'jsonpath={.spec.template.spec.containers[0].image}'
-        ], { kubeconfig, timeout: 5000 });
-        
-        const imageMatch = imageOutput.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
-        if (imageMatch) {
-          version = imageMatch[1];
-        }
-      }
-    } catch (error) {
-      // Version detection is optional
     }
     
     // Determine if policy generation is ready
@@ -434,15 +435,6 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
-    // If Kubernetes is not available, we can't detect Kyverno
-    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connection refused')) {
-      return {
-        installed: false,
-        policyGenerationReady: false,
-        error: 'Cannot detect Kyverno - Kubernetes cluster is not accessible'
-      };
-    }
-    
     return {
       installed: false,
       policyGenerationReady: false,
@@ -452,51 +444,36 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
 }
 
 /**
- * Test Kubernetes cluster connectivity
+ * Test Kubernetes cluster connectivity using shared client
  */
 async function getKubernetesStatus(): Promise<SystemStatus['kubernetes']> {
-  const kubeconfig = process.env.KUBECONFIG || '~/.kube/config';
-  
   try {
-    // Test basic connectivity with cluster-info
-    const clusterInfo = await executeKubectl(['cluster-info'], { 
-      kubeconfig: kubeconfig,
-      timeout: 10000 // 10 second timeout
-    });
+    // Create discovery instance and establish connection
+    const discovery = new KubernetesDiscovery({});
+    await discovery.connect();
     
-    // Parse cluster info to extract endpoint
-    const endpointMatch = clusterInfo.match(/Kubernetes control plane is running at (https?:\/\/[^\s]+)/);
-    const endpoint = endpointMatch ? endpointMatch[1] : undefined;
+    // Get connection info using the shared approach
+    const connectionInfo = discovery.getConnectionInfo();
+    const testResult = await discovery.testConnection();
     
-    // Get current context
-    let context: string | undefined;
-    try {
-      context = await executeKubectl(['config', 'current-context'], { kubeconfig });
-    } catch (error) {
-      // Context retrieval is optional
-      context = undefined;
+    if (testResult.connected) {
+      return {
+        connected: true,
+        clusterInfo: {
+          endpoint: connectionInfo.server,
+          version: testResult.version,
+          context: connectionInfo.context
+        },
+        kubeconfig: connectionInfo.kubeconfig
+      };
+    } else {
+      return {
+        connected: false,
+        kubeconfig: connectionInfo.kubeconfig,
+        error: testResult.error,
+        errorType: testResult.errorType
+      };
     }
-    
-    // Get server version
-    let version: string | undefined;
-    try {
-      const versionInfo = await executeKubectl(['version', '--short'], { kubeconfig, timeout: 5000 });
-      const serverMatch = versionInfo.match(/Server Version: (.+)/);
-      version = serverMatch ? serverMatch[1] : undefined;
-    } catch (error) {
-      // Version retrieval is optional
-      version = undefined;
-    }
-    
-    return {
-      connected: true,
-      clusterInfo: {
-        endpoint,
-        version,
-        context
-      },
-      kubeconfig
-    };
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -504,7 +481,7 @@ async function getKubernetesStatus(): Promise<SystemStatus['kubernetes']> {
     
     return {
       connected: false,
-      kubeconfig,
+      kubeconfig: process.env.KUBECONFIG || '~/.kube/config',
       error: errorMessage,
       errorType: classified.type
     };

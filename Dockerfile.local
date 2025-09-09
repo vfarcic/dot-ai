@@ -33,6 +33,12 @@ RUN ln -s /app/dist/mcp/server.js /usr/local/bin/dot-ai-mcp && chmod +x /usr/loc
 # Set default environment variables
 ENV DOT_AI_SESSION_DIR=/app/sessions
 ENV NODE_ENV=production
+ENV TRANSPORT_TYPE=stdio
+ENV PORT=3456
+ENV HOST=0.0.0.0
+
+# Expose port for HTTP transport mode
+EXPOSE 3456
 
 # Default command to run dot-ai-mcp
 CMD ["dot-ai-mcp"]

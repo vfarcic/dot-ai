@@ -1,0 +1,66 @@
+{{- if eq .Values.deployment.method "standard" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dot-ai.fullname" . }}
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dot-ai.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dot-ai.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
+      containers:
+      - name: mcp-server
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: 3456
+          name: http
+          protocol: TCP
+        env:
+        - name: TRANSPORT_TYPE
+          value: "http"
+        - name: PORT
+          value: "3456"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: SESSION_MODE
+          value: "stateless"
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.anthropic.keyName }}
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.openai.keyName }}
+              optional: true
+        - name: QDRANT_URL
+          value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}
+        # Note: KUBERNETES_SERVICE_HOST is automatically set by k8s and triggers in-cluster config
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        # Health checks will be added once /health endpoint is implemented
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 3456
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /ready
+        #     port: 3456
+        #   initialDelaySeconds: 15
+        #   periodSeconds: 5
+      terminationGracePeriodSeconds: 30
+{{- end }}

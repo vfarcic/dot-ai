@@ -94,3 +94,6 @@ azure-creds.json
 
 # Crush
 .crush/
+
+# Local testing scripts
+start-http-server.sh
