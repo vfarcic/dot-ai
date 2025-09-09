@@ -253,10 +253,15 @@ jobs:
         # Package the chart with coordinated version
         helm package charts/ --version $VERSION --app-version $VERSION
         
-        # Push to GHCR as OCI artifact
+        # Push versioned chart to GHCR as OCI artifact
         helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
         
+        # Also push as latest
+        cp dot-ai-$VERSION.tgz dot-ai-latest.tgz
+        helm push dot-ai-latest.tgz oci://ghcr.io/vfarcic/dot-ai/charts --version latest
+        
         echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
+        echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:latest"
     
     - name: Commit all coordinated changes and create Git tag
       run: |
@@ -289,8 +294,8 @@ jobs:
         echo "" >> RELEASE_NOTES.md
         echo "## Coordinated Release Artifacts" >> RELEASE_NOTES.md
         echo "- **npm package**: \`@vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
-        echo "- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\`" >> RELEASE_NOTES.md
-        echo "- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`" >> RELEASE_NOTES.md
+        echo "- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)" >> RELEASE_NOTES.md
+        echo "- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\` (also available as \`latest\`)" >> RELEASE_NOTES.md
         echo "" >> RELEASE_NOTES.md
         echo "## Changes" >> RELEASE_NOTES.md
         git log --oneline $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md 2>/dev/null || echo "Initial release" >> RELEASE_NOTES.md
