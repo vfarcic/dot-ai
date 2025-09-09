@@ -8,6 +8,7 @@ source scripts/mcp.nu
 source scripts/anthropic.nu
 source scripts/kyverno.nu
 source scripts/atlas.nu
+source scripts/toolhive.nu
 
 def main [] {}
 
@@ -59,11 +60,13 @@ def "main setup" [
 
     main apply atlas
 
+    main apply toolhive
+
     kubectl create namespace a-team
 
     kubectl create namespace b-team
 
-    kubectl apply --filename k8s/
+    kubectl apply --filename examples/policies
 
     main print source
 

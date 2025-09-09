@@ -25,6 +25,14 @@ RUN mkdir -p /app/sessions
 # Set default environment variables
 ENV DOT_AI_SESSION_DIR=/app/sessions
 ENV NODE_ENV=production
+# Transport defaults to stdio for backward compatibility
+# Set TRANSPORT_TYPE=http for HTTP mode
+ENV TRANSPORT_TYPE=stdio
+ENV PORT=3456
+ENV HOST=0.0.0.0
+
+# Expose port for HTTP transport (used when TRANSPORT_TYPE=http)
+EXPOSE 3456
 
 # Default command to run dot-ai-mcp
 CMD ["dot-ai-mcp"]

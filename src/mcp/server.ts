@@ -9,6 +9,8 @@
 
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 async function main() {
   try {
@@ -16,14 +18,12 @@ async function main() {
     process.stderr.write('Validating MCP server configuration...\n');
     
     // Check session directory configuration
-    const sessionDir = process.env.DOT_AI_SESSION_DIR;
-    if (!sessionDir) {
-      process.stderr.write('FATAL: DOT_AI_SESSION_DIR environment variable is required\n');
-      process.stderr.write('Configuration:\n');
-      process.stderr.write('- Set DOT_AI_SESSION_DIR in .mcp.json env section\n');
-      process.stderr.write('- Example: "DOT_AI_SESSION_DIR": "/tmp/dot-ai-sessions"\n');
-      process.stderr.write('- Ensure the directory exists and is writable\n');
-      process.exit(1);
+    const sessionDir = process.env.DOT_AI_SESSION_DIR || '/app/sessions';
+    process.stderr.write(`Using session directory: ${sessionDir}\n`);
+    
+    if (!process.env.DOT_AI_SESSION_DIR) {
+      process.stderr.write('INFO: DOT_AI_SESSION_DIR not set, using default: /app/sessions\n');
+      process.stderr.write('For custom session directory, set DOT_AI_SESSION_DIR environment variable\n');
     }
     
     // Validate session directory exists and is writable
@@ -77,16 +77,20 @@ async function main() {
       process.exit(1);
     }
 
+    // Load version dynamically from package.json
+    const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+    
     // Create and configure MCP server
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
-      version: '0.1.0',
+      version: packageJson.version,
       description: 'Universal Kubernetes application deployment agent with AI-powered orchestration',
       author: 'Viktor Farcic'
     });
 
     // Start the MCP server
-    process.stderr.write('Starting DevOps AI Toolkit MCP server...\n');
+    const transportType = process.env.TRANSPORT_TYPE || 'stdio';
+    process.stderr.write(`Starting DevOps AI Toolkit MCP server with ${transportType} transport...\n`);
     await mcpServer.start();
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
@@ -102,6 +106,18 @@ async function main() {
       await mcpServer.stop();
       process.exit(0);
     });
+
+    // Keep the process alive for HTTP transport
+    if (transportType === 'http') {
+      process.stderr.write('HTTP transport active - server will run until terminated\n');
+      // Keep the process running indefinitely for HTTP server
+      const keepAlive = () => {
+        setTimeout(keepAlive, 24 * 60 * 60 * 1000); // Check every 24 hours
+      };
+      keepAlive();
+    } else {
+      process.stderr.write('STDIO transport active - waiting for client connection\n');
+    }
 
   } catch (error) {
     process.stderr.write(`Failed to start DevOps AI Toolkit MCP server: ${error}\n`);
