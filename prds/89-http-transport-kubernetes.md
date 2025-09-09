@@ -388,33 +388,41 @@ graph TD
 
 **Validation**: ✅ End-to-end testing with actual clients completed
 
-### Milestone 7: Documentation and Examples
-**Objective**: Comprehensive deployment documentation
-
-**Success Criteria**:
-- [ ] Traditional K8s deployment guide
-- [ ] ToolHive deployment guide
-- [ ] Migration guide between methods
-- [ ] Troubleshooting for both approaches
-- [ ] Decision matrix documentation
-
-**Validation**: New users successfully deploy using either method
-
-### Milestone 8: Final Integration Testing
-**Objective**: Comprehensive testing with published artifacts after PR merge
+### Milestone 7+8: Combined Documentation and Integration Testing
+**Objective**: Comprehensive testing with published artifacts while creating deployment documentation based on real deployment experience
 
 **Success Criteria**:
 - [ ] Merge comprehensive PR to trigger automated publishing pipeline
 - [ ] Verify all artifacts published correctly (npm, Docker, Helm chart)
-- [ ] Test traditional Kubernetes deployment with published Helm chart
-- [ ] Test ToolHive deployment with published artifacts
-- [ ] Validate HTTP transport functionality in real cluster deployments
-- [ ] Test MCP client connections to deployed instances
-- [ ] Verify ingress configuration and SSL/TLS termination
-- [ ] Performance validation under realistic load
-- [ ] Document any deployment issues and fixes
+- [ ] **Test + Document Traditional Kubernetes deployment** with published Helm chart
+  - Document actual deployment commands and outputs
+  - Record real troubleshooting scenarios encountered
+  - Create step-by-step guide based on actual deployment experience
+- [ ] **Test + Document ToolHive deployment** with published artifacts
+  - Document real ToolHive operator installation process
+  - Record actual MCPServer resource creation and validation
+  - Create troubleshooting guide based on encountered issues
+- [ ] **Test + Document Migration** between deployment methods
+  - Perform actual migration from Traditional to ToolHive and vice versa
+  - Document data persistence behavior and migration steps
+  - Record any issues or considerations discovered during migration
+- [ ] **Validate + Document HTTP transport functionality** in real cluster deployments
+  - Test MCP client connections with real networking configurations
+  - Document ingress configuration and SSL/TLS termination procedures
+  - Record performance characteristics under realistic load
+- [ ] **Create Decision Matrix** based on testing experience
+  - Document actual performance differences between methods
+  - Record real-world trade-offs discovered during testing
+  - Provide guidance based on validated deployment scenarios
 
-**Validation**: All deployment methods work with published artifacts in real Kubernetes clusters
+**Validation**: All deployment methods work with published artifacts AND comprehensive documentation exists based on real deployment validation
+
+**Documentation Outcomes**:
+- Traditional K8s deployment guide with validated commands
+- ToolHive deployment guide with real troubleshooting scenarios  
+- Migration guide based on actual migration testing
+- Decision matrix informed by real performance and operational differences
+- Troubleshooting sections populated with actual issues and solutions
 
 ## Technical Decisions
 
@@ -489,6 +497,26 @@ graph TD
 - Ensures CI/CD pipeline works end-to-end before considering complete
 
 **Impact**: Added final integration testing milestone after all development complete
+
+### Decision 8: Documentation Strategy
+**Decision Date**: 2025-09-09  
+**Options Considered**:
+1. Create documentation in isolation before testing
+2. Combine documentation creation with final integration testing ✅
+3. Create documentation after testing is complete
+
+**Decision**: Combined documentation + testing approach
+**Rationale**:
+- Documentation uses real validated commands and outputs instead of theoretical examples
+- Troubleshooting sections document actual issues encountered, not hypothetical ones
+- More efficient use of time - validates functionality while creating docs
+- Better user experience with battle-tested examples and procedures
+- Ensures documentation accuracy through real deployment validation
+
+**Impact**: 
+- Merges Milestones 7 and 8 into single combined effort
+- Documentation becomes outcome of testing rather than prerequisite
+- All examples, commands, and troubleshooting based on real deployment experience
 
 ### Decision 7: Session Management Architecture for Kubernetes
 **Decision Date**: 2025-09-09  
@@ -955,9 +983,9 @@ graph TD
 - Proved shared state management works correctly across deployment methods
 
 **Next Session Priorities**:
-1. **Complete Milestone 7**: Create comprehensive deployment documentation (Traditional K8s + ToolHive guides)
+1. **Complete Milestone 7+8**: Combined documentation + testing approach (validate deployments while creating docs)
 2. **Production Readiness**: Consider health check endpoints and monitoring integration
-3. **Prepare Comprehensive PR**: Ready all HTTP transport functionality for final integration testing (Milestone 8)
+3. **Prepare Comprehensive PR**: Ready all HTTP transport functionality for final integration testing
 
 ---
 
@@ -966,15 +994,18 @@ With Milestone 4 (ToolHive Integration) and Milestone 5 (CI/CD automation) compl
 
 ### Development Phase (Feature Branch)
 1. ~~**Complete Milestone 6**: Client integration testing~~ ✅ **COMPLETED** 
-2. **Complete Milestone 7**: Create comprehensive deployment documentation and user guides (Traditional K8s + ToolHive)
-3. **Production Readiness**: Health check endpoints, monitoring, observability
-4. **Final Testing**: Validate both deployment methods end-to-end
+2. **Production Readiness**: Health check endpoints, monitoring, observability (optional)
+3. **Create Comprehensive PR**: Single PR with all HTTP transport functionality
 
-### Integration Phase (Main Branch)
-5. **Create Comprehensive PR**: Single PR with all HTTP transport functionality
-6. **Merge and Publish**: Trigger automated CI/CD pipeline to publish coordinated artifacts
-7. **Milestone 8**: Final integration testing with published artifacts in real Kubernetes deployments
+### Integration Phase (Main Branch - Combined Documentation + Testing)
+4. **Merge and Publish**: Trigger automated CI/CD pipeline to publish coordinated artifacts
+5. **Milestone 7+8**: Combined documentation and integration testing with published artifacts
+   - Test Traditional Kubernetes deployment while documenting actual commands and outputs
+   - Test ToolHive deployment while creating real troubleshooting guides
+   - Perform migration testing while documenting the actual migration process
+   - Validate performance while recording real-world characteristics
+   - Create decision matrix based on tested deployment experience
 
-**Strategic Decision**: Complete all development work before testing with published artifacts to ensure cohesive validation and avoid testing fragmented implementations.
+**Strategic Decision**: Combined documentation + testing approach to create validated, battle-tested documentation based on real deployment experience rather than theoretical examples.
 
-**Current Status**: 6/8 core milestones complete (Milestones 1, 2, 3, 4, 5, 6). Remaining: documentation (7), final validation (8).
+**Current Status**: 6/7 core milestones complete (Milestones 1, 2, 3, 4, 5, 6). Remaining: combined documentation + testing (7+8).

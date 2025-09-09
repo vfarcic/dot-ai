@@ -1,3 +1,4 @@
+{{- if eq .Values.deployment.method "standard" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -62,3 +63,4 @@ spec:
         #   initialDelaySeconds: 15
         #   periodSeconds: 5
       terminationGracePeriodSeconds: 30
+{{- end }}
