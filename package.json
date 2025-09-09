@@ -1,6 +1,6 @@
 {
   "name": "@vfarcic/dot-ai",
-  "version": "0.82.0",
+  "version": "0.83.0",
   "description": "AI-powered development productivity platform that enhances software development workflows through intelligent automation and AI-driven assistance",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
