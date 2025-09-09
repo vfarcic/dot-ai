@@ -1,27 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dot-ai
+  name: {{ include "dot-ai.fullname" . }}
   labels:
-    app: dot-ai
-    component: mcp-server
+    {{- include "dot-ai.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dot-ai
-      component: mcp-server
+      {{- include "dot-ai.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: dot-ai
-        component: mcp-server
+        {{- include "dot-ai.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: dot-ai
+      serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
       containers:
       - name: mcp-server
-        image: ghcr.io/vfarcic/dot-ai:0.83.0-test.10
-        imagePullPolicy: Always
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
         ports:
         - containerPort: 3456
           name: http
@@ -38,24 +35,19 @@ spec:
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
-              name: dot-ai-secrets
-              key: anthropic-api-key
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.anthropic.keyName }}
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: dot-ai-secrets
-              key: openai-api-key
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.openai.keyName }}
               optional: true
         - name: QDRANT_URL
-          value: "http://qdrant.dot-ai.svc.cluster.local:6333"
+          value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}
         # Note: KUBERNETES_SERVICE_HOST is automatically set by k8s and triggers in-cluster config
         resources:
-          requests:
-            memory: "512Mi"  # Conservative baseline - 2x estimated usage
-            cpu: "200m"      # Higher baseline for JSON parsing operations
-          limits:
-            memory: "2Gi"    # High ceiling for large clusters and concurrent AI operations
-            cpu: "1000m"     # Full CPU core for peak concurrent operations
+          {{- toYaml .Values.resources | nindent 10 }}
         # Health checks will be added once /health endpoint is implemented
         # livenessProbe:
         #   httpGet:

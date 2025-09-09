@@ -1,10 +1,10 @@
+{{- if .Values.serviceAccount.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: dot-ai
+  name: {{ include "dot-ai.fullname" . }}
   labels:
-    app: dot-ai
-    component: mcp-server
+    {{- include "dot-ai.labels" . | nindent 4 }}
 rules:
 # Full read access to discover any resource type
 - apiGroups: ["*"]
@@ -17,3 +17,4 @@ rules:
 # Non-resource URLs (needed for discovery)
 - nonResourceURLs: ["*"]
   verbs: ["get"]
+{{- end }}

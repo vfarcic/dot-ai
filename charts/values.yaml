@@ -1,0 +1,57 @@
+# Application image configuration
+image:
+  repository: ghcr.io/vfarcic/dot-ai  # Container image repository
+  tag: 0.83.0-test.10                # Container image tag
+
+# Resource configuration
+resources:
+  requests:
+    memory: "512Mi"  # Minimum memory required
+    cpu: "200m"      # Minimum CPU required
+  limits:
+    memory: "2Gi"    # Maximum memory allowed
+    cpu: "1000m"     # Maximum CPU allowed
+
+# Secrets configuration
+secrets:
+  name: dot-ai-secrets              # Name of the Kubernetes Secret resource
+  anthropic:
+    keyName: anthropic-api-key      # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  openai:
+    keyName: openai-api-key         # Key name within the secret  
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+
+# ServiceAccount configuration
+serviceAccount:
+  create: true                      # Create a ServiceAccount
+  name: ""                          # ServiceAccount name override (generated if empty)
+
+# Ingress configuration
+ingress:
+  enabled: false                    # Create Ingress resource
+  className: nginx                  # Ingress class name
+  host: dot-ai.127.0.0.1.nip.io     # Ingress hostname
+  # Annotations required for HTTP transport with SSE (Server-Sent Events)
+  # If using different className, update annotations for your ingress controller:
+  # - Traefik: traefik.ingress.kubernetes.io/service.sticky.cookie.httponly: "true"
+  # - HAProxy: haproxy.org/timeout-http-request: "3600s"
+  # - AWS ALB: alb.ingress.kubernetes.io/target-group-attributes: idle_timeout.timeout_seconds=3600
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"    # Allow long-running SSE connections
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"    # Allow long-running SSE connections
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"        # Disable buffering for real-time streaming
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off" # Disable request buffering for real-time streaming
+  tls:
+    enabled: false                  # Enable TLS/HTTPS
+    secretName: ""                  # TLS secret name (generated if empty when enabled)
+
+# Qdrant Vector Database
+qdrant:
+  enabled: true                     # Deploy Qdrant as dependency (false = use external)
+  image:
+    repository: qdrant/qdrant       # Qdrant image repository
+    tag: v1.15.4                    # Qdrant image tag
+  external:
+    url: ""                         # External Qdrant URL (required when enabled=false)
+    apiKey: ""                      # External Qdrant API key (optional)

@@ -1,36 +1,33 @@
+{{- if .Values.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: dot-ai
+  name: {{ include "dot-ai.fullname" . }}
   labels:
-    app: dot-ai
-    component: mcp-server
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
   annotations:
-    # NGINX specific annotations for SSE support
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-    # Enable CORS if needed
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, X-Session-Id"
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  ingressClassName: nginx
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ .Values.ingress.host }}
+    secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" (include "dot-ai.fullname" .)) }}
+  {{- end }}
   rules:
-  - host: dot-ai.127.0.0.1.nip.io
+  - host: {{ .Values.ingress.host }}
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: dot-ai
+            name: {{ include "dot-ai.fullname" . }}
             port:
               number: 3456
-  # Uncomment and configure TLS if needed
-  # tls:
-  # - hosts:
-  #   - dot-ai.127.0.0.1.nip.io
-  #   secretName: dot-ai-tls
+{{- end }}
