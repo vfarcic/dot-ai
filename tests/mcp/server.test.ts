@@ -105,7 +105,8 @@ describe('MCP Server Entry Point', () => {
       // Should have main function and server configuration
       expect(content).toContain('async function main()');
       expect(content).toContain('name: \'dot-ai\'');
-      expect(content).toContain('version: \'0.1.0\'');
+      // Check that version field exists (will be dynamically loaded from package.json)
+      expect(content).toMatch(/version:\s*[^,}]+/);
       expect(content).toContain('Universal Kubernetes application deployment agent');
     });
 

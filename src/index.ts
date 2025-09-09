@@ -6,9 +6,13 @@
 
 export * from './core';
 
-// Version information
-export const version = '0.1.0';
-export const name = 'dot-ai';
+// Version information - loaded dynamically from package.json
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
+export const version = packageJson.version;
+export const name = packageJson.name.replace('@vfarcic/', '');
 
 // Default export for convenience
 export default {

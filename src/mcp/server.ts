@@ -9,6 +9,8 @@
 
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 async function main() {
   try {
@@ -75,10 +77,13 @@ async function main() {
       process.exit(1);
     }
 
+    // Load version dynamically from package.json
+    const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+    
     // Create and configure MCP server
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
-      version: '0.1.0',
+      version: packageJson.version,
       description: 'Universal Kubernetes application deployment agent with AI-powered orchestration',
       author: 'Viktor Farcic'
     });

@@ -16,9 +16,12 @@ describe('MCP Interface Layer', () => {
   let mcpServerInstance: MCPServer;
   let mockDotAI: any;
 
+  // Load version dynamically from package.json
+  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+  
   const config = {
     name: 'DevOps AI Toolkit',
-    version: '0.1.0',
+    version: packageJson.version,
     description: 'AI-powered Kubernetes deployment toolkit',
     author: 'DevOps AI Team'
   };
@@ -148,7 +151,13 @@ describe('MCP Interface Layer', () => {
     });
 
     afterEach(async () => {
-      process.env = originalEnv;
+      // Restore environment safely to avoid side effects between tests
+      Object.keys(process.env).forEach(key => {
+        if (!(key in originalEnv)) {
+          delete process.env[key];
+        }
+      });
+      Object.assign(process.env, originalEnv);
       if (mcpServerInstance) {
         await mcpServerInstance.stop();
       }
