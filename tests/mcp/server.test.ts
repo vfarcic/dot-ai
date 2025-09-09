@@ -122,5 +122,28 @@ describe('MCP Server Entry Point', () => {
       expect(content).toContain('SIGTERM');
       expect(content).toContain('Shutting down DevOps AI Toolkit MCP server');
     });
+
+    test('should have transport-specific lifecycle management', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
+      const content = fs.readFileSync(serverPath, 'utf8');
+      
+      // Should have transport type detection and logging
+      expect(content).toContain('Starting DevOps AI Toolkit MCP server with');
+      expect(content).toContain('transport...');
+      
+      // Should have HTTP transport keep-alive logic
+      expect(content).toContain('HTTP transport active - server will run until terminated');
+      expect(content).toContain('STDIO transport active - waiting for client connection');
+    });
+
+    test('should have session directory default handling', async () => {
+      await waitForFile(serverPath); // Ensure file exists first
+      const content = fs.readFileSync(serverPath, 'utf8');
+      
+      // Should have default session directory logic
+      expect(content).toContain('Using session directory:');
+      expect(content).toContain('DOT_AI_SESSION_DIR not set, using default: /app/sessions');
+      expect(content).toContain('/app/sessions');
+    });
   });
 });

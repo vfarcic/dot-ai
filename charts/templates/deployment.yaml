@@ -20,7 +20,7 @@ spec:
       serviceAccountName: dot-ai
       containers:
       - name: mcp-server
-        image: ghcr.io/vfarcic/dot-ai:0.83.0-test.1
+        image: ghcr.io/vfarcic/dot-ai:0.83.0-test.10
         imagePullPolicy: Always
         ports:
         - containerPort: 3456
@@ -46,6 +46,7 @@ spec:
               name: dot-ai-secrets
               key: openai-api-key
               optional: true
-        # Note: @kubernetes/client-node will auto-detect in-cluster config
-        # No KUBECONFIG needed when running in cluster with ServiceAccount
+        - name: QDRANT_URL
+          value: "http://qdrant.dot-ai.svc.cluster.local:6333"
+        # Note: KUBERNETES_SERVICE_HOST is automatically set by k8s and triggers in-cluster config
       terminationGracePeriodSeconds: 30

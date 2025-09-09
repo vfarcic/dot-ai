@@ -1,0 +1,33 @@
+# Node.js - keep node_modules for local build
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+
+# Temporary and storage directories
+tmp/
+temp/
+kind-storage/
+
+# Git
+.git/
+.gitignore
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# MCP configs
+.mcp*.json
+
+# Tests
+tests/
+coverage/
+
+# Documentation
+*.md
+docs/
+
+# Examples
+examples/

@@ -3,7 +3,7 @@
 **Issue**: [#89](https://github.com/vfarcic/dot-ai/issues/89)  
 **Author**: Viktor Farcic  
 **Created**: 2025-09-05  
-**Status**: Planning  
+**Status**: Implementation  
 **Priority**: High
 
 ## Executive Summary
@@ -340,12 +340,12 @@ graph TD
 - [x] Base manifests created (Deployment, Service, Secret, Ingress)
 - [ ] Resource profiling: Monitor actual CPU/memory usage under load
 - [ ] Add resource requests/limits based on profiling data
-- [ ] Optional resources created (Ingress, HPA, NetworkPolicy)
+- [ ] Optional resources created (HPA, NetworkPolicy)
 - [ ] Kustomize overlays for dev/staging/prod
 - [ ] Health check endpoints implemented and configured
 - [x] RBAC policies defined with full permissions for discovery and deployment
 
-**Validation**: Successful deployment to test Kubernetes cluster
+**Validation**: ✅ Successful deployment to test Kubernetes cluster
 
 ### Milestone 4: ToolHive Integration
 **Objective**: MCPServer custom resource and ToolHive support
@@ -381,7 +381,7 @@ graph TD
 - [ ] Load balancing tested (standard deployment)
 - [ ] Performance benchmarks completed
 
-**Validation**: End-to-end testing with actual clients
+**Validation**: ✅ End-to-end testing with actual clients (partial)
 
 ### Milestone 7: Documentation and Examples
 **Objective**: Comprehensive deployment documentation
@@ -593,9 +593,69 @@ graph TD
 
 ---
 
+### 2025-09-09
+**Duration**: ~4 hours
+**Primary Focus**: Milestone 3 Validation and Comprehensive System Testing
+
+**Completed PRD Items**:
+- [x] **Milestone 3 Validation**: ✅ Successful deployment to test Kubernetes cluster
+  - Evidence: Pod `dot-ai-6798fc86f6-tr49h` running successfully in dot-ai namespace
+  - HTTP transport accessible on port 3456 with proper in-cluster authentication
+  - All system components reporting "healthy" status
+- [x] **Milestone 6 Partial**: End-to-end client testing with MCP tools functional
+  - Evidence: Version tool and capabilities scanning working via MCP client connection
+  - All MCP protocol operations successful over HTTP transport
+
+**Critical Issues Resolved**:
+- **In-cluster Authentication Fixed**: Kubernetes client now properly uses ServiceAccount instead of trying to access `~/.kube/config`
+  - Root cause: `resolveKubeconfigPath()` was defaulting to `~/.kube/config` even when `KUBERNETES_SERVICE_HOST` was set
+  - Solution: Modified logic to return empty string for in-cluster config, updated `executeKubectl` to omit `--kubeconfig` flag when empty
+- **Kyverno Detection Fully Operational**: Policy generation now working correctly
+  - Root cause: Detection logic looking for deployment named "kyverno" but actual deployments named "kyverno-admission-controller", etc.
+  - Solution: Changed to filter deployments starting with "kyverno-" and verify all are ready
+  - Result: Kyverno v1.15.1 detected with `policyGenerationReady: true`
+- **Shared Client Architecture Implemented**: Unified KubernetesDiscovery usage across all tools
+  - Refactored version tool from `executeKubectl` CLI calls to shared `KubernetesDiscovery` client
+  - Ensures consistent authentication and connection handling
+
+**System Health Validation**:
+- ✅ **Kubernetes**: Connected with in-cluster authentication (ServiceAccount)
+- ✅ **Vector DB**: Connected to Qdrant at `http://qdrant.dot-ai.svc.cluster.local:6333`
+- ✅ **Anthropic**: Connected with API key configured
+- ✅ **OpenAI**: Connected with embedding service operational (1536 dimensions)
+- ✅ **Kyverno**: Full policy generation ready (all deployments and webhooks operational)
+- ✅ **Capabilities System**: Fully functional with resource discovery and AI analysis
+
+**Capabilities Scanning Verification**:
+- Successfully scanned Pod resources with detailed capability analysis
+- Kubernetes API access working correctly with proper RBAC permissions
+- Vector DB integration storing and retrieving capability data
+- AI analysis generating accurate capability descriptions and confidence scores
+
+**Technical Architecture Validated**:
+- HTTP transport serving on port 3456 with proper CORS support
+- Environment variables correctly controlling transport selection
+- In-cluster configuration working without external kubeconfig files
+- All MCP protocol operations functional over HTTP/SSE transport
+- Image versioning through 0.83.0-test.10 with incremental fixes
+
+**Testing Evidence**:
+- 29/29 version tool tests passing after refactoring to shared client
+- Multiple successful MCP client connections and tool invocations
+- Resource discovery working across 349+ cluster resources
+- System status reporting "overall: healthy" with all capabilities enabled
+
+**Next Session Priorities**:
+1. Complete Milestone 3: Add resource requests/limits based on operational profiling
+2. Create optional resources (HPA, NetworkPolicy)  
+3. Begin Milestone 4: ToolHive integration
+4. Start Milestone 5: Unified Helm chart development
+
+---
+
 ## Next Steps
-1. Review and refine requirements
-2. Prototype HTTP transport implementation
-3. Create test deployments for both methods
-4. Coordinate with ToolHive team on integration
-5. Begin Milestone 1 implementation
+1. Resource profiling for production-ready limits
+2. Complete optional Kubernetes resources
+3. Begin ToolHive integration testing
+4. Develop unified Helm chart
+5. Start comprehensive documentation

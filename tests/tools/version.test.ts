@@ -67,6 +67,55 @@ jest.mock('../../src/core/claude', () => ({
   }))
 }));
 
+jest.mock('../../src/core/discovery', () => ({
+  KubernetesDiscovery: jest.fn().mockImplementation(() => ({
+    connect: jest.fn().mockResolvedValue(undefined),
+    getConnectionInfo: jest.fn().mockReturnValue({
+      connected: true,
+      kubeconfig: '/home/user/.kube/config',
+      mode: 'file',
+      server: 'https://127.0.0.1:64942',
+      context: 'kind-dot'
+    }),
+    testConnection: jest.fn().mockResolvedValue({
+      connected: true,
+      version: 'v1.27.3+k3s1'
+    }),
+    getAPIResources: jest.fn().mockResolvedValue([
+      { name: 'clusterpolicies.kyverno.io', kind: 'ClusterPolicy' },
+      { name: 'policies.kyverno.io', kind: 'Policy' },
+      { name: 'policyreports.wgpolicyk8s.io', kind: 'PolicyReport' }
+    ]),
+    getClient: jest.fn().mockReturnValue({
+      makeApiClient: jest.fn().mockImplementation(() => {
+        return {
+          listNamespacedDeployment: jest.fn().mockResolvedValue({
+            items: [
+              {
+                metadata: { name: 'kyverno' },
+                status: { readyReplicas: 1, replicas: 1 },
+                spec: {
+                  template: {
+                    spec: {
+                      containers: [{ image: 'ghcr.io/kyverno/kyverno:v1.10.0' }]
+                    }
+                  }
+                }
+              }
+            ]
+          }),
+          listValidatingWebhookConfiguration: jest.fn().mockResolvedValue({
+            items: [
+              { metadata: { name: 'kyverno-policy-validating-webhook-cfg' } },
+              { metadata: { name: 'kyverno-resource-validating-webhook-cfg' } }
+            ]
+          })
+        };
+      })
+    })
+  }))
+}));
+
 jest.mock('../../src/core/kubernetes-utils', () => ({
   executeKubectl: jest.fn(),
   ErrorClassifier: {
@@ -77,38 +126,120 @@ jest.mock('../../src/core/kubernetes-utils', () => ({
   }
 }));
 
-// Default kubectl mock behavior
-const defaultKubectlMock = (args: string[]) => {
-  // Add debugging
-  const argsStr = JSON.stringify(args);
-  
-  if (args.includes('cluster-info')) {
-    return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
-  }
-  if (args.includes('current-context')) {
-    return Promise.resolve('kind-dot');
-  }
-  if (args.includes('version')) {
-    return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
-  }
-  // Kyverno detection mocks
-  if (args.includes('get') && args.includes('crd')) {
-    return Promise.resolve('clusterpolicies.kyverno.io\npolicies.kyverno.io\npolicyreports.wgpolicyk8s.io');
-  }
-  if (args.includes('get') && args.includes('deployment') && args.includes('-n') && args.includes('kyverno') && !argsStr.includes('jsonpath')) {
-    return Promise.resolve('kyverno                    1/1     1            1           7d');
-  }
-  if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
-    return Promise.resolve('kyverno-policy-validating-webhook-cfg\nkyverno-resource-validating-webhook-cfg');
-  }
-  if (args.includes('jsonpath={.metadata.labels.version}')) {
-    return Promise.resolve('1.10.0');
-  }
-  if (args.includes('jsonpath={.spec.template.spec.containers[0].image}')) {
-    return Promise.resolve('ghcr.io/kyverno/kyverno:v1.10.0');
-  }
-  return Promise.resolve('');
-};
+// Helper function to configure KubernetesDiscovery mock for different scenarios
+function configureMockKubernetesDiscovery(config: {
+  connected?: boolean;
+  error?: string;
+  errorType?: string;
+  kyvernoCRDs?: any[];
+  kyvernoDeploymentReady?: boolean;
+  kyvernoWebhookReady?: boolean;
+  kyvernoVersion?: string;
+  server?: string;
+  context?: string;
+  version?: string;
+  kubeconfig?: string;
+}) {
+  const { KubernetesDiscovery } = require('../../src/core/discovery');
+  KubernetesDiscovery.mockImplementation(() => ({
+    connect: jest.fn().mockResolvedValue(undefined), // Always succeed connect
+    getConnectionInfo: jest.fn().mockReturnValue({
+      connected: config.connected !== false,
+      kubeconfig: config.kubeconfig || (process.env.KUBECONFIG || '/home/user/.kube/config'),
+      mode: 'file',
+      server: config.server || 'https://127.0.0.1:64942',
+      context: (config.context !== undefined && config.context !== null) ? config.context : (config.context === null ? undefined : 'kind-dot')
+    }),
+    testConnection: jest.fn().mockResolvedValue({
+      connected: config.connected !== false,
+      version: (config.version !== undefined && config.version !== null) ? config.version : (config.version === null ? undefined : 'v1.27.3+k3s1'),
+      error: config.error,
+      errorType: config.errorType
+    }),
+    getAPIResources: jest.fn().mockResolvedValue(
+      config.kyvernoCRDs || [
+        { name: 'clusterpolicies.kyverno.io', kind: 'ClusterPolicy' },
+        { name: 'policies.kyverno.io', kind: 'Policy' },
+        { name: 'policyreports.wgpolicyk8s.io', kind: 'PolicyReport' }
+      ]
+    ),
+    executeKubectl: jest.fn().mockImplementation((args: string[]) => {
+      if (args.includes('get') && args.includes('crd') && args.includes('--no-headers')) {
+        // Mock CRD list response
+        if (config.kyvernoCRDs === undefined) {
+          // Default: return Kyverno CRDs
+          return Promise.resolve(
+            'clusterpolicies.kyverno.io\nkyverno.io\nv2\ntrue\nClusterPolicy\n' +
+            'policies.kyverno.io\nkyverno.io\nv2\ntrue\nPolicy\n' +
+            'policyreports.wgpolicyk8s.io\nreports.kyverno.io\nv1\ntrue\nPolicyReport'
+          );
+        } else if (config.kyvernoCRDs.length === 0) {
+          // No Kyverno CRDs
+          return Promise.resolve('ingresses.networking.k8s.io\nnetworking.k8s.io\nv1\ntrue\nIngress');
+        } else {
+          // Custom CRDs
+          return Promise.resolve(
+            config.kyvernoCRDs.map(crd => `${crd.name}\t${crd.kind}`).join('\n')
+          );
+        }
+      }
+      
+      if (args.includes('get') && args.includes('deployment') && args.includes('kyverno')) {
+        if (config.kyvernoDeploymentReady === false) {
+          return Promise.reject(new Error('deployment.apps "kyverno" not found'));
+        }
+        return Promise.resolve('kyverno\t1/1\t1\t1\t5m');
+      }
+      
+      if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
+        if (config.kyvernoWebhookReady === false) {
+          return Promise.resolve('');
+        }
+        return Promise.resolve('kyverno-policy-validating-webhook-cfg\tkyverno-webhook\t5m');
+      }
+      
+      return Promise.resolve('');
+    }),
+    getClient: jest.fn().mockReturnValue({
+      makeApiClient: jest.fn().mockImplementation(() => {
+        return {
+          listNamespacedDeployment: jest.fn().mockResolvedValue({
+            items: config.kyvernoDeploymentReady !== false ? [
+              {
+                metadata: { name: 'kyverno-admission-controller' },
+                status: { readyReplicas: 1, replicas: 1 },
+                spec: {
+                  template: {
+                    spec: {
+                      containers: [{ image: `ghcr.io/kyverno/kyverno:v${config.kyvernoVersion || '1.10.0'}` }]
+                    }
+                  }
+                }
+              },
+              {
+                metadata: { name: 'kyverno-background-controller' },
+                status: { readyReplicas: 1, replicas: 1 },
+                spec: {
+                  template: {
+                    spec: {
+                      containers: [{ image: `ghcr.io/kyverno/kyverno:v${config.kyvernoVersion || '1.10.0'}` }]
+                    }
+                  }
+                }
+              }
+            ] : []
+          }),
+          listValidatingWebhookConfiguration: jest.fn().mockResolvedValue({
+            items: config.kyvernoWebhookReady !== false ? [
+              { metadata: { name: 'kyverno-policy-validating-webhook-cfg' } },
+              { metadata: { name: 'kyverno-resource-validating-webhook-cfg' } }
+            ] : []
+          })
+        };
+      })
+    })
+  }));
+}
 
 describe('Version Tool', () => {
   let logger: Logger;
@@ -124,10 +255,6 @@ describe('Version Tool', () => {
     };
     requestId = 'test-request-123';
     jest.clearAllMocks();
-    
-    // Set up default kubectl mock
-    const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-    mockExecuteKubectl.mockImplementation(defaultKubectlMock);
     
     // Clear environment variables for clean test state
     delete process.env.ANTHROPIC_API_KEY;
@@ -247,6 +374,9 @@ describe('Version Tool', () => {
     it('should return comprehensive system status with healthy services', async () => {
       // Set up healthy environment
       process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      // Configure default healthy Kubernetes mock
+      configureMockKubernetesDiscovery({});
       
       const result = await handleVersionTool({}, logger, requestId);
       const response = JSON.parse(result.content[0].text);
@@ -487,9 +617,21 @@ describe('Version Tool', () => {
     });
 
     it('should handle Kubernetes connection failures', async () => {
-      // Mock kubectl to throw connection error
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockRejectedValueOnce(new Error('ECONNREFUSED: Connection refused'));
+      // Mock KubernetesDiscovery to throw connection error
+      const { KubernetesDiscovery } = require('../../src/core/discovery');
+      KubernetesDiscovery.mockImplementation(() => ({
+        connect: jest.fn().mockRejectedValue(new Error('ECONNREFUSED: Connection refused')),
+        getConnectionInfo: jest.fn().mockReturnValue({
+          connected: false,
+          kubeconfig: '/home/user/.kube/config',
+          mode: 'file'
+        }),
+        testConnection: jest.fn().mockResolvedValue({
+          connected: false,
+          error: 'ECONNREFUSED: Connection refused',
+          errorType: 'network'
+        })
+      }));
 
       process.env.ANTHROPIC_API_KEY = 'test-key';
       
@@ -503,20 +645,6 @@ describe('Version Tool', () => {
       expect(response.summary.capabilityScanning).toBe('not-ready'); // Not ready when K8s disconnected
       expect(response.summary.capabilities).not.toContain('kubernetes-integration');
       expect(response.summary.capabilities).not.toContain('capability-scanning');
-      
-      // Reset mock for other tests
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
-        }
-        if (args.includes('current-context')) {
-          return Promise.resolve('kind-dot');
-        }
-        if (args.includes('version')) {
-          return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
-        }
-        return Promise.resolve('');
-      });
     });
 
     it('should show correct kubeconfig path from environment', async () => {
@@ -533,19 +661,14 @@ describe('Version Tool', () => {
     });
 
     it('should handle partial Kubernetes info retrieval', async () => {
-      // Mock kubectl to succeed for cluster-info but fail for context/version
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        if (args.includes('current-context') || args.includes('version')) {
-          return Promise.reject(new Error('Command failed'));
-        }
-        return Promise.resolve('');
-      });
-
       process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      // Configure mock to succeed connection but have partial info (after beforeEach)
+      configureMockKubernetesDiscovery({
+        server: 'https://127.0.0.1:64942',
+        context: null as any, // Explicitly set to null instead of undefined
+        version: null as any
+      });
       
       const result = await handleVersionTool({}, logger, requestId);
       const response = JSON.parse(result.content[0].text);
@@ -554,20 +677,6 @@ describe('Version Tool', () => {
       expect(response.system.kubernetes.clusterInfo.endpoint).toBe('https://127.0.0.1:64942');
       expect(response.system.kubernetes.clusterInfo.context).toBeUndefined();
       expect(response.system.kubernetes.clusterInfo.version).toBeUndefined();
-      
-      // Reset mock
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942\nKubeDNS is running at https://127.0.0.1:64942/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy');
-        }
-        if (args.includes('current-context')) {
-          return Promise.resolve('kind-dot');
-        }
-        if (args.includes('version')) {
-          return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
-        }
-        return Promise.resolve('');
-      });
     });
 
     it('should log diagnostic progress', async () => {
@@ -603,17 +712,12 @@ describe('Version Tool', () => {
     beforeEach(() => {
       // Set up default healthy environment for each test
       process.env.ANTHROPIC_API_KEY = 'test-key';
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation(defaultKubectlMock);
-    });
-
-    afterEach(() => {
-      // Reset kubectl mock to default behavior
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation(defaultKubectlMock);
     });
 
     it('should detect fully operational Kyverno installation', async () => {
+      // Use default healthy configuration
+      configureMockKubernetesDiscovery({});
+      
       const result = await handleVersionTool({}, logger, requestId);
       const response = JSON.parse(result.content[0].text);
       
@@ -629,22 +733,11 @@ describe('Version Tool', () => {
     });
 
     it('should detect when Kyverno CRDs are missing', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          return Promise.resolve('coredns.k8s.io\ningresses.networking.k8s.io'); // No Kyverno CRDs
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        if (args.includes('current-context')) {
-          return Promise.resolve('kind-dot');
-        }
-        if (args.includes('version')) {
-          return Promise.resolve('Client Version: v1.28.2\nServer Version: v1.27.3+k3s1');
-        }
-        return Promise.resolve('');
+      configureMockKubernetesDiscovery({
+        kyvernoCRDs: [
+          { name: 'coredns.k8s.io', kind: 'CoreDNS' },
+          { name: 'ingresses.networking.k8s.io', kind: 'Ingress' }
+        ] // No Kyverno CRDs
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -661,22 +754,10 @@ describe('Version Tool', () => {
     });
 
     it('should detect when Kyverno deployment is not ready', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          return Promise.resolve('clusterpolicies.kyverno.io\npolicies.kyverno.io');
-        }
-        if (args.includes('get') && args.includes('deployment') && args.includes('-n') && args.includes('kyverno')) {
-          return Promise.resolve('kyverno                    0/1     0            0           7d'); // Not ready
-        }
-        if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
-          return Promise.resolve('kyverno-policy-validating-webhook-cfg\nkyverno-resource-validating-webhook-cfg');
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with Kyverno CRDs but deployment not ready
+      configureMockKubernetesDiscovery({
+        kyvernoDeploymentReady: false, // Deployment not ready
+        kyvernoWebhookReady: true
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -693,22 +774,10 @@ describe('Version Tool', () => {
     });
 
     it('should detect when Kyverno webhook is missing', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          return Promise.resolve('clusterpolicies.kyverno.io\npolicies.kyverno.io');
-        }
-        if (args.includes('get') && args.includes('deployment') && args.includes('-n') && args.includes('kyverno')) {
-          return Promise.resolve('kyverno                    1/1     1            1           7d');
-        }
-        if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
-          return Promise.resolve('cert-manager-webhook\nother-webhook'); // No Kyverno webhooks
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with Kyverno CRDs and deployment ready but webhook not ready
+      configureMockKubernetesDiscovery({
+        kyvernoDeploymentReady: true,
+        kyvernoWebhookReady: false // Webhook not ready
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -723,28 +792,9 @@ describe('Version Tool', () => {
     });
 
     it('should handle version detection from image tag', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          return Promise.resolve('clusterpolicies.kyverno.io\npolicies.kyverno.io');
-        }
-        if (args.includes('get') && args.includes('deployment') && args.includes('-n') && args.includes('kyverno') && !JSON.stringify(args).includes('jsonpath')) {
-          return Promise.resolve('kyverno                    1/1     1            1           7d');
-        }
-        if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
-          return Promise.resolve('kyverno-policy-validating-webhook-cfg');
-        }
-        if (args.includes('jsonpath={.metadata.labels.version}')) {
-          return Promise.resolve(''); // No version label
-        }
-        if (args.includes('jsonpath={.spec.template.spec.containers[0].image}')) {
-          return Promise.resolve('ghcr.io/kyverno/kyverno:v1.9.2'); // Version from image tag
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with specific version from image tag
+      configureMockKubernetesDiscovery({
+        kyvernoVersion: '1.9.2'
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -759,16 +809,11 @@ describe('Version Tool', () => {
     });
 
     it('should handle Kubernetes connectivity issues', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          throw new Error('ECONNREFUSED: Connection refused');
-        }
-        // Return defaults for other calls that still work
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with connection failure
+      configureMockKubernetesDiscovery({
+        connected: false,
+        error: 'ECONNREFUSED: Connection refused',
+        errorType: 'network'
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -784,22 +829,13 @@ describe('Version Tool', () => {
     });
 
     it('should detect partial Kyverno installation', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          return Promise.resolve('clusterpolicies.kyverno.io'); // Only some CRDs
-        }
-        if (args.includes('get') && args.includes('deployment') && args.includes('-n') && args.includes('kyverno')) {
-          throw new Error('No resources found in kyverno namespace'); // No deployment
-        }
-        if (args.includes('get') && args.includes('validatingwebhookconfigurations')) {
-          return Promise.resolve('other-webhook'); // No Kyverno webhooks
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with partial CRDs, no deployment, no webhook
+      configureMockKubernetesDiscovery({
+        kyvernoCRDs: [
+          { name: 'clusterpolicies.kyverno.io', kind: 'ClusterPolicy' }
+        ], // Only some CRDs
+        kyvernoDeploymentReady: false,
+        kyvernoWebhookReady: false
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -814,16 +850,10 @@ describe('Version Tool', () => {
     });
 
     it('should handle kubectl command failures gracefully', async () => {
-      const mockExecuteKubectl = require('../../src/core/kubernetes-utils').executeKubectl;
-      mockExecuteKubectl.mockImplementation((args: string[]) => {
-        if (args.includes('get') && args.includes('crd')) {
-          throw new Error('kubectl: command not found');
-        }
-        // Return defaults for other calls
-        if (args.includes('cluster-info')) {
-          return Promise.resolve('Kubernetes control plane is running at https://127.0.0.1:64942');
-        }
-        return Promise.resolve('');
+      // Configure mock with general command failure
+      configureMockKubernetesDiscovery({
+        connected: false,
+        error: 'kubectl: command not found'
       });
 
       const result = await handleVersionTool({}, logger, requestId);
@@ -832,7 +862,7 @@ describe('Version Tool', () => {
       expect(response.system.kyverno).toMatchObject({
         installed: false,
         policyGenerationReady: false,
-        error: 'Kyverno detection failed: kubectl: command not found'
+        error: 'Cannot detect Kyverno - Kubernetes cluster is not accessible'
       });
     });
   });
