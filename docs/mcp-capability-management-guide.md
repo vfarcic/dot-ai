@@ -37,6 +37,12 @@ Result: Optimal recommendations whether using 1 resource, 5 resources, or 50 res
 3. **Smart Recommendations** → Deployment requests get pre-filtered, relevant resources with rich context
 4. **Informed AI Decisions** → AI makes better choices based on capability understanding
 
+## See the Problem in Action
+
+[![Why Kubernetes Discovery Sucks for AI (And How Vector DBs Fix It)](https://img.youtube.com/vi/MSNstHj4rmk/maxresdefault.jpg)](https://youtu.be/MSNstHj4rmk)
+
+This video demonstrates the real-world challenge of discovering the right Kubernetes resources when you have hundreds of cryptically named resource types in your cluster. Watch how both humans and AI struggle with traditional keyword-based searching through 443+ resources, and see how semantic search with vector databases transforms an unsearchable cluster into an instantly discoverable one where you can describe what you want to accomplish rather than memorizing cryptic resource names.
+
 ### Understanding Organizational Data Types
 
 Capability Management provides the foundation for other organizational intelligence features in the DevOps AI Toolkit.
