@@ -75,7 +75,12 @@ Add a new MCP tool called `remediate` that receives Kubernetes issues and events
 
 - **Performance**: Response within 10 seconds for analysis
 - **Reliability**: 99.9% availability for critical path
-- **Security**: Audit all remediation actions
+- **Security**: Multi-layer safety for read-only operations during investigation
+  - AI prompt constraints (explicit read-only instructions)
+  - Code enforcement (whitelist of safe operations)
+  - RBAC constraints (read-only service account)
+  - Command validation (parameterized, safe command construction)
+- **Audit**: Complete investigation trail and all remediation actions
 - **Scalability**: Handle 100+ concurrent remediation requests
 
 ## Technical Design
@@ -85,7 +90,7 @@ Add a new MCP tool called `remediate` that receives Kubernetes issues and events
 ```typescript
 interface RemediateInput {
   issue: string;           // Issue description
-  context?: {             // Optional context
+  context?: {             // Optional initial context
     event?: K8sEvent;
     logs?: string[];
     metrics?: Metrics;
@@ -97,8 +102,13 @@ interface RemediateInput {
 }
 
 interface RemediateOutput {
-  status: 'success' | 'pending' | 'failed';
+  status: 'success' | 'failed';
   sessionId: string;
+  investigation: {
+    iterations: number;
+    dataGathered: string[];
+    analysisPath: string[];
+  };
   analysis: {
     rootCause: string;
     confidence: number;
@@ -112,55 +122,133 @@ interface RemediateOutput {
   executed?: boolean;
   results?: ExecutionResult[];
 }
+
+// Safe data request interface - only read operations allowed
+interface DataRequest {
+  type: 'get' | 'describe' | 'logs' | 'events' | 'top'; // Whitelist of safe operations
+  resource: string;
+  namespace?: string;
+  rationale: string;
+}
+
+interface RemediateSession {
+  sessionId: string;
+  issue: string;
+  initialContext: any;
+  iterations: [{
+    step: number;
+    aiAnalysis: string;
+    dataRequests: DataRequest[];
+    gatheredData: { [key: string]: any };
+    complete: boolean;
+  }];
+  finalAnalysis?: RemediateOutput;
+  created: Date;
+  updated: Date;
+}
 ```
 
 ### Architecture Integration
 
 ```
-External Callers → MCP Server → Remediate Tool → Claude AI
-                                      ↓
-                                 Kubernetes API
+External Callers → MCP Server → Remediate Tool → AI Investigation Loop:
+                                      ↓              ↓
+                                Session Storage ← → Claude AI
+                                      ↓              ↓
+                           Safe K8s Data Gatherer ← → Multi-Layer Safety
+                                      ↓                     ↓
+                                Kubernetes API    RBAC Read-Only SA
+```
+
+### Investigation Loop Architecture
+
+```
+1. Issue + Initial Context → Session Storage
+2. AI Analysis → Data Requests (validated against whitelist)
+3. Code Validates & Fetches Data (read-only) → Session Storage  
+4. Updated Session → AI Analysis
+5. Repeat until AI declares analysis complete
+6. Return comprehensive remediation plan
+```
+
+### Multi-Layer Safety Architecture
+
+```
+Layer 1: AI Prompt Instructions (explicit read-only constraints)
+    ↓
+Layer 2: Code Enforcement (whitelist validation)
+    ↓  
+Layer 3: Command Construction (parameterized, safe building)
+    ↓
+Layer 4: Kubernetes RBAC (read-only service account)
 ```
 
 ### Key Components
 
 1. **Tool Handler** (`src/tools/remediate.ts`)
    - Input validation
-   - Context enrichment
-   - AI prompt construction
+   - Session management and persistence
+   - AI investigation loop orchestration
+   - Final analysis compilation
 
-2. **Remediation Engine**
-   - Action generation
+2. **Safe Data Gatherer** (`src/core/k8s-safe-data-gatherer.ts`)
+   - Multi-layer safety enforcement:
+     - Operation whitelist validation
+     - Parameterized command construction
+     - Input sanitization and validation
+   - Read-only Kubernetes API operations (get, describe, logs, events, top)
+   - Context enrichment based on validated AI requests
+   - Session-based data storage
+
+3. **AI Investigation Engine**
+   - Iterative analysis with full session context
+   - Read-only operation constraints in prompts
+   - Adaptive data gathering requests (safety validated)
+   - Comprehensive root cause analysis
+   - Investigation completion detection
+
+4. **Safety Validator** (`src/core/safety-validator.ts`)
+   - Data request validation against whitelist
+   - Command construction safety checks
+   - Audit trail of all validation decisions
+   - Error handling for unsafe requests
+
+5. **Remediation Engine** (Milestone 2)
+   - Action generation based on complete analysis
    - Risk assessment
    - Execution orchestration
 
-3. **Audit Logger**
-   - Track all decisions
-   - Record execution results
+6. **Audit Logger**
+   - Track all investigation steps and decisions
+   - Record safety validation outcomes
+   - Complete investigation trail
    - Compliance reporting
 
 ## Implementation Milestones
 
-### Milestone 1: Core Tool Implementation ⬜
-**Deliverable**: Basic remediate tool that analyzes issues and returns recommendations
-- [ ] Create tool handler with input/output schema
-- [ ] Integrate with Claude AI for analysis
-- [ ] Implement basic remediation generation
+### Milestone 1: AI-Driven Investigation & Analysis ⬜
+**Deliverable**: Complete analysis tool with AI-driven context enrichment loop
+- [ ] Create tool handler with investigation loop architecture
+- [ ] Implement session-based state management for investigation tracking
+- [ ] Add multi-layer safety enforcement for read-only operations
+- [ ] Add read-only Kubernetes API integration for context enrichment
+- [ ] Implement AI-driven data gathering request/response cycle
+- [ ] Integrate comprehensive analysis with Claude AI
 - [ ] Add unit tests with 80% coverage
 
 ### Milestone 2: Execution Capabilities ⬜
 **Deliverable**: Tool can execute remediations in automatic mode
-- [ ] Implement Kubernetes API integration
 - [ ] Add execution engine with rollback support
 - [ ] Create audit logging system
 - [ ] Integration testing with test cluster
+- [ ] Safety mechanisms and approval workflows
 
-### Milestone 3: Context Enhancement ⬜
-**Deliverable**: Enhanced analysis with full context gathering
-- [ ] Log collection and analysis
-- [ ] Metrics integration
-- [ ] Related event correlation
+### Milestone 3: Production Optimization ⬜
+**Deliverable**: Production-ready tool with monitoring and performance features
 - [ ] Performance optimization for large contexts
+- [ ] Rate limiting and circuit breakers
+- [ ] Comprehensive error handling
+- [ ] Monitoring and alerting setup
 
 ### Milestone 4: Production Readiness ⬜
 **Deliverable**: Production-ready tool with monitoring and safety features
@@ -203,9 +291,30 @@ External Callers → MCP Server → Remediate Tool → Claude AI
 ## Open Questions
 
 1. **Approval Mechanism**: Slack vs UI vs webhook - to be determined during implementation
-2. **State Storage**: CRD vs external database - defer until state requirements clear
-3. **Notification Channels**: Specific integrations to be determined based on user feedback
-4. **Rate Limiting Strategy**: Adaptive vs fixed - determine based on load testing
+2. **Notification Channels**: Specific integrations to be determined based on user feedback
+3. **Investigation Loop Limits**: Maximum iterations and timeout strategies - determine during testing
+4. **Session Cleanup**: Retention policy for investigation session files - determine based on storage constraints
+5. **RBAC Configuration**: Specific permissions needed for read-only service account - finalize during implementation
+
+## Resolved Decisions
+
+1. **✅ Context Enrichment Strategy**: AI-driven investigation loop with read-only data gathering
+   - **Date**: 2025-01-11
+   - **Decision**: Use AI ↔ Code iteration loop for comprehensive analysis
+   - **Rationale**: Quality-first approach, AI can reason about investigation paths that code cannot anticipate
+   - **Impact**: Milestone restructure, enhanced analysis capabilities in M1
+
+2. **✅ State Management**: Session-based persistence using file storage
+   - **Date**: 2025-01-11  
+   - **Decision**: Follow existing tool patterns (recommend tool) for session management
+   - **Rationale**: Consistency with existing architecture, auditability, resumability
+   - **Impact**: Investigation state persisted across iterations, complete audit trail
+
+3. **✅ Safety Architecture**: Multi-layer read-only operation enforcement
+   - **Date**: 2025-01-11
+   - **Decision**: Implement 4-layer safety system for investigation phase
+   - **Rationale**: Critical safety requirement to prevent accidental cluster modifications during analysis
+   - **Impact**: Additional validation components, enhanced security requirements, RBAC constraints
 
 ## Progress Log
 
@@ -214,6 +323,21 @@ External Callers → MCP Server → Remediate Tool → Claude AI
 - Core concept validated with stakeholder
 - Decision to separate controller and MCP tool implementation
 - Defined interface contract between components
+
+### 2025-01-11
+- **DECISION**: AI-driven investigation loop architecture adopted
+- **RATIONALE**: Quality over speed - comprehensive analysis requires adaptive data gathering that only AI can reason through
+- **IMPACT**: Combined context enrichment into Milestone 1, restructured milestone plan
+- **SCOPE**: Tool performs complete analysis in single call with internal iteration loop
+- **CONSTRAINTS**: Read-only operations only during investigation phase for safety
+- **ARCHITECTURE**: AI ↔ Code loop: AI requests data → Code fetches safely → AI analyzes → Repeat until complete
+- **STATE MANAGEMENT**: Session-based persistence following existing tool patterns (like recommend tool)
+- **SAFETY**: Multi-layer safety enforcement for read-only operations
+  - AI prompt constraints (explicit read-only instructions)
+  - Code enforcement (whitelist of safe operations: get, describe, logs, events, top)
+  - RBAC constraints (read-only service account permissions)
+  - Command validation (parameterized, safe command construction)
+- **DECISION**: Complete investigation history stored in session files for auditability and resumability
 
 ---
 
