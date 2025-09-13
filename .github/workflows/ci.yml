@@ -188,6 +188,21 @@ jobs:
           echo "Package.json already at correct version: $VERSION"
         fi
     
+    - name: Update server.json version
+      run: |
+        VERSION=${{ needs.version.outputs.new-version }}
+        if [ ! -f "server.json" ]; then
+          echo "ERROR: server.json file not found!"
+          echo "The server.json file is required for MCP registry publication."
+          exit 1
+        fi
+        
+        echo "Updating server.json to version $VERSION"
+        # Update both version fields in server.json
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/g" server.json
+        echo "Updated server.json:"
+        cat server.json
+    
     - name: Publish to npm
       run: npm publish --access public
       env:
