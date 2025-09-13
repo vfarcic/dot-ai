@@ -35,6 +35,11 @@
       "matchPackageNames": ["@kubernetes/client-node"],
       "reviewersFromCodeOwners": true,
       "labels": ["kubernetes", "major-update"]
+    },
+    {
+      "matchFiles": ["devbox.json"],
+      "groupName": "Devbox packages",
+      "labels": ["devbox"]
     }
   ],
   "vulnerabilityAlerts": {

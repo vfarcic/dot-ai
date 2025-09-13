@@ -1,13 +1,8 @@
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote@latest",
-        "http://dot-ai.127.0.0.1.nip.io",
-        "--allow-http"
-      ]
+      "type": "http",
+      "url": "http://dot-ai.127.0.0.1.nip.io"
     }
   }
 }
