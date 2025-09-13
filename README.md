@@ -70,14 +70,15 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 ### Organizational Pattern Management
 🏛️ **Pattern Creation**: Define organizational deployment patterns that capture institutional knowledge  
 🧠 **AI Enhancement**: Patterns automatically enhance deployment recommendations with organizational context  
-🔍 **Semantic Search**: Uses Vector DB technology for intelligent pattern matching based on user intent  
+🔍 **Semantic Search**: Uses Vector DB (Qdrant) for intelligent pattern matching based on user intent  
 📋 **Best Practices**: Share deployment standards across teams through reusable patterns
 
 ### Policy Management & Governance
 🛡️ **Policy Creation**: Define governance policies that guide users toward compliant configurations  
 ⚠️ **Compliance Integration**: Policies create required questions with compliance indicators during deployment  
 🤖 **Kyverno Generation**: Automatically generates Kyverno ClusterPolicies for active enforcement  
-🎯 **Proactive Governance**: Prevents configuration drift by embedding compliance into the recommendation workflow
+🎯 **Proactive Governance**: Prevents configuration drift by embedding compliance into the recommendation workflow  
+🔍 **Vector Storage**: Uses Qdrant Vector DB for semantic policy matching and retrieval
 
 ### Shared Prompts Library
 🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
