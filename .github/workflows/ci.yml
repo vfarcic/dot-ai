@@ -297,6 +297,25 @@ jobs:
         
         echo "Released coordinated version: $VERSION"
     
+    - name: Publish to MCP Registry
+      run: |
+        VERSION=${{ needs.version.outputs.new-version }}
+        echo "Publishing dot-ai v$VERSION to MCP Registry"
+        
+        # Install MCP publisher CLI
+        echo "Installing MCP publisher CLI..."
+        curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+        
+        # Use GitHub OIDC for authentication (no login needed in GitHub Actions)
+        echo "Authenticating with GitHub OIDC..."
+        ./mcp-publisher login github-oidc
+        
+        # Publish the server
+        echo "Publishing server.json..."
+        ./mcp-publisher publish server.json
+        
+        echo "Successfully published dot-ai v$VERSION to MCP Registry"
+    
     - name: Generate release notes
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
@@ -306,6 +325,7 @@ jobs:
         echo "- **npm package**: \`@vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
         echo "- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)" >> RELEASE_NOTES.md
         echo "- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`" >> RELEASE_NOTES.md
+        echo "- **MCP Registry**: \`io.github.vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
         echo "" >> RELEASE_NOTES.md
         echo "## Changes" >> RELEASE_NOTES.md
         git log --oneline $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md 2>/dev/null || echo "Initial release" >> RELEASE_NOTES.md
