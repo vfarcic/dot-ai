@@ -52,7 +52,7 @@ Install the MCP server using the published Helm chart:
 
 ```bash
 # Install from GitHub Container Registry OCI artifact
-helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.83.0 \
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.85.0 \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set ingress.enabled=true \
