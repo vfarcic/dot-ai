@@ -3,7 +3,7 @@ name: dot-ai
 description: DevOps AI Toolkit - Intelligent Kubernetes deployment agent with AI-powered recommendations
 type: application
 version: 0.1.0
-appVersion: "0.87.0"
+appVersion: "0.88.0"
 home: https://github.com/vfarcic/dot-ai
 sources:
   - https://github.com/vfarcic/dot-ai
