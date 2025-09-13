@@ -278,7 +278,7 @@ jobs:
         VERSION=${{ needs.version.outputs.new-version }}
         
         # Add all version-related changes
-        git add package.json charts/Chart.yaml charts/values.yaml
+        git add package.json charts/Chart.yaml charts/values.yaml server.json
         
         git commit -m "chore: coordinated release v$VERSION
 
