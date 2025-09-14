@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } from '../core/error-handling';
 import { ClaudeIntegration } from '../core/claude';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { executeKubectl } from '../core/kubernetes-utils';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -13,6 +14,10 @@ import * as crypto from 'crypto';
 // Tool metadata for direct MCP registration
 export const REMEDIATE_TOOL_NAME = 'remediate';
 export const REMEDIATE_TOOL_DESCRIPTION = 'Receive Kubernetes issues and events, analyze them using AI, and provide remediation recommendations or execute fixes. This tool can be called from controllers, human agents, or CI/CD pipelines.';
+
+// Safety: Whitelist of allowed read-only operations
+export const SAFE_OPERATIONS = ['get', 'describe', 'logs', 'events', 'top'] as const;
+export type SafeOperation = typeof SAFE_OPERATIONS[number];
 
 // Zod schema for MCP registration
 export const REMEDIATE_TOOL_INPUT_SCHEMA = {
@@ -388,8 +393,8 @@ export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest
     
     // Validate data requests format
     for (const request of parsed.dataRequests) {
-      if (!['get', 'describe', 'logs', 'events', 'top'].includes(request.type)) {
-        throw new Error(`Invalid data request type: ${request.type}`);
+      if (!SAFE_OPERATIONS.includes(request.type as SafeOperation)) {
+        throw new Error(`Invalid data request type: ${request.type}. Allowed: ${SAFE_OPERATIONS.join(', ')}`);
       }
       if (!request.resource || !request.rationale) {
         throw new Error('Data request missing required fields: resource, rationale');
@@ -415,29 +420,155 @@ export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest
 }
 
 /**
- * Gather safe data from Kubernetes (scaffolding)
- * TODO: Implement actual safe K8s API integration
+ * Data gathering result for a single kubectl request
+ */
+interface DataGatheringResult {
+  successful: { [requestId: string]: any };
+  failed: { 
+    [requestId: string]: {
+      error: string;
+      command: string;  
+      suggestion?: string;
+    }
+  };
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
+}
+
+/**
+ * Gather safe data from Kubernetes using kubectl
+ * Implements resilient error handling - failed requests don't kill the investigation
  */
 async function gatherSafeData(
   dataRequests: DataRequest[],
   logger: Logger,
   requestId: string
-): Promise<{ [key: string]: any }> {
-  // Scaffolding implementation
-  logger.debug('Gathering safe data', { requestId, requestCount: dataRequests.length });
+): Promise<DataGatheringResult> {
+  logger.debug('Gathering safe data from Kubernetes', { requestId, requestCount: dataRequests.length });
   
-  const gatheredData: { [key: string]: any } = {};
+  const result: DataGatheringResult = {
+    successful: {},
+    failed: {},
+    summary: {
+      total: dataRequests.length,
+      successful: 0,
+      failed: 0
+    }
+  };
   
-  for (const request of dataRequests) {
-    // TODO: Implement actual K8s API calls with safety validation
-    gatheredData[`${request.type}_${request.resource}`] = {
-      mock: true,
-      request: request,
-      data: 'Mock data - to be replaced with actual K8s API calls'
-    };
+  // Process each data request independently
+  for (let i = 0; i < dataRequests.length; i++) {
+    const request = dataRequests[i];
+    const dataRequestId = `${requestId}-req-${i}`;
+    
+    try {
+      // Safety validation - only check operation type
+      if (!SAFE_OPERATIONS.includes(request.type as SafeOperation)) {
+        const error = `Unsafe operation '${request.type}' - only allowed: ${SAFE_OPERATIONS.join(', ')}`;
+        result.failed[dataRequestId] = {
+          error,
+          command: `kubectl ${request.type} ${request.resource}`,
+          suggestion: 'Use only read-only operations like get, describe, logs, events, or top'
+        };
+        result.summary.failed++;
+        logger.warn('Rejected unsafe kubectl operation', { requestId, dataRequestId, operation: request.type });
+        continue;
+      }
+      
+      // Build kubectl command
+      const args: string[] = [request.type, request.resource];
+      if (request.namespace) {
+        args.push('-n', request.namespace);
+      }
+      
+      // Add output format for structured data (only for commands that support it)
+      if (request.type === 'get' || request.type === 'events' || request.type === 'top') {
+        args.push('-o', 'yaml');
+      }
+      
+      logger.debug('Executing kubectl command', { 
+        requestId, 
+        dataRequestId, 
+        command: `kubectl ${args.join(' ')}`,
+        rationale: request.rationale 
+      });
+      
+      // Execute kubectl command
+      const output = await executeKubectl(args, { timeout: 30000 });
+      
+      // Store successful result
+      result.successful[dataRequestId] = {
+        request,
+        output,
+        command: `kubectl ${args.join(' ')}`,
+        timestamp: new Date().toISOString()
+      };
+      result.summary.successful++;
+      
+      logger.debug('kubectl command successful', { 
+        requestId, 
+        dataRequestId, 
+        outputLength: output.length 
+      });
+      
+    } catch (error) {
+      // Store failed result with error details
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const command = `kubectl ${request.type} ${request.resource}${request.namespace ? ` -n ${request.namespace}` : ''}`;
+      
+      result.failed[dataRequestId] = {
+        error: errorMessage,
+        command,
+        suggestion: generateErrorSuggestion(errorMessage)
+      };
+      result.summary.failed++;
+      
+      logger.warn('kubectl command failed', { 
+        requestId, 
+        dataRequestId, 
+        command,
+        error: errorMessage,
+        rationale: request.rationale
+      });
+    }
   }
   
-  return gatheredData;
+  logger.info('Data gathering completed', {
+    requestId,
+    successful: result.summary.successful,
+    failed: result.summary.failed,
+    total: result.summary.total
+  });
+  
+  return result;
+}
+
+/**
+ * Generate helpful suggestions based on kubectl error messages
+ */
+function generateErrorSuggestion(errorMessage: string): string | undefined {
+  const lowerError = errorMessage.toLowerCase();
+  
+  if (lowerError.includes('not found')) {
+    return 'Resource may not exist or may be in a different namespace. Try listing available resources first.';
+  }
+  
+  if (lowerError.includes('forbidden')) {
+    return 'Insufficient permissions. Check RBAC configuration for read access to this resource.';
+  }
+  
+  if (lowerError.includes('namespace') && lowerError.includes('not found')) {
+    return 'Namespace does not exist. Try listing available namespaces first.';
+  }
+  
+  if (lowerError.includes('connection refused') || lowerError.includes('timeout')) {
+    return 'Cannot connect to Kubernetes cluster. Verify cluster connectivity and kubectl configuration.';
+  }
+  
+  return undefined;
 }
 
 

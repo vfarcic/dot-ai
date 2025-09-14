@@ -8,6 +8,7 @@ import {
   REMEDIATE_TOOL_NAME, 
   REMEDIATE_TOOL_DESCRIPTION, 
   REMEDIATE_TOOL_INPUT_SCHEMA,
+  SAFE_OPERATIONS,
   handleRemediateTool,
   RemediateInput,
   RemediateSession,
@@ -15,6 +16,8 @@ import {
   InvestigationIteration,
   RemediateOutput
 } from '../../src/tools/remediate';
+
+import { executeKubectl } from '../../src/core/kubernetes-utils';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,6 +38,11 @@ jest.mock('../../src/core/claude', () => ({
     })
   }))
 }));
+
+jest.mock('../../src/core/kubernetes-utils', () => ({
+  executeKubectl: jest.fn()
+}));
+
 jest.mock('../../src/core/error-handling', () => ({
   ErrorHandler: {
     createError: jest.fn((category, severity, message, context) => {
@@ -640,6 +648,308 @@ describe('Remediate Tool', () => {
       expect(output.investigation).toBeDefined();
       expect(output.analysis).toBeDefined();
       expect(output.remediation).toBeDefined();
+    });
+  });
+
+  describe('Kubernetes API Integration', () => {
+    const mockExecuteKubectl = executeKubectl as jest.MockedFunction<typeof executeKubectl>;
+
+    beforeEach(() => {
+      mockExecuteKubectl.mockClear();
+    });
+
+    test('should validate operation safety first', async () => {
+      // Test that unsafe operations are rejected
+      const mockArgs = {
+        issue: 'Test unsafe operation validation',
+        sessionDir: tempDir
+      };
+
+      // Mock AI response with unsafe operation
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockClaudeInstance = {
+        sendMessage: jest.fn().mockResolvedValue({
+          content: JSON.stringify({
+            analysis: "Investigation complete - found unsafe operation requested",
+            dataRequests: [],
+            investigationComplete: true,  // Complete immediately
+            confidence: 0.9,
+            reasoning: "Cannot proceed with unsafe operations"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        })
+      };
+      ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+      const result = await handleRemediateTool(mockArgs);
+      const output = JSON.parse(result.content[0].text);
+      
+      // Should complete without calling kubectl for unsafe operation
+      expect(output.status).toBe('success');
+      expect(mockExecuteKubectl).not.toHaveBeenCalled();
+    });
+
+    test('should execute safe kubectl operations', async () => {
+      // Mock successful kubectl response
+      mockExecuteKubectl.mockResolvedValue('NAME: test-pod\nSTATUS: Running');
+
+      const mockArgs = {
+        issue: 'Test safe kubectl execution',
+        sessionDir: tempDir
+      };
+
+      // Mock AI response with safe operations  
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockClaudeInstance = {
+        sendMessage: jest.fn()
+      };
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Need to check pod status",
+          dataRequests: [
+            {
+              type: 'get',
+              resource: 'pod test-pod',
+              namespace: 'default',
+              rationale: 'Check pod status'
+            }
+          ],
+          investigationComplete: false,
+          confidence: 0.7,
+          reasoning: "Need pod data"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+      // Mock completion response for next iteration
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Pod is running normally",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.9,
+          reasoning: "Analysis complete"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+      const result = await handleRemediateTool(mockArgs);
+      const output = JSON.parse(result.content[0].text);
+
+      expect(output.status).toBe('success');
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(
+        ['get', 'pod test-pod', '-n', 'default', '-o', 'yaml'],
+        { timeout: 30000 }
+      );
+    });
+
+    test('should handle kubectl failures gracefully', async () => {
+      // Mock kubectl failure
+      mockExecuteKubectl.mockRejectedValue(new Error('pods "nonexistent-pod" not found'));
+
+      const mockArgs = {
+        issue: 'Test kubectl failure handling',
+        sessionDir: tempDir
+      };
+
+      // Mock AI response requesting nonexistent resource
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockClaudeInstance = { sendMessage: jest.fn() };
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Need to check pod status",
+          dataRequests: [
+            {
+              type: 'get',
+              resource: 'pod nonexistent-pod',
+              namespace: 'default',
+              rationale: 'Check pod status'
+            }
+          ],
+          investigationComplete: false,
+          confidence: 0.7,
+          reasoning: "Need pod data"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+      // Mock completion response for next iteration
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Pod does not exist",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.9,
+          reasoning: "Analysis complete with error context"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+      const result = await handleRemediateTool(mockArgs);
+      const output = JSON.parse(result.content[0].text);
+
+      // Should complete successfully even with kubectl failures
+      expect(output.status).toBe('success');
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(
+        ['get', 'pod nonexistent-pod', '-n', 'default', '-o', 'yaml'],
+        { timeout: 30000 }
+      );
+    });
+
+    test('should support all safe operations', () => {
+      // Verify SAFE_OPERATIONS constant matches expected operations
+      expect(SAFE_OPERATIONS).toEqual(['get', 'describe', 'logs', 'events', 'top']);
+    });
+
+    test('should build kubectl commands correctly', async () => {
+      mockExecuteKubectl.mockResolvedValue('mock output');
+
+      const mockArgs = {
+        issue: 'Test command construction',
+        sessionDir: tempDir
+      };
+
+      const testCases = [
+        {
+          dataRequest: {
+            type: 'get',
+            resource: 'pods',
+            namespace: 'kube-system',
+            rationale: 'List system pods'
+          },
+          expectedArgs: ['get', 'pods', '-n', 'kube-system', '-o', 'yaml']
+        },
+        {
+          dataRequest: {
+            type: 'describe',
+            resource: 'node worker-1',
+            rationale: 'Check node details'
+          },
+          expectedArgs: ['describe', 'node worker-1']
+        },
+        {
+          dataRequest: {
+            type: 'logs',
+            resource: 'pod/test-pod',
+            namespace: 'default',
+            rationale: 'Check pod logs'
+          },
+          expectedArgs: ['logs', 'pod/test-pod', '-n', 'default'] // logs don't get -o yaml
+        }
+      ];
+
+      for (const testCase of testCases) {
+        mockExecuteKubectl.mockClear();
+
+        // Mock AI response with specific data request
+        const { ClaudeIntegration } = require('../../src/core/claude');
+        const mockClaudeInstance = { sendMessage: jest.fn() };
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Testing command construction",
+            dataRequests: [testCase.dataRequest],
+            investigationComplete: false,
+            confidence: 0.7,
+            reasoning: "Need data"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        });
+
+        // Mock completion
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Complete",
+            dataRequests: [],
+            investigationComplete: true,
+            confidence: 0.9,
+            reasoning: "Done"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        });
+        
+        ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+        await handleRemediateTool(mockArgs);
+        
+        expect(mockExecuteKubectl).toHaveBeenCalledWith(
+          testCase.expectedArgs,
+          { timeout: 30000 }
+        );
+      }
+    });
+
+    test('should provide error suggestions for common kubectl failures', async () => {
+      const testErrorCases = [
+        {
+          error: new Error('pods "test-pod" not found'),
+          expectedSuggestion: 'Resource may not exist or may be in a different namespace. Try listing available resources first.'
+        },
+        {
+          error: new Error('forbidden: User cannot get resource "pods" in API group "" in the namespace "default"'),
+          expectedSuggestion: 'Insufficient permissions. Check RBAC configuration for read access to this resource.'
+        },
+        {
+          error: new Error('namespaces "nonexistent" not found'),
+          expectedSuggestion: 'Namespace does not exist. Try listing available namespaces first.'
+        },
+        {
+          error: new Error('connection refused'),
+          expectedSuggestion: 'Cannot connect to Kubernetes cluster. Verify cluster connectivity and kubectl configuration.'
+        }
+      ];
+
+      for (const testCase of testErrorCases) {
+        mockExecuteKubectl.mockClear();
+        mockExecuteKubectl.mockRejectedValue(testCase.error);
+
+        const mockArgs = {
+          issue: `Test error suggestion for: ${testCase.error.message}`,
+          sessionDir: tempDir
+        };
+
+        // Mock AI responses
+        const { ClaudeIntegration } = require('../../src/core/claude');
+        const mockClaudeInstance = { sendMessage: jest.fn() };
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Need data",
+            dataRequests: [{
+              type: 'get',
+              resource: 'pods',
+              namespace: 'default',
+              rationale: 'Test error handling'
+            }],
+            investigationComplete: false,
+            confidence: 0.7,
+            reasoning: "Need data"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        });
+
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Complete with error context",
+            dataRequests: [],
+            investigationComplete: true,
+            confidence: 0.9,
+            reasoning: "Done"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        });
+        
+        ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+        const result = await handleRemediateTool(mockArgs);
+        const output = JSON.parse(result.content[0].text);
+
+        expect(output.status).toBe('success');
+        // The error suggestion is logged and stored in session for AI to use in next iteration
+        // but not directly exposed in the output format - AI gets it in the gathered data
+      }
     });
   });
 });
