@@ -101,14 +101,12 @@ interface RemediateInput {
     interactive?: boolean;   // Can we prompt for user input? Default: true
   };
   mode?: 'manual' | 'automatic';
-  // Smart fallback parameters for headless execution
-  confidenceThreshold?: number;  // Default: 0.8 - fallback to manual if analysis confidence below
-  maxRiskLevel?: 'low' | 'medium' | 'high';  // Default: 'low' - fallback to manual if risk above
-  approvalTimeout?: number;      // Seconds to wait for approval in manual mode
+  confidenceThreshold?: number;  // Default: 0.8 - automatic execution only if confidence above
+  maxRiskLevel?: 'low' | 'medium' | 'high';  // Default: 'low' - automatic execution only if risk at or below
 }
 
 interface RemediateOutput {
-  status: 'success' | 'failed' | 'pending_approval' | 'awaiting_user_approval';
+  status: 'success' | 'failed' | 'awaiting_user_approval';
   sessionId: string;
   investigation: {
     iterations: number;
@@ -125,17 +123,9 @@ interface RemediateOutput {
     actions: RemediationAction[];
     risk: 'low' | 'medium' | 'high';
   };
-  executed?: boolean;
-  results?: ExecutionResult[];
-  // Multi-context approval support
-  approvalId?: string;           // For persistent approvals in headless contexts
-  fallbackReason?: string;       // Why automatic mode fell back to manual
-  approvalOptions?: {            // Available approval methods for headless contexts
-    api?: string;                // API endpoint for approval
-    webhook?: string;            // Webhook URL for external approval systems
-    cli?: string;                // CLI command for approval
-    expires?: Date;              // When approval request expires
-  };
+  executed?: boolean;           // true if automatic mode executed actions
+  results?: ExecutionResult[];  // execution results if executed
+  fallbackReason?: string;      // why automatic mode chose not to execute
 }
 
 // Safe data request interface - only read operations allowed
@@ -246,27 +236,27 @@ Layer 4: Kubernetes RBAC (read-only service account)
 
 ## Implementation Milestones
 
-### Milestone 1: AI-Driven Investigation & Analysis ✅
+### Milestone 1: AI-Driven Investigation & Analysis ⬜
 **Deliverable**: Complete analysis tool with AI-driven context enrichment loop
 - [x] Create tool handler with investigation loop architecture
 - [x] Implement session-based state management for investigation tracking
 - [x] Add multi-layer safety enforcement for read-only operations
 - [x] Add read-only Kubernetes API integration for context enrichment
 - [x] Implement AI-driven data gathering request/response cycle
-- [x] Integrate comprehensive analysis with Claude AI
+- [x] Integrate comprehensive analysis with Claude AI (investigation loop)
+- [ ] **Implement AI-powered final analysis and remediation generation** (scaffolding replacement)
 - [x] Add unit tests with 80% coverage
 
 ### Milestone 2: Execution Capabilities ⬜
 **Deliverable**: Tool can execute remediations in both interactive and headless contexts
 
-#### Milestone 2a: Smart Fallback & Approval System ⬜
-**Deliverable**: Context-aware execution planning with multi-context approval workflows
-- [ ] Implement confidence and risk-based fallback logic (confidenceThreshold, maxRiskLevel)
-- [ ] Add approval ID generation and persistent approval state management
-- [ ] Build API endpoint for headless approval (`POST /approve/{approvalId}`)
-- [ ] Create approval workflow differentiation (interactive vs headless contexts)
-- [ ] Add approval timeout handling and expiration logic
-- [ ] Unit tests for smart fallback scenarios and approval workflows
+#### Milestone 2a: Execution Decision Engine ⬜
+**Deliverable**: Simple execution decision logic for manual vs automatic modes
+- [ ] Implement AI-powered final analysis and remediation generation (complete Milestone 1)
+- [ ] Add confidence and risk-based execution logic (confidenceThreshold, maxRiskLevel) 
+- [ ] Implement manual mode: always return `awaiting_user_approval` status
+- [ ] Implement automatic mode: execute or return `failed` with fallbackReason
+- [ ] Unit tests for execution decision logic and both modes
 
 #### Milestone 2b: Safe Execution Engine ⬜
 **Deliverable**: Actual remediation execution with comprehensive safety mechanisms
@@ -401,6 +391,34 @@ Layer 4: Kubernetes RBAC (read-only service account)
    - **Rationale**: Controllers have business context, persona-specific configuration, and operational awareness that MCP tool lacks
    - **Impact**: Simplified MCP tool scope, enhanced structured output requirements for external notification systems
    - **Architecture**: MCP tool returns comprehensive structured data, controllers/callers implement notification logic based on their context
+
+9. **✅ AI-Powered Final Analysis Implementation Gap Identified**: Investigation complete but remediation generation is scaffolding
+   - **Date**: 2025-09-14
+   - **Decision**: Implement AI-powered remediation generation before execution decision logic
+   - **Rationale**: Cannot make execution decisions about remediation actions until AI actually generates real remediation recommendations
+   - **Impact**: Milestone 1 requires completion of `generateFinalAnalysis()` function with real AI integration
+   - **Code Impact**: Replace scaffolding in `src/tools/remediate.ts:579` with actual AI analysis using Claude integration
+   - **Priority**: Critical blocker for Milestone 2 execution capabilities
+
+10. **✅ Execution Mode Behavior Clarification**: Simplified automatic vs manual execution model
+    - **Date**: 2025-09-14
+    - **Decision**: Automatic mode makes autonomous execute/don't-execute decisions without approval workflows
+    - **Rationale**: Cleaner separation - manual mode expects follow-up approval, automatic mode returns final status
+    - **Impact**: Simplified interface design, clearer behavioral contract for headless vs interactive contexts
+    - **Architecture**: 
+      - Manual mode: Always returns `pending_approval`/`awaiting_user_approval` status, expects follow-up
+      - Automatic mode: Returns `success` (executed) or `failed` (with fallbackReason), no approval workflow
+    - **Code Impact**: RemediateOutput interface and execution logic need updates to match simplified model
+
+11. **✅ Interface Simplification**: Remove unnecessary approval orchestration complexity
+    - **Date**: 2025-09-14
+    - **Decision**: Eliminate `approvalOptions` (API endpoints, webhooks, CLI) from RemediateOutput interface
+    - **Rationale**: Two distinct use cases don't need complex approval orchestration:
+      - Manual mode: MCP client handles user prompts directly
+      - Automatic mode: No approval needed - threshold-based execution decisions only
+    - **Impact**: Significantly simplified interface, reduced implementation complexity, clearer separation of concerns
+    - **Code Impact**: Remove `approvalOptions`, `approvalId` complexity from interface and implementation
+    - **Architecture**: Let MCP clients handle user interaction, let controllers handle threshold-based automation
 
 ## Progress Log
 

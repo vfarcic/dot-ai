@@ -29,8 +29,7 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
     podSpec: z.any().optional().describe('Pod specification if relevant'),
     relatedEvents: z.array(z.any()).optional().describe('Related Kubernetes events')
   }).optional().describe('Optional initial context to help with analysis'),
-  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual returns recommendations only, automatic executes approved remediations'),
-  policy: z.string().optional().describe('Reference to calling policy or controller')
+  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual returns recommendations only, automatic executes approved remediations')
 };
 
 // Core interfaces matching PRD specification
@@ -44,7 +43,6 @@ export interface RemediateInput {
     relatedEvents?: any[]; // K8sEvent[]
   };
   mode?: 'manual' | 'automatic';
-  policy?: string;
 }
 
 export interface DataRequest {
@@ -68,7 +66,6 @@ export interface RemediateSession {
   issue: string;
   initialContext: any;
   mode: 'manual' | 'automatic';
-  policy?: string;
   iterations: InvestigationIteration[];
   finalAnalysis?: RemediateOutput;
   created: Date;
@@ -187,8 +184,7 @@ async function conductInvestigation(
       // Parse AI response for data requests and completion status
       const { dataRequests, isComplete, parsedResponse } = parseAIResponse(aiAnalysis);
       
-      // TODO: Implement safe data gathering
-      // This is scaffolding - actual K8s API integration will be implemented
+      // Gather safe data from Kubernetes using kubectl
       const gatheredData = await gatherSafeData(dataRequests, logger, requestId);
       
       // Create iteration record
@@ -636,7 +632,6 @@ export async function handleRemediateTool(args: any): Promise<any> {
       issue: validatedInput.issue,
       initialContext: validatedInput.context || {},
       mode: validatedInput.mode || 'manual',
-      policy: validatedInput.policy,
       iterations: [],
       created: new Date(),
       updated: new Date(),
@@ -726,8 +721,7 @@ function validateRemediateInput(args: any): RemediateInput {
     const validated = {
       issue: REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(args.issue),
       context: args.context ? REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(args.context) : undefined,
-      mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual',
-      policy: args.policy ? REMEDIATE_TOOL_INPUT_SCHEMA.policy.parse(args.policy) : undefined
+      mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual'
     } as RemediateInput;
 
     return validated;

@@ -131,7 +131,6 @@ describe('Remediate Tool', () => {
       expect(REMEDIATE_TOOL_INPUT_SCHEMA.issue).toBeDefined();
       expect(REMEDIATE_TOOL_INPUT_SCHEMA.context).toBeDefined();
       expect(REMEDIATE_TOOL_INPUT_SCHEMA.mode).toBeDefined();
-      expect(REMEDIATE_TOOL_INPUT_SCHEMA.policy).toBeDefined();
     });
 
     test('should validate issue field requirements', () => {
@@ -182,15 +181,13 @@ describe('Remediate Tool', () => {
           podSpec: { name: 'db-pod' },
           relatedEvents: [{ kind: 'Event', reason: 'Warning' }]
         },
-        mode: 'manual',
-        policy: 'auto-remediation-policy'
+        mode: 'manual'
       };
       
       expect(() => {
         REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(input.issue);
         if (input.context) REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(input.context);
         if (input.mode) REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(input.mode);
-        if (input.policy) REMEDIATE_TOOL_INPUT_SCHEMA.policy.parse(input.policy);
       }).not.toThrow();
     });
 
