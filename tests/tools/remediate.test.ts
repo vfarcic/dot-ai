@@ -21,7 +21,20 @@ import * as path from 'path';
 import * as os from 'os';
 
 // Mock dependencies
-jest.mock('../../src/core/claude');
+jest.mock('../../src/core/claude', () => ({
+  ClaudeIntegration: jest.fn().mockImplementation(() => ({
+    sendMessage: jest.fn().mockResolvedValue({
+      content: JSON.stringify({
+        analysis: "Mock AI analysis of the issue",
+        dataRequests: [],
+        investigationComplete: true,
+        confidence: 0.9,
+        reasoning: "Mock analysis complete"
+      }),
+      usage: { input_tokens: 100, output_tokens: 50 }
+    })
+  }))
+}));
 jest.mock('../../src/core/error-handling', () => ({
   ErrorHandler: {
     createError: jest.fn((category, severity, message, context) => {
@@ -58,18 +71,26 @@ jest.mock('../../src/core/error-handling', () => ({
   }))
 }));
 
+// Mock Claude integration
+const mockClaudeIntegration = {
+  sendMessage: jest.fn().mockResolvedValue({
+    content: JSON.stringify({
+      analysis: "Mock AI analysis of the issue",
+      dataRequests: [],
+      investigationComplete: true,
+      confidence: 0.9,
+      reasoning: "Mock analysis complete"
+    }),
+    usage: { input_tokens: 100, output_tokens: 50 }
+  })
+};
+
 describe('Remediate Tool', () => {
   let tempDir: string;
-  let mockClaudeIntegration: any;
 
   beforeEach(() => {
     // Create temporary directory for session files
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediate-test-'));
-    
-    // Mock Claude integration
-    mockClaudeIntegration = {
-      sendMessage: jest.fn().mockResolvedValue('AI analysis response')
-    };
     
     // Set required environment variable
     process.env.ANTHROPIC_API_KEY = 'test-key';
@@ -317,17 +338,31 @@ describe('Remediate Tool', () => {
     test('should respect maximum iteration limit', async () => {
       // Mock an investigation that never completes (always returns complete: false)
       const { ClaudeIntegration } = require('../../src/core/claude');
-      ClaudeIntegration.mockImplementation(() => mockClaudeIntegration);
+      const neverCompleteMock = {
+        sendMessage: jest.fn().mockResolvedValue({
+          content: JSON.stringify({
+            analysis: "Still investigating, need more data",
+            dataRequests: [{
+              type: 'get',
+              resource: 'pods',
+              rationale: 'Need more pod data'
+            }],
+            investigationComplete: false,
+            confidence: 0.5,
+            reasoning: "Need more investigation"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        })
+      };
+      ClaudeIntegration.mockImplementation(() => neverCompleteMock);
 
-      // Override the checkIfAnalysisComplete function by modifying the source
+      // Verify the max iterations is set to 20
       const fs = require('fs');
       const path = require('path');
       const sourceCode = fs.readFileSync(
         path.join(__dirname, '../../src/tools/remediate.ts'), 
         'utf8'
       );
-
-      // Verify the max iterations is set to 20
       expect(sourceCode).toContain('const maxIterations = 20');
 
       const mockArgs = {
@@ -493,28 +528,104 @@ describe('Remediate Tool', () => {
     });
   });
 
-  describe('Scaffolding Verification', () => {
-    test('should have TODO comments for future implementation', () => {
-      // Read the source code to verify scaffolding is properly marked
+  describe('AI Integration Verification', () => {
+    test('should have completed AI analysis integration', () => {
+      // Read the source code to verify AI integration is complete
       const sourceCode = fs.readFileSync(
         path.join(__dirname, '../../src/tools/remediate.ts'), 
         'utf8'
       );
 
-      // Verify key scaffolding areas are marked
-      expect(sourceCode).toMatch(/TODO.*Implement AI analysis/);
-      expect(sourceCode).toMatch(/TODO.*Parse AI response/);
-      expect(sourceCode).toMatch(/TODO.*Implement safe data gathering/);
-      expect(sourceCode).toMatch(/TODO.*Implement actual Claude integration/);
-      expect(sourceCode).toMatch(/TODO.*Load investigation prompt template/);
+      // Verify AI integration components are implemented
+      expect(sourceCode).toMatch(/claudeIntegration\.sendMessage/);
+      expect(sourceCode).toMatch(/parseAIResponse/);
+      expect(sourceCode).toMatch(/prompts\/remediate-investigation\.md/);
+      expect(sourceCode).toMatch(/investigationComplete/);
+      expect(sourceCode).toMatch(/AIInvestigationResponse/);
     });
 
-    test('should provide working scaffolding that can be executed', async () => {
-      const { ClaudeIntegration } = require('../../src/core/claude');
-      ClaudeIntegration.mockImplementation(() => mockClaudeIntegration);
+    test('should load and process investigation prompts correctly', async () => {
+      // Verify prompt file exists
+      const promptPath = path.join(process.cwd(), 'prompts', 'remediate-investigation.md');
+      expect(fs.existsSync(promptPath)).toBe(true);
+      
+      // Verify prompt contains required template variables
+      const promptContent = fs.readFileSync(promptPath, 'utf8');
+      expect(promptContent).toContain('{issue}');
+      expect(promptContent).toContain('{initialContext}');
+      expect(promptContent).toContain('{currentIteration}');
+      expect(promptContent).toContain('{maxIterations}');
+      expect(promptContent).toContain('{previousIterations}');
+      
+      // Verify prompt structure for AI response format
+      expect(promptContent).toContain('dataRequests');
+      expect(promptContent).toContain('investigationComplete');
+      expect(promptContent).toContain('confidence');
+      expect(promptContent).toContain('reasoning');
+    });
 
+    test('should parse AI responses correctly', () => {
+      const { parseAIResponse } = require('../../src/tools/remediate');
+      
+      // Test valid AI response
+      const validResponse = JSON.stringify({
+        analysis: "Found memory pressure issue",
+        dataRequests: [
+          {
+            type: 'describe',
+            resource: 'node/worker-1',
+            rationale: 'Check node memory status'
+          }
+        ],
+        investigationComplete: false,
+        confidence: 0.8,
+        reasoning: "Need node data to confirm"
+      });
+      
+      const parsed = parseAIResponse(validResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.dataRequests).toHaveLength(1);
+      expect(parsed.dataRequests[0].type).toBe('describe');
+      expect(parsed.parsedResponse?.confidence).toBe(0.8);
+    });
+
+    test('should handle malformed AI responses gracefully', () => {
+      const { parseAIResponse } = require('../../src/tools/remediate');
+      
+      // Test invalid JSON
+      const invalidResponse = "This is not JSON";
+      const parsed = parseAIResponse(invalidResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.dataRequests).toEqual([]);
+      expect(parsed.parsedResponse).toBeUndefined();
+    });
+
+    test('should validate data request types', () => {
+      const { parseAIResponse } = require('../../src/tools/remediate');
+      
+      // Test invalid data request type
+      const invalidTypeResponse = JSON.stringify({
+        analysis: "Analysis",
+        dataRequests: [
+          {
+            type: 'invalid-type',
+            resource: 'pods',
+            rationale: 'Test'
+          }
+        ],
+        investigationComplete: true,
+        confidence: 0.9,
+        reasoning: "Complete"
+      });
+      
+      const parsed = parseAIResponse(invalidTypeResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.dataRequests).toEqual([]);
+    });
+
+    test('should provide working AI integration that can be executed', async () => {
       const mockArgs = {
-        issue: 'Test scaffolding execution',
+        issue: 'Test AI integration execution',
         sessionDir: tempDir
       };
 
@@ -526,6 +637,9 @@ describe('Remediate Tool', () => {
       const output = JSON.parse(result.content[0].text);
       expect(output.status).toBe('success');
       expect(output.sessionId).toMatch(/^rem_/);
+      expect(output.investigation).toBeDefined();
+      expect(output.analysis).toBeDefined();
+      expect(output.remediation).toBeDefined();
     });
   });
 });

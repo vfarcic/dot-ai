@@ -176,13 +176,11 @@ async function conductInvestigation(
     logger.debug(`Starting investigation iteration ${currentIteration + 1}`, { requestId, sessionId: session.sessionId });
 
     try {
-      // TODO: Implement AI analysis step
-      // This is scaffolding - actual AI integration will be implemented in next tasks
+      // Get AI analysis with investigation prompts
       const aiAnalysis = await analyzeCurrentState(session, claudeIntegration, logger, requestId);
       
-      // TODO: Parse AI response for data requests
-      // This is scaffolding - actual data request parsing will be implemented
-      const dataRequests: DataRequest[] = parseDataRequests(aiAnalysis);
+      // Parse AI response for data requests and completion status
+      const { dataRequests, isComplete, parsedResponse } = parseAIResponse(aiAnalysis);
       
       // TODO: Implement safe data gathering
       // This is scaffolding - actual K8s API integration will be implemented
@@ -194,9 +192,20 @@ async function conductInvestigation(
         aiAnalysis,
         dataRequests,
         gatheredData,
-        complete: checkIfAnalysisComplete(aiAnalysis), // TODO: Implement completion detection
+        complete: isComplete,
         timestamp: new Date()
       };
+      
+      // Store parsed response data if available
+      if (parsedResponse) {
+        logger.debug('AI investigation analysis', {
+          requestId,
+          sessionId: session.sessionId,
+          confidence: parsedResponse.confidence,
+          reasoning: parsedResponse.reasoning,
+          dataRequestCount: parsedResponse.dataRequests.length
+        });
+      }
 
       // Update session with new iteration
       session.iterations.push(iteration);
@@ -212,7 +221,13 @@ async function conductInvestigation(
 
       // Check if analysis is complete
       if (iteration.complete) {
-        logger.info('Investigation completed', { requestId, sessionId: session.sessionId, totalIterations: iteration.step });
+        logger.info('Investigation completed by AI decision', { 
+          requestId, 
+          sessionId: session.sessionId, 
+          totalIterations: iteration.step,
+          confidence: parsedResponse?.confidence,
+          reasoning: parsedResponse?.reasoning 
+        });
         break;
       }
 
@@ -260,8 +275,7 @@ async function conductInvestigation(
 }
 
 /**
- * Analyze current state using AI (scaffolding)
- * TODO: Implement actual Claude integration with investigation prompts
+ * Analyze current state using AI with investigation prompts
  */
 async function analyzeCurrentState(
   session: RemediateSession,
@@ -269,30 +283,135 @@ async function analyzeCurrentState(
   logger: Logger,
   requestId: string
 ): Promise<string> {
-  // Scaffolding implementation
   logger.debug('Analyzing current state with AI', { requestId, sessionId: session.sessionId });
   
-  // TODO: Load investigation prompt template from prompts/remediate-investigation.md
-  // TODO: Replace template variables with session data
-  // TODO: Call claudeIntegration.sendMessage() with investigation prompt
-  
-  return `AI Analysis iteration ${session.iterations.length + 1}: Analyzing issue "${session.issue}" with ${Object.keys(session.initialContext || {}).length} initial context items.`;
+  try {
+    // Load investigation prompt template
+    const promptPath = path.join(process.cwd(), 'prompts', 'remediate-investigation.md');
+    const promptTemplate = fs.readFileSync(promptPath, 'utf8');
+    
+    // Prepare template variables
+    const currentIteration = session.iterations.length + 1;
+    const maxIterations = 20;
+    const initialContextJson = JSON.stringify(session.initialContext, null, 2);
+    const previousIterationsJson = JSON.stringify(
+      session.iterations.map(iter => ({
+        step: iter.step,
+        analysis: iter.aiAnalysis,
+        dataRequests: iter.dataRequests,
+        gatheredData: iter.gatheredData
+      })), 
+      null, 
+      2
+    );
+    
+    // Replace template variables
+    const investigationPrompt = promptTemplate
+      .replace('{issue}', session.issue)
+      .replace('{initialContext}', initialContextJson)
+      .replace('{currentIteration}', currentIteration.toString())
+      .replace('{maxIterations}', maxIterations.toString())
+      .replace('{previousIterations}', previousIterationsJson);
+    
+    logger.debug('Sending investigation prompt to Claude', { 
+      requestId, 
+      sessionId: session.sessionId,
+      promptLength: investigationPrompt.length,
+      iteration: currentIteration
+    });
+    
+    // Send to Claude AI
+    const aiResponse = await claudeIntegration.sendMessage(investigationPrompt);
+    
+    logger.debug('Received AI analysis response', { 
+      requestId, 
+      sessionId: session.sessionId,
+      responseLength: aiResponse.content.length
+    });
+    
+    return aiResponse.content;
+    
+  } catch (error) {
+    logger.error('Failed to analyze current state with AI', error as Error, { requestId, sessionId: session.sessionId });
+    
+    throw ErrorHandler.createError(
+      ErrorCategory.AI_SERVICE,
+      ErrorSeverity.HIGH,
+      `AI analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      {
+        operation: 'ai_analysis',
+        component: 'RemediateTool',
+        requestId,
+        sessionId: session.sessionId,
+        suggestedActions: [
+          'Check ANTHROPIC_API_KEY is set correctly',
+          'Verify prompts/remediate-investigation.md exists',
+          'Check network connectivity to Anthropic API'
+        ]
+      }
+    );
+  }
 }
 
 /**
- * Parse AI response for data requests (scaffolding)
- * TODO: Implement actual parsing of AI response for data gathering requests
+ * AI Response interface matching our prompt format
  */
-function parseDataRequests(_aiAnalysis: string): DataRequest[] {
-  // Scaffolding implementation
-  return [
-    {
-      type: 'get',
-      resource: 'pods',
-      namespace: 'default',
-      rationale: 'Need to check pod status for analysis'
+interface AIInvestigationResponse {
+  analysis: string;
+  dataRequests: DataRequest[];
+  investigationComplete: boolean;
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Parse AI response for data requests and investigation status
+ */
+export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest[], isComplete: boolean, parsedResponse?: AIInvestigationResponse } {
+  try {
+    // Try to extract JSON from the response
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in AI response');
     }
-  ];
+    
+    const parsed = JSON.parse(jsonMatch[0]) as AIInvestigationResponse;
+    
+    // Validate required fields
+    if (typeof parsed.investigationComplete !== 'boolean') {
+      throw new Error('Missing or invalid investigationComplete field');
+    }
+    
+    if (!Array.isArray(parsed.dataRequests)) {
+      throw new Error('Missing or invalid dataRequests field');
+    }
+    
+    // Validate data requests format
+    for (const request of parsed.dataRequests) {
+      if (!['get', 'describe', 'logs', 'events', 'top'].includes(request.type)) {
+        throw new Error(`Invalid data request type: ${request.type}`);
+      }
+      if (!request.resource || !request.rationale) {
+        throw new Error('Data request missing required fields: resource, rationale');
+      }
+    }
+    
+    return {
+      dataRequests: parsed.dataRequests,
+      isComplete: parsed.investigationComplete,
+      parsedResponse: parsed
+    };
+    
+  } catch (error) {
+    // Fallback: try to extract data requests from text patterns
+    console.warn('Failed to parse AI JSON response, using fallback parsing:', error instanceof Error ? error.message : 'Unknown error');
+    
+    // Simple fallback - assume investigation needs to continue and no data requests
+    return {
+      dataRequests: [],
+      isComplete: false
+    };
+  }
 }
 
 /**
@@ -321,15 +440,6 @@ async function gatherSafeData(
   return gatheredData;
 }
 
-/**
- * Check if analysis is complete based on AI response (scaffolding)
- * TODO: Implement actual completion detection logic
- */
-function checkIfAnalysisComplete(_aiAnalysis: string): boolean {
-  // Scaffolding implementation - simple heuristic
-  // For testing purposes, never declare complete so we hit the iteration limit
-  return false;
-}
 
 /**
  * Generate final analysis and remediation recommendations (scaffolding)
