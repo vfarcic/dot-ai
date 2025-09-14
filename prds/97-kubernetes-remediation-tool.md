@@ -42,10 +42,12 @@ Add a new MCP tool called `remediate` that receives Kubernetes issues and events
 - Structured remediation reporting and audit trails
 
 ### Out of Scope
-- Kubernetes controller implementation (separate project)
-- Notification/approval mechanisms (deferred to implementation phase)
+- Kubernetes controller implementation (separate project - future PRD)
+- Notification systems and delivery mechanisms (controller/caller responsibility)
 - Multi-cluster orchestration (future enhancement)
 - Custom resource definitions (controller project)
+- Event watching and filtering (controller responsibility)
+- Business context and persona-specific configuration (controller responsibility)
 
 ## Requirements
 
@@ -96,13 +98,17 @@ interface RemediateInput {
     metrics?: Metrics;
     podSpec?: any;
     relatedEvents?: K8sEvent[];
+    interactive?: boolean;   // Can we prompt for user input? Default: true
   };
   mode?: 'manual' | 'automatic';
-  policy?: string;        // Reference to calling policy
+  // Smart fallback parameters for headless execution
+  confidenceThreshold?: number;  // Default: 0.8 - fallback to manual if analysis confidence below
+  maxRiskLevel?: 'low' | 'medium' | 'high';  // Default: 'low' - fallback to manual if risk above
+  approvalTimeout?: number;      // Seconds to wait for approval in manual mode
 }
 
 interface RemediateOutput {
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'pending_approval' | 'awaiting_user_approval';
   sessionId: string;
   investigation: {
     iterations: number;
@@ -121,6 +127,15 @@ interface RemediateOutput {
   };
   executed?: boolean;
   results?: ExecutionResult[];
+  // Multi-context approval support
+  approvalId?: string;           // For persistent approvals in headless contexts
+  fallbackReason?: string;       // Why automatic mode fell back to manual
+  approvalOptions?: {            // Available approval methods for headless contexts
+    api?: string;                // API endpoint for approval
+    webhook?: string;            // Webhook URL for external approval systems
+    cli?: string;                // CLI command for approval
+    expires?: Date;              // When approval request expires
+  };
 }
 
 // Safe data request interface - only read operations allowed
@@ -238,30 +253,53 @@ Layer 4: Kubernetes RBAC (read-only service account)
 - [x] Add multi-layer safety enforcement for read-only operations
 - [x] Add read-only Kubernetes API integration for context enrichment
 - [x] Implement AI-driven data gathering request/response cycle
-- [ ] Implement context size management to prevent Claude API overflow
 - [x] Integrate comprehensive analysis with Claude AI
 - [x] Add unit tests with 80% coverage
 
 ### Milestone 2: Execution Capabilities ⬜
-**Deliverable**: Tool can execute remediations in automatic mode
-- [ ] Add execution engine with rollback support
-- [ ] Create audit logging system
-- [ ] Integration testing with test cluster
-- [ ] Safety mechanisms and approval workflows
+**Deliverable**: Tool can execute remediations in both interactive and headless contexts
+
+#### Milestone 2a: Smart Fallback & Approval System ⬜
+**Deliverable**: Context-aware execution planning with multi-context approval workflows
+- [ ] Implement confidence and risk-based fallback logic (confidenceThreshold, maxRiskLevel)
+- [ ] Add approval ID generation and persistent approval state management
+- [ ] Build API endpoint for headless approval (`POST /approve/{approvalId}`)
+- [ ] Create approval workflow differentiation (interactive vs headless contexts)
+- [ ] Add approval timeout handling and expiration logic
+- [ ] Unit tests for smart fallback scenarios and approval workflows
+
+#### Milestone 2b: Safe Execution Engine ⬜
+**Deliverable**: Actual remediation execution with comprehensive safety mechanisms
+- [ ] Implement execution engine with rollback capability planning
+- [ ] Add write operation safety validation (separate from read-only investigation)
+- [ ] Build interactive approval flow for MCP clients (awaiting_user_approval status)
+- [ ] Create comprehensive audit logging for all execution actions
+- [ ] Add execution result tracking and rollback execution if needed
+- [ ] Integration testing with test cluster for safe execution scenarios
+
+#### Milestone 2c: Production Headless Integration ⬜
+**Deliverable**: Production-ready headless operation with external integrations
+- [ ] Webhook integration for external approval systems (Slack, Teams, PagerDuty)
+- [ ] CLI tool integration for command-line approvals
+- [ ] Kubernetes controller integration patterns and examples
+- [ ] Dashboard/UI components for approval queue management
+- [ ] Production monitoring and alerting for execution pipeline
+- [ ] End-to-end testing with real controller and webhook integrations
 
 ### Milestone 3: Production Optimization ⬜
 **Deliverable**: Production-ready tool with monitoring and performance features
+- [ ] Implement context size management to prevent Claude API overflow
 - [ ] Performance optimization for large contexts
 - [ ] Rate limiting and circuit breakers
 - [ ] Comprehensive error handling
 - [ ] Monitoring and alerting setup
 
 ### Milestone 4: Production Readiness ⬜
-**Deliverable**: Production-ready tool with monitoring and safety features
-- [ ] Rate limiting and circuit breakers
-- [ ] Comprehensive error handling
-- [ ] Monitoring and alerting setup
+**Deliverable**: Production-ready tool with documentation and deployment preparation
 - [ ] Documentation and runbooks
+- [ ] Deployment configuration and infrastructure
+- [ ] Security review and hardening
+- [ ] Performance benchmarking
 
 ### Milestone 5: Initial Deployment ⬜
 **Deliverable**: Tool deployed and handling real issues
@@ -297,11 +335,11 @@ Layer 4: Kubernetes RBAC (read-only service account)
 
 ## Open Questions
 
-1. **Approval Mechanism**: Slack vs UI vs webhook - to be determined during implementation
-2. **Notification Channels**: Specific integrations to be determined based on user feedback
-3. **Investigation Loop Limits**: Maximum iterations and timeout strategies - determine during testing
-4. **Session Cleanup**: Retention policy for investigation session files - determine based on storage constraints
-5. **RBAC Configuration**: Specific permissions needed for read-only service account - finalize during implementation
+1. **RBAC Configuration**: Specific permissions needed for read-only service account - finalize during implementation
+2. **Session Cleanup**: Retention policy for investigation session files - determine based on storage constraints
+3. **Webhook Integration Details**: Specific approval webhook formats and integrations - determine based on user feedback during Milestone 2c
+4. **Execution Rollback Scope**: Granularity of rollback capabilities for different action types - determine during Milestone 2b implementation
+5. **Production Monitoring**: Specific metrics and alerting requirements for execution pipeline - determine during Milestone 2c
 
 ## Resolved Decisions
 
@@ -335,6 +373,34 @@ Layer 4: Kubernetes RBAC (read-only service account)
      - Smart data truncation: Limit gathered Kubernetes data to ~1250 tokens per iteration
      - Emergency context reset: Create fresh context with only essential findings if limits exceeded
    - **Priority**: Must be implemented before real Kubernetes API integration to prevent runtime failures
+
+5. **✅ Interactive vs Headless Execution Context**: Simplified context detection using boolean flag
+   - **Date**: 2025-09-14
+   - **Decision**: Use single `interactive` boolean instead of complex source categorization
+   - **Rationale**: Core behavior difference is "can we prompt user?" - source details are audit trail only
+   - **Impact**: Simplified interface, clearer behavioral contract, easier testing and validation
+   - **Architecture**: `interactive: true` = MCP client can show prompts, `interactive: false` = headless/persistent approval
+
+6. **✅ Smart Fallback Logic for Automatic Mode**: Confidence and risk-based safety mechanisms
+   - **Date**: 2025-09-14
+   - **Decision**: Automatic mode falls back to manual when analysis confidence or action risk exceeds thresholds
+   - **Rationale**: Safety valve for headless environments prevents low-confidence or dangerous auto-execution
+   - **Impact**: New parameters (confidenceThreshold, maxRiskLevel), enhanced safety for production deployment
+   - **Architecture**: Auto mode → Check confidence/risk thresholds → Fallback to manual if exceeded → Use appropriate approval workflow
+
+7. **✅ Simplified Tool Interface**: Remove unnecessary policy parameter
+   - **Date**: 2025-09-14
+   - **Decision**: Remove `policy` field from RemediateInput interface
+   - **Rationale**: Field was confusing (name suggests Kubernetes policies) and didn't affect core behavior
+   - **Impact**: Cleaner interface, reduced complexity, audit trail info can be captured via logging or issue description
+   - **Architecture**: Trigger source information captured in logs rather than API interface
+
+8. **✅ Notification Responsibility Moved to Controllers**: MCP tool provides data, controllers handle notifications
+   - **Date**: 2025-09-14
+   - **Decision**: Remove notification requirements from MCP tool scope, move to controller/caller responsibility
+   - **Rationale**: Controllers have business context, persona-specific configuration, and operational awareness that MCP tool lacks
+   - **Impact**: Simplified MCP tool scope, enhanced structured output requirements for external notification systems
+   - **Architecture**: MCP tool returns comprehensive structured data, controllers/callers implement notification logic based on their context
 
 ## Progress Log
 
