@@ -199,6 +199,11 @@ Layer 4: Kubernetes RBAC (read-only service account)
    - Read-only Kubernetes API operations (get, describe, logs, events, top)
    - Context enrichment based on validated AI requests
    - Session-based data storage
+   - **Context size management**:
+     - Proactive size estimation of gathered data
+     - Smart data truncation (limit to ~1250 tokens per data request)
+     - Data prioritization (errors/events > configurations > verbose metadata)
+     - Progressive compression of older iteration data
 
 3. **AI Investigation Engine**
    - Iterative analysis with full session context
@@ -233,6 +238,7 @@ Layer 4: Kubernetes RBAC (read-only service account)
 - [ ] Add multi-layer safety enforcement for read-only operations
 - [ ] Add read-only Kubernetes API integration for context enrichment
 - [ ] Implement AI-driven data gathering request/response cycle
+- [ ] Implement context size management to prevent Claude API overflow
 - [x] Integrate comprehensive analysis with Claude AI
 - [x] Add unit tests with 80% coverage
 
@@ -272,6 +278,7 @@ Layer 4: Kubernetes RBAC (read-only service account)
 | Remediation causes cascade failure | High | Low | Circuit breakers, gradual rollout, automatic rollback |
 | Performance degradation under load | Medium | Medium | Rate limiting, queue management, horizontal scaling |
 | Integration complexity with controllers | Medium | Low | Well-defined interface contract, extensive documentation |
+| Claude API context size overflow during investigation | High | High | Proactive size estimation, progressive compression, smart data truncation, emergency context reset |
 
 ## Dependencies
 
@@ -315,6 +322,19 @@ Layer 4: Kubernetes RBAC (read-only service account)
    - **Decision**: Implement 4-layer safety system for investigation phase
    - **Rationale**: Critical safety requirement to prevent accidental cluster modifications during analysis
    - **Impact**: Additional validation components, enhanced security requirements, RBAC constraints
+
+4. **✅ Context Size Management**: Hybrid approach for preventing Claude API context overflow
+   - **Date**: 2025-09-14
+   - **Decision**: Implement proactive context management with progressive compression and emergency fallback
+   - **Rationale**: Investigation loop with 20 iterations and full Kubernetes data can easily exceed 200k token limit, risking investigation failure
+   - **Impact**: Additional Safe Data Gatherer requirements, complexity in session management, need for intelligent data prioritization
+   - **Architecture**: Size estimation → Progressive compression → Smart truncation → Emergency reset if needed
+   - **Implementation Strategy**: 
+     - Proactive size estimation before each AI prompt (~4 chars ≈ 1 token)
+     - Sliding window: Keep last 3 iterations in full detail, summarize older ones
+     - Smart data truncation: Limit gathered Kubernetes data to ~1250 tokens per iteration
+     - Emergency context reset: Create fresh context with only essential findings if limits exceeded
+   - **Priority**: Must be implemented before real Kubernetes API integration to prevent runtime failures
 
 ## Progress Log
 
