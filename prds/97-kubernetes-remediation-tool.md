@@ -243,7 +243,7 @@ Layer 4: Kubernetes RBAC (read-only service account)
 
 ## Implementation Milestones
 
-### Milestone 1: AI-Driven Investigation & Analysis ⬜
+### Milestone 1: AI-Driven Investigation & Analysis ✅
 **Deliverable**: Complete analysis tool with AI-driven context enrichment loop
 - [x] Create tool handler with investigation loop architecture
 - [x] Implement session-based state management for investigation tracking
@@ -447,6 +447,24 @@ Layer 4: Kubernetes RBAC (read-only service account)
       - **Schema Discovery**: AI queries specific resource schemas with `kubectl explain` when needed
       - **Smart Preference**: Choose sophisticated/operator-managed resources over basic alternatives based on complete visibility
     - **Priority**: High - addresses root cause of suboptimal remediation recommendations (basic deployment vs operator-managed resources)
+
+14. **✅ Schema Validation and Validation Workflow Implementation**: Enhanced remediation accuracy and post-fix validation
+    - **Date**: 2025-09-15
+    - **Decision**: Implement kubectl schema validation and post-remediation validation workflow to prevent invalid remediation commands and ensure fixes work
+    - **Rationale**: AI was generating invalid kubectl commands due to lack of resource schema knowledge, and no validation workflow existed to verify fixes worked
+    - **Impact**: Major enhancement to remediation quality and user experience - prevents schema errors and provides complete remediation cycle
+    - **Code Impact**: 
+      - Added `explain` to SAFE_OPERATIONS for schema discovery
+      - Fixed dry-run validation parsing bug that prevented validation execution
+      - Added `validationIntent` field to AI responses for post-remediation validation
+      - Updated investigation prompts with schema validation guidance and cluster-first approach
+    - **Architecture**: 
+      - **Schema Validation**: AI uses `kubectl explain` to understand resource schemas before generating patches
+      - **Dry-run Safety**: Fixed parsing to ensure dry-run validation executes during investigation
+      - **Validation Workflow**: AI provides `validationIntent` for post-remediation verification with structured user guidance
+      - **Cluster-First Design**: Tool focuses on existing cluster resources, never suggests external installations
+    - **Evidence**: Successfully remediated SQL resource with schema-validated patches, all 919 tests passing
+    - **Priority**: Complete - addresses critical usability and accuracy issues
 
 ## Progress Log
 
@@ -680,6 +698,48 @@ EOF
 ```
 
 **Next Priority**: Milestone 2 (Execution Capabilities) - implement remediation action generation and execution engine
+
+### 2025-09-15: Schema Validation and Validation Workflow Implementation Complete
+**Duration**: ~3 hours of focused development and testing
+**Focus**: Enhanced remediation accuracy and complete validation workflow implementation
+
+**Completed Major Enhancements**:
+- [x] **Fixed dry-run validation parsing bug** - Evidence: AI dry-run commands are now properly executed during investigation instead of being suggested but ignored
+- [x] **Added schema validation capability** - Evidence: Added `explain` to SAFE_OPERATIONS in `src/tools/remediate.ts`, updated investigation prompts in `prompts/remediate-investigation.md`
+- [x] **Implemented validation workflow** - Evidence: Added `validationIntent` field to `AIFinalAnalysisResponse`, updated MCP output to include post-remediation validation instructions
+- [x] **Enhanced investigation prompts** - Evidence: Added "Use cluster resources only" guidance to prevent external installation suggestions
+- [x] **Comprehensive testing validation** - Evidence: All 919 tests passing, including new tests for schema validation and dry-run parsing fixes
+
+**Key Technical Implementations**:
+- **Schema Validation Before Patching**: AI now uses `kubectl explain` to understand resource schemas before generating patch commands
+- **Dry-Run Validation Fix**: Fixed parsing bug in `parseAIResponse` where dry-run operations with patch commands weren't executing due to validation logic
+- **Post-Remediation Validation**: AI generates `validationIntent` field with specific validation instructions for users to verify fixes worked
+- **Cluster-First Architecture**: Investigation prompts now emphasize using existing cluster resources rather than suggesting external installations
+
+**Real-World Validation Success**:
+- ✅ **Schema-Validated Patches**: Successfully remediated SQL resource using correct `spec.crossplane.compositionRef` instead of invalid `spec.compositionRef`
+- ✅ **Complete Validation Cycle**: Demonstrated full remediation → validation → confirmation workflow with multi-step fixes
+- ✅ **Provider Discovery**: AI correctly identified existing providers instead of suggesting external installations
+- ✅ **Progressive Issue Resolution**: Validation workflow revealed and resolved layered issues (composition ref → version field → provider config)
+
+**User Experience Improvements**:
+- **Accurate Commands**: No more invalid kubectl commands due to schema mismatches
+- **Complete Guidance**: Users get specific post-remediation validation instructions instead of generic "verify it works"
+- **Resource-Aware**: Tool leverages existing cluster capabilities instead of suggesting unnecessary installations
+- **Multi-Step Support**: Validation workflow handles complex issues requiring multiple sequential fixes
+
+**Test Quality Enhancements**:
+- **New Test Coverage**: Added tests for `validationIntent` parsing, dry-run operation validation, and schema validation workflow
+- **Updated Existing Tests**: Fixed test expecting old SAFE_OPERATIONS array, updated to include `explain` operation
+- **Integration Validation**: All 919 tests passing with new functionality integrated
+
+**Architecture Impact**:
+- **Enhanced Investigation Loop**: Now includes schema validation → dry-run validation → completion pattern
+- **Improved Safety**: Dry-run validation actually executes to catch command errors before recommendations
+- **Better Client Integration**: MCP output includes structured validation steps with specific commands to run
+- **Resource Schema Awareness**: AI understands resource structures before making modification recommendations
+
+**Milestone 1 Status**: ✅ **FULLY COMPLETE** - All implementation items delivered with production validation
 
 ---
 

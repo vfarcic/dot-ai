@@ -16,7 +16,7 @@ export const REMEDIATE_TOOL_NAME = 'remediate';
 export const REMEDIATE_TOOL_DESCRIPTION = 'AI-powered Kubernetes issue analysis that provides root cause identification and actionable remediation steps. Unlike basic kubectl commands, this tool performs multi-step investigation, correlates cluster data, and generates intelligent solutions. Use when users want to understand WHY something is broken, not just see raw status. Ideal for: troubleshooting failures, diagnosing performance issues, analyzing pod problems, investigating networking/storage issues, or any "what\'s wrong" questions.';
 
 // Safety: Whitelist of allowed read-only operations
-export const SAFE_OPERATIONS = ['get', 'describe', 'logs', 'events', 'top'] as const;
+export const SAFE_OPERATIONS = ['get', 'describe', 'logs', 'events', 'top', 'explain'] as const;
 export type SafeOperation = typeof SAFE_OPERATIONS[number];
 
 /**
@@ -200,7 +200,27 @@ async function conductInvestigation(
       const aiAnalysis = await analyzeCurrentState(session, claudeIntegration, logger, requestId);
       
       // Parse AI response for data requests and completion status
-      const { dataRequests, isComplete, parsedResponse } = parseAIResponse(aiAnalysis);
+      const { dataRequests, isComplete, needsMoreSpecificInfo, parsedResponse } = parseAIResponse(aiAnalysis);
+      
+      // Handle early termination when issue description is too vague
+      if (needsMoreSpecificInfo) {
+        logger.info('Investigation terminated: needs more specific information', {
+          requestId,
+          sessionId: session.sessionId,
+          iteration: currentIteration + 1
+        });
+        
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.MEDIUM,
+          'Unable to find relevant resources for the reported issue. Please be more specific about which resource type or component is having problems (e.g., "my sqls.devopstoolkit.live resource named test-db" instead of "my database").',
+          {
+            operation: 'investigation_early_termination',
+            component: 'RemediateTool',
+            input: { sessionId: session.sessionId, issue: session.issue }
+          }
+        );
+      }
       
       // Gather safe data from Kubernetes using kubectl
       const gatheredData = await gatherSafeData(dataRequests, logger, requestId);
@@ -309,6 +329,26 @@ async function analyzeCurrentState(
     const promptPath = path.join(process.cwd(), 'prompts', 'remediate-investigation.md');
     const promptTemplate = fs.readFileSync(promptPath, 'utf8');
     
+    // Discover cluster API resources for complete visibility - REQUIRED for quality remediation
+    let clusterApiResources = '';
+    try {
+      // Use kubectl api-resources directly - simple and reliable
+      clusterApiResources = await executeKubectl(['api-resources']);
+      
+      logger.debug('Discovered cluster API resources', { 
+        requestId, 
+        sessionId: session.sessionId,
+        outputLength: clusterApiResources.length
+      });
+    } catch (error) {
+      const errorMessage = `Failed to discover cluster API resources: ${error instanceof Error ? error.message : String(error)}. Complete API visibility is required for quality remediation recommendations.`;
+      logger.error('API discovery failed - aborting remediation', error as Error, { 
+        requestId, 
+        sessionId: session.sessionId
+      });
+      throw new Error(errorMessage);
+    }
+
     // Prepare template variables
     const currentIteration = session.iterations.length + 1;
     const maxIterations = 20;
@@ -330,7 +370,8 @@ async function analyzeCurrentState(
       .replace('{initialContext}', initialContextJson)
       .replace('{currentIteration}', currentIteration.toString())
       .replace('{maxIterations}', maxIterations.toString())
-      .replace('{previousIterations}', previousIterationsJson);
+      .replace('{previousIterations}', previousIterationsJson)
+      .replace('{clusterApiResources}', clusterApiResources);
     
     logger.debug('Sending investigation prompt to Claude', { 
       requestId, 
@@ -381,6 +422,7 @@ interface AIInvestigationResponse {
   investigationComplete: boolean;
   confidence: number;
   reasoning: string;
+  needsMoreSpecificInfo?: boolean;
 }
 
 /**
@@ -395,6 +437,7 @@ interface AIFinalAnalysisResponse {
     actions: RemediationAction[];
     risk: 'low' | 'medium' | 'high';
   };
+  validationIntent?: string;
 }
 
 /**
@@ -448,7 +491,7 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
 /**
  * Parse AI response for data requests and investigation status
  */
-export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest[], isComplete: boolean, parsedResponse?: AIInvestigationResponse } {
+export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest[], isComplete: boolean, needsMoreSpecificInfo?: boolean, parsedResponse?: AIInvestigationResponse } {
   try {
     // Try to extract JSON from the response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -469,8 +512,12 @@ export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest
     
     // Validate data requests format
     for (const request of parsed.dataRequests) {
-      if (!SAFE_OPERATIONS.includes(request.type as SafeOperation)) {
-        throw new Error(`Invalid data request type: ${request.type}. Allowed: ${SAFE_OPERATIONS.join(', ')}`);
+      // Check if operation is safe (read-only) or has dry-run flag
+      const isDryRun = hasDryRunFlag(request.args);
+      const isSafeOperation = SAFE_OPERATIONS.includes(request.type as SafeOperation);
+      
+      if (!isSafeOperation && !isDryRun) {
+        throw new Error(`Invalid data request type: ${request.type}. Allowed: ${SAFE_OPERATIONS.join(', ')} or any operation with --dry-run flag`);
       }
       if (!request.resource || !request.rationale) {
         throw new Error('Data request missing required fields: resource, rationale');
@@ -480,6 +527,7 @@ export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest
     return {
       dataRequests: parsed.dataRequests,
       isComplete: parsed.investigationComplete,
+      needsMoreSpecificInfo: parsed.needsMoreSpecificInfo,
       parsedResponse: parsed
     };
     
@@ -756,7 +804,11 @@ async function generateFinalAnalysis(
         "3. Execute remediation actions in the order provided",
         "4. Monitor cluster state after each action before proceeding",
         "5. Stop if any action fails and investigate the error",
-        finalAnalysis.remediation.actions.length > 1 ? "6. Verify the final solution by checking the original issue is resolved" : "6. Verify the solution resolved the original issue"
+        ...(finalAnalysis.validationIntent 
+          ? [`6. After execution, run the remediation tool again with: '${finalAnalysis.validationIntent}'`,
+             "7. Verify the tool reports no issues or identifies any new problems"]
+          : [finalAnalysis.remediation.actions.length > 1 ? "6. Verify the final solution by checking the original issue is resolved" : "6. Verify the solution resolved the original issue"]
+        )
       ],
       riskConsiderations: [
         ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review and may need user confirmation`] : []),

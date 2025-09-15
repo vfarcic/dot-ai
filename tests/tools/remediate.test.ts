@@ -14,7 +14,8 @@ import {
   RemediateSession,
   DataRequest,
   InvestigationIteration,
-  RemediateOutput
+  RemediateOutput,
+  parseAIResponse
 } from '../../src/tools/remediate';
 
 import { executeKubectl } from '../../src/core/kubernetes-utils';
@@ -74,6 +75,8 @@ jest.mock('../../src/core/claude', () => ({
 jest.mock('../../src/core/kubernetes-utils', () => ({
   executeKubectl: jest.fn()
 }));
+
+// Mock for executeKubectl will handle 'api-resources' calls
 
 jest.mock('../../src/core/error-handling', () => ({
   ErrorHandler: {
@@ -149,6 +152,20 @@ function createStandardAIMocks() {
     });
   
   ClaudeIntegration.mockImplementation(() => ({ sendMessage: mockSendMessage }));
+  
+  // Setup executeKubectl mock to handle api-resources calls
+  const mockExecuteKubectl = executeKubectl as jest.MockedFunction<typeof executeKubectl>;
+  mockExecuteKubectl.mockClear();
+  mockExecuteKubectl.mockImplementation((args) => {
+    if (args && args.includes('api-resources')) {
+      return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod
+deployments                                   deploy          apps/v1                                                true         Deployment
+sqls                                                          devopstoolkit.live/v1beta1                             true         SQL`);
+    }
+    return Promise.resolve('mock kubectl output');
+  });
+  
   return mockSendMessage;
 }
 
@@ -712,6 +729,137 @@ describe('Remediate Tool', () => {
       expect(parsed.dataRequests).toEqual([]);
     });
 
+    test('should allow patch operations with dry-run flags', () => {
+      const { parseAIResponse } = require('../../src/tools/remediate');
+      
+      // Test patch with --dry-run=server should be allowed
+      const dryRunPatchResponse = JSON.stringify({
+        analysis: "Need to validate patch command",
+        dataRequests: [
+          {
+            type: "patch",
+            resource: "sql/test-db",
+            namespace: "remediate-test",
+            args: ["--dry-run=server", "-p", '{"spec":{"compositionRef":{"name":"google-postgresql"}}}'],
+            rationale: "Validate patch to add correct compositionRef"
+          }
+        ],
+        investigationComplete: false,
+        confidence: 0.85
+      });
+      
+      const parsed = parseAIResponse(dryRunPatchResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.dataRequests).toHaveLength(1);
+      expect(parsed.dataRequests[0].type).toBe('patch');
+      expect(parsed.dataRequests[0].args).toContain('--dry-run=server');
+      expect(parsed.parsedResponse?.confidence).toBe(0.85);
+    });
+
+    test('should reject patch operations without dry-run flags', () => {
+      const { parseAIResponse } = require('../../src/tools/remediate');
+      
+      // Test patch without --dry-run should be rejected
+      const unsafePatchResponse = JSON.stringify({
+        analysis: "Unsafe patch operation",
+        dataRequests: [
+          {
+            type: "patch",
+            resource: "sql/test-db",
+            namespace: "remediate-test",
+            args: ["-p", '{"spec":{"compositionRef":{"name":"google-postgresql"}}}'],
+            rationale: "Unsafe patch without dry-run"
+          }
+        ],
+        investigationComplete: false,
+        confidence: 0.85
+      });
+      
+      const parsed = parseAIResponse(unsafePatchResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.dataRequests).toEqual([]); // Should fall back to empty array
+      expect(parsed.parsedResponse).toBeUndefined(); // Should not parse successfully
+    });
+
+    test('should parse validationIntent from AI final analysis response', () => {
+      const { parseAIFinalAnalysis } = require('../../src/tools/remediate');
+      
+      const responseWithValidationIntent = JSON.stringify({
+        rootCause: "XRD has incorrect defaultCompositionRef",
+        confidence: 0.95,
+        factors: ["Missing composition reference"],
+        remediation: {
+          summary: "Update XRD configuration",
+          actions: [{
+            description: "Fix composition reference",
+            command: "kubectl patch xrd/sqls.devopstoolkit.live --type=merge -p '{\"spec\":{\"defaultCompositionRef\":{\"name\":\"google-postgresql\"}}}'",
+            risk: "medium",
+            rationale: "Corrects the reference to existing composition"
+          }],
+          risk: "medium"
+        },
+        validationIntent: "Check the status of sqls.devopstoolkit.live resources to verify they are functioning after the XRD update"
+      });
+
+      const parsed = parseAIFinalAnalysis(responseWithValidationIntent);
+      expect(parsed.validationIntent).toBe("Check the status of sqls.devopstoolkit.live resources to verify they are functioning after the XRD update");
+      expect(parsed.rootCause).toBe("XRD has incorrect defaultCompositionRef");
+    });
+
+    test('should include validationIntent in MCP output instructions', async () => {
+      // Mock Claude integration with validationIntent response
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = jest.fn()
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Mock investigation analysis",
+            dataRequests: [],
+            investigationComplete: true,
+            confidence: 0.9,
+            reasoning: "Mock investigation complete"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        })
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            rootCause: "Mock root cause with validation intent",
+            confidence: 0.95,
+            factors: ["Mock factor"],
+            remediation: {
+              summary: "Mock remediation",
+              actions: [{
+                description: "Mock action",
+                command: "kubectl patch resource",
+                risk: "medium",
+                rationale: "Mock rationale"
+              }],
+              risk: "medium"
+            },
+            validationIntent: "Check the status of test-resource in test-namespace"
+          }),
+          usage: { input_tokens: 200, output_tokens: 100 }
+        });
+
+      ClaudeIntegration.mockImplementation(() => ({
+        sendMessage: mockSendMessage
+      }));
+
+      const mockArgs = {
+        issue: 'Test validation intent in output',
+        sessionDir: tempDir
+      };
+
+      const result = await handleRemediateTool(mockArgs);
+      const output = JSON.parse(result.content[0].text);
+      
+      expect(output.instructions.nextSteps).toContain(
+        "6. After execution, run the remediation tool again with: 'Check the status of test-resource in test-namespace'"
+      );
+      expect(output.instructions.nextSteps).toContain(
+        "7. Verify the tool reports no issues or identifies any new problems"
+      );
+    });
+
     test('should provide working AI integration that can be executed', async () => {
       // Set up AI mocks for investigation + final analysis
       createStandardAIMocks();
@@ -796,9 +944,10 @@ describe('Remediate Tool', () => {
       const result = await handleRemediateTool(mockArgs);
       const output = JSON.parse(result.content[0].text);
       
-      // Should complete without calling kubectl for unsafe operation
+      // Should complete successfully - api-resources is called for discovery, but no unsafe operations
       expect(output.status).toBe('success');
-      expect(mockExecuteKubectl).not.toHaveBeenCalled();
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(['api-resources']);
+      expect(mockExecuteKubectl).toHaveBeenCalledTimes(1); // Only api-resources, no unsafe operations
     });
 
     test('should execute safe kubectl operations', async () => {
@@ -876,8 +1025,14 @@ describe('Remediate Tool', () => {
     });
 
     test('should handle kubectl failures gracefully', async () => {
-      // Mock kubectl failure
-      mockExecuteKubectl.mockRejectedValue(new Error('pods "nonexistent-pod" not found'));
+      // Mock kubectl failure for investigation, but allow api-resources to succeed
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args && args.includes('api-resources')) {
+          return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod`);
+        }
+        return Promise.reject(new Error('pods "nonexistent-pod" not found'));
+      });
 
       const mockArgs = {
         issue: 'Test kubectl failure handling',
@@ -960,7 +1115,7 @@ describe('Remediate Tool', () => {
 
     test('should support all safe operations', () => {
       // Verify SAFE_OPERATIONS constant matches expected operations
-      expect(SAFE_OPERATIONS).toEqual(['get', 'describe', 'logs', 'events', 'top']);
+      expect(SAFE_OPERATIONS).toEqual(['get', 'describe', 'logs', 'events', 'top', 'explain']);
     });
 
     test('should build kubectl commands correctly', async () => {
@@ -1083,7 +1238,13 @@ describe('Remediate Tool', () => {
 
       for (const testCase of testErrorCases) {
         mockExecuteKubectl.mockClear();
-        mockExecuteKubectl.mockRejectedValue(testCase.error);
+        mockExecuteKubectl.mockImplementation((args) => {
+          if (args && args.includes('api-resources')) {
+            return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod`);
+          }
+          return Promise.reject(testCase.error);
+        });
 
         const mockArgs = {
           issue: `Test error suggestion for: ${testCase.error.message}`,
@@ -1370,6 +1531,295 @@ describe('Remediate Tool', () => {
       expect(promptContent).toContain('{dataSources}');
       expect(promptContent).toContain('{analysisPath}');
       expect(promptContent).toContain('{completeInvestigationData}');
+    });
+  });
+
+  describe('Cluster API Discovery Integration', () => {
+    const mockExecuteKubectl = executeKubectl as jest.MockedFunction<typeof executeKubectl>;
+    
+    beforeEach(() => {
+      mockExecuteKubectl.mockClear();
+    });
+
+    test('should successfully discover API resources using kubectl', async () => {
+      // Setup executeKubectl mock for api-resources command
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args.includes('api-resources')) {
+          return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod
+deployments                                   deploy          apps/v1                                                true         Deployment
+sqls                                                          devopstoolkit.live/v1beta1                             true         SQL`);
+        }
+        return Promise.resolve('mock kubectl output');
+      });
+
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = createGlobalMockSendMessage();
+      
+      ClaudeIntegration.mockImplementation(() => ({
+        sendMessage: mockSendMessage
+      }));
+
+      const input: RemediateInput = {
+        issue: 'Test API discovery integration',
+        context: {},
+        mode: 'manual'
+      };
+
+      await handleRemediateTool(input);
+
+      // Verify kubectl api-resources was called
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(['api-resources']);
+
+      // Verify AI was called with raw API resources in prompt
+      expect(mockSendMessage).toHaveBeenCalled();
+      const aiPrompt = mockSendMessage.mock.calls[0][0];
+      expect(aiPrompt).toContain('Cluster API Resources');
+      expect(aiPrompt).toContain('pods');
+      expect(aiPrompt).toContain('deployments');
+      expect(aiPrompt).toContain('sqls');
+      expect(aiPrompt).toContain('devopstoolkit.live/v1beta1');
+    });
+
+    test('should fail with error when kubectl api-resources fails', async () => {
+      // Setup kubectl mock to fail
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args.includes('api-resources')) {
+          return Promise.reject(new Error('Cannot connect to cluster'));
+        }
+        return Promise.resolve('mock kubectl output');
+      });
+
+      const input: RemediateInput = {
+        issue: 'Test API discovery failure',
+        context: {},
+        mode: 'manual'
+      };
+
+      await expect(handleRemediateTool(input)).rejects.toThrow(
+        'Failed to discover cluster API resources: Cannot connect to cluster. Complete API visibility is required for quality remediation recommendations.'
+      );
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(['api-resources']);
+    });
+
+    test('should include complete raw kubectl output in AI prompt', async () => {
+      const mockApiResourcesOutput = `NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod
+services                                      svc             v1                                                     true         Service
+deployments                                   deploy          apps/v1                                                true         Deployment
+sqls                                                          devopstoolkit.live/v1beta1                             true         SQL
+applications                                  app             argoproj.io/v1alpha1                                  true         Application`;
+
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args.includes('api-resources')) {
+          return Promise.resolve(mockApiResourcesOutput);
+        }
+        return Promise.resolve('mock kubectl output');
+      });
+
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = createGlobalMockSendMessage();
+      
+      ClaudeIntegration.mockImplementation(() => ({
+        sendMessage: mockSendMessage
+      }));
+
+      const input: RemediateInput = {
+        issue: 'Test complete API output',
+        context: {},
+        mode: 'manual'
+      };
+
+      await handleRemediateTool(input);
+
+      const aiPrompt = mockSendMessage.mock.calls[0][0];
+      
+      // Verify the exact kubectl output is included
+      expect(aiPrompt).toContain(mockApiResourcesOutput);
+      expect(aiPrompt).toContain('argoproj.io/v1alpha1');
+    });
+
+    test('should validate investigation prompt template contains API resources placeholder', () => {
+      const fs = require('fs');
+      const path = require('path');
+      
+      const promptPath = path.join(process.cwd(), 'prompts', 'remediate-investigation.md');
+      expect(fs.existsSync(promptPath)).toBe(true);
+      
+      const promptContent = fs.readFileSync(promptPath, 'utf8');
+      expect(promptContent).toContain('{clusterApiResources}');
+      expect(promptContent).toContain('Cluster API Resources');
+      expect(promptContent).toContain('Complete cluster capabilities available in this cluster');
+    });
+  });
+
+  describe('Early Termination for Vague Requests', () => {
+    const mockExecuteKubectl = executeKubectl as jest.MockedFunction<typeof executeKubectl>;
+    
+    beforeEach(() => {
+      mockExecuteKubectl.mockClear();
+    });
+
+    test('should terminate early when AI detects vague issue description', async () => {
+      // Mock kubectl api-resources to succeed
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args && args.includes('api-resources')) {
+          return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod
+deployments                                   deploy          apps/v1                                                true         Deployment
+sqls                                                          devopstoolkit.live/v1beta1                             true         SQL`);
+        }
+        return Promise.resolve('mock kubectl output');
+      });
+
+      // Mock AI response indicating it needs more specific info
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = jest.fn().mockResolvedValue({
+        content: JSON.stringify({
+          analysis: "After examining the namespace, I cannot find any specific database resources that seem related to the reported issue. The issue description is too vague.",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.1,
+          reasoning: "Issue description is too vague to identify specific resources",
+          needsMoreSpecificInfo: true
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      ClaudeIntegration.mockImplementation(() => ({ sendMessage: mockSendMessage }));
+
+      const input: RemediateInput = {
+        issue: 'There is something wrong with my database',
+        context: {},
+        mode: 'manual'
+      };
+
+      await expect(handleRemediateTool(input)).rejects.toThrow(
+        'Unable to find relevant resources for the reported issue. Please be more specific about which resource type or component is having problems'
+      );
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(['api-resources']);
+    });
+
+    test('should continue investigation when AI finds relevant resources', async () => {
+      // Mock kubectl api-resources to succeed
+      mockExecuteKubectl.mockImplementation((args) => {
+        if (args && args.includes('api-resources')) {
+          return Promise.resolve(`NAME                                          SHORTNAMES      APIVERSION                                             NAMESPACED   KIND
+pods                                          po              v1                                                     true         Pod
+sqls                                                          devopstoolkit.live/v1beta1                             true         SQL`);
+        }
+        return Promise.resolve('mock kubectl output');
+      });
+
+      // Mock AI responses for normal investigation flow
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = jest.fn()
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "Found SQL resource 'test-db' in the namespace, investigating its status",
+            dataRequests: [
+              {
+                type: "get",
+                resource: "sqls",
+                namespace: "remediate-test", 
+                rationale: "Check SQL resource status"
+              }
+            ],
+            investigationComplete: false,
+            confidence: 0.7,
+            reasoning: "Found relevant resources, continuing investigation",
+            needsMoreSpecificInfo: false
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        })
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            analysis: "SQL resource is not synced, this is the root cause",
+            dataRequests: [],
+            investigationComplete: true,
+            confidence: 0.9,
+            reasoning: "Root cause identified"
+          }),
+          usage: { input_tokens: 100, output_tokens: 50 }
+        })
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            rootCause: "SQL resource 'test-db' is not synced",
+            confidence: 0.9,
+            factors: ["Resource status shows not synced"],
+            remediation: {
+              summary: "Check SQL resource configuration",
+              actions: [
+                {
+                  description: "Examine SQL resource status",
+                  command: "kubectl describe sqls test-db -n remediate-test",
+                  risk: "low",
+                  rationale: "Gather detailed information about the resource"
+                }
+              ],
+              risk: "low"
+            }
+          }),
+          usage: { input_tokens: 200, output_tokens: 100 }
+        });
+      
+      ClaudeIntegration.mockImplementation(() => ({ sendMessage: mockSendMessage }));
+
+      const input: RemediateInput = {
+        issue: 'There is an issue with my SQL resource test-db',
+        context: {},
+        mode: 'manual'
+      };
+
+      const result = await handleRemediateTool(input);
+      const output = JSON.parse(result.content[0].text);
+
+      expect(output.status).toBe('success');
+      expect(output.analysis).toBeDefined();
+      expect(output.analysis.rootCause).toContain('SQL resource');
+      expect(mockSendMessage).toHaveBeenCalledTimes(3); // Investigation + final analysis
+    });
+
+    test('should parse needsMoreSpecificInfo field correctly', () => {
+      const aiResponse = JSON.stringify({
+        analysis: "Cannot find relevant resources",
+        dataRequests: [],
+        investigationComplete: true,
+        confidence: 0.1,
+        reasoning: "Issue too vague",
+        needsMoreSpecificInfo: true
+      });
+
+      const { needsMoreSpecificInfo, isComplete } = parseAIResponse(aiResponse);
+
+      expect(needsMoreSpecificInfo).toBe(true);
+      expect(isComplete).toBe(true);
+    });
+
+    test('should handle missing needsMoreSpecificInfo field gracefully', () => {
+      const aiResponse = JSON.stringify({
+        analysis: "Normal investigation continues",
+        dataRequests: [
+          {
+            type: "get",
+            resource: "pods",
+            namespace: "default",
+            rationale: "Check pod status"
+          }
+        ],
+        investigationComplete: false,
+        confidence: 0.6,
+        reasoning: "Need more data"
+      });
+
+      const { needsMoreSpecificInfo, isComplete, dataRequests } = parseAIResponse(aiResponse);
+
+      expect(needsMoreSpecificInfo).toBeUndefined();
+      expect(isComplete).toBe(false);
+      expect(dataRequests).toHaveLength(1);
     });
   });
 });

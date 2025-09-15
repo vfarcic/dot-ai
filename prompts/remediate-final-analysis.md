@@ -45,7 +45,8 @@ You MUST respond with ONLY a single JSON object in this exact format:
       }
     ],
     "risk": "low|medium|high"
-  }
+  },
+  "validationIntent": "Intent for post-remediation validation (e.g., 'Check the status of [resources] to verify the fix')"
 }
 ```
 
@@ -56,6 +57,7 @@ You MUST respond with ONLY a single JSON object in this exact format:
 - `remediation.summary`: String with high-level remediation approach
 - `remediation.actions`: Array of specific remediation actions (can be multiple sequential steps)
 - `remediation.risk`: Overall risk level of the complete remediation plan
+- `validationIntent`: String describing what should be checked to validate the fix worked (e.g., "Check the status of sqls.devopstoolkit.live resource test-db in remediate-test namespace")
 
 ## Remediation Solution Guidelines
 
@@ -85,16 +87,26 @@ You MUST respond with ONLY a single JSON object in this exact format:
 
 ## Remediation Action Guidelines
 
+**IMPORTANT**: Actions should contain ONLY actual remediation steps that fix the issue. Validation and monitoring steps should be described in the `validationIntent` field, not as separate actions.
+
+**Multiple Actions Guidelines**:
+- **Use multiple actions when** the fix requires distinct steps (e.g., update ConfigMap → restart deployment, or fix RBAC → update deployment → create resources)
+- **Combine related changes** on the same resource into single actions (e.g., multiple patches to one deployment)
+- **Sequence matters** - list actions in the order they must be executed
+- **Each action should change system state** to move toward resolution
+
 For each remediation action:
 - **Be specific**: Provide exact commands or procedures when possible
+- **Focus on fixes only**: Include only actions that change the system state to resolve the issue
 - **Assess risk accurately**: 
-  - `low`: Read-only, reversible, or safe operations (restart pods, scale replicas, view resources)
+  - `low`: Read-only, reversible, or safe operations (restart pods, scale replicas)
   - `medium`: Configuration changes that could affect performance (resource limits, environment variables)
   - `high`: Operations that could cause service disruption (delete resources, modify critical configurations)
 - **Provide rationale**: Explain how the action addresses the root cause
-- **Consider order**: List actions in the sequence they should be executed
-- **Include verification**: Where appropriate, include steps to verify each stage
+- **Consider dependencies**: Ensure actions can be executed in sequence
 - **Overall risk**: Set to the highest individual action risk level
+
+**Validation Handling**: Instead of including validation commands as actions, describe what should be validated in the `validationIntent` field (e.g., "Check the status of deployment X to ensure pods are running with new resource limits").
 
 ## Risk Assessment Criteria
 
@@ -134,35 +146,18 @@ For each remediation action:
     "Cluster autoscaler not configured or unable to provision larger nodes"
   ],
   "remediation": {
-    "summary": "Multi-step resource adjustment to match available cluster capacity",
+    "summary": "Adjust resource requirements to match available cluster capacity",
     "actions": [
       {
-        "description": "Reduce CPU request from 8 cores to 2 cores to match available capacity",
-        "command": "kubectl patch deployment memory-hog -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"memory-consumer\",\"resources\":{\"requests\":{\"cpu\":\"2\"}}}]}}}}'",
+        "description": "Update deployment resource requests to fit available node capacity",
+        "command": "kubectl patch deployment memory-hog -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"memory-consumer\",\"resources\":{\"requests\":{\"cpu\":\"2\",\"memory\":\"4Gi\"}}}]}}}}'",
         "risk": "medium",
-        "rationale": "Reducing CPU request allows pod to be scheduled on available nodes"
-      },
-      {
-        "description": "Reduce memory request from 10Gi to 4Gi to fit within node capacity",
-        "command": "kubectl patch deployment memory-hog -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"memory-consumer\",\"resources\":{\"requests\":{\"memory\":\"4Gi\"}}}]}}}}'",
-        "risk": "medium", 
-        "rationale": "Memory reduction is necessary for scheduling, may affect performance but application should still function"
-      },
-      {
-        "description": "Wait for pod to be rescheduled with new resource requirements",
-        "command": "kubectl rollout status deployment memory-hog --timeout=300s",
-        "risk": "low",
-        "rationale": "Monitor deployment rollout to ensure pod successfully starts with new resource constraints"
-      },
-      {
-        "description": "Verify pod is running and healthy",
-        "command": "kubectl get pod -l app=memory-hog -o wide",
-        "risk": "low",
-        "rationale": "Confirm pod is scheduled, running, and assigned to a node after resource adjustment"
+        "rationale": "Reducing CPU from 8 to 2 cores and memory from 10Gi to 4Gi allows pod to be scheduled on available nodes"
       }
     ],
     "risk": "medium"
-  }
+  },
+  "validationIntent": "Check the status of memory-hog deployment and pods to verify they are running with the adjusted resource requirements"
 }
 ```
 
