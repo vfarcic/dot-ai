@@ -466,6 +466,24 @@ Layer 4: Kubernetes RBAC (read-only service account)
     - **Evidence**: Successfully remediated SQL resource with schema-validated patches, all 919 tests passing
     - **Priority**: Complete - addresses critical usability and accuracy issues
 
+15. **✅ GitOps-Friendly Full Resource Output**: Enhanced remediation output for Infrastructure as Code workflows
+    - **Date**: 2025-01-15  
+    - **Decision**: Add complete modified YAML resources to remediation action output alongside existing kubectl commands
+    - **Rationale**: Many organizations use GitOps (ArgoCD, Flux) and need full resource definitions to commit to Git rather than applying patches directly
+    - **Impact**: Enables remediation suggestions to flow through Infrastructure as Code workflows while maintaining existing direct execution option
+    - **Code Impact**: 
+      - Add optional `yaml` field to existing `RemediationAction` interface containing complete modified resources
+      - Use `---` separator for multiple resources in single YAML output
+      - Update MCP output instructions to mention YAML save option for client agents
+      - Maintain all existing fields (description, command, risk, rationale) unchanged
+    - **Architecture**: 
+      - **Simple Addition**: Add YAML content to existing output structure without complexity
+      - **User Control**: Client agent presents save option, user controls file location, naming, and Git workflow
+      - **Resource Completeness**: YAML contains full modified resources, not patches, for complete context
+      - **Multiple Resource Support**: Standard YAML document separator for multiple resources per action
+    - **Requirements Impact**: Enhanced remediation output to support Infrastructure as Code practices with minimal complexity
+    - **Priority**: Medium - valuable enhancement that doesn't disrupt existing workflows
+
 ## Progress Log
 
 ### 2025-01-10
