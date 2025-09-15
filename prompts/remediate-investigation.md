@@ -28,9 +28,10 @@ You MUST respond with ONLY a single JSON object in this exact format:
   "analysis": "Your analysis of the current situation, what you've learned, and your reasoning",
   "dataRequests": [
     {
-      "type": "get|describe|logs|events|top",
-      "resource": "pods|services|deployments|nodes|etc",
+      "type": "get|describe|logs|events|top|patch|apply|delete|etc",
+      "resource": "pods|services|configmaps|nodes|etc",
       "namespace": "namespace-name",
+      "args": ["--dry-run=server", "-p", "patch-content"],
       "rationale": "Why this data is needed for the investigation"
     }
   ],
@@ -49,11 +50,17 @@ You MUST respond with ONLY a single JSON object in this exact format:
 
 ## Available Data Request Types
 
+**Read-Only Operations**:
 - `get`: List resources (kubectl get)
 - `describe`: Detailed resource information (kubectl describe)
 - `logs`: Container logs (kubectl logs)
 - `events`: Kubernetes events (kubectl get events)
 - `top`: Resource usage metrics (kubectl top)
+
+**Command Validation**:
+- Any kubectl operation with `--dry-run=server` flag for testing proposed remediation commands
+- Use server-side dry-run to validate patches, applies, deletes against actual cluster resources
+- Example: Test configuration with `"type": "patch", "resource": "deployment/my-app", "args": ["--dry-run=server", "-p", "patch-content"]`
 
 ## Investigation Guidelines
 
@@ -63,7 +70,9 @@ You MUST respond with ONLY a single JSON object in this exact format:
 - **Consider relationships**: Look at how components interact
 - **Think holistically**: Consider cluster-wide impacts and dependencies
 - **Prioritize safety**: Never request operations that could impact running systems
-- **Be decisive**: When you have sufficient information, declare investigation complete
+- **REQUIRED: Validate solutions**: When you identify a potential fix, you MUST test it with `--dry-run=server` before completing investigation
+- **Dry-run timing**: Only use dry-run when you have a concrete solution to test - not during initial data gathering phases
+- **Be decisive**: When you have sufficient information AND validated your solution, declare investigation complete
 
 ## Investigation Complete Criteria
 
@@ -71,23 +80,60 @@ Declare `investigationComplete: true` when you have:
 1. **Clear root cause identification** with high confidence (>0.8)
 2. **Sufficient evidence** to support your analysis  
 3. **Understanding of impact scope** and affected components
-4. **Confidence in remediation direction** based on findings
+4. **VALIDATED remediation solution** - you MUST have tested your proposed fix with `--dry-run=server`
+5. **Confirmed remediation commands work** without validation errors
 
-## Example Response
+## Investigation Workflow Example
 
+**Iterative Investigation Process**: The investigation works in loops - gather data, analyze, repeat until solution is found, then validate with dry-run.
+
+**Expected Pattern**: Data gathering → Analysis → More data (if needed) → Solution identification → Dry-run validation → Completion
+
+1. **Initial Investigation**:
 ```json
 {
-  "analysis": "Based on the pod restart pattern and error logs, this appears to be a memory pressure issue. The OOMKilled events correlate with the application's memory usage spikes during peak load times.",
+  "analysis": "Pod is in CrashLoopBackOff state. Need to examine logs and resource configuration.",
   "dataRequests": [
     {
-      "type": "describe",
-      "resource": "node/worker-node-1",
-      "rationale": "Need to check node memory capacity and current usage to confirm memory pressure hypothesis"
+      "type": "logs",
+      "resource": "pod/failing-app",
+      "namespace": "default",
+      "rationale": "Need to examine container logs to identify crash cause"
     }
   ],
   "investigationComplete": false,
-  "confidence": 0.7,
-  "reasoning": "High confidence in memory pressure theory, but need node-level data to confirm and determine if it's application or cluster-wide issue"
+  "confidence": 0.3,
+  "reasoning": "Need initial data to understand failure pattern"
+}
+```
+
+2. **Solution Testing**:
+```json
+{
+  "analysis": "Logs show OOMKilled events. Application needs more memory. Current limit is 128Mi, increasing to 512Mi should resolve the issue.",
+  "dataRequests": [
+    {
+      "type": "patch",
+      "resource": "deployment/failing-app",
+      "namespace": "default",
+      "args": ["--dry-run=server", "-p", "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"app\",\"resources\":{\"limits\":{\"memory\":\"512Mi\"}}}]}}}}"],
+      "rationale": "REQUIRED: Validate memory limit patch before completing investigation"
+    }
+  ],
+  "investigationComplete": false,
+  "confidence": 0.8,
+  "reasoning": "Solution identified but must validate patch command works before completion"
+}
+```
+
+3. **Investigation Complete**:
+```json
+{
+  "analysis": "Root cause confirmed: insufficient memory allocation (128Mi) causing OOMKilled events. Dry-run validation successful for memory increase to 512Mi. This will resolve the CrashLoopBackOff condition.",
+  "dataRequests": [],
+  "investigationComplete": true,
+  "confidence": 0.9,
+  "reasoning": "Root cause identified, solution validated with dry-run, ready for remediation"
 }
 ```
 

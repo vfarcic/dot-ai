@@ -13,11 +13,24 @@ import * as crypto from 'crypto';
 
 // Tool metadata for direct MCP registration
 export const REMEDIATE_TOOL_NAME = 'remediate';
-export const REMEDIATE_TOOL_DESCRIPTION = 'Receive Kubernetes issues and events, analyze them using AI, and provide remediation recommendations or execute fixes. This tool can be called from controllers, human agents, or CI/CD pipelines.';
+export const REMEDIATE_TOOL_DESCRIPTION = 'AI-powered Kubernetes issue analysis that provides root cause identification and actionable remediation steps. Unlike basic kubectl commands, this tool performs multi-step investigation, correlates cluster data, and generates intelligent solutions. Use when users want to understand WHY something is broken, not just see raw status. Ideal for: troubleshooting failures, diagnosing performance issues, analyzing pod problems, investigating networking/storage issues, or any "what\'s wrong" questions.';
 
 // Safety: Whitelist of allowed read-only operations
 export const SAFE_OPERATIONS = ['get', 'describe', 'logs', 'events', 'top'] as const;
 export type SafeOperation = typeof SAFE_OPERATIONS[number];
+
+/**
+ * Check if command arguments contain dry-run flag (making any operation safe)
+ */
+function hasDryRunFlag(args?: string[]): boolean {
+  if (!args) return false;
+  return args.some(arg => 
+    arg === '--dry-run=client' || 
+    arg === '--dry-run=server' || 
+    arg === '--dry-run' ||
+    arg.startsWith('--dry-run=')
+  );
+}
 
 // Zod schema for MCP registration
 export const REMEDIATE_TOOL_INPUT_SCHEMA = {
@@ -46,9 +59,10 @@ export interface RemediateInput {
 }
 
 export interface DataRequest {
-  type: 'get' | 'describe' | 'logs' | 'events' | 'top';
+  type: string;  // Allow any kubectl operation
   resource: string;
   namespace?: string;
+  args?: string[];  // Additional arguments like --dry-run=client
   rationale: string;
 }
 
@@ -90,11 +104,10 @@ export interface ExecutionResult {
 
 export interface RemediateOutput {
   status: 'success' | 'failed';
-  sessionId: string;
-  investigation: {
-    iterations: number;
-    dataGathered: string[];
-    analysisPath: string[];
+  instructions: {
+    summary: string;
+    nextSteps: string[];
+    riskConsiderations: string[];
   };
   analysis: {
     rootCause: string;
@@ -105,6 +118,11 @@ export interface RemediateOutput {
     summary: string;
     actions: RemediationAction[];
     risk: 'low' | 'medium' | 'high';
+  };
+  metadata: {
+    investigationSteps: number;
+    dataSources: string[];
+    sessionId: string;
   };
   executed?: boolean;
   results?: ExecutionResult[];
@@ -366,6 +384,68 @@ interface AIInvestigationResponse {
 }
 
 /**
+ * AI Final Analysis Response interface matching final analysis prompt format
+ */
+interface AIFinalAnalysisResponse {
+  rootCause: string;
+  confidence: number;
+  factors: string[];
+  remediation: {
+    summary: string;
+    actions: RemediationAction[];
+    risk: 'low' | 'medium' | 'high';
+  };
+}
+
+/**
+ * Parse AI final analysis response
+ */
+export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisResponse {
+  try {
+    // Try to extract JSON from the response
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in AI final analysis response');
+    }
+    
+    const parsed = JSON.parse(jsonMatch[0]) as AIFinalAnalysisResponse;
+    
+    // Validate required fields
+    if (!parsed.rootCause || !parsed.confidence || !Array.isArray(parsed.factors) || !parsed.remediation) {
+      throw new Error('Invalid AI final analysis response structure');
+    }
+    
+    if (!parsed.remediation.summary || !Array.isArray(parsed.remediation.actions) || !parsed.remediation.risk) {
+      throw new Error('Invalid remediation structure in AI final analysis response');
+    }
+    
+    // Validate each remediation action
+    for (const action of parsed.remediation.actions) {
+      if (!action.description || !action.risk || !action.rationale) {
+        throw new Error('Invalid remediation action structure');
+      }
+      if (!['low', 'medium', 'high'].includes(action.risk)) {
+        throw new Error(`Invalid risk level: ${action.risk}`);
+      }
+    }
+    
+    // Validate overall risk level
+    if (!['low', 'medium', 'high'].includes(parsed.remediation.risk)) {
+      throw new Error(`Invalid overall risk level: ${parsed.remediation.risk}`);
+    }
+    
+    // Validate confidence is between 0 and 1
+    if (parsed.confidence < 0 || parsed.confidence > 1) {
+      throw new Error(`Invalid confidence value: ${parsed.confidence}. Must be between 0 and 1`);
+    }
+    
+    return parsed;
+  } catch (error) {
+    throw new Error(`Failed to parse AI final analysis response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Parse AI response for data requests and investigation status
  */
 export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest[], isComplete: boolean, parsedResponse?: AIInvestigationResponse } {
@@ -461,16 +541,19 @@ async function gatherSafeData(
     const dataRequestId = `${requestId}-req-${i}`;
     
     try {
-      // Safety validation - only check operation type
-      if (!SAFE_OPERATIONS.includes(request.type as SafeOperation)) {
-        const error = `Unsafe operation '${request.type}' - only allowed: ${SAFE_OPERATIONS.join(', ')}`;
+      // Safety validation - allow read-only operations OR operations with dry-run flag
+      const isDryRun = hasDryRunFlag(request.args);
+      const isReadOnlyOperation = SAFE_OPERATIONS.includes(request.type as SafeOperation);
+      
+      if (!isReadOnlyOperation && !isDryRun) {
+        const error = `Unsafe operation '${request.type}' - only allowed: ${SAFE_OPERATIONS.join(', ')} or any operation with --dry-run flag`;
         result.failed[dataRequestId] = {
           error,
-          command: `kubectl ${request.type} ${request.resource}`,
-          suggestion: 'Use only read-only operations like get, describe, logs, events, or top'
+          command: `kubectl ${request.type} ${request.resource}${request.args ? ' ' + request.args.join(' ') : ''}`,
+          suggestion: 'Use read-only operations (get, describe, logs, events, top) or add --dry-run=client to validate commands safely'
         };
         result.summary.failed++;
-        logger.warn('Rejected unsafe kubectl operation', { requestId, dataRequestId, operation: request.type });
+        logger.warn('Rejected unsafe kubectl operation', { requestId, dataRequestId, operation: request.type, isDryRun });
         continue;
       }
       
@@ -480,8 +563,13 @@ async function gatherSafeData(
         args.push('-n', request.namespace);
       }
       
-      // Add output format for structured data (only for commands that support it)
-      if (request.type === 'get' || request.type === 'events' || request.type === 'top') {
+      // Add any additional arguments (like --dry-run=client)
+      if (request.args && request.args.length > 0) {
+        args.push(...request.args);
+      }
+      
+      // Add output format for structured data (only for read-only commands that support it)
+      if ((request.type === 'get' || request.type === 'events' || request.type === 'top') && !isDryRun) {
         args.push('-o', 'yaml');
       }
       
@@ -569,43 +657,166 @@ function generateErrorSuggestion(errorMessage: string): string | undefined {
 
 
 /**
- * Generate final analysis and remediation recommendations (scaffolding)
- * TODO: Implement actual final analysis generation with AI
+ * Generate final analysis and remediation recommendations using AI
  */
 async function generateFinalAnalysis(
   session: RemediateSession,
   logger: Logger,
   requestId: string
 ): Promise<RemediateOutput> {
-  logger.debug('Generating final analysis', { requestId, sessionId: session.sessionId });
+  logger.debug('Generating final analysis with AI', { requestId, sessionId: session.sessionId });
 
-  // Scaffolding implementation
-  return {
-    status: 'success',
-    sessionId: session.sessionId,
-    investigation: {
-      iterations: session.iterations.length,
-      dataGathered: session.iterations.flatMap(iter => Object.keys(iter.gatheredData)),
-      analysisPath: session.iterations.map(iter => `Step ${iter.step}: ${iter.aiAnalysis.substring(0, 100)}...`)
-    },
-    analysis: {
-      rootCause: `Analysis of issue: ${session.issue}`,
-      confidence: 0.8,
-      factors: ['Factor 1', 'Factor 2', 'Factor 3']
-    },
-    remediation: {
-      summary: 'Recommended remediation steps based on investigation',
-      actions: [
+  try {
+    // Initialize Claude integration
+    const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+    if (!claudeApiKey) {
+      throw ErrorHandler.createError(
+        ErrorCategory.CONFIGURATION,
+        ErrorSeverity.HIGH,
+        'ANTHROPIC_API_KEY environment variable not set for final analysis',
         {
-          description: 'Restart affected pods',
-          risk: 'low',
-          rationale: 'Common fix for temporary issues'
+          operation: 'generateFinalAnalysis',
+          component: 'RemediateTool',
+          requestId,
+          sessionId: session.sessionId
         }
+      );
+    }
+
+    const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+
+    // Load final analysis prompt template
+    const promptPath = path.join(process.cwd(), 'prompts', 'remediate-final-analysis.md');
+    const promptTemplate = fs.readFileSync(promptPath, 'utf8');
+    
+    // Prepare template variables - extract actual data source identifiers
+    const dataSources = session.iterations.flatMap(iter => {
+      if (iter.gatheredData && iter.gatheredData.successful) {
+        return Object.keys(iter.gatheredData.successful);
+      }
+      return [];
+    });
+    const analysisPath = session.iterations.map(iter => 
+      `Iteration ${iter.step}: ${iter.aiAnalysis.substring(0, 100)}${iter.aiAnalysis.length > 100 ? '...' : ''}`
+    );
+    
+    // Compile complete investigation data for AI analysis
+    const completeInvestigationData = session.iterations.map(iter => ({
+      iteration: iter.step,
+      analysis: iter.aiAnalysis,
+      dataGathered: Object.entries(iter.gatheredData).map(([key, value]) => ({
+        source: key,
+        data: typeof value === 'string' ? value.substring(0, 1000) : JSON.stringify(value).substring(0, 1000)
+      }))
+    }));
+
+    // Replace template variables
+    const finalAnalysisPrompt = promptTemplate
+      .replace('{issue}', session.issue)
+      .replace('{iterations}', session.iterations.length.toString())
+      .replace('{dataSources}', dataSources.join(', '))
+      .replace('{analysisPath}', analysisPath.join('\n'))
+      .replace('{completeInvestigationData}', JSON.stringify(completeInvestigationData, null, 2));
+
+    logger.debug('Sending final analysis request to Claude AI', { 
+      requestId, 
+      sessionId: session.sessionId,
+      promptLength: finalAnalysisPrompt.length
+    });
+    
+    // Send to Claude AI
+    const aiResponse = await claudeIntegration.sendMessage(finalAnalysisPrompt);
+    
+    logger.debug('Received AI final analysis response', { 
+      requestId, 
+      sessionId: session.sessionId,
+      responseLength: aiResponse.content.length
+    });
+
+    // Parse AI response
+    const finalAnalysis = parseAIFinalAnalysis(aiResponse.content);
+
+    logger.info('Final analysis generated successfully', { 
+      requestId, 
+      sessionId: session.sessionId,
+      confidence: finalAnalysis.confidence,
+      actionCount: finalAnalysis.remediation.actions.length,
+      overallRisk: finalAnalysis.remediation.risk
+    });
+
+    // Generate client-friendly instructions
+    const highRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'high');
+    const mediumRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'medium');
+    
+    const instructions = {
+      summary: `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`,
+      nextSteps: [
+        "1. Review the root cause analysis and confidence level below",
+        "2. Display each remediation action with its kubectl command, risk level, and rationale",
+        "3. Execute remediation actions in the order provided",
+        "4. Monitor cluster state after each action before proceeding",
+        "5. Stop if any action fails and investigate the error",
+        finalAnalysis.remediation.actions.length > 1 ? "6. Verify the final solution by checking the original issue is resolved" : "6. Verify the solution resolved the original issue"
       ],
-      risk: 'low'
-    },
-    executed: false
-  };
+      riskConsiderations: [
+        ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review and may need user confirmation`] : []),
+        ...(mediumRiskActions.length > 0 ? [`${mediumRiskActions.length} MEDIUM RISK actions should be executed with monitoring`] : []),
+        "All actions are designed to be safe kubectl operations (no destructive commands)",
+        "Each action includes a detailed rationale for why it's recommended"
+      ]
+    };
+
+    // Convert data sources to human-readable format
+    const humanReadableDataSources = dataSources.length > 0 
+      ? [`Analyzed ${dataSources.length} data sources from ${session.iterations.length} investigation iterations`]
+      : ['cluster-resources', 'pod-status', 'node-capacity'];
+
+    // Return structured response
+    return {
+      status: 'success',
+      instructions,
+      analysis: {
+        rootCause: finalAnalysis.rootCause,
+        confidence: finalAnalysis.confidence,
+        factors: finalAnalysis.factors
+      },
+      remediation: {
+        summary: finalAnalysis.remediation.summary,
+        actions: finalAnalysis.remediation.actions,
+        risk: finalAnalysis.remediation.risk
+      },
+      metadata: {
+        investigationSteps: session.iterations.length,
+        dataSources: humanReadableDataSources,
+        sessionId: session.sessionId
+      },
+      executed: false
+    };
+    
+  } catch (error) {
+    logger.error('Failed to generate final analysis', error as Error, { 
+      requestId, 
+      sessionId: session.sessionId 
+    });
+    
+    throw ErrorHandler.createError(
+      ErrorCategory.AI_SERVICE,
+      ErrorSeverity.HIGH,
+      `Final analysis generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      {
+        operation: 'generateFinalAnalysis',
+        component: 'RemediateTool',
+        requestId,
+        sessionId: session.sessionId,
+        suggestedActions: [
+          'Check ANTHROPIC_API_KEY is set correctly',
+          'Verify prompts/remediate-final-analysis.md exists',
+          'Check network connectivity to Anthropic API',
+          'Review AI response format for parsing issues'
+        ]
+      }
+    );
+  }
 }
 
 /**

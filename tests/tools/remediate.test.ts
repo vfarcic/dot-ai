@@ -23,20 +23,52 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Mock dependencies
+// Global mock that provides standard responses for investigation + final analysis
+const createGlobalMockSendMessage = () => {
+  let callCount = 0;
+  return jest.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1 || (callCount % 2 === 1)) {
+      // Investigation response (odd calls)
+      return Promise.resolve({
+        content: JSON.stringify({
+          analysis: "Mock investigation analysis",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.9,
+          reasoning: "Mock investigation complete"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+    } else {
+      // Final analysis response (even calls)
+      return Promise.resolve({
+        content: JSON.stringify({
+          rootCause: "Mock root cause identified",
+          confidence: 0.85,
+          factors: ["Mock factor 1", "Mock factor 2"],
+          remediation: {
+            summary: "Mock remediation summary",
+            actions: [
+              {
+                description: "Mock remediation action",
+                command: "kubectl get pods",
+                risk: "low",
+                rationale: "Mock rationale for action"
+              }
+            ],
+            risk: "low"
+          }
+        }),
+        usage: { input_tokens: 200, output_tokens: 100 }
+      });
+    }
+  });
+};
+
+// Mock dependencies - tests must provide their own mocks
 jest.mock('../../src/core/claude', () => ({
-  ClaudeIntegration: jest.fn().mockImplementation(() => ({
-    sendMessage: jest.fn().mockResolvedValue({
-      content: JSON.stringify({
-        analysis: "Mock AI analysis of the issue",
-        dataRequests: [],
-        investigationComplete: true,
-        confidence: 0.9,
-        reasoning: "Mock analysis complete"
-      }),
-      usage: { input_tokens: 100, output_tokens: 50 }
-    })
-  }))
+  ClaudeIntegration: jest.fn()
 }));
 
 jest.mock('../../src/core/kubernetes-utils', () => ({
@@ -79,19 +111,46 @@ jest.mock('../../src/core/error-handling', () => ({
   }))
 }));
 
-// Mock Claude integration
-const mockClaudeIntegration = {
-  sendMessage: jest.fn().mockResolvedValue({
-    content: JSON.stringify({
-      analysis: "Mock AI analysis of the issue",
-      dataRequests: [],
-      investigationComplete: true,
-      confidence: 0.9,
-      reasoning: "Mock analysis complete"
-    }),
-    usage: { input_tokens: 100, output_tokens: 50 }
-  })
-};
+// Mock Claude integration (defined above in jest.mock)
+
+// Helper function to create standard AI mocks for investigation + final analysis
+function createStandardAIMocks() {
+  const { ClaudeIntegration } = require('../../src/core/claude');
+  const mockSendMessage = jest.fn()
+    .mockResolvedValueOnce({
+      content: JSON.stringify({
+        analysis: "Mock investigation analysis",
+        dataRequests: [],
+        investigationComplete: true,
+        confidence: 0.9,
+        reasoning: "Mock investigation complete"
+      }),
+      usage: { input_tokens: 100, output_tokens: 50 }
+    })
+    .mockResolvedValueOnce({
+      content: JSON.stringify({
+        rootCause: "Mock root cause identified",
+        confidence: 0.85,
+        factors: ["Mock factor 1", "Mock factor 2"],
+        remediation: {
+          summary: "Mock remediation summary",
+          actions: [
+            {
+              description: "Mock remediation action",
+              command: "kubectl get pods",
+              risk: "low",
+              rationale: "Mock rationale for action"
+            }
+          ],
+          risk: "low"
+        }
+      }),
+      usage: { input_tokens: 200, output_tokens: 100 }
+    });
+  
+  ClaudeIntegration.mockImplementation(() => ({ sendMessage: mockSendMessage }));
+  return mockSendMessage;
+}
 
 describe('Remediate Tool', () => {
   let tempDir: string;
@@ -122,9 +181,9 @@ describe('Remediate Tool', () => {
     });
 
     test('should have comprehensive description', () => {
-      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('Kubernetes issues and events');
-      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('analyze them using AI');
-      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('remediation recommendations');
+      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('AI-powered Kubernetes issue analysis');
+      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('Unlike basic kubectl commands');
+      expect(REMEDIATE_TOOL_DESCRIPTION).toContain('what\'s wrong');
     });
 
     test('should have valid input schema structure', () => {
@@ -211,15 +270,10 @@ describe('Remediate Tool', () => {
         sessionDir: tempDir
       };
 
-      // Mock Claude integration module
-      const { ClaudeIntegration } = require('../../src/core/claude');
-      ClaudeIntegration.mockImplementation(() => mockClaudeIntegration);
+      // Mock Claude integration for complete investigation
+      createStandardAIMocks();
 
-      try {
-        await handleRemediateTool(mockArgs);
-      } catch (error) {
-        // Expected to fail in scaffolding implementation, but should create session file
-      }
+      await handleRemediateTool(mockArgs);
 
       // Check that session file was created
       const sessionFiles = fs.readdirSync(tempDir).filter(f => f.startsWith('rem_') && f.endsWith('.json'));
@@ -231,7 +285,7 @@ describe('Remediate Tool', () => {
       expect(sessionContent.issue).toBe(mockArgs.issue);
       expect(sessionContent.mode).toBe(mockArgs.mode);
       expect(Array.isArray(sessionContent.iterations)).toBe(true);
-      expect(sessionContent.status).toBe('analysis_complete'); // Scaffolding completes the investigation
+      expect(sessionContent.status).toBe('analysis_complete'); // Investigation completes successfully
       expect(sessionContent.created).toBeDefined();
       expect(sessionContent.updated).toBeDefined();
       expect(sessionContent.finalAnalysis).toBeDefined();
@@ -304,11 +358,10 @@ describe('Remediate Tool', () => {
     test('should structure output according to PRD specification', () => {
       const output: RemediateOutput = {
         status: 'success',
-        sessionId: 'rem_20250114120000_abcd1234',
-        investigation: {
-          iterations: 3,
-          dataGathered: ['get_pods', 'describe_pod', 'logs_container'],
-          analysisPath: ['Initial analysis', 'Deep dive into logs', 'Root cause identified']
+        instructions: {
+          summary: 'AI analysis identified the root cause with 90% confidence. 1 remediation actions are recommended.',
+          nextSteps: ['1. Review the root cause analysis', '2. Execute remediation actions'],
+          riskConsiderations: ['All actions are designed to be safe kubectl operations']
         },
         analysis: {
           rootCause: 'Container image not found',
@@ -326,13 +379,18 @@ describe('Remediate Tool', () => {
           ],
           risk: 'low'
         },
+        metadata: {
+          investigationSteps: 3,
+          dataSources: ['Analyzed 3 data sources from 3 investigation iterations'],
+          sessionId: 'rem_20250114120000_abcd1234'
+        },
         executed: false
       };
 
       // Verify output structure matches PRD
       expect(output.status).toBe('success');
-      expect(output.sessionId).toMatch(/^rem_/);
-      expect(output.investigation.iterations).toBe(3);
+      expect(output.metadata.sessionId).toMatch(/^rem_/);
+      expect(output.metadata.investigationSteps).toBe(3);
       expect(output.analysis.rootCause).toBeDefined();
       expect(output.analysis.confidence).toBeGreaterThan(0);
       expect(output.remediation.actions).toHaveLength(1);
@@ -341,10 +399,13 @@ describe('Remediate Tool', () => {
     });
 
     test('should respect maximum iteration limit', async () => {
-      // Mock an investigation that never completes (always returns complete: false)
+      // Mock an investigation that never completes (runs 20 iterations then final analysis)
       const { ClaudeIntegration } = require('../../src/core/claude');
-      const neverCompleteMock = {
-        sendMessage: jest.fn().mockResolvedValue({
+      const mockSendMessage = jest.fn();
+      
+      // Mock 20 investigation responses that never complete
+      for (let i = 0; i < 20; i++) {
+        mockSendMessage.mockResolvedValueOnce({
           content: JSON.stringify({
             analysis: "Still investigating, need more data",
             dataRequests: [{
@@ -357,9 +418,32 @@ describe('Remediate Tool', () => {
             reasoning: "Need more investigation"
           }),
           usage: { input_tokens: 100, output_tokens: 50 }
-        })
-      };
-      ClaudeIntegration.mockImplementation(() => neverCompleteMock);
+        });
+      }
+      
+      // Final analysis response (for the final step after max iterations)
+      mockSendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          rootCause: "Max iterations reached during investigation",
+          confidence: 0.7,
+          factors: ["Investigation incomplete", "Max iterations reached"],
+          remediation: {
+            summary: "Partial analysis due to iteration limit",
+            actions: [
+              {
+                description: "Review investigation logs",
+                command: "kubectl get events",
+                risk: "low",
+                rationale: "Check for additional clues"
+              }
+            ],
+            risk: "low"
+          }
+        }),
+        usage: { input_tokens: 200, output_tokens: 100 }
+      });
+      
+      ClaudeIntegration.mockImplementation(() => ({ sendMessage: mockSendMessage }));
 
       // Verify the max iterations is set to 20
       const fs = require('fs');
@@ -379,7 +463,7 @@ describe('Remediate Tool', () => {
       const output = JSON.parse(result.content[0].text);
 
       // Should complete with exactly 20 iterations (the maximum)
-      expect(output.investigation.iterations).toBe(20);
+      expect(output.metadata.investigationSteps).toBe(20);
       expect(output.status).toBe('success');
       
       // Verify session file shows all iterations
@@ -472,8 +556,8 @@ describe('Remediate Tool', () => {
     });
 
     test('should return MCP-compliant response format', async () => {
-      const { ClaudeIntegration } = require('../../src/core/claude');
-      ClaudeIntegration.mockImplementation(() => mockClaudeIntegration);
+      // Set up AI mocks for investigation + final analysis
+      createStandardAIMocks();
 
       const mockArgs = {
         issue: 'Test MCP response format',
@@ -491,8 +575,8 @@ describe('Remediate Tool', () => {
       // Verify the text is valid JSON containing RemediateOutput
       const parsedOutput = JSON.parse(result.content[0].text);
       expect(parsedOutput).toHaveProperty('status');
-      expect(parsedOutput).toHaveProperty('sessionId');
-      expect(parsedOutput).toHaveProperty('investigation');
+      expect(parsedOutput).toHaveProperty('metadata.sessionId');
+      expect(parsedOutput).toHaveProperty('instructions');
       expect(parsedOutput).toHaveProperty('analysis');
       expect(parsedOutput).toHaveProperty('remediation');
     });
@@ -629,6 +713,9 @@ describe('Remediate Tool', () => {
     });
 
     test('should provide working AI integration that can be executed', async () => {
+      // Set up AI mocks for investigation + final analysis
+      createStandardAIMocks();
+      
       const mockArgs = {
         issue: 'Test AI integration execution',
         sessionDir: tempDir
@@ -641,8 +728,8 @@ describe('Remediate Tool', () => {
       
       const output = JSON.parse(result.content[0].text);
       expect(output.status).toBe('success');
-      expect(output.sessionId).toMatch(/^rem_/);
-      expect(output.investigation).toBeDefined();
+      expect(output.metadata.sessionId).toMatch(/^rem_/);
+      expect(output.metadata.investigationSteps).toBeGreaterThan(0);
       expect(output.analysis).toBeDefined();
       expect(output.remediation).toBeDefined();
     });
@@ -656,6 +743,9 @@ describe('Remediate Tool', () => {
     });
 
     test('should validate operation safety first', async () => {
+      // Set up AI mocks for investigation + final analysis
+      createStandardAIMocks();
+      
       // Test that unsafe operations are rejected
       const mockArgs = {
         issue: 'Test unsafe operation validation',
@@ -665,17 +755,42 @@ describe('Remediate Tool', () => {
       // Mock AI response with unsafe operation
       const { ClaudeIntegration } = require('../../src/core/claude');
       const mockClaudeInstance = {
-        sendMessage: jest.fn().mockResolvedValue({
-          content: JSON.stringify({
-            analysis: "Investigation complete - found unsafe operation requested",
-            dataRequests: [],
-            investigationComplete: true,  // Complete immediately
-            confidence: 0.9,
-            reasoning: "Cannot proceed with unsafe operations"
-          }),
-          usage: { input_tokens: 100, output_tokens: 50 }
-        })
+        sendMessage: jest.fn()
       };
+      
+      // Investigation response
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Investigation complete - found unsafe operation requested",
+          dataRequests: [],
+          investigationComplete: true,  // Complete immediately
+          confidence: 0.9,
+          reasoning: "Cannot proceed with unsafe operations"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      // Final analysis response
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          rootCause: "Unsafe operation detected and blocked",
+          confidence: 0.9,
+          factors: ["Operation violates safety constraints", "Potential for data loss or security breach"],
+          remediation: {
+            summary: "Unsafe operations are not permitted - use safe alternatives",
+            actions: [
+              {
+                description: "Review operation request and use safe alternative commands",
+                risk: "low",
+                rationale: "Prevents potential system damage"
+              }
+            ],
+            risk: "low"
+          }
+        }),
+        usage: { input_tokens: 150, output_tokens: 75 }
+      });
+      
       ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
 
       const result = await handleRemediateTool(mockArgs);
@@ -687,6 +802,9 @@ describe('Remediate Tool', () => {
     });
 
     test('should execute safe kubectl operations', async () => {
+      // Set up AI mocks for investigation + final analysis
+      createStandardAIMocks();
+      
       // Mock successful kubectl response
       mockExecuteKubectl.mockResolvedValue('NAME: test-pod\nSTATUS: Running');
 
@@ -728,6 +846,21 @@ describe('Remediate Tool', () => {
           reasoning: "Analysis complete"
         }),
         usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      // Mock final analysis response after investigation completes
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          rootCause: "Pod test-pod is running normally as expected",
+          confidence: 0.9,
+          factors: ["Pod status is healthy", "No issues detected"],
+          remediation: {
+            summary: "No remediation needed - pod is functioning correctly",
+            actions: [],
+            risk: "low"
+          }
+        }),
+        usage: { input_tokens: 150, output_tokens: 75 }
       });
       
       ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
@@ -782,6 +915,34 @@ describe('Remediate Tool', () => {
           reasoning: "Analysis complete with error context"
         }),
         usage: { input_tokens: 100, output_tokens: 50 }
+      });
+      
+      // Mock final analysis response after investigation completes
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          rootCause: "Pod 'nonexistent-pod' does not exist in the cluster",
+          confidence: 0.9,
+          factors: ["Pod not found error", "Resource does not exist in specified namespace"],
+          remediation: {
+            summary: "Verify pod name and namespace, or create pod if needed",
+            actions: [
+              {
+                description: "Check if pod name is correct and exists in the expected namespace",
+                command: "kubectl get pods -A | grep nonexistent-pod",
+                risk: "low",
+                rationale: "Verify pod existence across all namespaces"
+              },
+              {
+                description: "If pod should exist, check deployment status",
+                command: "kubectl get deployment nonexistent-pod -n default",
+                risk: "low",
+                rationale: "Verify if deployment exists that should create this pod"
+              }
+            ],
+            risk: "low"
+          }
+        }),
+        usage: { input_tokens: 200, output_tokens: 100 }
       });
       
       ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
@@ -868,6 +1029,27 @@ describe('Remediate Tool', () => {
           usage: { input_tokens: 100, output_tokens: 50 }
         });
         
+        // Mock final analysis response
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            rootCause: "Command construction test completed successfully",
+            confidence: 0.9,
+            factors: ["Kubectl command built correctly", "Expected arguments matched"],
+            remediation: {
+              summary: "No remediation needed - command construction working as expected",
+              actions: [
+                {
+                  description: "Continue with normal kubectl operations",
+                  risk: "low",
+                  rationale: "Command construction is functioning correctly"
+                }
+              ],
+              risk: "low"
+            }
+          }),
+          usage: { input_tokens: 150, output_tokens: 75 }
+        });
+        
         ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
 
         await handleRemediateTool(mockArgs);
@@ -938,6 +1120,27 @@ describe('Remediate Tool', () => {
           usage: { input_tokens: 100, output_tokens: 50 }
         });
         
+        // Mock final analysis response
+        mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+          content: JSON.stringify({
+            rootCause: `Kubectl command failed: ${testCase.error.message}`,
+            confidence: 0.9,
+            factors: ["Command execution failure", "Error message provides diagnostic information"],
+            remediation: {
+              summary: testCase.expectedSuggestion,
+              actions: [
+                {
+                  description: "Address the root cause based on the error message",
+                  risk: "low",
+                  rationale: "Error provides clear indication of the issue to resolve"
+                }
+              ],
+              risk: "low"
+            }
+          }),
+          usage: { input_tokens: 180, output_tokens: 90 }
+        });
+        
         ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
 
         const result = await handleRemediateTool(mockArgs);
@@ -947,6 +1150,226 @@ describe('Remediate Tool', () => {
         // The error suggestion is logged and stored in session for AI to use in next iteration
         // but not directly exposed in the output format - AI gets it in the gathered data
       }
+    });
+
+    test('should generate final analysis with AI integration', async () => {
+      // Setup mock kubectl execution
+      mockExecuteKubectl.mockResolvedValue('mock kubectl output');
+
+      const mockArgs = {
+        issue: 'Pod stuck in Pending status for AI final analysis test',
+        sessionDir: tempDir
+      };
+
+      // Mock AI responses - investigation loop
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockClaudeInstance = { sendMessage: jest.fn() };
+      
+      // Mock investigation responses (simplified)
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Initial analysis shows pod pending",
+          dataRequests: [{
+            type: 'get',
+            resource: 'pods',
+            namespace: 'default',
+            rationale: 'Check pod status'
+          }],
+          investigationComplete: false,
+          confidence: 0.6,
+          reasoning: "Need more data"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Pod is pending due to resource constraints",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.9,
+          reasoning: "Have sufficient data for analysis"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+      // Mock final analysis response
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          rootCause: "Pod requests exceed available cluster resources",
+          confidence: 0.92,
+          factors: [
+            "CPU request of 8 cores exceeds node capacity",
+            "Memory request of 10Gi exceeds node capacity",
+            "No cluster autoscaling configured"
+          ],
+          remediation: {
+            summary: "Reduce resource requests to match cluster capacity",
+            actions: [
+              {
+                description: "Reduce CPU request to 2 cores",
+                command: "kubectl patch deployment test-pod -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"app\",\"resources\":{\"requests\":{\"cpu\":\"2\"}}}]}}}}'",
+                risk: "medium",
+                rationale: "Allows scheduling while maintaining reasonable performance"
+              },
+              {
+                description: "Monitor deployment rollout",
+                command: "kubectl rollout status deployment test-pod",
+                risk: "low", 
+                rationale: "Verify successful deployment after changes"
+              }
+            ],
+            risk: "medium"
+          }
+        }),
+        usage: { input_tokens: 200, output_tokens: 150 }
+      });
+      
+      ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+      const result = await handleRemediateTool(mockArgs);
+      const output = JSON.parse(result.content[0].text);
+
+      // Verify final analysis structure
+      expect(output.status).toBe('success');
+      expect(output.analysis.rootCause).toBe("Pod requests exceed available cluster resources");
+      expect(output.analysis.confidence).toBe(0.92);
+      expect(output.analysis.factors).toHaveLength(3);
+      
+      // Verify remediation structure
+      expect(output.remediation.summary).toBe("Reduce resource requests to match cluster capacity");
+      expect(output.remediation.actions).toHaveLength(2);
+      expect(output.remediation.risk).toBe("medium");
+      
+      // Verify action details
+      expect(output.remediation.actions[0].description).toBe("Reduce CPU request to 2 cores");
+      expect(output.remediation.actions[0].risk).toBe("medium");
+      expect(output.remediation.actions[1].risk).toBe("low");
+      
+      // Verify investigation summary
+      expect(output.metadata.investigationSteps).toBe(2);
+      expect(output.metadata.dataSources).toHaveLength(1);
+      expect(output.metadata.dataSources[0]).toContain('1 data sources');
+    });
+
+    test('should handle final analysis AI errors gracefully', async () => {
+      mockExecuteKubectl.mockResolvedValue('mock kubectl output');
+
+      const mockArgs = {
+        issue: 'Test final analysis error handling',
+        sessionDir: tempDir
+      };
+
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockClaudeInstance = { sendMessage: jest.fn() };
+      
+      // Mock successful investigation
+      mockClaudeInstance.sendMessage.mockResolvedValueOnce({
+        content: JSON.stringify({
+          analysis: "Investigation complete",
+          dataRequests: [],
+          investigationComplete: true,
+          confidence: 0.9,
+          reasoning: "Analysis done"
+        }),
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+      // Mock failed final analysis
+      mockClaudeInstance.sendMessage.mockRejectedValueOnce(new Error('Claude API error'));
+      
+      ClaudeIntegration.mockImplementation(() => mockClaudeInstance);
+
+      await expect(handleRemediateTool(mockArgs)).rejects.toThrow('Final analysis generation failed');
+    });
+  });
+
+  describe('AI Final Analysis Integration', () => {
+    test('should have parseAIFinalAnalysis function implemented', () => {
+      const { parseAIFinalAnalysis } = require('../../src/tools/remediate');
+      expect(typeof parseAIFinalAnalysis).toBe('function');
+    });
+
+    test('should parse valid AI final analysis response correctly', () => {
+      const { parseAIFinalAnalysis } = require('../../src/tools/remediate');
+      
+      const validResponse = JSON.stringify({
+        rootCause: "Pod memory-hog is stuck in Pending status due to insufficient cluster resources",
+        confidence: 0.95,
+        factors: ["Resource requests exceed node capacity", "No suitable nodes available"],
+        remediation: {
+          summary: "Reduce resource requests to match cluster capacity",
+          actions: [
+            {
+              description: "Reduce CPU request from 8 to 2 cores",
+              command: "kubectl patch deployment memory-hog -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"memory-consumer\",\"resources\":{\"requests\":{\"cpu\":\"2\"}}}]}}}}'",
+              risk: "medium",
+              rationale: "Allows pod to be scheduled on available nodes"
+            },
+            {
+              description: "Verify pod scheduling after resource adjustment",
+              command: "kubectl rollout status deployment memory-hog --timeout=300s",
+              risk: "low",
+              rationale: "Monitor deployment rollout to ensure success"
+            }
+          ],
+          risk: "medium"
+        }
+      });
+
+      const parsed = parseAIFinalAnalysis(validResponse);
+      
+      expect(parsed.rootCause).toBe("Pod memory-hog is stuck in Pending status due to insufficient cluster resources");
+      expect(parsed.confidence).toBe(0.95);
+      expect(parsed.factors).toHaveLength(2);
+      expect(parsed.remediation.actions).toHaveLength(2);
+      expect(parsed.remediation.risk).toBe("medium");
+      expect(parsed.remediation.actions[0].risk).toBe("medium");
+      expect(parsed.remediation.actions[1].risk).toBe("low");
+    });
+
+    test('should reject invalid AI final analysis response', () => {
+      const { parseAIFinalAnalysis } = require('../../src/tools/remediate');
+      
+      const invalidResponses = [
+        'No JSON content',
+        JSON.stringify({ rootCause: "Missing other fields" }),
+        JSON.stringify({ 
+          rootCause: "Valid cause",
+          confidence: 1.5, // Invalid confidence > 1
+          factors: [],
+          remediation: { summary: "test", actions: [], risk: "medium" }
+        }),
+        JSON.stringify({ 
+          rootCause: "Valid cause",
+          confidence: 0.8,
+          factors: [],
+          remediation: { 
+            summary: "test", 
+            actions: [{ description: "test", risk: "invalid", rationale: "test" }], // Invalid risk level
+            risk: "medium" 
+          }
+        })
+      ];
+
+      for (const response of invalidResponses) {
+        expect(() => parseAIFinalAnalysis(response)).toThrow();
+      }
+    });
+
+    test('should validate final analysis prompt template exists', () => {
+      const fs = require('fs');
+      const path = require('path');
+      
+      const promptPath = path.join(process.cwd(), 'prompts', 'remediate-final-analysis.md');
+      expect(fs.existsSync(promptPath)).toBe(true);
+      
+      const promptContent = fs.readFileSync(promptPath, 'utf8');
+      expect(promptContent).toContain('{issue}');
+      expect(promptContent).toContain('{iterations}');
+      expect(promptContent).toContain('{dataSources}');
+      expect(promptContent).toContain('{analysisPath}');
+      expect(promptContent).toContain('{completeInvestigationData}');
     });
   });
 });

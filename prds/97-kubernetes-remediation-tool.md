@@ -37,6 +37,7 @@ Add a new MCP tool called `remediate` that receives Kubernetes issues and events
 ### In Scope
 - New MCP tool (`remediate`) for issue analysis and remediation
 - AI-powered analysis using existing Claude integration
+- Cluster capability discovery and operator-aware remediation
 - Support for multiple trigger sources (controller, human, API)
 - Manual and automatic remediation modes
 - Structured remediation reporting and audit trails
@@ -68,7 +69,13 @@ Add a new MCP tool called `remediate` that receives Kubernetes issues and events
    - Automatic mode: Execute approved remediations
    - Hybrid mode: Auto-execute low-risk, manual for high-risk
 
-4. **Integration Points**
+4. **Cluster Capability Discovery**
+   - Include complete API resource list in investigation prompt from start (core + custom resources)
+   - Operator-aware remediation recommendations based on all available APIs
+   - Preference for sophisticated/operator-managed resources over basic alternatives
+   - Smart resource selection based on complete cluster capability visibility
+
+5. **Integration Points**
    - HTTP/JSON API for external callers
    - MCP protocol compliance
    - Structured response format
@@ -244,7 +251,7 @@ Layer 4: Kubernetes RBAC (read-only service account)
 - [x] Add read-only Kubernetes API integration for context enrichment
 - [x] Implement AI-driven data gathering request/response cycle
 - [x] Integrate comprehensive analysis with Claude AI (investigation loop)
-- [ ] **Implement AI-powered final analysis and remediation generation** (scaffolding replacement)
+- [x] **Implement AI-powered final analysis and remediation generation** (scaffolding replacement)
 - [x] Add unit tests with 80% coverage
 
 ### Milestone 2: Execution Capabilities ⬜
@@ -420,6 +427,27 @@ Layer 4: Kubernetes RBAC (read-only service account)
     - **Code Impact**: Remove `approvalOptions`, `approvalId` complexity from interface and implementation
     - **Architecture**: Let MCP clients handle user interaction, let controllers handle threshold-based automation
 
+12. **✅ Client-Agent Output Structure Enhancement**: Restructured for better client consumption
+    - **Date**: 2025-09-15
+    - **Decision**: Enhanced RemediateOutput with structured instructions, metadata, and risk considerations
+    - **Rationale**: Original output was too raw for client agents - needed clear action steps and guidance
+    - **Impact**: Improved client-agent integration, clearer user experience, better actionable guidance
+    - **Code Impact**: Updated RemediateOutput interface with instructions, metadata sections, simplified risk naming
+    - **Architecture**: Client-friendly structure with numbered steps, risk considerations, and execution metadata
+
+13. **✅ Cluster API Discovery Architecture**: Complete API visibility for intelligent resource selection
+    - **Date**: 2025-09-15
+    - **Decision**: Include complete cluster API resource list in investigation prompt from start instead of defaulting to basic Kubernetes
+    - **Rationale**: Clusters often have sophisticated operators and extended APIs that should be preferred over basic deployments; complete visibility enables better decisions
+    - **Impact**: Major enhancement to remediation quality - tool will recommend best available resources based on complete cluster capabilities
+    - **Code Impact**: API discovery integration needed in investigation loop, complete API awareness in prompts
+    - **Architecture**: 
+      - **Upfront API Context**: Include complete `kubectl api-resources` output in investigation prompt (core + custom, ~100KB context)
+      - **AI Resource Selection**: AI scans full API list to identify best resource types for the issue
+      - **Schema Discovery**: AI queries specific resource schemas with `kubectl explain` when needed
+      - **Smart Preference**: Choose sophisticated/operator-managed resources over basic alternatives based on complete visibility
+    - **Priority**: High - addresses root cause of suboptimal remediation recommendations (basic deployment vs operator-managed resources)
+
 ## Progress Log
 
 ### 2025-01-10
@@ -541,6 +569,35 @@ Layer 4: Kubernetes RBAC (read-only service account)
 - [x] **kubectl Command Fix** - Evidence: Resolved `-o yaml` incompatibility with `kubectl describe` commands
 - [x] **Custom Resource Support Validation** - Evidence: Successfully analyzed Crossplane SQL composite resources with composition failures
 - [x] **Multi-Resource Investigation** - Evidence: Tool handled both standard pods and custom CRDs in same namespace
+
+### 2025-09-15: AI-Powered Final Analysis & Client Experience Improvements Complete
+**Duration**: ~4 hours of focused AI integration and output refinement
+**Focus**: Replace scaffolding with real AI-powered remediation generation and improve client-agent experience
+
+**Completed Milestone 1 Items**:
+- [x] **Implement AI-powered final analysis and remediation generation** - Evidence: Complete `generateFinalAnalysis()` function with Claude API integration in `src/tools/remediate.ts:579`
+- [x] **Enhanced remediation output structure** - Evidence: Updated `RemediateOutput` interface with client-friendly `instructions` and `metadata` sections
+- [x] **Improved MCP tool discoverability** - Evidence: Updated tool description to be generic and trigger on various Kubernetes issues beyond "remediation"
+- [x] **Dry-run validation workflow** - Evidence: Updated investigation prompts to require `--dry-run=server` validation before completion
+
+**Key Implementations**:
+- **Real AI Remediation Generation**: Replaced scaffolding with actual Claude API integration using `prompts/remediate-final-analysis.md`
+- **Client-Agent Friendly Output**: Restructured output with clear instructions, next steps, risk considerations, and metadata
+- **MCP Tool Discoverability**: Updated description to emphasize AI-powered analysis advantage over basic kubectl commands
+- **Dry-Run Safety Integration**: Added explicit dry-run validation requirements to investigation workflow
+- **Risk Assessment Naming**: Simplified from `overallRisk` to `risk` for cleaner client integration
+
+**Client Experience Validation**:
+- ✅ Successfully triggered by generic requests: "Check what's wrong with crashloop-pod", "failing pod in namespace", "something wrong with my database"
+- ✅ AI provides single comprehensive solutions instead of multiple separate actions
+- ✅ Dry-run validation prevents invalid kubectl commands (e.g., wrong container names)
+- ✅ Output structure optimized for client-agent consumption with clear action steps
+
+**AI Quality Improvements**:
+- **Comprehensive Solutions**: AI generates single cohesive remediation plans instead of fragmented actions
+- **Command Validation**: Investigation includes dry-run testing to catch errors before recommending solutions
+- **Risk-Appropriate Actions**: AI properly assesses resource constraints vs. workload deletion trade-offs
+- **Container Name Accuracy**: Dry-run validation catches mismatched container names and other kubectl errors
 
 **Key Testing Resources Created**:
 - **Standard Pod Issues**: 
