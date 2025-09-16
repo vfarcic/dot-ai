@@ -663,39 +663,57 @@ Layer 4: Kubernetes RBAC (read-only service account)
 
 **Testing Methodology for Documentation**:
 ```bash
-# Standard pod failures (useful for future testing)
+# Standard deployment failures (useful for future testing)
 kubectl create namespace remediate-test
 
-# Memory constraint pod (requests exceed node capacity)  
+# Memory constraint deployment (requests exceed node capacity)  
 kubectl apply -n remediate-test -f - <<EOF
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: memory-hog
 spec:
-  containers:
-  - name: memory-consumer
-    image: nginx:alpine
-    resources:
-      requests:
-        cpu: "8"      # Exceeds available CPU
-        memory: "10Gi" # Exceeds available memory
-      limits:
-        cpu: "16"
-        memory: "20Gi"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-hog
+  template:
+    metadata:
+      labels:
+        app: memory-hog
+    spec:
+      containers:
+      - name: memory-consumer
+        image: nginx:alpine
+        resources:
+          requests:
+            cpu: "8"      # Exceeds available CPU
+            memory: "10Gi" # Exceeds available memory
+          limits:
+            cpu: "16"
+            memory: "20Gi"
 EOF
 
-# Crashloop pod (intentional failure)
+# Crashloop deployment (intentional failure)
 kubectl apply -n remediate-test -f - <<EOF  
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: crashloop-pod
 spec:
-  containers:
-  - name: crash-container
-    image: busybox
-    command: ["sh", "-c", "echo 'Starting up...'; sleep 5; echo 'Crashing now!'; exit 1"]
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crashloop-pod
+  template:
+    metadata:
+      labels:
+        app: crashloop-pod
+    spec:
+      containers:
+      - name: crash-container
+        image: busybox
+        command: ["sh", "-c", "echo 'Starting up...'; sleep 5; echo 'Crashing now!'; exit 1"]
 EOF
 
 # Custom resource failure (missing cloud credentials)

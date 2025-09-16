@@ -374,7 +374,7 @@ describe('Remediate Tool', () => {
 
     test('should structure output according to PRD specification', () => {
       const output: RemediateOutput = {
-        status: 'success',
+        status: 'awaiting_user_approval', // Manual mode default
         instructions: {
           summary: 'AI analysis identified the root cause with 90% confidence. 1 remediation actions are recommended.',
           nextSteps: ['1. Review the root cause analysis', '2. Execute remediation actions'],
@@ -396,18 +396,19 @@ describe('Remediate Tool', () => {
           ],
           risk: 'low'
         },
-        metadata: {
-          investigationSteps: 3,
-          dataSources: ['Analyzed 3 data sources from 3 investigation iterations'],
-          sessionId: 'rem_20250114120000_abcd1234'
+        sessionId: 'rem_20250114120000_abcd1234',
+        investigation: {
+          iterations: 3,
+          dataGathered: ['Analyzed 3 data sources from 3 investigation iterations'],
+          analysisPath: ['Iteration 1: Analysis performed', 'Iteration 2: Analysis performed', 'Iteration 3: Analysis performed']
         },
         executed: false
       };
 
       // Verify output structure matches PRD
-      expect(output.status).toBe('success');
-      expect(output.metadata.sessionId).toMatch(/^rem_/);
-      expect(output.metadata.investigationSteps).toBe(3);
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
+      expect(output.sessionId).toMatch(/^rem_/);
+      expect(output.investigation.iterations).toBe(3);
       expect(output.analysis.rootCause).toBeDefined();
       expect(output.analysis.confidence).toBeGreaterThan(0);
       expect(output.remediation.actions).toHaveLength(1);
@@ -480,8 +481,8 @@ describe('Remediate Tool', () => {
       const output = JSON.parse(result.content[0].text);
 
       // Should complete with exactly 20 iterations (the maximum)
-      expect(output.metadata.investigationSteps).toBe(20);
-      expect(output.status).toBe('success');
+      expect(output.investigation.iterations).toBe(20);
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       
       // Verify session file shows all iterations
       const sessionFiles = fs.readdirSync(tempDir).filter((f: string) => f.startsWith('rem_') && f.endsWith('.json'));
@@ -592,7 +593,7 @@ describe('Remediate Tool', () => {
       // Verify the text is valid JSON containing RemediateOutput
       const parsedOutput = JSON.parse(result.content[0].text);
       expect(parsedOutput).toHaveProperty('status');
-      expect(parsedOutput).toHaveProperty('metadata.sessionId');
+      expect(parsedOutput).toHaveProperty('sessionId');
       expect(parsedOutput).toHaveProperty('instructions');
       expect(parsedOutput).toHaveProperty('analysis');
       expect(parsedOutput).toHaveProperty('remediation');
@@ -875,9 +876,9 @@ describe('Remediate Tool', () => {
       expect(result.content).toBeDefined();
       
       const output = JSON.parse(result.content[0].text);
-      expect(output.status).toBe('success');
-      expect(output.metadata.sessionId).toMatch(/^rem_/);
-      expect(output.metadata.investigationSteps).toBeGreaterThan(0);
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
+      expect(output.sessionId).toMatch(/^rem_/);
+      expect(output.investigation.iterations).toBeGreaterThan(0);
       expect(output.analysis).toBeDefined();
       expect(output.remediation).toBeDefined();
     });
@@ -945,7 +946,7 @@ describe('Remediate Tool', () => {
       const output = JSON.parse(result.content[0].text);
       
       // Should complete successfully - api-resources is called for discovery, but no unsafe operations
-      expect(output.status).toBe('success');
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       expect(mockExecuteKubectl).toHaveBeenCalledWith(['api-resources']);
       expect(mockExecuteKubectl).toHaveBeenCalledTimes(1); // Only api-resources, no unsafe operations
     });
@@ -1017,7 +1018,7 @@ describe('Remediate Tool', () => {
       const result = await handleRemediateTool(mockArgs);
       const output = JSON.parse(result.content[0].text);
 
-      expect(output.status).toBe('success');
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       expect(mockExecuteKubectl).toHaveBeenCalledWith(
         ['get', 'pod test-pod', '-n', 'default', '-o', 'yaml'],
         { timeout: 30000 }
@@ -1106,7 +1107,7 @@ pods                                          po              v1                
       const output = JSON.parse(result.content[0].text);
 
       // Should complete successfully even with kubectl failures
-      expect(output.status).toBe('success');
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       expect(mockExecuteKubectl).toHaveBeenCalledWith(
         ['get', 'pod nonexistent-pod', '-n', 'default', '-o', 'yaml'],
         { timeout: 30000 }
@@ -1307,7 +1308,7 @@ pods                                          po              v1                
         const result = await handleRemediateTool(mockArgs);
         const output = JSON.parse(result.content[0].text);
 
-        expect(output.status).toBe('success');
+        expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
         // The error suggestion is logged and stored in session for AI to use in next iteration
         // but not directly exposed in the output format - AI gets it in the gathered data
       }
@@ -1392,7 +1393,7 @@ pods                                          po              v1                
       const output = JSON.parse(result.content[0].text);
 
       // Verify final analysis structure
-      expect(output.status).toBe('success');
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       expect(output.analysis.rootCause).toBe("Pod requests exceed available cluster resources");
       expect(output.analysis.confidence).toBe(0.92);
       expect(output.analysis.factors).toHaveLength(3);
@@ -1408,9 +1409,9 @@ pods                                          po              v1                
       expect(output.remediation.actions[1].risk).toBe("low");
       
       // Verify investigation summary
-      expect(output.metadata.investigationSteps).toBe(2);
-      expect(output.metadata.dataSources).toHaveLength(1);
-      expect(output.metadata.dataSources[0]).toContain('1 data sources');
+      expect(output.investigation.iterations).toBe(2);
+      expect(output.investigation.dataGathered).toHaveLength(1);
+      expect(output.investigation.dataGathered[0]).toContain('1 data sources');
     });
 
     test('should handle final analysis AI errors gracefully', async () => {
@@ -1777,7 +1778,7 @@ sqls                                                          devopstoolkit.live
       const result = await handleRemediateTool(input);
       const output = JSON.parse(result.content[0].text);
 
-      expect(output.status).toBe('success');
+      expect(output.status).toBe('awaiting_user_approval'); // Manual mode default
       expect(output.analysis).toBeDefined();
       expect(output.analysis.rootCause).toContain('SQL resource');
       expect(mockSendMessage).toHaveBeenCalledTimes(3); // Investigation + final analysis
@@ -1822,4 +1823,5 @@ sqls                                                          devopstoolkit.live
       expect(dataRequests).toHaveLength(1);
     });
   });
+
 });

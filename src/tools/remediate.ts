@@ -42,7 +42,9 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
     podSpec: z.any().optional().describe('Pod specification if relevant'),
     relatedEvents: z.array(z.any()).optional().describe('Related Kubernetes events')
   }).optional().describe('Optional initial context to help with analysis'),
-  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual returns recommendations only, automatic executes approved remediations')
+  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual returns recommendations only, automatic executes approved remediations'),
+  confidenceThreshold: z.number().min(0).max(1).optional().default(0.8).describe('Automatic execution only if confidence above this threshold (default: 0.8)'),
+  maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('Automatic execution only if risk at or below this level (default: low)')
 };
 
 // Core interfaces matching PRD specification
@@ -56,6 +58,8 @@ export interface RemediateInput {
     relatedEvents?: any[]; // K8sEvent[]
   };
   mode?: 'manual' | 'automatic';
+  confidenceThreshold?: number;  // Default: 0.8 - automatic execution only if confidence above
+  maxRiskLevel?: 'low' | 'medium' | 'high';  // Default: 'low' - automatic execution only if risk at or below
 }
 
 export interface DataRequest {
@@ -103,11 +107,12 @@ export interface ExecutionResult {
 }
 
 export interface RemediateOutput {
-  status: 'success' | 'failed';
-  instructions: {
-    summary: string;
-    nextSteps: string[];
-    riskConsiderations: string[];
+  status: 'success' | 'failed' | 'awaiting_user_approval';
+  sessionId: string;
+  investigation: {
+    iterations: number;
+    dataGathered: string[];
+    analysisPath: string[];
   };
   analysis: {
     rootCause: string;
@@ -119,13 +124,15 @@ export interface RemediateOutput {
     actions: RemediationAction[];
     risk: 'low' | 'medium' | 'high';
   };
-  metadata: {
-    investigationSteps: number;
-    dataSources: string[];
-    sessionId: string;
+  // Client-friendly instructions (maintain backward compatibility)
+  instructions: {
+    summary: string;
+    nextSteps: string[];
+    riskConsiderations: string[];
   };
-  executed?: boolean;
-  results?: ExecutionResult[];
+  executed?: boolean;           // true if automatic mode executed actions
+  results?: ExecutionResult[];  // execution results if executed
+  fallbackReason?: string;      // why automatic mode chose not to execute
 }
 
 /**
@@ -837,10 +844,13 @@ async function generateFinalAnalysis(
         actions: finalAnalysis.remediation.actions,
         risk: finalAnalysis.remediation.risk
       },
-      metadata: {
-        investigationSteps: session.iterations.length,
-        dataSources: humanReadableDataSources,
-        sessionId: session.sessionId
+      sessionId: session.sessionId,
+      investigation: {
+        iterations: session.iterations.length,
+        dataGathered: humanReadableDataSources,
+        analysisPath: session.iterations.map((iter, index) => 
+          `Iteration ${index + 1}: ${iter.aiAnalysis.split('\n')[0] || 'Analysis performed'}`
+        )
       },
       executed: false
     };
@@ -940,12 +950,41 @@ export async function handleRemediateTool(args: any): Promise<any> {
       riskLevel: finalAnalysis.remediation.risk
     });
 
+    // Make execution decision based on mode and thresholds
+    const executionDecision = makeExecutionDecision(
+      validatedInput.mode || 'manual',
+      finalAnalysis.analysis.confidence,
+      finalAnalysis.remediation.risk,
+      validatedInput.confidenceThreshold,
+      validatedInput.maxRiskLevel
+    );
+
+    logger.info('Execution decision made', {
+      requestId,
+      sessionId,
+      mode: validatedInput.mode,
+      shouldExecute: executionDecision.shouldExecute,
+      reason: executionDecision.reason,
+      finalStatus: executionDecision.finalStatus
+    });
+
+    // Update the final analysis with execution decision results
+    const finalResult: RemediateOutput = {
+      ...finalAnalysis,
+      status: executionDecision.finalStatus,
+      executed: executionDecision.shouldExecute,
+      fallbackReason: executionDecision.fallbackReason
+    };
+
+    // TODO Milestone 2b: If shouldExecute is true, execute the remediation actions here
+    // For now, we only make execution decisions without actual execution
+
     // Return MCP-compliant response
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(finalAnalysis, null, 2)
+          text: JSON.stringify(finalResult, null, 2)
         }
       ]
     };
@@ -976,6 +1015,68 @@ export async function handleRemediateTool(args: any): Promise<any> {
 }
 
 /**
+ * Execution decision interface
+ */
+interface ExecutionDecision {
+  shouldExecute: boolean;
+  reason: string;
+  finalStatus: 'success' | 'failed' | 'awaiting_user_approval';
+  fallbackReason?: string;
+}
+
+/**
+ * Make execution decision based on mode and thresholds
+ */
+function makeExecutionDecision(
+  mode: 'manual' | 'automatic',
+  confidence: number,
+  risk: 'low' | 'medium' | 'high',
+  confidenceThreshold: number = 0.8,
+  maxRiskLevel: 'low' | 'medium' | 'high' = 'low'
+): ExecutionDecision {
+  // Manual mode always requires approval
+  if (mode === 'manual') {
+    return {
+      shouldExecute: false,
+      reason: 'Manual mode selected - requiring user approval',
+      finalStatus: 'awaiting_user_approval'
+    };
+  }
+
+  // Automatic mode: check thresholds
+  const riskLevels = { low: 1, medium: 2, high: 3 };
+  const actualRiskLevel = riskLevels[risk];
+  const maxRiskLevelNum = riskLevels[maxRiskLevel];
+  
+  // Check confidence threshold
+  if (confidence < confidenceThreshold) {
+    return {
+      shouldExecute: false,
+      reason: `Confidence ${confidence.toFixed(2)} below threshold ${confidenceThreshold.toFixed(2)}`,
+      finalStatus: 'failed',
+      fallbackReason: `Analysis confidence (${Math.round(confidence * 100)}%) is below the required threshold (${Math.round(confidenceThreshold * 100)}%). Manual review recommended.`
+    };
+  }
+
+  // Check risk level
+  if (actualRiskLevel > maxRiskLevelNum) {
+    return {
+      shouldExecute: false,
+      reason: `Risk level ${risk} exceeds maximum ${maxRiskLevel}`,
+      finalStatus: 'failed',
+      fallbackReason: `Remediation risk level (${risk}) exceeds the maximum allowed level (${maxRiskLevel}). Manual approval required.`
+    };
+  }
+
+  // All conditions met for automatic execution
+  return {
+    shouldExecute: true,
+    reason: `Automatic execution approved - confidence ${confidence.toFixed(2)} >= ${confidenceThreshold.toFixed(2)}, risk ${risk} <= ${maxRiskLevel}`,
+    finalStatus: 'success'
+  };
+}
+
+/**
  * Validate remediate input according to schema
  */
 function validateRemediateInput(args: any): RemediateInput {
@@ -984,7 +1085,11 @@ function validateRemediateInput(args: any): RemediateInput {
     const validated = {
       issue: REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(args.issue),
       context: args.context ? REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(args.context) : undefined,
-      mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual'
+      mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual',
+      confidenceThreshold: args.confidenceThreshold !== undefined ? 
+        REMEDIATE_TOOL_INPUT_SCHEMA.confidenceThreshold.parse(args.confidenceThreshold) : 0.8,
+      maxRiskLevel: args.maxRiskLevel ? 
+        REMEDIATE_TOOL_INPUT_SCHEMA.maxRiskLevel.parse(args.maxRiskLevel) : 'low'
     } as RemediateInput;
 
     return validated;
