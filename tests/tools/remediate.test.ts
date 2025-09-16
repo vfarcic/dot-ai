@@ -854,10 +854,10 @@ describe('Remediate Tool', () => {
       const output = JSON.parse(result.content[0].text);
       
       expect(output.instructions.nextSteps).toContain(
-        "6. After execution, run the remediation tool again with: 'Check the status of test-resource in test-namespace'"
+        "5. After execution, run the remediation tool again with: 'Check the status of test-resource in test-namespace'"
       );
       expect(output.instructions.nextSteps).toContain(
-        "7. Verify the tool reports no issues or identifies any new problems"
+        "6. Verify the tool reports no issues or identifies any new problems"
       );
     });
 

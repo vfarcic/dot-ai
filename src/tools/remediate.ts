@@ -809,12 +809,11 @@ async function generateFinalAnalysis(
         "1. Review the root cause analysis and confidence level below",
         "2. Display each remediation action with its kubectl command, risk level, and rationale",
         "3. Execute remediation actions in the order provided",
-        "4. Monitor cluster state after each action before proceeding",
-        "5. Stop if any action fails and investigate the error",
+        "4. Stop if any action fails and investigate the error",
         ...(finalAnalysis.validationIntent 
-          ? [`6. After execution, run the remediation tool again with: '${finalAnalysis.validationIntent}'`,
-             "7. Verify the tool reports no issues or identifies any new problems"]
-          : [finalAnalysis.remediation.actions.length > 1 ? "6. Verify the final solution by checking the original issue is resolved" : "6. Verify the solution resolved the original issue"]
+          ? [`5. After execution, run the remediation tool again with: '${finalAnalysis.validationIntent}'`,
+             "6. Verify the tool reports no issues or identifies any new problems"]
+          : [finalAnalysis.remediation.actions.length > 1 ? "5. Verify the final solution by checking the original issue is resolved" : "5. Verify the solution resolved the original issue"]
         )
       ],
       riskConsiderations: [

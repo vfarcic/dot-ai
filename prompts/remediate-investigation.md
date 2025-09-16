@@ -94,6 +94,31 @@ You MUST respond with ONLY a single JSON object in this exact format:
 - **Be decisive**: When you have sufficient information AND validated your solution, declare investigation complete
 - **CRITICAL: Early termination**: If after 3-4 iterations you cannot find ANY resources that seem related to the reported issue in the target namespace, declare investigation complete with `investigationComplete: true` and set `needsMoreSpecificInfo: true` to request more specific resource information from the user
 
+## Data Request Precision Guidelines
+
+**CRITICAL: Be precise to minimize context usage and improve investigation speed**
+
+- **Request specific resources**: Instead of `"resource": "pods"`, use `"resource": "pod/specific-pod-name"` when you know the target
+- **Use targeted selectors**: Use `"args": ["-l", "app=myapp"]` instead of requesting all resources
+- **Limit log output**: Always use `"args": ["--tail=50"]` for logs unless you need full history
+- **Focus on errors**: When requesting logs, add `"args": ["--previous", "--tail=20"]` for crashed containers
+- **Target specific fields**: Use `"args": ["-o=jsonpath={.status.phase}"]` when you need specific field values
+- **Namespace precision**: Always specify namespace when known, never request cluster-wide unless necessary
+- **Time-bound events**: Use `"args": ["--since=10m"]` for events to focus on recent issues
+- **Resource status focus**: Use `"args": ["-o=custom-columns=NAME:.metadata.name,STATUS:.status.phase"]` for status checks
+- **Memory efficient**: Request only the data fields you need for analysis, avoid full YAML dumps unless essential
+
+**Examples of Precise vs Imprecise Requests**:
+
+❌ **Imprecise**: `{"type": "get", "resource": "pods", "namespace": "default"}`  
+✅ **Precise**: `{"type": "get", "resource": "pods", "namespace": "default", "args": ["-l", "app=failing-app", "-o=custom-columns=NAME:.metadata.name,STATUS:.status.phase,RESTARTS:.status.containerStatuses[0].restartCount"]}`
+
+❌ **Imprecise**: `{"type": "logs", "resource": "pod/myapp-123"}`  
+✅ **Precise**: `{"type": "logs", "resource": "pod/myapp-123", "args": ["--tail=30", "--since=5m"]}`
+
+❌ **Imprecise**: `{"type": "describe", "resource": "deployment/myapp"}`  
+✅ **Precise**: `{"type": "get", "resource": "deployment/myapp", "args": ["-o=jsonpath={.status.replicas},{.status.readyReplicas},{.status.conditions[?(@.type=='Progressing')].message}"]}`
+
 ## Investigation Complete Criteria
 
 Declare `investigationComplete: true` when you have:
@@ -109,21 +134,29 @@ Declare `investigationComplete: true` when you have:
 
 **Expected Pattern**: Data gathering → Analysis → More data (if needed) → Solution identification → Schema validation → Dry-run validation → Completion
 
-1. **Initial Investigation**:
+1. **Initial Investigation** (Precise data requests):
 ```json
 {
-  "analysis": "Pod is in CrashLoopBackOff state. Need to examine logs and resource configuration.",
+  "analysis": "Pod is in CrashLoopBackOff state. Need to examine recent logs and current pod status.",
   "dataRequests": [
+    {
+      "type": "get",
+      "resource": "pod/failing-app",
+      "namespace": "default", 
+      "args": ["-o=jsonpath={.status.phase},{.status.containerStatuses[0].restartCount},{.status.containerStatuses[0].lastState.terminated.reason}"],
+      "rationale": "Get precise pod status, restart count, and termination reason to focus investigation"
+    },
     {
       "type": "logs",
       "resource": "pod/failing-app",
       "namespace": "default",
-      "rationale": "Need to examine container logs to identify crash cause"
+      "args": ["--tail=30", "--since=5m"],
+      "rationale": "Examine recent logs only to identify crash pattern without overwhelming context"
     }
   ],
   "investigationComplete": false,
   "confidence": 0.3,
-  "reasoning": "Need initial data to understand failure pattern"
+  "reasoning": "Need targeted data to understand failure pattern efficiently"
 }
 ```
 
