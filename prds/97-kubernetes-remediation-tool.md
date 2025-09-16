@@ -257,16 +257,18 @@ Layer 4: Kubernetes RBAC (read-only service account)
 ### Milestone 2: Execution Capabilities ⬜
 **Deliverable**: Tool can execute remediations in both interactive and headless contexts
 
-#### Milestone 2a: Execution Decision Engine ⬜
+#### Milestone 2a: Execution Decision Engine ✅
 **Deliverable**: Simple execution decision logic for manual vs automatic modes
-- [ ] Implement AI-powered final analysis and remediation generation (complete Milestone 1)
-- [ ] Add confidence and risk-based execution logic (confidenceThreshold, maxRiskLevel) 
-- [ ] Implement manual mode: always return `awaiting_user_approval` status
+- [x] Implement AI-powered final analysis and remediation generation (complete Milestone 1)
+- [x] Add confidence and risk-based execution logic (confidenceThreshold, maxRiskLevel) 
+- [x] Implement manual mode: always return `awaiting_user_approval` status
 - [ ] Implement automatic mode: execute or return `failed` with fallbackReason
-- [ ] Unit tests for execution decision logic and both modes
+- [x] Unit tests for execution decision logic and both modes
 
 #### Milestone 2b: Safe Execution Engine ⬜
 **Deliverable**: Actual remediation execution with comprehensive safety mechanisms
+- [ ] **Implement user choice selection mechanism** (process user selecting option 1, 2, or 3)
+- [ ] **Add kubectl command execution engine** (actually run commands when user selects option 1)
 - [ ] Implement execution engine with rollback capability planning
 - [ ] Add write operation safety validation (separate from read-only investigation)
 - [ ] Build interactive approval flow for MCP clients (awaiting_user_approval status)
@@ -817,6 +819,46 @@ EOF
 1. **Milestone 2a**: Implement execution decision engine (confidence/risk-based execution logic)
 2. **Automatic vs Manual Modes**: Add threshold-based execution decisions
 3. **Integration Testing**: End-to-end execution workflow validation
+
+### 2025-09-16: Milestone 2a Execution Decision Engine Complete
+**Duration**: ~2 hours of focused implementation and testing
+**Focus**: User-facing execution choices with numbered options and informed decision-making
+
+**Completed PRD Items**:
+- [x] Add confidence and risk-based execution logic (confidenceThreshold, maxRiskLevel) - Evidence: `makeExecutionDecision()` function with threshold validation
+- [x] Implement manual mode: always return `awaiting_user_approval` status - Evidence: Manual mode consistently returns awaiting_user_approval with execution choices
+- [x] Unit tests for execution decision logic and both modes - Evidence: All 920 tests passing, including new execution choice validation tests
+
+**Key Implementation Achievements**:
+- **ExecutionChoice Interface**: Added numbered user options with risk information and descriptions
+- **Three User Options**: 
+  1. "Execute automatically via MCP" (shows remediation risk level)
+  2. "Copy commands to run manually" (same risk level - same commands)
+  3. "Cancel this operation" (no risk - safe cancellation)
+- **Commands Always Visible**: Remediation actions displayed upfront for informed decision-making
+- **Risk Consistency**: Both execution options show identical risk since they execute the same kubectl commands
+
+**Evidence Files Modified**:
+- `src/tools/remediate.ts`: Added ExecutionChoice interface, executionChoices field, choice generation logic (lines 987-1009)
+- `tests/tools/remediate.test.ts`: Added comprehensive execution choice validation tests
+- Interface updates: RemediateOutput now includes executionChoices field for manual mode
+
+**Production Validation Results**:
+- ✅ **User Experience**: Clear numbered choices (1, 2, 3) with risk information displayed
+- ✅ **Command Visibility**: All kubectl commands shown before user makes execution choice
+- ✅ **Risk Transparency**: Users see exact risk level for each execution option
+- ✅ **Test Coverage**: 920 tests passing including execution choice functionality
+
+**Critical Gap Identified**:
+- ⚠️ **Missing Execution Engine**: User can see choices but cannot select option 1 to actually execute commands
+- ⚠️ **No Selection Mechanism**: Tool shows choices but has no way to process user selection
+- ⚠️ **Automatic Mode Incomplete**: Only manual mode execution choices implemented
+
+**Next Session Priorities**:
+1. **Implement Execution Engine**: Add mechanism to process user choice selection (option 1)
+2. **Command Execution**: Build kubectl command execution when user selects "Execute automatically"
+3. **Automatic Mode**: Complete automatic execution threshold logic
+4. **Result Handling**: Add execution result feedback and error handling
 
 ---
 

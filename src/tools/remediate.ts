@@ -106,6 +106,13 @@ export interface ExecutionResult {
   timestamp: Date;
 }
 
+export interface ExecutionChoice {
+  id: number;
+  label: string;
+  description: string;
+  risk?: 'low' | 'medium' | 'high';  // Informative only - helps users understand implications
+}
+
 export interface RemediateOutput {
   status: 'success' | 'failed' | 'awaiting_user_approval';
   sessionId: string;
@@ -130,6 +137,8 @@ export interface RemediateOutput {
     nextSteps: string[];
     riskConsiderations: string[];
   };
+  // Numbered execution choices for user interaction (manual mode only)
+  executionChoices?: ExecutionChoice[];
   executed?: boolean;           // true if automatic mode executed actions
   results?: ExecutionResult[];  // execution results if executed
   fallbackReason?: string;      // why automatic mode chose not to execute
@@ -974,6 +983,30 @@ export async function handleRemediateTool(args: any): Promise<any> {
       executed: executionDecision.shouldExecute,
       fallbackReason: executionDecision.fallbackReason
     };
+
+    // Add execution choices for manual mode (awaiting_user_approval status)
+    if (executionDecision.finalStatus === 'awaiting_user_approval') {
+      finalResult.executionChoices = [
+        {
+          id: 1,
+          label: "Execute automatically via MCP",
+          description: "Run the kubectl commands shown above automatically via MCP",
+          risk: finalAnalysis.remediation.risk
+        },
+        {
+          id: 2,
+          label: "Copy commands to run manually", 
+          description: "I'll copy and run the kubectl commands shown above myself",
+          risk: finalAnalysis.remediation.risk  // Same risk - same commands being executed
+        },
+        {
+          id: 3,
+          label: "Cancel this operation",
+          description: "Don't execute any remediation actions",
+          // No risk - safe option
+        }
+      ];
+    }
 
     // TODO Milestone 2b: If shouldExecute is true, execute the remediation actions here
     // For now, we only make execution decisions without actual execution

@@ -15,6 +15,7 @@ import {
   DataRequest,
   InvestigationIteration,
   RemediateOutput,
+  ExecutionChoice,
   parseAIResponse
 } from '../../src/tools/remediate';
 
@@ -1822,6 +1823,71 @@ sqls                                                          devopstoolkit.live
       expect(isComplete).toBe(false);
       expect(dataRequests).toHaveLength(1);
     });
+  });
+
+  describe('Execution Choices', () => {
+    let tempSessionDir: string;
+
+    beforeEach(() => {
+      // Create temporary directory for sessions
+      tempSessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-sessions-'));
+      process.env.DOT_AI_SESSION_DIR = tempSessionDir;
+
+      // Mock Claude integration with complete final analysis
+      const { ClaudeIntegration } = require('../../src/core/claude');
+      const mockSendMessage = createGlobalMockSendMessage();
+      ClaudeIntegration.mockImplementation(() => ({
+        sendMessage: mockSendMessage
+      }));
+
+      // Mock kubectl responses
+      (executeKubectl as jest.Mock).mockResolvedValue('Mocked kubectl output');
+    });
+
+    afterEach(() => {
+      // Cleanup
+      if (fs.existsSync(tempSessionDir)) {
+        fs.rmSync(tempSessionDir, { recursive: true });
+      }
+      delete process.env.DOT_AI_SESSION_DIR;
+      jest.resetAllMocks();
+    });
+
+    test('should include execution choices in manual mode with awaiting_user_approval status', async () => {
+      const input: RemediateInput = {
+        issue: 'Pod failing to start',
+        mode: 'manual'
+      };
+
+      const result = await handleRemediateTool(input);
+      const output = JSON.parse(result.content[0].text);
+
+      expect(output.status).toBe('awaiting_user_approval');
+      expect(output.executionChoices).toBeDefined();
+      expect(output.executionChoices).toHaveLength(3);
+
+      // Check execution choice 1: Execute automatically
+      const choice1 = output.executionChoices.find((c: ExecutionChoice) => c.id === 1);
+      expect(choice1).toBeDefined();
+      expect(choice1.label).toBe('Execute automatically via MCP');
+      expect(choice1.description).toBe('Run the kubectl commands shown above automatically via MCP');
+      expect(choice1.risk).toBe('low'); // Should match remediation risk from global mock
+
+      // Check execution choice 2: Manual execution
+      const choice2 = output.executionChoices.find((c: ExecutionChoice) => c.id === 2);
+      expect(choice2).toBeDefined();
+      expect(choice2.label).toBe('Copy commands to run manually');
+      expect(choice2.description).toBe("I'll copy and run the kubectl commands shown above myself");
+      expect(choice2.risk).toBe('low'); // Same risk as choice 1
+
+      // Check execution choice 3: Cancel
+      const choice3 = output.executionChoices.find((c: ExecutionChoice) => c.id === 3);
+      expect(choice3).toBeDefined();
+      expect(choice3.label).toBe('Cancel this operation');
+      expect(choice3.description).toBe("Don't execute any remediation actions");
+      expect(choice3.risk).toBeUndefined(); // No risk for cancel option
+    });
+
   });
 
 });
