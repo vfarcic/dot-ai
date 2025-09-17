@@ -92,6 +92,9 @@ You MUST respond with ONLY a single JSON object in this exact format:
 - **Schema validation**: Use `kubectl explain` to understand resource schemas when planning modifications (e.g., `"type": "explain", "resource": "deployment.apps.spec"` to understand available fields before patching/applying)
 - **Dry-run timing**: Only use dry-run when you have a concrete solution to test - not during initial data gathering phases
 - **Be decisive**: When you have sufficient information AND validated your solution, declare investigation complete
+- **CRITICAL: Dry-run failure handling**: If your dry-run validation fails, you MUST either:
+  1. Fix the command and retry the dry-run validation
+  2. Only complete investigation after successful dry-run validation
 - **CRITICAL: Early termination**: If after 3-4 iterations you cannot find ANY resources that seem related to the reported issue in the target namespace, declare investigation complete with `investigationComplete: true` and set `needsMoreSpecificInfo: true` to request more specific resource information from the user
 
 ## Data Request Precision Guidelines

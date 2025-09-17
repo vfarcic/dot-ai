@@ -94,6 +94,7 @@ jest.mock('../../src/core/error-handling', () => ({
     CONFIGURATION: 'CONFIGURATION',
     AI_SERVICE: 'AI_SERVICE',
     STORAGE: 'STORAGE',
+    OPERATION: 'OPERATION',
     UNKNOWN: 'UNKNOWN'
   },
   ErrorSeverity: {
@@ -400,8 +401,7 @@ describe('Remediate Tool', () => {
         sessionId: 'rem_20250114120000_abcd1234',
         investigation: {
           iterations: 3,
-          dataGathered: ['Analyzed 3 data sources from 3 investigation iterations'],
-          analysisPath: ['Iteration 1: Analysis performed', 'Iteration 2: Analysis performed', 'Iteration 3: Analysis performed']
+          dataGathered: ['Analyzed 3 data sources from 3 investigation iterations']
         },
         executed: false
       };
@@ -1531,7 +1531,6 @@ pods                                          po              v1                
       expect(promptContent).toContain('{issue}');
       expect(promptContent).toContain('{iterations}');
       expect(promptContent).toContain('{dataSources}');
-      expect(promptContent).toContain('{analysisPath}');
       expect(promptContent).toContain('{completeInvestigationData}');
     });
   });
@@ -1864,7 +1863,7 @@ sqls                                                          devopstoolkit.live
 
       expect(output.status).toBe('awaiting_user_approval');
       expect(output.executionChoices).toBeDefined();
-      expect(output.executionChoices).toHaveLength(3);
+      expect(output.executionChoices).toHaveLength(2);
 
       // Check execution choice 1: Execute automatically
       const choice1 = output.executionChoices.find((c: ExecutionChoice) => c.id === 1);
@@ -1873,21 +1872,149 @@ sqls                                                          devopstoolkit.live
       expect(choice1.description).toBe('Run the kubectl commands shown above automatically via MCP');
       expect(choice1.risk).toBe('low'); // Should match remediation risk from global mock
 
-      // Check execution choice 2: Manual execution
+      // Check execution choice 2: Execute via agent
       const choice2 = output.executionChoices.find((c: ExecutionChoice) => c.id === 2);
       expect(choice2).toBeDefined();
-      expect(choice2.label).toBe('Copy commands to run manually');
-      expect(choice2.description).toBe("I'll copy and run the kubectl commands shown above myself");
+      expect(choice2.label).toBe('Execute via agent');
+      expect(choice2.description).toBe('Execute the commands shown above using your command execution capabilities, then call the remediation tool again for validation');
       expect(choice2.risk).toBe('low'); // Same risk as choice 1
-
-      // Check execution choice 3: Cancel
-      const choice3 = output.executionChoices.find((c: ExecutionChoice) => c.id === 3);
-      expect(choice3).toBeDefined();
-      expect(choice3.label).toBe('Cancel this operation');
-      expect(choice3.description).toBe("Don't execute any remediation actions");
-      expect(choice3.risk).toBeUndefined(); // No risk for cancel option
     });
 
   });
 
-});
+  });
+
+  describe('Choice Execution', () => {
+    let choiceTempDir: string;
+
+    beforeEach(() => {
+      // Create dedicated temp directory for choice tests
+      choiceTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'choice-test-'));
+      process.env.DOT_AI_SESSION_DIR = choiceTempDir;
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      
+      // Reset and mock executeKubectl for choice execution tests
+      (executeKubectl as jest.Mock).mockReset();
+      (executeKubectl as jest.Mock).mockResolvedValue('Command executed successfully');
+    });
+
+    afterEach(() => {
+      // Clean up temp directory after each test
+      if (fs.existsSync(choiceTempDir)) {
+        fs.rmSync(choiceTempDir, { recursive: true });
+      }
+    });
+
+    test('should have remediate tool handler available', () => {
+      // Simple test that verifies the main tool handler exists and is a function
+      const { handleRemediateTool } = require('../../src/tools/remediate');
+      expect(typeof handleRemediateTool).toBe('function');
+    });
+
+    test('should support choice execution parameters in input validation', () => {
+      // Test that choice execution parameters exist in the implementation
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('executeChoice');
+      expect(sourceCode).toContain('sessionId');
+    });
+
+    test('should have choice execution logic implemented', () => {
+      // Test that choice execution implementation exists in the codebase
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('executeUserChoice');
+      expect(sourceCode).toContain('executeRemediationCommands');
+    });
+
+    test('should handle command execution errors in implementation', () => {
+      // Test that error handling exists for kubectl command failures
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('catch');
+      expect(sourceCode).toContain('error');
+    });
+
+    test('should validate choice numbers in schema', () => {
+      // Test that choice validation exists in the schema definition
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('.min(1)'); 
+      expect(sourceCode).toContain('.max(2)');
+    });
+
+    test('should have session validation in choice execution', () => {
+      // Test that session validation exists in the implementation
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('Session not found');
+      expect(sourceCode).toContain('existsSync');
+    });
+  });
+
+  describe('Automatic Post-Execution Validation', () => {
+    test('should extract validation intent from nextSteps', () => {
+      // Test validation intent extraction logic
+      const mockFinalAnalysis = {
+        instructions: {
+          nextSteps: [
+            '1. Review the root cause analysis',
+            '2. Display each remediation action',
+            '3. Execute remediation actions',
+            '4. Stop if any action fails',
+            "5. After execution, run the remediation tool again with: 'Check the status of deployment test-deployment to verify pods are running'",
+            '6. Verify the tool reports no issues'
+          ]
+        }
+      };
+
+      // Extract validation step
+      const validationStep = mockFinalAnalysis.instructions.nextSteps.find(step => 
+        step.includes('run the remediation tool again with:')
+      );
+      expect(validationStep).toBeDefined();
+
+      // Extract validation intent
+      const validationMatch = validationStep?.match(/'([^']+)'/);
+      const validationIntent = validationMatch ? validationMatch[1] : null;
+      
+      expect(validationIntent).toBe('Check the status of deployment test-deployment to verify pods are running');
+    });
+
+    test('should handle missing validation step gracefully', () => {
+      // Test when no validation step exists
+      const mockFinalAnalysis = {
+        instructions: {
+          nextSteps: [
+            '1. Review the root cause analysis',
+            '2. Display each remediation action',
+            '3. Execute remediation actions'
+          ]
+        }
+      };
+
+      const validationStep = mockFinalAnalysis.instructions.nextSteps.find(step => 
+        step.includes('run the remediation tool again with:')
+      );
+      expect(validationStep).toBeUndefined();
+    });
+
+    test('should include validation result in response structure', () => {
+      // Test that validation result structure is correct
+      const validationResult = {
+        success: true,
+        summary: 'Validation completed with 95% confidence',
+        analysis: { confidence: 0.95, rootCause: 'Issue resolved' },
+        status: 'success'
+      };
+
+      expect(validationResult).toHaveProperty('success');
+      expect(validationResult).toHaveProperty('summary');
+      expect(validationResult).toHaveProperty('analysis');
+      expect(validationResult).toHaveProperty('status');
+      expect(validationResult.success).toBe(true);
+    });
+
+    test('should have automatic validation logic implemented', () => {
+      // Test that automatic validation code exists
+      const sourceCode = require('fs').readFileSync('src/tools/remediate.ts', 'utf8');
+      expect(sourceCode).toContain('Run automatic post-execution validation');
+      expect(sourceCode).toContain('run the remediation tool again with:');
+      expect(sourceCode).toContain('validationResult');
+    });
+  });

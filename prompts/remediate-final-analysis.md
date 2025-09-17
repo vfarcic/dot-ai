@@ -9,7 +9,6 @@ You are an expert Kubernetes troubleshooting agent conducting final analysis aft
 **Investigation Summary**: 
 - **Iterations Completed**: {iterations}
 - **Data Sources Analyzed**: {dataSources}
-- **Analysis Path**: {analysisPath}
 
 **Complete Investigation Data**: {completeInvestigationData}
 

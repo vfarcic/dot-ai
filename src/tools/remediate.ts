@@ -34,7 +34,7 @@ function hasDryRunFlag(args?: string[]): boolean {
 
 // Zod schema for MCP registration
 export const REMEDIATE_TOOL_INPUT_SCHEMA = {
-  issue: z.string().min(1).max(2000).describe('Issue description that needs to be analyzed and remediated'),
+  issue: z.string().min(1).max(2000).describe('Issue description that needs to be analyzed and remediated').optional(),
   context: z.object({
     event: z.any().optional().describe('Kubernetes event object'),
     logs: z.array(z.string()).optional().describe('Relevant log entries'),
@@ -42,14 +42,16 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
     podSpec: z.any().optional().describe('Pod specification if relevant'),
     relatedEvents: z.array(z.any()).optional().describe('Related Kubernetes events')
   }).optional().describe('Optional initial context to help with analysis'),
-  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual returns recommendations only, automatic executes approved remediations'),
-  confidenceThreshold: z.number().min(0).max(1).optional().default(0.8).describe('Automatic execution only if confidence above this threshold (default: 0.8)'),
-  maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('Automatic execution only if risk at or below this level (default: low)')
+  mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual requires user approval, automatic executes based on thresholds'),
+  confidenceThreshold: z.number().min(0).max(1).optional().default(0.8).describe('For automatic mode: minimum confidence required for execution (default: 0.8)'),
+  maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('For automatic mode: maximum risk level allowed for execution (default: low)'),
+  executeChoice: z.number().min(1).max(2).optional().describe('Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)'),
+  sessionId: z.string().optional().describe('Session ID from previous remediate call when executing a choice')
 };
 
 // Core interfaces matching PRD specification
 export interface RemediateInput {
-  issue: string;
+  issue?: string;  // Optional when executing a choice from previous session
   context?: {
     event?: any; // K8sEvent
     logs?: string[];
@@ -58,8 +60,10 @@ export interface RemediateInput {
     relatedEvents?: any[]; // K8sEvent[]
   };
   mode?: 'manual' | 'automatic';
-  confidenceThreshold?: number;  // Default: 0.8 - automatic execution only if confidence above
-  maxRiskLevel?: 'low' | 'medium' | 'high';  // Default: 'low' - automatic execution only if risk at or below
+  confidenceThreshold?: number;  // For automatic mode: minimum confidence required for execution
+  maxRiskLevel?: 'low' | 'medium' | 'high';  // For automatic mode: maximum risk level allowed for execution
+  executeChoice?: number;  // Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)
+  sessionId?: string;      // Session ID from previous remediate call when executing a choice
 }
 
 export interface DataRequest {
@@ -88,7 +92,8 @@ export interface RemediateSession {
   finalAnalysis?: RemediateOutput;
   created: Date;
   updated: Date;
-  status: 'investigating' | 'analysis_complete' | 'failed';
+  status: 'investigating' | 'analysis_complete' | 'failed' | 'executed_successfully' | 'executed_with_errors' | 'cancelled';
+  executionResults?: ExecutionResult[];
 }
 
 export interface RemediationAction {
@@ -119,7 +124,6 @@ export interface RemediateOutput {
   investigation: {
     iterations: number;
     dataGathered: string[];
-    analysisPath: string[];
   };
   analysis: {
     rootCause: string;
@@ -131,6 +135,8 @@ export interface RemediateOutput {
     actions: RemediationAction[];
     risk: 'low' | 'medium' | 'high';
   };
+  // Validation intent for automatic post-execution validation
+  validationIntent?: string;
   // Client-friendly instructions (maintain backward compatibility)
   instructions: {
     summary: string;
@@ -760,10 +766,6 @@ async function generateFinalAnalysis(
       }
       return [];
     });
-    const analysisPath = session.iterations.map(iter => 
-      `Iteration ${iter.step}: ${iter.aiAnalysis.substring(0, 100)}${iter.aiAnalysis.length > 100 ? '...' : ''}`
-    );
-    
     // Compile complete investigation data for AI analysis
     const completeInvestigationData = session.iterations.map(iter => ({
       iteration: iter.step,
@@ -779,7 +781,6 @@ async function generateFinalAnalysis(
       .replace('{issue}', session.issue)
       .replace('{iterations}', session.iterations.length.toString())
       .replace('{dataSources}', dataSources.join(', '))
-      .replace('{analysisPath}', analysisPath.join('\n'))
       .replace('{completeInvestigationData}', JSON.stringify(completeInvestigationData, null, 2));
 
     logger.debug('Sending final analysis request to Claude AI', { 
@@ -852,13 +853,11 @@ async function generateFinalAnalysis(
         actions: finalAnalysis.remediation.actions,
         risk: finalAnalysis.remediation.risk
       },
+      validationIntent: finalAnalysis.validationIntent,
       sessionId: session.sessionId,
       investigation: {
         iterations: session.iterations.length,
-        dataGathered: humanReadableDataSources,
-        analysisPath: session.iterations.map((iter, index) => 
-          `Iteration ${index + 1}: ${iter.aiAnalysis.split('\n')[0] || 'Analysis performed'}`
-        )
+        dataGathered: humanReadableDataSources
       },
       executed: false
     };
@@ -890,13 +889,287 @@ async function generateFinalAnalysis(
 }
 
 /**
+ * Execute user choice from previous session
+ */
+async function executeUserChoice(
+  sessionDir: string,
+  sessionId: string,
+  choice: number,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  try {
+    // Load previous session
+    const session = readSessionFile(sessionDir, sessionId);
+    
+    if (!session.finalAnalysis) {
+      throw ErrorHandler.createError(
+        ErrorCategory.VALIDATION,
+        ErrorSeverity.HIGH,
+        'Session does not have final analysis - cannot execute choice',
+        { operation: 'choice_execution', component: 'RemediateTool', sessionId }
+      );
+    }
+
+    logger.info('Loaded session for choice execution', { 
+      requestId, 
+      sessionId, 
+      choice,
+      actionCount: session.finalAnalysis.remediation.actions.length 
+    });
+
+    // Handle different choices
+    switch (choice) {
+      case 1: // Execute automatically via MCP
+        return await executeRemediationCommands(session, sessionDir, logger, requestId);
+        
+      case 2: { // Execute via agent
+        // Use validation intent directly from final analysis
+        const validationIntent = session.finalAnalysis.validationIntent || 'Check the status of the affected resources to verify the issue has been resolved';
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'success',
+                sessionId: sessionId,
+                message: 'Ready for agent execution',
+                remediation: session.finalAnalysis.remediation,
+                instructions: {
+                  nextSteps: [
+                    'Execute the remediation commands using your command execution capabilities',
+                    `After execution, call the remediation tool again with: "${validationIntent}"`,
+                    'Monitor the validation results to ensure the issue has been resolved'
+                  ]
+                }
+              }, null, 2)
+            }
+          ]
+        };
+      }
+        
+      default:
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          `Invalid choice: ${choice}. Must be 1 or 2`,
+          { operation: 'choice_validation', component: 'RemediateTool' }
+        );
+    }
+    
+  } catch (error) {
+    logger.error('Choice execution failed', error as Error, { requestId, sessionId, choice });
+    
+    if (error instanceof Error && error.message.includes('Session file not found')) {
+      throw ErrorHandler.createError(
+        ErrorCategory.OPERATION,
+        ErrorSeverity.HIGH,
+        `Session not found: ${sessionId}. The session may have expired or been deleted.`,
+        { operation: 'session_loading', component: 'RemediateTool' }
+      );
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Execute remediation commands via kubectl
+ */
+async function executeRemediationCommands(
+  session: RemediateSession,
+  sessionDir: string,
+  logger: Logger,
+  requestId: string
+): Promise<any> {
+  const results: ExecutionResult[] = [];
+  const finalAnalysis = session.finalAnalysis!;
+  let overallSuccess = true;
+
+  logger.info('Starting remediation command execution', { 
+    requestId, 
+    sessionId: session.sessionId,
+    commandCount: finalAnalysis.remediation.actions.length 
+  });
+
+  // Execute each remediation action
+  for (let i = 0; i < finalAnalysis.remediation.actions.length; i++) {
+    const action = finalAnalysis.remediation.actions[i];
+    const actionId = `action_${i + 1}`;
+    
+    try {
+      logger.info('Executing remediation action', { 
+        requestId, 
+        sessionId: session.sessionId, 
+        actionId,
+        command: action.command 
+      });
+
+      // Execute the command as-is using shell
+      const fullCommand = action.command || '';
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+      
+      const { stdout } = await execAsync(fullCommand);
+      const output = stdout;
+      
+      results.push({
+        action: `${actionId}: ${action.description}`,
+        success: true,
+        output: output,
+        timestamp: new Date()
+      });
+      
+      logger.info('Remediation action succeeded', { 
+        requestId, 
+        sessionId: session.sessionId, 
+        actionId 
+      });
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      overallSuccess = false;
+      
+      results.push({
+        action: `${actionId}: ${action.description}`,
+        success: false,
+        error: errorMessage,
+        timestamp: new Date()
+      });
+      
+      logger.error('Remediation action failed', error as Error, { 
+        requestId, 
+        sessionId: session.sessionId, 
+        actionId,
+        command: action.command 
+      });
+    }
+  }
+
+  // Run automatic post-execution validation if all commands succeeded
+  let validationResult = null;
+  if (overallSuccess && finalAnalysis.validationIntent) {
+    const validationIntent = finalAnalysis.validationIntent;
+    
+    try {
+          logger.info('Running post-execution validation', { 
+            requestId, 
+            sessionId: session.sessionId,
+            validationIntent: validationIntent
+          });
+
+          // Run validation by calling main function recursively with validation intent
+          const validationInput = {
+            issue: validationIntent,
+            sessionDir: sessionDir
+          };
+      
+          // Recursive call to main function for validation
+          const validationResponse = await handleRemediateTool(validationInput);
+          const validationData = JSON.parse(validationResponse.content[0].text);
+          
+          // If validation discovered new issues, return the validation response directly
+          if (validationData.status === 'awaiting_user_approval') {
+            logger.info('Validation discovered new issues, returning validation response', {
+              requestId,
+              sessionId: session.sessionId,
+              newIssueConfidence: validationData.analysis?.confidence
+            });
+            return validationResponse;
+          }
+          
+          // Otherwise, validation passed with no new issues
+          validationResult = {
+            success: true,
+            summary: 'No additional issues found - remediation completed successfully'
+          };
+
+          logger.info('Post-execution validation completed', { 
+            requestId, 
+            sessionId: session.sessionId,
+            validationStatus: validationData.status,
+            validationConfidence: validationData.analysis?.confidence
+          });
+
+        } catch (error) {
+          logger.warn('Post-execution validation failed', { 
+            requestId, 
+            sessionId: session.sessionId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          validationResult = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Validation failed',
+            summary: 'Validation could not be completed automatically'
+          };
+        }
+    }
+
+  // Update session with execution results
+  updateSessionFile(sessionDir, session.sessionId, { 
+    status: overallSuccess ? 'executed_successfully' : 'executed_with_errors',
+    executionResults: results
+  });
+
+  const response = {
+    status: overallSuccess ? 'success' : 'failed',
+    sessionId: session.sessionId,
+    executed: true,
+    results: results,
+    message: overallSuccess 
+      ? `Successfully executed ${results.length} remediation actions`
+      : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
+    validation: validationResult,
+    instructions: {
+      nextSteps: overallSuccess 
+        ? validationResult 
+          ? [
+              'Remediation commands have been executed successfully',
+              'Automatic validation has been completed - see validation results above',
+              'Monitor your cluster to ensure the issue remains resolved'
+            ]
+          : [
+              'Remediation commands have been executed successfully',
+              `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
+              'Monitor your cluster to ensure the issue is fully resolved'
+            ]
+        : [
+            'Some remediation commands failed - check the results above',
+            'Review the error messages and address any underlying issues',
+            'You may need to run additional commands or investigate further'
+          ]
+    },
+    investigation: finalAnalysis.investigation,
+    analysis: finalAnalysis.analysis,
+    remediation: finalAnalysis.remediation
+  };
+
+  logger.info('Remediation execution completed', { 
+    requestId, 
+    sessionId: session.sessionId,
+    overallSuccess,
+    successfulActions: results.filter(r => r.success).length,
+    failedActions: results.filter(r => !r.success).length
+  });
+
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(response, null, 2)
+      }
+    ]
+  };
+}
+
+/**
  * Main tool handler for remediate tool
  */
 export async function handleRemediateTool(args: any): Promise<any> {
   const requestId = `remediate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const logger = new ConsoleLogger('RemediateTool');
-
-  logger.info('Remediate tool invoked', { requestId, issue: args.issue, mode: args.mode || 'manual' });
 
   try {
     // Validate and get session directory
@@ -905,6 +1178,33 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
     // Validate input
     const validatedInput = validateRemediateInput(args);
+    
+    // Handle choice execution if provided
+    if (validatedInput.executeChoice && validatedInput.sessionId) {
+      logger.info('Executing user choice from previous session', { 
+        requestId, 
+        choice: validatedInput.executeChoice, 
+        sessionId: validatedInput.sessionId 
+      });
+      
+      return await executeUserChoice(
+        sessionDir,
+        validatedInput.sessionId,
+        validatedInput.executeChoice,
+        logger,
+        requestId
+      );
+    }
+    
+    // Validate that we have an issue for new investigations
+    if (!validatedInput.issue) {
+      throw ErrorHandler.createError(
+        ErrorCategory.VALIDATION,
+        ErrorSeverity.HIGH,
+        'Issue description is required for new investigations',
+        { operation: 'input_validation', component: 'RemediateTool' }
+      );
+    }
     
     // Generate session ID and create initial session
     const sessionId = generateSessionId();
@@ -995,15 +1295,9 @@ export async function handleRemediateTool(args: any): Promise<any> {
         },
         {
           id: 2,
-          label: "Copy commands to run manually", 
-          description: "I'll copy and run the kubectl commands shown above myself",
+          label: "Execute via agent",
+          description: "Execute the commands shown above using your command execution capabilities, then call the remediation tool again for validation",
           risk: finalAnalysis.remediation.risk  // Same risk - same commands being executed
-        },
-        {
-          id: 3,
-          label: "Cancel this operation",
-          description: "Don't execute any remediation actions",
-          // No risk - safe option
         }
       ];
     }
@@ -1022,9 +1316,6 @@ export async function handleRemediateTool(args: any): Promise<any> {
     };
 
   } catch (error) {
-    logger.error('Remediate tool failed', error as Error, { 
-      requestId
-    });
 
     if (error instanceof Error && 'category' in error) {
       // Re-throw ErrorHandler errors
@@ -1115,13 +1406,16 @@ function validateRemediateInput(args: any): RemediateInput {
   try {
     // Basic validation using our schema
     const validated = {
-      issue: REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(args.issue),
+      issue: args.issue ? REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(args.issue) : undefined,
       context: args.context ? REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(args.context) : undefined,
       mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual',
       confidenceThreshold: args.confidenceThreshold !== undefined ? 
         REMEDIATE_TOOL_INPUT_SCHEMA.confidenceThreshold.parse(args.confidenceThreshold) : 0.8,
       maxRiskLevel: args.maxRiskLevel ? 
-        REMEDIATE_TOOL_INPUT_SCHEMA.maxRiskLevel.parse(args.maxRiskLevel) : 'low'
+        REMEDIATE_TOOL_INPUT_SCHEMA.maxRiskLevel.parse(args.maxRiskLevel) : 'low',
+      executeChoice: args.executeChoice !== undefined ?
+        REMEDIATE_TOOL_INPUT_SCHEMA.executeChoice.parse(args.executeChoice) : undefined,
+      sessionId: args.sessionId ? REMEDIATE_TOOL_INPUT_SCHEMA.sessionId.parse(args.sessionId) : undefined
     } as RemediateInput;
 
     return validated;
