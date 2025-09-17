@@ -78,7 +78,7 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **Solution**: [1-2 sentence solution overview]
 
-**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](./prds/[actual-issue-id]-[feature-name].md)
+**Detailed PRD**: See [prds/[actual-issue-id]-[feature-name].md](https://github.com/vfarcic/dot-ai/blob/main/prds/[actual-issue-id]-[feature-name].md)
 
 **Priority**: [High/Medium/Low]
 ```
