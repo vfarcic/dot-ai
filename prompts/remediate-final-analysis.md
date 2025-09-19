@@ -26,7 +26,8 @@ You MUST respond with ONLY a single JSON object in this exact format:
 
 ```json
 {
-  "rootCause": "Clear, specific identification of the root cause",
+  "issueStatus": "active|resolved|non_existent",
+  "rootCause": "Clear, specific identification of the root cause (or explanation if no issue exists)",
   "confidence": 0.95,
   "factors": [
     "Contributing factor 1",
@@ -34,7 +35,7 @@ You MUST respond with ONLY a single JSON object in this exact format:
     "Contributing factor 3"
   ],
   "remediation": {
-    "summary": "High-level summary of the remediation approach",
+    "summary": "High-level summary of the remediation approach (or status if no action needed)",
     "actions": [
       {
         "description": "Specific action to take",
@@ -50,13 +51,39 @@ You MUST respond with ONLY a single JSON object in this exact format:
 ```
 
 **Field Requirements**:
-- `rootCause`: String with clear, specific root cause identification
+- `issueStatus`: String indicating the current status of the issue:
+  - `"active"`: Issue exists and requires remediation actions
+  - `"resolved"`: Issue has been fixed/resolved (no actions needed)
+  - `"non_existent"`: No issue found, system is healthy (no actions needed)
+- `rootCause`: String with clear, specific root cause identification (or explanation if no issue exists)
 - `confidence`: Number between 0.0 and 1.0 indicating confidence in analysis
-- `factors`: Array of strings listing contributing factors
-- `remediation.summary`: String with high-level remediation approach
-- `remediation.actions`: Array of specific remediation actions (can be multiple sequential steps)
-- `remediation.risk`: Overall risk level of the complete remediation plan
-- `validationIntent`: String describing what should be checked to validate the fix worked (e.g., "Check the status of sqls.devopstoolkit.live resource test-db in remediate-test namespace")
+- `factors`: Array of strings listing contributing factors (or positive health indicators for non-issues)
+- `remediation.summary`: String with high-level remediation approach (or status if no action needed)
+- `remediation.actions`: Array of specific remediation actions (empty array `[]` for resolved/non_existent issues)
+- `remediation.risk`: Overall risk level of the complete remediation plan (use `"low"` for no-action scenarios)
+- `validationIntent`: String describing what should be checked to validate the fix worked (or ongoing health monitoring for resolved issues)
+
+## Issue Status Guidelines
+
+**CRITICAL: Determine the correct issue status based on your investigation:**
+
+### `"active"` - Issue Exists and Needs Fixing
+- Clear problems identified that require remediation
+- System components are failing, misconfigured, or not functioning properly
+- Provide specific remediation actions to fix the issues
+
+### `"resolved"` - Issue Has Been Fixed
+- Previously reported issue has been successfully addressed
+- Resources are now in healthy state after remediation
+- Set `"actions": []` and provide status confirmation in summary
+- Example: "Deployment resource requirements have been successfully updated and pods are now running healthy"
+
+### `"non_existent"` - No Issue Found
+- Investigation shows system is operating normally
+- Reported issue cannot be reproduced or validated
+- All relevant components appear healthy and properly configured
+- Set `"actions": []` and explain why no issue was found
+- Example: "All pods are running healthy, resources are within capacity, no configuration issues detected"
 
 ## Remediation Solution Guidelines
 
@@ -132,10 +159,12 @@ For each remediation action:
 - Update custom resource definitions
 - Operations affecting multiple namespaces
 
-## Example Multi-Step Response
+## Example Responses
 
+### Example 1: Active Issue Requiring Remediation
 ```json
 {
+  "issueStatus": "active",
   "rootCause": "Pod 'memory-hog' is stuck in Pending status due to insufficient cluster resources. The pod requests 8 CPU cores and 10Gi memory, but the cluster nodes only have 4 CPU cores available and 6Gi memory capacity.",
   "confidence": 0.98,
   "factors": [
@@ -157,6 +186,48 @@ For each remediation action:
     "risk": "medium"
   },
   "validationIntent": "Check the status of memory-hog deployment and pods to verify they are running with the adjusted resource requirements"
+}
+```
+
+### Example 2: Issue Already Resolved
+```json
+{
+  "issueStatus": "resolved",
+  "rootCause": "The memory-hog deployment was previously experiencing resource scheduling issues due to excessive CPU and memory requests, but has been successfully remediated with appropriate resource requirements.",
+  "confidence": 0.95,
+  "factors": [
+    "Deployment now has reasonable resource requests (100m CPU, 128Mi memory)",
+    "Pod successfully transitioned from Pending to Running status",
+    "Resource requirements align with available cluster capacity",
+    "No current scheduling or performance issues detected"
+  ],
+  "remediation": {
+    "summary": "Issue has been successfully resolved - deployment is running healthy with appropriate resource requirements",
+    "actions": [],
+    "risk": "low"
+  },
+  "validationIntent": "Monitor deployment to ensure continued stability and no resource-related issues"
+}
+```
+
+### Example 3: No Issue Found
+```json
+{
+  "issueStatus": "non_existent",
+  "rootCause": "Investigation found no issues with the reported resources. All pods are running healthy, resource utilization is within normal ranges, and no configuration problems detected.",
+  "confidence": 0.90,
+  "factors": [
+    "All pods in the namespace are in Running status",
+    "Resource requests and limits are appropriately configured",
+    "No error events or scheduling issues found",
+    "Cluster has sufficient capacity for current workloads"
+  ],
+  "remediation": {
+    "summary": "No remediation needed - system is operating normally",
+    "actions": [],
+    "risk": "low"
+  },
+  "validationIntent": "Continue normal monitoring of resource utilization and pod health"
 }
 ```
 

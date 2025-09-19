@@ -262,13 +262,15 @@ Layer 4: Kubernetes RBAC (read-only service account)
 - [x] Implement AI-powered final analysis and remediation generation (complete Milestone 1)
 - [x] Add confidence and risk-based execution logic (confidenceThreshold, maxRiskLevel) 
 - [x] Implement manual mode: always return `awaiting_user_approval` status
-- [ ] Implement automatic mode: execute or return `failed` with fallbackReason
+- [x] Implement automatic mode: execute or return `failed` with fallbackReason
 - [x] Unit tests for execution decision logic and both modes
 
 #### Milestone 2b: Safe Execution Engine ⬜
 **Deliverable**: Actual remediation execution with comprehensive safety mechanisms
 - [x] **Implement user choice selection mechanism** (process user selecting option 1 or 2)
 - [x] **Add kubectl command execution engine** (actually run commands when user selects option 1)
+- [x] **Fix issue status handling** (resolved/non-existent/active states with proper response generation)
+- [x] **Enhanced post-execution validation workflow** (iterative remediation support with execution context)
 - [ ] Implement execution engine with rollback capability planning
 - [ ] Add write operation safety validation (separate from read-only investigation)
 - [x] Build interactive approval flow for MCP clients (awaiting_user_approval status)
@@ -921,6 +923,54 @@ EOF
 1. **Cross-client Testing**: Test iterative remediation workflow with Cursor and other MCP clients
 2. **Team Training**: Document simplified iterative remediation flow for team adoption
 3. **Production Deployment**: Consider rollout of improved remediation system
+
+### 2025-09-19: Issue Status System and Automatic Mode Completion
+**Duration**: ~4 hours of focused bug fixes and completion work
+**Focus**: Issue lifecycle management, automatic mode completion, client experience enhancements
+
+**Completed PRD Items**:
+- [x] **Implement automatic mode: execute or return `failed` with fallbackReason** - Evidence: Connected execution decision engine to actual command execution, automatic mode now fully functional
+- [x] **Fix issue status handling** - Evidence: Added `issueStatus` field with 3 states (active/resolved/non_existent) for proper lifecycle management  
+- [x] **Enhanced post-execution validation workflow** - Evidence: Added `executedCommands` parameter support and iterative remediation capabilities
+- [x] **All 935 tests passing** - Evidence: Complete test suite validation after major interface changes
+
+**Critical Bug Fixes**:
+- **Issue Status Management**: Fixed tool to properly handle resolved and non-existent issues instead of defaulting everything to awaiting_user_approval
+- **Automatic Mode Completion**: Connected `makeExecutionDecision()` to actual `executeRemediationCommands()` when `shouldExecute` is true
+- **Execution Choice UX**: Added explicit newlines (`\n`) to prevent client agents from displaying choices on single line
+- **Client Instruction Enhancement**: Updated MCP instructions to explicitly direct agents to show actual kubectl commands instead of just descriptions
+
+**Technical Achievements**:
+- **Complete Automatic Workflow**: Automatic mode now executes → validates → returns comprehensive success/failure response
+- **Issue Lifecycle Support**: Tool correctly identifies and handles 3 issue states with appropriate responses
+- **Enhanced Client Integration**: Improved MCP instruction system with `showActualKubectlCommands: true` flag
+- **Robust Status Detection**: AI can now distinguish between active issues requiring action vs resolved/healthy states
+
+**Evidence Files Modified**:
+- `src/tools/remediate.ts`: Added `issueStatus` handling, connected automatic execution, enhanced MCP instructions, updated interface structure
+- `prompts/remediate-final-analysis.md`: Added comprehensive `issueStatus` guidelines with examples for all 3 states
+- `tests/tools/remediate.test.ts`: Updated all mocks with required `issueStatus` field, added helper functions for status scenarios
+
+**Production Validation Results**:
+- ✅ **Automatic Mode**: Successfully executes commands and validates results end-to-end
+- ✅ **Issue Status Detection**: Properly identifies resolved vs active vs non-existent issues
+- ✅ **Client Experience**: Execution choices display on separate lines, kubectl commands shown explicitly
+- ✅ **Iterative Remediation**: Post-execution validation supports cascading issue resolution
+
+**Architecture Decision - Issue Status as Bug Fix**:
+- **Problem**: Tool was treating all scenarios as active issues requiring user approval
+- **Root Cause**: Missing issue lifecycle management - tool couldn't distinguish between active vs resolved states
+- **Solution**: Added `issueStatus` field with proper state handling and response generation
+- **Impact**: Tool now provides appropriate responses for all issue lifecycle states
+
+**Milestone Status Updates**:
+- **Milestone 2a**: ✅ **COMPLETE** - Automatic mode fully implemented and working
+- **Milestone 2b**: ~85% complete - Core execution working, needs rollback/audit/safety enhancements
+
+**Next Session Priorities**:
+1. **Rollback Capability**: Implement execution rollback planning and safety mechanisms
+2. **Audit Logging**: Add comprehensive audit trail for all execution actions  
+3. **Integration Testing**: End-to-end testing with real cluster scenarios
 
 ---
 

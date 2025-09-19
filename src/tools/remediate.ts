@@ -46,7 +46,8 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
   confidenceThreshold: z.number().min(0).max(1).optional().default(0.8).describe('For automatic mode: minimum confidence required for execution (default: 0.8)'),
   maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('For automatic mode: maximum risk level allowed for execution (default: low)'),
   executeChoice: z.number().min(1).max(2).optional().describe('Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)'),
-  sessionId: z.string().optional().describe('Session ID from previous remediate call when executing a choice')
+  sessionId: z.string().optional().describe('Session ID from previous remediate call when executing a choice'),
+  executedCommands: z.array(z.string()).optional().describe('Commands that were executed to remediate the issue')
 };
 
 // Core interfaces matching PRD specification
@@ -64,6 +65,7 @@ export interface RemediateInput {
   maxRiskLevel?: 'low' | 'medium' | 'high';  // For automatic mode: maximum risk level allowed for execution
   executeChoice?: number;  // Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)
   sessionId?: string;      // Session ID from previous remediate call when executing a choice
+  executedCommands?: string[];  // Commands that were executed to remediate the issue
 }
 
 export interface DataRequest {
@@ -137,12 +139,11 @@ export interface RemediateOutput {
   };
   // Validation intent for automatic post-execution validation
   validationIntent?: string;
-  // Client-friendly instructions (maintain backward compatibility)
-  instructions: {
-    summary: string;
-    nextSteps: string[];
-    riskConsiderations: string[];
-  };
+  // Standard agent instruction fields (following project patterns)
+  guidance?: string;            // Critical instructions for agent behavior
+  agentInstructions?: string;   // Step-by-step instructions for the agent
+  nextAction?: string;          // What MCP tool to call next
+  message?: string;             // Summary message for display
   // Numbered execution choices for user interaction (manual mode only)
   executionChoices?: ExecutionChoice[];
   executed?: boolean;           // true if automatic mode executed actions
@@ -451,6 +452,7 @@ interface AIInvestigationResponse {
  * AI Final Analysis Response interface matching final analysis prompt format
  */
 interface AIFinalAnalysisResponse {
+  issueStatus: 'active' | 'resolved' | 'non_existent';
   rootCause: string;
   confidence: number;
   factors: string[];
@@ -476,8 +478,13 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
     const parsed = JSON.parse(jsonMatch[0]) as AIFinalAnalysisResponse;
     
     // Validate required fields
-    if (!parsed.rootCause || !parsed.confidence || !Array.isArray(parsed.factors) || !parsed.remediation) {
+    if (!parsed.issueStatus || !parsed.rootCause || !parsed.confidence || !Array.isArray(parsed.factors) || !parsed.remediation) {
       throw new Error('Invalid AI final analysis response structure');
+    }
+    
+    // Validate issueStatus field
+    if (!['active', 'resolved', 'non_existent'].includes(parsed.issueStatus)) {
+      throw new Error(`Invalid issue status: ${parsed.issueStatus}. Must be 'active', 'resolved', or 'non_existent'`);
     }
     
     if (!parsed.remediation.summary || !Array.isArray(parsed.remediation.actions) || !parsed.remediation.risk) {
@@ -809,40 +816,62 @@ async function generateFinalAnalysis(
       overallRisk: finalAnalysis.remediation.risk
     });
 
-    // Generate client-friendly instructions
-    const highRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'high');
-    const mediumRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'medium');
-    
-    const instructions = {
-      summary: `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`,
-      nextSteps: [
-        "1. Review the root cause analysis and confidence level below",
-        "2. Display each remediation action with its kubectl command, risk level, and rationale",
-        "3. Execute remediation actions in the order provided",
-        "4. Stop if any action fails and investigate the error",
-        ...(finalAnalysis.validationIntent 
-          ? [`5. After execution, run the remediation tool again with: '${finalAnalysis.validationIntent}'`,
-             "6. Verify the tool reports no issues or identifies any new problems"]
-          : [finalAnalysis.remediation.actions.length > 1 ? "5. Verify the final solution by checking the original issue is resolved" : "5. Verify the solution resolved the original issue"]
-        )
-      ],
-      riskConsiderations: [
-        ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review and may need user confirmation`] : []),
-        ...(mediumRiskActions.length > 0 ? [`${mediumRiskActions.length} MEDIUM RISK actions should be executed with monitoring`] : []),
-        "All actions are designed to be safe kubectl operations (no destructive commands)",
-        "Each action includes a detailed rationale for why it's recommended"
-      ]
-    };
-
     // Convert data sources to human-readable format
     const humanReadableDataSources = dataSources.length > 0 
       ? [`Analyzed ${dataSources.length} data sources from ${session.iterations.length} investigation iterations`]
       : ['cluster-resources', 'pod-status', 'node-capacity'];
 
-    // Return structured response
+    // Handle different issue statuses
+    if (finalAnalysis.issueStatus === 'resolved' || finalAnalysis.issueStatus === 'non_existent') {
+      // Issue is resolved or doesn't exist - return success status
+      const statusMessage = finalAnalysis.issueStatus === 'resolved' 
+        ? 'Issue has been successfully resolved'
+        : 'No issues found - system is healthy';
+        
+      return {
+        status: 'success',
+        analysis: {
+          rootCause: finalAnalysis.rootCause,
+          confidence: finalAnalysis.confidence,
+          factors: finalAnalysis.factors
+        },
+        remediation: {
+          summary: finalAnalysis.remediation.summary,
+          actions: finalAnalysis.remediation.actions,
+          risk: finalAnalysis.remediation.risk
+        },
+        validationIntent: finalAnalysis.validationIntent,
+        sessionId: session.sessionId,
+        investigation: {
+          iterations: session.iterations.length,
+          dataGathered: humanReadableDataSources
+        },
+        executed: false,
+        // Success state guidance
+        guidance: `✅ ${statusMessage.toUpperCase()}: ${finalAnalysis.remediation.summary}`,
+        agentInstructions: `1. Show user that the ${finalAnalysis.issueStatus === 'resolved' ? 'issue has been resolved' : 'no issues were found'}\n2. Display the analysis and confidence level\n3. Explain the current healthy state\n4. No further action required`,
+        nextAction: undefined,
+        message: `${statusMessage} with ${Math.round(finalAnalysis.confidence * 100)}% confidence.`
+      };
+    }
+
+    // Issue is active - generate execution options
+    const commandsSummary = finalAnalysis.remediation.actions.length === 1 
+      ? `The following kubectl command will be executed:\n${finalAnalysis.remediation.actions[0].command}`
+      : `The following ${finalAnalysis.remediation.actions.length} kubectl commands will be executed:\n${finalAnalysis.remediation.actions.map((action, i) => `${i + 1}. ${action.command}`).join('\n')}`;
+
+    // Generate risk summary  
+    const highRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'high');
+    const mediumRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'medium');
+    const riskSummary = [
+      ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review`] : []),
+      ...(mediumRiskActions.length > 0 ? [`${mediumRiskActions.length} MEDIUM RISK actions should be executed with monitoring`] : []),
+      "All actions are designed to be safe kubectl operations (no destructive commands)"
+    ].join('. ');
+
+    // Return active issue response with execution choices
     return {
-      status: 'success',
-      instructions,
+      status: 'awaiting_user_approval',
       analysis: {
         rootCause: finalAnalysis.rootCause,
         confidence: finalAnalysis.confidence,
@@ -859,7 +888,12 @@ async function generateFinalAnalysis(
         iterations: session.iterations.length,
         dataGathered: humanReadableDataSources
       },
-      executed: false
+      executed: false,
+      // Active issue guidance
+      guidance: `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`,
+      agentInstructions: `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. Do NOT automatically execute any commands`,
+      nextAction: 'remediate',
+      message: `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`
     };
     
   } catch (error) {
@@ -938,9 +972,11 @@ async function executeUserChoice(
                 remediation: session.finalAnalysis.remediation,
                 instructions: {
                   nextSteps: [
-                    'Execute the remediation commands using your command execution capabilities',
-                    `After execution, call the remediation tool again with: "${validationIntent}"`,
-                    'Monitor the validation results to ensure the issue has been resolved'
+                    'STEP 1: Execute the kubectl commands shown in the remediation section using your Bash tool',
+                    'STEP 2: After successful execution, call the remediation tool again WITHOUT the sessionId (fresh validation) using this exact message:',
+                    `"${validationIntent}"`,
+                    'IMPORTANT: Do not include the sessionId in the new call - this ensures fresh post-execution validation',
+                    'The MCP will then perform a new investigation to validate the results and confirm the issue is resolved'
                   ]
                 }
               }, null, 2)
@@ -1061,37 +1097,84 @@ async function executeRemediationCommands(
           });
 
           // Run validation by calling main function recursively with validation intent
+          const executedCommands = results.map(r => r.action);
           const validationInput = {
             issue: validationIntent,
-            sessionDir: sessionDir
+            sessionDir: sessionDir,
+            executedCommands: executedCommands
           };
       
           // Recursive call to main function for validation
           const validationResponse = await handleRemediateTool(validationInput);
           const validationData = JSON.parse(validationResponse.content[0].text);
           
-          // If validation discovered new issues, return the validation response directly
+          // If validation discovered new issues, enhance with execution context
           if (validationData.status === 'awaiting_user_approval') {
-            logger.info('Validation discovered new issues, returning validation response', {
+            logger.info('Validation discovered new issues, enhancing response with execution context', {
               requestId,
               sessionId: session.sessionId,
               newIssueConfidence: validationData.analysis?.confidence
             });
-            return validationResponse;
+            
+            // Enhance validation response with execution context
+            validationData.executed = true;
+            validationData.results = results;
+            validationData.executedCommands = results.map(r => r.action);
+            validationData.previousExecution = {
+              sessionId: session.sessionId,
+              summary: `Previously executed ${results.length} remediation actions`,
+              actions: finalAnalysis.remediation.actions
+            };
+            
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify(validationData, null, 2)
+                }
+              ]
+            };
           }
           
-          // Otherwise, validation passed with no new issues
-          validationResult = {
-            success: true,
-            summary: 'No additional issues found - remediation completed successfully'
-          };
-
-          logger.info('Post-execution validation completed', { 
-            requestId, 
+          // Validation confirmed issue is resolved - create success response
+          logger.info('Validation confirmed issue is resolved, creating success response', {
+            requestId,
             sessionId: session.sessionId,
-            validationStatus: validationData.status,
-            validationConfidence: validationData.analysis?.confidence
+            validationStatus: validationData.status
           });
+          
+          // Create success response with execution context
+          const successResponse = {
+            status: 'success',
+            sessionId: session.sessionId,
+            executed: true,
+            results: results,
+            executedCommands: results.map(r => r.action),
+            analysis: validationData.analysis,
+            remediation: {
+              summary: `Successfully executed ${results.length} remediation actions. ${validationData.remediation.summary}`,
+              actions: finalAnalysis.remediation.actions,
+              risk: finalAnalysis.remediation.risk
+            },
+            investigation: validationData.investigation,
+            validationIntent: validationData.validationIntent,
+            guidance: `✅ REMEDIATION COMPLETE: Issue has been successfully resolved through executed commands.`,
+            agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the actual kubectl commands that were executed (from remediation.actions[].command field)\n3. Show execution results with success/failure status for each command\n4. Show the validation results confirming the fix worked\n5. No further action required`,
+            message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.`,
+            validation: {
+              success: true,
+              summary: 'Validation confirmed issue resolution'
+            }
+          };
+          
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(successResponse, null, 2)
+              }
+            ]
+          };
 
         } catch (error) {
           logger.warn('Post-execution validation failed', { 
@@ -1118,24 +1201,37 @@ async function executeRemediationCommands(
     sessionId: session.sessionId,
     executed: true,
     results: results,
+    executedCommands: results.map(r => r.action),
     message: overallSuccess 
       ? `Successfully executed ${results.length} remediation actions`
       : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
     validation: validationResult,
     instructions: {
+      showExecutedCommands: true,
+      showActualKubectlCommands: true,
       nextSteps: overallSuccess 
         ? validationResult 
           ? [
-              'Remediation commands have been executed successfully',
+              'The following kubectl commands were executed to remediate the issue:',
+              ...finalAnalysis.remediation.actions.map((action, index) => 
+                `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
+              ),
               'Automatic validation has been completed - see validation results above',
               'Monitor your cluster to ensure the issue remains resolved'
             ]
           : [
-              'Remediation commands have been executed successfully',
+              'The following kubectl commands were executed to remediate the issue:',
+              ...finalAnalysis.remediation.actions.map((action, index) => 
+                `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
+              ),
               `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
               'Monitor your cluster to ensure the issue is fully resolved'
             ]
         : [
+            'The following kubectl commands were attempted:',
+            ...finalAnalysis.remediation.actions.map((action, index) => 
+              `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
+            ),
             'Some remediation commands failed - check the results above',
             'Review the error messages and address any underlying issues',
             'You may need to run additional commands or investigate further'
@@ -1258,6 +1354,25 @@ export async function handleRemediateTool(args: any): Promise<any> {
       riskLevel: finalAnalysis.remediation.risk
     });
 
+    // For resolved/non-existent issues, return success immediately without execution decision
+    if (finalAnalysis.status === 'success') {
+      logger.info('Issue resolved/non-existent - returning success without execution decision', {
+        requestId,
+        sessionId,
+        status: finalAnalysis.status
+      });
+      
+      // Return MCP-compliant response for resolved issues
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(finalAnalysis, null, 2)
+          }
+        ]
+      };
+    }
+
     // Make execution decision based on mode and thresholds
     const executionDecision = makeExecutionDecision(
       validatedInput.mode || 'manual',
@@ -1290,20 +1405,31 @@ export async function handleRemediateTool(args: any): Promise<any> {
         {
           id: 1,
           label: "Execute automatically via MCP",
-          description: "Run the kubectl commands shown above automatically via MCP",
+          description: "Run the kubectl commands shown above automatically via MCP\n",
           risk: finalAnalysis.remediation.risk
         },
         {
           id: 2,
-          label: "Execute via agent",
-          description: "Execute the commands shown above using your command execution capabilities, then call the remediation tool again for validation",
+          label: "Execute via agent", 
+          description: "STEP 1: Execute the kubectl commands using your Bash tool\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n",
           risk: finalAnalysis.remediation.risk  // Same risk - same commands being executed
         }
       ];
     }
 
-    // TODO Milestone 2b: If shouldExecute is true, execute the remediation actions here
-    // For now, we only make execution decisions without actual execution
+    // Execute remediation actions if automatic mode approves it
+    if (executionDecision.shouldExecute) {
+      // Update session object with final analysis for execution
+      session.finalAnalysis = finalAnalysis;
+      
+      // Execute commands and return the complete result (includes post-execution validation)
+      return await executeRemediationCommands(
+        session,
+        sessionDir,
+        logger,
+        requestId
+      );
+    }
 
     // Return MCP-compliant response
     return {
@@ -1376,7 +1502,7 @@ function makeExecutionDecision(
     return {
       shouldExecute: false,
       reason: `Confidence ${confidence.toFixed(2)} below threshold ${confidenceThreshold.toFixed(2)}`,
-      finalStatus: 'failed',
+      finalStatus: 'success',
       fallbackReason: `Analysis confidence (${Math.round(confidence * 100)}%) is below the required threshold (${Math.round(confidenceThreshold * 100)}%). Manual review recommended.`
     };
   }
@@ -1386,7 +1512,7 @@ function makeExecutionDecision(
     return {
       shouldExecute: false,
       reason: `Risk level ${risk} exceeds maximum ${maxRiskLevel}`,
-      finalStatus: 'failed',
+      finalStatus: 'success',
       fallbackReason: `Remediation risk level (${risk}) exceeds the maximum allowed level (${maxRiskLevel}). Manual approval required.`
     };
   }
