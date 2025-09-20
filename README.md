@@ -136,13 +136,11 @@ This video explains the platform engineering problem and demonstrates the Kubern
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
 - **OpenAI API key** (required) for semantic pattern matching and vector operations
-- See the [Pattern Management Guide](./docs/pattern-management-guide.md) for complete setup
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
 - **OpenAI API key** (required) for semantic policy matching and vector operations  
 - **Optional**: Kyverno installed in cluster for active policy enforcement
-- See the [Policy Management Guide](./docs/policy-management-guide.md) for complete setup
 
 ### Installation
 
