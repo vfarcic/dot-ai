@@ -232,7 +232,8 @@ jobs:
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
         
-        # Update Chart.yaml appVersion to match the Docker image we just built
+        # Update Chart.yaml versions to match the coordinated release
+        sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
         
         # Update values.yaml image tag to reference the Docker image we just built
