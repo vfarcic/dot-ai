@@ -149,6 +149,7 @@ export interface RemediateOutput {
   executed?: boolean;           // true if automatic mode executed actions
   results?: ExecutionResult[];  // execution results if executed
   fallbackReason?: string;      // why automatic mode chose not to execute
+  mode?: 'manual' | 'automatic'; // execution mode used for this call
 }
 
 /**
@@ -847,6 +848,7 @@ async function generateFinalAnalysis(
           dataGathered: humanReadableDataSources
         },
         executed: false,
+        mode: session.mode,
         // Success state guidance
         guidance: `✅ ${statusMessage.toUpperCase()}: ${finalAnalysis.remediation.summary}`,
         agentInstructions: `1. Show user that the ${finalAnalysis.issueStatus === 'resolved' ? 'issue has been resolved' : 'no issues were found'}\n2. Display the analysis and confidence level\n3. Explain the current healthy state\n4. No further action required`,
@@ -889,9 +891,10 @@ async function generateFinalAnalysis(
         dataGathered: humanReadableDataSources
       },
       executed: false,
+      mode: session.mode,
       // Active issue guidance
       guidance: `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`,
-      agentInstructions: `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. Do NOT automatically execute any commands`,
+      agentInstructions: `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.mode}"\n6. Do NOT automatically execute any commands until user makes their choice`,
       nextAction: 'remediate',
       message: `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`
     };
@@ -973,10 +976,10 @@ async function executeUserChoice(
                 instructions: {
                   nextSteps: [
                     'STEP 1: Execute the kubectl commands shown in the remediation section using your Bash tool',
-                    'STEP 2: After successful execution, call the remediation tool again WITHOUT the sessionId (fresh validation) using this exact message:',
-                    `"${validationIntent}"`,
-                    'IMPORTANT: Do not include the sessionId in the new call - this ensures fresh post-execution validation',
-                    'The MCP will then perform a new investigation to validate the results and confirm the issue is resolved'
+                    'STEP 2: After successful execution, call the remediation tool with validation using these parameters:',
+                    `issue: "${validationIntent}"`,
+                    `executedCommands: [list of commands you executed]`,
+                    'STEP 3: The tool will perform fresh validation to confirm the issue is resolved'
                   ]
                 }
               }, null, 2)

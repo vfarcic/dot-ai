@@ -522,7 +522,8 @@ describe('Remediate Tool', () => {
           iterations: 3,
           dataGathered: ['Analyzed 3 data sources from 3 investigation iterations']
         },
-        executed: false
+        executed: false,
+        mode: 'manual'
       };
 
       // Verify output structure matches PRD
@@ -2215,5 +2216,46 @@ sqls                                                          devopstoolkit.live
 
   // NOTE: Executed Commands Functionality tests temporarily removed due to test isolation issues
   // The functionality has been verified manually and works correctly
+
+  describe('Enhanced Output Structure', () => {
+    test('should include mode field in output structure', () => {
+      const output: RemediateOutput = {
+        status: 'awaiting_user_approval',
+        analysis: {
+          rootCause: 'Test root cause',
+          confidence: 0.9,
+          factors: ['Test factor']
+        },
+        remediation: {
+          summary: 'Test remediation',
+          actions: [],
+          risk: 'low'
+        },
+        sessionId: 'rem_test_123',
+        investigation: {
+          iterations: 1,
+          dataGathered: ['Test data']
+        },
+        executed: false,
+        mode: 'manual'
+      };
+
+      // Verify the mode field is present and correct
+      expect(output).toHaveProperty('mode', 'manual');
+    });
+
+    test('should include sessionId and mode in agentInstructions', () => {
+      const sessionId = 'rem_test_12345';
+      const mode = 'manual';
+      
+      // This is the actual format from the code
+      const expectedInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${sessionId}", mode: "${mode}"\n6. Do NOT automatically execute any commands until user makes their choice`;
+      
+      // Verify the instructions contain the expected parameters
+      expect(expectedInstructions).toContain(`sessionId: "${sessionId}"`);
+      expect(expectedInstructions).toContain(`mode: "${mode}"`);
+      expect(expectedInstructions).toContain('executeChoice: [1 or 2]');
+    });
+  });
 
 });

@@ -34,6 +34,12 @@ Automated validation of documentation accuracy through functionality testing and
 - **Use when**: Maintaining documentation quality or validating guide accuracy
 - **📖 Full Guide**: [Documentation Testing](mcp-documentation-testing-guide.md)
 
+### 🔧 Kubernetes Issue Remediation
+AI-powered issue analysis and remediation with intelligent root cause identification.
+- **What it does**: Multi-step investigation loop to identify root causes and generate executable remediation commands
+- **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
+- **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
+
 ### 💬 Shared Prompts Library
 Centralized prompt sharing via native slash commands in MCP-enabled coding agents.
 - **What it does**: Provides curated prompts as slash commands (e.g., `/explain-code`, `/security-review`)
@@ -59,6 +65,7 @@ Centralized prompt sharing via native slash commands in MCP-enabled coding agent
 - **Deployment Recommendations** ← requires **Capability Management**
 - **Pattern Management** → enhances **Deployment Recommendations** 
 - **Policy Management** → enhances **Deployment Recommendations**
+- **Kubernetes Issue Remediation** ← independent
 - **Documentation Testing** ← independent
 - **Shared Prompts Library** ← independent
 
