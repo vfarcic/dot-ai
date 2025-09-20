@@ -46,3 +46,10 @@ export {
   ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
   handleOrganizationalDataTool,
 } from './organizational-data';
+
+export {
+  REMEDIATE_TOOL_NAME,
+  REMEDIATE_TOOL_DESCRIPTION,
+  REMEDIATE_TOOL_INPUT_SCHEMA,
+  handleRemediateTool,
+} from './remediate';

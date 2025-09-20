@@ -98,5 +98,9 @@ azure-creds.json
 # Local testing scripts
 start-http-server.sh
 
+# MCPs
+.mcp-alminni.json
+
 # MCP Registry authentication tokens
 .mcpregistry_*
+

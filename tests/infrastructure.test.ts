@@ -203,12 +203,12 @@ describe('CI/CD Pipeline Infrastructure', () => {
       
       expect(testJob['runs-on']).toBe('ubuntu-latest');
       
-      // Should use single Node.js 20.x (no matrix for performance)
+      // Should use single Node.js 22.x (no matrix for performance)
       expect(testJob.strategy?.matrix).toBeUndefined();
       
-      // Should use Node.js 20.x in setup step
+      // Should use Node.js 22.x in setup step
       const nodeSetupStep = testJob?.steps?.find((step: any) => step.uses?.includes('actions/setup-node'));
-      expect(nodeSetupStep?.with?.['node-version']).toBe('20.x');
+      expect(nodeSetupStep?.with?.['node-version']).toBe('22.x');
     });
 
     test('should include all required CI steps', () => {

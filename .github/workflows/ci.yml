@@ -188,7 +188,7 @@ jobs:
         else
           echo "Package.json already at correct version: $VERSION"
         fi
-    
+
     - name: Update server.json version
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
@@ -248,6 +248,8 @@ jobs:
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
         
+        # Update Chart.yaml versions to match the coordinated release
+        sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
         # Update Chart.yaml appVersion to match the Docker image we just built
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
         
@@ -326,7 +328,6 @@ jobs:
         echo "- **npm package**: \`@vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
         echo "- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)" >> RELEASE_NOTES.md
         echo "- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`" >> RELEASE_NOTES.md
-        echo "- **MCP Registry**: \`io.github.vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
         echo "" >> RELEASE_NOTES.md
         echo "## Changes" >> RELEASE_NOTES.md
         git log --oneline $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md 2>/dev/null || echo "Initial release" >> RELEASE_NOTES.md

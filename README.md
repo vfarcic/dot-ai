@@ -16,6 +16,11 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 - **Platform Engineers**: Create organizational deployment patterns that enhance AI recommendations with institutional knowledge and best practices, and scan cluster resources to enable semantic matching for dramatically improved recommendation accuracy
 - **Security Engineers**: Define governance policies that integrate into deployment workflows with optional Kyverno enforcement
 
+### Kubernetes Issue Remediation
+- **DevOps Engineers**: Quickly diagnose and fix Kubernetes issues without deep troubleshooting expertise
+- **SRE Teams**: Automate root cause analysis and generate executable remediation commands
+- **Support Teams**: Handle incident response with AI-guided investigation and repair workflows
+
 ### Documentation Testing  
 - **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
 - **Technical Writers**: Identify which sections need updates and prioritize work effectively
@@ -60,6 +65,13 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 ```
 
 **Get Started**: See the [Tools and Features Overview](./docs/mcp-tools-overview.md) for complete guide to all available tools including capability management, deployment recommendations, and workflow integration.
+
+### Kubernetes Issue Remediation
+🔍 **AI-Powered Root Cause Analysis**: Multi-step investigation loop identifies the real cause behind Kubernetes failures  
+🛠️ **Executable Remediation**: Generates specific kubectl commands with risk assessment and validation  
+⚡ **Dual Execution Modes**: Manual approval workflow or automatic execution based on confidence thresholds  
+🔒 **Safety Mechanisms**: Automatic fallback to manual mode when validation discovers additional issues  
+🎯 **Cross-Resource Intelligence**: Understands how pod issues may require fixes in different resource types (storage, networking, etc.)
 
 ### Documentation Testing & Validation
 📖 **Automated Testing**: Validates documentation by executing commands and testing examples  
@@ -222,7 +234,6 @@ Agent: ✅ Successfully deployed! Your production API is running with external a
 ```
 User: I want to scan my cluster for resource capabilities to improve recommendations
 
-Agent: I'll help you scan your cluster to discover semantic capabilities. This will dramatically improve recommendation accuracy.
 [Uses manageOrgData with capabilities scanning]
 
 Agent: Would you like to scan all cluster resources or specify a subset?
@@ -239,6 +250,26 @@ Agent: Let me get enhanced recommendations using your capability data.
 [Uses recommend tool with capability pre-filtering]
 
 Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a managed database solution supporting PostgreSQL with multi-cloud capabilities and low complexity. Much better than the generic StatefulSet approach I would have suggested before!
+```
+
+**Example: Kubernetes Issue Remediation**
+```
+User: Something is wrong with my database in postgres-demo namespace
+
+Agent: I'll investigate the database issue using AI-powered analysis.
+[Uses remediate tool for systematic investigation]
+
+Agent: 🔍 Root Cause (95% confidence): PostgreSQL pod can't start because the required PersistentVolumeClaim 'postgres-pvc' is missing.
+
+🔧 Recommended Fix: Create missing PVC
+- Risk Level: Low  
+- Command: kubectl apply [PVC manifest]
+
+Choose execution: 1) Execute via MCP  2) Show commands
+
+User: 1
+
+Agent: ✅ Issue Resolved! Created postgres-pvc, pod transitioned to Running state. Database is operational!
 ```
 
 **Example: Policy Management**
@@ -302,8 +333,6 @@ Agent: I'm executing the PRD creation workflow. Please describe the feature you 
 ```
 
 📖 **[Complete MCP Setup Guide →](docs/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
-
-
 
 ## Troubleshooting
 

@@ -64,6 +64,12 @@ import {
   ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
   handleOrganizationalDataTool,
 } from '../tools/organizational-data';
+import {
+  REMEDIATE_TOOL_NAME,
+  REMEDIATE_TOOL_DESCRIPTION,
+  REMEDIATE_TOOL_INPUT_SCHEMA,
+  handleRemediateTool,
+} from '../tools/remediate';
 
 import {
   handlePromptsListRequest,
@@ -272,6 +278,21 @@ export class MCPServer {
       }
     );
 
+    // Register remediate tool
+    this.server.tool(
+      REMEDIATE_TOOL_NAME,
+      REMEDIATE_TOOL_DESCRIPTION,
+      REMEDIATE_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(
+          `Processing ${REMEDIATE_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleRemediateTool(args);
+      }
+    );
+
     this.logger.info('Registered all tools with McpServer', {
       tools: [
         RECOMMEND_TOOL_NAME,
@@ -282,8 +303,9 @@ export class MCPServer {
         VERSION_TOOL_NAME,
         TESTDOCS_TOOL_NAME,
         ORGANIZATIONAL_DATA_TOOL_NAME,
+        REMEDIATE_TOOL_NAME,
       ],
-      totalTools: 8,
+      totalTools: 9,
     });
   }
 

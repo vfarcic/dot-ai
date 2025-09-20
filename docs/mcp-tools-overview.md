@@ -28,6 +28,12 @@ Enables proactive governance through policy intents that guide users toward comp
 - **Use when**: Implementing security requirements, compliance standards, or configuration governance
 - **📖 Full Guide**: [Policy Management](policy-management-guide.md)
 
+### 🔧 Kubernetes Issue Remediation
+AI-powered issue analysis and remediation with intelligent root cause identification.
+- **What it does**: Multi-step investigation loop to identify root causes and generate executable remediation commands
+- **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
+- **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
+
 ### 📋 Documentation Testing
 Automated validation of documentation accuracy through functionality testing and AI analysis.
 - **What it does**: Tests commands, examples, and descriptions in documentation files
@@ -59,6 +65,7 @@ Centralized prompt sharing via native slash commands in MCP-enabled coding agent
 - **Deployment Recommendations** ← requires **Capability Management**
 - **Pattern Management** → enhances **Deployment Recommendations** 
 - **Policy Management** → enhances **Deployment Recommendations**
+- **Kubernetes Issue Remediation** ← independent
 - **Documentation Testing** ← independent
 - **Shared Prompts Library** ← independent
 
