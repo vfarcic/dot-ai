@@ -98,8 +98,9 @@ azure-creds.json
 # Local testing scripts
 start-http-server.sh
 
-# GitHub tokens and secrets
-.mcpregistry_github_token
-
 # MCPs
 .mcp-alminni.json
+
+# MCP Registry authentication tokens
+.mcpregistry_*
+

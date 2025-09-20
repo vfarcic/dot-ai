@@ -22,12 +22,12 @@
 
 ## What You Get
 
-- **HTTP Transport MCP Server** - Remote access via HTTP/SSE for MCP clients like Cursor
+- **HTTP Transport MCP Server** - Direct HTTP/SSE access for MCP clients 
 - **ToolHive Operator Management** - Simplified deployment via MCPServer custom resource
 - **Built-in Security** - Automatic RBAC, security policies, and container isolation
 - **Multi-tenancy Support** - Built-in isolation between different MCP server instances
 - **Integrated Qdrant Database** - Vector database for capability and pattern management
-- **Proxy Management** - Automatic handling of STDIO-to-HTTP translation if needed
+- **Native HTTP Support** - Direct MCP-over-HTTP without proxy translation
 
 ## Prerequisites
 
@@ -98,13 +98,8 @@ Create an `.mcp.json` file in your project root:
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote@latest",
-        "http://dot-ai.127.0.0.1.nip.io",
-        "--allow-http"
-      ]
+      "type": "http",
+      "url": "http://dot-ai.127.0.0.1.nip.io"
     }
   }
 }
@@ -116,7 +111,7 @@ Create an `.mcp.json` file in your project root:
 
 **Notes**:
 - Replace the URL with your actual hostname if you changed `ingress.host`.
-- For production deployments, configure TLS certificates and use `https://` URLs. Remove the `--allow-http` flag when using HTTPS to ensure secure connections.
+- For production deployments, configure TLS certificates and use `https://` URLs for secure connections.
 
 ### Step 5: Start Your MCP Client
 

@@ -26,7 +26,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '22.x'
         cache: 'npm'
     
     - name: Install dependencies
@@ -78,7 +78,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '22.x'
         cache: 'npm'
         
     - name: Install dependencies
@@ -149,6 +149,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write  # Required for MCP Registry OIDC authentication
     
     steps:
     - name: Checkout code
@@ -166,7 +167,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '22.x'
         registry-url: 'https://registry.npmjs.org'
         cache: 'npm'
     
@@ -187,6 +188,21 @@ jobs:
         else
           echo "Package.json already at correct version: $VERSION"
         fi
+
+    - name: Update server.json version
+      run: |
+        VERSION=${{ needs.version.outputs.new-version }}
+        if [ ! -f "server.json" ]; then
+          echo "ERROR: server.json file not found!"
+          echo "The server.json file is required for MCP registry publication."
+          exit 1
+        fi
+        
+        echo "Updating server.json to version $VERSION"
+        # Update both version fields in server.json
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/g" server.json
+        echo "Updated server.json:"
+        cat server.json
     
     - name: Publish to npm
       run: npm publish --access public
@@ -234,6 +250,7 @@ jobs:
         
         # Update Chart.yaml versions to match the coordinated release
         sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
+        # Update Chart.yaml appVersion to match the Docker image we just built
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
         
         # Update values.yaml image tag to reference the Docker image we just built
@@ -264,7 +281,7 @@ jobs:
         VERSION=${{ needs.version.outputs.new-version }}
         
         # Add all version-related changes
-        git add package.json charts/Chart.yaml charts/values.yaml
+        git add package.json charts/Chart.yaml charts/values.yaml server.json
         
         git commit -m "chore: coordinated release v$VERSION
 
@@ -282,6 +299,25 @@ jobs:
         git push origin "v$VERSION"
         
         echo "Released coordinated version: $VERSION"
+    
+    - name: Publish to MCP Registry
+      run: |
+        VERSION=${{ needs.version.outputs.new-version }}
+        echo "Publishing dot-ai v$VERSION to MCP Registry"
+        
+        # Install MCP publisher CLI
+        echo "Installing MCP publisher CLI..."
+        curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+        
+        # Use GitHub OIDC for authentication (no login needed in GitHub Actions)
+        echo "Authenticating with GitHub OIDC..."
+        ./mcp-publisher login github-oidc
+        
+        # Publish the server
+        echo "Publishing server.json..."
+        ./mcp-publisher publish server.json
+        
+        echo "Successfully published dot-ai v$VERSION to MCP Registry"
     
     - name: Generate release notes
       run: |

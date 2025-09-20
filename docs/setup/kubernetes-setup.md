@@ -19,7 +19,7 @@
 
 ## What You Get
 
-- **HTTP Transport MCP Server** - Remote access via HTTP/SSE for MCP clients like Cursor
+- **HTTP Transport MCP Server** - Direct HTTP/SSE access for MCP clients
 - **Production Kubernetes Deployment** - Scalable deployment with proper resource management
 - **Integrated Qdrant Database** - Vector database for capability and pattern management
 - **External Access** - Ingress configuration for team collaboration
@@ -52,7 +52,7 @@ Install the MCP server using the published Helm chart:
 
 ```bash
 # Install from GitHub Container Registry OCI artifact
-helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.83.0 \
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.85.0 \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set ingress.enabled=true \
@@ -76,13 +76,8 @@ Create an `.mcp.json` file in your project root:
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote@latest",
-        "http://dot-ai.127.0.0.1.nip.io",
-        "--allow-http"
-      ]
+      "type": "http",
+      "url": "http://dot-ai.127.0.0.1.nip.io"
     }
   }
 }
@@ -94,7 +89,7 @@ Create an `.mcp.json` file in your project root:
 
 **Notes**:
 - Replace the URL with your actual hostname if you changed `ingress.host`.
-- For production deployments, configure TLS certificates and use `https://` URLs. Remove the `--allow-http` flag when using HTTPS to ensure secure connections.
+- For production deployments, configure TLS certificates and use `https://` URLs for secure connections.
 
 ### Step 4: Start Your MCP Client
 

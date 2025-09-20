@@ -28,17 +28,17 @@ Enables proactive governance through policy intents that guide users toward comp
 - **Use when**: Implementing security requirements, compliance standards, or configuration governance
 - **📖 Full Guide**: [Policy Management](policy-management-guide.md)
 
-### 📋 Documentation Testing
-Automated validation of documentation accuracy through functionality testing and AI analysis.
-- **What it does**: Tests commands, examples, and descriptions in documentation files
-- **Use when**: Maintaining documentation quality or validating guide accuracy
-- **📖 Full Guide**: [Documentation Testing](mcp-documentation-testing-guide.md)
-
 ### 🔧 Kubernetes Issue Remediation
 AI-powered issue analysis and remediation with intelligent root cause identification.
 - **What it does**: Multi-step investigation loop to identify root causes and generate executable remediation commands
 - **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
 - **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
+
+### 📋 Documentation Testing
+Automated validation of documentation accuracy through functionality testing and AI analysis.
+- **What it does**: Tests commands, examples, and descriptions in documentation files
+- **Use when**: Maintaining documentation quality or validating guide accuracy
+- **📖 Full Guide**: [Documentation Testing](mcp-documentation-testing-guide.md)
 
 ### 💬 Shared Prompts Library
 Centralized prompt sharing via native slash commands in MCP-enabled coding agents.
