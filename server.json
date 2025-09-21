@@ -8,10 +8,9 @@
     "source": "github"
   },
   "version": "0.91.0",
+  "registryType": "npm",
   "packages": [
     {
-      "registry_type": "npm",
-      "registry_base_url": "https://registry.npmjs.org",
       "identifier": "@vfarcic/dot-ai",
       "version": "0.91.0",
       "transport": {
