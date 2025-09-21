@@ -15,8 +15,10 @@
       "version": "0.92.0",
       "transport": {
         "type": "stdio"
-      },
-      "environment_variables": [
+      }
+    }
+  ],
+  "environment_variables": [
         {
           "description": "Anthropic API key for Claude AI integration (required for deployments)",
           "is_required": true,
@@ -70,6 +72,4 @@
           "name": "DOT_AI_DOC_PATTERN"
         }
       ]
-    }
-  ]
 }
