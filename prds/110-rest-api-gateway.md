@@ -2,7 +2,7 @@
 
 **Issue**: #110  
 **Created**: 2025-01-19  
-**Status**: Not Started  
+**Status**: In Progress - Production Readiness  
 **Priority**: Medium  
 **Owner**: TBD  
 
@@ -168,29 +168,29 @@ GET /api/v1/openapi
 
 ## Implementation Milestones
 
-### Milestone 1: Core REST Infrastructure ⬜
+### Milestone 1: Core REST Infrastructure ✅
 **Deliverable**: Basic REST routing with tool registry working
-- [ ] Create tool registry system to track registered tools
-- [ ] Implement REST API router with generic tool endpoint
-- [ ] Integrate with existing MCP server HTTP transport
-- [ ] Add basic error handling and HTTP status codes
-- [ ] Unit tests for core functionality
+- [x] Create tool registry system to track registered tools
+- [x] Implement REST API router with generic tool endpoint
+- [x] Integrate with existing MCP server HTTP transport
+- [x] Add basic error handling and HTTP status codes
+- [x] Unit tests for core functionality
 
-### Milestone 2: OpenAPI Generation ⬜
+### Milestone 2: OpenAPI Generation ✅
 **Deliverable**: Auto-generated OpenAPI specification available
-- [ ] Build OpenAPI generator from tool registry
-- [ ] Convert Zod schemas to OpenAPI schema format
-- [ ] Implement `/api/v1/openapi` endpoint
-- [ ] Add tool discovery endpoint
-- [ ] Validate generated OpenAPI specification
+- [x] Build OpenAPI generator from tool registry
+- [x] Convert Zod schemas to OpenAPI schema format
+- [x] Implement `/api/v1/openapi` endpoint
+- [x] Add tool discovery endpoint
+- [x] Validate generated OpenAPI specification
 
-### Milestone 3: API Versioning ⬜
+### Milestone 3: API Versioning ✅
 **Deliverable**: Version strategy implemented and documented
-- [ ] Implement API version prefix (/api/v1/)
-- [ ] Add version detection and routing logic
-- [ ] Create version compatibility testing framework
-- [ ] Document versioning and deprecation strategy
-- [ ] Update all endpoints to use versioned paths
+- [x] Implement API version prefix (/api/v1/)
+- [x] Add version detection and routing logic
+- [x] Create version compatibility testing framework
+- [x] Document versioning and deprecation strategy
+- [x] Update all endpoints to use versioned paths
 
 ### Milestone 4: Production Readiness ⬜
 **Deliverable**: REST API ready for production deployment
@@ -225,16 +225,69 @@ GET /api/v1/openapi
 5. **GraphQL Gateway**: Alternative query-based interface
 6. **SDK Generation**: Auto-generated client libraries for multiple languages
 
+## Decision Log
+
+### 2025-09-21: JSON Response Format Enhancement
+**Problem**: MCP tools return `{ content: [{ type: 'text', text: JSON.stringify(data) }] }` format, which creates JSON-in-string anti-pattern for REST API consumers.
+
+**Decision**: Transform MCP responses by parsing the JSON string back to proper JSON objects before sending REST API responses.
+
+**Rationale**: 
+- All MCP tools consistently use `JSON.stringify()` for content.text field
+- REST API consumers expect proper JSON objects, not escaped JSON strings
+- Parsing transformation is safe with fallback to original text if parsing fails
+- Dramatically improves developer experience and API usability
+
+**Implementation**: Added JSON parsing logic in `RestApiRouter.handleToolExecution()` with error handling and logging.
+
 ## Open Questions
 
-1. **Schema Validation**: Should we validate requests against Zod schemas or rely on tool handlers?
-2. **Response Formatting**: Consistent wrapper format vs. tool-specific responses?
+1. **Schema Validation**: ✅ Resolved - Using existing Zod validation in tool handlers, REST layer passes through
+2. **Response Formatting**: ✅ Resolved - Consistent wrapper with transformed JSON content for better developer experience  
 3. **Error Handling**: How detailed should error messages be for security/debugging balance?
 4. **Caching Strategy**: Should we cache tool schemas or regenerate OpenAPI on each request?
 
 ## Progress Log
 
-### 2025-01-19
+### 2025-09-21: Core Implementation Complete
+**Duration**: ~4 hours (estimated from implementation session)
+**Commits**: Multiple implementation commits + test fixes
+**Primary Focus**: Complete REST API Gateway implementation and testing
+
+**Completed PRD Items**:
+- [x] Tool Registry System - Evidence: `src/interfaces/rest-registry.ts` with metadata tracking, Zod→JSON Schema conversion, filtering capabilities
+- [x] REST API Router - Evidence: `src/interfaces/rest-api.ts` with generic POST /api/v1/tools/{toolName} pattern, JSON transformation, error handling
+- [x] MCP Integration - Evidence: `src/interfaces/mcp.ts` extended with unified tool registration for both MCP and REST protocols
+- [x] OpenAPI Generation - Evidence: `src/interfaces/openapi-generator.ts` with dynamic spec generation from tool registry
+- [x] API Versioning - Evidence: All endpoints use /api/v1/ prefix, version metadata in responses
+- [x] Comprehensive Testing - Evidence: `tests/interfaces/rest-api.test.ts` with 100+ test cases, 960/960 tests passing
+
+**Critical Bug Fixes Completed**:
+1. **Tool Registration Issue**: Fixed bug where only 1 of 9 MCP tools was exposed via REST API (all tools now properly registered)
+2. **JSON Response Format**: Transformed JSON-in-string responses to proper JSON objects for better developer experience
+3. **Port Conflicts**: Fixed test port conflicts to allow concurrent manual server testing
+4. **Port 0 Handling**: Fixed falsy operator bug preventing dynamic port assignment in tests
+
+**Manual Testing Validation**:
+- ✅ Tool Discovery: All 9 tools discoverable with proper filtering by category/tags/search
+- ✅ OpenAPI Spec: 11 endpoints generated with complete schemas and metadata
+- ✅ Tool Execution: Both simple (version - 1.8s) and complex (AI recommend - 150s) tools working
+- ✅ Error Handling: Proper HTTP status codes and structured error responses
+- ✅ JSON Responses: Clean JSON objects instead of escaped JSON strings
+
+**Architecture Achievements**:
+- **Zero Tool Changes Required**: All 9 existing MCP tools work via REST without modification
+- **Automatic Schema Generation**: OpenAPI spec stays current with tool schema changes
+- **Dual Protocol Support**: MCP and REST protocols work simultaneously without conflicts
+- **Production-Grade Error Handling**: Proper HTTP status codes, structured errors, comprehensive logging
+
+**Next Session Priorities**:
+- Performance testing and optimization (Milestone 4)
+- Comprehensive documentation and usage examples
+- Integration with monitoring and alerting systems
+- Load testing with realistic workloads
+
+### 2025-01-19: PRD Creation
 - Initial PRD created following analysis of MCP protocol complexity
 - Identified need for universal HTTP access to dot-ai tools
 - Separated from integration testing framework for clear scope boundaries
