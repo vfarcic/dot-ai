@@ -139,21 +139,22 @@ export class RestToolRegistry {
       // Create a Zod object schema from the individual field schemas
       const zodObjectSchema = z.object(zodSchemas);
       
-      // Convert to JSON Schema using the library
+      // Convert to JSON Schema using OpenAPI3 conventions, inlining all subschemas
       const jsonSchema = zodToJsonSchema(zodObjectSchema, {
         name: `${toolName}Request`,
-        definitionPath: 'definitions',
-        target: 'openApi3'
+        target: 'openApi3',
+        // Place definitions where OpenAPI expects them  
+        definitionPath: 'components.schemas',
+        $refStrategy: 'none' // inline sub-schemas to avoid unresolved refs
       });
 
-      // Extract the actual schema from the definitions if it's using $ref
       let result = jsonSchema as JsonSchema;
       
-      // If the schema uses $ref, extract the actual schema from definitions
-      if (result.$ref && result.definitions) {
-        const refKey = result.$ref.replace('#/definitions/', '');
-        if (result.definitions[refKey]) {
-          result = result.definitions[refKey] as JsonSchema;
+      // Extract the actual schema from components.schemas if it's using $ref
+      if (result.$ref && (result as any)['components.schemas']) {
+        const refKey = result.$ref.replace('#/components.schemas/', '');
+        if ((result as any)['components.schemas'][refKey]) {
+          result = (result as any)['components.schemas'][refKey] as JsonSchema;
         }
       }
       

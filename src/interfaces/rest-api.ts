@@ -306,9 +306,16 @@ export class RestApiRouter {
         parameters: Object.keys(body)
       });
 
-      // Execute the tool handler
+      // Execute the tool handler with timeout
       // Note: Tool handlers expect the same format as MCP calls
-      const mcpResult = await toolMetadata.handler(body, this.dotAI, this.logger, requestId);
+      const timeoutMs = this.config.requestTimeout;
+      const toolPromise = toolMetadata.handler(body, this.dotAI, this.logger, requestId);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout exceeded')), timeoutMs)
+      );
+      // Prevent unhandled rejection if toolPromise resolves after timeout
+      toolPromise.catch(() => {});
+      const mcpResult = await Promise.race([toolPromise, timeoutPromise]);
       
       // Transform MCP format to proper REST JSON
       // All MCP tools return JSON.stringify() in content[0].text, so parse it back to proper JSON
@@ -361,7 +368,7 @@ export class RestApiRouter {
         errorMessage: error instanceof Error ? error.message : String(error)
       });
 
-      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'EXECUTION_ERROR', `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'EXECUTION_ERROR', 'Tool execution failed');
     }
   }
 

@@ -135,7 +135,7 @@ GET /api/v1/tools
 
 **Query Parameters**:
 - `category` - Filter by tool category (e.g., "AI Tools", "System", "Troubleshooting")
-- `tags` - Filter by tags (e.g., "kubernetes", "deployment", "analysis") 
+- `tag` - Filter by a single tag (e.g., "kubernetes", "deployment", "analysis") 
 - `search` - Search tool names and descriptions
 
 **Examples**:
@@ -144,7 +144,7 @@ GET /api/v1/tools
 curl "http://localhost:3456/api/v1/tools?category=AI%20Tools"
 
 # Find deployment-related tools
-curl "http://localhost:3456/api/v1/tools?tags=deployment"
+curl "http://localhost:3456/api/v1/tools?tag=deployment"
 
 # Search for troubleshooting tools
 curl "http://localhost:3456/api/v1/tools?search=troubleshoot"
