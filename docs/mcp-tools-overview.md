@@ -46,6 +46,12 @@ Centralized prompt sharing via native slash commands in MCP-enabled coding agent
 - **Use when**: Boosting productivity with standardized prompts across projects
 - **📖 Full Guide**: [Shared Prompts Library](mcp-prompts-guide.md)
 
+### 🌐 REST API Gateway
+HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration with traditional applications and CI/CD pipelines.
+- **What it does**: Exposes all MCP tools via standard HTTP POST/GET endpoints with auto-generated OpenAPI documentation
+- **Use when**: Integrating with automation scripts, CI/CD pipelines, Kubernetes controllers, or any non-MCP applications
+- **📖 Full Guide**: [REST API Gateway](rest-api-gateway-guide.md)
+
 ## Quick Start
 
 1. **Complete Setup**: Follow the [MCP Setup Guide](mcp-setup.md)
