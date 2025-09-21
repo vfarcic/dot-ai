@@ -25,10 +25,10 @@
 5. **Always Check for Reusability**: Before implementing new functionality, ALWAYS search the codebase for existing similar functions or utilities that can be reused or extended. Never duplicate code - create shared utilities instead.
 6. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
 
-## 🛑 TESTING REMINDERS
+## 🛑 TESTING WORKFLOW
 
 - **Implementation flow**: Code → Tests → `npm test` → Mark complete
-- **Test organization**: Mirror source code structure (`src/core/schema.ts` → `tests/core/schema.test.ts`)
+- **Detailed testing standards**: See `tests/CLAUDE.md` for comprehensive testing guidelines
 
 ## Project Overview
 
@@ -115,59 +115,14 @@ tests/                   # Comprehensive test suite (349+ tests)
 prompts/                 # AI prompt templates
 ```
 
-## ⚠️ MCP DOCUMENTATION ANTI-PATTERNS (NEVER DO THIS)
+### Development Commands
 
-**CRITICAL: MCP Client Workflow Alignment**
-
-❌ **Manual Server Commands**: Never document commands users run directly:
-- `npx @vfarcic/dot-ai` (users never run this)
-- `docker compose up` (users never run this) 
-- `node dist/mcp/server.js` (users never run this)
-
-✅ **MCP Client Workflow**: Document only what users actually do:
-- Create `.mcp.json` configuration
-- Start MCP client (Claude Code, Cursor, etc.)
-- Use features through MCP client interaction
-
-❌ **Server Lifecycle Management**: Never document manual server operations:
-- Starting/stopping servers manually
-- Restarting services for troubleshooting
-- Manual container/process management
-
-✅ **Client-Managed Lifecycle**: Document that MCP client handles everything:
-- Client starts servers automatically
-- Client manages server lifecycle
-- Client handles cleanup when needed
-
-❌ **Manual Debugging Commands**: Never document CLI debugging:
-- `docker logs dot-ai` (users won't run this)
-- `curl http://localhost:6333` (users won't run this)
-- Manual health checks or status commands
-
-✅ **MCP-Based Diagnostics**: Use client-integrated diagnostics:
-- `"Show dot-ai status"` command (primary diagnostic)
-- Client-visible error messages
-- MCP tool-based troubleshooting
-
-**WHY THIS MATTERS:**
-- Users interact with MCP servers through clients, not directly
-- Manual commands create documentation that doesn't match actual user workflow
-- Creates confusion between "how it works" vs "how users use it"
-- Violates the fundamental MCP interaction pattern
-
-**VALIDATION CHECK**: If documentation includes commands users type in terminal (other than MCP client setup), it's probably wrong.
-
-### Testing & Development
-
-**MANDATORY TESTING WORKFLOW:**
-- **Always write tests** for code changes before considering work complete
-- **Always run all tests** with `npm test` before marking tasks as done
-- **Never mark task complete** if any tests are failing
-- **Always check CLAUDE.md** after task completion for needed updates
-
-**Commands:**
+**Essential Commands:**
 - **Run tests**: `npm test`
 - **Build**: `npm run build`
+
+**Testing:** See `tests/CLAUDE.md` for detailed testing standards and workflows.
+**MCP Usage:** Always test MCP functionality through Claude Code or other MCP clients, never run server directly.
 
 **Git Commit Guidelines:**
 - **Skip CI**: When user requests to skip CI, avoid triggering CI, or mentions bypassing CI/builds, automatically add `[skip ci]` to the commit message to prevent GitHub Actions from running
