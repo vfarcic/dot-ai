@@ -33,6 +33,7 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 
 ### AI Integration
 - **AI Agents**: Integrate all capabilities with Claude Code, Cursor, or VS Code for conversational workflows
+- **REST API**: Access all tools via standard HTTP endpoints for CI/CD pipelines, automation scripts, and traditional applications
 
 ## Key Features
 

@@ -91,7 +91,8 @@
     "@vfarcic/dot-ai": "^0.90.0",
     "glob": "^11.0.3",
     "openai": "^5.11.0",
-    "yaml": "^2.8.0"
+    "yaml": "^2.8.0",
+    "zod-to-json-schema": "^3.24.6"
   },
   "jest": {
     "preset": "ts-jest",

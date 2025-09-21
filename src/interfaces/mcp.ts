@@ -75,6 +75,8 @@ import {
   handlePromptsListRequest,
   handlePromptsGetRequest,
 } from '../tools/prompts';
+import { RestToolRegistry } from './rest-registry';
+import { RestApiRouter } from './rest-api';
 
 export interface MCPServerConfig {
   name: string;
@@ -96,6 +98,8 @@ export class MCPServer {
   private config: MCPServerConfig;
   private httpServer?: ReturnType<typeof createServer>;
   private httpTransport?: StreamableHTTPServerTransport;
+  private restRegistry: RestToolRegistry;
+  private restApiRouter: RestApiRouter;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
@@ -122,17 +126,50 @@ export class MCPServer {
       author: config.author,
     });
 
+    // Initialize REST API components
+    this.restRegistry = new RestToolRegistry(this.logger);
+    this.restApiRouter = new RestApiRouter(
+      this.restRegistry,
+      this.dotAI,
+      this.logger
+    );
+
     // Register all tools and prompts directly with McpServer
     this.registerTools();
     this.registerPrompts();
   }
 
   /**
-   * Register all tools with McpServer
+   * Helper method to register a tool with both MCP server and REST registry
+   */
+  private registerTool(
+    name: string,
+    description: string,
+    inputSchema: Record<string, any>,
+    handler: (...args: any[]) => Promise<any>,
+    category?: string,
+    tags?: string[]
+  ): void {
+    // Register with MCP server
+    this.server.tool(name, description, inputSchema, handler);
+    
+    // Register with REST registry
+    this.restRegistry.registerTool({
+      name,
+      description,
+      inputSchema,
+      handler,
+      category,
+      tags
+    });
+  }
+
+  /**
+   * Register all tools with McpServer and REST registry
    */
   private registerTools(): void {
     // Register recommend tool
-    this.server.tool(
+    this.registerTool(
       RECOMMEND_TOOL_NAME,
       RECOMMEND_TOOL_DESCRIPTION,
       RECOMMEND_TOOL_INPUT_SCHEMA,
@@ -147,11 +184,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'AI Tools',
+      ['recommendation', 'kubernetes', 'deployment']
     );
 
     // Register chooseSolution tool
-    this.server.tool(
+    this.registerTool(
       CHOOSESOLUTION_TOOL_NAME,
       CHOOSESOLUTION_TOOL_DESCRIPTION,
       CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
@@ -167,11 +206,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'AI Tools',
+      ['solution', 'kubernetes', 'configuration']
     );
 
     // Register answerQuestion tool
-    this.server.tool(
+    this.registerTool(
       ANSWERQUESTION_TOOL_NAME,
       ANSWERQUESTION_TOOL_DESCRIPTION,
       ANSWERQUESTION_TOOL_INPUT_SCHEMA,
@@ -187,11 +228,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'AI Tools',
+      ['configuration', 'questions', 'workflow']
     );
 
     // Register generateManifests tool
-    this.server.tool(
+    this.registerTool(
       GENERATEMANIFESTS_TOOL_NAME,
       GENERATEMANIFESTS_TOOL_DESCRIPTION,
       GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
@@ -207,11 +250,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'Deployment',
+      ['manifests', 'kubernetes', 'generation']
     );
 
     // Register deployManifests tool
-    this.server.tool(
+    this.registerTool(
       DEPLOYMANIFESTS_TOOL_NAME,
       DEPLOYMANIFESTS_TOOL_DESCRIPTION,
       DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
@@ -227,11 +272,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'Deployment',
+      ['deployment', 'kubernetes', 'kubectl']
     );
 
     // Register version tool
-    this.server.tool(
+    this.registerTool(
       VERSION_TOOL_NAME,
       VERSION_TOOL_DESCRIPTION,
       VERSION_TOOL_INPUT_SCHEMA,
@@ -241,11 +288,13 @@ export class MCPServer {
           requestId,
         });
         return await handleVersionTool(args, this.logger, requestId);
-      }
+      },
+      'System',
+      ['version', 'diagnostics', 'status']
     );
 
     // Register testDocs tool
-    this.server.tool(
+    this.registerTool(
       TESTDOCS_TOOL_NAME,
       TESTDOCS_TOOL_DESCRIPTION,
       TESTDOCS_TOOL_INPUT_SCHEMA,
@@ -255,11 +304,13 @@ export class MCPServer {
           requestId,
         });
         return await handleTestDocsTool(args, null, this.logger, requestId);
-      }
+      },
+      'Documentation',
+      ['testing', 'validation', 'docs']
     );
 
     // Register organizational-data tool
-    this.server.tool(
+    this.registerTool(
       ORGANIZATIONAL_DATA_TOOL_NAME,
       ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
       ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
@@ -275,11 +326,13 @@ export class MCPServer {
           this.logger,
           requestId
         );
-      }
+      },
+      'Management',
+      ['patterns', 'policies', 'capabilities', 'data']
     );
 
     // Register remediate tool
-    this.server.tool(
+    this.registerTool(
       REMEDIATE_TOOL_NAME,
       REMEDIATE_TOOL_DESCRIPTION,
       REMEDIATE_TOOL_INPUT_SCHEMA,
@@ -290,7 +343,9 @@ export class MCPServer {
           { requestId }
         );
         return await handleRemediateTool(args);
-      }
+      },
+      'Troubleshooting',
+      ['remediation', 'troubleshooting', 'kubernetes', 'analysis']
     );
 
     this.logger.info('Registered all tools with McpServer', {
@@ -378,7 +433,7 @@ export class MCPServer {
   }
 
   private async startHttpTransport(): Promise<void> {
-    const port = parseInt(process.env.PORT || '') || this.config.port || 3456;
+    const port = process.env.PORT ? parseInt(process.env.PORT) : (this.config.port !== undefined ? this.config.port : 3456);
     const host = process.env.HOST || this.config.host || '0.0.0.0';
     const sessionMode = process.env.SESSION_MODE || this.config.sessionMode || 'stateful';
     
@@ -421,14 +476,30 @@ export class MCPServer {
         body = await this.parseRequestBody(req);
       }
 
-      // Handle the request using the transport
+      // Check if this is a REST API request
+      if (this.restApiRouter.isApiRequest(req.url || '')) {
+        this.logger.debug('Routing to REST API handler', { url: req.url });
+        try {
+          await this.restApiRouter.handleRequest(req, res, body);
+          return;
+        } catch (error) {
+          this.logger.error('REST API request failed', error as Error);
+          if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'REST API internal server error' }));
+          }
+          return;
+        }
+      }
+
+      // Handle MCP protocol requests using the transport
       try {
         await this.httpTransport!.handleRequest(req, res, body);
       } catch (error) {
-        this.logger.error('Error handling HTTP request', error as Error);
+        this.logger.error('Error handling MCP HTTP request', error as Error);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Internal server error' }));
+          res.end(JSON.stringify({ error: 'MCP internal server error' }));
         }
       }
     });
