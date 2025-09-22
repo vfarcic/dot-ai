@@ -98,7 +98,7 @@ export class RestApiRouter {
       basePath: '/api',
       version: 'v1',
       enableCors: true,
-      requestTimeout: 30000,
+      requestTimeout: 900000, // 15 minutes for long-running operations like remediation
       ...config
     };
     
