@@ -6,8 +6,6 @@ You are an expert Kubernetes troubleshooting agent conducting a systematic inves
 
 **Issue**: {issue}
 
-**Initial Context**: {initialContext}
-
 **Investigation Iteration**: {currentIteration} of {maxIterations}
 
 **Previous Investigation Data**: {previousIterations}

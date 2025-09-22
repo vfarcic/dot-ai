@@ -327,7 +327,7 @@ describe('Remediate Tool', () => {
 
     test('should have valid input schema structure', () => {
       expect(REMEDIATE_TOOL_INPUT_SCHEMA.issue).toBeDefined();
-      expect(REMEDIATE_TOOL_INPUT_SCHEMA.context).toBeDefined();
+      // Context parameter has been removed from schema
       expect(REMEDIATE_TOOL_INPUT_SCHEMA.mode).toBeDefined();
     });
 
@@ -369,23 +369,19 @@ describe('Remediate Tool', () => {
       }).not.toThrow();
     });
 
-    test('should accept full input with context', () => {
+    test('should accept full input without context', () => {
       const input: RemediateInput = {
         issue: 'Database connection timeouts',
-        context: {
-          event: { kind: 'Event', reason: 'Failed' },
-          logs: ['Connection timeout', 'Retry failed'],
-          metrics: { cpu: 80, memory: 90 },
-          podSpec: { name: 'db-pod' },
-          relatedEvents: [{ kind: 'Event', reason: 'Warning' }]
-        },
-        mode: 'manual'
+        mode: 'manual',
+        confidenceThreshold: 0.8,
+        maxRiskLevel: 'low'
       };
       
       expect(() => {
         REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(input.issue);
-        if (input.context) REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(input.context);
         if (input.mode) REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(input.mode);
+        if (input.confidenceThreshold) REMEDIATE_TOOL_INPUT_SCHEMA.confidenceThreshold.parse(input.confidenceThreshold);
+        if (input.maxRiskLevel) REMEDIATE_TOOL_INPUT_SCHEMA.maxRiskLevel.parse(input.maxRiskLevel);
       }).not.toThrow();
     });
 
@@ -782,10 +778,10 @@ describe('Remediate Tool', () => {
       // Verify prompt contains required template variables
       const promptContent = fs.readFileSync(promptPath, 'utf8');
       expect(promptContent).toContain('{issue}');
-      expect(promptContent).toContain('{initialContext}');
       expect(promptContent).toContain('{currentIteration}');
       expect(promptContent).toContain('{maxIterations}');
       expect(promptContent).toContain('{previousIterations}');
+      expect(promptContent).toContain('{clusterApiResources}');
       
       // Verify prompt structure for AI response format
       expect(promptContent).toContain('dataRequests');
@@ -1688,7 +1684,6 @@ sqls                                                          devopstoolkit.live
 
       const input: RemediateInput = {
         issue: 'Test API discovery integration',
-        context: {},
         mode: 'manual'
       };
 
@@ -1718,7 +1713,6 @@ sqls                                                          devopstoolkit.live
 
       const input: RemediateInput = {
         issue: 'Test API discovery failure',
-        context: {},
         mode: 'manual'
       };
 
@@ -1753,7 +1747,6 @@ applications                                  app             argoproj.io/v1alph
 
       const input: RemediateInput = {
         issue: 'Test complete API output',
-        context: {},
         mode: 'manual'
       };
 
@@ -1817,7 +1810,6 @@ sqls                                                          devopstoolkit.live
 
       const input: RemediateInput = {
         issue: 'There is something wrong with my database',
-        context: {},
         mode: 'manual'
       };
 
@@ -1897,7 +1889,6 @@ sqls                                                          devopstoolkit.live
 
       const input: RemediateInput = {
         issue: 'There is an issue with my SQL resource test-db',
-        context: {},
         mode: 'manual'
       };
 
