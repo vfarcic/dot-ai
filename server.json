@@ -7,12 +7,12 @@
     "url": "https://github.com/vfarcic/dot-ai",
     "source": "github"
   },
-  "version": "0.96.0",
+  "version": "0.97.0",
   "registryType": "npm",
   "packages": [
     {
       "identifier": "@vfarcic/dot-ai",
-      "version": "0.96.0",
+      "version": "0.97.0",
       "transport": {
         "type": "stdio"
       }
