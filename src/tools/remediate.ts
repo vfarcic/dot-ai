@@ -35,13 +35,6 @@ function hasDryRunFlag(args?: string[]): boolean {
 // Zod schema for MCP registration
 export const REMEDIATE_TOOL_INPUT_SCHEMA = {
   issue: z.string().min(1).max(2000).describe('Issue description that needs to be analyzed and remediated').optional(),
-  context: z.object({
-    event: z.any().optional().describe('Kubernetes event object'),
-    logs: z.array(z.string()).optional().describe('Relevant log entries'),
-    metrics: z.any().optional().describe('Relevant metrics data'),
-    podSpec: z.any().optional().describe('Pod specification if relevant'),
-    relatedEvents: z.array(z.any()).optional().describe('Related Kubernetes events')
-  }).optional().describe('Optional initial context to help with analysis'),
   mode: z.enum(['manual', 'automatic']).optional().default('manual').describe('Execution mode: manual requires user approval, automatic executes based on thresholds'),
   confidenceThreshold: z.number().min(0).max(1).optional().default(0.8).describe('For automatic mode: minimum confidence required for execution (default: 0.8)'),
   maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('For automatic mode: maximum risk level allowed for execution (default: low)'),
@@ -53,13 +46,6 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
 // Core interfaces matching PRD specification
 export interface RemediateInput {
   issue?: string;  // Optional when executing a choice from previous session
-  context?: {
-    event?: any; // K8sEvent
-    logs?: string[];
-    metrics?: any; // Metrics
-    podSpec?: any;
-    relatedEvents?: any[]; // K8sEvent[]
-  };
   mode?: 'manual' | 'automatic';
   confidenceThreshold?: number;  // For automatic mode: minimum confidence required for execution
   maxRiskLevel?: 'low' | 'medium' | 'high';  // For automatic mode: maximum risk level allowed for execution
@@ -88,7 +74,6 @@ export interface InvestigationIteration {
 export interface RemediateSession {
   sessionId: string;
   issue: string;
-  initialContext: any;
   mode: 'manual' | 'automatic';
   iterations: InvestigationIteration[];
   finalAnalysis?: RemediateOutput;
@@ -376,7 +361,6 @@ async function analyzeCurrentState(
     // Prepare template variables
     const currentIteration = session.iterations.length + 1;
     const maxIterations = 20;
-    const initialContextJson = JSON.stringify(session.initialContext, null, 2);
     const previousIterationsJson = JSON.stringify(
       session.iterations.map(iter => ({
         step: iter.step,
@@ -391,7 +375,6 @@ async function analyzeCurrentState(
     // Replace template variables
     const investigationPrompt = promptTemplate
       .replace('{issue}', session.issue)
-      .replace('{initialContext}', initialContextJson)
       .replace('{currentIteration}', currentIteration.toString())
       .replace('{maxIterations}', maxIterations.toString())
       .replace('{previousIterations}', previousIterationsJson)
@@ -1310,7 +1293,6 @@ export async function handleRemediateTool(args: any): Promise<any> {
     const session: RemediateSession = {
       sessionId,
       issue: validatedInput.issue,
-      initialContext: validatedInput.context || {},
       mode: validatedInput.mode || 'manual',
       iterations: [],
       created: new Date(),
@@ -1536,7 +1518,6 @@ function validateRemediateInput(args: any): RemediateInput {
     // Basic validation using our schema
     const validated = {
       issue: args.issue ? REMEDIATE_TOOL_INPUT_SCHEMA.issue.parse(args.issue) : undefined,
-      context: args.context ? REMEDIATE_TOOL_INPUT_SCHEMA.context.parse(args.context) : undefined,
       mode: args.mode ? REMEDIATE_TOOL_INPUT_SCHEMA.mode.parse(args.mode) : 'manual',
       confidenceThreshold: args.confidenceThreshold !== undefined ? 
         REMEDIATE_TOOL_INPUT_SCHEMA.confidenceThreshold.parse(args.confidenceThreshold) : 0.8,
@@ -1560,7 +1541,7 @@ function validateRemediateInput(args: any): RemediateInput {
         suggestedActions: [
           'Check that issue is a non-empty string',
           'Verify mode is either "manual" or "automatic"',
-          'Ensure context follows expected structure if provided'
+          'Ensure confidenceThreshold is between 0 and 1 if provided'
         ]
       }
     );
