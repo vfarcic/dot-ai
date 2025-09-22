@@ -335,7 +335,7 @@ async function analyzeCurrentState(
   
   try {
     // Load investigation prompt template
-    const promptPath = path.join(process.cwd(), 'prompts', 'remediate-investigation.md');
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-investigation.md');
     const promptTemplate = fs.readFileSync(promptPath, 'utf8');
     
     // Discover cluster API resources for complete visibility - REQUIRED for quality remediation
@@ -747,7 +747,7 @@ async function generateFinalAnalysis(
     const claudeIntegration = new ClaudeIntegration(claudeApiKey);
 
     // Load final analysis prompt template
-    const promptPath = path.join(process.cwd(), 'prompts', 'remediate-final-analysis.md');
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-final-analysis.md');
     const promptTemplate = fs.readFileSync(promptPath, 'utf8');
     
     // Prepare template variables - extract actual data source identifiers
