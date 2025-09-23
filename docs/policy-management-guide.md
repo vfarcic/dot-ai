@@ -36,6 +36,12 @@ For a complete understanding of how these three types work together, see the **[
 4. **Proactive Guidance** → Users get compliant configurations with policy-driven defaults and validation
 5. **Optional Enforcement** → Policy intents can generate Kyverno policies for cluster-level blocking
 
+## See Policy Management in Action
+
+[![Policy Management with DevOps AI Toolkit](https://img.youtube.com/vi/hLK9j2cn6c0/maxresdefault.jpg)](https://youtu.be/hLK9j2cn6c0)
+
+This video demonstrates how Policy Management transforms organizational governance by integrating security requirements directly into AI-powered deployment recommendations. Watch how platform engineers create policy intents that guide users toward compliant configurations from the start, rather than blocking non-compliant deployments after the fact.
+
 ## Prerequisites
 
 Before using Policy Management, ensure you have:
