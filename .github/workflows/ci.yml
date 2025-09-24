@@ -2,7 +2,7 @@ name: CI Pipeline, Security & Publish
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   release:
