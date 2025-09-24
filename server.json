@@ -8,9 +8,9 @@
     "source": "github"
   },
   "version": "0.99.0",
-  "registryType": "npm",
   "packages": [
     {
+      "registryType": "npm",
       "identifier": "@vfarcic/dot-ai",
       "version": "0.99.0",
       "transport": {
