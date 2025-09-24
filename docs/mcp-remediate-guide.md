@@ -26,6 +26,10 @@ The DevOps AI Toolkit remediate feature provides:
 - **Iterative remediation support** - Handles complex issues requiring multiple sequential fixes
 - **Complete audit trail** - Full investigation history and remediation tracking
 
+## Related Projects
+
+**[dot-ai-controller](https://github.com/vfarcic/dot-ai-controller)** - A Kubernetes controller that transforms reactive infrastructure management into proactive, AI-enhanced operations. The controller monitors Kubernetes cluster events and automatically triggers this project's remediation MCP tool for intelligent analysis and resolution. It supports both automatic remediation (where AI directly implements solutions) and manual remediation (where AI provides recommendations for human review), with configurable filtering, rate limiting, Slack notifications, and confidence/risk thresholds. This enables continuous cluster health monitoring with intelligent auto-healing capabilities.
+
 ### How AI-Driven Investigation Works
 
 **Traditional Problem**: Basic kubectl commands show symptoms but require manual analysis to identify root causes.
