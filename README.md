@@ -68,7 +68,7 @@ AI: Gets pre-filtered relevant resources with rich context
 Result: Finds sqls.devopstoolkit.live as perfect match ✨
 ```
 
-📖 [Learn more about capability management →](./docs/mcp-capability-management-guide.md)
+📖 [Learn more →](./docs/mcp-capability-management-guide.md)
 
 ### Kubernetes Issue Remediation
 🔍 **AI-Powered Root Cause Analysis**: Multi-step investigation loop identifies the real cause behind Kubernetes failures  
