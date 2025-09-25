@@ -51,8 +51,10 @@ export OPENAI_API_KEY="sk-proj-..."
 Install the MCP server using the published Helm chart:
 
 ```bash
-# Install from GitHub Container Registry OCI artifact
-helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.85.0 \
+# Set the version from https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai%2Fcharts%2Fdot-ai
+export DOT_AI_VERSION="..."
+
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set ingress.enabled=true \
@@ -63,7 +65,6 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.85.0 \
 ```
 
 **Notes**: 
-- This documentation may use an outdated version. Check the [GitHub Releases](https://github.com/vfarcic/dot-ai/releases) for the latest version and replace `0.83.0` with the current version tag.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
