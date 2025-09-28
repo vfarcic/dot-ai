@@ -405,13 +405,16 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Basic test runner and reporting
 - [ ] Local development documentation
 
-### Milestone 2: Core Tool Test Suites ⬜ (1/5 complete)
-**Deliverable**: Integration tests for primary tools working
-- [ ] Remediate tool integration tests
-- [ ] Recommend tool integration tests
-- [ ] Deploy tool integration tests
-- [x] Version and organizational data tool tests
-- [ ] Test data fixtures and utilities
+### Milestone 2: Core Tool Test Suites ⬜ (1/8 complete)
+**Deliverable**: Integration tests for all tools working
+- [ ] **Recommend tool integration tests** (covers full workflow: recommend → chooseSolution → answerQuestion → generateManifests → deployManifests)
+- [ ] **Remediate tool integration tests**
+- [ ] **TestDocs tool integration tests**
+- [ ] **ManageOrgData: Patterns integration tests** (pattern dataType operations)
+- [ ] **ManageOrgData: Policies integration tests** (policy dataType operations)
+- [ ] **ManageOrgData: Capabilities integration tests** (capabilities dataType operations)
+- [x] **Version tool integration tests**
+- [ ] **Test data fixtures and utilities**
 
 ### Milestone 3: CI/CD Pipeline Integration ⬜
 **Deliverable**: Tests running automatically in GitHub Actions
