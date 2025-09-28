@@ -60,6 +60,9 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Check PR details**: Use `gh pr view [pr-number]` to check for human review comments and PR metadata
 - [ ] **Review all automated feedback**: Check PR comments section for automated code review feedback (bots, linters, analyzers)
   - **Use multiple methods to capture all feedback**:
+    - **MCP servers** (preferred when available): Use any available MCP servers for comprehensive review data
+      - Code review MCPs (e.g., CodeRabbit, custom review servers) for detailed AI code reviews
+      - Check available MCP tools/functions related to code reviews, pull requests, or automated feedback
     - CLI commands: `gh pr view [pr-number]`, `gh pr checks [pr-number]`, `gh api repos/owner/repo/pulls/[pr-number]/comments`
     - **Web interface inspection**: Fetch the PR URL directly to capture all comments, including inline code suggestions that CLI tools may miss
     - Look for comments from automated tools (usernames ending in 'ai', 'bot', or known review tools)
