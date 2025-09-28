@@ -178,7 +178,7 @@ ${response.content}`;
       if (this.apiKey.startsWith('sk-ant-') && this.client) {
         // Make real API call to Claude with streaming
         const stream = await this.client.messages.create({
-          model: 'claude-sonnet-4-20250514', // Latest Claude Sonnet 4 - check for newer versions periodically
+          model: process.env.MODEL || 'claude-sonnet-4-20250514', // Latest Claude Sonnet 4
           max_tokens: 64000,
           messages: [{ role: 'user', content: message }],
           stream: true // Enable streaming by default to support long operations (>10 minutes)

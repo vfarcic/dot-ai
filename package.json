@@ -18,6 +18,11 @@
     "test:verbose": "jest --verbose",
     "test:watch": "jest --watch --silent",
     "test:coverage": "jest --coverage --silent",
+    "test:integration:setup": "./tests/integration/infrastructure/setup-cluster.sh",
+    "test:integration:teardown": "./tests/integration/infrastructure/teardown-cluster.sh",
+    "test:integration:server": "KUBECONFIG=./kubeconfig-test.yaml PORT=3456 DOT_AI_SESSION_DIR=./tmp/sessions TRANSPORT_TYPE=http QDRANT_URL=http://localhost:6333 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY OPENAI_API_KEY=$OPENAI_API_KEY node dist/mcp/server.js",
+    "test:integration": "vitest run --config=vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config=vitest.integration.config.ts",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",
@@ -76,12 +81,14 @@
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^8.0.0",
     "jest": "^29.5.0",
     "prettier": "^3.0.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
@@ -101,6 +108,9 @@
     "roots": [
       "<rootDir>/src",
       "<rootDir>/tests"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/tests/integration/"
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
