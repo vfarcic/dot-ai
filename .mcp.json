@@ -10,6 +10,13 @@
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
         "QDRANT_URL": "http://localhost:6333"
       }
+    },
+    "coderabbitai": {
+      "command": "npx",
+      "args": ["coderabbitai-mcp@latest"],
+      "env": {
+        "GITHUB_PAT": "${GITHUB_TOKEN}"
+      }
     }
   }
 }
