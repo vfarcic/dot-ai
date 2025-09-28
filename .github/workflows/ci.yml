@@ -30,7 +30,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci --legacy-peer-deps
+      run: npm ci
     
     - name: Create mock kubeconfig for tests
       run: |
@@ -82,7 +82,7 @@ jobs:
         cache: 'npm'
         
     - name: Install dependencies
-      run: npm ci --legacy-peer-deps
+      run: npm ci
       
     - name: Build project
       run: npm run build
@@ -172,7 +172,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci --legacy-peer-deps
+      run: npm ci
     
     - name: Build project
       run: npm run build
