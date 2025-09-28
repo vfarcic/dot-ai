@@ -377,7 +377,7 @@ As integration tests are validated for each component, corresponding unit tests 
 
 #### Phase 4: Final Cleanup
 - Delete: tests/setup.ts, tests/__mocks__/, unit test configurations
-- Update: jest.config.js, package.json to remove unit test references
+- Update: Remove jest.config.js completely, update package.json to remove unit test references
 - **End State**: Zero unit tests, only integration tests remain
 
 ### Deletion Criteria
@@ -397,7 +397,7 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Implement namespace-based test isolation
 - [x] **Create IntegrationTest base class for common operations**
 - [ ] **Build reusable test helpers and assertions**
-- [ ] Configure parallel test execution with Jest
+- [ ] Configure parallel test execution with Vitest
 - [ ] Create selective test execution scripts
 - [x] HTTP client for REST API gateway communication
 - [x] Kubernetes client setup for cluster validation
@@ -433,11 +433,11 @@ Unit tests can be deleted when integration tests demonstrate:
 - [ ] Coverage reporting and gap analysis
 
 ### Milestone 5: Unit Test Elimination ⬜ (1/5 complete)
-**Deliverable**: Complete removal of all unit tests
-- [ ] Phase 1: Delete tool unit tests (1/9 files complete)
-- [ ] Phase 2: Delete core unit tests (20+ files)
-- [ ] Phase 3: Delete interface unit tests (2 files)
-- [ ] Phase 4: Remove test infrastructure and mocks
+**Deliverable**: Complete removal of all unit tests (deleted incrementally as integration tests are completed)
+- [ ] Phase 1: Delete tool unit tests (1/9 files complete - deleted immediately as integration tests prove coverage)
+- [ ] Phase 2: Delete core unit tests (20+ files - deleted as integration tests validate core functionality)
+- [ ] Phase 3: Delete interface unit tests (2 files - deleted when interface integration tests complete)
+- [ ] Phase 4: Remove test infrastructure and mocks (jest.config.js, tests/setup.ts, tests/__mocks__/)
 - [ ] Update documentation to reflect integration-only testing
 
 ### Milestone 6: Production Readiness ⬜
@@ -669,8 +669,12 @@ await kubectl(`delete namespace ${namespace} --wait`); // ❌ Same problem
 
 **Configuration**:
 ```javascript
-// jest.config.js
-maxWorkers: process.env.CI ? 10 : 5  // More parallelism in CI
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    maxConcurrency: process.env.CI ? 10 : 5  // More parallelism in CI
+  }
+});
 ```
 
 **Benefits**:
@@ -737,7 +741,7 @@ maxWorkers: process.env.CI ? 10 : 5  // More parallelism in CI
 8. **Selective Test Execution** (2025-01-28)
    - **Decision**: Support running individual tests or test groups
    - **Rationale**: Full suite takes 5+ minutes; developers need fast feedback
-   - **Implementation**: Jest patterns, npm scripts for common scenarios
+   - **Implementation**: Vitest patterns, npm scripts for common scenarios
    - **Benefit**: 15-30 second feedback for single test
 
 9. **Resource Cleanup Strategy** (2025-01-28)
@@ -756,7 +760,7 @@ maxWorkers: process.env.CI ? 10 : 5  // More parallelism in CI
 11. **Parallel Test Execution** (2025-01-28)
    - **Decision**: Run integration tests in parallel with 10-20 workers
    - **Rationale**: Namespace isolation enables safe parallel execution
-   - **Implementation**: Jest maxWorkers configuration, tuned cluster resources
+   - **Implementation**: Vitest maxWorkers configuration, tuned cluster resources
    - **Expected Speedup**: 10-20x (from 30+ min to 3-5 min)
    - **Trade-off**: Higher resource usage for dramatically faster feedback
 
