@@ -31,6 +31,12 @@ The dot-ai MCP server implements the standard MCP Prompts specification, exposin
 
 When you connect to the MCP server, your coding agent automatically discovers available prompts and makes them accessible through agent-specific interfaces. The access method varies by agent - some use slash commands, others integrate prompts as available tools.
 
+## See MCP Prompts in Action
+
+[![Using PRD Prompts with DevOps AI Toolkit](https://img.youtube.com/vi/LUFJuj1yIik/maxresdefault.jpg)](https://youtu.be/LUFJuj1yIik)
+
+This video demonstrates how to use the PRD (Product Requirements Document) prompts served by the DevOps AI Toolkit MCP server. Watch how to create, manage, and work through complete PRD workflows using the shared prompts library with conversational AI agents.
+
 ## Using Shared Prompts
 
 ### Discovering Available Prompts
