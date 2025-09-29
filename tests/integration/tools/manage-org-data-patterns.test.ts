@@ -28,14 +28,6 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
     });
   });
 
-  beforeEach(async () => {
-    await integrationTest.setup('patterns-test');
-    // No deleteAll here - we rely on unique test data and shared clean state
-  });
-
-  afterEach(async () => {
-    await integrationTest.cleanup();
-  });
 
   describe('Pattern Creation Workflow', () => {
     test('should complete full interactive pattern creation workflow', async () => {

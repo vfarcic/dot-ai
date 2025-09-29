@@ -41,9 +41,9 @@ describe('CapabilityVectorService', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
-    
-    // Create service with mocked dependencies
-    service = new CapabilityVectorService(mockVectorDB, mockEmbeddingService);
+
+    // Create service with mocked dependencies (undefined uses default 'capabilities' collection)
+    service = new CapabilityVectorService(undefined, mockVectorDB, mockEmbeddingService);
     
     // Sample capability for testing
     mockCapability = {

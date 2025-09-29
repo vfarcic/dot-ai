@@ -106,11 +106,11 @@ if docker ps -a --format "table {{.Names}}" | grep -q "^qdrant-test$"; then
     docker rm -f qdrant-test
 fi
 
-# Start Qdrant container on host
+# Start Qdrant container on host with pre-populated test data
 docker run -d \
     --name qdrant-test \
     -p 6333:6333 \
-    qdrant/qdrant:latest
+    ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest
 
 # Wait for Qdrant to be ready
 echo "⏳ Waiting for Qdrant to be ready..."

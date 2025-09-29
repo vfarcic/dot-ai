@@ -82,19 +82,21 @@ def "main destroy" [] {
 
 }
 
-def "main build qdrant-image" [version: string] {
-    
-    let repo = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
-    
+def "main build qdrant-image" [
+    version: string,
+    --container: string = "qdrant",
+    --repo: string = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
+] {
+
     print "Extracting data from running Qdrant container..."
-    
+
     # Remove existing qdrant_storage directory if it exists at root
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) > 0 {
         rm --recursive --force qdrant_storage
     }
-    
+
     # Extract data from the running Qdrant container to root directory
-    docker container cp qdrant:/qdrant/storage ./qdrant_storage
+    docker container cp $"($container):/qdrant/storage" ./qdrant_storage
     
     # Verify the data was extracted successfully
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) == 0 {

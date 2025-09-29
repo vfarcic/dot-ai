@@ -28,65 +28,6 @@ export class IntegrationTest {
   }
 
   /**
-   * Setup test environment with unique namespace
-   * @param testName - Base name for the test (will be sanitized)
-   */
-  async setup(testName?: string): Promise<void> {
-    const sanitizedName = this.sanitizeName(testName || 'test');
-    const timestamp = Date.now();
-    const workerId = process.env.JEST_WORKER_ID || '1';
-
-    // Create unique namespace: test-{workerId}-{name}-{timestamp}
-    // Add UUID to prevent namespace collisions in concurrent tests
-    const uuid = crypto.randomUUID().slice(0, 8); // First 8 chars of UUID
-    this.namespace = `test-${workerId}-${sanitizedName}-${timestamp}-${uuid}`;
-
-    try {
-      // Create namespace
-      const namespace = {
-        metadata: {
-          name: this.namespace,
-          labels: {
-            'dot-ai/test': 'true',
-            'dot-ai/worker': workerId,
-            'dot-ai/test-name': sanitizedName,
-          },
-        },
-      };
-
-      await this.k8sApi.createNamespace({ body: namespace });
-
-      console.log(`Created test namespace: ${this.namespace}`);
-    } catch (error) {
-      throw new Error(`Failed to create test namespace ${this.namespace}: ${error}`);
-    }
-  }
-
-  /**
-   * Cleanup test environment by deleting namespace
-   * Uses --wait=false for async deletion to avoid blocking
-   */
-  async cleanup(): Promise<void> {
-    if (!this.namespace) {
-      return; // Nothing to clean up
-    }
-
-    try {
-      // Delete namespace without waiting for completion (async deletion)
-      await this.k8sApi.deleteNamespace({
-        name: this.namespace,
-        body: {
-          propagationPolicy: 'Background'
-        }
-      });
-      console.log(`Initiated deletion of test namespace: ${this.namespace} (async)`);
-    } catch (error) {
-      // Log warning but don't fail tests due to cleanup issues
-      console.warn(`Warning: Failed to delete test namespace ${this.namespace}: ${error}`);
-    }
-  }
-
-  /**
    * Create a pod in the test namespace
    */
   async createPod(name: string, spec: k8s.V1PodSpec): Promise<k8s.V1Pod> {
@@ -208,6 +149,28 @@ export class IntegrationTest {
       namespace: this.namespace
     });
     return response.items || [];
+  }
+
+  /**
+   * Execute kubectl command using the test kubeconfig
+   * @param command - kubectl command without the "kubectl" prefix
+   * @returns stdout from the kubectl command
+   */
+  async kubectl(command: string): Promise<string> {
+    const { execSync } = await import('child_process');
+    const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
+
+    try {
+      const output = execSync(`kubectl --kubeconfig=${kubeconfig} ${command}`, {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return output;
+    } catch (error: any) {
+      // Return empty string for errors (e.g., resources not found)
+      // The --ignore-not-found flag handles most of these gracefully
+      return error.stdout || '';
+    }
   }
 
   /**

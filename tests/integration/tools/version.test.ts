@@ -23,13 +23,6 @@ describe('Version Tool Integration', () => {
     expect(process.env.MODEL).toBe('claude-3-haiku-20240307');
   });
 
-  beforeEach(async () => {
-    await integrationTest.setup('version-test');
-  });
-
-  afterEach(async () => {
-    await integrationTest.cleanup();
-  });
 
   describe('System Status via REST API', () => {
     test('should return comprehensive system status with correct structure', async () => {

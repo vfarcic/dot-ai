@@ -405,13 +405,13 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Basic test runner and reporting
 - [ ] Local development documentation
 
-### Milestone 2: Core Tool Test Suites ✅ (3/8 complete)
+### Milestone 2: Core Tool Test Suites 🔄 (4/8 complete)
 **Deliverable**: Integration tests for all tools working
 - [ ] **Recommend tool integration tests** (covers full workflow: recommend → chooseSolution → answerQuestion → generateManifests → deployManifests)
 - [ ] **Remediate tool integration tests**
 - [ ] **TestDocs tool integration tests**
 - [x] **ManageOrgData: Patterns integration tests** (pattern dataType operations) - 9/9 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, trigger expansion handling, and consistent validation patterns
-- [ ] **ManageOrgData: Policies integration tests** (policy dataType operations)
+- [x] **ManageOrgData: Policies integration tests** (policy dataType operations) - 10/10 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, store-intent-only workflow (generates Kyverno policy but doesn't deploy), Kyverno ClusterPolicy deployment validation, and error handling
 - [x] **ManageOrgData: Capabilities integration tests** (capabilities dataType operations) - 16/16 tests passing with comprehensive CRUD, workflow, and error handling
 - [x] **Version tool integration tests**
 - [ ] **Test data fixtures and utilities**
@@ -872,6 +872,49 @@ export default defineConfig({
 **Next Session Priorities**:
 - Implement ManageOrgData policies integration tests (final ManageOrgData dataType)
 - Implement recommend tool integration tests (complex multi-step workflow)
+- Complete local development documentation (final Milestone 1 requirement)
+- Begin CI/CD pipeline integration planning (Milestone 3)
+
+### 2025-09-30: ManageOrgData Policies Integration Testing Complete
+**Duration**: ~2 hours (estimated from conversation and implementation)
+**Commits**: Multiple commits with test implementation and refinements
+**Primary Focus**: Complete policy integration testing with comprehensive workflow validation and infrastructure optimization
+
+**Completed PRD Items**:
+- [x] **ManageOrgData: Policies integration tests** - Evidence: 10/10 tests passing in `tests/integration/tools/manage-org-data-policies.test.ts`
+
+**Key Technical Achievements**:
+- **Complete 7-step workflow validation**: description → triggers → trigger-expansion → rationale → created-by → namespace-scope → kyverno-generation → complete
+- **Store-intent-only workflow**: Generates Kyverno policy YAML but skips cluster deployment, stores intent in Vector DB only
+- **Apply-to-cluster workflow**: Complete policy creation with Kyverno ClusterPolicy deployment to cluster
+- **Kyverno ClusterPolicy deployment verification**: Validates policy exists in cluster with correct labels and matches generated YAML
+- **Vector DB storage validation**: Confirms policy intents stored with correct structure and searchable metadata
+- **Comprehensive CRUD operations**: GET by ID, LIST all policies, SEARCH by semantic query, DELETE with confirmation
+- **Error handling**: Invalid operations, missing parameters, non-existent resources, invalid session IDs
+
+**Additional Infrastructure Work**:
+- **Removed unnecessary namespace creation**: Deleted `setup()` and `cleanup()` methods from IntegrationTest base class (lines 30-87)
+- **Removed namespace lifecycle hooks**: Deleted `beforeEach`/`afterEach` calls from all 4 test files (version, capabilities, patterns, policies)
+- **Performance improvement**: Eliminated 2-3 seconds × 35 tests = ~70-100 seconds overhead per test run
+- **Cleaner test output**: No more "failed to delete namespace" warnings in test results
+- **Rationale**: Current tests don't deploy resources to namespaces; namespace utilities will be added back when needed for deploy/remediate tests
+
+**Test Results**: 35/35 tests passing (100% pass rate)
+- Version: 4/4 tests
+- Capabilities: 16/16 tests
+- Patterns: 9/9 tests
+- Policies: 10/10 tests
+
+**Technical Discoveries**:
+- Kyverno generation happens synchronously during namespace-scope response (takes 20-30 seconds but returns directly to complete step)
+- Store-intent-only choice happens at complete/review step AFTER all workflow questions and Kyverno generation
+- Namespace scope is asked even for store-intent-only because workflow doesn't know user's choice until the end
+- No polling needed for Kyverno generation - it completes before response is returned
+
+**Next Session Priorities**:
+- Implement Recommend tool integration tests (complex multi-step workflow with solution selection)
+- Implement Remediate tool integration tests (AI-powered issue analysis and remediation)
+- Implement TestDocs tool integration tests (documentation validation workflows)
 - Complete local development documentation (final Milestone 1 requirement)
 - Begin CI/CD pipeline integration planning (Milestone 3)
 

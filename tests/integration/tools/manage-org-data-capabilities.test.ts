@@ -28,14 +28,6 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     });
   });
 
-  beforeEach(async () => {
-    await integrationTest.setup('capabilities-test');
-    // No deleteAll here - we rely on unique test data and shared clean state
-  });
-
-  afterEach(async () => {
-    await integrationTest.cleanup();
-  });
 
   describe('Capabilities Scanning Workflow', () => {
     test('should complete full auto scan workflow from start to finish', async () => {
