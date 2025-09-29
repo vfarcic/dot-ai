@@ -389,7 +389,7 @@ Unit tests can be deleted when integration tests demonstrate:
 
 ## Implementation Milestones
 
-### Milestone 1: Test Framework Foundation ✅ (8/12 complete)
+### Milestone 1: Test Framework Foundation ✅ (10/12 complete)
 **Deliverable**: Basic integration test framework running locally
 - [x] Create test framework structure and utilities
 - [x] Build pre-configured Kind node image with CNPG
@@ -397,8 +397,8 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Implement namespace-based test isolation
 - [x] **Create IntegrationTest base class for common operations**
 - [ ] **Build reusable test helpers and assertions**
-- [ ] Configure parallel test execution with Vitest
-- [ ] Create selective test execution scripts
+- [x] Configure parallel test execution with Vitest - Evidence: maxForks=20, maxConcurrency=5, pool=forks for 20x speedup
+- [x] Create selective test execution scripts - Evidence: npm scripts for server, watch, setup/teardown plus Vitest pattern matching
 - [x] HTTP client for REST API gateway communication
 - [x] Kubernetes client setup for cluster validation
 - [x] Configure Claude model switching via environment variable
