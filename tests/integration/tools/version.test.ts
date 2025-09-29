@@ -190,7 +190,7 @@ describe('Version Tool Integration', () => {
       expect(Array.isArray(pods)).toBe(true); // Namespace should exist and be accessible
 
       // Verify test namespace follows expected naming pattern (necessary for isolation)
-      expect(integrationTest.namespace).toMatch(/^test-\d+-version-test-\d+$/);
+      expect(integrationTest.namespace).toMatch(/^test-\d+-version-test-\d+-[a-f0-9]+$/);
     });
   });
 

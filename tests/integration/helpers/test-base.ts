@@ -37,7 +37,9 @@ export class IntegrationTest {
     const workerId = process.env.JEST_WORKER_ID || '1';
 
     // Create unique namespace: test-{workerId}-{name}-{timestamp}
-    this.namespace = `test-${workerId}-${sanitizedName}-${timestamp}`;
+    // Add UUID to prevent namespace collisions in concurrent tests
+    const uuid = crypto.randomUUID().slice(0, 8); // First 8 chars of UUID
+    this.namespace = `test-${workerId}-${sanitizedName}-${timestamp}-${uuid}`;
 
     try {
       // Create namespace
