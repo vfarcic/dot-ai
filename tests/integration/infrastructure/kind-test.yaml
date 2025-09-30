@@ -3,6 +3,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: dot-test
 nodes:
 - role: control-plane
+  image: kindest/node:v1.33.1@sha256:0cb000cf5db1f82d1c27b47ef12bc9a6cebaf7a7b3ba1ba58e11d84eb6648ed8
   kubeadmConfigPatches:
   - |-
     kind: InitConfiguration
