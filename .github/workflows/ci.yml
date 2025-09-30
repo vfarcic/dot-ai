@@ -18,49 +18,62 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
-      
+
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
         node-version: '22.x'
         cache: 'npm'
-    
+
     - name: Install dependencies
       run: npm ci
-    
-    - name: Create mock kubeconfig for tests
-      run: |
-        cat > kubeconfig.yaml << 'EOF'
-        apiVersion: v1
-        kind: Config
-        clusters:
-        - cluster:
-            server: https://test-cluster.example.com
-          name: test-cluster
-        contexts:
-        - context:
-            cluster: test-cluster
-            user: test-user
-          name: test-context
-        current-context: test-context
-        users:
-        - name: test-user
-          user:
-            token: fake-token
-        EOF
-    
+
     - name: Run linter
       run: npm run lint
-    
+
     - name: Build project
       run: npm run build
-    
-    - name: Run tests
-      run: npm test -- --verbose
+
+    - name: Install kubectl
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+
+    - name: Install Kind
+      run: |
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+
+    - name: Install Helm
+      run: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    - name: Create Kind cluster with operators
+      run: npm run test:integration:setup
+      timeout-minutes: 8
+
+    - name: Start MCP server
+      run: |
+        npm run test:integration:server &
+        sleep 10
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    - name: Run integration tests
+      run: npm run test:integration
+      timeout-minutes: 15
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   security:
     name: Security Analysis
@@ -223,7 +236,7 @@ jobs:
         password: ${{ secrets.GHCR_TOKEN }}
     
     - name: Build and push Docker image
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v5
       with:
         context: .
         push: true
