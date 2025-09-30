@@ -52,7 +52,10 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   }).optional().describe('Kubernetes resource reference (for capabilities operations)'),
   
   // Resource list for specific resource scanning
-  resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)')
+  resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)'),
+
+  // Collection name for capabilities (allows using different collections for different purposes)
+  collection: z.string().optional().describe('Collection name for capabilities operations (default: "capabilities", use "capabilities-policies" for pre-populated test data)')
 };
 
 /**
@@ -444,7 +447,8 @@ async function handleCapabilityScan(
 ): Promise<any> {
   // Validate Vector DB and embedding service dependencies upfront
   // This prevents users from going through the entire workflow only to fail at storage
-  const capabilityService = new CapabilityVectorService();
+  // Use collection from args if provided (for testing with pre-populated data)
+  const capabilityService = new CapabilityVectorService(args.collection);
   
   // Check Vector DB connection and initialize collection
   try {

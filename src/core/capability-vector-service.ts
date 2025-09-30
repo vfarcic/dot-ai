@@ -31,9 +31,9 @@ export interface CapabilitySearchOptions extends BaseSearchOptions {
  * Vector service for storing and searching resource capabilities
  */
 export class CapabilityVectorService extends BaseVectorService<ResourceCapability> {
-  
-  constructor(vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super('capabilities', vectorDB, embeddingService);
+
+  constructor(collectionName: string = 'capabilities', vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
+    super(collectionName, vectorDB, embeddingService);
   }
 
   /**

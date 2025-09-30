@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: invalid-configmap
-  # Missing namespace but that's just a warning
-unknownField: this-should-cause-validation-error
-data:
-  config.yaml: test-value

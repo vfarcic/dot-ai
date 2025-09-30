@@ -4,31 +4,31 @@
 
 **🔴 BEFORE MARKING ANY TASK/SUBTASK AS COMPLETE:**
 
-□ **Tests Written**: Write tests for new functionality (can be after implementation)
-□ **All Tests Pass**: Run `npm test` - ALL tests must pass  
+□ **Integration Tests Written**: Write integration tests for new functionality
+□ **All Tests Pass**: Run `npm run test:integration` - ALL tests must pass
 □ **No Test Failures**: Fix any failing tests before proceeding
 □ **CLAUDE.md Updated**: Update this file if new features/commands/structure added
 
 **❌ TASK IS NOT COMPLETE IF:**
-- Any tests are failing
-- New code lacks test coverage  
-- You haven't run `npm test` to verify
+- Any integration tests are failing
+- New code lacks integration test coverage
+- You haven't run `npm run test:integration` to verify
 
 ## PERMANENT INSTRUCTIONS
 
 **CRITICAL DEVELOPMENT RULES - NEVER OVERRIDE:**
 
-1. **Always Write Tests**: When making code changes, you MUST write or update tests to validate the changes
-2. **Always Run All Tests**: Before marking any task as complete, run `npm test` to ensure all tests pass  
+1. **Always Write Integration Tests**: When making code changes, you MUST write or update integration tests to validate the changes
+2. **Always Run All Tests**: Before marking any task as complete, run `npm run test:integration` to ensure all tests pass
 3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing - fix all test failures first
-4. **Test-Driven Validation**: Changes are only considered successful when validated by passing tests
+4. **Test-Driven Validation**: Changes are only considered successful when validated by passing integration tests
 5. **Always Check for Reusability**: Before implementing new functionality, ALWAYS search the codebase for existing similar functions or utilities that can be reused or extended. Never duplicate code - create shared utilities instead.
 6. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
 
 ## 🛑 TESTING WORKFLOW
 
-- **Implementation flow**: Code → Tests → `npm test` → Mark complete
-- **Detailed testing standards**: See `tests/CLAUDE.md` for comprehensive testing guidelines
+- **Implementation flow**: Code → Integration Tests → `npm run test:integration` → Mark complete
+- **Integration testing standards**: See `tests/integration/CLAUDE.md` for comprehensive integration testing patterns
 
 ## Project Overview
 
@@ -44,7 +44,7 @@
 
 ```bash
 # Development commands
-npm test                                            # Run all tests
+npm run test:integration                            # Run integration tests
 npm run build                                       # Build the project
 npm run start:mcp                                   # Start MCP server
 ```
@@ -111,21 +111,25 @@ src/
 └── ...
 
 docs/                    # All documentation
-tests/                   # Comprehensive test suite (349+ tests)
+tests/integration/       # Integration test suite
 prompts/                 # AI prompt templates
 ```
 
 ### Development Commands
 
 **Essential Commands:**
-- **Run tests**: `npm test`
+- **Run integration tests**: `npm run test:integration`
 - **Build**: `npm run build`
 
-**Testing:** See `tests/CLAUDE.md` for detailed testing standards and workflows.
+**Testing:** See `tests/integration/CLAUDE.md` for detailed integration testing standards and workflows.
 **MCP Usage:** Always test MCP functionality through Claude Code or other MCP clients, never run server directly.
 
 **Git Commit Guidelines:**
 - **Skip CI**: When user requests to skip CI, avoid triggering CI, or mentions bypassing CI/builds, automatically add `[skip ci]` to the commit message to prevent GitHub Actions from running
+
+**Temporary File Storage:**
+- **Always use `./tmp`**: Never use `/tmp` for temporary files or outputs - always use the project's `./tmp` directory
+- This ensures temporary files stay within the project boundary and follow .gitignore rules
 
 ### Environment Setup
 

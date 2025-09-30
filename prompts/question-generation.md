@@ -125,13 +125,14 @@ Return your response as JSON in this exact format:
         "max": 100,
         "pattern": "^[a-z0-9-]+$"
       },
+      "suggestedAnswer": "example-value"
     }
   ],
   "basic": [
     // same format as required
   ],
   "advanced": [
-    // same format as required  
+    // same format as required
   ],
   "open": {
     "question": "Is there anything else about your requirements or constraints that would help us provide better recommendations?",
@@ -143,6 +144,7 @@ Return your response as JSON in this exact format:
 ## Important Notes
 
 - **CRITICAL**: Only ask questions about properties explicitly defined in the provided resource schemas
+- **REQUIRED**: Each question must include a `suggestedAnswer` field with a valid example value that passes the validation rules
 - **Generate comprehensive questions** covering all meaningful configuration options available in the resource schemas
 - Focus on questions that actually affect the generated manifests based on the actual schema
 - **Prefer explicit configuration over defaults** - give users control over important settings even if reasonable defaults exist
