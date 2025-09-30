@@ -103,15 +103,11 @@ def "main build qdrant-image" [
         error "Failed to extract qdrant_storage from container"
     }
     
-    print $"Building qdrant image with version ($version)..."
-    docker image build --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" .
-    
+    print $"Building multi-arch qdrant image with version ($version)..."
+    docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" --push .
+
     print "Cleaning up extracted data files..."
     rm --recursive --force qdrant_storage
-    
-    print $"Pushing qdrant image..."
-    docker image push $"($repo):($version)"
-    docker image push $"($repo):latest"
-    
-    print $"Image pushed successfully: ($repo):($version) and ($repo):latest"
+
+    print $"Multi-arch image built and pushed successfully: ($repo):($version) and ($repo):latest"
 }
