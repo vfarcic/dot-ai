@@ -94,7 +94,6 @@ export class HttpRestApiClient {
     const options = {
       method,
       headers: requestHeaders,
-      timeout: this.timeout,
     };
 
     return new Promise((resolve, reject) => {
@@ -116,6 +115,8 @@ export class HttpRestApiClient {
           }
         });
       });
+
+      req.setTimeout(this.timeout);
 
       req.on('error', (error) => {
         reject(new Error(`Request failed: ${error.message}`));
