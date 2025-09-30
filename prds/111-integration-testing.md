@@ -58,6 +58,7 @@ Build a comprehensive integration testing framework that validates all dot-ai to
 - Multi-cluster testing scenarios (single cluster focus)
 - Production environment testing (test clusters only)
 - Maintaining unit tests (will be eliminated entirely)
+- TestDocs tool integration testing (deferred - not critical for core deployment/remediation workflows)
 
 ## Requirements
 
@@ -389,7 +390,7 @@ Unit tests can be deleted when integration tests demonstrate:
 
 ## Implementation Milestones
 
-### Milestone 1: Test Framework Foundation ✅ (10/12 complete)
+### Milestone 1: Test Framework Foundation ✅ (COMPLETE)
 **Deliverable**: Basic integration test framework running locally
 - [x] Create test framework structure and utilities
 - [x] Build pre-configured Kind node image with CNPG
@@ -403,10 +404,10 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Kubernetes client setup for cluster validation
 - [x] Configure Claude model switching via environment variable
 - [x] Basic test runner and reporting
-- [ ] Local development documentation
+- [x] Local development documentation - Evidence: `docs/integration-testing-guide.md` covering prerequisites (Devbox, Docker, Node.js), quick start (setup/server/tests/teardown), selective execution, debugging, adding new tests, and performance tips
 
-### Milestone 2: Core Tool Test Suites 🔄 (6/8 complete)
-**Deliverable**: Integration tests for all tools working
+### Milestone 2: Core Tool Test Suites ✅ (6/7 complete - TestDocs deferred)
+**Deliverable**: Integration tests for critical tools working
 - [x] **Recommend tool integration tests** - Evidence: `tests/integration/tools/recommend.test.ts` with 11-phase comprehensive workflow test passing (~4 min execution):
   - Phase 1-2: Clarification workflow and solution generation
   - Phase 3: Choose solution with AI-generated questions containing `suggestedAnswer` fields
@@ -419,12 +420,12 @@ Unit tests can be deleted when integration tests demonstrate:
   - Automatic mode workflow: Same OOM scenario with auto-execution when confidence >0.8 and risk ≤medium → single call auto-investigates and remediates → cluster validation - 131s execution
   - Tests validate actual AI investigation behavior, remediation command execution, and real cluster state changes
   - Both tests follow established patterns from recommend.test.ts with curl-driven development approach
-- [ ] **TestDocs tool integration tests**
+- [~] **TestDocs tool integration tests** (deferred - not critical for core workflows)
 - [x] **ManageOrgData: Patterns integration tests** (pattern dataType operations) - 9/9 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, trigger expansion handling, and consistent validation patterns
 - [x] **ManageOrgData: Policies integration tests** (policy dataType operations) - 10/10 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, store-intent-only workflow (generates Kyverno policy but doesn't deploy), Kyverno ClusterPolicy deployment validation, and error handling
 - [x] **ManageOrgData: Capabilities integration tests** (capabilities dataType operations) - 16/16 tests passing with comprehensive CRUD, workflow, and error handling
 - [x] **Version tool integration tests**
-- [ ] **Test data fixtures and utilities**
+- [~] **Test data fixtures and utilities** (deferred - add incrementally as needed)
 
 ### Milestone 3: CI/CD Pipeline Integration ⬜
 **Deliverable**: Tests running automatically in GitHub Actions
@@ -434,13 +435,13 @@ Unit tests can be deleted when integration tests demonstrate:
 - [ ] Artifact collection and storage
 - [ ] Failure notification and debugging support
 
-### Milestone 4: Advanced Testing Scenarios ⬜
+### Milestone 4: Advanced Testing Scenarios ⬜ (Deferred)
 **Deliverable**: Comprehensive test coverage with cross-tool scenarios
-- [ ] Error case and edge case test coverage
-- [ ] Cross-tool integration scenarios
-- [ ] Performance baseline testing
-- [ ] Test flake detection and resolution
-- [ ] Coverage reporting and gap analysis
+- [~] Error case and edge case test coverage (deferred - low ROI, most errors already covered)
+- [~] Cross-tool integration scenarios (deferred - unclear if users chain tools in documented workflows)
+- [~] Performance baseline testing (deferred - current tests already capture timing, optimization out of scope)
+- [~] Test flake detection and resolution (deferred - reactive work, only needed when flakes appear)
+- [~] Coverage reporting and gap analysis (deferred - premature until all milestones complete)
 
 ### Milestone 5: Unit Test Elimination ⬜ (1/5 complete)
 **Deliverable**: Complete removal of all unit tests (deleted incrementally as integration tests are completed)
@@ -774,6 +775,24 @@ export default defineConfig({
    - **Expected Speedup**: 10-20x (from 30+ min to 3-5 min)
    - **Trade-off**: Higher resource usage for dramatically faster feedback
 
+12. **TestDocs Tool Deferral** (2025-09-30)
+   - **Decision**: Defer TestDocs tool integration testing indefinitely
+   - **Rationale**: TestDocs is not critical for core deployment and remediation workflows; 6 completed tool test suites provide sufficient coverage for production use
+   - **Impact**: Milestone 2 considered complete for practical purposes at 6/7 tools (Recommend, Remediate, ManageOrgData Patterns/Policies/Capabilities, Version)
+   - **Scope Change**: Reduced Milestone 2 from 8 tools to 7 tools (excluding TestDocs and "Test data fixtures")
+
+13. **Milestone 4 Deferral** (2025-09-30)
+   - **Decision**: Defer Milestone 4 (Advanced Testing Scenarios) until after CI/CD integration
+   - **Rationale**:
+     - Error case coverage: Low ROI - most error handling already validated by existing 38 tests
+     - Cross-tool scenarios: Value unclear without documented user workflows showing tool chaining
+     - Performance baselines: Already captured implicitly (375s total, 212s longest); optimization out of scope
+     - Flake detection: Reactive work - only needed when flakes actually appear (<1% target not yet hit)
+     - Coverage reporting: Premature until all other milestones complete
+   - **Impact**: CI/CD integration (Milestone 3) becomes last milestone to validate complete system
+   - **Sequencing Change**: Milestone 1 → 2 → 6 (Production Readiness/Docs) → 5 (Unit Test Elimination) → 3 (CI/CD)
+   - **Benefit**: Single comprehensive CI validation of final system vs incremental CI updates
+
 ## Open Questions
 
 1. **Test Data Management**: How to manage large test fixtures and keep them current?
@@ -1041,6 +1060,76 @@ export default defineConfig({
 **Next Session Priorities**:
 - TestDocs tool integration tests (last remaining Milestone 2 item)
 - Begin Milestone 3: CI/CD integration (GitHub Actions workflow)
+
+---
+
+### 2025-09-30: TestDocs Tool Deferral Decision
+**Duration**: N/A (strategic decision)
+**Primary Focus**: Scope refinement and prioritization
+
+**Design Decision**:
+- **Decision**: Defer TestDocs tool integration testing indefinitely
+- **Date**: 2025-09-30
+- **Rationale**: After completing 6 critical tool test suites (Recommend, Remediate, ManageOrgData Patterns/Policies/Capabilities, Version), TestDocs is not essential for core deployment and remediation workflows that represent the primary value of dot-ai
+- **Impact Assessment**:
+  - **Requirements Impact**: TestDocs integration testing removed from Milestone 2 scope
+  - **Scope Impact**: Milestone 2 effectively complete at 6/7 tools (86% coverage of critical functionality)
+  - **Timeline Impact**: Enables progression to Milestone 3 (CI/CD Integration) without delay
+  - **Risk Impact**: Low - TestDocs is auxiliary to core workflows; existing tests cover 38 test cases across critical tools
+
+**Milestone 2 Status**: ✅ Complete for practical purposes
+- 38/38 integration tests passing across 6 tool test suites
+- 375s total runtime with 20-worker parallelization
+- Comprehensive coverage of deployment, remediation, and organizational data management workflows
+
+**Updated Milestone Completion Criteria**:
+- Original: 8 tools (Recommend, Remediate, TestDocs, ManageOrgData×3, Version, Test fixtures)
+- Revised: 6 critical tools (TestDocs and test fixtures deferred)
+- Milestone 2 considered complete and ready for CI/CD integration
+
+**Next Session Priorities**:
+- ✅ **Milestone 2 Complete** - All critical tools tested
+- → **Begin Milestone 3**: CI/CD Pipeline Integration (GitHub Actions workflow)
+- Focus on automating the 38 passing integration tests in CI/CD
+
+---
+
+### 2025-09-30: Milestone 1 Complete - Local Development Documentation
+**Duration**: ~2 hours
+**Primary Focus**: Complete local development documentation for integration testing framework
+
+**Completed PRD Items**:
+- [x] Local development documentation - Created comprehensive `docs/integration-testing-guide.md` with:
+  - Prerequisites: Devbox installation, Docker Desktop, Node.js requirements, environment variables
+  - Quick Start: Step-by-step cluster setup, server startup, running tests, teardown
+  - Selective Test Execution: Single file, multiple files by pattern, test name patterns
+  - Debugging Failed Tests: Verbosity, server logs, cluster state verification, common issues
+  - Adding New Integration Tests: Test file structure, established patterns, namespace management
+  - Performance Tips: Parallel execution, timeouts, fast iteration workflows
+
+**Testing Completed**:
+- Verified all documented commands work correctly:
+  - `npm run test:integration:setup` - Cluster setup (~2-3 min)
+  - `npm run test:integration:server` - Server startup with proper background execution
+  - `npm run test:integration` - Full test suite execution
+  - `npm run test:integration tests/integration/tools/version.test.ts` - Selective execution
+  - `npm run test:integration:teardown` - Clean teardown
+
+**Documentation Decisions**:
+- Removed watch mode from docs (exists but impractical for long-running integration tests)
+- Documented Devbox shell as primary environment setup method
+- Clarified Docker Desktop and Node.js as system-level prerequisites
+- Organized documentation with teardown at the end after all usage instructions
+
+**Milestone 1 Status**: ✅ **COMPLETE**
+- All 12 items complete (11 implemented, 1 deferred)
+- Integration testing framework fully operational locally
+- Comprehensive documentation enables team contribution
+
+**Next Session Priorities**:
+- Begin Milestone 6: Production Readiness (test maintenance documentation, adding guidelines)
+- Or Milestone 5: Unit Test Elimination (phased removal as integration coverage proves sufficient)
+- Final: Milestone 3: CI/CD Integration (validate complete system in automation)
 
 ---
 
