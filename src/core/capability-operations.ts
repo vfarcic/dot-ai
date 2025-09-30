@@ -17,10 +17,11 @@ import * as path from 'path';
 
 /**
  * Get initialized capability service
+ * @param collection - Collection name (default: 'capabilities')
  */
-export async function getCapabilityService(): Promise<CapabilityVectorService> {
-  const capabilityService = new CapabilityVectorService();
-  
+export async function getCapabilityService(collection?: string): Promise<CapabilityVectorService> {
+  const capabilityService = new CapabilityVectorService(collection);
+
   // Always ensure proper collection initialization
   try {
     await capabilityService.initialize();
@@ -713,7 +714,8 @@ export async function handleCapabilityCRUD(
   requestId: string
 ): Promise<any> {
   // Create and initialize capability service for CRUD operations
-  const capabilityService = new CapabilityVectorService();
+  // Use collection from args if provided, otherwise defaults to 'capabilities'
+  const capabilityService = new CapabilityVectorService(args.collection);
   try {
     const vectorDBHealthy = await capabilityService.healthCheck();
     if (!vectorDBHealthy) {

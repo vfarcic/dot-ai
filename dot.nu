@@ -82,34 +82,32 @@ def "main destroy" [] {
 
 }
 
-def "main build qdrant-image" [version: string] {
-    
-    let repo = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
-    
+def "main build qdrant-image" [
+    version: string,
+    --container: string = "qdrant",
+    --repo: string = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
+] {
+
     print "Extracting data from running Qdrant container..."
-    
+
     # Remove existing qdrant_storage directory if it exists at root
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) > 0 {
         rm --recursive --force qdrant_storage
     }
-    
+
     # Extract data from the running Qdrant container to root directory
-    docker container cp qdrant:/qdrant/storage ./qdrant_storage
+    docker container cp $"($container):/qdrant/storage" ./qdrant_storage
     
     # Verify the data was extracted successfully
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) == 0 {
         error "Failed to extract qdrant_storage from container"
     }
     
-    print $"Building qdrant image with version ($version)..."
-    docker image build --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" .
-    
+    print $"Building multi-arch qdrant image with version ($version)..."
+    docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" --push .
+
     print "Cleaning up extracted data files..."
     rm --recursive --force qdrant_storage
-    
-    print $"Pushing qdrant image..."
-    docker image push $"($repo):($version)"
-    docker image push $"($repo):latest"
-    
-    print $"Image pushed successfully: ($repo):($version) and ($repo):latest"
+
+    print $"Multi-arch image built and pushed successfully: ($repo):($version) and ($repo):latest"
 }

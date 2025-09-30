@@ -89,6 +89,7 @@ export interface Question {
     pattern?: string;
     message?: string;
   };
+  suggestedAnswer?: any;
   answer?: any;
   // Note: resourceMapping removed - manifest generator handles field mapping
 }
@@ -397,7 +398,7 @@ export class ResourceRecommender {
     // Initialize capability service - fail gracefully if Vector DB unavailable
     try {
       const capabilityVectorDB = new VectorDBService({ collectionName: 'capabilities' });
-      this.capabilityService = new CapabilityVectorService(capabilityVectorDB);
+      this.capabilityService = new CapabilityVectorService('capabilities', capabilityVectorDB);
       console.log('✅ Capability service initialized with Vector DB');
     } catch (error) {
       console.warn('⚠️ Vector DB not available, capabilities disabled:', error);

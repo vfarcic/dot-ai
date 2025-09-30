@@ -46,16 +46,19 @@ export class UnifiedCreationSessionManager {
     // Validate session directory exists
     getAndValidateSessionDirectory(args, true);
     const sessionId = this.generateSessionId();
-    
+
     const session: UnifiedCreationSession = {
       sessionId,
       entityType: this.config.entityType,
       currentStep: this.config.steps[0], // Start with first step
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      data: {}
+      data: {
+        // Store capabilities collection if provided (for policy testing with pre-populated data)
+        capabilitiesCollection: args.collection
+      }
     };
-    
+
     this.saveSession(session, args);
     return session;
   }
@@ -754,11 +757,13 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
     try {
       // Ensure discovery service is connected to cluster before retrieving schemas
       await this.discovery.connect();
-      
+
       // Retrieve actual resource schemas using semantic search and discovery
+      // Use capabilities collection from session data if provided (for testing with pre-populated data)
       const resourceSchemas = await this.retrieveRelevantSchemas(
         data.description || '',
-        finalTriggers
+        finalTriggers,
+        data.capabilitiesCollection
       );
       
       // Prepare session directory for YAML saving
@@ -911,18 +916,20 @@ Please try again or modify your policy description.`,
    */
   private async retrieveRelevantSchemas(
     policyDescription: string,
-    triggers: string[]
+    triggers: string[],
+    collection?: string
   ): Promise<Record<string, any>> {
-    
+
     // Combine policy description with triggers for enhanced search
     const searchQuery = [policyDescription, ...triggers].join(' ');
-    
+
     console.info('Performing semantic search for relevant capabilities', {
       searchQuery,
-      triggerCount: triggers.length
+      triggerCount: triggers.length,
+      collection: collection || 'capabilities'
     });
-    
-    const capabilityService = new CapabilityVectorService();
+
+    const capabilityService = new CapabilityVectorService(collection);
     
     // Use existing searchCapabilities function - no fallback, let it throw if it fails
     const searchResults = await capabilityService.searchCapabilities(searchQuery, { 
@@ -972,12 +979,14 @@ Please try again or modify your policy description.`,
         });
         
       } catch (error) {
-        console.error('Failed to retrieve schema for resource', error as Error, {
-          resourceName
+        console.warn('Skipping resource schema (not available in cluster)', error as Error, {
+          resourceName,
+          error: error instanceof Error ? error.message : String(error)
         });
-        
-        // Fail fast - if we can't get schemas, Kyverno policy generation will likely fail
-        throw new Error(`Failed to retrieve schema for ${resourceName}: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Skip resources that don't exist in the cluster instead of failing
+        // This allows policy generation to work across different Kubernetes versions
+        continue;
       }
     }
     

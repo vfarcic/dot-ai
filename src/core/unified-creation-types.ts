@@ -54,6 +54,8 @@ export interface UnifiedCreationSession {
       type: 'all' | 'include' | 'exclude';
       namespaces?: string[];  // Selected namespace names
     };
+    // Capabilities collection name (for policy testing with pre-populated data)
+    capabilitiesCollection?: string; // Collection to use for capability search (default: 'capabilities')
   };
 }
 
