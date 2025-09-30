@@ -89,6 +89,7 @@ export interface Question {
     pattern?: string;
     message?: string;
   };
+  suggestedAnswer?: any;
   answer?: any;
   // Note: resourceMapping removed - manifest generator handles field mapping
 }

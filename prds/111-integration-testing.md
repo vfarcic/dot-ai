@@ -405,9 +405,15 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Basic test runner and reporting
 - [ ] Local development documentation
 
-### Milestone 2: Core Tool Test Suites 🔄 (4/8 complete)
+### Milestone 2: Core Tool Test Suites 🔄 (5/8 complete)
 **Deliverable**: Integration tests for all tools working
-- [ ] **Recommend tool integration tests** (covers full workflow: recommend → chooseSolution → answerQuestion → generateManifests → deployManifests)
+- [x] **Recommend tool integration tests** - Evidence: `tests/integration/tools/recommend.test.ts` with 11-phase comprehensive workflow test passing (~4 min execution):
+  - Phase 1-2: Clarification workflow and solution generation
+  - Phase 3: Choose solution with AI-generated questions containing `suggestedAnswer` fields
+  - Phase 4-7: Answer questions using `suggestedAnswer` through all stages (required, basic, advanced, open)
+  - Phase 8-9: Generate and deploy manifests to cluster
+  - Phase 10-11: Verify deployed resources and cleanup using manifest files
+  - **Innovation**: Added `suggestedAnswer` field to question generation enabling automated testing with dynamically generated AI questions
 - [ ] **Remediate tool integration tests**
 - [ ] **TestDocs tool integration tests**
 - [x] **ManageOrgData: Patterns integration tests** (pattern dataType operations) - 9/9 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, trigger expansion handling, and consistent validation patterns
@@ -912,11 +918,58 @@ export default defineConfig({
 - No polling needed for Kyverno generation - it completes before response is returned
 
 **Next Session Priorities**:
-- Implement Recommend tool integration tests (complex multi-step workflow with solution selection)
 - Implement Remediate tool integration tests (AI-powered issue analysis and remediation)
 - Implement TestDocs tool integration tests (documentation validation workflows)
 - Complete local development documentation (final Milestone 1 requirement)
 - Begin CI/CD pipeline integration planning (Milestone 3)
+
+### 2025-01-30: Recommend Tool Integration Testing Complete
+**Duration**: ~4 hours
+**Primary Focus**: Recommend tool workflow validation with AI-suggested answers
+
+**Completed PRD Items**:
+- [x] **Recommend tool integration tests** - Evidence: `tests/integration/tools/recommend.test.ts` with comprehensive 11-phase workflow test
+
+**Technical Implementation Details**:
+- **Complete workflow validation** (11 phases):
+  1. Clarification: Vague intent → AI returns clarification questions
+  2. Solutions: Refined intent → AI returns ranked deployment solutions
+  3. Choose solution → Receive configuration questions with `suggestedAnswer` fields
+  4. Answer required stage using AI-provided `suggestedAnswer` values
+  5-7. Progress through optional stages (basic, advanced, open)
+  8. Generate Kubernetes manifests from completed configuration
+  9. Deploy manifests to test cluster
+  10. Verify resources deployed correctly using manifest files
+  11. Cleanup: Delete all deployed resources
+
+- **Key Innovation - `suggestedAnswer` field**:
+  - Updated `prompts/question-generation.md`: Added `suggestedAnswer` to AI response format with instruction to populate valid example values
+  - Extended `Question` interface (`src/core/schema.ts`): Added `suggestedAnswer?: any` property
+  - **Impact**: Enables automated integration testing with dynamically generated AI questions
+  - **Solution to testing challenge**: Questions vary based on cluster state, resources, and AI decisions; suggested answers provide working examples
+
+**Testing Strategy**:
+- **Incremental development**: curl → inspect actual response → write test → validate
+- **Evidence-based assertions**: All test expectations based on actual API responses
+- **Consistent validation pattern**: Used `toMatchObject` throughout per integration testing standards
+- **Generic validation**: Solution-agnostic tests work with any AI-recommended deployment approach
+- **Resource verification**: Used deployed manifest files for validation and cleanup
+- **Test duration**: ~4 minutes for complete end-to-end workflow
+
+**Test Coverage**:
+- Clarification workflow (vague → refined intent)
+- Solution generation and ranking
+- Question generation with AI-suggested answers
+- Multi-stage configuration (required, basic, advanced, open)
+- Manifest generation from user answers
+- Kubernetes deployment execution
+- Resource existence verification
+- Cleanup and resource deletion
+
+**Next Session Priorities**:
+- Remediate tool integration tests
+- TestDocs tool integration tests
+- Consider CI/CD pipeline integration once all tool tests complete
 
 ---
 
