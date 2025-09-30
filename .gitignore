@@ -103,6 +103,3 @@ start-http-server.sh
 
 # MCP Registry authentication tokens
 .mcpregistry_*
-
-# Trigger CI on PR
-# Test PR CI trigger
