@@ -13,9 +13,6 @@ import { beforeAll } from 'vitest';
 const testKubeconfig = path.join(process.cwd(), 'kubeconfig-test.yaml');
 process.env.KUBECONFIG = testKubeconfig;
 
-// Use Claude Haiku (latest version) for all integration tests
-process.env.MODEL = 'claude-3-haiku-20240307';
-
 // Enable debug mode for better test diagnostics
 process.env.DEBUG_DOT_AI = 'true';
 
@@ -29,5 +26,4 @@ beforeAll(() => {
   }
 
   console.log(`Integration tests using kubeconfig: ${testKubeconfig}`);
-  console.log(`Integration tests using Claude model: ${process.env.MODEL}`);
 });

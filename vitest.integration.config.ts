@@ -17,7 +17,6 @@ export default defineConfig({
     reporters: ['verbose'],
     env: {
       KUBECONFIG: './kubeconfig-test.yaml',
-      MODEL: 'claude-3-haiku-20240307',
       DEBUG_DOT_AI: 'true'
     }
   },

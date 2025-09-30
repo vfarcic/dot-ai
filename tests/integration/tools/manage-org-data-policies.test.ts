@@ -18,8 +18,6 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
 
-    // Verify we're using Haiku model for tests
-    expect(process.env.MODEL).toBe('claude-3-haiku-20240307');
 
     // Clean state once before all tests
     // 1. Delete all Kyverno ClusterPolicies with policy-intent labels (clean cluster state)

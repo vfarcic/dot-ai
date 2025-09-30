@@ -18,9 +18,6 @@ describe.concurrent('Recommend Tool Integration', () => {
     // Verify we're using the test cluster
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
-
-    // Verify we're using Haiku model for tests
-    expect(process.env.MODEL).toBe('claude-3-haiku-20240307');
   });
 
   describe('Recommendation Workflow', () => {

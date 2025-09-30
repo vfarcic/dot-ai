@@ -405,7 +405,7 @@ Unit tests can be deleted when integration tests demonstrate:
 - [x] Basic test runner and reporting
 - [ ] Local development documentation
 
-### Milestone 2: Core Tool Test Suites 🔄 (5/8 complete)
+### Milestone 2: Core Tool Test Suites 🔄 (6/8 complete)
 **Deliverable**: Integration tests for all tools working
 - [x] **Recommend tool integration tests** - Evidence: `tests/integration/tools/recommend.test.ts` with 11-phase comprehensive workflow test passing (~4 min execution):
   - Phase 1-2: Clarification workflow and solution generation
@@ -414,7 +414,11 @@ Unit tests can be deleted when integration tests demonstrate:
   - Phase 8-9: Generate and deploy manifests to cluster
   - Phase 10-11: Verify deployed resources and cleanup using manifest files
   - **Innovation**: Added `suggestedAnswer` field to question generation enabling automated testing with dynamically generated AI questions
-- [ ] **Remediate tool integration tests**
+- [x] **Remediate tool integration tests** - Evidence: `tests/integration/tools/remediate.test.ts` with 2 comprehensive workflow tests passing:
+  - Manual mode workflow: OOM pod scenario (128Mi limit, 250M allocation) → AI investigation (9 iterations, identifies OOM root cause) → user approval via executeChoice → execution → cluster validation (pod running, memory increased, no restarts) - 157s execution
+  - Automatic mode workflow: Same OOM scenario with auto-execution when confidence >0.8 and risk ≤medium → single call auto-investigates and remediates → cluster validation - 131s execution
+  - Tests validate actual AI investigation behavior, remediation command execution, and real cluster state changes
+  - Both tests follow established patterns from recommend.test.ts with curl-driven development approach
 - [ ] **TestDocs tool integration tests**
 - [x] **ManageOrgData: Patterns integration tests** (pattern dataType operations) - 9/9 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, trigger expansion handling, and consistent validation patterns
 - [x] **ManageOrgData: Policies integration tests** (policy dataType operations) - 10/10 tests passing with comprehensive CREATE → GET → LIST → SEARCH → DELETE workflow, store-intent-only workflow (generates Kyverno policy but doesn't deploy), Kyverno ClusterPolicy deployment validation, and error handling
@@ -970,6 +974,73 @@ export default defineConfig({
 - Remediate tool integration tests
 - TestDocs tool integration tests
 - Consider CI/CD pipeline integration once all tool tests complete
+
+---
+
+### 2025-09-30: Remediate Tool Integration Testing Complete
+**Duration**: ~2 hours
+**Primary Focus**: Remediate tool workflow validation with AI-powered investigation and cluster remediation
+
+**Completed PRD Items**:
+- [x] **Remediate tool integration tests** - Evidence: `tests/integration/tools/remediate.test.ts` with 2 comprehensive workflow tests
+
+**Technical Implementation Details**:
+- **Manual Mode Workflow Test** (157s execution):
+  1. Setup: Create OOM pod (128Mi limit, 250M allocation request)
+  2. Wait for pod to crash (30s for at least one restart)
+  3. Phase 1 - AI Investigation: POST `/api/v1/tools/remediate` with issue description
+     - AI performs 9 investigation iterations
+     - Identifies OOM root cause with >0.8 confidence
+     - Returns remediation plan with execution choices
+  4. Phase 2 - Execution: POST with `executeChoice: 1` and sessionId
+     - Executes remediation commands via MCP
+     - Returns execution results and validation
+  5. Phase 3 - Cluster Validation:
+     - Verify pod status = Running
+     - Verify restart count = 0 (new healthy pod)
+     - Verify memory limit increased from 128Mi
+     - Verify Ready condition = True
+
+- **Automatic Mode Workflow Test** (131s execution):
+  1. Setup: Same OOM pod scenario in separate namespace
+  2. Single Call Auto-Execution: POST with `mode: 'automatic', confidenceThreshold: 0.8, maxRiskLevel: 'medium'`
+     - AI investigates, identifies root cause, and auto-executes in one call
+     - No user approval required when thresholds met
+     - Returns execution results and validation
+  3. Cluster Validation: Same checks as manual mode
+
+**Testing Strategy**:
+- **Incremental curl-driven development**: curl → inspect actual response → write test → validate
+- **Evidence-based assertions**: All expectations based on actual API responses from test runs
+- **Consistent validation pattern**: Used `toMatchObject` throughout per integration testing standards
+- **Real cluster validation**: Tests verify actual cluster state changes, not just API responses
+- **Namespace isolation**: Each test uses separate namespace for parallel execution safety
+
+**Test Coverage**:
+- AI investigation workflow (multi-iteration problem analysis)
+- Root cause identification and confidence scoring
+- Remediation plan generation with risk assessment
+- Manual mode user approval workflow
+- Automatic mode threshold-based execution
+- Actual Kubernetes cluster remediation (pod recreation, resource limit changes)
+- Post-remediation validation
+- Both execution methods (MCP-based and agent-based)
+
+**Configuration Cleanup**:
+- Removed incorrect `MODEL=claude-3-haiku-20240307` references from all test files
+- Tests now correctly use Sonnet model (Haiku doesn't support 64k max_tokens)
+- Fixed version.test.ts by removing unnecessary namespace checks
+- Updated `CLAUDE.md` to document `./tmp` usage instead of `/tmp`
+
+**Test Results**:
+- All 38 integration tests passing (6 test files)
+- Total runtime: 375s with parallelization (20 workers, 5 concurrent tests per file)
+- Longest test: recommend workflow (212s)
+- Remediate tests: 157s (manual), 131s (automatic)
+
+**Next Session Priorities**:
+- TestDocs tool integration tests (last remaining Milestone 2 item)
+- Begin Milestone 3: CI/CD integration (GitHub Actions workflow)
 
 ---
 

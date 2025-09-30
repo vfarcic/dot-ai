@@ -127,6 +127,10 @@ prompts/                 # AI prompt templates
 **Git Commit Guidelines:**
 - **Skip CI**: When user requests to skip CI, avoid triggering CI, or mentions bypassing CI/builds, automatically add `[skip ci]` to the commit message to prevent GitHub Actions from running
 
+**Temporary File Storage:**
+- **Always use `./tmp`**: Never use `/tmp` for temporary files or outputs - always use the project's `./tmp` directory
+- This ensures temporary files stay within the project boundary and follow .gitignore rules
+
 ### Environment Setup
 
 ```bash

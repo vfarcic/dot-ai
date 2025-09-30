@@ -18,8 +18,6 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
 
-    // Verify we're using Haiku model for tests
-    expect(process.env.MODEL).toBe('claude-3-haiku-20240307');
 
     // Clean state once before all tests - delete all capabilities
     await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {

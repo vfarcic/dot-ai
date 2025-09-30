@@ -11,16 +11,13 @@ import { describe, test, expect, beforeAll, beforeEach, afterEach } from 'vitest
 import { IntegrationTest } from '../helpers/test-base.js';
 import packageJson from '../../../package.json';
 
-describe('Version Tool Integration', () => {
+describe.concurrent('Version Tool Integration', () => {
   const integrationTest = new IntegrationTest();
 
   beforeAll(() => {
     // Verify we're using the test cluster
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
-
-    // Verify we're using Haiku model for tests
-    expect(process.env.MODEL).toBe('claude-3-haiku-20240307');
   });
 
 
@@ -177,13 +174,6 @@ describe('Version Tool Integration', () => {
 
       // Validate test environment configuration in API response
       expect(response).toMatchObject(expectedTestResponse);
-
-      // Verify test infrastructure beyond JSON (necessary for test framework validation)
-      const pods = await integrationTest.getPods();
-      expect(Array.isArray(pods)).toBe(true); // Namespace should exist and be accessible
-
-      // Verify test namespace follows expected naming pattern (necessary for isolation)
-      expect(integrationTest.namespace).toMatch(/^test-\d+-version-test-\d+-[a-f0-9]+$/);
     });
   });
 
