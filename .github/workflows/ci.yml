@@ -61,6 +61,9 @@ jobs:
       run: npm run test:integration:setup
       timeout-minutes: 8
 
+    - name: Create session directory
+      run: mkdir -p ./tmp/sessions
+
     - name: Start MCP server
       run: |
         npm run test:integration:server &
