@@ -979,12 +979,14 @@ Please try again or modify your policy description.`,
         });
         
       } catch (error) {
-        console.error('Failed to retrieve schema for resource', error as Error, {
-          resourceName
+        console.warn('Skipping resource schema (not available in cluster)', error as Error, {
+          resourceName,
+          error: error instanceof Error ? error.message : String(error)
         });
-        
-        // Fail fast - if we can't get schemas, Kyverno policy generation will likely fail
-        throw new Error(`Failed to retrieve schema for ${resourceName}: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Skip resources that don't exist in the cluster instead of failing
+        // This allows policy generation to work across different Kubernetes versions
+        continue;
       }
     }
     
