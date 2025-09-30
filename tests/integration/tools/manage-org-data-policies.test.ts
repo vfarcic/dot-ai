@@ -627,6 +627,9 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         meta: expect.objectContaining({ version: 'v1' })
       };
 
+      // Debug: Log the actual response to see what nextStep is
+      console.log('DEBUG: namespaceScopeResponse.data.result.workflow:', JSON.stringify(namespaceScopeResponse.data.result.workflow, null, 2));
+
       expect(namespaceScopeResponse).toMatchObject(expectedNamespaceScopeResponse);
 
       // At complete step, choose to store intent only (not deploy to cluster)
