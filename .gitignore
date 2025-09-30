@@ -105,3 +105,4 @@ start-http-server.sh
 .mcpregistry_*
 
 # Trigger CI on PR
+# Test PR CI trigger
