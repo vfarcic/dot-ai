@@ -10,6 +10,12 @@
 □ **Specific Assertions**: Use actual values instead of `expect.any()` wherever possible
 □ **Race Condition Safety**: Use `beforeAll` for cleanup, unique test data, avoid parallel data conflicts
 
+**🔴 RUNNING INTEGRATION TESTS IN CLAUDE CODE:**
+
+Integration tests take several minutes to complete. When running via Claude Code Bash tool:
+- Use higher timeout: `timeout: 600000` (10 minutes) in Bash tool calls
+- Or run tests manually in terminal and report results back
+
 **❌ TEST IS NOT ACCEPTABLE IF:**
 - It duplicates functionality already tested elsewhere
 - It uses inconsistent validation patterns (mixing `.toBe()` with `toMatchObject`)

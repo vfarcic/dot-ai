@@ -111,7 +111,7 @@ src/
 └── ...
 
 docs/                    # All documentation
-tests/                   # Comprehensive test suite (349+ tests)
+tests/integration/       # Integration test suite
 prompts/                 # AI prompt templates
 ```
 

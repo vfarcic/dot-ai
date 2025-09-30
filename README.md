@@ -156,7 +156,7 @@ This video explains the platform engineering problem and demonstrates the Kubern
 
 We welcome contributions! Please:
 - Fork the repository and create a feature branch
-- Run tests with `npm test` to ensure changes work correctly
+- Run integration tests to ensure changes work correctly (see [Integration Testing Guide](docs/integration-testing-guide.md))
 - Follow existing code style and conventions
 - Submit a pull request with a clear description of changes
 
