@@ -29,11 +29,12 @@ Complete the PRD implementation workflow including branch management, pull reque
 
 ### 1. Pre-Completion Validation
 - [ ] **All PRD checkboxes completed**: Verify every requirement is implemented and tested
-- [ ] **All tests passing**: Run project test suite to ensure quality standards (skip if documentation-only)
 - [ ] **Documentation updated**: All user-facing docs reflect implemented functionality
 - [ ] **No outstanding blockers**: All dependencies resolved and technical debt addressed
 - [ ] **Update PRD status**: Mark PRD as "Complete" with completion date
 - [ ] **Archive PRD file**: Move completed PRD to `./prds/done/` directory to maintain project organization
+
+**Note**: Tests will run automatically in the CI/CD pipeline when the PR is created. Do not run tests locally during the completion workflow.
 
 ### 2. Branch and Commit Management
 
