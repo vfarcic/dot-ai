@@ -94,6 +94,7 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Monitor for issues**: Watch for any post-deployment problems
 
 ### 5. Issue Closure
+- [ ] **Update issue PRD link**: Update the GitHub issue description to reference the new PRD path in `./prds/done/` directory
 - [ ] **Close GitHub issue**: Add final completion comment and close
 - [ ] **Archive artifacts**: Save any temporary files or testing data if needed
 - [ ] **Team notification**: Announce feature completion to relevant stakeholders
