@@ -97,13 +97,13 @@ User: I want to deploy a web application to my cluster
 
 Agent: I'll help you deploy a web application. Let me get recommendations. First, a few questions to provide better suggestions:
 
-What type of web application is this? Is it for development or production? 
+What type of web application is this? Is it for development or production?
 Does it need external access?
 [Uses recommend tool for clarification]
 
 User: It's a production Node.js API that needs external access
 
-Agent: Perfect! Based on your production requirements, I found 3 deployment options. 
+Agent: Perfect! Based on your production requirements, I found 3 deployment options.
 Let's use the Production Web Stack with external access.
 What's your application name and container image?
 [Uses recommend tool with refined intent]
@@ -111,7 +111,7 @@ What's your application name and container image?
 User: App name is "myapp" and image is "myapp:v1.0.0"
 
 Agent: Excellent! Generating production-ready manifests and deploying...
-[Uses chooseSolution, answerQuestion, generateManifests, deployManifests]
+[Uses recommend tool with stage routing: chooseSolution → answerQuestion → generateManifests → deployManifests]
 
 Agent: ✅ Successfully deployed! Your production API is running with external access.
 ```

@@ -397,9 +397,11 @@ export class ResourceRecommender {
     
     // Initialize capability service - fail gracefully if Vector DB unavailable
     try {
-      const capabilityVectorDB = new VectorDBService({ collectionName: 'capabilities' });
-      this.capabilityService = new CapabilityVectorService('capabilities', capabilityVectorDB);
-      console.log('✅ Capability service initialized with Vector DB');
+      // Use environment variable for collection name (allows using test data collection)
+      const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
+      const capabilityVectorDB = new VectorDBService({ collectionName });
+      this.capabilityService = new CapabilityVectorService(collectionName, capabilityVectorDB);
+      console.log(`✅ Capability service initialized with Vector DB (collection: ${collectionName})`);
     } catch (error) {
       console.warn('⚠️ Vector DB not available, capabilities disabled:', error);
       this.capabilityService = undefined;

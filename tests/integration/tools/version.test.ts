@@ -40,7 +40,7 @@ describe.concurrent('Version Tool Integration', () => {
               },
               vectorDB: {
                 connected: true, // Specific - should be connected to Qdrant
-                url: 'http://localhost:6333', // Specific - test environment URL
+                url: 'http://localhost:6335', // Specific - test environment URL
                 collections: {
                   patterns: expect.objectContaining({
                     exists: expect.any(Boolean)

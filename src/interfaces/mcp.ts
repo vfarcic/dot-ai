@@ -23,30 +23,6 @@ import {
   handleRecommendTool,
 } from '../tools/recommend';
 import {
-  CHOOSESOLUTION_TOOL_NAME,
-  CHOOSESOLUTION_TOOL_DESCRIPTION,
-  CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
-  handleChooseSolutionTool,
-} from '../tools/choose-solution';
-import {
-  ANSWERQUESTION_TOOL_NAME,
-  ANSWERQUESTION_TOOL_DESCRIPTION,
-  ANSWERQUESTION_TOOL_INPUT_SCHEMA,
-  handleAnswerQuestionTool,
-} from '../tools/answer-question';
-import {
-  GENERATEMANIFESTS_TOOL_NAME,
-  GENERATEMANIFESTS_TOOL_DESCRIPTION,
-  GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
-  handleGenerateManifestsTool,
-} from '../tools/generate-manifests';
-import {
-  DEPLOYMANIFESTS_TOOL_NAME,
-  DEPLOYMANIFESTS_TOOL_DESCRIPTION,
-  DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
-  handleDeployManifestsTool,
-} from '../tools/deploy-manifests';
-import {
   VERSION_TOOL_NAME,
   VERSION_TOOL_DESCRIPTION,
   VERSION_TOOL_INPUT_SCHEMA,
@@ -168,7 +144,8 @@ export class MCPServer {
    * Register all tools with McpServer and REST registry
    */
   private registerTools(): void {
-    // Register recommend tool
+    // Register unified recommend tool with stage-based routing
+    // Handles all deployment workflow stages: recommend, chooseSolution, answerQuestion, generateManifests, deployManifests
     this.registerTool(
       RECOMMEND_TOOL_NAME,
       RECOMMEND_TOOL_DESCRIPTION,
@@ -185,96 +162,8 @@ export class MCPServer {
           requestId
         );
       },
-      'AI Tools',
-      ['recommendation', 'kubernetes', 'deployment']
-    );
-
-    // Register chooseSolution tool
-    this.registerTool(
-      CHOOSESOLUTION_TOOL_NAME,
-      CHOOSESOLUTION_TOOL_DESCRIPTION,
-      CHOOSESOLUTION_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(
-          `Processing ${CHOOSESOLUTION_TOOL_NAME} tool request`,
-          { requestId }
-        );
-        return await handleChooseSolutionTool(
-          args,
-          this.dotAI,
-          this.logger,
-          requestId
-        );
-      },
-      'AI Tools',
-      ['solution', 'kubernetes', 'configuration']
-    );
-
-    // Register answerQuestion tool
-    this.registerTool(
-      ANSWERQUESTION_TOOL_NAME,
-      ANSWERQUESTION_TOOL_DESCRIPTION,
-      ANSWERQUESTION_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(
-          `Processing ${ANSWERQUESTION_TOOL_NAME} tool request`,
-          { requestId }
-        );
-        return await handleAnswerQuestionTool(
-          args,
-          this.dotAI,
-          this.logger,
-          requestId
-        );
-      },
-      'AI Tools',
-      ['configuration', 'questions', 'workflow']
-    );
-
-    // Register generateManifests tool
-    this.registerTool(
-      GENERATEMANIFESTS_TOOL_NAME,
-      GENERATEMANIFESTS_TOOL_DESCRIPTION,
-      GENERATEMANIFESTS_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(
-          `Processing ${GENERATEMANIFESTS_TOOL_NAME} tool request`,
-          { requestId }
-        );
-        return await handleGenerateManifestsTool(
-          args,
-          this.dotAI,
-          this.logger,
-          requestId
-        );
-      },
       'Deployment',
-      ['manifests', 'kubernetes', 'generation']
-    );
-
-    // Register deployManifests tool
-    this.registerTool(
-      DEPLOYMANIFESTS_TOOL_NAME,
-      DEPLOYMANIFESTS_TOOL_DESCRIPTION,
-      DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(
-          `Processing ${DEPLOYMANIFESTS_TOOL_NAME} tool request`,
-          { requestId }
-        );
-        return await handleDeployManifestsTool(
-          args,
-          this.dotAI,
-          this.logger,
-          requestId
-        );
-      },
-      'Deployment',
-      ['deployment', 'kubernetes', 'kubectl']
+      ['recommendation', 'kubernetes', 'deployment', 'workflow']
     );
 
     // Register version tool
@@ -351,16 +240,12 @@ export class MCPServer {
     this.logger.info('Registered all tools with McpServer', {
       tools: [
         RECOMMEND_TOOL_NAME,
-        CHOOSESOLUTION_TOOL_NAME,
-        ANSWERQUESTION_TOOL_NAME,
-        GENERATEMANIFESTS_TOOL_NAME,
-        DEPLOYMANIFESTS_TOOL_NAME,
         VERSION_TOOL_NAME,
         TESTDOCS_TOOL_NAME,
         ORGANIZATIONAL_DATA_TOOL_NAME,
         REMEDIATE_TOOL_NAME,
       ],
-      totalTools: 9,
+      totalTools: 5,
     });
   }
 

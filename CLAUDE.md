@@ -121,7 +121,7 @@ prompts/                 # AI prompt templates
 - **Run integration tests**: `npm run test:integration`
 - **Build**: `npm run build`
 
-**Testing:** See `tests/integration/CLAUDE.md` for detailed integration testing standards and workflows.
+**Testing:** See @tests/integration/CLAUDE.md for detailed integration testing standards and workflows.
 **MCP Usage:** Always test MCP functionality through Claude Code or other MCP clients, never run server directly.
 
 **Git Commit Guidelines:**

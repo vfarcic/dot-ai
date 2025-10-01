@@ -848,7 +848,7 @@ export async function handleAnswerQuestionTool(
             userAnswers: userAnswers,
             hasOpenRequirements: !!(openAnswer && openAnswer !== 'N/A')
           },
-          nextAction: 'generateManifests',
+          nextAction: 'Call recommend tool with stage: generateManifests',
           guidance: 'Configuration complete. Ready to generate Kubernetes manifests for deployment.',
           agentInstructions: 'All configuration stages are now complete. You may proceed to generate Kubernetes manifests using the generateManifests tool.',
           timestamp: new Date().toISOString()
@@ -879,7 +879,7 @@ export async function handleAnswerQuestionTool(
         message: getStageMessage(newStageState.currentStage),
         guidance: getStageGuidance(newStageState.currentStage),
         agentInstructions: getAgentInstructions(newStageState.currentStage),
-        nextAction: 'answerQuestion',
+        nextAction: `Call recommend tool with stage: answerQuestion:${newStageState.currentStage}`,
         timestamp: new Date().toISOString()
       };
       
