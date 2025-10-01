@@ -20,6 +20,14 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 
 ## Overview
 
+**What it does**: Provides AI-powered Kubernetes deployment recommendations with semantic capability matching, organizational pattern integration, and guided workflow from intent clarification through deployment.
+
+**Use when**: You need intelligent deployment recommendations that leverage your cluster's actual capabilities, follow organizational best practices, and guide you through configuration, manifest generation, and deployment.
+
+📖 **Full Guide**: This document covers the complete recommendation workflow with detailed examples and behind-the-scenes explanations.
+
+### Key Features
+
 The DevOps AI Toolkit recommendation feature provides:
 - **Smart intent clarification** - Adaptive questioning to gather missing context for better recommendations
 - **Semantic capability understanding** - Uses discovered resource capabilities for intelligent semantic matching
@@ -46,11 +54,11 @@ The DevOps AI Toolkit recommendation feature provides:
 
 ### Example 1: Stateless Golang Web Application
 
-```
+```md
 User: I want to deploy a stateless Golang web application
 ```
 
-```
+```md
 Agent: I'll help you deploy a stateless Golang web application. To provide the best recommendations, I have a few clarification questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy a stateless Golang web application"]
@@ -76,11 +84,11 @@ Agent: I'll help you deploy a stateless Golang web application. To provide the b
 You can answer the questions that are relevant to your needs, or let me know if you'd like to proceed with the information provided.
 ```
 
-```
+```md
 User: It's for production, needs external access, expects moderate traffic with occasional spikes, and needs to connect to a PostgreSQL database.
 ```
 
-```
+```md
 Agent: Perfect! Based on your clarified requirements, let me get production-focused deployment recommendations.
 
 [Uses mcp__dot-ai__recommend with refined intent "deploy a production stateless Golang web application with external access, auto-scaling for traffic spikes, and PostgreSQL database connectivity" and final: true]
@@ -116,11 +124,11 @@ Which approach interests you most?
 
 **Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
-```
+```md
 User: I'll go with option 1
 ```
 
-```
+```md
 Agent: Excellent choice! Let me get the configuration requirements.
 
 [Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId: 'sol_2025-08-01T151532_d0e8f0c19e0e']
@@ -145,11 +153,11 @@ I need some required details to configure your deployment:
 - Policy requirements promoted to REQUIRED questions with compliance indicators and constraints
 - System categorizes questions as required (must answer) to proceed
 
-```
+```md
 User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080. CPU limit 500m, memory limit 512Mi.
 ```
 
-```
+```md
 Agent: Perfect! Let me configure the required settings.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
@@ -171,11 +179,11 @@ Now for some basic configuration options:
 - Determined next stage is 'basic' and returned basic configuration questions
 - Questions are optional at this stage - user can answer or skip to advanced stage
 
-```
+```md
 User: 3 replicas, ClusterIP service, and yes to autoscaling.
 ```
 
-```
+```md
 Agent: Excellent! Let me configure those settings.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
@@ -196,11 +204,11 @@ Would you like to configure advanced features?
 - Updated solution file and determined next stage is 'advanced'
 - Returned advanced configuration questions focused on resource limits and autoscaling tuning
 
-```
+```md
 User: Skip advanced configuration
 ```
 
-```
+```md
 Agent: No problem! Moving to the final configuration stage.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:advanced', solutionId, answers: {}]
@@ -216,11 +224,11 @@ Any additional requirements or constraints?
 - Marked advanced questions as explicitly skipped (answer: null)
 - Determined next stage is 'open' and returned the open-ended question
 
-```
+```md
 User: N/A
 ```
 
-```
+```md
 Agent: Perfect! Configuration complete.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:open', solutionId, answers: {open: "N/A"}]
@@ -233,11 +241,11 @@ Configuration complete. Ready to generate deployment manifests.
 - All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
 - Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
 
-```
+```md
 User: Generate the manifests
 ```
 
-```
+```md
 Agent: Generating your Kubernetes manifests...
 
 [Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
@@ -337,11 +345,11 @@ Ready to deploy to your cluster?
 - Organizational patterns influenced the final YAML (NetworkPolicy added for security, HPA configured for scaling)
 - Returned status: 'manifests_generated' with complete YAML content
 
-```
+```md
 User: Yes, deploy it!
 ```
 
-```
+```md
 Agent: Deploying your Golang application...
 
 [Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
@@ -366,11 +374,11 @@ Your Golang web application is now live with autoscaling and network security!
 
 ### Example 2: Microservice API with Auto-scaling
 
-```
+```md
 User: I want to deploy a REST API microservice that needs to handle variable traffic loads
 ```
 
-```
+```md
 Agent: I'll help you deploy a REST API microservice for variable traffic. To provide optimal scaling recommendations, I have some questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy REST API microservice with variable traffic loads"]
@@ -399,11 +407,11 @@ Agent: I'll help you deploy a REST API microservice for variable traffic. To pro
 You can answer the relevant questions, or let me know if you'd like recommendations based on the current information.
 ```
 
-```
+```md
 User: It's a REST API for internal services, expects unpredictable traffic spikes, needs to connect to PostgreSQL and Redis, for production with high availability requirements.
 ```
 
-```
+```md
 Agent: Excellent! Based on your production requirements with traffic spikes and high availability needs, let me get deployment recommendations.
 
 [Uses mcp__dot-ai__recommend with refined intent "deploy production REST API microservice for internal services with unpredictable traffic spikes, PostgreSQL and Redis connectivity, high availability requirements" and final: true]
@@ -441,11 +449,11 @@ Which approach fits your API requirements?
 
 **Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns. Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
-```
+```md
 User: Option 2 please
 ```
 
-```
+```md
 Agent: Great choice! Internal APIs with autoscaling are ideal for microservice architectures. Let me get the configuration details.
 
 [Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId]
@@ -470,11 +478,11 @@ I need some required details to configure your API deployment:
 - Policy requirements promoted to REQUIRED questions with compliance constraints
 - System recognizes this is for "variable traffic" and will emphasize scaling in later stages
 
-```
+```md
 User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080. CPU limit 500m, memory limit 1Gi.
 ```
 
-```
+```md
 Agent: Perfect! Let me configure the required settings.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
@@ -497,11 +505,11 @@ Now for scaling configuration:
 - Moved to basic stage focused on scaling configuration (core requirement from "variable traffic loads")
 - Questions are optional but recommended for traffic handling
 
-```
+```md
 User: 2 replicas initially, enable autoscaling at 70% CPU, max 15 replicas.
 ```
 
-```
+```md
 Agent: Excellent scaling configuration! Let me set this up.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
@@ -518,11 +526,11 @@ Any additional requirements or constraints?
 - Skipped advanced stage (no advanced configuration questions for this solution)
 - Moved directly to open stage for additional requirements
 
-```
+```md
 User: N/A
 ```
 
-```
+```md
 Agent: Perfect! Configuration complete.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:open', solutionId, answers: {open: "N/A"}]
@@ -535,11 +543,11 @@ Configuration complete. Ready to generate deployment manifests.
 - All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
 - Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
 
-```
+```md
 User: Generate the manifests
 ```
 
-```
+```md
 Agent: Generating your API manifests...
 
 [Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
@@ -620,11 +628,11 @@ Ready to deploy your payment API?
 - System validated manifests with kubectl apply --dry-run=server --validate=true
 - Returned status: 'manifests_generated' with complete YAML content
 
-```
+```md
 User: Yes, deploy it!
 ```
 
-```
+```md
 Agent: Deploying your payment API microservice...
 
 [Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
