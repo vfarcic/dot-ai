@@ -17,6 +17,10 @@
       "env": {
         "GITHUB_PAT": "${GITHUB_TOKEN}"
       }
+    },
+    "graphite": {
+      "command": "gt",
+      "args": ["mcp"]
     }
   }
 }

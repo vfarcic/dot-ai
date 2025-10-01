@@ -20,6 +20,14 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 
 ## Overview
 
+**What it does**: Provides AI-powered Kubernetes deployment recommendations with semantic capability matching, organizational pattern integration, and guided workflow from intent clarification through deployment.
+
+**Use when**: You need intelligent deployment recommendations that leverage your cluster's actual capabilities, follow organizational best practices, and guide you through configuration, manifest generation, and deployment.
+
+📖 **Full Guide**: This document covers the complete recommendation workflow with detailed examples and behind-the-scenes explanations.
+
+### Key Features
+
 The DevOps AI Toolkit recommendation feature provides:
 - **Smart intent clarification** - Adaptive questioning to gather missing context for better recommendations
 - **Semantic capability understanding** - Uses discovered resource capabilities for intelligent semantic matching
@@ -46,11 +54,11 @@ The DevOps AI Toolkit recommendation feature provides:
 
 ### Example 1: Stateless Golang Web Application
 
-```
+```md
 User: I want to deploy a stateless Golang web application
 ```
 
-```
+```md
 Agent: I'll help you deploy a stateless Golang web application. To provide the best recommendations, I have a few clarification questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy a stateless Golang web application"]
@@ -76,11 +84,11 @@ Agent: I'll help you deploy a stateless Golang web application. To provide the b
 You can answer the questions that are relevant to your needs, or let me know if you'd like to proceed with the information provided.
 ```
 
-```
+```md
 User: It's for production, needs external access, expects moderate traffic with occasional spikes, and needs to connect to a PostgreSQL database.
 ```
 
-```
+```md
 Agent: Perfect! Based on your clarified requirements, let me get production-focused deployment recommendations.
 
 [Uses mcp__dot-ai__recommend with refined intent "deploy a production stateless Golang web application with external access, auto-scaling for traffic spikes, and PostgreSQL database connectivity" and final: true]
@@ -116,14 +124,14 @@ Which approach interests you most?
 
 **Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
-```
+```md
 User: I'll go with option 1
 ```
 
-```
+```md
 Agent: Excellent choice! Let me get the configuration requirements.
 
-[Uses mcp__dot-ai__chooseSolution with solution ID sol_2025-08-01T151532_d0e8f0c19e0e]
+[Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId: 'sol_2025-08-01T151532_d0e8f0c19e0e']
 
 I need some required details to configure your deployment:
 
@@ -139,20 +147,20 @@ I need some required details to configure your deployment:
 ```
 
 **What happened behind the scenes:**
-- chooseSolution loaded the selected solution and returned only the required stage questions
+- recommend tool with stage 'chooseSolution' loaded the selected solution and returned only the required stage questions
 - Questions generated from resource schema analysis: Deployment needs name/image/port, Service needs port configuration
 - Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.89)
 - Policy requirements promoted to REQUIRED questions with compliance indicators and constraints
 - System categorizes questions as required (must answer) to proceed
 
-```
+```md
 User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080. CPU limit 500m, memory limit 512Mi.
 ```
 
-```
+```md
 Agent: Perfect! Let me configure the required settings.
 
-[Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
 
 Great! Your configuration meets all policy requirements:
 ✅ **Resource Limits Policy**: CPU (500m) and memory (512Mi) within acceptable ranges
@@ -166,19 +174,19 @@ Now for some basic configuration options:
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed required stage answers and updated solution file
+- recommend tool with stage 'answerQuestion:required' processed required stage answers and updated solution file
 - Validated all required fields were provided (name, namespace, image, port)
 - Determined next stage is 'basic' and returned basic configuration questions
 - Questions are optional at this stage - user can answer or skip to advanced stage
 
-```
+```md
 User: 3 replicas, ClusterIP service, and yes to autoscaling.
 ```
 
-```
+```md
 Agent: Excellent! Let me configure those settings.
 
-[Uses mcp__dot-ai__answerQuestion with stage="basic" and answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
 
 Would you like to configure advanced features?
 
@@ -192,18 +200,18 @@ Would you like to configure advanced features?
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed basic stage answers (replicas: 3, serviceType: ClusterIP, autoscaling: true)
+- recommend tool with stage 'answerQuestion:basic' processed basic stage answers (replicas: 3, serviceType: ClusterIP, autoscaling: true)
 - Updated solution file and determined next stage is 'advanced'
 - Returned advanced configuration questions focused on resource limits and autoscaling tuning
 
-```
+```md
 User: Skip advanced configuration
 ```
 
-```
+```md
 Agent: No problem! Moving to the final configuration stage.
 
-[Uses mcp__dot-ai__answerQuestion with stage="advanced" and empty answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:advanced', solutionId, answers: {}]
 
 Any additional requirements or constraints?
 
@@ -212,35 +220,35 @@ Any additional requirements or constraints?
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed empty advanced stage answers (skipped all advanced questions)
+- recommend tool with stage 'answerQuestion:advanced' processed empty advanced stage answers (skipped all advanced questions)
 - Marked advanced questions as explicitly skipped (answer: null)
 - Determined next stage is 'open' and returned the open-ended question
 
-```
+```md
 User: N/A
 ```
 
-```
+```md
 Agent: Perfect! Configuration complete.
 
-[Uses mcp__dot-ai__answerQuestion with stage="open" and answer="N/A"]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:open', solutionId, answers: {open: "N/A"}]
 
 Configuration complete. Ready to generate deployment manifests.
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed open stage with "N/A" (no additional requirements)
+- recommend tool with stage 'answerQuestion:open' processed open stage with "N/A" (no additional requirements)
 - All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
 - Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
 
-```
+```md
 User: Generate the manifests
 ```
 
-```
+```md
 Agent: Generating your Kubernetes manifests...
 
-[Uses mcp__dot-ai__generateManifests]
+[Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
 
 Generated your complete deployment stack:
 
@@ -329,7 +337,7 @@ Ready to deploy to your cluster?
 ```
 
 **What happened behind the scenes:**
-- generateManifests loaded the fully configured solution file
+- recommend tool with stage 'generateManifests' loaded the fully configured solution file
 - AI generated YAML manifests using all collected configuration answers
 - Policy requirements enforced: Resource limits (CPU: 500m, memory: 512Mi) applied to containers
 - System performed up to 10 validation loops with `kubectl apply --dry-run=server --validate=true`
@@ -337,14 +345,14 @@ Ready to deploy to your cluster?
 - Organizational patterns influenced the final YAML (NetworkPolicy added for security, HPA configured for scaling)
 - Returned status: 'manifests_generated' with complete YAML content
 
-```
+```md
 User: Yes, deploy it!
 ```
 
-```
+```md
 Agent: Deploying your Golang application...
 
-[Uses mcp__dot-ai__deployManifests]
+[Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
 
 🎉 **Deployment successful!**
 
@@ -359,18 +367,18 @@ Your Golang web application is now live with autoscaling and network security!
 ```
 
 **What happened behind the scenes:**
-- deployManifests applied all manifests using `kubectl apply --wait`
+- recommend tool with stage 'deployManifests' applied all manifests using `kubectl apply --wait`
 - Monitored deployment progress and pod startup
 - Verified HorizontalPodAutoscaler attached to deployment and NetworkPolicy applied to pods
 - Provided access information based on Service configuration (ClusterIP = internal access only)
 
 ### Example 2: Microservice API with Auto-scaling
 
-```
+```md
 User: I want to deploy a REST API microservice that needs to handle variable traffic loads
 ```
 
-```
+```md
 Agent: I'll help you deploy a REST API microservice for variable traffic. To provide optimal scaling recommendations, I have some questions:
 
 [Uses mcp__dot-ai__recommend with intent "deploy REST API microservice with variable traffic loads"]
@@ -399,11 +407,11 @@ Agent: I'll help you deploy a REST API microservice for variable traffic. To pro
 You can answer the relevant questions, or let me know if you'd like recommendations based on the current information.
 ```
 
-```
+```md
 User: It's a REST API for internal services, expects unpredictable traffic spikes, needs to connect to PostgreSQL and Redis, for production with high availability requirements.
 ```
 
-```
+```md
 Agent: Excellent! Based on your production requirements with traffic spikes and high availability needs, let me get deployment recommendations.
 
 [Uses mcp__dot-ai__recommend with refined intent "deploy production REST API microservice for internal services with unpredictable traffic spikes, PostgreSQL and Redis connectivity, high availability requirements" and final: true]
@@ -441,14 +449,14 @@ Which approach fits your API requirements?
 
 **Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns. Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
-```
+```md
 User: Option 2 please
 ```
 
-```
+```md
 Agent: Great choice! Internal APIs with autoscaling are ideal for microservice architectures. Let me get the configuration details.
 
-[Uses mcp__dot-ai__chooseSolution with selected solution ID]
+[Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId]
 
 I need some required details to configure your API deployment:
 
@@ -464,20 +472,20 @@ I need some required details to configure your API deployment:
 ```
 
 **What happened behind the scenes:**
-- chooseSolution loaded the Internal API Service solution and returned only required stage questions
+- recommend tool with stage 'chooseSolution' loaded the Internal API Service solution and returned only required stage questions
 - Questions focused on API-specific needs: service naming, microservice namespace, container image, port
 - Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.91) 
 - Policy requirements promoted to REQUIRED questions with compliance constraints
 - System recognizes this is for "variable traffic" and will emphasize scaling in later stages
 
-```
+```md
 User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080. CPU limit 500m, memory limit 1Gi.
 ```
 
-```
+```md
 Agent: Perfect! Let me configure the required settings.
 
-[Uses mcp__dot-ai__answerQuestion with stage="required" and answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
 
 Great! Your configuration meets all policy requirements:
 ✅ **Resource Limits Policy**: CPU (500m) and memory (1Gi) within acceptable ranges
@@ -492,19 +500,19 @@ Now for scaling configuration:
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed required API configuration (service name, namespace, image, port)
+- recommend tool with stage 'answerQuestion:required' processed required API configuration (service name, namespace, image, port)
 - Validated all required fields and updated solution file
 - Moved to basic stage focused on scaling configuration (core requirement from "variable traffic loads")
 - Questions are optional but recommended for traffic handling
 
-```
+```md
 User: 2 replicas initially, enable autoscaling at 70% CPU, max 15 replicas.
 ```
 
-```
+```md
 Agent: Excellent scaling configuration! Let me set this up.
 
-[Uses mcp__dot-ai__answerQuestion with stage="basic" and answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
 
 Any additional requirements or constraints?
 
@@ -513,36 +521,36 @@ Any additional requirements or constraints?
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed scaling configuration (replicas: 2, autoscaling: true, CPU target: 70%, max replicas: 15)
+- recommend tool with stage 'answerQuestion:basic' processed scaling configuration (replicas: 2, autoscaling: true, CPU target: 70%, max replicas: 15)
 - Updated solution file with scaling-focused answers
 - Skipped advanced stage (no advanced configuration questions for this solution)
 - Moved directly to open stage for additional requirements
 
-```
+```md
 User: N/A
 ```
 
-```
+```md
 Agent: Perfect! Configuration complete.
 
-[Uses mcp__dot-ai__answerQuestion with stage="open" and answer="N/A"]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:open', solutionId, answers: {open: "N/A"}]
 
 Configuration complete. Ready to generate deployment manifests.
 ```
 
 **What happened behind the scenes:**
-- answerQuestion processed open stage with "N/A" (no additional requirements)
+- recommend tool with stage 'answerQuestion:open' processed open stage with "N/A" (no additional requirements)
 - All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
 - Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
 
-```
+```md
 User: Generate the manifests
 ```
 
-```
+```md
 Agent: Generating your API manifests...
 
-[Uses mcp__dot-ai__generateManifests]
+[Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
 
 Generated your scalable API deployment:
 
@@ -611,7 +619,7 @@ Ready to deploy your payment API?
 ```
 
 **What happened behind the scenes:**
-- generateManifests loaded the fully configured solution file
+- recommend tool with stage 'generateManifests' loaded the fully configured solution file
 - AI generated YAML using scaling-focused configuration
 - Policy requirements enforced: Resource limits (CPU: 500m, memory: 1Gi) applied to containers
 - Stateless Apps Pattern influenced resource requests/limits for predictable scaling
@@ -620,14 +628,14 @@ Ready to deploy your payment API?
 - System validated manifests with kubectl apply --dry-run=server --validate=true
 - Returned status: 'manifests_generated' with complete YAML content
 
-```
+```md
 User: Yes, deploy it!
 ```
 
-```
+```md
 Agent: Deploying your payment API microservice...
 
-[Uses mcp__dot-ai__deployManifests]
+[Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
 
 🎉 **API deployment successful!**
 
@@ -642,7 +650,7 @@ Your payment API microservice is now live with intelligent autoscaling!
 ```
 
 **What happened behind the scenes:**
-- deployManifests applied manifests using kubectl apply --wait and monitored deployment progress
+- recommend tool with stage 'deployManifests' applied manifests using kubectl apply --wait and monitored deployment progress
 - HorizontalPodAutoscaler attached to deployment and began monitoring CPU metrics
 - Service created internal DNS entry: payment-api.microservices.svc.cluster.local:8080
 - Ready to automatically scale from 2-15 replicas based on CPU utilization, handling variable traffic as requested

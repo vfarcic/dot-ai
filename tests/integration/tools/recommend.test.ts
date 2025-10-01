@@ -1,11 +1,19 @@
 /**
- * Integration Test: Recommend Tool
+ * Integration Test: Recommend Tool (Unified with Stage-Based Routing)
  *
- * Tests the complete recommendation workflow via REST API against a real test cluster.
+ * Tests the complete recommendation workflow via unified REST API endpoint with stage routing.
  * Validates clarification, solution generation, question generation with suggestedAnswers,
- * and manifest generation.
+ * manifest generation, and deployment through single tool with stage parameter.
  *
- * NOTE: Written based on actual API response inspection following PRD best practices.
+ * Stage routing format:
+ * - 'recommend' (default) - Initial recommendation/clarification
+ * - 'chooseSolution' - Solution selection
+ * - 'answerQuestion:required' - Answer required config questions
+ * - 'answerQuestion:basic' - Answer basic config questions
+ * - 'answerQuestion:advanced' - Answer advanced config questions
+ * - 'answerQuestion:open' - Answer open-ended requirements
+ * - 'generateManifests' - Generate Kubernetes manifests
+ * - 'deployManifests' - Deploy to cluster
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -23,8 +31,10 @@ describe.concurrent('Recommend Tool Integration', () => {
   describe('Recommendation Workflow', () => {
     test('should complete full workflow: clarification → solutions → choose → answer → generate → deploy', async () => {
       // PHASE 1: Request recommendations without final flag (clarification)
+      // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
       const clarificationResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         intent: 'deploy database'
+        // stage omitted - should default to 'recommend'
       });
 
       // Validate clarification response structure (based on actual API inspection)
@@ -58,6 +68,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 2: Request recommendations with refined intent and final=true (solutions)
       const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'recommend', // Explicit stage parameter
         intent: 'deploy postgresql database',
         final: true
       });
@@ -75,7 +86,7 @@ describe.concurrent('Recommend Tool Integration', () => {
               totalPatternInfluences: expect.any(Number),
               patternsAvailable: expect.any(String)
             },
-            nextAction: 'Call chooseSolution with your preferred solutionId',
+            nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('You MUST present these solutions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
@@ -94,8 +105,9 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
 
-      // PHASE 3: Call chooseSolution with solutionId
-      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/chooseSolution', {
+      // PHASE 3: Call chooseSolution stage with solutionId
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
         solutionId
       });
 
@@ -110,11 +122,11 @@ describe.concurrent('Recommend Tool Integration', () => {
             questions: expect.any(Array),
             nextStage: expect.stringMatching(/^(basic|advanced|open)$/),
             message: expect.stringContaining('required configuration'),
-            nextAction: 'answerQuestion',
+            nextAction: 'Call recommend tool with stage: answerQuestion:required',
             guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
-          tool: 'chooseSolution',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {
@@ -146,9 +158,9 @@ describe.concurrent('Recommend Tool Integration', () => {
         requiredAnswers[q.id] = q.suggestedAnswer;
       });
 
-      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/answerQuestion', {
+      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required', // Combined stage routing
         solutionId,
-        stage: 'required',
         answers: requiredAnswers
       });
 
@@ -161,17 +173,17 @@ describe.concurrent('Recommend Tool Integration', () => {
             solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
             currentStage: 'basic',
             questions: expect.any(Array),
-            nextAction: 'answerQuestion'
+            nextAction: 'Call recommend tool with stage: answerQuestion:basic'
           },
-          tool: 'answerQuestion',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         }
       });
 
       // PHASE 5: Skip basic stage (empty answers)
-      const skipBasicResponse = await integrationTest.httpClient.post('/api/v1/tools/answerQuestion', {
+      const skipBasicResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic', // Combined stage routing
         solutionId,
-        stage: 'basic',
         answers: {}
       });
 
@@ -184,9 +196,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             currentStage: 'advanced',
             questions: expect.any(Array),
             nextStage: 'open',
-            nextAction: 'answerQuestion'
+            nextAction: 'Call recommend tool with stage: answerQuestion:advanced'
           },
-          tool: 'answerQuestion',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {
@@ -199,9 +211,9 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(skipBasicResponse).toMatchObject(expectedSkipBasicResponse);
 
       // PHASE 6: Skip advanced stage (empty answers)
-      const skipAdvancedResponse = await integrationTest.httpClient.post('/api/v1/tools/answerQuestion', {
+      const skipAdvancedResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced', // Combined stage routing
         solutionId,
-        stage: 'advanced',
         answers: {}
       });
 
@@ -213,9 +225,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             status: 'stage_questions',
             currentStage: 'open',
             questions: expect.any(Array),
-            nextAction: 'answerQuestion'
+            nextAction: 'Call recommend tool with stage: answerQuestion:open'
           },
-          tool: 'answerQuestion',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {
@@ -228,9 +240,9 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(skipAdvancedResponse).toMatchObject(expectedSkipAdvancedResponse);
 
       // PHASE 7: Complete open stage with N/A
-      const completeOpenResponse = await integrationTest.httpClient.post('/api/v1/tools/answerQuestion', {
+      const completeOpenResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:open', // Combined stage routing
         solutionId,
-        stage: 'open',
         answers: { open: 'N/A' }
       });
 
@@ -241,11 +253,11 @@ describe.concurrent('Recommend Tool Integration', () => {
           result: {
             status: 'ready_for_manifest_generation',
             solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
-            nextAction: 'generateManifests',
+            nextAction: 'Call recommend tool with stage: generateManifests',
             message: expect.stringContaining('Configuration complete'),
             solutionData: expect.any(Object)
           },
-          tool: 'answerQuestion',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {
@@ -258,7 +270,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(completeOpenResponse).toMatchObject(expectedCompleteOpenResponse);
 
       // PHASE 8: Generate manifests
-      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/generateManifests', {
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
         solutionId
       });
 
@@ -275,7 +288,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
-          tool: 'generateManifests',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {
@@ -294,7 +307,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(manifests).toContain('metadata:');
 
       // PHASE 9: Deploy manifests to cluster
-      const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/deployManifests', {
+      const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'deployManifests',
         solutionId
       });
 
@@ -311,7 +325,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             deploymentComplete: true,
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
-          tool: 'deployManifests',
+          tool: 'recommend',
           executionTime: expect.any(Number)
         },
         meta: {

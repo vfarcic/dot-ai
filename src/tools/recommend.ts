@@ -13,15 +13,26 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { handleChooseSolutionTool } from './choose-solution';
+import { handleAnswerQuestionTool } from './answer-question';
+import { handleGenerateManifestsTool } from './generate-manifests';
+import { handleDeployManifestsTool } from './deploy-manifests';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
 export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, setup, install, or run applications, infrastructure, and services on Kubernetes with AI recommendations. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.';
 
-// Zod schema for MCP registration
+// Zod schema for MCP registration (unified tool with stage routing)
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
-  intent: z.string().min(1).max(1000).describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'),
-  final: z.boolean().optional().describe('Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.')
+  stage: z.string().optional().describe('Deployment workflow stage: "recommend" (default), "chooseSolution", "answerQuestion:required", "answerQuestion:basic", "answerQuestion:advanced", "answerQuestion:open", "generateManifests", "deployManifests". Defaults to "recommend" if omitted.'),
+  intent: z.string().min(1).max(1000).optional().describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'),
+  final: z.boolean().optional().describe('Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.'),
+  // Parameters for chooseSolution stage
+  solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages'),
+  // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
+  answers: z.record(z.any()).optional().describe('User answers for answerQuestion stage'),
+  // Parameters for deployManifests stage
+  timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage')
 };
 
 
@@ -98,18 +109,46 @@ function writeSolutionFile(sessionDir: string, solutionId: string, solutionData:
 }
 
 /**
- * Direct MCP tool handler for recommend functionality
+ * Direct MCP tool handler for recommend functionality (unified with stage routing)
  */
 export async function handleRecommendTool(
-  args: { intent: string; final?: boolean },
+  args: any,
   dotAI: DotAI,
   logger: Logger,
   requestId: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
-      logger.debug('Handling recommend request', { requestId, intent: args?.intent });
+      // Stage-based routing: extract stage and route to appropriate handler
+      const stage = args.stage || 'recommend'; // Default to 'recommend' if not specified
 
+      logger.debug('Handling recommend request with stage routing', { requestId, stage, intent: args?.intent });
+
+      // Route to appropriate handler based on stage
+      if (stage === 'chooseSolution') {
+        return await handleChooseSolutionTool(args, dotAI, logger, requestId);
+      }
+
+      if (stage.startsWith('answerQuestion:')) {
+        // Extract config stage from stage parameter (e.g., "answerQuestion:required" -> "required")
+        const configStage = stage.split(':')[1];
+        const answerQuestionArgs = {
+          solutionId: args.solutionId,
+          stage: configStage,
+          answers: args.answers
+        };
+        return await handleAnswerQuestionTool(answerQuestionArgs, dotAI, logger, requestId);
+      }
+
+      if (stage === 'generateManifests') {
+        return await handleGenerateManifestsTool(args, dotAI, logger, requestId);
+      }
+
+      if (stage === 'deployManifests') {
+        return await handleDeployManifestsTool(args, dotAI, logger, requestId);
+      }
+
+      // Default: recommend stage (original recommend logic)
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
 
@@ -335,7 +374,7 @@ export async function handleRecommendTool(
           totalPatternInfluences: totalPatternInfluences,
           patternsAvailable: totalPatternInfluences > 0 ? "Yes" : "None found or pattern search failed"
         },
-        nextAction: "Call chooseSolution with your preferred solutionId",
+        nextAction: "Call recommend tool with stage: chooseSolution and your preferred solutionId",
         guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
         timestamp
       };
