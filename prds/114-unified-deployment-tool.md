@@ -82,10 +82,10 @@ Unified parameter schema accepts all parameters from existing tools plus routing
 - [x] Validate basic parameter passing with stage
 
 ### Milestone 2: MCP Integration ✅
-- [ ] Update `recommend` tool MCP registration
-- [ ] Remove 4 separate tool registrations (chooseSolution, answerQuestion, generateManifests, deployManifests)
-- [ ] Update `recommend` registration with unified schema supporting stage parameter
-- [ ] Test MCP tool discovery shows single `recommend` tool
+- [x] Update `recommend` tool MCP registration
+- [x] Remove 4 separate tool registrations (chooseSolution, answerQuestion, generateManifests, deployManifests)
+- [x] Update `recommend` registration with unified schema supporting stage parameter
+- [x] Test MCP tool discovery shows single `recommend` tool
 
 ### Milestone 3: Complete Workflow Testing ✅
 - [x] Test each stage routing correctly
@@ -248,7 +248,7 @@ switch (stage) {
 ## Definition of Done
 
 - [x] `recommend` tool extended with stage-based routing
-- [ ] MCP registration updated (4 separate tools removed: chooseSolution, answerQuestion, generateManifests, deployManifests)
+- [x] MCP registration updated (4 separate tools removed: chooseSolution, answerQuestion, generateManifests, deployManifests)
 - [x] All existing workflows function identically
 - [x] Tests passing (integration tests updated in `recommend.test.ts` to validate stage routing)
 - [ ] Documentation updated
@@ -327,9 +327,38 @@ switch (stage) {
 - Stage routing cleanly separates concerns while maintaining backward-compatible interfaces
 
 **Next Session Priorities**:
-1. **Milestone 2**: Update MCP registration to remove 4 separate tool registrations
-2. **Milestone 5**: Update shared prompts and documentation for stage-based approach
-3. **Definition of Done**: Complete remaining documentation tasks
+1. **Milestone 5**: Update shared prompts and documentation for stage-based approach
+2. **Definition of Done**: Complete remaining documentation tasks
+
+---
+
+### 2025-10-02 (Evening): MCP Registration Update Complete
+**Duration**: ~1 hour
+**Commits**: 1 commit pending (MCP registration consolidation)
+
+**Completed PRD Items** (Milestone 2 & Definition of Done):
+- [x] Update `recommend` tool MCP registration - Evidence: src/interfaces/mcp.ts updated
+- [x] Remove 4 separate tool registrations - Evidence: chooseSolution, answerQuestion, generateManifests, deployManifests removed from mcp.ts
+- [x] Update `recommend` registration with unified schema - Evidence: Schema already included all parameters, just registration updated
+- [x] Test MCP tool discovery shows single recommend tool - Evidence: Manual verification shows "totalTools: 5" (not 9)
+- [x] MCP registration updated (Definition of Done) - Evidence: All 4 separate tools removed successfully
+
+**Implementation Highlights**:
+- **Clean consolidation**: Removed imports and registrations for 4 separate tools
+- **Unified interface**: Single `recommend` tool now handles all 5 workflow stages
+- **No breaking changes**: All handler functions remain unchanged, only MCP registration affected
+- **Build validation**: TypeScript compilation successful with no errors
+- **Manual verification**: Server logs confirm 5 tools registered (recommend, version, testDocs, manageOrgData, remediate)
+
+**Technical Details**:
+- Removed lines 25-48 in mcp.ts (unused imports for 4 separate tools)
+- Removed lines 192-278 in mcp.ts (4 tool registration blocks)
+- Updated logging to show 5 tools instead of 9
+- Maintained all handler imports in recommend.ts for internal routing
+
+**Next Session Priorities**:
+1. **Milestone 5**: Update shared prompts and documentation for stage-based approach
+2. **Complete PRD**: Only documentation remains for full completion
 
 ---
 
