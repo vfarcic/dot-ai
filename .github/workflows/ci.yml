@@ -82,7 +82,8 @@ jobs:
   security:
     name: Security Analysis
     runs-on: ubuntu-latest
-    
+    if: github.event_name == 'pull_request'
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -111,7 +112,6 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
   version:
-    needs: [security]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     outputs:
