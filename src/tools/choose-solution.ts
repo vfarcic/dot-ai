@@ -131,7 +131,7 @@ export async function handleChooseSolutionTool(
         questions: solution.questions.required || [],
         nextStage: 'basic',
         message: 'Please provide the required configuration for your application.',
-        nextAction: 'answerQuestion',
+        nextAction: 'Call recommend tool with stage: answerQuestion:required',
         guidance: 'Answer questions in this stage or skip to proceed to the next stage. Do NOT try to generate manifests yet.',
         timestamp: new Date().toISOString()
       };
