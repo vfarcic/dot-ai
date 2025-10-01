@@ -44,10 +44,3 @@ nodes:
   - containerPort: 3000
     hostPort: 3000
     protocol: TCP
-  # Standard ingress ports (if needed for future tests)
-  - containerPort: 80
-    hostPort: 80
-    protocol: TCP
-  - containerPort: 443
-    hostPort: 443
-    protocol: TCP

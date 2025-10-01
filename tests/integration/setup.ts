@@ -13,6 +13,9 @@ import { beforeAll } from 'vitest';
 const testKubeconfig = path.join(process.cwd(), 'kubeconfig-test.yaml');
 process.env.KUBECONFIG = testKubeconfig;
 
+// Configure test Qdrant instance (port 6335 to avoid conflicts)
+process.env.QDRANT_URL = 'http://localhost:6335';
+
 // Enable debug mode for better test diagnostics
 process.env.DEBUG_DOT_AI = 'true';
 

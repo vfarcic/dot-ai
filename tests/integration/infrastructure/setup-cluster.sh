@@ -107,17 +107,18 @@ if docker ps -a --format "table {{.Names}}" | grep -q "^qdrant-test$"; then
 fi
 
 # Start Qdrant container on host with pre-populated test data
+# Use port 6335 to avoid conflicts with existing Qdrant instances
 docker run -d \
     --name qdrant-test \
-    -p 6333:6333 \
+    -p 6335:6333 \
     ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest
 
 # Wait for Qdrant to be ready
 echo "⏳ Waiting for Qdrant to be ready..."
 sleep 5  # Give it a moment to start
 for i in {1..30}; do
-    if curl -f http://localhost:6333/ &> /dev/null; then
-        echo "✅ Qdrant is ready"
+    if curl -f http://localhost:6335/ &> /dev/null; then
+        echo "✅ Qdrant is ready on http://localhost:6335"
         break
     fi
     if [ $i -eq 30 ]; then
