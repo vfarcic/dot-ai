@@ -111,7 +111,7 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
   version:
-    needs: [test, security]
+    needs: [security]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     outputs:
