@@ -11,6 +11,7 @@
 # > main apply mcp --enable-context7
 # > main apply mcp --enable-git
 # > main apply mcp --enable-dot-ai --kubeconfig /path/to/kubeconfig
+# > main apply mcp --enable-dot-ai --dot-ai-version 1.2.3
 # > main apply mcp --enable-taskmaster
 # > main apply mcp --enable-memory
 # > main apply mcp --enable-github
@@ -21,6 +22,7 @@ def --env "main apply mcp" [
     --anthropic-api-key: string = "",        # Anthropic API key for the taskmaster-ai MCP server. If empty, $env.ANTHROPIC_API_KEY is used if set.
     --github-token: string = "",             # GitHub Personal Access Token for the github MCP server. If empty, $env.GITHUB_TOKEN is used if set.
     --kubeconfig: string = "",               # Path to kubeconfig file for dot-ai MCP server. If empty, $env.KUBECONFIG is used if set.
+    --dot-ai-version: string = "latest",     # Version of dot-ai MCP server to use. Defaults to 'latest'
     --enable-playwright = false,             # Enable Playwright MCP server for browser automation
     --enable-context7 = false,               # Enable Context7 MCP server
     --enable-git = false,                    # Enable Git MCP server
@@ -115,7 +117,7 @@ def --env "main apply mcp" [
     if $enable_dot_ai and $resolved_anthropic_api_key != "" and $resolved_kubeconfig != "" {
         $mcp_servers_map = $mcp_servers_map | upsert "dot-ai" {
             command: "npx",
-            args: ["-y", "--package=@vfarcic/dot-ai@latest", "dot-ai-mcp"],
+            args: ["-y", $"--package=@vfarcic/dot-ai@($dot_ai_version)", "dot-ai-mcp"],
             env: {
                 KUBECONFIG: $resolved_kubeconfig,
                 DOT_AI_SESSION_DIR: "./tmp/sessions"
