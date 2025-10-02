@@ -157,21 +157,26 @@ An AI-powered MCP tool (`buildPlatform`) that dynamically discovers available pl
 ### Architecture Overview
 
 ```
-User Intent
+User Intent ("Install Argo CD")
     ↓
 MCP Tool: buildPlatform
     ↓
-┌─────────────────────────────────────┐
-│ 1. Nushell Runtime Check            │
-│ 2. Intent Analysis & Command Mapping│
-│ 3. Argument Discovery (--help)      │
-│ 4. Multi-Step Workflow Session      │
-│ 5. Script Execution                 │
-│ 6. Result Reporting                 │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ Internal Processing (Hidden from User):                  │
+│ 1. Nushell Runtime Check                                 │
+│ 2. Script Discovery & Intent Mapping                     │
+│ 3. Argument Parsing (--help)                             │
+│ 4. Multi-Step Workflow Session (parameter collection)    │
+│ 5. Script Execution                                       │
+│ 6. Result Reporting                                       │
+└──────────────────────────────────────────────────────────┘
     ↓
-Nu Shell Scripts (./scripts/*.nu)
+Nu Shell Scripts (./scripts/*.nu) [Implementation Detail]
+    ↓
+User sees: "What hostname should I use?" → Execution result
 ```
+
+**Design Philosophy**: Users never see or interact with script operations directly. The tool presents as a conversational platform management assistant, not a script executor.
 
 ### Key Components
 
@@ -180,15 +185,17 @@ Nu Shell Scripts (./scripts/*.nu)
 - Responsibility: Detect Nushell installation, provide setup instructions
 - Key Methods: `checkNushellInstalled()`, `getInstallInstructions()`
 
-**Component 2: Script Discovery Engine**
+**Component 2: Script Discovery Engine** (Internal)
 - File: `src/core/platform-operations.ts`
-- Responsibility: Parse dot.nu help output, extract available operations
+- Responsibility: Parse dot.nu help output, extract available operations (hidden from users)
 - Key Methods: `discoverOperations()`, `categorizeOperations()`
+- Usage: Internal only - used for intent mapping, never exposed to users
 
-**Component 3: Script Argument Parser**
+**Component 3: Script Argument Parser** (Internal)
 - File: `src/core/script-parser.ts`
-- Responsibility: Parse operation --help output, extract argument metadata
+- Responsibility: Parse operation --help output, extract argument metadata (hidden from users)
 - Key Methods: `parseHelp()`, `extractArguments()`, `detectArgumentType()`
+- Usage: Internal only - converts script help into conversational questions
 
 **Component 4: Session Manager**
 - File: `src/core/platform-session.ts`
@@ -196,11 +203,12 @@ Nu Shell Scripts (./scripts/*.nu)
 - Key Methods: `createSession()`, `updateSession()`, `getNextQuestion()`
 - Storage: `./tmp/sessions/platform/{sessionId}.json`
 
-**Component 5: Intent Mapper**
+**Component 5: Intent Mapper** (Critical User-Facing)
 - File: `src/core/platform-operations.ts`
-- Responsibility: Map natural language to script commands
+- Responsibility: Map natural language intent to script commands (transparent to user)
 - Strategy: Keyword matching + context analysis
-- Examples: "install argocd" → "apply argocd", "create cluster" → "create kubernetes"
+- Examples: "Install Argo CD" → `apply argocd`, "Create AWS cluster" → `create kubernetes`
+- User Experience: User never sees or knows about script commands
 
 **Component 6: Script Executor**
 - File: `src/core/platform-operations.ts`
@@ -209,8 +217,9 @@ Nu Shell Scripts (./scripts/*.nu)
 
 **Component 7: MCP Tool Handler**
 - File: `src/tools/build-platform.ts`
-- Responsibility: MCP interface, request routing, response formatting
-- Schema: `operation`, `intent`, `sessionId`, `response`
+- Responsibility: MCP interface - single intent-driven entry point
+- Schema: `intent` (required), `sessionId` (optional for continuation), `response` (optional for parameter collection)
+- Design: Users express intent only; all script discovery, mapping, and execution happens internally
 
 ### Data Models
 
@@ -408,7 +417,7 @@ interface ArgumentMetadata {
 
 ### Definition of Done
 - [ ] All 29 scripts converted to argument-based (no interactive prompts)
-- [ ] Nushell runtime checker implemented and tested
+- [x] Nushell runtime checker implemented and tested
 - [ ] Script discovery working dynamically
 - [ ] Intent mapping handles common use cases
 - [ ] Multi-step workflow with session persistence
@@ -440,37 +449,66 @@ interface ArgumentMetadata {
 
 ### Milestone 2: Core Discovery & Parsing Working
 **Goal**: System can discover operations and parse arguments dynamically
+**TDD Cycle**:
+1. [x] Write integration test for basic tool invocation (Phase 1)
+2. [x] Create minimal MCP tool skeleton and register
+3. [x] Run test to see failure (red)
+4. [x] Implement Phase 1: intent acceptance + Nushell validation
+5. [x] Make tests pass (green)
+6. [ ] Write integration test for script discovery (Phase 2)
+7. [ ] Implement script discovery engine
+8. [ ] Make test pass (green)
+9. [ ] Repeat for help parsing
+
 **Validation**:
-- `discoverOperations()` returns all available operations
-- `parseHelp()` extracts argument metadata correctly
-- [x] Nushell runtime checker detects installation status
-- Unit tests passing for discovery and parsing
+- [x] Integration test validates basic tool invocation (3 tests passing)
+- [x] Tool accepts intent parameter and returns workflow response
+- [x] Nushell runtime validation with installation instructions
+- [ ] Integration test validates script discovery via MCP tool
+- [ ] `discoverOperations()` returns all available operations
+- [ ] `parseHelp()` extracts argument metadata correctly
 
 ### Milestone 3: Workflow & Session Management Implemented
 **Goal**: Multi-step conversational workflow functional
+**TDD Cycle**:
+1. Write integration test for intent → first parameter question
+2. Implement intent mapping and session creation
+3. Make test pass
+4. Write test for parameter collection workflow
+5. Implement session management
+6. Make test pass
+
 **Validation**:
+- Integration test validates end-to-end workflow
 - Session creation and persistence working
 - Argument collection step-by-step
 - Session resume after interruption
 - Confirmation step before execution
-- Integration test for full workflow
 
 ### Milestone 4: Script Execution & Error Handling
 **Goal**: Scripts execute successfully with proper error handling
+**TDD Cycle**:
+1. Write integration test for successful script execution
+2. Implement script executor
+3. Make test pass
+4. Write tests for error scenarios (timeout, script failure, etc.)
+5. Implement error handling
+6. Make tests pass
+
 **Validation**:
+- Integration tests validate execution scenarios
 - Scripts execute with collected parameters
 - Output captured and returned to user
 - Errors captured and explained clearly
 - Timeout handling works correctly
-- Integration tests for execution scenarios
 
 ### Milestone 5: MCP Tool Registration & Integration
 **Goal**: Tool available in MCP server and REST API
 **Validation**:
-- Tool registered in MCP server
-- REST API endpoint functional
-- Tool appears in tool discovery
-- End-to-end test via MCP client (Claude Code)
+- [x] Tool registered in MCP server
+- [x] REST API endpoint functional
+- [x] Tool appears in tool discovery
+- [ ] End-to-end test via MCP client (Claude Code)
 
 ### Milestone 6: Packaging & Distribution
 **Goal**: Feature available in released packages
@@ -491,6 +529,38 @@ interface ArgumentMetadata {
 ---
 
 ## Progress Log
+
+### 2025-10-02: Phase 1 - MCP Tool Foundation (TDD)
+**Duration**: ~3 hours
+**Approach**: Test-Driven Development (TDD)
+
+**Completed Work**:
+- [x] Created Phase 1 integration tests (`tests/integration/tools/build-platform.test.ts`)
+  - Test: Tool accepts intent parameter and returns workflow response
+  - Test: Error handling for missing intent parameter
+  - Test: Nushell runtime validation with installation instructions
+- [x] Implemented buildPlatform MCP tool (`src/tools/build-platform.ts`)
+  - Accepts natural language intent
+  - Validates Nushell runtime availability
+  - Returns structured workflow response with sessionId
+  - Proper error handling and MCP response formatting
+- [x] Registered tool in MCP server (`src/interfaces/mcp.ts`)
+  - Added tool exports to `src/tools/index.ts`
+  - Registered in MCP server with proper handler
+  - Tool available via REST API
+- [x] TDD cycle completed: RED → GREEN
+  - All 3 integration tests passing ✅
+
+**Implementation Details**:
+- Tool interface: `intent` (required), `sessionId` (optional), `response` (optional)
+- Session ID format: `platform-{timestamp}-{uuid}`
+- Phase 1 response includes: `workflow.sessionId`, `workflow.intent`, `workflow.nextStep`
+- Next step indicator: "discover" (Phase 2 will implement script discovery)
+
+**Next Session Priorities**:
+- Phase 2: Implement script discovery engine
+- Parse `nu scripts/dot.nu --help` to discover available operations
+- Create integration tests for discovery functionality (TDD)
 
 ### 2025-10-02: Nushell Runtime Checker Implementation
 **Duration**: ~2 hours
@@ -536,6 +606,8 @@ interface ArgumentMetadata {
 - ✅ Approach: Dynamic discovery (not hardcoded operations)
 - ✅ Script modification strategy: Convert all to argument-based
 - ✅ Nushell requirement: Mandatory, with clear installation instructions
+- ✅ **User Interface Philosophy** (2025-10-02): Nushell scripts are implementation details that should be completely hidden from users. Users express intent ("Install Argo CD"), system handles script discovery, mapping, and execution transparently. Tool should feel like `recommend` or `remediate` - intent-driven, not operation-driven.
+- ✅ **Development Methodology** (2025-10-02): TDD approach with integration tests first. For each workflow phase: (1) Write integration test, (2) See it fail (red), (3) Implement minimal code to pass (green), (4) Refactor if needed, (5) Move to next phase. Integration tests drive API design and validate tool interface early.
 
 ---
 

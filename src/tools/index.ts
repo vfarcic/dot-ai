@@ -53,3 +53,10 @@ export {
   REMEDIATE_TOOL_INPUT_SCHEMA,
   handleRemediateTool,
 } from './remediate';
+
+export {
+  BUILD_PLATFORM_TOOL_NAME,
+  BUILD_PLATFORM_TOOL_DESCRIPTION,
+  BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
+  handleBuildPlatformTool,
+} from './build-platform';
