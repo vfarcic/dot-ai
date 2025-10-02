@@ -61,18 +61,7 @@ jobs:
       run: npm run test:integration:setup
       timeout-minutes: 8
 
-    - name: Create session directory
-      run: mkdir -p ./tmp/sessions
-
-    - name: Start MCP server
-      run: |
-        npm run test:integration:server &
-        sleep 10
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
-    - name: Run integration tests
+    - name: Run integration tests (with automated server management)
       run: npm run test:integration
       timeout-minutes: 15
       env:

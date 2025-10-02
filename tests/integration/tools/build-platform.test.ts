@@ -24,28 +24,26 @@ describe('Build Platform Tool - Phase 1: Basic Invocation', () => {
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
   });
 
-  describe('Tool Invocation with Intent', () => {
-    test('should accept intent and return workflow response with next steps', async () => {
-      // User provides natural language intent
-      const response = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install cert-manager'
+  describe('Script Discovery and Intent Mapping Workflow', () => {
+    test('should complete full workflow: list operations, map intent, handle ambiguous intent', async () => {
+      // Step 1: List all available operations
+      const listResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
+        stage: 'list'
       });
 
-      // Expected response structure (consistent with project MCP tool patterns)
-      const expectedResponse = {
+      const expectedListResponse = {
         success: true,
         data: {
           result: {
             success: true,
-            workflow: {
-              sessionId: expect.stringMatching(/^platform-\d+-[a-f0-9-]+$/), // Similar to pattern tool format
-              intent: 'Install cert-manager', // Echo back the intent
-              // At Phase 1, we expect either:
-              // - instruction/prompt for next step OR
-              // - error about Nushell not available
-              nextStep: expect.any(String) // e.g., 'discover', 'parameters', 'execute', etc.
-            },
-            message: expect.any(String) // Status message like "Workflow started" or "Ready to proceed"
+            operations: expect.arrayContaining([
+              expect.objectContaining({
+                name: expect.any(String),
+                description: expect.any(String),
+                operations: expect.any(Array)
+              })
+            ]),
+            message: expect.stringContaining('Found')
           },
           tool: 'buildPlatform',
           executionTime: expect.any(Number)
@@ -57,12 +55,23 @@ describe('Build Platform Tool - Phase 1: Basic Invocation', () => {
         }
       };
 
-      expect(response).toMatchObject(expectedResponse);
+      expect(listResponse).toMatchObject(expectedListResponse);
+      expect(listResponse.data.result.operations.length).toBeGreaterThan(0);
 
-      // Validate sessionId format
-      const sessionId = response.data.result.workflow.sessionId;
-      expect(sessionId).toMatch(/^platform-\d+-[a-f0-9-]+$/);
-    });
+      // Verify at least one operation has available actions
+      const firstOperation = listResponse.data.result.operations[0];
+      expect(firstOperation.operations.length).toBeGreaterThan(0);
+
+      // Verify message provides guidance to client agent
+      const message = listResponse.data.result.message;
+      expect(message).toContain('numbered list');
+      expect(message).toContain('operations');
+      expect(message).toContain('intent');
+      expect(message).toContain('call this tool again');
+
+      // TODO: Step 2 - Map specific intent to operation
+      // TODO: Step 3 - Handle ambiguous intent
+    }, 300000);
 
     test('should return error when intent parameter is missing', async () => {
       // Missing required intent parameter

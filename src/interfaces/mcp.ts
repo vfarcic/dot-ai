@@ -254,7 +254,7 @@ export class MCPServer {
           `Processing ${BUILD_PLATFORM_TOOL_NAME} tool request`,
           { requestId }
         );
-        return await handleBuildPlatformTool(args, this.logger, requestId);
+        return await handleBuildPlatformTool(args, this.dotAI, this.logger, requestId);
       },
       'Platform',
       ['platform', 'kubernetes', 'installation', 'infrastructure']
