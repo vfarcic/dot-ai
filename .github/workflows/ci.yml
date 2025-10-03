@@ -35,34 +35,23 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@v0.11.0
+      with:
+        enable-cache: true
+
     - name: Run linter
-      run: npm run lint
+      run: devbox run -- npm run lint
 
     - name: Build project
-      run: npm run build
-
-    - name: Install kubectl
-      run: |
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
-
-    - name: Install Kind
-      run: |
-        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-
-    - name: Install Helm
-      run: |
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      run: devbox run -- npm run build
 
     - name: Create Kind cluster with operators
-      run: npm run test:integration:setup
+      run: devbox run -- npm run test:integration:setup
       timeout-minutes: 8
 
     - name: Run integration tests (with automated server management)
-      run: npm run test:integration
+      run: devbox run -- npm run test:integration
       timeout-minutes: 15
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
