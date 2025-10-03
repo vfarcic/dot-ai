@@ -12,6 +12,7 @@ import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
+import { NushellRuntime } from '../core/nushell-runtime';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
@@ -87,6 +88,13 @@ export interface SystemStatus {
     policyGenerationReady: boolean;
     error?: string;
     reason?: string;
+  };
+  nushell: {
+    installed: boolean;
+    version?: string | null;
+    ready: boolean;
+    error?: string;
+    installationUrl?: string;
   };
 }
 
@@ -489,6 +497,31 @@ async function getKubernetesStatus(): Promise<SystemStatus['kubernetes']> {
 }
 
 /**
+ * Test Nushell runtime availability
+ */
+async function getNushellStatus(): Promise<SystemStatus['nushell']> {
+  try {
+    const runtime = new NushellRuntime();
+    const validation = await runtime.validateRuntime();
+
+    return {
+      installed: validation.versionInfo?.installed || false,
+      version: validation.versionInfo?.version,
+      ready: validation.ready,
+      error: validation.ready ? undefined : validation.message,
+      installationUrl: validation.installationUrl
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      ready: false,
+      error: error instanceof Error ? error.message : String(error),
+      installationUrl: 'https://www.nushell.sh/book/installation.html'
+    };
+  }
+}
+
+/**
  * Test Anthropic API connectivity
  */
 async function getAnthropicStatus(): Promise<SystemStatus['anthropic']> {
@@ -565,15 +598,16 @@ export async function handleVersionTool(
     
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId });
-    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus, kyvernoStatus] = await Promise.all([
+    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus, kyvernoStatus, nushellStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
       getAnthropicStatus(),
       getKubernetesStatus(),
       getCapabilityStatus(),
-      getKyvernoStatus()
+      getKyvernoStatus(),
+      getNushellStatus()
     ]);
-    
+
     const systemStatus: SystemStatus = {
       version,
       vectorDB: vectorDBStatus,
@@ -581,11 +615,12 @@ export async function handleVersionTool(
       anthropic: anthropicStatus,
       kubernetes: kubernetesStatus,
       capabilities: capabilityStatus,
-      kyverno: kyvernoStatus
+      kyverno: kyvernoStatus,
+      nushell: nushellStatus
     };
     
     // Log summary of system health
-    logger.info('System diagnostics completed', { 
+    logger.info('System diagnostics completed', {
       requestId,
       version: version.version,
       vectorDBConnected: vectorDBStatus.connected,
@@ -593,7 +628,8 @@ export async function handleVersionTool(
       anthropicConnected: anthropicStatus.connected,
       kubernetesConnected: kubernetesStatus.connected,
       capabilitySystemReady: capabilityStatus.systemReady,
-      kyvernoReady: kyvernoStatus.policyGenerationReady
+      kyvernoReady: kyvernoStatus.policyGenerationReady,
+      nushellReady: nushellStatus.ready
     });
     
     return {
@@ -615,7 +651,8 @@ export async function handleVersionTool(
               embeddingStatus.available ? 'semantic-search' : null,
               anthropicStatus.connected ? 'ai-recommendations' : null,
               kubernetesStatus.connected ? 'kubernetes-integration' : null,
-              kyvernoStatus.policyGenerationReady ? 'policy-generation' : null
+              kyvernoStatus.policyGenerationReady ? 'policy-generation' : null,
+              nushellStatus.ready ? 'platform-scripting' : null
             ].filter(Boolean)
           },
           timestamp: new Date().toISOString()
