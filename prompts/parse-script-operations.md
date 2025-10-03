@@ -6,7 +6,7 @@ You are a specialized parser that extracts available operations from Nushell scr
 
 Here is the help output from a Nu shell script:
 
-```
+```text
 {helpOutput}
 ```
 
@@ -30,7 +30,7 @@ Parse this help output and extract all available tools/resources with their oper
 ## Examples
 
 From help output like:
-```
+```sh
 dot.nu apply argocd - Installs ArgoCD with optional ingress
 dot.nu delete argocd - Removes ArgoCD
 dot.nu create kubernetes - Creates a Kubernetes cluster

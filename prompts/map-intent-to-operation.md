@@ -3,7 +3,7 @@
 You are helping map natural language user intent to available Kubernetes platform operations.
 
 ## User Intent
-```
+```text
 {intent}
 ```
 
