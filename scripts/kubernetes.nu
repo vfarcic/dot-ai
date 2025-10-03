@@ -330,7 +330,7 @@ Press the (ansi yellow_bold)enter key(ansi reset) to continue.
         input
 
         mut username = $upcloud_username
-        if ($username | is-empty) and (UPCLOUD_USERNAME in $env) {
+        if ($username | is-empty) and ("UPCLOUD_USERNAME" in $env) {
             $username = $env.UPCLOUD_USERNAME
         } else if ($username | is-empty) {
             error make { msg: "UpCloud username required via --upcloud-username parameter or UPCLOUD_USERNAME environment variable" }
@@ -340,7 +340,7 @@ Press the (ansi yellow_bold)enter key(ansi reset) to continue.
             | save --append .env
 
         mut password = $upcloud_password
-        if ($password | is-empty) and (UPCLOUD_PASSWORD in $env) {
+        if ($password | is-empty) and ("UPCLOUD_PASSWORD" in $env) {
             $password = $env.UPCLOUD_PASSWORD
         } else if ($password | is-empty) {
             error make { msg: "UpCloud password required via --upcloud-password parameter or UPCLOUD_PASSWORD environment variable" }
@@ -402,7 +402,7 @@ def --env "create aks" [
     let location = "eastus"
 
     mut tenant = $azure_tenant
-    if ($tenant | is-empty) and (AZURE_TENANT in $env) {
+    if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
         $tenant = $env.AZURE_TENANT
     } else if ($tenant | is-empty) {
         error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
@@ -517,7 +517,7 @@ def --env "create eks" [
     let region = "us-east-1"
 
     mut access_key = $aws_access_key_id
-    if ($access_key | is-empty) and (AWS_ACCESS_KEY_ID in $env) {
+    if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
         $access_key = $env.AWS_ACCESS_KEY_ID
     } else if ($access_key | is-empty) {
         error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
@@ -526,7 +526,7 @@ def --env "create eks" [
         | save --append .env
 
     mut secret_key = $aws_secret_access_key
-    if ($secret_key | is-empty) and (AWS_SECRET_ACCESS_KEY in $env) {
+    if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
         $secret_key = $env.AWS_SECRET_ACCESS_KEY
     } else if ($secret_key | is-empty) {
         error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }

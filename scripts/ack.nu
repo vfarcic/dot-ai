@@ -15,7 +15,7 @@ def --env "main apply ack" [
     print $"\nApplying (ansi yellow_bold)ACK Controllers(ansi reset)...\n"
 
     mut access_key = $aws_access_key_id
-    if ($access_key | is-empty) and (AWS_ACCESS_KEY_ID in $env) {
+    if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
         $access_key = $env.AWS_ACCESS_KEY_ID
     } else if ($access_key | is-empty) {
         error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
@@ -25,7 +25,7 @@ def --env "main apply ack" [
         | save --append .env
 
     mut secret_key = $aws_secret_access_key
-    if ($secret_key | is-empty) and (AWS_SECRET_ACCESS_KEY in $env) {
+    if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
         $secret_key = $env.AWS_SECRET_ACCESS_KEY
     } else if ($secret_key | is-empty) {
         error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }

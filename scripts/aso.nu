@@ -19,7 +19,7 @@ def --env "main apply aso" [
     if $apply_creds {
 
         mut tenant = $azure_tenant
-        if ($tenant | is-empty) and (AZURE_TENANT in $env) {
+        if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
             $tenant = $env.AZURE_TENANT
         } else if ($tenant | is-empty) {
             error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }

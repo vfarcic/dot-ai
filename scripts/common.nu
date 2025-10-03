@@ -63,7 +63,7 @@ def --env "main get creds" [
     } else if $provider == "aws" {
 
         mut access_key = $aws_access_key_id
-        if ($access_key | is-empty) and (AWS_ACCESS_KEY_ID in $env) {
+        if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
             $access_key = $env.AWS_ACCESS_KEY_ID
         } else if ($access_key | is-empty) {
             error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
@@ -73,7 +73,7 @@ def --env "main get creds" [
         $creds = ( $creds | upsert aws_access_key_id $access_key )
 
         mut secret_key = $aws_secret_access_key
-        if ($secret_key | is-empty) and (AWS_SECRET_ACCESS_KEY in $env) {
+        if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
             $secret_key = $env.AWS_SECRET_ACCESS_KEY
         } else if ($secret_key | is-empty) {
             error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }
@@ -83,7 +83,7 @@ def --env "main get creds" [
         $creds = ( $creds | upsert aws_secret_access_key $secret_key )
 
         mut account_id = $aws_account_id
-        if ($account_id | is-empty) and (AWS_ACCOUNT_ID in $env) {
+        if ($account_id | is-empty) and ("AWS_ACCOUNT_ID" in $env) {
             $account_id = $env.AWS_ACCOUNT_ID
         } else if ($account_id | is-empty) {
             error make { msg: "AWS Account ID required via --aws-account-id parameter or AWS_ACCOUNT_ID environment variable" }
@@ -95,7 +95,7 @@ def --env "main get creds" [
     } else if $provider == "azure" {
 
         mut tenant = $azure_tenant
-        if ($tenant | is-empty) and (AZURE_TENANT in $env) {
+        if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
             $tenant = $env.AZURE_TENANT
         } else if ($tenant | is-empty) {
             error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
