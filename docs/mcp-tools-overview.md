@@ -34,6 +34,12 @@ AI-powered issue analysis and remediation with intelligent root cause identifica
 - **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
 - **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
 
+### 🏗️ Platform Building
+Conversational platform operations through natural language - install tools, create clusters, and manage infrastructure without memorizing commands.
+- **What it does**: Dynamically discovers available platform operations, maps natural language intent to infrastructure scripts, and executes operations through conversational parameter collection
+- **Use when**: Installing platform tools (Argo CD, Crossplane, cert-manager), creating Kubernetes clusters, or building platform infrastructure conversationally
+- **📖 Full Guide**: [Platform Building](mcp-build-platform-guide.md)
+
 ### 📋 Documentation Testing
 Automated validation of documentation accuracy through functionality testing and AI analysis.
 - **What it does**: Tests commands, examples, and descriptions in documentation files
@@ -69,9 +75,10 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Tool Dependencies
 
 - **Deployment Recommendations** ← requires **Capability Management**
-- **Pattern Management** → enhances **Deployment Recommendations** 
+- **Pattern Management** → enhances **Deployment Recommendations**
 - **Policy Management** → enhances **Deployment Recommendations**
 - **Kubernetes Issue Remediation** ← independent
+- **Platform Building** ← independent (requires Nushell runtime)
 - **Documentation Testing** ← independent
 - **Shared Prompts Library** ← independent
 
