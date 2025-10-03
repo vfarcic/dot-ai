@@ -103,3 +103,7 @@ start-http-server.sh
 
 # MCP Registry authentication tokens
 .mcpregistry_*
+
+# Test files
+argocd-values.yaml
+argocd/

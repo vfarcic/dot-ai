@@ -47,6 +47,10 @@ def "main delete temp_files" [] {
 # > main get creds azure
 def --env "main get creds" [
     provider: string,  # The cloud provider to configure credentials for (aws, azure, google)
+    --aws-access-key-id: string,      # AWS Access Key ID (optional, falls back to AWS_ACCESS_KEY_ID env var)
+    --aws-secret-access-key: string,  # AWS Secret Access Key (optional, falls back to AWS_SECRET_ACCESS_KEY env var)
+    --aws-account-id: string,         # AWS Account ID (optional, falls back to AWS_ACCOUNT_ID env var)
+    --azure-tenant: string            # Azure Tenant ID (optional, falls back to AZURE_TENANT env var)
 ] {
 
     mut creds = {provider: $provider}
@@ -58,49 +62,47 @@ def --env "main get creds" [
 
     } else if $provider == "aws" {
 
-        mut aws_access_key_id = ""
-        if AWS_ACCESS_KEY_ID in $env {
-            $aws_access_key_id = $env.AWS_ACCESS_KEY_ID
-        } else {
-            $aws_access_key_id = input $"(ansi green_bold)Enter AWS Access Key ID: (ansi reset)"
+        mut access_key = $aws_access_key_id
+        if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
+            $access_key = $env.AWS_ACCESS_KEY_ID
+        } else if ($access_key | is-empty) {
+            error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
         }
-        $"export AWS_ACCESS_KEY_ID=($aws_access_key_id)\n"
+        $"export AWS_ACCESS_KEY_ID=($access_key)\n"
             | save --append .env
-        $creds = ( $creds | upsert aws_access_key_id $aws_access_key_id )
+        $creds = ( $creds | upsert aws_access_key_id $access_key )
 
-        mut aws_secret_access_key = ""
-        if AWS_SECRET_ACCESS_KEY in $env {
-            $aws_secret_access_key = $env.AWS_SECRET_ACCESS_KEY
-        } else {
-            $aws_secret_access_key = input $"(ansi green_bold)Enter AWS Secret Access Key: (ansi reset)" --suppress-output
-            print ""
+        mut secret_key = $aws_secret_access_key
+        if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
+            $secret_key = $env.AWS_SECRET_ACCESS_KEY
+        } else if ($secret_key | is-empty) {
+            error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }
         }
-        $"export AWS_SECRET_ACCESS_KEY=($aws_secret_access_key)\n"
+        $"export AWS_SECRET_ACCESS_KEY=($secret_key)\n"
             | save --append .env
-        $creds = ( $creds | upsert aws_secret_access_key $aws_secret_access_key )
+        $creds = ( $creds | upsert aws_secret_access_key $secret_key )
 
-        mut aws_account_id = ""
-        if AWS_ACCOUNT_ID in $env {
-            $aws_account_id = $env.AWS_ACCOUNT_ID
-        } else {
-            $aws_account_id = input $"(ansi green_bold)Enter AWS Account ID: (ansi reset)"
+        mut account_id = $aws_account_id
+        if ($account_id | is-empty) and ("AWS_ACCOUNT_ID" in $env) {
+            $account_id = $env.AWS_ACCOUNT_ID
+        } else if ($account_id | is-empty) {
+            error make { msg: "AWS Account ID required via --aws-account-id parameter or AWS_ACCOUNT_ID environment variable" }
         }
-        $"export AWS_ACCOUNT_ID=($aws_account_id)\n"
+        $"export AWS_ACCOUNT_ID=($account_id)\n"
             | save --append .env
-        $creds = ( $creds | upsert aws_account_id $aws_account_id )
+        $creds = ( $creds | upsert aws_account_id $account_id )
 
     } else if $provider == "azure" {
 
-        mut tenant_id = ""
-
-        if AZURE_TENANT in $env {
-            $tenant_id = $env.AZURE_TENANT
-        } else {
-            $tenant_id = input $"(ansi green_bold)Enter Azure Tenant ID: (ansi reset)"
+        mut tenant = $azure_tenant
+        if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
+            $tenant = $env.AZURE_TENANT
+        } else if ($tenant | is-empty) {
+            error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
         }
-        $creds = ( $creds | upsert tenant_id $tenant_id )
+        $creds = ( $creds | upsert tenant_id $tenant )
 
-        az login --tenant $tenant_id
+        az login --tenant $tenant
     
     } else {
 

@@ -17,7 +17,7 @@
     "test:integration:setup": "./tests/integration/infrastructure/setup-cluster.sh",
     "test:integration:teardown": "./tests/integration/infrastructure/teardown-cluster.sh",
     "test:integration:server": "KUBECONFIG=./kubeconfig-test.yaml PORT=3456 DOT_AI_SESSION_DIR=./tmp/sessions TRANSPORT_TYPE=http QDRANT_URL=http://localhost:6335 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY OPENAI_API_KEY=$OPENAI_API_KEY node dist/mcp/server.js",
-    "test:integration": "vitest run --config=vitest.integration.config.ts --test-timeout=1200000",
+    "test:integration": "./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:watch": "vitest --config=vitest.integration.config.ts --test-timeout=1200000",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
@@ -65,6 +65,7 @@
     "dist",
     "prompts",
     "shared-prompts",
+    "scripts",
     "README.md",
     "LICENSE"
   ],

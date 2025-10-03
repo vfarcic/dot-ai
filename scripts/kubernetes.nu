@@ -13,6 +13,11 @@ def --env "main create kubernetes" [
     --node-size = "small" # Supported values: small, medium, large
     --auth = true  # Whether to perform authentication with the cloud provider
     --enable-ingress = true  # Whether to enable ingress for the kind provider
+    --aws-access-key-id: string,      # AWS Access Key ID (optional, falls back to AWS_ACCESS_KEY_ID env var)
+    --aws-secret-access-key: string,  # AWS Secret Access Key (optional, falls back to AWS_SECRET_ACCESS_KEY env var)
+    --azure-tenant: string,           # Azure Tenant ID (optional, falls back to AZURE_TENANT env var)
+    --upcloud-username: string,       # UpCloud username (optional, falls back to UPCLOUD_USERNAME env var)
+    --upcloud-password: string        # UpCloud password (optional, falls back to UPCLOUD_PASSWORD env var)
 ] {
 
     $env.KUBECONFIG = $"($env.PWD)/kubeconfig-($name).yaml"
@@ -32,6 +37,8 @@ def --env "main create kubernetes" [
         (
             create eks  --name $name --node_size $node_size
                 --min_nodes $min_nodes --max_nodes $max_nodes
+                --aws-access-key-id $aws_access_key_id
+                --aws-secret-access-key $aws_secret_access_key
         )
 
     } else if $provider == "azure" {
@@ -39,6 +46,7 @@ def --env "main create kubernetes" [
         (
             create aks --name $name --node_size $node_size
                 --min_nodes $min_nodes --max_nodes $max_nodes
+                --azure-tenant $azure_tenant
         )
 
     } else if $provider == "upcloud" {
@@ -46,6 +54,8 @@ def --env "main create kubernetes" [
         (
             create upcloud --name $name --node_size $node_size
                 --min_nodes $min_nodes --max_nodes $max_nodes
+                --upcloud-username $upcloud_username
+                --upcloud-password $upcloud_password
         )
 
     } else if $provider == "kind" {
@@ -307,6 +317,8 @@ def --env "create upcloud" [
     --node_size = "small" # Supported values: small, medium, large
     --min_nodes = 2  # Minimum number of nodes in the cluster
     --max_nodes = 4  # Maximum number of nodes in the cluster
+    --upcloud-username: string,  # UpCloud username (optional, falls back to UPCLOUD_USERNAME env var)
+    --upcloud-password: string   # UpCloud password (optional, falls back to UPCLOUD_PASSWORD env var)
 ] {
 
 print $"
@@ -317,24 +329,24 @@ Press the (ansi yellow_bold)enter key(ansi reset) to continue.
 "
         input
 
-        mut upcloud_username = ""
-        if UPCLOUD_USERNAME in $env {
-            $upcloud_username = $env.UPCLOUD_USERNAME
-        } else {
-            $upcloud_username = input $"(ansi green_bold)Enter UpCloud username: (ansi reset)"
-            $env.UPCLOUD_USERNAME = $upcloud_username
+        mut username = $upcloud_username
+        if ($username | is-empty) and ("UPCLOUD_USERNAME" in $env) {
+            $username = $env.UPCLOUD_USERNAME
+        } else if ($username | is-empty) {
+            error make { msg: "UpCloud username required via --upcloud-username parameter or UPCLOUD_USERNAME environment variable" }
         }
-        $"export UPCLOUD_USERNAME=($upcloud_username)\n"
+        $env.UPCLOUD_USERNAME = $username
+        $"export UPCLOUD_USERNAME=($username)\n"
             | save --append .env
-    
-        mut upcloud_password = ""
-        if UPCLOUD_PASSWORD in $env {
-            $upcloud_password = $env.UPCLOUD_PASSWORD
-        } else {
-            $upcloud_password = input $"(ansi green_bold)Enter UpCloud password: (ansi reset)" --suppress-output
-            $env.UPCLOUD_PASSWORD = $upcloud_password
+
+        mut password = $upcloud_password
+        if ($password | is-empty) and ("UPCLOUD_PASSWORD" in $env) {
+            $password = $env.UPCLOUD_PASSWORD
+        } else if ($password | is-empty) {
+            error make { msg: "UpCloud password required via --upcloud-password parameter or UPCLOUD_PASSWORD environment variable" }
         }
-        $"export UPCLOUD_PASSWORD=($upcloud_password)\n"
+        $env.UPCLOUD_PASSWORD = $password
+        $"export UPCLOUD_PASSWORD=($password)\n"
             | save --append .env
         print ""
 
@@ -382,21 +394,22 @@ def --env "create aks" [
     --name = "dot",  # Name of the Kubernetes cluster
     --min_nodes = 2,  # Minimum number of nodes in the cluster
     --max_nodes = 4,  # Maximum number of nodes in the cluster
-    --node_size = "small" # Supported values: small, medium, large
-    --auth = true  # Whether to perform authentication with Azure
+    --node_size = "small", # Supported values: small, medium, large
+    --auth = true,  # Whether to perform authentication with Azure
+    --azure-tenant: string  # Azure Tenant ID (optional, falls back to AZURE_TENANT env var)
 ] {
 
-    mut tenant_id = ""
     let location = "eastus"
 
-    if AZURE_TENANT in $env {
-        $tenant_id = $env.AZURE_TENANT
-    } else {
-        $tenant_id = input $"(ansi green_bold)Enter Azure Tenant ID: (ansi reset)"
+    mut tenant = $azure_tenant
+    if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
+        $tenant = $env.AZURE_TENANT
+    } else if ($tenant | is-empty) {
+        error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
     }
 
     if $auth {
-        az login --tenant $tenant_id
+        az login --tenant $tenant
     }
 
     mut resource_group = ""
@@ -496,27 +509,29 @@ def --env "create eks" [
     --name = "dot",  # Name of the Kubernetes cluster
     --min_nodes = 2,  # Minimum number of nodes in the cluster
     --max_nodes = 4,  # Maximum number of nodes in the cluster
-    --node_size = "small" # Supported values: small, medium, large
+    --node_size = "small", # Supported values: small, medium, large
+    --aws-access-key-id: string,      # AWS Access Key ID (optional, falls back to AWS_ACCESS_KEY_ID env var)
+    --aws-secret-access-key: string   # AWS Secret Access Key (optional, falls back to AWS_SECRET_ACCESS_KEY env var)
 ] {
 
     let region = "us-east-1"
 
-    mut aws_access_key_id = ""
-    if AWS_ACCESS_KEY_ID in $env {
-        $aws_access_key_id = $env.AWS_ACCESS_KEY_ID
-    } else {
-        $aws_access_key_id = input $"(ansi green_bold)Enter AWS Access Key ID: (ansi reset)"
+    mut access_key = $aws_access_key_id
+    if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
+        $access_key = $env.AWS_ACCESS_KEY_ID
+    } else if ($access_key | is-empty) {
+        error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
     }
-    $"export AWS_ACCESS_KEY_ID=($aws_access_key_id)\n"
+    $"export AWS_ACCESS_KEY_ID=($access_key)\n"
         | save --append .env
 
-    mut aws_secret_access_key = ""
-    if AWS_SECRET_ACCESS_KEY in $env {
-        $aws_secret_access_key = $env.AWS_SECRET_ACCESS_KEY
-    } else {
-        $aws_secret_access_key = input $"(ansi green_bold)Enter AWS Secret Access Key: (ansi reset)" --suppress-output
+    mut secret_key = $aws_secret_access_key
+    if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
+        $secret_key = $env.AWS_SECRET_ACCESS_KEY
+    } else if ($secret_key | is-empty) {
+        error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }
     }
-    $"export AWS_SECRET_ACCESS_KEY=($aws_secret_access_key)\n"
+    $"export AWS_SECRET_ACCESS_KEY=($secret_key)\n"
         | save --append .env
 
     let aws_account_id = (
@@ -527,8 +542,8 @@ def --env "create eks" [
         | save --append .env
 
     $"[default]
-aws_access_key_id = ($aws_access_key_id)
-aws_secret_access_key = ($aws_secret_access_key)
+aws_access_key_id = ($access_key)
+aws_secret_access_key = ($secret_key)
 " | save aws-creds.conf --force
 
     mut vm_size = "t3.medium"
