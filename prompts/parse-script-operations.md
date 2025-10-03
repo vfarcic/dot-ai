@@ -17,13 +17,15 @@ Parse this help output and extract all available tools/resources with their oper
 ## Rules
 
 1. Group operations by tool/resource (e.g., ArgoCD, Kubernetes cluster, Crossplane)
-2. For each tool/resource, identify available operations (install/apply, delete, create, destroy, build, configure, etc.)
+2. For each tool/resource, identify available operations (apply, delete, create, destroy, build, configure, etc.)
 3. Extract:
    - `name`: Tool/resource name (e.g., "ArgoCD", "Kubernetes cluster", "Crossplane")
    - `description`: Description of what this tool/resource does
-   - `operations`: Array of available operations (e.g., ["install", "delete"])
-4. Do NOT include internal utility commands like "get", "print", "packages"
-5. Normalize operation names to common verbs: "apply" → "install", "destroy" → "delete"
+   - `operations`: Array of operation objects, each with:
+     - `name`: Operation name extracted from help (e.g., "apply", "delete", "create")
+     - `command`: Array of command parts from help output (e.g., ["apply", "argocd"])
+4. **CRITICAL**: Extract command arrays EXACTLY as they appear in help - "dot.nu apply argocd" → `["apply", "argocd"]`
+5. Do NOT include internal utility commands like "get", "print", "packages"
 
 ## Examples
 
@@ -41,12 +43,18 @@ Extract:
   {
     "name": "ArgoCD",
     "description": "GitOps continuous delivery tool for Kubernetes",
-    "operations": ["install", "delete"]
+    "operations": [
+      {"name": "apply", "command": ["apply", "argocd"]},
+      {"name": "delete", "command": ["delete", "argocd"]}
+    ]
   },
   {
     "name": "Kubernetes cluster",
     "description": "Kubernetes cluster management",
-    "operations": ["create", "delete"]
+    "operations": [
+      {"name": "create", "command": ["create", "kubernetes"]},
+      {"name": "destroy", "command": ["destroy", "kubernetes"]}
+    ]
   }
 ]
 ```

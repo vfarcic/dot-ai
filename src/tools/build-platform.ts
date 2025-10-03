@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { Logger } from '../core/error-handling';
 import { NushellRuntime } from '../core/nushell-runtime';
-import { ClaudeIntegration } from '../core/claude';
-import { discoverOperations } from '../core/platform-operations';
+import { discoverOperations, mapIntentToOperation, getOperationParameters, createSession, loadSession, executeOperation } from '../core/platform-operations';
 import { DotAI } from '../core/index';
 import { randomUUID } from 'crypto';
 
@@ -20,19 +19,39 @@ import { randomUUID } from 'crypto';
 export const BUILD_PLATFORM_TOOL_NAME = 'buildPlatform';
 export const BUILD_PLATFORM_TOOL_DESCRIPTION = 'AI-powered platform operations tool for building and managing Kubernetes platforms. Use this to: (1) LIST/DISCOVER what tools and operations are available - use stage="list" when user asks "what can I install", "show available tools", "list platform capabilities", (2) INSTALL/CREATE platform components like Argo CD, Crossplane, cert-manager, Kubernetes clusters through natural language intent. Handles tool installation, cluster creation, and platform configuration conversationally.';
 
+/**
+ * Create execution started response (terminal state - no further MCP calls needed)
+ */
+function createExecutionResponse(tool: string, operation: string): any {
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        success: true,
+        execution: {
+          tool,
+          operation,
+          status: 'started',
+          message: `${tool} ${operation} execution started. Monitor progress using kubectl or other cluster tools. No further action required.`
+        }
+      }, null, 2)
+    }]
+  };
+}
+
 // Tool input schema
 export const BUILD_PLATFORM_TOOL_INPUT_SCHEMA = {
   stage: z.string().optional()
-    .describe('Workflow stage - "list" to discover all available operations'),
+    .describe('Workflow stage: "list" (discover all operations) or "submitAnswers" (submit answers and execute). Omit when providing intent for the first time.'),
 
   intent: z.string().optional()
-    .describe('Natural language intent describing what platform operation to perform (e.g., "Install Argo CD", "Create AWS cluster")'),
+    .describe('Natural language intent describing what platform operation to perform (e.g., "Install Argo CD", "Create AWS cluster"). Used when stage is omitted.'),
 
   sessionId: z.string().optional()
-    .describe('Session ID for continuing a multi-step workflow'),
+    .describe('Session ID for continuing a multi-step workflow (required for submitAnswers stage)'),
 
-  response: z.string().optional()
-    .describe('User response to a workflow question (parameter value)')
+  answers: z.record(z.any()).optional()
+    .describe('Parameter answers for submitAnswers stage (e.g., {"host-name": "example.com", "apply-apps": true})')
 };
 
 /**
@@ -45,14 +64,14 @@ export async function handleBuildPlatformTool(
   requestId: string
 ): Promise<any> {
   try {
-    const { stage, intent, sessionId, response } = args;
+    const { stage, intent, sessionId, answers } = args;
 
     logger.info('Processing buildPlatform tool request', {
       requestId,
       stage,
       hasIntent: !!intent,
       hasSessionId: !!sessionId,
-      hasResponse: !!response
+      hasAnswers: !!answers
     });
 
     // Validate required parameters - either stage or intent must be provided
@@ -101,25 +120,7 @@ export async function handleBuildPlatformTool(
     if (stage === 'list') {
       logger.info('Discovering available operations', { requestId });
 
-      // Create Claude integration instance
-      const claudeApiKey = process.env.ANTHROPIC_API_KEY;
-      if (!claudeApiKey) {
-        logger.warn('ANTHROPIC_API_KEY not set', { requestId });
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              success: false,
-              error: {
-                message: 'ANTHROPIC_API_KEY environment variable is required for AI-powered script discovery'
-              }
-            }, null, 2)
-          }]
-        };
-      }
-
-      const claudeIntegration = new ClaudeIntegration(claudeApiKey);
-      const operations = await discoverOperations(claudeIntegration, logger);
+      const operations = await discoverOperations(dotAI.claude, logger);
 
       const result = {
         success: true,
@@ -135,23 +136,162 @@ export async function handleBuildPlatformTool(
       };
     }
 
-    // Phase 1: Intent-based workflow (to be enhanced in future phases)
+    // Phase 3: Handle stage: 'submitAnswers' - execute with collected parameters
+    if (stage === 'submitAnswers') {
+      if (!sessionId) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: {
+                message: 'sessionId is required for submitAnswers stage'
+              }
+            }, null, 2)
+          }]
+        };
+      }
+
+      logger.info('Processing submitAnswers stage', { requestId, sessionId });
+
+      // Load session
+      const session = loadSession(sessionId, logger);
+      if (!session) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: {
+                message: `Session ${sessionId} not found`
+              }
+            }, null, 2)
+          }]
+        };
+      }
+
+      // Execute operation with answers
+      const executionResult = await executeOperation(session, answers || {}, logger);
+
+      if (!executionResult.success) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: {
+                message: executionResult.error,
+                missingParameters: executionResult.missingParameters
+              }
+            }, null, 2)
+          }]
+        };
+      }
+
+      return createExecutionResponse(session.matchedOperation.tool, session.matchedOperation.operation);
+    }
+
+    // Phase 3: Intent-based workflow with AI mapping and parameter discovery
     const workflowSessionId = sessionId || `platform-${Date.now()}-${randomUUID()}`;
 
-    logger.info('Nushell runtime validated, starting workflow', {
+    logger.info('Nushell runtime validated, starting intent mapping', {
       requestId,
       sessionId: workflowSessionId,
       intent
     });
+
+    // Discover operations for intent mapping
+    const operations = await discoverOperations(dotAI.claude, logger);
+
+    // Map intent to operation using AI
+    const mapping = await mapIntentToOperation(intent!, operations, dotAI.claude, logger);
+
+    // Handle no match case
+    if (!mapping.matched) {
+      logger.info('No matching operation found for intent', {
+        requestId,
+        intent,
+        reason: mapping.reason
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: false,
+            error: {
+              message: mapping.reason || 'No matching operation found for the given intent',
+              suggestion: 'Use stage: \'list\' to see all available operations'
+            }
+          }, null, 2)
+        }]
+      };
+    }
+
+    // Get parameters for the matched operation
+    const parameters = await getOperationParameters(mapping.operation!.command, logger);
+
+    logger.info('Intent mapped and parameters retrieved', {
+      requestId,
+      tool: mapping.operation!.tool,
+      parameterCount: parameters.length
+    });
+
+    // Create and persist session
+    await createSession(workflowSessionId, intent!, mapping.operation!, parameters, logger);
+
+    // If no parameters, execute immediately (skip to submitAnswers stage)
+    if (parameters.length === 0) {
+      logger.info('No parameters required, executing immediately', {
+        requestId,
+        sessionId: workflowSessionId
+      });
+
+      // Reuse submitAnswers stage logic with empty answers
+      const session = loadSession(workflowSessionId, logger);
+      if (!session) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: {
+                message: `Session ${workflowSessionId} not found`
+              }
+            }, null, 2)
+          }]
+        };
+      }
+
+      const executionResult = await executeOperation(session, {}, logger);
+
+      if (!executionResult.success) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: {
+                message: executionResult.error
+              }
+            }, null, 2)
+          }]
+        };
+      }
+
+      return createExecutionResponse(session.matchedOperation.tool, session.matchedOperation.operation);
+    }
 
     const result = {
       success: true,
       workflow: {
         sessionId: workflowSessionId,
         intent: intent,
-        nextStep: 'discover'
-      },
-      message: 'Workflow started - intent mapping not yet implemented'
+        matchedOperation: mapping.operation,
+        parameters,
+        nextStep: 'collectParameters',
+        message: `Found ${parameters.length} parameters for ${mapping.operation!.tool} ${mapping.operation!.operation}. Collect answers from user (one at a time or all at once - user decides via client agent), then call this tool again with stage: "submitAnswers", sessionId: "${workflowSessionId}", and answers: {param1: value1, ...}`
+      }
     };
 
     return {
