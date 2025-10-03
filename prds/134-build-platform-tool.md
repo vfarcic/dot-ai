@@ -428,7 +428,7 @@ interface ArgumentMetadata {
 - [x] Script execution with output capture
 - [x] Integration tests passing (all test scenarios)
 - [ ] Nushell included in Docker image
-- [ ] Scripts directory packaged in npm distribution
+- [x] Scripts directory packaged in npm distribution
 - [ ] User documentation complete
 - [ ] Feature launched and available in MCP
 
@@ -517,10 +517,10 @@ interface ArgumentMetadata {
 ### Milestone 6: Packaging & Distribution
 **Goal**: Feature available in released packages
 **Validation**:
-- Scripts directory in npm package
-- Nushell in Docker image
-- Packaged version tested
-- Installation instructions verified
+- [x] Scripts directory in npm package
+- [ ] Nushell in Docker image
+- [ ] Packaged version tested
+- [ ] Installation instructions verified
 
 ### Milestone 7: Documentation & Launch
 **Goal**: Feature documented and available to users
@@ -677,6 +677,33 @@ if ($value | is-empty) and (ENV_VAR in $env) {
 - Milestone 6: Package scripts in npm distribution, add Nushell to Docker
 - Milestone 7: Write user documentation
 - End-to-end validation testing via MCP client
+
+### 2025-10-03: Milestone 6 Progress - Scripts Packaged in npm
+**Duration**: ~1 hour
+**Approach**: Configure npm packaging and fix path resolution
+
+**Completed Work**:
+- [x] Added `scripts` directory to package.json `files` array
+- [x] Fixed script path resolution to work in installed packages (changed from `process.cwd()` to `__dirname`)
+- [x] Verified all 29 .nu scripts included in npm pack output
+- [x] Created `getScriptsDir()` helper function for reliable path resolution
+
+**Technical Changes**:
+- **package.json**: Added `"scripts"` to files array (line 68)
+- **platform-operations.ts**:
+  - Added `getScriptsDir()` function using `__dirname` for package-relative paths
+  - Updated 3 functions to use `getScriptsDir()`: `discoverOperations()`, `getOperationParameters()`, `executeOperation()`
+  - Path resolution: `dist/core/ -> ../../scripts/` works in both dev and installed package
+
+**Path Resolution Logic**:
+- Development: `dist/core/__dirname -> ../../scripts` = project root scripts
+- Installed: `node_modules/@vfarcic/dot-ai/dist/core/__dirname -> ../../scripts` = package scripts directory
+- All 29 scripts discoverable and executable in both scenarios
+
+**Next Session Priorities**:
+- Add Nushell to Docker image
+- Test packaged version end-to-end
+- Write installation instructions
 
 ### 2025-10-03: Phase 3 - Intent Mapping & Execution Complete
 **Duration**: ~4 hours (analysis + implementation)
