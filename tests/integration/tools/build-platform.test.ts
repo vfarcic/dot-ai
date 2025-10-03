@@ -337,7 +337,7 @@ describe.concurrent('Build Platform Tool - Phase 1: Basic Invocation', () => {
   describe.concurrent('Nushell Runtime Validation', () => {
     test('should validate Nushell availability before processing', async () => {
       const response = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install cert-manager'
+        intent: 'Install kro'
       });
 
       expect(response.success).toBe(true);
@@ -350,7 +350,7 @@ describe.concurrent('Build Platform Tool - Phase 1: Basic Invocation', () => {
 
       if (result.success) {
         // Nushell is available - workflow should proceed
-        // cert-manager has no parameters, so it executes immediately
+        // kro has no parameters, so it executes immediately
         const expectedSuccessResponse = {
           success: true,
           execution: {
