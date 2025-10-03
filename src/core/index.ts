@@ -7,12 +7,12 @@
 import { KubernetesDiscovery } from './discovery';
 import { MemorySystem } from './memory';
 import { WorkflowEngine } from './workflow';
-import { ClaudeIntegration } from './claude';
+import { AIProvider } from './ai-provider.interface';
+import { createAIProvider } from './ai-provider-factory';
 import { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
-  anthropicApiKey?: string;
 }
 
 export class DotAI {
@@ -22,7 +22,7 @@ export class DotAI {
   public readonly discovery: KubernetesDiscovery;
   public readonly memory: MemorySystem;
   public readonly workflow: WorkflowEngine;
-  public readonly claude: ClaudeIntegration;
+  public readonly ai: AIProvider;
   public readonly schema: {
     parser: SchemaParser;
     validator: ManifestValidator;
@@ -32,27 +32,23 @@ export class DotAI {
   };
 
   constructor(config: CoreConfig = {}) {
-    this.validateConfig(config);
-    // Centralize environment variable reading
     this.config = {
-      kubernetesConfig: config.kubernetesConfig || process.env.KUBECONFIG,
-      anthropicApiKey: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY
+      kubernetesConfig: config.kubernetesConfig || process.env.KUBECONFIG
     };
     
     // Initialize modules
-    this.discovery = new KubernetesDiscovery({ 
-      kubeconfigPath: this.config.kubernetesConfig 
+    this.discovery = new KubernetesDiscovery({
+      kubeconfigPath: this.config.kubernetesConfig
     });
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
-    this.claude = new ClaudeIntegration(this.config.anthropicApiKey || 'test-key');
+    this.ai = createAIProvider();
     
     // Initialize schema components
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
-    const ranker = this.config.anthropicApiKey ? 
-      new ResourceRecommender({ claudeApiKey: this.config.anthropicApiKey }) : 
-      null;
+    // ResourceRecommender uses the AI provider directly
+    const ranker = new ResourceRecommender({}, this.ai);
     
     this.schema = {
       parser,
@@ -87,7 +83,7 @@ export class DotAI {
       },
       rankResources: async (intent: string) => {
         if (!ranker) {
-          throw new Error('ResourceRanker not available. ANTHROPIC_API_KEY is required for AI-powered ranking.');
+          throw new Error('ResourceRanker not available. AI provider API key is required for AI-powered ranking.');
         }
         
         // Create discovery function with proper binding
@@ -96,12 +92,6 @@ export class DotAI {
         return await ranker.findBestSolutions(intent, explainResourceFn);
       }
     };
-  }
-
-  private validateConfig(config: CoreConfig): void {
-    if (config.anthropicApiKey === '') {
-      throw new Error('Invalid configuration: Empty API key provided');
-    }
   }
 
   async initialize(): Promise<void> {
@@ -138,17 +128,14 @@ export class DotAI {
   getVersion(): string {
     return '0.1.0';
   }
-
-  getAnthropicApiKey(): string | undefined {
-    return this.config.anthropicApiKey;
-  }
 }
 
 // Re-export all modules for convenience
 export { KubernetesDiscovery } from './discovery';
 export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
-export { ClaudeIntegration } from './claude';
+export { AIProvider, AIResponse, IntentAnalysisResult, AIProviderConfig } from './ai-provider.interface';
+export { createAIProvider, AIProviderFactory } from './ai-provider-factory';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
 export { BaseOrganizationalEntity, PolicyIntent, CreatePolicyIntentRequest, DeployedPolicyReference } from './organizational-types';

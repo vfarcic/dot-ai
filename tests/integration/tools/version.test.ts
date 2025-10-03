@@ -59,9 +59,10 @@ describe.concurrent('Version Tool Integration', () => {
                 model: 'text-embedding-3-small', // Specific - model name
                 dimensions: 1536 // Specific - embedding dimensions
               },
-              anthropic: {
+              aiProvider: {
                 connected: true, // Specific - should be connected with API key
-                keyConfigured: true // Specific - API key should be configured
+                keyConfigured: true, // Specific - API key should be configured
+                providerType: 'anthropic' // Specific - default provider in test env
               },
               kubernetes: {
                 connected: true, // Specific - should be connected to our test cluster

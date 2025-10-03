@@ -13,7 +13,6 @@ import { getAndValidateSessionDirectory } from './session-utils';
 import { loadPrompt } from './shared-prompt-loader';
 import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
-import { ClaudeIntegration } from './claude';
 import { ManifestValidator } from './schema';
 import { getKyvernoStatus } from '../tools/version';
 import * as yaml from 'js-yaml';
@@ -347,13 +346,13 @@ export class UnifiedCreationSessionManager {
    * Generate trigger expansion using internal AI
    */
   private async generateInternalTriggerExpansion(initialTriggers: string[], description: string): Promise<string[]> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey === 'test-key') {
-      console.warn('ANTHROPIC_API_KEY not available for trigger expansion');
+    const { createAIProvider } = require('./ai-provider-factory');
+    const aiProvider = createAIProvider();
+
+    if (!aiProvider.isInitialized()) {
+      console.warn('AI provider not available for trigger expansion');
       return [];
     }
-    
-    const claudeIntegration = new ClaudeIntegration(apiKey);
     
     const prompt = loadPrompt('infrastructure-trigger-expansion', {
       initialTriggers: initialTriggers.join(', '),
@@ -361,7 +360,7 @@ export class UnifiedCreationSessionManager {
     });
 
     try {
-      const response = await claudeIntegration.sendMessage(prompt, 'trigger-expansion');
+      const response = await aiProvider.sendMessage(prompt, 'trigger-expansion');
       const expandedText = response.content.trim();
       
       if (!expandedText || expandedText.toLowerCase().includes('no relevant') || expandedText.toLowerCase().includes('no additional')) {
@@ -371,9 +370,9 @@ export class UnifiedCreationSessionManager {
       // Parse comma-separated response and clean up
       const expanded = expandedText
         .split(',')
-        .map(trigger => trigger.trim())
-        .filter(trigger => trigger.length > 0)
-        .filter(trigger => !initialTriggers.some(initial => 
+        .map((trigger: string) => trigger.trim())
+        .filter((trigger: string) => trigger.length > 0)
+        .filter((trigger: string) => !initialTriggers.some((initial: string) =>
           initial.toLowerCase() === trigger.toLowerCase()
         ));
       
@@ -518,7 +517,7 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
         // Create policy intent using the consistent ID generated during kyverno-generation step
         if (!session.data.policyId) {
           // In test environment, generate ID if missing (for mocked workflows)
-          const isTestEnv = process.env.NODE_ENV === 'test' || process.env.ANTHROPIC_API_KEY === 'test-key';
+          const isTestEnv = process.env.NODE_ENV === 'test';
           if (isTestEnv) {
             session.data.policyId = randomUUID();
           } else {
@@ -795,12 +794,12 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           };
           
           const prompt = loadPrompt('kyverno-generation', templateData);
+
+          // Call AI provider internally to generate Kyverno policy
+          const { createAIProvider } = require('./ai-provider-factory');
+          const aiProvider = createAIProvider();
           
-          // Call Claude AI internally to generate Kyverno policy
-          const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
-          const claudeIntegration = new ClaudeIntegration(apiKey);
-          
-          const response = await claudeIntegration.sendMessage(prompt, 'kyverno-generation');
+          const response = await aiProvider.sendMessage(prompt, 'kyverno-generation');
           
           // Response should be clean YAML with analysis comments
           const kyvernoPolicy = response.content.trim();

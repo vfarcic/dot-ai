@@ -1,23 +1,23 @@
 /**
- * Claude Integration Module
- * 
- * Handles AI communication, YAML generation, and learning integration
+ * Anthropic AI Provider Implementation
+ *
+ * Implements AIProvider interface using Anthropic SDK directly.
+ * Maintains all existing functionality including streaming, debug logging, and mock responses.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadPrompt } from './shared-prompt-loader';
+import { loadPrompt } from '../shared-prompt-loader';
 import * as crypto from 'crypto';
+import {
+  AIProvider,
+  AIResponse,
+  IntentAnalysisResult,
+  AIProviderConfig
+} from '../ai-provider.interface';
 
-export interface ClaudeResponse {
-  content: string;
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-  };
-}
-
+// Legacy exports for backward compatibility (will be removed in future)
 export interface YAMLResponse {
   yaml: string;
   explanation: string;
@@ -30,49 +30,20 @@ export interface Interaction {
   timestamp?: Date;
 }
 
-export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
-export type ClarificationCategory =
-  | 'TECHNICAL_SPECIFICATIONS'
-  | 'ARCHITECTURAL_CONTEXT'
-  | 'OPERATIONAL_REQUIREMENTS'
-  | 'SECURITY_COMPLIANCE'
-  | 'ORGANIZATIONAL_ALIGNMENT';
-
-export interface ClarificationOpportunity {
-  category: ClarificationCategory;
-  missingContext: string;
-  impactLevel: ImpactLevel;
-  reasoning: string;
-  suggestedQuestions?: string[];
-  patternAlignment?: string;
-}
-
-export interface IntentAnalysisResult {
-  clarificationOpportunities: ClarificationOpportunity[];
-  overallAssessment: {
-    enhancementPotential: ImpactLevel;
-    primaryGaps: string[];
-    recommendedFocus: string;
-  };
-  intentQuality: {
-    currentSpecificity: string;
-    strengthAreas: string[];
-    improvementAreas: string[];
-  };
-}
-
-export class ClaudeIntegration {
+export class AnthropicProvider implements AIProvider {
   private client: Anthropic | null = null;
   private apiKey: string;
+  private model: string;
   private conversationHistory: any[] = [];
   private interactions: Interaction[] = [];
   private debugMode: boolean;
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-    this.debugMode = process.env.DEBUG_DOT_AI === 'true';
+  constructor(config: AIProviderConfig) {
+    this.apiKey = config.apiKey;
+    this.model = config.model || this.getDefaultModel();
+    this.debugMode = config.debugMode ?? (process.env.DEBUG_DOT_AI === 'true');
     this.validateApiKey();
-    
+
     if (this.apiKey && this.shouldInitializeClient()) {
       this.client = new Anthropic({
         apiKey: this.apiKey,
@@ -105,6 +76,18 @@ export class ClaudeIntegration {
     return testKeys.includes(this.apiKey);
   }
 
+  getProviderType(): string {
+    return 'anthropic';
+  }
+
+  getDefaultModel(): string {
+    return 'claude-sonnet-4-5-20250929';
+  }
+
+  isInitialized(): boolean {
+    return this.client !== null;
+  }
+
   /**
    * Create debug directory if it doesn't exist
    */
@@ -129,7 +112,7 @@ export class ClaudeIntegration {
   /**
    * Save AI interaction for debugging when DEBUG_DOT_AI=true
    */
-  private debugLogInteraction(debugId: string, prompt: string, response: ClaudeResponse, operation: string = 'ai_call'): void {
+  private debugLogInteraction(debugId: string, prompt: string, response: AIResponse, operation: string = 'ai_call'): void {
     if (!this.debugMode) return;
 
     try {
@@ -160,10 +143,10 @@ ${response.content}`;
     }
   }
 
-  async sendMessage(message: string, operation: string = 'generic'): Promise<ClaudeResponse> {
+  async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
     // For test keys, skip client initialization check and continue to mock responses
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized due to missing API key');
+      throw new Error('Anthropic client not initialized due to missing API key');
     }
 
     if (this.apiKey === 'invalid-key') {
@@ -174,11 +157,11 @@ ${response.content}`;
       // Add message to conversation history
       this.conversationHistory.push({ role: 'user', content: message });
 
-      // Use real Claude API if we have a real API key, otherwise fall back to mocks
+      // Use real Anthropic API if we have a real API key, otherwise fall back to mocks
       if (this.apiKey.startsWith('sk-ant-') && this.client) {
-        // Make real API call to Claude with streaming
+        // Make real API call to Anthropic with streaming
         const stream = await this.client.messages.create({
-          model: process.env.MODEL || 'claude-sonnet-4-5-20250929', // Latest Claude Sonnet 4.5
+          model: this.model,
           max_tokens: 64000,
           messages: [{ role: 'user', content: message }],
           stream: true // Enable streaming by default to support long operations (>10 minutes)
@@ -200,7 +183,7 @@ ${response.content}`;
           }
         }
 
-        const response: ClaudeResponse = {
+        const response: AIResponse = {
           content,
           usage: {
             input_tokens,
@@ -209,18 +192,18 @@ ${response.content}`;
         };
 
         this.conversationHistory.push({ role: 'assistant', content: response.content });
-        
+
         // Debug log the interaction if enabled
         if (this.debugMode) {
           const debugId = this.generateDebugId(operation);
           this.debugLogInteraction(debugId, message, response, operation);
         }
-        
+
         return response;
       }
 
       // For testing purposes, return mock responses
-      let response: ClaudeResponse;
+      let response: AIResponse;
       
       if (message.toLowerCase().includes('deploy a web application')) {
         response = {
@@ -252,13 +235,13 @@ ${response.content}`;
       return response;
 
     } catch (error) {
-      throw new Error(`Claude API error: ${error}`);
+      throw new Error(`Anthropic API error: ${error}`);
     }
   }
 
   async generateYAML(resourceType: string, config: any): Promise<YAMLResponse> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     // Mock YAML generation for testing
@@ -324,7 +307,7 @@ spec:
 
   async generateManifest(spec: any): Promise<string> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     // Simulate manifest generation
@@ -355,7 +338,7 @@ spec:
 
   async analyzeError(error: string, _context?: any): Promise<string> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     // Simulate error analysis
@@ -364,7 +347,7 @@ spec:
 
   async suggestImprovements(_manifest: string): Promise<string[]> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     // Simulate improvement suggestions
@@ -377,7 +360,7 @@ spec:
 
   async processUserInput(input: string, context?: any): Promise<any> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     // Simulate interactive workflow processing
@@ -411,7 +394,7 @@ spec:
    */
   async analyzeIntentForClarification(intent: string, organizationalPatterns: string = ''): Promise<IntentAnalysisResult> {
     if (!this.client && !this.isTestKey()) {
-      throw new Error('Claude client not initialized');
+      throw new Error('Anthropic client not initialized');
     }
 
     try {
@@ -470,9 +453,5 @@ spec:
         }
       };
     }
-  }
-
-  isInitialized(): boolean {
-    return this.client !== null;
   }
 } 

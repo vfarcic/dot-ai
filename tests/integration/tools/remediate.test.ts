@@ -265,15 +265,31 @@ spec:
         memory: "128Mi"
 EOF`);
 
-      // Wait for pod to start and crash
-      await new Promise(resolve => setTimeout(resolve, 30000));
+      // Wait for pod to start and crash (with retry loop)
+      let podData: any;
+      let restartCount = 0;
+      const maxWaitTime = 90000; // 90 seconds max
+      const checkInterval = 5000; // Check every 5 seconds
+      const startTime = Date.now();
 
-      // Verify pod is crashing
-      const podInfo = await integrationTest.kubectl(
-        `get pod auto-test-pod -n ${autoNamespace} -o json`
-      );
-      const podData = JSON.parse(podInfo);
-      expect(podData.status.containerStatuses[0].restartCount).toBeGreaterThan(0);
+      while (Date.now() - startTime < maxWaitTime) {
+        const podInfo = await integrationTest.kubectl(
+          `get pod auto-test-pod -n ${autoNamespace} -o json`
+        );
+        podData = JSON.parse(podInfo);
+
+        if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+          restartCount = podData.status.containerStatuses[0].restartCount;
+          if (restartCount > 0) {
+            break; // Pod has crashed and restarted
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      // Verify pod has crashed at least once
+      expect(restartCount).toBeGreaterThan(0);
 
       // PHASE 1: Call remediate with automatic mode (single call auto-executes everything)
       const autoResponse = await integrationTest.httpClient.post(

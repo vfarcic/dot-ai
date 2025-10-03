@@ -15,7 +15,7 @@ import { ErrorClassifier } from '../core/kubernetes-utils';
 import { NushellRuntime } from '../core/nushell-runtime';
 
 export const VERSION_TOOL_NAME = 'version';
-export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, Anthropic API connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
+export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, AI provider connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
 export const VERSION_TOOL_INPUT_SCHEMA = {};
 
 export interface VersionInfo {
@@ -56,9 +56,10 @@ export interface SystemStatus {
     dimensions?: number;
     reason?: string;
   };
-  anthropic: {
+  aiProvider: {
     connected: boolean;
     keyConfigured: boolean;
+    providerType?: string;
     error?: string;
   };
   kubernetes: {
@@ -522,35 +523,46 @@ async function getNushellStatus(): Promise<SystemStatus['nushell']> {
 }
 
 /**
- * Test Anthropic API connectivity
+ * Test AI provider connectivity
  */
-async function getAnthropicStatus(): Promise<SystemStatus['anthropic']> {
-  const keyConfigured = !!process.env.ANTHROPIC_API_KEY;
-  
-  if (!keyConfigured) {
+async function getAIProviderStatus(): Promise<SystemStatus['aiProvider']> {
+  try {
+    // Import AI provider factory and test connectivity
+    const { createAIProvider } = await import('../core/ai-provider-factory');
+    const aiProvider = createAIProvider();
+
+    if (!aiProvider.isInitialized()) {
+      return {
+        connected: false,
+        keyConfigured: false,
+        providerType: aiProvider.getProviderType(),
+        error: 'AI provider API key not configured'
+      };
+    }
+
+    // Test with a minimal request to check connectivity
+    await aiProvider.sendMessage('test');
+
+    return {
+      connected: true,
+      keyConfigured: true,
+      providerType: aiProvider.getProviderType()
+    };
+  } catch (error) {
+    // Try to get provider type even on error
+    let providerType: string | undefined;
+    try {
+      const { createAIProvider } = await import('../core/ai-provider-factory');
+      const aiProvider = createAIProvider();
+      providerType = aiProvider.getProviderType();
+    } catch {
+      providerType = undefined;
+    }
+
     return {
       connected: false,
       keyConfigured: false,
-      error: 'ANTHROPIC_API_KEY environment variable not set'
-    };
-  }
-
-  try {
-    // Import Claude integration and test a simple connection
-    const { ClaudeIntegration } = await import('../core/claude');
-    const claude = new ClaudeIntegration(process.env.ANTHROPIC_API_KEY!);
-    
-    // Test with a minimal request to check connectivity
-    await claude.sendMessage('test');
-    
-    return {
-      connected: true,
-      keyConfigured: true
-    };
-  } catch (error) {
-    return {
-      connected: false,
-      keyConfigured: true,
+      providerType,
       error: error instanceof Error ? error.message : String(error)
     };
   }
@@ -598,10 +610,10 @@ export async function handleVersionTool(
     
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId });
-    const [vectorDBStatus, embeddingStatus, anthropicStatus, kubernetesStatus, capabilityStatus, kyvernoStatus, nushellStatus] = await Promise.all([
+    const [vectorDBStatus, embeddingStatus, aiProviderStatus, kubernetesStatus, capabilityStatus, kyvernoStatus, nushellStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
-      getAnthropicStatus(),
+      getAIProviderStatus(),
       getKubernetesStatus(),
       getCapabilityStatus(),
       getKyvernoStatus(),
@@ -612,7 +624,7 @@ export async function handleVersionTool(
       version,
       vectorDB: vectorDBStatus,
       embedding: embeddingStatus,
-      anthropic: anthropicStatus,
+      aiProvider: aiProviderStatus,
       kubernetes: kubernetesStatus,
       capabilities: capabilityStatus,
       kyverno: kyvernoStatus,
@@ -625,7 +637,7 @@ export async function handleVersionTool(
       version: version.version,
       vectorDBConnected: vectorDBStatus.connected,
       embeddingAvailable: embeddingStatus.available,
-      anthropicConnected: anthropicStatus.connected,
+      aiProviderConnected: aiProviderStatus.connected,
       kubernetesConnected: kubernetesStatus.connected,
       capabilitySystemReady: capabilityStatus.systemReady,
       kyvernoReady: kyvernoStatus.policyGenerationReady,
@@ -639,7 +651,7 @@ export async function handleVersionTool(
           status: 'success',
           system: systemStatus,
           summary: {
-            overall: vectorDBStatus.connected && anthropicStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
+            overall: vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
             patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
             capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
             kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
@@ -649,7 +661,7 @@ export async function handleVersionTool(
               vectorDBStatus.connected && vectorDBStatus.collections.policies.exists ? 'policy-management' : null,
               capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
-              anthropicStatus.connected ? 'ai-recommendations' : null,
+              aiProviderStatus.connected ? 'ai-recommendations' : null,
               kubernetesStatus.connected ? 'kubernetes-integration' : null,
               kyvernoStatus.policyGenerationReady ? 'policy-generation' : null,
               nushellStatus.ready ? 'platform-scripting' : null

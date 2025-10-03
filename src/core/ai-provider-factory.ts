@@ -10,11 +10,25 @@
 
 import {
   AIProvider,
-  AIProviderConfig,
-  PROVIDER_ENV_KEYS,
-  IMPLEMENTED_PROVIDERS,
-  ImplementedProvider
+  AIProviderConfig
 } from './ai-provider.interface';
+import { AnthropicProvider } from './providers/anthropic-provider';
+
+/**
+ * Provider environment variable mappings
+ * Phase 1 (PRD 73): anthropic, openai, google
+ */
+const PROVIDER_ENV_KEYS: Record<string, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  google: 'GOOGLE_API_KEY',
+};
+
+/**
+ * Providers implemented in Phase 1
+ */
+const IMPLEMENTED_PROVIDERS = ['anthropic'] as const;
+type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
 
 /**
  * Factory for creating AI provider instances
@@ -125,16 +139,14 @@ export class AIProviderFactory {
    * @private
    */
   private static createAnthropicProvider(config: AIProviderConfig): AIProvider {
-    // Import and instantiate AnthropicProvider (to be implemented in Milestone 1)
-    // For now, return placeholder - will be implemented in next phase
-    throw new Error('AnthropicProvider implementation pending - use ClaudeIntegration for now');
+    return new AnthropicProvider(config);
   }
 
   /**
    * Create OpenAI provider instance
    * @private
    */
-  private static createOpenAIProvider(config: AIProviderConfig): AIProvider {
+  private static createOpenAIProvider(_config: AIProviderConfig): AIProvider {
     // Import and instantiate OpenAIProvider (to be implemented in Milestone 2)
     throw new Error('OpenAIProvider implementation pending');
   }
@@ -143,7 +155,7 @@ export class AIProviderFactory {
    * Create Google provider instance
    * @private
    */
-  private static createGoogleProvider(config: AIProviderConfig): AIProvider {
+  private static createGoogleProvider(_config: AIProviderConfig): AIProvider {
     // Import and instantiate GoogleProvider (to be implemented in Milestone 2)
     throw new Error('GoogleProvider implementation pending');
   }
@@ -180,4 +192,12 @@ export class AIProviderFactory {
   static isProviderImplemented(provider: string): boolean {
     return IMPLEMENTED_PROVIDERS.includes(provider as ImplementedProvider);
   }
+}
+
+/**
+ * Convenience function to create AI provider from environment
+ * Maintains backward compatibility with existing code
+ */
+export function createAIProvider(): AIProvider {
+  return AIProviderFactory.createFromEnv();
 }

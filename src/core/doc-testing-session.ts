@@ -283,7 +283,7 @@ The system manages session state and workflow progression automatically.`;
   }
 
   /**
-   * Load phase prompt from file (following CLAUDE.md pattern)
+   * Load phase prompt from file
    */
   private loadPhasePrompt(phase: ValidationPhase, session: ValidationSession): string {
     // Prepare template variables for all phases

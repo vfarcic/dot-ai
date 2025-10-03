@@ -6,10 +6,10 @@
  */
 
 import { ResourceExplanation } from './discovery';
-import { 
-  executeKubectl 
+import {
+  executeKubectl
 } from './kubernetes-utils';
-import { ClaudeIntegration } from './claude';
+import { AIProvider } from './ai-provider.interface';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
@@ -127,7 +127,10 @@ export interface ResourceSolution {
 }
 
 export interface AIRankingConfig {
-  claudeApiKey: string;
+  // Legacy field name for backward compatibility - will be removed in future
+  claudeApiKey?: string;
+  // New provider-agnostic field
+  apiKey?: string;
 }
 
 // Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
@@ -385,15 +388,20 @@ export class ManifestValidator {
  * ResourceRecommender determines which resources best meet user needs using AI
  */
 export class ResourceRecommender {
-  private claudeIntegration: ClaudeIntegration;
+  private aiProvider: AIProvider;
   private config: AIRankingConfig;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
   private policyService?: PolicyVectorService;
 
-  constructor(config: AIRankingConfig) {
+  constructor(config: AIRankingConfig, aiProvider?: AIProvider) {
     this.config = config;
-    this.claudeIntegration = new ClaudeIntegration(config.claudeApiKey);
+    // Use provided AI provider or create from environment
+    this.aiProvider = aiProvider || (() => {
+      // Lazy import to avoid circular dependencies
+      const { createAIProvider } = require('./ai-provider-factory');
+      return createAIProvider();
+    })();
     
     // Initialize capability service - fail gracefully if Vector DB unavailable
     try {
@@ -435,8 +443,8 @@ export class ResourceRecommender {
     intent: string,
     _explainResource: (resource: string) => Promise<any>
   ): Promise<ResourceSolution[]> {
-    if (!this.claudeIntegration.isInitialized()) {
-      throw new Error('Claude integration not initialized. API key required for AI-powered resource ranking.');
+    if (!this.aiProvider.isInitialized()) {
+      throw new Error('AI provider not initialized. API key required for AI-powered resource ranking.');
     }
 
     try {
@@ -523,7 +531,7 @@ export class ResourceRecommender {
     patterns: OrganizationalPattern[]
   ): Promise<ResourceSolution[]> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
-    const response = await this.claudeIntegration.sendMessage(prompt, 'solution-assembly');
+    const response = await this.aiProvider.sendMessage(prompt, 'solution-assembly');
     return this.parseSimpleSolutionResponse(response.content);
   }
 
@@ -833,7 +841,7 @@ export class ResourceRecommender {
       .replace('{patterns}', patternsContext);
 
 
-    const response = await this.claudeIntegration.sendMessage(selectionPrompt, 'resource-selection');
+    const response = await this.aiProvider.sendMessage(selectionPrompt, 'resource-selection');
     
     try {
       // Extract JSON from response with robust parsing
@@ -1146,7 +1154,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{cluster_options}', clusterOptionsText)
         .replace('{policy_context}', policyContextText);
 
-      const response = await this.claudeIntegration.sendMessage(questionPrompt, 'question-generation');
+      const response = await this.aiProvider.sendMessage(questionPrompt, 'question-generation');
       
       // Use robust JSON extraction
       const questions = this.extractJsonFromAIResponse(response.content);
