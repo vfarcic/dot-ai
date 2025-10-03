@@ -80,8 +80,8 @@ npm run build || {
     exit 1
 }
 
-# Step 3: Create tmp directory for logs and PID
-mkdir -p ./tmp
+# Step 3: Create tmp directory for logs, PID, and sessions
+mkdir -p ./tmp/sessions
 
 # Step 4: Start MCP server in background
 log_info "Starting MCP server on port ${PORT}..."
