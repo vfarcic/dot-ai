@@ -15,6 +15,15 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 
 /**
+ * Get the scripts directory path, works in both development and installed npm package
+ */
+function getScriptsDir(): string {
+    // In CommonJS (after TypeScript compilation), __dirname is available
+    // Go up from dist/core/ to project root, then into scripts/
+    return path.join(__dirname, '..', '..', 'scripts');
+}
+
+/**
  * Strip markdown code blocks from AI response
  */
 function stripMarkdownCodeBlocks(content: string): string {
@@ -80,7 +89,7 @@ export async function discoverOperations(
 ): Promise<Operation[]> {
   try {
     // Execute Nu script help command
-    const scriptPath = path.join(process.cwd(), 'scripts', 'dot.nu');
+    const scriptPath = path.join(getScriptsDir(), 'dot.nu');
     const { stdout, stderr } = await execAsync(`nu ${scriptPath} --help`);
 
     if (stderr) {
@@ -171,7 +180,7 @@ export async function getOperationParameters(
     const commandName = `main ${command.join(' ')}`;
 
     // Execute Nu script to get structured command metadata
-    const scriptPath = path.join(process.cwd(), 'scripts', 'dot.nu');
+    const scriptPath = path.join(getScriptsDir(), 'dot.nu');
     const nuCommand = `source ${scriptPath}; scope commands | where name == "${commandName}" | to json`;
     const { stdout, stderr } = await execAsync(`nu -c '${nuCommand}'`);
 
@@ -337,7 +346,7 @@ export async function executeOperation(
     }
 
     // Build Nu script command
-    const scriptPath = path.join(process.cwd(), 'scripts', 'dot.nu');
+    const scriptPath = path.join(getScriptsDir(), 'dot.nu');
     const command = session.matchedOperation.command;
 
     // Build command arguments
