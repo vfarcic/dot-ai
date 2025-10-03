@@ -4,35 +4,39 @@
 #
 # Parameters:
 # --enable-org: Whether to retrieve GitHub organization/user (default: true)
+# --github-token: GitHub token (optional, falls back to GITHUB_TOKEN or REGISTRY_PASSWORD env var)
+# --github-org: GitHub organization/username (optional, falls back to GITHUB_ORG or REGISTRY_USER env var)
 #
 # Returns:
 # A record with org and token fields, and saves values to .env file
-def --env "main get github" [--enable-org = true] {
+def --env "main get github" [
+    --enable-org = true,
+    --github-token: string,
+    --github-org: string
+] {
 
-    mut github_token = ""
-    if "GITHUB_TOKEN" in $env {
-        $github_token = $env.GITHUB_TOKEN
-    } else if "REGISTRY_PASSWORD" in $env {
-        $github_token = $env.REGISTRY_PASSWORD
-    } else {
-        let value = input $"(ansi green_bold)Enter GitHub token:(ansi reset) "
-        $github_token = $value
+    mut token = $github_token
+    if ($token | is-empty) and ("GITHUB_TOKEN" in $env) {
+        $token = $env.GITHUB_TOKEN
+    } else if ($token | is-empty) and ("REGISTRY_PASSWORD" in $env) {
+        $token = $env.REGISTRY_PASSWORD
+    } else if ($token | is-empty) {
+        error make { msg: "GitHub token required via --github-token parameter or GITHUB_TOKEN/REGISTRY_PASSWORD environment variable" }
     }
-    $"export GITHUB_TOKEN=($github_token)\n" | save --append .env
+    $"export GITHUB_TOKEN=($token)\n" | save --append .env
 
-    mut github_org = ""
+    mut org = $github_org
     if $enable_org {
-        if "GITHUB_ORG" in $env {
-            $github_org = $env.GITHUB_ORG
-        } else if "REGISTRY_USER" in $env {
-            $github_org = $env.REGISTRY_USER
-        } else {
-            let value = input $"(ansi green_bold)Enter GitHub user or organization where you forked the repo:(ansi reset) "
-            $github_org = $value
+        if ($org | is-empty) and ("GITHUB_ORG" in $env) {
+            $org = $env.GITHUB_ORG
+        } else if ($org | is-empty) and ("REGISTRY_USER" in $env) {
+            $org = $env.REGISTRY_USER
+        } else if ($org | is-empty) {
+            error make { msg: "GitHub organization/username required via --github-org parameter or GITHUB_ORG/REGISTRY_USER environment variable" }
         }
-        $"export GITHUB_ORG=($github_org)\n" | save --append .env
+        $"export GITHUB_ORG=($org)\n" | save --append .env
     }
 
-    {org: $github_org, token: $github_token}
+    {org: $org, token: $token}
 
 }

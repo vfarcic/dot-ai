@@ -47,14 +47,18 @@ def "main build image" [
 }
 
 # Retrieves a container registry address
-def "main get container_registry" [] {
+#
+# Parameters:
+# --container-registry: Container registry address (optional, falls back to CONTAINER_REGISTRY env var)
+def "main get container_registry" [
+    --container-registry: string
+] {
 
-    mut registry = ""
-    if "CONTAINER_REGISTRY" in $env {
+    mut registry = $container_registry
+    if ($registry | is-empty) and ("CONTAINER_REGISTRY" in $env) {
         $registry = $env.CONTAINER_REGISTRY
-    } else {
-        let value = input $"(ansi green_bold)Enter container image registry \(e.g., `ghcr.io/vfarcic`\):(ansi reset) "
-        $registry = $value
+    } else if ($registry | is-empty) {
+        error make { msg: "Container registry address required via --container-registry parameter or CONTAINER_REGISTRY environment variable" }
     }
     $"export CONTAINER_REGISTRY=($registry)\n" | save --append .env
 

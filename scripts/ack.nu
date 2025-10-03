@@ -8,19 +8,29 @@ def --env "main apply ack" [
     --cluster_name = "dot"
     --region = "us-east-1"
     --apply_irsa = true
+    --aws-access-key-id: string,      # AWS Access Key ID (optional, falls back to AWS_ACCESS_KEY_ID env var)
+    --aws-secret-access-key: string   # AWS Secret Access Key (optional, falls back to AWS_SECRET_ACCESS_KEY env var)
 ] {
 
     print $"\nApplying (ansi yellow_bold)ACK Controllers(ansi reset)...\n"
 
-    if AWS_ACCESS_KEY_ID not-in $env {
-        $env.AWS_ACCESS_KEY_ID = input $"(ansi yellow_bold)Enter AWS Access Key ID: (ansi reset)"
+    mut access_key = $aws_access_key_id
+    if ($access_key | is-empty) and (AWS_ACCESS_KEY_ID in $env) {
+        $access_key = $env.AWS_ACCESS_KEY_ID
+    } else if ($access_key | is-empty) {
+        error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
     }
+    $env.AWS_ACCESS_KEY_ID = $access_key
     $"export AWS_ACCESS_KEY_ID=($env.AWS_ACCESS_KEY_ID)\n"
         | save --append .env
 
-    if AWS_SECRET_ACCESS_KEY not-in $env {
-        $env.AWS_SECRET_ACCESS_KEY = input $"(ansi yellow_bold)Enter AWS Secret Access Key: (ansi reset)"
+    mut secret_key = $aws_secret_access_key
+    if ($secret_key | is-empty) and (AWS_SECRET_ACCESS_KEY in $env) {
+        $secret_key = $env.AWS_SECRET_ACCESS_KEY
+    } else if ($secret_key | is-empty) {
+        error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }
     }
+    $env.AWS_SECRET_ACCESS_KEY = $secret_key
     $"export AWS_SECRET_ACCESS_KEY=($env.AWS_SECRET_ACCESS_KEY)\n"
         | save --append .env
 

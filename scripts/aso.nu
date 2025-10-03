@@ -4,6 +4,7 @@ def --env "main apply aso" [
     --namespace = "default"
     --apply_creds = true
     --sync_period = "1h"
+    --azure-tenant: string  # Azure Tenant ID (optional, falls back to AZURE_TENANT env var)
 ] {
 
     (
@@ -17,15 +18,15 @@ def --env "main apply aso" [
 
     if $apply_creds {
 
-        mut azure_tenant = ""
-        if AZURE_TENANT not-in $env {
-            $azure_tenant = input $"(ansi yellow_bold)Enter Azure Tenant: (ansi reset)"
-        } else {
-            $azure_tenant = $env.AZURE_TENANT
+        mut tenant = $azure_tenant
+        if ($tenant | is-empty) and (AZURE_TENANT in $env) {
+            $tenant = $env.AZURE_TENANT
+        } else if ($tenant | is-empty) {
+            error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
         }
-        $"export AZURE_TENANT=($azure_tenant)\n" | save --append .env
+        $"export AZURE_TENANT=($tenant)\n" | save --append .env
 
-        az login --tenant $azure_tenant
+        az login --tenant $tenant
 
         let subscription_id = (az account show --query id -o tsv)
 
