@@ -235,7 +235,8 @@ describe.concurrent('Build Platform Tool - Phase 1: Basic Invocation', () => {
       const { stdout } = await execAsync('kubectl get namespace cert-manager --no-headers');
       expect(stdout).toContain('cert-manager');
 
-      // Cleanup without waiting
+      // Cleanup: delete Helm release first, then namespace and CRDs
+      execAsync('helm uninstall cert-manager --namespace cert-manager --ignore-not-found --wait=false 2>/dev/null || true').catch(() => {});
       execAsync('kubectl delete namespace cert-manager --ignore-not-found=true --wait=false').catch(() => {});
       execAsync('kubectl delete crd certificaterequests.cert-manager.io certificates.cert-manager.io challenges.acme.cert-manager.io clusterissuers.cert-manager.io issuers.cert-manager.io orders.acme.cert-manager.io --ignore-not-found=true --wait=false').catch(() => {});
     }, 300000);
