@@ -33,6 +33,7 @@ spec:
           value: "0.0.0.0"
         - name: SESSION_MODE
           value: "stateless"
+        # Future: Add AI_PROVIDER environment variable here for multi-provider support
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:

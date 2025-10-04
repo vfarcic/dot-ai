@@ -123,19 +123,19 @@ mkdir -p ./tmp/sessions
 
 # Step 5: Start MCP server in background
 log_info "Starting MCP server on port ${PORT}..."
-log_info "Using OpenAI GPT-5 via Vercel AI SDK for testing..."
+log_info "Using default AI provider (Anthropic Claude Sonnet with native SDK)..."
 KUBECONFIG=./kubeconfig-test.yaml \
 PORT=${PORT} \
 DOT_AI_SESSION_DIR=./tmp/sessions \
 TRANSPORT_TYPE=http \
 QDRANT_URL=http://localhost:6335 \
 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
-AI_PROVIDER=openai \
-AI_PROVIDER_SDK=vercel \
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
 OPENAI_API_KEY=$OPENAI_API_KEY \
 GOOGLE_API_KEY=$GOOGLE_API_KEY \
 node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
+# AI_PROVIDER=openai \
+# AI_PROVIDER_SDK=vercel \
 
 SERVER_PID=$!
 echo $SERVER_PID > "$SERVER_PID_FILE"

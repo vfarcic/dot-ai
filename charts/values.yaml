@@ -23,8 +23,9 @@ secrets:
     keyName: anthropic-api-key      # Key name within the secret
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   openai:
-    keyName: openai-api-key         # Key name within the secret  
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: openai-api-key         # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret - used for embeddings)
+  # Future: Add additional AI provider keys here (google, etc.)
 
 # ServiceAccount configuration
 serviceAccount:
