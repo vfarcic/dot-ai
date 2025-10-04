@@ -7,7 +7,7 @@
  * NOTE: Written based on actual API response inspection following PRD best practices.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Capabilities Integration', () => {
@@ -18,12 +18,11 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
 
-
-    // Clean state once before all tests - delete all capabilities
-    await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-      dataType: 'capabilities',
-      operation: 'deleteAll'
-    });
+    // Clean sessions directory to prevent stale session reuse
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    await execAsync('rm -rf ./tmp/sessions/capability-sessions/*').catch(() => {});
   });
 
 
@@ -48,7 +47,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
               parameters: {
                 dataType: 'capabilities',
                 operation: 'scan',
-                sessionId: expect.stringMatching(/^cap-scan-\d+$/),
+                sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
                 step: 'resource-selection',
                 response: 'user_choice_here'
               },
@@ -69,7 +68,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
                   display: '2. specific - Specify particular resource types to scan'
                 }
               ],
-              sessionId: expect.stringMatching(/^cap-scan-\d+$/),
+              sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
               instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select an option.',
               userPrompt: 'Would you like to scan all cluster resources or specify a subset?',
               clientInstructions: expect.objectContaining({
@@ -207,7 +206,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       // NOTE: This test does NOT clean up capabilities data
       // The full scan results will be used by recommendation tests
-    }, 960000); // 16 minute timeout for full test (15 min scan + 1 min overhead)
+    }, 2700000); // 45 minute timeout for full test (accommodates slower AI models like OpenAI)
 
     test('should handle specific resource scanning workflow', async () => {
       // Step 1: Start scan
@@ -521,11 +520,14 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         step: 'resource-specification', resourceList: 'Service,Deployment'
       });
 
-      integrationTest.httpClient.setTimeout(60000); // 1 minute for specific resource scan
+      integrationTest.httpClient.setTimeout(180000); // 3 minutes for specific resource scan with AI
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities', operation: 'scan', sessionId,
         step: 'processing-mode', response: 'auto'
       });
+
+      // Reset timeout to default for search (semantic search can take time with embeddings)
+      integrationTest.httpClient.setTimeout(1800000); // Back to 30 minutes default
 
       // Test semantic search
       const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {

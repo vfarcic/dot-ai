@@ -296,24 +296,102 @@ docs/
 - **Predictive Analysis**: Predict which tests will become slow based on code changes
 - **Automated Fixes**: Generate automated optimization pull requests
 
+## Decision Log
+
+### ❌ Decision: Custom Kind Cluster Image for Integration Test Optimization (Rejected)
+- **Date**: 2025-10-04
+- **Status**: Rejected
+- **Decision**: Create a custom Kind cluster Docker image with pre-installed operators (CloudNativePG, Kyverno) to reduce integration test setup time
+- **Context**:
+  - Current integration test workflow recreates Kind cluster for every test run
+  - Cluster creation + operator installation takes ~45 seconds per run
+  - Tests run frequently during multi-provider development (PRD-73), causing repeated cluster setup overhead
+  - Current workflow: Delete cluster → Create cluster → Install CNI/Storage → Install CloudNativePG (async) → Install Kyverno (synchronous with 300s wait)
+- **Rationale**:
+  - **Time Savings**: Eliminate ~45 seconds of setup time per test run (30% faster developer feedback loop)
+  - **Consistency**: Pre-installed operators ensure identical test environment every time
+  - **Developer Experience**: Faster test iterations during active development
+  - **CI Efficiency**: Reduced CI pipeline duration for PRs with integration test runs
+- **Implementation Requirements**:
+  - **Multi-Architecture Support**: Image must work on both ARM64 (M1/M2 Macs) and AMD64 (CI runners)
+  - **Image Building**:
+    - Create Dockerfile based on `kindest/node:v1.34.0`
+    - Pre-install CloudNativePG operator manifests
+    - Pre-install Kyverno Helm chart
+    - Build and push multi-arch image to container registry (Docker Hub or GHCR)
+  - **Script Updates**:
+    - Update `tests/integration/infrastructure/run-integration-tests.sh`
+    - Replace standard Kind node image with custom image in cluster creation
+    - Remove operator installation steps (lines 99-111 in current script)
+    - Verify operators are running before proceeding to tests
+  - **Documentation**:
+    - Document custom image building process
+    - Provide instructions for rebuilding image when operator versions update
+    - Update integration test documentation
+- **Trade-offs**:
+  - **Pros**:
+    - Significant time savings during development
+    - More consistent test environment
+    - Simpler test script (fewer installation steps)
+  - **Cons**:
+    - Additional maintenance: Image needs rebuilding when operators update
+    - Image distribution: Requires public registry or developer authentication
+    - Image size: Larger image to pull initially (offset by faster subsequent runs)
+- **Impact on PRD**:
+  - **Milestone 1**: Add "Custom Cluster Image" task to infrastructure optimization milestone
+  - **Success Metrics**: Update performance benchmarks to reflect 45-second improvement
+  - **Integration Points**: Add "Custom Docker Image" section to CI/CD integration
+- **Estimated Savings**:
+  - Per-run: ~45 seconds (30% improvement for typical test run)
+  - Developer workflow: 4-5 minutes saved over 10 test runs
+  - CI pipeline: 45 seconds per integration test job
+- **Rejection Rationale**:
+  - **Marginal Benefit**: 45-second savings on 3-10 minute test runs (7-25% of setup, minimal impact on total time)
+  - **High Complexity**: Multi-arch builds, image maintenance, CI pipelines, distribution, authentication
+  - **Maintenance Burden**: Image needs rebuilding when operators update (ongoing overhead)
+  - **Low Frequency**: Integration tests run only a few times per day during development
+  - **AI Dominates Runtime**: Test execution time (3-10 minutes) far exceeds setup time (45 seconds)
+  - **Simplicity Over Optimization**: Maintenance burden outweighs practical benefit
+- **Alternative**: Accept 45-second setup time as reasonable for comprehensive integration testing
+- **Owner**: Development Team
+
 ---
 
 ## Appendices
 
 ### A. Current Test Suite Analysis
-- Total Tests: 845 (75 skipped)  
-- Test Suites: 37
-- Current Runtime: ~24-60 seconds
-- Longest Running Tests: answer-question.test.ts (23s), build-system.test.ts (18s), schema.test.ts (17s)
+
+#### Integration Tests (Only Test Type in Project)
+- **Total Tests**: 44 integration tests (as of 2025-10-04)
+- **Test Suites**: 7 test files
+- **Current Setup Time**: ~45 seconds (Kind cluster + operator installation)
+- **Current Total Runtime**: ~3-10 minutes (varies by AI provider speed)
+- **Test Infrastructure**:
+  - Kind cluster (v1.34.0) with CNI and Storage
+  - CloudNativePG operator (async installation)
+  - Kyverno Policy Engine (synchronous with 300s timeout)
+  - Qdrant vector database (Docker container)
+  - MCP server with HTTP transport
+- **Provider Testing Status** (PRD-73):
+  - ✅ Anthropic Claude: 44/44 passing (100%)
+  - 🔄 Google Gemini: In progress (fixes applied, validation running)
+  - ⏳ OpenAI: Not yet tested
+- **Optimization Opportunity**: Custom Kind cluster image could reduce setup time by ~45 seconds (see Decision Log)
 
 ### B. Performance Benchmarks
-- Target: <15 seconds total test runtime
-- Individual Test Threshold: 2 seconds
-- Test Suite Threshold: 10 seconds  
-- CI Build Time Target: <2 minutes total
+
+#### Integration Tests
+- **Target**: <5 minutes total test runtime (excluding cluster setup)
+- **Individual Test Threshold**: 300 seconds (AI-intensive operations like capability scanning)
+- **Setup Time Current**: ~45 seconds (cluster creation + operator installation)
+- **Setup Time Target**: <30 seconds (with custom cluster image optimization)
+- **CI Build Time Target**: <10 minutes total (including cluster setup)
 
 ### C. Integration Points
-- Jest Configuration: package.json test scripts
-- CI/CD: GitHub Actions workflows
-- Development Workflow: CLAUDE.md requirements
-- Documentation: README.md, docs/ structure
+- **Test Framework**: Vitest (vitest.integration.config.ts)
+- **Test Script**: `tests/integration/infrastructure/run-integration-tests.sh`
+- **Real Cluster Validation**: Kind cluster with actual Kubernetes operators
+- **Multi-Provider Support** (in progress): Tests run against different AI providers
+- **CI/CD**: GitHub Actions workflows
+- **Development Workflow**: CLAUDE.md requirements
+- **Documentation**: README.md, docs/ structure

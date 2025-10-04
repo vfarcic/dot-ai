@@ -46,11 +46,7 @@ jobs:
     - name: Build project
       run: devbox run -- npm run build
 
-    - name: Create Kind cluster with operators
-      run: devbox run -- npm run test:integration:setup
-      timeout-minutes: 8
-
-    - name: Run integration tests (with automated server management)
+    - name: Run integration tests (with automated cluster creation and server management)
       run: devbox run -- npm run test:integration
       timeout-minutes: 15
       env:

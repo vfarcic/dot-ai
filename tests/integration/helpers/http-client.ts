@@ -38,7 +38,7 @@ export class HttpRestApiClient {
 
   constructor(options: HttpClientOptions = {}) {
     this.baseUrl = options.baseUrl || 'http://localhost:3456';
-    this.timeout = options.timeout || 1200000; // Default to 20 minutes for integration tests
+    this.timeout = options.timeout || 1800000; // Default to 30 minutes for integration tests (slower AI providers)
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',

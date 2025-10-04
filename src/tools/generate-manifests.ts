@@ -463,9 +463,10 @@ export async function handleGenerateManifestsTool(
           }
           
           // Validation failed, prepare error context for next attempt
+          // Only pass AI-generated manifests (not ConfigMap) to avoid duplicate ConfigMaps on retry
           lastError = {
             attempt,
-            previousManifests: manifests,
+            previousManifests: aiManifests,
             validationResult: validation
           };
           

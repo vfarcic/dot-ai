@@ -1014,12 +1014,15 @@ async function executeRemediationCommands(
         command: action.command 
       });
 
-      // Execute the command as-is using shell
-      const fullCommand = action.command || '';
+      // Execute the command using shell
+      // Clean up escape sequences that some AI models incorrectly add to JSON parameters
+      let fullCommand = action.command || '';
+      fullCommand = fullCommand.replace(/\\"/g, '"');
+
       const { exec } = require('child_process');
       const { promisify } = require('util');
       const execAsync = promisify(exec);
-      
+
       const { stdout } = await execAsync(fullCommand);
       const output = stdout;
       

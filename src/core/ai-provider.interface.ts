@@ -104,20 +104,6 @@ export interface AIProvider {
   sendMessage(message: string, operation?: string): Promise<AIResponse>;
 
   /**
-   * Analyze user intent for clarification opportunities
-   *
-   * Used in: recommend.ts (intent clarification workflow)
-   *
-   * @param intent User's deployment intent
-   * @param organizationalPatterns Optional organizational patterns context
-   * @returns Structured analysis with clarification opportunities
-   */
-  analyzeIntentForClarification(
-    intent: string,
-    organizationalPatterns?: string
-  ): Promise<IntentAnalysisResult>;
-
-  /**
    * Check if the provider is properly initialized
    *
    * Used in: schema.ts (pre-flight check before AI calls)

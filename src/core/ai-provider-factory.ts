@@ -13,6 +13,7 @@ import {
   AIProviderConfig
 } from './ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic-provider';
+import { VercelProvider } from './providers/vercel-provider';
 
 /**
  * Provider environment variable mappings
@@ -27,7 +28,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
 /**
  * Providers implemented in Phase 1
  */
-const IMPLEMENTED_PROVIDERS = ['anthropic'] as const;
+const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'google'] as const;
 type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
 
 /**
@@ -95,11 +96,16 @@ export class AIProviderFactory {
    * Detects provider from AI_PROVIDER env var (defaults to 'anthropic')
    * and loads corresponding API key from environment.
    *
+   * Supports AI_PROVIDER_SDK env var to override SDK choice:
+   * - 'native' (default): Use native provider SDK
+   * - 'vercel': Use Vercel AI SDK for the provider
+   *
    * @returns Configured AI provider instance
    * @throws Error if required environment variables are missing
    */
   static createFromEnv(): AIProvider {
     const providerType = process.env.AI_PROVIDER || 'anthropic';
+    const sdkPreference = process.env.AI_PROVIDER_SDK || 'native';
 
     // Validate provider is implemented
     if (!IMPLEMENTED_PROVIDERS.includes(providerType as ImplementedProvider)) {
@@ -121,10 +127,20 @@ export class AIProviderFactory {
     }
 
     // Get optional model override
-    const model = process.env.MODEL;
+    const model = process.env.AI_MODEL;
 
     // Get debug mode setting
     const debugMode = process.env.DEBUG_DOT_AI === 'true';
+
+    // If SDK override to 'vercel', use VercelProvider for all providers
+    if (sdkPreference === 'vercel') {
+      return new VercelProvider({
+        provider: providerType,
+        apiKey,
+        model,
+        debugMode
+      });
+    }
 
     return this.create({
       provider: providerType,
@@ -146,18 +162,16 @@ export class AIProviderFactory {
    * Create OpenAI provider instance
    * @private
    */
-  private static createOpenAIProvider(_config: AIProviderConfig): AIProvider {
-    // Import and instantiate OpenAIProvider (to be implemented in Milestone 2)
-    throw new Error('OpenAIProvider implementation pending');
+  private static createOpenAIProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
   }
 
   /**
    * Create Google provider instance
    * @private
    */
-  private static createGoogleProvider(_config: AIProviderConfig): AIProvider {
-    // Import and instantiate GoogleProvider (to be implemented in Milestone 2)
-    throw new Error('GoogleProvider implementation pending');
+  private static createGoogleProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
   }
 
   /**
