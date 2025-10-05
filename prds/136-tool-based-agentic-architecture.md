@@ -1,6 +1,6 @@
 # PRD: Migrate from Prompt-Based to Tool-Based Agentic AI Architecture
 
-**Status**: Draft
+**Status**: In Progress
 **Created**: 2025-10-03
 **GitHub Issue**: [#136](https://github.com/vfarcic/dot-ai/issues/136)
 **Priority**: High
@@ -45,44 +45,89 @@ The current AI integration architecture uses a **prompt-based pattern** that inj
 
 ## Solution Overview
 
-Migrate to **native Claude tool use** pattern where AI autonomously decides which tools to call:
+Migrate to **native AI tool use** pattern where AI autonomously decides which tools to call. This works across all providers (Anthropic, OpenAI, Google) through our unified `AIProvider` interface.
+
+### Current Architecture (Post-PRD #73)
+
+As of PRD #73 (merged Oct 5, 2025), we have a multi-provider AI architecture:
 
 ```typescript
-// Before (Prompt-Based)
+// Current: AIProvider interface supports multiple providers
+interface AIProvider {
+  sendMessage(message: string, operation?: string): Promise<AIResponse>;
+  isInitialized(): boolean;
+  getDefaultModel(): string;
+  getProviderType(): string;
+}
+
+// Two implementations:
+class AnthropicProvider implements AIProvider { /* uses @anthropic-ai/sdk */ }
+class VercelProvider implements AIProvider { /* uses Vercel AI SDK for OpenAI/Google */ }
+```
+
+### Proposed Enhancement
+
+Add tool use methods to `AIProvider` interface:
+
+```typescript
+// Before (Prompt-Based) - Current State
 const prompt = loadPrompt('remediate-investigation.md')
   .replace('{clusterApiResources}', massiveClusterData); // ❌ 10,000+ tokens
-const response = await claude.sendMessage(prompt);
+const response = await aiProvider.sendMessage(prompt);
 const { dataRequests } = parseAIResponse(response.content); // ❌ Manual parsing
 
-// After (Tool-Based)
+// After (Tool-Based) - Via AIProvider Interface
 const tools = [
-  { name: "kubectl_get", description: "Get K8s resources", input_schema: {...} },
-  { name: "kubectl_describe", description: "Detailed resource info", input_schema: {...} }
+  { name: "kubectl_get", description: "Get K8s resources", schema: {...} },
+  { name: "kubectl_describe", description: "Detailed resource info", schema: {...} }
 ];
 
-const response = await claude.messages.create({
-  messages: conversationHistory,
-  tools: tools // ✅ Claude decides when to call
+const result = await aiProvider.toolLoop({
+  systemPrompt: "Investigate Kubernetes issue...",
+  tools: tools,
+  toolExecutor: async (toolName, input) => executeKubectl(toolName, input),
+  maxIterations: 20
 });
 
-if (response.stop_reason === "tool_use") {
-  // Execute tools Claude requested
-  for (const toolUse of response.content.filter(c => c.type === "tool_use")) {
-    const result = await executeKubectl(toolUse.input);
-    conversationHistory.push({
-      role: "user",
-      content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }]
-    });
-  }
+// Works seamlessly with any provider (Anthropic/OpenAI/Google)
+```
+
+### Provider-Specific Implementation
+
+**AnthropicProvider** (uses Anthropic SDK):
+```typescript
+async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+  const response = await this.client.messages.create({
+    messages: conversationHistory,
+    tools: tools // Native Anthropic tool use
+  });
+  // Handle tool_use stop_reason...
+}
+```
+
+**VercelProvider** (uses Vercel AI SDK):
+```typescript
+async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+  const result = await generateText({
+    model: this.modelInstance,
+    tools: {
+      kubectl_get: tool({
+        description: "Get K8s resources",
+        execute: async (input) => await toolExecutor('kubectl_get', input)
+      })
+    }
+  });
+  // Handle tool calls...
 }
 ```
 
 ### Key Benefits
 
-1. **90% Token Reduction**: Claude fetches only needed data via tool calls
+1. **90% Token Reduction**: AI fetches only needed data via tool calls
 2. **True Agentic Behavior**: Native AI loop vs manual iteration code
-3. **Better Debugging**: Structured tool_use blocks with validation
-4. **Alignment with MCP**: Natural fit for Model Context Protocol architecture
+3. **Multi-Provider Support**: Works with Anthropic, OpenAI, Google
+4. **Better Debugging**: Structured tool_use blocks with validation
+5. **Alignment with MCP**: Natural fit for Model Context Protocol architecture
 
 ---
 
@@ -114,7 +159,7 @@ if (response.stop_reason === "tool_use") {
 
 ## Technical Design
 
-### Architecture Overview
+### Architecture Overview (Updated for Multi-Provider)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -134,20 +179,256 @@ if (response.stop_reason === "tool_use") {
 │ • Intent Analysis   │         │ • Script Discovery   │
 └─────────────────────┘         └──────────────────────┘
          │                               │
-         │    ClaudeIntegration API      │
-         │                               │
+         │       AIProvider Interface    │
+         │    (Multi-Provider Support)   │
          ├───────────────┬───────────────┤
          │               │               │
          ▼               ▼               ▼
-   sendMessage()   createWithTools()  toolLoop()
-    (existing)         (new)           (new)
+   sendMessage()   sendMessageWithTools()  toolLoop()
+    (existing)         (new)                (new)
+         │               │                   │
+         └───────────────┴───────────────────┘
+                         │
+         ┌───────────────┴───────────────┐
+         │                               │
+         ▼                               ▼
+┌─────────────────────┐         ┌──────────────────────┐
+│  AnthropicProvider  │         │   VercelProvider     │
+│  (@anthropic-ai/sdk)│         │ (Vercel AI SDK)      │
+├─────────────────────┤         ├──────────────────────┤
+│ • Native tool use   │         │ • OpenAI GPT-4/5     │
+│ • Streaming support │         │ • Google Gemini      │
+│ • Claude 3.5+       │         │ • Unified tool API   │
+└─────────────────────┘         └──────────────────────┘
 ```
 
-### Phase 1: Remediate Tool (Weeks 1-2)
+### Phase 1: AIProvider Interface Extension (Week 1)
 
-**Target**: Convert `src/tools/remediate.ts` investigation loop
+**Target**: Add tool use methods to `AIProvider` interface and implement in both providers
 
-#### New Tool Definitions
+#### Step 1.1: Extend AIProvider Interface
+
+Add tool use capabilities to `src/core/ai-provider.interface.ts`:
+
+```typescript
+/**
+ * Tool definition for AI providers
+ */
+export interface AITool {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
+  };
+}
+
+/**
+ * Tool executor function type
+ */
+export type ToolExecutor = (toolName: string, input: any) => Promise<any>;
+
+/**
+ * Configuration for tool loop
+ */
+export interface ToolLoopConfig {
+  systemPrompt: string;
+  userMessage: string;
+  tools: AITool[];
+  toolExecutor: ToolExecutor;
+  maxIterations?: number;
+  onIteration?: (iteration: number, toolCalls: any[]) => void;
+}
+
+/**
+ * Result from agentic tool loop
+ */
+export interface AgenticResult {
+  finalMessage: string;
+  iterations: number;
+  toolCallsExecuted: Array<{
+    tool: string;
+    input: any;
+    output: any;
+  }>;
+  totalTokens: {
+    input: number;
+    output: number;
+  };
+}
+
+// Add to AIProvider interface:
+export interface AIProvider {
+  // Existing methods...
+  sendMessage(message: string, operation?: string): Promise<AIResponse>;
+  isInitialized(): boolean;
+  getDefaultModel(): string;
+  getProviderType(): string;
+
+  // NEW: Tool use methods
+
+  /**
+   * Execute agentic loop with tool calling
+   * AI autonomously decides which tools to call and when to stop
+   */
+  toolLoop(config: ToolLoopConfig): Promise<AgenticResult>;
+
+  /**
+   * Single-shot message with tool calling enabled
+   * AI can call tools, but only processes one round
+   */
+  sendMessageWithTools(
+    message: string,
+    tools: AITool[],
+    toolExecutor: ToolExecutor,
+    operation?: string
+  ): Promise<AIResponse & { toolCalls?: any[] }>;
+}
+```
+
+#### Step 1.2: Implement in AnthropicProvider
+
+Update `src/core/providers/anthropic-provider.ts`:
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+  const conversationHistory: Anthropic.MessageParam[] = [
+    { role: 'user', content: config.systemPrompt + '\n\n' + config.userMessage }
+  ];
+
+  const tools: Anthropic.Tool[] = config.tools.map(t => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.inputSchema
+  }));
+
+  let iterations = 0;
+  const toolCallsExecuted: any[] = [];
+  const totalTokens = { input: 0, output: 0 };
+
+  while (iterations < (config.maxIterations || 20)) {
+    iterations++;
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      messages: conversationHistory,
+      tools: tools
+    });
+
+    totalTokens.input += response.usage.input_tokens;
+    totalTokens.output += response.usage.output_tokens;
+
+    // Check if AI wants to use tools
+    const toolUses = response.content.filter(c => c.type === 'tool_use');
+
+    if (toolUses.length === 0) {
+      // AI is done, return final message
+      const textContent = response.content.find(c => c.type === 'text');
+      return {
+        finalMessage: textContent?.text || '',
+        iterations,
+        toolCallsExecuted,
+        totalTokens
+      };
+    }
+
+    // Execute tools requested by AI
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    for (const toolUse of toolUses) {
+      const result = await config.toolExecutor(toolUse.name, toolUse.input);
+      toolCallsExecuted.push({
+        tool: toolUse.name,
+        input: toolUse.input,
+        output: result
+      });
+      toolResults.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: JSON.stringify(result)
+      });
+    }
+
+    // Add AI response and tool results to conversation
+    conversationHistory.push(
+      { role: 'assistant', content: response.content },
+      { role: 'user', content: toolResults }
+    );
+
+    config.onIteration?.(iterations, toolCallsExecuted);
+  }
+
+  throw new Error(`Tool loop exceeded max iterations (${config.maxIterations})`);
+}
+```
+
+#### Step 1.3: Implement in VercelProvider
+
+Update `src/core/providers/vercel-provider.ts`:
+
+```typescript
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+
+async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+  // Convert AITool[] to Vercel AI SDK tool format
+  const vercelTools: Record<string, any> = {};
+
+  for (const aiTool of config.tools) {
+    // Convert JSON schema to Zod schema (simplified - may need enhancement)
+    const zodSchema = z.object(
+      Object.fromEntries(
+        Object.entries(aiTool.inputSchema.properties).map(([key, val]) => [
+          key,
+          z.any().describe(val.description || '')
+        ])
+      )
+    );
+
+    vercelTools[aiTool.name] = tool({
+      description: aiTool.description,
+      parameters: zodSchema,
+      execute: async (input: any) => {
+        return await config.toolExecutor(aiTool.name, input);
+      }
+    });
+  }
+
+  const result = await generateText({
+    model: this.modelInstance,
+    system: config.systemPrompt,
+    prompt: config.userMessage,
+    tools: vercelTools,
+    maxSteps: config.maxIterations || 20,
+    onStepFinish: (step) => {
+      config.onIteration?.(step.stepNumber, step.toolCalls || []);
+    }
+  });
+
+  return {
+    finalMessage: result.text,
+    iterations: result.steps?.length || 1,
+    toolCallsExecuted: result.toolCalls?.map(tc => ({
+      tool: tc.toolName,
+      input: tc.args,
+      output: tc.result
+    })) || [],
+    totalTokens: {
+      input: result.usage.promptTokens,
+      output: result.usage.completionTokens
+    }
+  };
+}
+```
+
+### Phase 2: Remediate Tool Conversion (Week 2)
+
+**Target**: Convert `src/tools/remediate.ts` investigation loop to use new `toolLoop()` method
+
+#### Kubectl Tool Definitions
 
 ```typescript
 export const KUBECTL_TOOLS = [
@@ -331,32 +612,41 @@ export const PLATFORM_TOOLS = [
 
 ## Implementation Plan
 
-### Milestones
+### Milestones (Updated for Multi-Provider)
 
-- [ ] **Milestone 1: Foundation (Week 1)**
-  - Add `toolLoop()` method to `ClaudeIntegration`
-  - Create `KubectlToolExecutor` class
-  - Define kubectl tool schemas
-  - Write unit tests for tool execution
+- [ ] **Milestone 1: AIProvider Interface Extension (Week 1)**
+  - Extend `AIProvider` interface with tool use methods (`toolLoop`, `sendMessageWithTools`)
+  - Add new types: `AITool`, `ToolExecutor`, `ToolLoopConfig`, `AgenticResult`
+  - Implement `toolLoop()` in `AnthropicProvider` using Anthropic SDK
+  - Implement `toolLoop()` in `VercelProvider` using Vercel AI SDK
+  - Write unit tests for both provider implementations
+  - Create shared tool definition utilities
 
 - [ ] **Milestone 2: Remediate Migration (Week 2)**
-  - Convert `remediate.ts` to use tool-based loop
-  - Update `remediate-investigation.md` prompt
+  - Define kubectl tool schemas (`kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events`)
+  - Convert `remediate.ts` investigation loop to use `aiProvider.toolLoop()`
+  - Remove manual iteration code (lines 204-304)
+  - Update `remediate-investigation.md` prompt (remove `{clusterApiResources}`)
   - Add feature flag for gradual rollout
   - Write integration tests comparing both approaches
 
-- [ ] **Milestone 3: Validation & Metrics (Week 2-3)**
-  - A/B test tool-based vs prompt-based
-  - Measure token usage, latency, accuracy
+- [ ] **Milestone 3: Validation & Multi-Provider Testing (Week 2-3)**
+  - A/B test tool-based vs prompt-based with Anthropic
+  - Test tool-based remediation with OpenAI (via VercelProvider)
+  - Test tool-based remediation with Google Gemini (via VercelProvider)
+  - Measure token usage, latency, accuracy across providers
+  - Document performance differences by provider
   - Gather user feedback
-  - Document performance improvements
 
 - [ ] **Milestone 4: Recommend Migration (Week 3-4)**
+  - Define capability search tools (`search_capabilities`, `get_resource_schema`, `search_patterns`)
   - Convert `recommend.ts` capability search to tools
+  - Remove pre-fetching of 50 capabilities
   - Update resource selection logic
-  - Integration tests for recommendation quality
+  - Integration tests for recommendation quality across providers
 
 - [ ] **Milestone 5: Platform Migration (Week 5-6)**
+  - Define platform tools (`discover_operations`, `get_operation_parameters`)
   - Convert `build-platform.ts` script discovery to tools
   - Update platform operation workflow
   - End-to-end tests for platform builds
@@ -364,7 +654,8 @@ export const PLATFORM_TOOLS = [
 - [ ] **Milestone 6: Production Rollout (Week 6)**
   - Remove feature flags after validation
   - Remove legacy prompt-based code paths
-  - Update documentation
+  - Update CLAUDE.md with tool use patterns
+  - Update documentation to mention multi-provider tool support
   - Announce architecture change to users
 
 ### Testing Strategy
@@ -435,13 +726,24 @@ export const PLATFORM_TOOLS = [
 ## Dependencies
 
 ### Technical Dependencies
-- Anthropic SDK (already integrated)
+- **PRD #73**: Multi-Provider AI System (✅ Complete, merged Oct 5, 2025)
+  - Provides `AIProvider` interface foundation
+  - `AnthropicProvider` and `VercelProvider` implementations
+  - Vercel AI SDK integration (supports tool use)
+- Anthropic SDK `@anthropic-ai/sdk` (already integrated)
+- Vercel AI SDK `ai` (already integrated)
+- Zod schema library (already integrated, used for tool schemas)
 - No new external dependencies required
-- Existing `ClaudeIntegration` class extended
+
+### PRD Dependencies
+- This PRD builds upon PRD #73's multi-provider architecture
+- Must maintain compatibility with all three providers (Anthropic, OpenAI, Google)
+- Tool use must work seamlessly across providers
 
 ### Team Dependencies
-- API key management (if tool calls consume more credits initially)
-- Monitoring/alerting for token usage changes
+- API key management (tool calls may consume more credits initially)
+- Monitoring/alerting for token usage changes across providers
+- Performance monitoring to track provider-specific tool use latency
 - User communication about potential behavior changes
 
 ---
@@ -490,4 +792,6 @@ export const PLATFORM_TOOLS = [
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2025-10-05 | **Major Update**: Aligned with PRD #73 multi-provider architecture. Updated solution to use AIProvider interface. Revised implementation to support Anthropic, OpenAI, and Google providers. Updated architecture diagrams, code examples, and milestones. | Claude Code |
+| 2025-10-05 | Implementation started - Phase 1 (Foundation) | Claude Code |
 | 2025-10-03 | Initial PRD created | Claude Code |
