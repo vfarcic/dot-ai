@@ -12,7 +12,11 @@ import * as crypto from 'crypto';
 import {
   AIProvider,
   AIResponse,
-  AIProviderConfig
+  AIProviderConfig,
+  AITool,
+  ToolExecutor,
+  ToolLoopConfig,
+  AgenticResult
 } from '../ai-provider.interface';
 
 export class AnthropicProvider implements AIProvider {
@@ -156,6 +160,194 @@ ${response.content}`;
 
     } catch (error) {
       throw new Error(`Anthropic API error: ${error}`);
+    }
+  }
+
+  async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+    if (!this.client) {
+      throw new Error('Anthropic client not initialized');
+    }
+
+    // Convert AITool[] to Anthropic Tool format
+    const tools: Anthropic.Tool[] = config.tools.map(t => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema
+    }));
+
+    // Initialize conversation history with system + user message
+    const conversationHistory: Anthropic.MessageParam[] = [
+      {
+        role: 'user',
+        content: config.systemPrompt + '\n\n' + config.userMessage
+      }
+    ];
+
+    let iterations = 0;
+    const toolCallsExecuted: Array<{ tool: string; input: any; output: any }> = [];
+    const totalTokens = { input: 0, output: 0 };
+    const maxIterations = config.maxIterations || 20;
+
+    try {
+      while (iterations < maxIterations) {
+        iterations++;
+
+        // Call Anthropic API with tools
+        const response = await this.client.messages.create({
+          model: this.model,
+          max_tokens: 4096,
+          messages: conversationHistory,
+          tools: tools
+        });
+
+        // Track token usage
+        totalTokens.input += response.usage.input_tokens;
+        totalTokens.output += response.usage.output_tokens;
+
+        // Check if AI wants to use tools
+        const toolUses = response.content.filter(
+          (c): c is Anthropic.ToolUseBlock => c.type === 'tool_use'
+        );
+
+        if (toolUses.length === 0) {
+          // AI is done - extract final text message
+          const textContent = response.content.find(
+            (c): c is Anthropic.TextBlock => c.type === 'text'
+          );
+
+          return {
+            finalMessage: textContent?.text || '',
+            iterations,
+            toolCallsExecuted,
+            totalTokens
+          };
+        }
+
+        // Execute all requested tools
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+        for (const toolUse of toolUses) {
+          try {
+            const result = await config.toolExecutor(toolUse.name, toolUse.input);
+
+            toolCallsExecuted.push({
+              tool: toolUse.name,
+              input: toolUse.input,
+              output: result
+            });
+
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify(result)
+            });
+          } catch (error) {
+            // Feed error back to AI as tool result
+            const errorMessage = error instanceof Error ? error.message : String(error);
+
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({ error: errorMessage }),
+              is_error: true
+            });
+          }
+        }
+
+        // Add AI response and tool results to conversation history
+        conversationHistory.push(
+          { role: 'assistant', content: response.content },
+          { role: 'user', content: toolResults }
+        );
+
+        // Invoke iteration callback if provided
+        if (config.onIteration) {
+          config.onIteration(iterations, toolCallsExecuted);
+        }
+      }
+
+      throw new Error(`Tool loop exceeded max iterations (${maxIterations})`);
+
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('exceeded max iterations')) {
+        throw error;
+      }
+      throw new Error(`Anthropic tool loop error: ${error}`);
+    }
+  }
+
+  async sendMessageWithTools(
+    message: string,
+    tools: AITool[],
+    toolExecutor: ToolExecutor,
+    operation: string = 'tool-call'
+  ): Promise<AIResponse & { toolCalls?: any[] }> {
+    if (!this.client) {
+      throw new Error('Anthropic client not initialized');
+    }
+
+    // Convert AITool[] to Anthropic Tool format
+    const anthropicTools: Anthropic.Tool[] = tools.map(t => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema
+    }));
+
+    try {
+      // Single API call with tools
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: message }],
+        tools: anthropicTools
+      });
+
+      const toolCalls: any[] = [];
+      let textContent = '';
+
+      // Process response content
+      for (const block of response.content) {
+        if (block.type === 'text') {
+          textContent += block.text;
+        } else if (block.type === 'tool_use') {
+          // Execute the tool
+          try {
+            const result = await toolExecutor(block.name, block.input);
+            toolCalls.push({
+              tool: block.name,
+              input: block.input,
+              output: result
+            });
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toolCalls.push({
+              tool: block.name,
+              input: block.input,
+              error: errorMessage
+            });
+          }
+        }
+      }
+
+      const aiResponse: AIResponse & { toolCalls?: any[] } = {
+        content: textContent,
+        usage: {
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens
+        },
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+      };
+
+      // Debug log if enabled
+      if (this.debugMode) {
+        const debugId = this.generateDebugId(operation);
+        this.debugLogInteraction(debugId, message, aiResponse, operation);
+      }
+
+      return aiResponse;
+
+    } catch (error) {
+      throw new Error(`Anthropic tool call error: ${error}`);
     }
   }
 }

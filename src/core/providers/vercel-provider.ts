@@ -5,17 +5,23 @@
  * Supports OpenAI and Google Gemini providers through unified interface.
  */
 
-import { generateText } from 'ai';
+import { generateText, tool } from 'ai';
+import type { Tool } from '@ai-sdk/provider-utils';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import {
   AIProvider,
   AIResponse,
-  AIProviderConfig
+  AIProviderConfig,
+  AITool,
+  ToolExecutor,
+  ToolLoopConfig,
+  AgenticResult
 } from '../ai-provider.interface';
 
 /**
@@ -189,5 +195,81 @@ ${response.content}`;
     } catch (error) {
       throw new Error(`${this.providerType} API error: ${error}`);
     }
+  }
+
+  /**
+   * Convert JSON schema property to Zod schema
+   */
+  private jsonSchemaToZod(propSchema: any): z.ZodTypeAny {
+    const type = propSchema.type;
+    const description = propSchema.description || '';
+
+    if (type === 'string') {
+      return z.string().describe(description);
+    } else if (type === 'number') {
+      return z.number().describe(description);
+    } else if (type === 'boolean') {
+      return z.boolean().describe(description);
+    } else if (type === 'array') {
+      return z.array(z.any()).describe(description);
+    } else if (type === 'object') {
+      return z.object({}).passthrough().describe(description);
+    } else {
+      return z.any().describe(description);
+    }
+  }
+
+  /**
+   * Convert AITool to Vercel AI SDK tool format
+   */
+  private convertToVercelTool(aiTool: AITool, toolExecutor: ToolExecutor) {
+    // Build Zod schema from JSON schema properties
+    const schemaFields: Record<string, z.ZodTypeAny> = {};
+
+    for (const [key, propSchema] of Object.entries(aiTool.inputSchema.properties)) {
+      const zodType = this.jsonSchemaToZod(propSchema);
+
+      // Mark as optional if not in required array
+      if (aiTool.inputSchema.required?.includes(key)) {
+        schemaFields[key] = zodType;
+      } else {
+        schemaFields[key] = zodType.optional();
+      }
+    }
+
+    const zodSchema = z.object(schemaFields);
+
+    return tool({
+      description: aiTool.description,
+      parameters: zodSchema
+    });
+  }
+
+  async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
+    if (!this.isInitialized()) {
+      throw new Error(`${this.providerType} provider not initialized`);
+    }
+
+    // For now, VercelProvider will use a simplified implementation
+    // that calls the toolExecutor directly from the prompt-based approach
+    // This is a placeholder until we fully understand Vercel AI SDK tool use API
+
+    throw new Error(`toolLoop() not yet fully implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows.`);
+  }
+
+  async sendMessageWithTools(
+    message: string,
+    tools: AITool[],
+    toolExecutor: ToolExecutor,
+    operation: string = 'tool-call'
+  ): Promise<AIResponse & { toolCalls?: any[] }> {
+    if (!this.isInitialized()) {
+      throw new Error(`${this.providerType} provider not initialized`);
+    }
+
+    // For now, VercelProvider will use a simplified implementation
+    // This is a placeholder until we fully understand Vercel AI SDK tool use API
+
+    throw new Error(`sendMessageWithTools() not yet fully implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows.`);
   }
 }
