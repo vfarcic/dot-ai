@@ -993,13 +993,92 @@ const result = await aiProvider.toolLoop({
 
 ---
 
+## Measurement & Validation Strategy
+
+### Baseline Metrics Capture
+
+**Decision (2025-10-05)**: Use simple append-only metrics logging instead of complex instrumentation framework.
+
+**Rationale**:
+- Leverage existing `DEBUG_DOT_AI` flag and debug infrastructure
+- Minimal code changes (10 lines total across both providers)
+- JSONL format enables standard tooling (`jq`, `awk`) for analysis
+- Works automatically with existing integration tests
+
+**Implementation Approach**:
+
+```typescript
+// Add to AnthropicProvider and VercelProvider
+private logMetrics(operation: string, usage: any, durationMs: number): void {
+  if (!this.debugMode) return;
+
+  const metricsFile = path.join(process.cwd(), 'tmp', 'debug-ai', 'metrics.jsonl');
+  const entry = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    provider: this.getProviderType(),
+    operation,
+    inputTokens: usage.input_tokens || usage.promptTokens,
+    outputTokens: usage.output_tokens || usage.completionTokens,
+    durationMs
+  }) + '\n';
+
+  fs.appendFileSync(metricsFile, entry);
+}
+
+// Call from sendMessage()
+if (this.debugMode) {
+  this.logMetrics(operation, result.usage, Date.now() - startTime);
+}
+```
+
+**Baseline Capture Process**:
+
+1. Add operation names to key call sites:
+   - `remediate.ts`: `'remediate-investigation'`, `'remediate-analysis'`
+   - `platform-operations.ts`: `'platform-discover-operations'`, `'platform-map-intent'`
+   - `schema.ts`: Already has operation names
+
+2. Run baseline tests:
+   ```bash
+   DEBUG_DOT_AI=true npm run test:integration
+   cp tmp/debug-ai/metrics.jsonl tmp/baseline-metrics.jsonl
+   ```
+
+3. Analyze with `jq`:
+   ```bash
+   cat tmp/baseline-metrics.jsonl | jq -s '
+     group_by(.operation) |
+     map({
+       operation: .[0].operation,
+       calls: length,
+       avgInputTokens: (map(.inputTokens) | add / length | floor),
+       totalInputTokens: (map(.inputTokens) | add),
+       avgOutputTokens: (map(.outputTokens) | add / length | floor),
+       avgDurationMs: (map(.durationMs) | add / length | floor)
+     })
+   '
+   ```
+
+**Comparison Process**:
+
+After implementing tool-based approach:
+1. Run same integration tests with `DEBUG_DOT_AI=true`
+2. Compare `tmp/debug-ai/metrics.jsonl` vs `tmp/baseline-metrics.jsonl`
+3. Validate token reduction claims (target: 80-95%)
+4. Document actual results in PRD
+
+**Success Validation**:
+- ✅ Token reduction ≥80% (combined data injection elimination + scoped tools)
+- ✅ No quality regression (integration tests pass rate unchanged)
+- ✅ Acceptable latency (≤10% slower is acceptable)
+- ✅ Multi-provider consistency (works across Anthropic, OpenAI, Google)
+
 ## Open Questions
 
 1. **Tool Call Limits**: Should we limit max tool calls per investigation? (Prevent runaway costs)
 2. **Caching Strategy**: How to cache tool results across similar investigations?
 3. **Parallel Tool Calls**: When should we allow Claude to call tools in parallel vs sequential?
-4. **Prompt Migration**: Which prompts stay prompt-based vs convert to tools?
-5. **Error Recovery**: How should AI recover from multiple consecutive tool failures?
+4. **Error Recovery**: How should AI recover from multiple consecutive tool failures?
 
 ---
 
@@ -1072,6 +1151,7 @@ const result = await aiProvider.toolLoop({
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2025-10-05 | **Measurement Strategy**: Added simple metrics logging decision. Instead of complex instrumentation framework, use append-only JSONL logging in providers (10 lines of code). Leverage existing `DEBUG_DOT_AI` flag. Enables baseline capture with standard tooling (`jq`) and automatic metrics from integration tests. Added baseline capture process, comparison workflow, and success validation criteria. | Claude Code |
 | 2025-10-05 | **Critical Optimization Update**: Added scoped tool sets per workflow (60-80% token reduction on tool schemas). Added strategic guidance patterns (50-100 tokens vs prescriptive instructions). Restructured implementation to data-source-first approach starting with platform operations (fastest/lowest risk). Updated all phases with detailed tool definitions, token savings calculations, and informative descriptions. Changed milestones to 6 sprints (30 days) with platform operations as first implementation target. Updated success metrics to reflect 80%+ combined token reduction. | Claude Code |
 | 2025-10-05 | **Major Update**: Aligned with PRD #73 multi-provider architecture. Updated solution to use AIProvider interface. Revised implementation to support Anthropic, OpenAI, and Google providers. Updated architecture diagrams, code examples, and milestones. | Claude Code |
 | 2025-10-05 | Implementation started - Phase 1 (Foundation) | Claude Code |
