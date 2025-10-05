@@ -141,18 +141,35 @@ export class VercelProvider implements AIProvider {
     }
   }
 
+  /**
+   * Agentic tool loop - NOT IMPLEMENTED for Vercel provider
+   *
+   * This method is intentionally not implemented because:
+   * 1. toolLoop() is currently NOT USED anywhere in the codebase (see PRD #136)
+   * 2. JSON-based agentic loops already provide equivalent functionality
+   * 3. No current workflows require SDK-managed tool loops
+   *
+   * If future requirements necessitate toolLoop() for non-Anthropic providers,
+   * this would need to be implemented using Vercel AI SDK's tool calling API.
+   *
+   * See AnthropicProvider.toolLoop() and PRD #136 for implementation reference.
+   */
   async toolLoop(_config: ToolLoopConfig): Promise<AgenticResult> {
     if (!this.isInitialized()) {
       throw new Error(`${this.providerType} provider not initialized`);
     }
 
-    // For now, VercelProvider will use a simplified implementation
-    // that calls the toolExecutor directly from the prompt-based approach
-    // This is a placeholder until we fully understand Vercel AI SDK tool use API
-
-    throw new Error(`toolLoop() not yet fully implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows.`);
+    throw new Error(`toolLoop() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based agentic loops (recommended).`);
   }
 
+  /**
+   * Single-shot tool calling - NOT IMPLEMENTED for Vercel provider
+   *
+   * Same reasoning as toolLoop(): not currently needed in codebase.
+   * JSON-based approach achieves same functionality without SDK overhead.
+   *
+   * See AnthropicProvider.sendMessageWithTools() for reference implementation.
+   */
   async sendMessageWithTools(
     _message: string,
     _tools: AITool[],
@@ -163,9 +180,6 @@ export class VercelProvider implements AIProvider {
       throw new Error(`${this.providerType} provider not initialized`);
     }
 
-    // For now, VercelProvider will use a simplified implementation
-    // This is a placeholder until we fully understand Vercel AI SDK tool use API
-
-    throw new Error(`sendMessageWithTools() not yet fully implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows.`);
+    throw new Error(`sendMessageWithTools() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based approach (recommended).`);
   }
 }

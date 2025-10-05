@@ -111,6 +111,26 @@ export class AnthropicProvider implements AIProvider {
     }
   }
 
+  /**
+   * Agentic tool loop implementation
+   *
+   * NOTE: This method is currently NOT USED in the codebase (as of PRD #136 completion).
+   *
+   * Analysis showed that SDK-based tool loops and JSON-based agentic loops are functionally
+   * equivalent - both allow AI to decide which tools to call and when to stop. The JSON-based
+   * approach we already use provides the same capabilities without the token overhead of
+   * tool schemas in every request.
+   *
+   * This implementation is kept for potential future use cases where SDK-managed tool loops
+   * might provide advantages (e.g., better provider-specific optimizations, simpler code for
+   * highly exploratory workflows).
+   *
+   * ONLY IMPLEMENTED IN ANTHROPIC PROVIDER - VercelAIProvider does not implement this method
+   * as it's not needed for current workflows. If you need toolLoop for other providers, you'll
+   * need to implement it there as well.
+   *
+   * See PRD #136 for full architecture analysis and decision rationale.
+   */
   async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
     if (!this.client) {
       throw new Error('Anthropic client not initialized');
@@ -125,11 +145,12 @@ export class AnthropicProvider implements AIProvider {
       input_schema: t.inputSchema
     }));
 
-    // Initialize conversation history with system + user message
+    // Initialize conversation history
+    const initialContent = config.systemPrompt + '\n\n' + config.userMessage;
     const conversationHistory: Anthropic.MessageParam[] = [
       {
         role: 'user',
-        content: config.systemPrompt + '\n\n' + config.userMessage
+        content: initialContent
       }
     ];
 
@@ -175,7 +196,11 @@ export class AnthropicProvider implements AIProvider {
           // Log metrics for the entire tool loop
           const durationMs = Date.now() - startTime;
           if (this.debugMode) {
-            logMetrics('tool-loop', this.getProviderType(), { input_tokens: totalTokens.input, output_tokens: totalTokens.output }, durationMs, this.debugMode);
+            const operation = config.operation || 'tool-loop';
+            logMetrics(operation, this.getProviderType(), {
+              input_tokens: totalTokens.input,
+              output_tokens: totalTokens.output
+            }, durationMs, this.debugMode);
           }
 
           return result;

@@ -129,6 +129,9 @@ export interface ToolLoopConfig {
 
   /** Optional callback invoked after each iteration */
   onIteration?: (iteration: number, toolCalls: any[]) => void;
+
+  /** Optional operation identifier for metrics and debugging */
+  operation?: string;
 }
 
 /**
@@ -208,7 +211,13 @@ export interface AIProvider {
    *
    * AI autonomously decides which tools to call and when to stop.
    * Supports multi-turn conversations with tool execution.
-   * Provides foundation for tool-based architecture migration.
+   *
+   * NOTE: Currently NOT USED in codebase. PRD #136 analysis showed JSON-based loops
+   * achieve same goals without SDK overhead. Kept for potential future use.
+   *
+   * IMPLEMENTATION STATUS:
+   * - AnthropicProvider: ✅ Implemented
+   * - VercelAIProvider: ❌ Not implemented (not needed for current workflows)
    *
    * @param config Tool loop configuration with system prompt, tools, and executor
    * @returns Agentic result with final message, iterations, tool calls, and token usage

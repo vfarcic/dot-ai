@@ -1,51 +1,21 @@
 /**
  * Platform Operations Discovery
  *
- * Discovers available Nu shell script operations and maps user intent to operations
- * using AI-powered parsing and matching.
+ * Orchestrates tool-based discovery and mapping of Nu shell script operations.
+ * All data fetching logic lives in tools, this module handles orchestration.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { AIProvider } from './ai-provider.interface';
 import { Logger } from './error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execAsync, getScriptsDir, stripMarkdownCodeBlocks } from './platform-utils';
 
-const execAsync = promisify(exec);
+// Import Operation interfaces from the tool (single source of truth)
+export { Operation, OperationCommand } from '../tools/platform/discover-operations.tool';
 
-/**
- * Get the scripts directory path, works in both development and installed npm package
- */
-function getScriptsDir(): string {
-    // In CommonJS (after TypeScript compilation), __dirname is available
-    // Go up from dist/core/ to project root, then into scripts/
-    return path.join(__dirname, '..', '..', 'scripts');
-}
-
-/**
- * Strip markdown code blocks from AI response
- */
-function stripMarkdownCodeBlocks(content: string): string {
-  let jsonContent = content.trim();
-  if (jsonContent.startsWith('```json')) {
-    jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  } else if (jsonContent.startsWith('```')) {
-    jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-  }
-  return jsonContent;
-}
-
-export interface OperationCommand {
-  name: string;  // e.g., "install"
-  command: string[];  // e.g., ["apply", "argocd"]
-}
-
-export interface Operation {
-  name: string;
-  description: string;
-  operations: OperationCommand[];
-}
+// Re-import for local use
+import { Operation } from '../tools/platform/discover-operations.tool';
 
 export interface MatchedOperation {
   tool: string;
@@ -81,32 +51,35 @@ export interface PlatformSession {
 }
 
 /**
- * Discover available operations from Nu shell scripts using AI parsing
+ * Discover available operations from Nu shell scripts
+ * Uses tool for data fetching and prompt injection for AI parsing
  */
 export async function discoverOperations(
   aiProvider: AIProvider,
   logger: Logger
 ): Promise<Operation[]> {
   try {
-    // Execute Nu script help command
-    const scriptPath = path.join(getScriptsDir(), 'dot.nu');
-    const { stdout, stderr } = await execAsync(`nu ${scriptPath} --help`);
+    // Import the tool execution function
+    const { executeDiscoverOperations } = await import('../tools/platform/discover-operations.tool');
 
-    if (stderr) {
-      logger.warn?.('Nu script help command produced stderr', { stderr });
+    // Execute tool directly to get help output
+    const toolResult = await executeDiscoverOperations({}, aiProvider, logger);
+
+    if (!toolResult.success || !toolResult.helpOutput) {
+      throw new Error(toolResult.error || 'Failed to get Nu script help output');
     }
 
-    // Load AI prompt template for parsing help output
-    const promptPath = path.join(process.cwd(), 'prompts', 'parse-script-operations.md');
+    // Load the parsing prompt template
+    const promptPath = path.join(process.cwd(), 'prompts', 'platform-operations-parse-script-help.md');
     const promptTemplate = fs.readFileSync(promptPath, 'utf8');
 
-    // Replace template variable with actual help output
-    const prompt = promptTemplate.replace('{helpOutput}', stdout);
+    // Inject help output into prompt
+    const prompt = promptTemplate.replace('{helpOutput}', toolResult.helpOutput);
 
-    // Send to AI provider for AI-powered parsing
+    // Single AI call with injected data
     const response = await aiProvider.sendMessage(prompt, 'platform-discover-operations');
 
-    // Strip markdown code blocks and parse JSON
+    // Parse operations from AI response
     const jsonContent = stripMarkdownCodeBlocks(response.content);
     const operations = JSON.parse(jsonContent);
 

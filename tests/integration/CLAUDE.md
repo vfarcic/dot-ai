@@ -16,6 +16,18 @@ Integration tests take several minutes to complete. When running via Claude Code
 - Use higher timeout: `timeout: 600000` (10 minutes) in Bash tool calls
 - Or run tests manually in terminal and report results back
 
+**Commands:**
+```bash
+# Run all integration tests
+npm run test:integration
+
+# Run specific test file (filter by filename pattern)
+npm run test:integration build-platform
+
+# Run with debug metrics enabled
+DEBUG_DOT_AI=true npm run test:integration build-platform
+```
+
 **❌ TEST IS NOT ACCEPTABLE IF:**
 - It duplicates functionality already tested elsewhere
 - It uses inconsistent validation patterns (mixing `.toBe()` with `toMatchObject`)
