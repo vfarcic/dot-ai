@@ -80,11 +80,57 @@ npm run build || {
     exit 1
 }
 
-# Step 3: Create tmp directory for logs, PID, and sessions
+# Step 3: Recreate Kind cluster for guaranteed clean state
+log_info "Deleting existing Kind cluster (if any)..."
+kind delete cluster --name dot-test 2>/dev/null || true
+
+log_info "Creating fresh Kind cluster..."
+kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml || {
+    log_error "Failed to create Kind cluster"
+    exit 1
+}
+
+log_info "Exporting kubeconfig for test cluster..."
+kind export kubeconfig --name dot-test --kubeconfig ./kubeconfig-test.yaml || {
+    log_error "Failed to export kubeconfig"
+    exit 1
+}
+
+log_info "Installing CloudNativePG operator (async)..."
+export KUBECONFIG=./kubeconfig-test.yaml
+kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
+
+log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
+helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
+helm repo update
+helm upgrade --install kyverno kyverno/kyverno \
+    --namespace kyverno --create-namespace \
+    --wait --timeout=300s || {
+    log_error "Failed to install Kyverno"
+    exit 1
+}
+
+log_info "Starting fresh Qdrant test container..."
+# Remove existing container if it exists
+docker rm -f qdrant-test 2>/dev/null || true
+
+# Create fresh container from test image
+docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
+    log_error "Failed to start Qdrant container"
+    exit 1
+}
+
+# Wait for Qdrant to be ready
+sleep 3
+
+# Step 4: Create tmp directory for logs, PID, and sessions
+log_info "Cleaning up old session files..."
+rm -rf ./tmp/sessions/*
 mkdir -p ./tmp/sessions
 
-# Step 4: Start MCP server in background
+# Step 5: Start MCP server in background
 log_info "Starting MCP server on port ${PORT}..."
+log_info "Using default AI provider (Anthropic Claude Sonnet with native SDK)..."
 KUBECONFIG=./kubeconfig-test.yaml \
 PORT=${PORT} \
 DOT_AI_SESSION_DIR=./tmp/sessions \
@@ -93,7 +139,10 @@ QDRANT_URL=http://localhost:6335 \
 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
 OPENAI_API_KEY=$OPENAI_API_KEY \
+GOOGLE_API_KEY=$GOOGLE_API_KEY \
 node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
+# AI_PROVIDER=openai \
+# AI_PROVIDER_SDK=vercel \
 
 SERVER_PID=$!
 echo $SERVER_PID > "$SERVER_PID_FILE"

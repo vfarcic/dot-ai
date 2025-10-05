@@ -6,10 +6,10 @@
  * and actual cluster state fixes.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe.concurrent('Remediate Tool Integration', () => {
+describe('Remediate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
   const testNamespace = 'remediate-test';
 
@@ -17,15 +17,6 @@ describe.concurrent('Remediate Tool Integration', () => {
     // Verify we're using the test cluster
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
-  });
-
-  afterAll(async () => {
-    // Cleanup test namespace
-    try {
-      await integrationTest.kubectl(`delete namespace ${testNamespace} --wait=false`);
-    } catch (error) {
-      // Ignore cleanup errors
-    }
   });
 
   describe('Manual Mode Workflow', () => {
@@ -51,21 +42,41 @@ spec:
         memory: "128Mi"
 EOF`);
 
-      // Wait for pod to start and crash at least once (30 seconds should be enough)
-      await new Promise(resolve => setTimeout(resolve, 30000));
+      // Wait for pod to start and crash at least once (with retry loop)
+      let podData: any;
+      let restartCountInitial = 0;
+      const maxWaitTime = 90000; // 90 seconds max
+      const checkInterval = 5000; // Check every 5 seconds
+      const startTime = Date.now();
 
-      // Verify pod exists and is in crashed/crashing state
-      const podInfo = await integrationTest.kubectl(
-        `get pod test-pod -n ${testNamespace} -o json`
-      );
-      const podData = JSON.parse(podInfo);
+      while (Date.now() - startTime < maxWaitTime) {
+        const podInfo = await integrationTest.kubectl(
+          `get pod test-pod -n ${testNamespace} -o json`
+        );
+
+        // Skip if empty response (pod not ready yet)
+        if (!podInfo || podInfo.trim() === '') {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        podData = JSON.parse(podInfo);
+
+        if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+          restartCountInitial = podData.status.containerStatuses[0].restartCount;
+          if (restartCountInitial > 0) {
+            break; // Pod has crashed and restarted
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
 
       // Verify pod is in a problematic state (CrashLoopBackOff, Running but will crash, or Pending)
       expect(podData.status.phase).toMatch(/Running|Pending/);
 
       // Verify pod has restarted at least once (indicating OOM crashes)
-      const restartCount = podData.status.containerStatuses[0].restartCount;
-      expect(restartCount).toBeGreaterThan(0); // Should have crashed at least once
+      expect(restartCountInitial).toBeGreaterThan(0); // Should have crashed at least once
 
       // PHASE 1: AI Investigation
       const investigationResponse = await integrationTest.httpClient.post(
@@ -237,13 +248,13 @@ EOF`);
       const actualMi = isGi ? memValue * 1024 : memValue;
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
 
-    }, 300000); // 5 minute timeout for AI investigation + execution + validation
+    }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
 
   describe('Automatic Mode Workflow', () => {
-    test('should auto-execute remediation when confidence and risk thresholds are met', async () => {
-      const autoNamespace = 'remediate-auto-test';
+    const autoNamespace = 'remediate-auto-test';
 
+    test('should auto-execute remediation when confidence and risk thresholds are met', async () => {
       // SETUP: Create namespace
       await integrationTest.kubectl(`create namespace ${autoNamespace}`);
 
@@ -265,15 +276,38 @@ spec:
         memory: "128Mi"
 EOF`);
 
-      // Wait for pod to start and crash
-      await new Promise(resolve => setTimeout(resolve, 30000));
+      // Wait for pod to start and crash (with retry loop)
+      let podData: any;
+      let restartCount = 0;
+      const maxWaitTime = 90000; // 90 seconds max
+      const checkInterval = 5000; // Check every 5 seconds
+      const startTime = Date.now();
 
-      // Verify pod is crashing
-      const podInfo = await integrationTest.kubectl(
-        `get pod auto-test-pod -n ${autoNamespace} -o json`
-      );
-      const podData = JSON.parse(podInfo);
-      expect(podData.status.containerStatuses[0].restartCount).toBeGreaterThan(0);
+      while (Date.now() - startTime < maxWaitTime) {
+        const podInfo = await integrationTest.kubectl(
+          `get pod auto-test-pod -n ${autoNamespace} -o json`
+        );
+
+        // Skip if empty response (pod not ready yet)
+        if (!podInfo || podInfo.trim() === '') {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        podData = JSON.parse(podInfo);
+
+        if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+          restartCount = podData.status.containerStatuses[0].restartCount;
+          if (restartCount > 0) {
+            break; // Pod has crashed and restarted
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      // Verify pod has crashed at least once
+      expect(restartCount).toBeGreaterThan(0);
 
       // PHASE 1: Call remediate with automatic mode (single call auto-executes everything)
       const autoResponse = await integrationTest.httpClient.post(
@@ -282,7 +316,7 @@ EOF`);
           issue: `auto-test-pod in ${autoNamespace} namespace is crashing`,
           mode: 'automatic',
           confidenceThreshold: 0.8,
-          maxRiskLevel: 'medium' // Allow medium risk for auto-execution
+          maxRiskLevel: 'high' // Allow high risk for auto-execution in test environment (different AI models assess risk differently)
         }
       );
 
@@ -330,10 +364,6 @@ EOF`);
         `get pod auto-test-pod -n ${autoNamespace} -o jsonpath='{.status.containerStatuses[0].restartCount}'`
       );
       expect(parseInt(afterRestartCount)).toBe(0);
-
-      // Cleanup
-      await integrationTest.kubectl(`delete namespace ${autoNamespace} --wait=false`);
-
-    }, 300000); // 5 minute timeout for automatic mode
+    }, 1800000); // 30 minute timeout for automatic mode (accommodates slower AI models like OpenAI)
   });
 });

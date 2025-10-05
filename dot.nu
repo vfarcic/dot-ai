@@ -86,6 +86,7 @@ def "main build qdrant-image" [
     version: string,
     --container: string = "qdrant",
     --repo: string = "ghcr.io/vfarcic/dot-ai-demo/qdrant"
+    --latest-version: string = "latest"
 ] {
 
     print "Extracting data from running Qdrant container..."
@@ -104,7 +105,7 @@ def "main build qdrant-image" [
     }
     
     print $"Building multi-arch qdrant image with version ($version)..."
-    docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):latest" --push .
+    docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):($latest_version)" --push .
 
     print "Cleaning up extracted data files..."
     rm --recursive --force qdrant_storage

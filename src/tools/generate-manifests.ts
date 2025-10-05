@@ -4,7 +4,6 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
@@ -179,7 +178,7 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
 }
 
 /**
- * Generate manifests using AI with Claude integration
+ * Generate manifests using AI provider
  */
 async function generateManifestsWithAI(
   solution: any, 
@@ -228,12 +227,11 @@ ${errorContext.previousManifests}
     solutionId: solution.solutionId
   });
 
-  // Initialize Claude integration
-  const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
-  const claudeIntegration = new ClaudeIntegration(apiKey);
-  
-  // Send prompt to Claude
-  const response = await claudeIntegration.sendMessage(aiPrompt);
+  // Get AI provider from dotAI
+  const aiProvider = dotAI.ai;
+
+  // Send prompt to AI
+  const response = await aiProvider.sendMessage(aiPrompt);
   
   // Extract YAML content from response
   let manifestContent = response.content;
@@ -465,9 +463,10 @@ export async function handleGenerateManifestsTool(
           }
           
           // Validation failed, prepare error context for next attempt
+          // Only pass AI-generated manifests (not ConfigMap) to avoid duplicate ConfigMaps on retry
           lastError = {
             attempt,
-            previousManifests: manifests,
+            previousManifests: aiManifests,
             validationResult: validation
           };
           

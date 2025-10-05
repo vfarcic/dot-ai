@@ -30,6 +30,8 @@ describe.concurrent('Recommend Tool Integration', () => {
 
   describe('Recommendation Workflow', () => {
     test('should complete full workflow: clarification → solutions → choose → answer → generate → deploy', async () => {
+      let manifestPath: string;
+
       // PHASE 1: Request recommendations without final flag (clarification)
       // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
       const clarificationResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -339,18 +341,13 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 10: Verify resources were created in the cluster
       // Use the manifest file that was deployed
-      const manifestPath = deployResponse.data.result.manifestPath;
+      manifestPath = deployResponse.data.result.manifestPath;
 
       // Verify resources from the manifest exist (should fail if not found)
       const verifyResult = await integrationTest.kubectl(
         `get -f ${manifestPath} --no-headers`
       );
       expect(verifyResult.length).toBeGreaterThan(0); // Should have created resources
-
-      // PHASE 11: Cleanup - delete all resources from the manifest (should fail if not found)
-      await integrationTest.kubectl(
-        `delete -f ${manifestPath} --wait=false`
-      );
-    }, 300000);
+    }, 1200000); // 20 minutes for full AI workflow (accommodates slower AI models like OpenAI)
   });
 });

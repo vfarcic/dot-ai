@@ -4,7 +4,6 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ClaudeIntegration } from '../core/claude';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import * as fs from 'fs';
@@ -392,17 +391,16 @@ async function analyzeResourceNeeds(
     .replace('{user_request}', openResponse)
     .replace('{available_resource_types}', JSON.stringify(availableResourceTypes, null, 2));
 
-  // Initialize Claude integration
-  const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
-  const claudeIntegration = new ClaudeIntegration(apiKey);
-  
+  // Get AI provider from context
+  const aiProvider = context.dotAI.ai;
+
   context.logger.info('Analyzing resource needs for open question', {
     openResponse,
     availableResourceCount: availableResourceTypes.length
   });
-  
+
   try {
-    const response = await claudeIntegration.sendMessage(analysisPrompt);
+    const response = await aiProvider.sendMessage(analysisPrompt);
     const analysisResult = parseEnhancementResponse(response.content);
     
     // Check for capability gap and throw specific error
@@ -449,8 +447,8 @@ async function applySolutionEnhancement(
       approach: analysisResult.approach,
       reasoning: analysisResult.reasoning
     });
-    
-    return autoPopulateQuestions(solution, openResponse, analysisResult);
+
+    return autoPopulateQuestions(solution, openResponse, analysisResult, context);
   }
   
   if (analysisResult.approach === 'add_resources') {
@@ -473,20 +471,21 @@ async function applySolutionEnhancement(
 async function autoPopulateQuestions(
   solution: any,
   openResponse: string,
-  analysisResult: any
+  analysisResult: any,
+  context: { requestId: string; logger: Logger; dotAI: DotAI }
 ): Promise<any> {
   const template = loadPrompt('solution-enhancement');
-  
+
   const enhancementPrompt = template
     .replace('{current_solution}', JSON.stringify(solution, null, 2))
     .replace('{detailed_schemas}', JSON.stringify(solution.schemas || {}, null, 2))
     .replace('{analysis_result}', JSON.stringify(analysisResult, null, 2))
     .replace('{open_response}', openResponse);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || 'test-key';
-  const claudeIntegration = new ClaudeIntegration(apiKey);
-  
-  const response = await claudeIntegration.sendMessage(enhancementPrompt);
+  // Get AI provider from context
+  const aiProvider = context.dotAI.ai;
+
+  const response = await aiProvider.sendMessage(enhancementPrompt);
   const enhancementData = parseEnhancementResponse(response.content);
   
   if (enhancementData.enhancedSolution) {

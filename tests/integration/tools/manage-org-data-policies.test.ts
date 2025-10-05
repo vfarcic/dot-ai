@@ -7,7 +7,7 @@
  * NOTE: Written based on actual API response inspection following PRD best practices.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Policies Integration', () => {
@@ -18,16 +18,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
 
-
-    // Clean state once before all tests
-    // 1. Delete all Kyverno ClusterPolicies with policy-intent labels (clean cluster state)
+    // Clean Kyverno ClusterPolicies from previous runs
     await integrationTest.kubectl('delete clusterpolicy -l policy-intent/id --ignore-not-found=true');
-
-    // 2. Delete all policy intents from Vector DB
-    await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-      dataType: 'policy',
-      operation: 'deleteAll'
-    });
   });
 
 
@@ -250,6 +242,12 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         sessionId,
         response: 'all'
       });
+
+      // Assert no Kyverno generation errors occurred
+      expect(namespaceScopeResponse.data?.result?.workflow?.data?.kyvernoGenerationError).toBeUndefined();
+      if (namespaceScopeResponse.data?.result?.workflow?.prompt) {
+        expect(namespaceScopeResponse.data.result.workflow.prompt).not.toMatch(/Error Generating Kyverno Policy/);
+      }
 
       const expectedNamespaceScopeResponse = {
         success: true,
@@ -605,6 +603,12 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         response: 'all'
       });
 
+      // Assert no Kyverno generation errors occurred
+      expect(namespaceScopeResponse.data?.result?.workflow?.data?.kyvernoGenerationError).toBeUndefined();
+      if (namespaceScopeResponse.data?.result?.workflow?.prompt) {
+        expect(namespaceScopeResponse.data.result.workflow.prompt).not.toMatch(/Error Generating Kyverno Policy/);
+      }
+
       // Verify we're at complete step with Kyverno policy generated
       const expectedNamespaceScopeResponse = {
         success: true,
@@ -770,7 +774,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
       };
 
       expect(getDeletedResponse).toMatchObject(expectedGetDeletedResponse);
-    }, 120000); // 2 minutes for store-only workflow
+    }, 300000); // 5 minutes for store-only workflow (includes AI-powered Kyverno generation)
 
     test('should validate required parameters during workflow', async () => {
       // Try to continue session without sessionId

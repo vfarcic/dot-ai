@@ -9,7 +9,7 @@ import { Logger } from './error-handling';
 import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { CapabilityInferenceEngine } from './capabilities';
-import { ClaudeIntegration } from './claude';
+import { createAIProvider } from './ai-provider-factory';
 
 // Types for shared utility functions (dependency injection)
 export type TransitionCapabilitySessionFn = (session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: any) => void;
@@ -458,24 +458,38 @@ export async function handleScanning(
     // Import capability engine
     // Already imported at top of file
     
-    // Validate Claude API key - skip in test environment
+    // Validate AI provider - skip in test environment
     const isTestEnvironment = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!isTestEnvironment && !apiKey) {
-      return {
-        success: false,
-        operation: 'scan',
-        dataType: 'capabilities',
-        error: {
-          message: 'ANTHROPIC_API_KEY required for capability inference',
-          details: 'Set ANTHROPIC_API_KEY environment variable to enable AI-powered capability analysis'
+    if (!isTestEnvironment) {
+      try {
+        const aiProvider = createAIProvider();
+        if (!aiProvider.isInitialized()) {
+          return {
+            success: false,
+            operation: 'scan',
+            dataType: 'capabilities',
+            error: {
+              message: 'AI provider API key required for capability inference',
+              details: 'Configure AI provider credentials to enable AI-powered capability analysis'
+            }
+          };
         }
-      };
+      } catch (error) {
+        return {
+          success: false,
+          operation: 'scan',
+          dataType: 'capabilities',
+          error: {
+            message: 'AI provider initialization failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }
+        };
+      }
     }
     
     // Initialize capability engine
-    const claudeIntegration = new ClaudeIntegration(apiKey || 'test-api-key');
-    const engine = new CapabilityInferenceEngine(claudeIntegration, logger);
+    const aiProvider = createAIProvider();
+    const engine = new CapabilityInferenceEngine(aiProvider, logger);
     
     // Get the resource to analyze
     let resourceName: string;

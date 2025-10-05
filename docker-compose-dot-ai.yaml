@@ -8,12 +8,14 @@ services:
     container_name: dot-ai
     network_mode: "host"
     environment:
+      # AI Provider Configuration (default: anthropic)
+      # Future: Add AI_PROVIDER variable here for alternative AI providers
       # Required: Anthropic API key for AI analysis
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # Qdrant connection (localhost since using host networking)
+      # Required: OpenAI API key for embeddings (capabilities, policies, patterns)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Qdrant Vector Database connection
       QDRANT_URL: http://localhost:${QDRANT_PORT:-6333}
-      # Optional: OpenAI API key for enhanced semantic search
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Kubernetes configuration
       KUBECONFIG: /root/.kube/config
     volumes:

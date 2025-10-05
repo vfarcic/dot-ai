@@ -4,8 +4,8 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig } from '../core/schema';
-import { ClaudeIntegration } from '../core/claude';
+import { ResourceRecommender } from '../core/schema';
+import { AIProvider, IntentAnalysisResult } from '../core/ai-provider.interface';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
@@ -17,6 +17,7 @@ import { handleChooseSolutionTool } from './choose-solution';
 import { handleAnswerQuestionTool } from './answer-question';
 import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
+import { loadPrompt } from '../core/shared-prompt-loader';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
@@ -38,31 +39,73 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 
 /**
  * Analyze intent for clarification opportunities using AI
+ *
+ * @param intent User's deployment intent
+ * @param aiProvider AI provider instance to use for analysis
+ * @param logger Logger for error reporting
+ * @param organizationalPatterns Optional organizational patterns context
+ * @returns Analysis result with clarification opportunities
  */
 async function analyzeIntentForClarification(
-  intent: string, 
-  claudeIntegration: ClaudeIntegration,
-  logger: Logger
-): Promise<any> {
+  intent: string,
+  aiProvider: AIProvider,
+  logger: Logger,
+  organizationalPatterns: string = ''
+): Promise<IntentAnalysisResult> {
   try {
-    // Use the Claude service method for intent analysis
-    const analysisResult = await claudeIntegration.analyzeIntentForClarification(intent);
-    return analysisResult;
-  } catch (error) {
-    logger.warn?.('Intent analysis failed, proceeding without clarification', { 
-      error: error instanceof Error ? error.message : String(error) 
+    // Load intent analysis prompt template
+    const analysisPrompt = loadPrompt('intent-analysis', {
+      intent,
+      organizational_patterns: organizationalPatterns || 'No specific organizational patterns available'
     });
-    // Return minimal analysis that indicates no clarification available
+
+    // Send to AI for analysis
+    const response = await aiProvider.sendMessage(analysisPrompt, 'intent-analysis');
+
+    // Parse JSON response with robust error handling
+    let jsonContent = response.content;
+
+    // Try to find JSON object wrapped in code blocks
+    const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1];
+    } else {
+      // Try to find JSON object that starts with { and find the matching closing }
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[0];
+      }
+    }
+
+    // Parse the JSON
+    const analysisResult = JSON.parse(jsonContent);
+
+    // Validate the response structure
+    if (!analysisResult.clarificationOpportunities || !Array.isArray(analysisResult.clarificationOpportunities)) {
+      throw new Error('Invalid analysis result structure: missing clarificationOpportunities array');
+    }
+
+    if (!analysisResult.overallAssessment || !analysisResult.intentQuality) {
+      throw new Error('Invalid analysis result structure: missing overallAssessment or intentQuality');
+    }
+
+    return analysisResult;
+
+  } catch (error) {
+    // If parsing fails or API call fails, return a fallback minimal analysis
+    logger.warn?.('Intent analysis failed, returning minimal analysis', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     return {
       clarificationOpportunities: [],
       overallAssessment: {
         enhancementPotential: 'LOW',
         primaryGaps: [],
-        recommendedFocus: 'Proceeding with original intent - analysis unavailable'
+        recommendedFocus: 'Proceed with original intent - analysis unavailable'
       },
       intentQuality: {
-        currentSpecificity: 'Analysis unavailable',
-        strengthAreas: ['User provided deployment intent'],
+        currentSpecificity: 'Unable to analyze - using original intent',
+        strengthAreas: ['User provided clear deployment intent'],
         improvementAreas: []
       }
     };
@@ -151,26 +194,7 @@ export async function handleRecommendTool(
       // Default: recommend stage (original recommend logic)
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
-
-      // Check for Claude API key
-      const claudeApiKey = dotAI.getAnthropicApiKey();
-      if (!claudeApiKey) {
-        throw ErrorHandler.createError(
-          ErrorCategory.AI_SERVICE,
-          ErrorSeverity.HIGH,
-          'ANTHROPIC_API_KEY environment variable must be set for AI-powered resource recommendations',
-          {
-            operation: 'api_key_check',
-            component: 'RecommendTool',
-            requestId,
-            suggestedActions: [
-              'Set ANTHROPIC_API_KEY environment variable',
-              'Verify the API key is valid and active',
-              'Check that the API key has sufficient credits'
-            ]
-          }
-        );
-      }
+      // AI provider is already initialized and validated in dotAI.ai
 
       // Validate session directory configuration
       let sessionDir: string;
@@ -199,17 +223,17 @@ export async function handleRecommendTool(
       logger.info('Starting resource recommendation process', {
         requestId,
         intent: args.intent,
-        hasApiKey: !!claudeApiKey
+        hasApiProvider: dotAI.ai.isInitialized()
       });
 
-      // Initialize Claude integration for potential clarification analysis
-      const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+      // Initialize AI provider for potential clarification analysis
+      const aiProvider = dotAI.ai;
 
       // Check if intent clarification is needed (unless final=true)
       if (!args.final) {
         logger.debug('Analyzing intent for clarification opportunities', { requestId, intent: args.intent });
-        
-        const analysisResult = await analyzeIntentForClarification(args.intent, claudeIntegration, logger);
+
+        const analysisResult = await analyzeIntentForClarification(args.intent, aiProvider, logger);
         
         // If clarification opportunities exist, return them to the client agent
         if (analysisResult.clarificationOpportunities && 
@@ -263,9 +287,8 @@ export async function handleRecommendTool(
       // Ensure cluster connectivity before proceeding with recommendations
       await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
 
-      // Initialize AI-powered ResourceRecommender
-      const rankingConfig: AIRankingConfig = { claudeApiKey };
-      const recommender = new ResourceRecommender(rankingConfig);
+      // Initialize AI-powered ResourceRecommender with provider
+      const recommender = new ResourceRecommender(dotAI.ai);
 
       // Create discovery function
       const explainResourceFn = async (resource: string) => {

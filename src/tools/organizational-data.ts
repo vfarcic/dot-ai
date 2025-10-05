@@ -21,6 +21,7 @@ import { handlePolicyOperation as handlePolicyOperationCore } from '../core/poli
 import { handlePatternOperation as handlePatternOperationCore } from '../core/pattern-operations';
 import { handleCapabilityProgress, handleCapabilityCRUD } from '../core/capability-operations';
 import { handleResourceSelection as handleResourceSelectionCore, handleResourceSpecification as handleResourceSpecificationCore, handleProcessingMode as handleProcessingModeCore, handleScanning as handleScanningCore } from '../core/capability-scan-workflow';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -360,8 +361,8 @@ function getOrCreateCapabilitySession(sessionId: string | undefined, args: any, 
     }
   }
   
-  // Create new session
-  const newSessionId = sessionId || `cap-scan-${Date.now()}`;
+  // Create new session with unique ID (timestamp + UUID for concurrent request safety)
+  const newSessionId = sessionId || `cap-scan-${Date.now()}-${randomUUID().substring(0, 8)}`;
   const session: CapabilityScanSession = {
     sessionId: newSessionId,
     currentStep: 'resource-selection',

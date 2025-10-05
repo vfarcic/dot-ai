@@ -2,9 +2,9 @@
 
 /**
  * MCP Server Entry Point for DevOps AI Toolkit
- * 
+ *
  * This server exposes DevOps AI Toolkit functionality through the Model Context Protocol,
- * enabling AI assistants like Claude Code to interact with Kubernetes deployment capabilities.
+ * enabling AI assistants to interact with Kubernetes deployment capabilities.
  */
 
 import { MCPServer } from '../interfaces/mcp.js';
@@ -63,7 +63,7 @@ async function main() {
       process.exit(1);
     }
 
-    // Initialize DotAI - it will read KUBECONFIG and ANTHROPIC_API_KEY from environment
+    // Initialize DotAI - it will read KUBECONFIG and AI provider configuration from environment
     const dotAI = new DotAI();
 
     // Initialize without cluster connection (lazy connection)

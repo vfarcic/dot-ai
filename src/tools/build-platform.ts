@@ -120,7 +120,7 @@ export async function handleBuildPlatformTool(
     if (stage === 'list') {
       logger.info('Discovering available operations', { requestId });
 
-      const operations = await discoverOperations(dotAI.claude, logger);
+      const operations = await discoverOperations(dotAI.ai, logger);
 
       const result = {
         success: true,
@@ -201,10 +201,10 @@ export async function handleBuildPlatformTool(
     });
 
     // Discover operations for intent mapping
-    const operations = await discoverOperations(dotAI.claude, logger);
+    const operations = await discoverOperations(dotAI.ai, logger);
 
     // Map intent to operation using AI
-    const mapping = await mapIntentToOperation(intent!, operations, dotAI.claude, logger);
+    const mapping = await mapIntentToOperation(intent!, operations, dotAI.ai, logger);
 
     // Handle no match case
     if (!mapping.matched) {

@@ -481,7 +481,7 @@ export class ErrorHandler {
     if (message.includes('authentication') || message.includes('unauthorized')) {
       return ErrorCategory.AUTHENTICATION;
     }
-    if (message.includes('anthropic') || message.includes('ai') || message.includes('claude') || message.includes('api key invalid')) {
+    if (message.includes('ai') || message.includes('api key invalid') || message.includes('model')) {
       return ErrorCategory.AI_SERVICE;
     }
     if (message.includes('validation') || message.includes('invalid')) {
@@ -538,7 +538,7 @@ export class ErrorHandler {
         ];
       case ErrorCategory.AI_SERVICE:
         return [
-          'Check ANTHROPIC_API_KEY environment variable',
+          'Check AI provider API key environment variable is set',
           'Verify API key is valid and has sufficient credits',
           'Try again after a short delay'
         ];
