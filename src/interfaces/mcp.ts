@@ -46,12 +46,15 @@ import {
   REMEDIATE_TOOL_INPUT_SCHEMA,
   handleRemediateTool,
 } from '../tools/remediate';
+/*
+// DEVELOPER NOTE: Platform Building tool disabled - imports commented out
 import {
   BUILD_PLATFORM_TOOL_NAME,
   BUILD_PLATFORM_TOOL_DESCRIPTION,
   BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
   handleBuildPlatformTool,
 } from '../tools/build-platform';
+*/
 
 import {
   handlePromptsListRequest,
