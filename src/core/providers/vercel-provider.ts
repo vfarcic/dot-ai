@@ -9,14 +9,16 @@ import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
 import {
   AIProvider,
   AIResponse,
-  AIProviderConfig
+  AIProviderConfig,
+  AITool,
+  ToolExecutor,
+  ToolLoopConfig,
+  AgenticResult
 } from '../ai-provider.interface';
+import { generateDebugId, debugLogInteraction, logMetrics } from './provider-debug-utils';
 
 /**
  * Provider-specific default models
@@ -100,67 +102,12 @@ export class VercelProvider implements AIProvider {
     return this.modelInstance !== undefined;
   }
 
-  /**
-   * Create debug directory if it doesn't exist
-   */
-  private ensureDebugDirectory(): string {
-    const debugDir = path.join(process.cwd(), 'tmp', 'debug-ai');
-    if (!fs.existsSync(debugDir)) {
-      fs.mkdirSync(debugDir, { recursive: true });
-    }
-    return debugDir;
-  }
-
-  /**
-   * Generate unique identifier for debug files with operation context
-   */
-  private generateDebugId(operation: string): string {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T');
-    const dateTime = timestamp[0] + 'T' + timestamp[1].substring(0, 6);
-    const randomHex = crypto.randomBytes(4).toString('hex');
-    return `${dateTime}_${randomHex}_${operation}`;
-  }
-
-  /**
-   * Save AI interaction for debugging when DEBUG_DOT_AI=true
-   */
-  private debugLogInteraction(debugId: string, prompt: string, response: AIResponse, operation: string = 'ai_call'): void {
-    if (!this.debugMode) return;
-
-    try {
-      const debugDir = this.ensureDebugDirectory();
-
-      // Save prompt with descriptive naming
-      const promptFile = path.join(debugDir, `${debugId}_prompt.md`);
-      fs.writeFileSync(promptFile, `# AI Prompt - ${operation}\n\nTimestamp: ${new Date().toISOString()}\nProvider: ${this.providerType}\nModel: ${this.model}\nOperation: ${operation}\n\n---\n\n${prompt}`);
-
-      // Save response with matching naming
-      const responseFile = path.join(debugDir, `${debugId}_response.md`);
-      const responseContent = `# AI Response - ${operation}
-
-Timestamp: ${new Date().toISOString()}
-Provider: ${this.providerType}
-Model: ${this.model}
-Operation: ${operation}
-Input Tokens: ${response.usage.input_tokens}
-Output Tokens: ${response.usage.output_tokens}
-
----
-
-${response.content}`;
-
-      fs.writeFileSync(responseFile, responseContent);
-
-      console.log(`🐛 DEBUG: AI interaction logged to tmp/debug-ai/${debugId}_*.md`);
-    } catch (error) {
-      console.warn('Failed to log AI debug interaction:', error);
-    }
-  }
-
   async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
     if (!this.isInitialized()) {
       throw new Error(`${this.providerType} provider not initialized`);
     }
+
+    const startTime = Date.now();
 
     try {
       // Use Vercel AI SDK generateText
@@ -178,10 +125,13 @@ ${response.content}`;
         }
       };
 
+      const durationMs = Date.now() - startTime;
+
       // Debug log the interaction if enabled
       if (this.debugMode) {
-        const debugId = this.generateDebugId(operation);
-        this.debugLogInteraction(debugId, message, response, operation);
+        const debugId = generateDebugId(operation);
+        debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
+        logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
       }
 
       return response;
@@ -189,5 +139,47 @@ ${response.content}`;
     } catch (error) {
       throw new Error(`${this.providerType} API error: ${error}`);
     }
+  }
+
+  /**
+   * Agentic tool loop - NOT IMPLEMENTED for Vercel provider
+   *
+   * This method is intentionally not implemented because:
+   * 1. toolLoop() is currently NOT USED anywhere in the codebase (see PRD #136)
+   * 2. JSON-based agentic loops already provide equivalent functionality
+   * 3. No current workflows require SDK-managed tool loops
+   *
+   * If future requirements necessitate toolLoop() for non-Anthropic providers,
+   * this would need to be implemented using Vercel AI SDK's tool calling API.
+   *
+   * See AnthropicProvider.toolLoop() and PRD #136 for implementation reference.
+   */
+  async toolLoop(_config: ToolLoopConfig): Promise<AgenticResult> {
+    if (!this.isInitialized()) {
+      throw new Error(`${this.providerType} provider not initialized`);
+    }
+
+    throw new Error(`toolLoop() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based agentic loops (recommended).`);
+  }
+
+  /**
+   * Single-shot tool calling - NOT IMPLEMENTED for Vercel provider
+   *
+   * Same reasoning as toolLoop(): not currently needed in codebase.
+   * JSON-based approach achieves same functionality without SDK overhead.
+   *
+   * See AnthropicProvider.sendMessageWithTools() for reference implementation.
+   */
+  async sendMessageWithTools(
+    _message: string,
+    _tools: AITool[],
+    _toolExecutor: ToolExecutor,
+    _operation: string = 'tool-call'
+  ): Promise<AIResponse & { toolCalls?: any[] }> {
+    if (!this.isInitialized()) {
+      throw new Error(`${this.providerType} provider not initialized`);
+    }
+
+    throw new Error(`sendMessageWithTools() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based approach (recommended).`);
   }
 }
