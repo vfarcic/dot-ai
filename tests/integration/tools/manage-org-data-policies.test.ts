@@ -243,6 +243,12 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         response: 'all'
       });
 
+      // Assert no Kyverno generation errors occurred
+      expect(namespaceScopeResponse.data?.result?.workflow?.data?.kyvernoGenerationError).toBeUndefined();
+      if (namespaceScopeResponse.data?.result?.workflow?.prompt) {
+        expect(namespaceScopeResponse.data.result.workflow.prompt).not.toMatch(/Error Generating Kyverno Policy/);
+      }
+
       const expectedNamespaceScopeResponse = {
         success: true,
         data: {
@@ -596,6 +602,12 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         sessionId,
         response: 'all'
       });
+
+      // Assert no Kyverno generation errors occurred
+      expect(namespaceScopeResponse.data?.result?.workflow?.data?.kyvernoGenerationError).toBeUndefined();
+      if (namespaceScopeResponse.data?.result?.workflow?.prompt) {
+        expect(namespaceScopeResponse.data.result.workflow.prompt).not.toMatch(/Error Generating Kyverno Policy/);
+      }
 
       // Verify we're at complete step with Kyverno policy generated
       const expectedNamespaceScopeResponse = {
