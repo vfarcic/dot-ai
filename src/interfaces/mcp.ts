@@ -2,7 +2,7 @@
  * Model Context Protocol (MCP) Interface for DevOps AI Toolkit
  *
  * Provides MCP server capabilities that expose DevOps AI Toolkit functionality
- * to AI assistants like Claude through standardized protocol
+ * to AI assistants through standardized protocol
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

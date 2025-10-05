@@ -17,6 +17,10 @@
 
 ## Instructions
 
+## ⚠️ CRITICAL: MANDATORY "name" FIELD REQUIREMENT
+
+**BEFORE GENERATING ANY QUESTIONS**: The REQUIRED section MUST include a question with `id: "name"`. This is non-negotiable and your response will be rejected if this field is missing or renamed to any variation like "cluster-name", "deployment-name", or "app-name".
+
 ## 🛡️ POLICY-AWARE QUESTION GENERATION (HIGHEST PRIORITY)
 
 **Policy Requirements Integration:**
@@ -52,9 +56,21 @@ Organize questions into three categories based on their importance and impact:
 ### REQUIRED Questions
 Essential information needed for basic functionality. These are mandatory fields or critical configuration that makes the difference between working and non-working deployments. Without answers to these questions, the manifests cannot be generated or will fail to deploy.
 
-**MANDATORY QUESTIONS**: You MUST always include these questions in the REQUIRED section:
-- `name`: Resource name (applies to metadata.name across all resources)
-- `namespace`: Target namespace (ONLY if any resource in the solution is namespace-scoped - check resource scope information)
+**🚨 CRITICAL MANDATORY REQUIREMENTS - NON-NEGOTIABLE 🚨**
+
+You MUST include these EXACT questions with these EXACT IDs in the REQUIRED section. DO NOT rename, replace, or substitute these with similar fields:
+
+1. **REQUIRED: `name` question (id: "name")**
+   - Question ID MUST be exactly: `"id": "name"`
+   - DO NOT use: "cluster-name", "deployment-name", "app-name", or any variation
+   - This is used for tracking and metadata - the manifest generator will apply it appropriately to resource-specific name fields
+   - Example: `{"id": "name", "question": "What is the name for this deployment?", "type": "text", ...}`
+
+2. **REQUIRED: `namespace` question (id: "namespace")**
+   - ONLY if any resource in the solution is namespace-scoped - check resource scope information
+   - Question ID MUST be exactly: `"id": "namespace"`
+
+**VALIDATION**: Your response will fail if the REQUIRED section does not contain a question with `"id": "name"`
 
 ### BASIC Questions  
 Common configuration options most users will want to set. These improve the deployment but aren't strictly required for basic functionality. They represent sensible customizations that enhance the deployment.
@@ -114,6 +130,17 @@ Return your response as JSON in this exact format:
 {
   "required": [
     {
+      "id": "name",
+      "question": "What is the name for this deployment?",
+      "type": "text",
+      "placeholder": "e.g., my-app",
+      "validation": {
+        "required": true,
+        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      },
+      "suggestedAnswer": "example-app"
+    },
+    {
       "id": "unique-kebab-case-id",
       "question": "User-friendly question text?",
       "type": "text|select|multiselect|boolean|number",
@@ -143,6 +170,7 @@ Return your response as JSON in this exact format:
 
 ## Important Notes
 
+- **CRITICAL VALIDATION REQUIREMENT**: The REQUIRED section MUST contain a question with `"id": "name"` - responses without this will be rejected
 - **CRITICAL**: Only ask questions about properties explicitly defined in the provided resource schemas
 - **REQUIRED**: Each question must include a `suggestedAnswer` field with a valid example value that passes the validation rules
 - **Generate comprehensive questions** covering all meaningful configuration options available in the resource schemas

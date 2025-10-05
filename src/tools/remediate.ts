@@ -4,7 +4,8 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } from '../core/error-handling';
-import { ClaudeIntegration } from '../core/claude';
+import { AIProvider } from '../core/ai-provider.interface';
+import { createAIProvider } from '../core/ai-provider-factory';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import { executeKubectl } from '../core/kubernetes-utils';
 import * as fs from 'fs';
@@ -188,7 +189,7 @@ function updateSessionFile(sessionDir: string, sessionId: string, updates: Parti
 async function conductInvestigation(
   session: RemediateSession,
   sessionDir: string,
-  claudeIntegration: ClaudeIntegration,
+  aiProvider: AIProvider,
   logger: Logger,
   requestId: string
 ): Promise<RemediateOutput> {
@@ -206,7 +207,7 @@ async function conductInvestigation(
 
     try {
       // Get AI analysis with investigation prompts
-      const aiAnalysis = await analyzeCurrentState(session, claudeIntegration, logger, requestId);
+      const aiAnalysis = await analyzeCurrentState(session, aiProvider, logger, requestId);
       
       // Parse AI response for data requests and completion status
       const { dataRequests, isComplete, needsMoreSpecificInfo, parsedResponse } = parseAIResponse(aiAnalysis);
@@ -327,7 +328,7 @@ async function conductInvestigation(
  */
 async function analyzeCurrentState(
   session: RemediateSession,
-  claudeIntegration: ClaudeIntegration,
+  aiProvider: AIProvider,
   logger: Logger,
   requestId: string
 ): Promise<string> {
@@ -380,15 +381,15 @@ async function analyzeCurrentState(
       .replace('{previousIterations}', previousIterationsJson)
       .replace('{clusterApiResources}', clusterApiResources);
     
-    logger.debug('Sending investigation prompt to Claude', { 
+    logger.debug('Sending investigation prompt to AI', { 
       requestId, 
       sessionId: session.sessionId,
       promptLength: investigationPrompt.length,
       iteration: currentIteration
     });
     
-    // Send to Claude AI
-    const aiResponse = await claudeIntegration.sendMessage(investigationPrompt);
+    // Send to AI provider
+    const aiResponse = await aiProvider.sendMessage(investigationPrompt);
     
     logger.debug('Received AI analysis response', { 
       requestId, 
@@ -411,9 +412,9 @@ async function analyzeCurrentState(
         requestId,
         sessionId: session.sessionId,
         suggestedActions: [
-          'Check ANTHROPIC_API_KEY is set correctly',
+          'Check AI provider API key is set correctly',
           'Verify prompts/remediate-investigation.md exists',
-          'Check network connectivity to Anthropic API'
+          'Check network connectivity to AI provider'
         ]
       }
     );
@@ -728,23 +729,8 @@ async function generateFinalAnalysis(
   logger.debug('Generating final analysis with AI', { requestId, sessionId: session.sessionId });
 
   try {
-    // Initialize Claude integration
-    const claudeApiKey = process.env.ANTHROPIC_API_KEY;
-    if (!claudeApiKey) {
-      throw ErrorHandler.createError(
-        ErrorCategory.CONFIGURATION,
-        ErrorSeverity.HIGH,
-        'ANTHROPIC_API_KEY environment variable not set for final analysis',
-        {
-          operation: 'generateFinalAnalysis',
-          component: 'RemediateTool',
-          requestId,
-          sessionId: session.sessionId
-        }
-      );
-    }
-
-    const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+    // Initialize AI provider (will validate API key automatically)
+    const aiProvider = createAIProvider();
 
     // Load final analysis prompt template
     const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-final-analysis.md');
@@ -774,14 +760,14 @@ async function generateFinalAnalysis(
       .replace('{dataSources}', dataSources.join(', '))
       .replace('{completeInvestigationData}', JSON.stringify(completeInvestigationData, null, 2));
 
-    logger.debug('Sending final analysis request to Claude AI', { 
+    logger.debug('Sending final analysis request to AI provider', { 
       requestId, 
       sessionId: session.sessionId,
       promptLength: finalAnalysisPrompt.length
     });
     
-    // Send to Claude AI
-    const aiResponse = await claudeIntegration.sendMessage(finalAnalysisPrompt);
+    // Send to AI provider
+    const aiResponse = await aiProvider.sendMessage(finalAnalysisPrompt);
     
     logger.debug('Received AI final analysis response', { 
       requestId, 
@@ -898,9 +884,9 @@ async function generateFinalAnalysis(
         requestId,
         sessionId: session.sessionId,
         suggestedActions: [
-          'Check ANTHROPIC_API_KEY is set correctly',
+          'Check AI provider API key is set correctly',
           'Verify prompts/remediate-final-analysis.md exists',
-          'Check network connectivity to Anthropic API',
+          'Check network connectivity to AI provider',
           'Review AI response format for parsing issues'
         ]
       }
@@ -1028,12 +1014,15 @@ async function executeRemediationCommands(
         command: action.command 
       });
 
-      // Execute the command as-is using shell
-      const fullCommand = action.command || '';
+      // Execute the command using shell
+      // Clean up escape sequences that some AI models incorrectly add to JSON parameters
+      let fullCommand = action.command || '';
+      fullCommand = fullCommand.replace(/\\"/g, '"');
+
       const { exec } = require('child_process');
       const { promisify } = require('util');
       const execAsync = promisify(exec);
-      
+
       const { stdout } = await execAsync(fullCommand);
       const output = stdout;
       
@@ -1304,29 +1293,14 @@ export async function handleRemediateTool(args: any): Promise<any> {
     writeSessionFile(sessionDir, sessionId, session);
     logger.info('Investigation session created', { requestId, sessionId });
 
-    // Initialize Claude integration
-    const claudeApiKey = process.env.ANTHROPIC_API_KEY;
-    if (!claudeApiKey) {
-      throw ErrorHandler.createError(
-        ErrorCategory.CONFIGURATION,
-        ErrorSeverity.HIGH,
-        'ANTHROPIC_API_KEY environment variable not set',
-        {
-          operation: 'claude_initialization',
-          component: 'RemediateTool',
-          requestId,
-          suggestedActions: ['Set ANTHROPIC_API_KEY environment variable']
-        }
-      );
-    }
-
-    const claudeIntegration = new ClaudeIntegration(claudeApiKey);
+    // Initialize AI provider (will validate API key automatically)
+    const aiProvider = createAIProvider();
 
     // Conduct AI-driven investigation
     const finalAnalysis = await conductInvestigation(
       session,
       sessionDir,
-      claudeIntegration,
+      aiProvider,
       logger,
       requestId
     );

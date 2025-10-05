@@ -7,7 +7,7 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { ClaudeIntegration } from './claude';
+import { AIProvider } from './ai-provider.interface';
 import { Logger } from './error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -84,7 +84,7 @@ export interface PlatformSession {
  * Discover available operations from Nu shell scripts using AI parsing
  */
 export async function discoverOperations(
-  claudeIntegration: ClaudeIntegration,
+  aiProvider: AIProvider,
   logger: Logger
 ): Promise<Operation[]> {
   try {
@@ -103,8 +103,8 @@ export async function discoverOperations(
     // Replace template variable with actual help output
     const prompt = promptTemplate.replace('{helpOutput}', stdout);
 
-    // Send to Claude for AI-powered parsing
-    const response = await claudeIntegration.sendMessage(prompt);
+    // Send to AI provider for AI-powered parsing
+    const response = await aiProvider.sendMessage(prompt);
 
     // Strip markdown code blocks and parse JSON
     const jsonContent = stripMarkdownCodeBlocks(response.content);
@@ -127,7 +127,7 @@ export async function discoverOperations(
 export async function mapIntentToOperation(
   intent: string,
   operations: Operation[],
-  claudeIntegration: ClaudeIntegration,
+  aiProvider: AIProvider,
   logger: Logger
 ): Promise<IntentMapping> {
   try {
@@ -140,8 +140,8 @@ export async function mapIntentToOperation(
       .replace('{intent}', intent)
       .replace('{operations}', JSON.stringify(operations, null, 2));
 
-    // Send to Claude for AI-powered intent matching
-    const response = await claudeIntegration.sendMessage(prompt);
+    // Send to AI provider for AI-powered intent matching
+    const response = await aiProvider.sendMessage(prompt);
 
     // Strip markdown code blocks and parse JSON
     const jsonContent = stripMarkdownCodeBlocks(response.content);

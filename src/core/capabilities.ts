@@ -8,7 +8,7 @@
  */
 
 import { Logger } from './error-handling';
-import { ClaudeIntegration } from './claude';
+import { AIProvider } from './ai-provider.interface';
 import { loadPrompt } from './shared-prompt-loader';
 
 
@@ -45,10 +45,10 @@ export interface ResourceCapability {
  */
 export class CapabilityInferenceEngine {
   private logger: Logger;
-  private claudeIntegration: ClaudeIntegration;
+  private aiProvider: AIProvider;
 
-  constructor(claudeIntegration: ClaudeIntegration, logger: Logger) {
-    this.claudeIntegration = claudeIntegration;
+  constructor(aiProvider: AIProvider, logger: Logger) {
+    this.aiProvider = aiProvider;
     this.logger = logger;
   }
 
@@ -108,7 +108,7 @@ export class CapabilityInferenceEngine {
   }> {
     try {
       const prompt = await this.buildInferencePrompt(resourceName, resourceDefinition);
-      const response = await this.claudeIntegration.sendMessage(prompt);
+      const response = await this.aiProvider.sendMessage(prompt);
       return this.parseCapabilitiesFromAI(response.content);
     } catch (error) {
       this.logger.error('AI capability inference failed', error as Error, {

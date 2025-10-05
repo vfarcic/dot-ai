@@ -7,7 +7,7 @@
  * NOTE: Written based on actual API response inspection following PRD best practices.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Patterns Integration', () => {
@@ -17,13 +17,6 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
     // Verify we're using the test cluster
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
-
-
-    // Clean state once before all tests - delete all patterns
-    await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-      dataType: 'pattern',
-      operation: 'deleteAll'
-    });
   });
 
 

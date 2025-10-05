@@ -7,7 +7,7 @@
  * NOTE: Written based on actual API response inspection following PRD best practices.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import packageJson from '../../../package.json';
 
@@ -59,9 +59,10 @@ describe.concurrent('Version Tool Integration', () => {
                 model: 'text-embedding-3-small', // Specific - model name
                 dimensions: 1536 // Specific - embedding dimensions
               },
-              anthropic: {
+              aiProvider: {
                 connected: true, // Specific - should be connected with API key
-                keyConfigured: true // Specific - API key should be configured
+                keyConfigured: true, // Specific - API key should be configured
+                providerType: expect.any(String) // Generic - accepts any configured provider
               },
               kubernetes: {
                 connected: true, // Specific - should be connected to our test cluster

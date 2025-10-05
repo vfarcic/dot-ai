@@ -6,12 +6,12 @@ export default defineConfig({
     include: ['tests/integration/**/*.test.ts'],
     setupFiles: ['tests/integration/setup.ts'],
     testTimeout: 1200000, // 20 minutes global timeout to override any defaults
-    maxConcurrency: 5, // Allow up to 5 tests to run concurrently within same file
+    maxConcurrency: 10, // Allow up to 10 tests to run concurrently within same file
     hookTimeout: 10000, // 10 seconds for setup/teardown
     pool: 'forks', // Use separate processes for isolation
     poolOptions: {
       forks: {
-        maxForks: 20 // Allow up to 20 parallel test workers for realistic stress testing
+        maxForks: 30 // Allow up to 30 parallel test workers for maximum parallelism
       }
     },
     reporters: ['verbose'],
