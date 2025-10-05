@@ -880,13 +880,16 @@ const result = await aiProvider.toolLoop({
 
 ### Milestones (Data-Source-First Approach)
 
-- [ ] **Milestone 1: AIProvider Interface Extension (Days 1-2)** ⏳ **IN PROGRESS** (3/5 items complete)
+- [x] **Milestone 1: AIProvider Interface Extension (Days 1-2)** ✅ **COMPLETE**
   - [x] Extend `AIProvider` interface with tool use methods (`toolLoop`, `sendMessageWithTools`)
   - [x] Add new types: `AITool`, `ToolExecutor`, `ToolLoopConfig`, `AgenticResult`
   - [x] Implement `toolLoop()` in `AnthropicProvider` using Anthropic SDK
-  - [ ] Implement `toolLoop()` in `VercelProvider` using Vercel AI SDK (deferred - will implement after Anthropic validation)
+  - [~] Implement `toolLoop()` in `VercelProvider` using Vercel AI SDK (deferred - will implement after Anthropic validation)
   - [~] Write unit tests for both provider implementations (N/A - project uses integration tests only)
-  - [ ] Define scoped tool set constants (`PLATFORM_TOOLS`, `REMEDIATE_TOOLS`, `RECOMMEND_TOOLS`) (will implement in Milestone 2)
+  - [x] **Metrics logging infrastructure** - Created shared `provider-debug-utils.ts`, eliminated ~140 lines of duplication
+  - [x] **Operation name tracking** - Added specific operation names to platform operations for metrics identification
+  - [x] **Baseline metrics capture** - Captured pre-migration token usage (discover: 1,633 tokens, map: 3,030 tokens)
+  - [~] Define scoped tool set constants (`PLATFORM_TOOLS`, `REMEDIATE_TOOLS`, `RECOMMEND_TOOLS`) (moved to Milestone 2)
 
 - [ ] **Milestone 2: Platform Operations Migration (Days 3-4)** 🎯 **START HERE**
   - Define 2 platform tools with informative descriptions
@@ -1175,6 +1178,40 @@ After implementing tool-based approach:
 - Define PLATFORM_TOOLS constants in code
 - Convert platform-operations.ts to use AnthropicProvider.toolLoop()
 - Validate 80-90% token savings claim with actual measurements
+
+### 2025-10-05: Milestone 1 Complete - Metrics Infrastructure & Baseline Capture
+**Duration**: ~2-3 hours
+**Files Modified**: 4 files (+111 lines, -170 duplicated lines removed)
+**Primary Focus**: Metrics logging infrastructure and baseline token usage capture
+
+**Completed PRD Items**:
+- [x] Metrics logging infrastructure - Created `src/core/providers/provider-debug-utils.ts` with shared utilities
+- [x] Operation name tracking - Updated `src/core/platform-operations.ts` with specific operation names
+- [x] Baseline metrics capture - Captured pre-migration token usage for comparison
+
+**Implementation Details**:
+- **Shared Debug Utils**: Created `provider-debug-utils.ts` with `logMetrics()`, `debugLogInteraction()`, utilities
+  - Eliminated ~140 lines of duplicate code between AnthropicProvider and VercelProvider
+  - Appends to `./tmp/debug-ai/metrics.jsonl` with operation name, provider, tokens, duration
+  - Works with existing `DEBUG_DOT_AI=true` flag
+- **Operation Tracking**: Updated platform operations to pass specific operation names to `sendMessage()`
+  - `platform-discover-operations`: Line 107 in platform-operations.ts
+  - `platform-map-intent`: Line 144 in platform-operations.ts
+- **Baseline Metrics**: Captured pre-migration token usage through integration tests
+  - `platform-discover-operations`: 1,633 input tokens average (6 calls)
+  - `platform-map-intent`: 3,030 input tokens average (5 calls)
+  - Saved to `tmp/baseline-metrics-prompt-based.jsonl` for comparison
+
+**Testing & Validation**:
+- All 6 integration tests pass with metrics collection enabled
+- Metrics properly captured in JSONL format
+- Analysis with `jq` confirms proper operation categorization
+
+**Next Session Priorities**:
+- **Milestone 2 Ready**: Infrastructure complete, ready to start platform operations migration
+- Define PLATFORM_TOOLS constants (2 tools: `discover_operations`, `get_operation_parameters`)
+- Convert `discoverOperations()` and `mapIntentToOperation()` to use `toolLoop()`
+- Compare metrics after migration to validate 80-90% token reduction claim
 
 ---
 

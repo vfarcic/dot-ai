@@ -104,7 +104,7 @@ export async function discoverOperations(
     const prompt = promptTemplate.replace('{helpOutput}', stdout);
 
     // Send to AI provider for AI-powered parsing
-    const response = await aiProvider.sendMessage(prompt);
+    const response = await aiProvider.sendMessage(prompt, 'platform-discover-operations');
 
     // Strip markdown code blocks and parse JSON
     const jsonContent = stripMarkdownCodeBlocks(response.content);
@@ -141,7 +141,7 @@ export async function mapIntentToOperation(
       .replace('{operations}', JSON.stringify(operations, null, 2));
 
     // Send to AI provider for AI-powered intent matching
-    const response = await aiProvider.sendMessage(prompt);
+    const response = await aiProvider.sendMessage(prompt, 'platform-map-intent');
 
     // Strip markdown code blocks and parse JSON
     const jsonContent = stripMarkdownCodeBlocks(response.content);
