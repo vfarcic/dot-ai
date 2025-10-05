@@ -110,11 +110,18 @@ helm upgrade --install kyverno kyverno/kyverno \
     exit 1
 }
 
-log_info "Restarting Qdrant test container..."
-docker restart qdrant-test || {
-    log_error "Failed to restart Qdrant container"
+log_info "Starting fresh Qdrant test container..."
+# Remove existing container if it exists
+docker rm -f qdrant-test 2>/dev/null || true
+
+# Create fresh container from test image
+docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
+    log_error "Failed to start Qdrant container"
     exit 1
 }
+
+# Wait for Qdrant to be ready
+sleep 3
 
 # Step 4: Create tmp directory for logs, PID, and sessions
 log_info "Cleaning up old session files..."
