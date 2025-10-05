@@ -5,8 +5,8 @@
 **GitHub Issue**: [#139](https://github.com/vfarcic/dot-ai/issues/139)
 **Created**: 2025-10-04
 **Dependencies**:
-- [PRD 136: Tool-Based Agentic Architecture](./136-tool-based-agentic-architecture.md)
-- [PRD 137: OpenTelemetry Tracing](./137-opentelemetry-tracing.md)
+- ✅ [PRD 136: Tool-Based Agentic Architecture](./done/136-tool-based-agentic-architecture.md) - **COMPLETE** (2025-10-05)
+- ⏳ [PRD 137: OpenTelemetry Tracing](./137-opentelemetry-tracing.md) - **PENDING**
 
 ## Executive Summary
 
@@ -138,19 +138,36 @@ interface BenchmarkResult {
 ### Major Milestones
 
 #### ✅ Milestone 1: Benchmark Infrastructure
-- [ ] Create `benchmarks/` directory structure
-- [ ] Design benchmark result schema (TypeScript interfaces)
-- [ ] Implement benchmark data collection during test runs
-- [ ] Store raw results as JSON files per provider per run
-- [ ] Add benchmark execution script wrapping integration tests
+
+**✅ Foundation Already in Place** (from PRD 136):
+- ✅ Basic metrics infrastructure (`src/core/providers/provider-debug-utils.ts`)
+- ✅ JSONL logging with `DEBUG_DOT_AI=true` flag
+- ✅ Token usage tracking (input/output tokens per operation)
+- ✅ Duration tracking per AI call
+- ✅ Operation identifiers for categorization
+- ✅ Provider identification in metrics
+
+**Still To Do**:
+- [ ] Create `benchmarks/` directory structure (raw-data/, comparisons/, scripts/)
+- [ ] Design comprehensive benchmark result schema (extend existing metrics)
+- [ ] Enhance data collection to include:
+  - [ ] Test pass/fail results
+  - [ ] Error patterns and messages
+  - [ ] Response time percentiles (p50, p95)
+  - [ ] Per-test breakdown (not just per-operation)
+- [ ] Add cost calculations using provider pricing
+- [ ] Add benchmark execution script that:
+  - [ ] Wraps integration tests
+  - [ ] Organizes results by provider
+  - [ ] Generates structured JSON files from JSONL logs
 
 **Success Criteria**:
-- Integration tests save structured benchmark data
-- Each test run produces complete JSON result file
-- Data includes all metrics from schema (performance, tokens, cost, reliability)
-- Multiple providers can be benchmarked sequentially
+- Integration tests save structured benchmark data (✅ basic data already captured)
+- Each test run produces complete JSON result file (⏳ needs enhancement)
+- Data includes all metrics from schema: performance (✅ partial), tokens (✅ complete), cost (⏳ needs addition), reliability (⏳ needs addition)
+- Multiple providers can be benchmarked sequentially (✅ infrastructure supports)
 
-**Estimated Duration**: 1-2 days after dependencies complete
+**Estimated Duration**: 1-2 days (reduced from original due to foundation from PRD 136)
 
 ---
 
@@ -390,6 +407,40 @@ interface BenchmarkResult {
 
 ---
 
-**Last Updated**: 2025-10-04
-**Next Review**: After dependencies (PRD 136, PRD 137) are complete
+### 2025-10-05: PRD 136 Dependency Completed
+**Duration**: ~15 minutes
+**Phase**: Dependency Update
+
+**Activities**:
+- Reviewed completed PRD 136 (Tool-Based Agentic Architecture)
+- Analyzed metrics infrastructure added in PRD 136
+- Updated dependencies to mark PRD 136 as ✅ COMPLETE
+- Updated Milestone 1 to reflect existing foundation
+
+**Key Findings** (from PRD 136):
+- ✅ Metrics infrastructure already in place (`provider-debug-utils.ts`)
+- ✅ Token usage tracking (input/output) functional
+- ✅ Duration tracking per AI call
+- ✅ Operation identifiers for categorization
+- ✅ JSONL logging with `DEBUG_DOT_AI=true`
+- ✅ Provider identification in metrics
+
+**Impact on Milestone 1**:
+- Foundation already built - basic metrics collection working
+- Reduces Milestone 1 scope to enhancement vs. building from scratch
+- Estimated duration remains 1-2 days (but with less risk)
+- Can leverage existing JSONL format and debug utilities
+
+**Next Steps**:
+- Wait for PRD 137 (OpenTelemetry Tracing) completion for advanced token metrics
+- Can begin Milestone 1 work now using existing metrics foundation
+- Design comprehensive schema building on existing metrics
+- Add cost calculations, reliability metrics, quality sampling
+
+**Current Status**: Draft - One dependency complete (PRD 136), awaiting PRD 137
+
+---
+
+**Last Updated**: 2025-10-05
+**Next Review**: After PRD 137 (OpenTelemetry Tracing) is complete
 **Stakeholders**: DevOps AI Toolkit Users, Contributors, AI Provider Evaluators
