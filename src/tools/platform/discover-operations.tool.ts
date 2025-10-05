@@ -52,7 +52,7 @@ export async function executeDiscoverOperations(
   try {
     // Execute Nu script help command
     const scriptPath = path.join(getScriptsDir(), 'dot.nu');
-    const { stdout, stderr } = await execAsync(`nu ${scriptPath} --help`);
+    const { stdout, stderr } = await execAsync(`nu "${scriptPath}" --help`);
 
     if (stderr) {
       logger.warn?.('Nu script help command produced stderr', { stderr });

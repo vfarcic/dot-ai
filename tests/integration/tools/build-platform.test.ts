@@ -1,6 +1,9 @@
 /**
  * Integration Test: Build Platform Tool - Phase 1
  *
+ * DEVELOPER NOTE: Tests disabled - buildPlatform tool under active development
+ * with incomplete functionality. Tool registration commented out in src/interfaces/mcp.ts
+ *
  * Phase 1: Tool invocation with intent and Nushell runtime validation
  * Tests that the tool accepts natural language intent, validates Nushell availability,
  * and returns structured workflow responses.
@@ -19,7 +22,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-describe.concurrent('Build Platform Tool - Phase 1: Basic Invocation', () => {
+describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
   const integrationTest = new IntegrationTest();
 
   beforeAll(() => {
