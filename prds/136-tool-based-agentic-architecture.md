@@ -92,6 +92,63 @@ const result = await aiProvider.toolLoop({
 // Works seamlessly with any provider (Anthropic/OpenAI/Google)
 ```
 
+### Critical Optimization: Scoped Tool Sets
+
+**Problem**: Sending all tools to every workflow wastes context tokens.
+
+**Solution**: Define workflow-specific tool sets and provide strategic guidance.
+
+```typescript
+// ❌ BAD: Send all tools to every workflow
+const ALL_TOOLS = [
+  kubectl_get, kubectl_describe, kubectl_logs, kubectl_events,
+  search_capabilities, get_resource_schema, search_patterns,
+  discover_operations
+]; // 10 tools × 400 tokens = 4,000 tokens per call
+
+// ✅ GOOD: Scoped tool sets per workflow
+const REMEDIATE_TOOLS = [
+  kubectl_get, kubectl_describe, kubectl_logs, kubectl_events
+]; // 4 tools × 400 tokens = 1,600 tokens (60% reduction!)
+
+const RECOMMEND_TOOLS = [
+  search_capabilities, get_resource_schema, search_patterns
+]; // 3 tools × 400 tokens = 1,200 tokens (70% reduction!)
+
+const PLATFORM_TOOLS = [
+  discover_operations, get_operation_parameters
+]; // 2 tools × 400 tokens = 800 tokens (80% reduction!)
+
+// Use scoped tools with minimal strategic guidance
+await aiProvider.toolLoop({
+  systemPrompt: `Investigate Kubernetes issue: ${issue}
+
+  Available investigation tools:
+  - kubectl_get: List resources of any type (pods, deployments, services, etc)
+  - kubectl_describe: Get detailed information about specific resources
+  - kubectl_logs: Retrieve container logs for debugging
+  - kubectl_events: View cluster events for troubleshooting context
+
+  Strategy: Start by identifying relevant resources, then drill into
+  specifics. Use logs and events to understand failures.`,
+  tools: REMEDIATE_TOOLS, // ✅ Only tools needed for this workflow
+  toolExecutor: async (toolName, input) => executeKubectl(toolName, input)
+});
+```
+
+**Token Savings Calculation (10-iteration investigation):**
+- Without scoping: 4,000 tokens × 10 = 40,000 tokens
+- With scoping: 1,600 tokens × 10 = 16,000 tokens
+- **Savings: 24,000 tokens (60%) just from tool scoping!**
+- Add minimal guidance: +100 tokens per iteration = +1,000 tokens
+- **Net savings: 23,000 tokens (58%)**
+
+**Design Principles:**
+1. **Scoped tools** - Only include tools relevant to the workflow
+2. **Informative descriptions** - Tool descriptions include "when to use" hints
+3. **Strategic guidance** - 50-100 tokens suggesting approach (not step-by-step)
+4. **Shared tools** - Common tools (like kubectl_get) can appear in multiple scopes
+
 ### Provider-Specific Implementation
 
 **AnthropicProvider** (uses Anthropic SDK):
@@ -123,11 +180,15 @@ async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
 
 ### Key Benefits
 
-1. **90% Token Reduction**: AI fetches only needed data via tool calls
+1. **90%+ Token Reduction**: Combined savings from:
+   - AI fetches only needed data via tool calls (70-80% reduction)
+   - Scoped tool sets per workflow (additional 50-60% reduction on tool schemas)
+   - Total: ~95% reduction vs current prompt-based approach
 2. **True Agentic Behavior**: Native AI loop vs manual iteration code
 3. **Multi-Provider Support**: Works with Anthropic, OpenAI, Google
 4. **Better Debugging**: Structured tool_use blocks with validation
-5. **Alignment with MCP**: Natural fit for Model Context Protocol architecture
+5. **Scoped Context**: Each workflow only gets tools it needs
+6. **Alignment with MCP**: Natural fit for Model Context Protocol architecture
 
 ---
 
@@ -424,33 +485,143 @@ async toolLoop(config: ToolLoopConfig): Promise<AgenticResult> {
 }
 ```
 
-### Phase 2: Remediate Tool Conversion (Week 2)
+### Phase 2: Platform Operations Conversion (Week 1) - START HERE
 
-**Target**: Convert `src/tools/remediate.ts` investigation loop to use new `toolLoop()` method
+**Why first**: Smallest codebase (391 lines), fastest tests (~30s), lowest risk
 
-#### Kubectl Tool Definitions
+**Target**: Convert `src/core/platform-operations.ts` to use tool-based approach
+
+**Current Data Injections:**
+1. `{helpOutput}` - Nu script help output (~2,000 tokens)
+2. `{operations}` - JSON list of operations (~3,000 tokens)
+
+#### Platform Tool Definitions (Scoped)
 
 ```typescript
-export const KUBECTL_TOOLS = [
+// Scoped tool set for platform operations - ONLY 2 tools needed
+export const PLATFORM_TOOLS: AITool[] = [
+  {
+    name: "discover_operations",
+    description: `Discover available platform operations from Nu shell scripts.
+
+    Use this to get the complete list of infrastructure tools and operations
+    available for deployment (Argo CD, Crossplane, cert-manager, etc.).
+
+    Returns: List of tools with their available operations and descriptions.`,
+    inputSchema: {
+      type: "object",
+      properties: {} // No input needed
+    }
+  },
+  {
+    name: "get_operation_parameters",
+    description: `Get detailed parameters for a specific platform operation.
+
+    Use this after identifying the right operation to understand what
+    parameters are required or optional for execution.
+
+    Best practice: Call discover_operations first to see available operations.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        tool: {
+          type: "string",
+          description: "Tool name (e.g., 'argocd', 'crossplane', 'cert-manager')"
+        },
+        operation: {
+          type: "string",
+          description: "Operation name (e.g., 'install', 'uninstall', 'status')"
+        }
+      },
+      required: ["tool", "operation"]
+    }
+  }
+];
+```
+
+#### Implementation Approach
+
+Convert two functions in `platform-operations.ts`:
+
+1. **`discoverOperations()` function**:
+   ```typescript
+   // Before: Parse help output with AI prompt injection
+   const prompt = promptTemplate.replace('{helpOutput}', stdout);
+   const response = await aiProvider.sendMessage(prompt);
+
+   // After: AI calls discover_operations tool when needed
+   const result = await aiProvider.toolLoop({
+     systemPrompt: `Map user intent: "${intent}" to available platform operations.
+
+     Available tools:
+     - discover_operations: Get list of all platform tools and operations
+     - get_operation_parameters: Get parameters for a specific operation
+
+     Strategy: First discover operations, then match intent to the best operation.`,
+     tools: PLATFORM_TOOLS,
+     toolExecutor: async (toolName, input) => {
+       if (toolName === 'discover_operations') {
+         // Execute Nu script help and parse
+         const { stdout } = await execNuScript(['help']);
+         return parseOperationsFromHelp(stdout);
+       }
+       // ... handle other tools
+     }
+   });
+   ```
+
+2. **`mapIntentToOperation()` function**:
+   - Remove `{operations}` injection (was ~3,000 tokens)
+   - AI calls `discover_operations` only if needed
+   - AI calls `get_operation_parameters` for specific details
+
+**Token Savings:**
+- Before: 5,000 tokens (helpOutput + operations) per call
+- After: 800 tokens (2 tool schemas) + ~500 tokens (tool results when called)
+- **Savings: 80-90% when AI doesn't need all operations**
+
+#### Testing Strategy
+
+- Use existing integration test: `tests/integration/tools/build-platform.test.ts`
+- Test duration: ~30 seconds (fast!)
+- Validate: "Install Argo CD" intent still maps correctly
+- Measure: Token usage before/after
+
+### Phase 3: Remediate Investigation (Week 2)
+
+**Why second**: Biggest token savings (10,000+ tokens per investigation)
+
+**Target**: Convert `src/tools/remediate.ts` investigation loop
+
+**Current Data Injection:**
+- `{clusterApiResources}` - kubectl api-resources output (~10,000 tokens)
+
+#### Remediate Tool Definitions (Scoped)
+
+```typescript
+// Scoped tool set for remediation - ONLY 4 kubectl tools
+export const REMEDIATE_TOOLS: AITool[] = [
   {
     name: "kubectl_get",
-    description: "List Kubernetes resources of a specific type",
-    input_schema: {
+    description: `List Kubernetes resources of any type.
+
+    Use this to discover what resources exist in the cluster, check their status,
+    or find resources matching specific criteria. Essential first step in any
+    investigation to understand the current state.
+
+    Examples: Get failing pods, list deployments, check services.`,
+    inputSchema: {
       type: "object",
       properties: {
         resource: {
           type: "string",
-          description: "Resource type (pods, deployments, services, etc.)"
+          description: "Resource type: pods, deployments, services, nodes, etc."
         },
         namespace: {
           type: "string",
-          description: "Namespace to query (optional, defaults to all)"
+          description: "Namespace (optional, defaults to all namespaces)"
         },
-        name: {
-          type: "string",
-          description: "Specific resource name (optional)"
-        },
-        labels: {
+        selector: {
           type: "string",
           description: "Label selector (optional, e.g., 'app=nginx')"
         }
@@ -460,38 +631,77 @@ export const KUBECTL_TOOLS = [
   },
   {
     name: "kubectl_describe",
-    description: "Get detailed information about a specific resource",
-    input_schema: {
+    description: `Get detailed information about a specific resource.
+
+    Use this after identifying a problematic resource with kubectl_get.
+    Provides events, conditions, configuration details, and relationships.
+
+    Best practice: Call kubectl_get first to identify specific resources.`,
+    inputSchema: {
       type: "object",
       properties: {
-        resource: { type: "string", description: "Resource type and name (e.g., 'pod/my-pod')" },
-        namespace: { type: "string" }
+        resource: {
+          type: "string",
+          description: "Resource type and name (e.g., 'pod/my-app-123', 'deployment/nginx')"
+        },
+        namespace: {
+          type: "string",
+          description: "Namespace where the resource exists"
+        }
       },
-      required: ["resource"]
+      required: ["resource", "namespace"]
     }
   },
   {
     name: "kubectl_logs",
-    description: "Get container logs from a pod",
-    input_schema: {
+    description: `Get container logs from a pod.
+
+    Use this when investigating application errors, crashes, or unexpected behavior.
+    Essential for understanding what the application is doing at runtime.
+
+    Best practice: Check pod status first. Use previous=true for CrashLooping pods.`,
+    inputSchema: {
       type: "object",
       properties: {
-        pod: { type: "string", description: "Pod name" },
-        namespace: { type: "string" },
-        container: { type: "string", description: "Container name (optional)" },
-        previous: { type: "boolean", description: "Get logs from previous container instance" }
+        pod: {
+          type: "string",
+          description: "Pod name"
+        },
+        namespace: {
+          type: "string",
+          description: "Namespace containing the pod"
+        },
+        container: {
+          type: "string",
+          description: "Container name (optional, required for multi-container pods)"
+        },
+        previous: {
+          type: "boolean",
+          description: "Get logs from previous container instance (for crashed containers)"
+        }
       },
       required: ["pod", "namespace"]
     }
   },
   {
     name: "kubectl_events",
-    description: "Get Kubernetes events for troubleshooting",
-    input_schema: {
+    description: `View cluster events for troubleshooting context.
+
+    Use this to understand recent cluster activity, scheduling failures, resource
+    issues, or any warnings. Provides timeline context for failures.
+
+    Strategy: Use fieldSelector to filter events for specific resources.`,
+    inputSchema: {
       type: "object",
       properties: {
-        namespace: { type: "string", description: "Namespace filter (optional)" },
-        fieldSelector: { type: "string", description: "Field selector (e.g., 'involvedObject.name=my-pod')" }
+        namespace: {
+          type: "string",
+          description: "Namespace filter (optional)"
+        },
+        fieldSelector: {
+          type: "string",
+          description: "Field selector (e.g., 'involvedObject.name=my-pod')"
+        }
       }
     }
   }
@@ -500,72 +710,127 @@ export const KUBECTL_TOOLS = [
 
 #### Implementation Approach
 
-1. **Add new method to `ClaudeIntegration`**:
-   ```typescript
-   async toolLoop(
-     systemPrompt: string,
-     tools: Tool[],
-     toolExecutor: (toolName: string, input: any) => Promise<any>,
-     maxIterations: number = 20
-   ): Promise<AgenticResult>
-   ```
-
-2. **Replace manual loop** in `conductInvestigation()`:
-   - Remove lines 204-304 (manual iteration loop)
-   - Replace with call to `claudeIntegration.toolLoop()`
-   - Tool executor maps tool calls to `gatherSafeData()`
-
-3. **Update prompts**:
-   - Remove `{clusterApiResources}` injection from `remediate-investigation.md`
-   - Add system prompt explaining available tools
-   - AI requests data via tool calls instead of JSON responses
-
-#### Migration Strategy
-
-- **Feature flag**: `ENABLE_TOOL_BASED_REMEDIATION=true`
-- **Backward compatibility**: Keep prompt-based as fallback
-- **A/B testing**: Compare token usage, latency, accuracy
-
-### Phase 2: Recommend Tool (Weeks 3-4)
-
-**Target**: Convert `src/tools/recommend.ts` capability search
-
-#### New Tool Definitions
+Replace manual 20-iteration loop (lines 204-304 in remediate.ts):
 
 ```typescript
-export const CAPABILITY_TOOLS = [
+// Before: Manual iteration with massive data injection
+let clusterApiResources = await executeKubectl(['api-resources']); // 10,000 tokens!
+const investigationPrompt = promptTemplate
+  .replace('{clusterApiResources}', clusterApiResources);
+
+for (let i = 0; i < 20; i++) {
+  const response = await aiProvider.sendMessage(investigationPrompt);
+  // 400+ lines of manual loop management...
+}
+
+// After: Tool-based agentic loop with scoped tools
+const result = await aiProvider.toolLoop({
+  systemPrompt: `Investigate Kubernetes issue: ${session.issue}
+
+  Available investigation tools:
+  - kubectl_get: List resources of any type (pods, deployments, services, etc)
+  - kubectl_describe: Get detailed information about specific resources
+  - kubectl_logs: Retrieve container logs for debugging
+  - kubectl_events: View cluster events for troubleshooting context
+
+  Strategy: Start by identifying relevant resources, then drill into
+  specifics. Use logs and events to understand failures. Call tools as
+  many times as needed to complete the investigation.`,
+  tools: REMEDIATE_TOOLS, // Only 4 tools (1,600 tokens vs 10,000!)
+  toolExecutor: async (toolName, input) => {
+    return await gatherSafeData({ operation: toolName, ...input });
+  },
+  maxIterations: 20
+});
+```
+
+**Token Savings:**
+- Before: 10,000 tokens (clusterApiResources) × 20 iterations = 200,000 tokens
+- After: 1,600 tokens (4 tool schemas) × 20 iterations = 32,000 tokens
+- **Savings: 168,000 tokens (84%) per investigation!**
+
+#### Code Removal
+
+Delete lines 204-304 in remediate.ts (manual agentic loop)
+
+### Phase 4: Capability Search & Recommendations (Weeks 3-4)
+
+**Target**: Convert `src/core/schema.ts` capability search
+
+**Current Data Injections:**
+- `{resources}` - Pre-fetched 50 capabilities (~5,000 tokens)
+- `{patterns}` - Organizational patterns (~2,000 tokens)
+
+#### Recommendation Tool Definitions (Scoped)
+
+```typescript
+// Scoped tool set for recommendations - 3 tools
+export const RECOMMEND_TOOLS: AITool[] = [
   {
     name: "search_capabilities",
-    description: "Search cluster capabilities by intent or keywords",
-    input_schema: {
+    description: `Search cluster capabilities by intent or keywords.
+
+    Use this to find Kubernetes resources (CRDs, operators, etc.) available
+    in the cluster that match the user's deployment intent.
+
+    Strategy: Start with broad search, then refine with more specific queries.`,
+    inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search query" },
-        limit: { type: "number", default: 10 }
+        query: {
+          type: "string",
+          description: "Search query (keywords, intent, resource types)"
+        },
+        limit: {
+          type: "number",
+          description: "Max results to return (default: 10)"
+        }
       },
       required: ["query"]
     }
   },
   {
     name: "get_resource_schema",
-    description: "Get detailed Kubernetes resource schema",
-    input_schema: {
+    description: `Get detailed schema for a specific Kubernetes resource.
+
+    Use this after identifying relevant resources to understand their
+    configuration options, required fields, and capabilities.
+
+    Best practice: Call search_capabilities first to find candidates.`,
+    inputSchema: {
       type: "object",
       properties: {
-        kind: { type: "string" },
-        apiVersion: { type: "string" }
+        kind: {
+          type: "string",
+          description: "Resource kind (e.g., 'Deployment', 'Database', 'Certificate')"
+        },
+        apiVersion: {
+          type: "string",
+          description: "API version (e.g., 'apps/v1', 'postgres.k8s.io/v1')"
+        }
       },
       required: ["kind", "apiVersion"]
     }
   },
   {
     name: "search_patterns",
-    description: "Search organizational patterns relevant to intent",
-    input_schema: {
+    description: `Search organizational patterns relevant to deployment intent.
+
+    Use this to find established best practices and templates that match
+    the user's requirements (databases, APIs, caching, messaging, etc.).
+
+    Strategy: Search after understanding intent to enhance recommendations.`,
+    inputSchema: {
       type: "object",
       properties: {
-        intent: { type: "string" },
-        limit: { type: "number", default: 5 }
+        intent: {
+          type: "string",
+          description: "User's deployment intent or requirement keywords"
+        },
+        limit: {
+          type: "number",
+          description: "Max patterns to return (default: 5)"
+        }
       },
       required: ["intent"]
     }
@@ -575,88 +840,99 @@ export const CAPABILITY_TOOLS = [
 
 #### Implementation Changes
 
-1. Remove pre-fetching of 50 capabilities in `recommend.ts:460`
-2. Let AI call `search_capabilities` with refined queries
-3. AI narrows results, then calls `get_resource_schema` for top candidates
-4. Replace massive `{resources}` template variable with tool calls
-
-### Phase 3: Build Platform Tool (Weeks 5-6)
-
-**Target**: Convert `src/tools/build-platform.ts` script discovery
-
-#### New Tool Definitions
+Replace pre-fetching in schema.ts:
 
 ```typescript
-export const PLATFORM_TOOLS = [
-  {
-    name: "discover_operations",
-    description: "Discover available Nu shell platform operations",
-    input_schema: { type: "object", properties: {} }
-  },
-  {
-    name: "get_operation_parameters",
-    description: "Get parameters for a specific platform operation",
-    input_schema: {
-      type: "object",
-      properties: {
-        tool: { type: "string" },
-        operation: { type: "string" }
-      },
-      required: ["tool", "operation"]
+// Before: Pre-fetch all capabilities (lines ~620-625)
+const capabilities = await discovery.searchCapabilities('*'); // Get ALL 50+ capabilities
+const resourcesText = capabilities.map(c => JSON.stringify(c)).join('\n'); // 5,000 tokens!
+const prompt = template.replace('{resources}', resourcesText);
+
+// After: Let AI search dynamically
+const result = await aiProvider.toolLoop({
+  systemPrompt: `Recommend Kubernetes resources for intent: "${intent}"
+
+  Available tools:
+  - search_capabilities: Find cluster resources matching keywords/intent
+  - get_resource_schema: Get detailed schema for specific resources
+  - search_patterns: Find organizational patterns for best practices
+
+  Strategy: Search capabilities broadly first, then get schemas for top
+  candidates. Use patterns to enhance recommendations with best practices.`,
+  tools: RECOMMEND_TOOLS, // Only 3 tools (1,200 tokens vs 7,000!)
+  toolExecutor: async (toolName, input) => {
+    if (toolName === 'search_capabilities') {
+      return await discovery.searchCapabilities(input.query, input.limit);
     }
+    // ... other tools
   }
-];
+});
 ```
+
+**Token Savings:**
+- Before: 7,000 tokens (resources + patterns) per recommendation
+- After: 1,200 tokens (3 tool schemas) + ~2,000 tokens (search results when called)
+- **Savings: 3,800 tokens (54%) per recommendation**
 
 ---
 
 ## Implementation Plan
 
-### Milestones (Updated for Multi-Provider)
+### Milestones (Data-Source-First Approach)
 
-- [ ] **Milestone 1: AIProvider Interface Extension (Week 1)**
+- [ ] **Milestone 1: AIProvider Interface Extension (Days 1-2)**
   - Extend `AIProvider` interface with tool use methods (`toolLoop`, `sendMessageWithTools`)
   - Add new types: `AITool`, `ToolExecutor`, `ToolLoopConfig`, `AgenticResult`
   - Implement `toolLoop()` in `AnthropicProvider` using Anthropic SDK
   - Implement `toolLoop()` in `VercelProvider` using Vercel AI SDK
   - Write unit tests for both provider implementations
-  - Create shared tool definition utilities
+  - Define scoped tool set constants (`PLATFORM_TOOLS`, `REMEDIATE_TOOLS`, `RECOMMEND_TOOLS`)
 
-- [ ] **Milestone 2: Remediate Migration (Week 2)**
-  - Define kubectl tool schemas (`kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events`)
-  - Convert `remediate.ts` investigation loop to use `aiProvider.toolLoop()`
-  - Remove manual iteration code (lines 204-304)
-  - Update `remediate-investigation.md` prompt (remove `{clusterApiResources}`)
-  - Add feature flag for gradual rollout
-  - Write integration tests comparing both approaches
+- [ ] **Milestone 2: Platform Operations Migration (Days 3-4)** 🎯 **START HERE**
+  - Define 2 platform tools with informative descriptions
+  - Convert `discoverOperations()` to use `toolLoop()` with PLATFORM_TOOLS
+  - Convert `mapIntentToOperation()` to use tool-based approach
+  - Remove `{helpOutput}` and `{operations}` injections from prompts
+  - Add strategic guidance to system prompts (~50-100 tokens)
+  - Test with existing integration test (30s duration)
+  - **Token savings validation**: Measure 80-90% reduction
 
-- [ ] **Milestone 3: Validation & Multi-Provider Testing (Week 2-3)**
+- [ ] **Milestone 3: Remediate Investigation Migration (Days 5-10)**
+  - Define 4 kubectl tools with "when to use" guidance
+  - Convert investigation loop in `remediate.ts` to use REMEDIATE_TOOLS
+  - Remove lines 204-304 (manual agentic loop)
+  - Remove `{clusterApiResources}` injection (10,000 tokens!)
+  - Add strategic guidance to investigation prompt
+  - Add feature flag: `ENABLE_TOOL_BASED_REMEDIATION`
+  - Write integration tests comparing tool-based vs prompt-based
+  - **Token savings validation**: Measure 84% reduction (168,000 tokens per investigation)
+
+- [ ] **Milestone 4: Multi-Provider Testing & Validation (Days 11-15)**
   - A/B test tool-based vs prompt-based with Anthropic
-  - Test tool-based remediation with OpenAI (via VercelProvider)
-  - Test tool-based remediation with Google Gemini (via VercelProvider)
-  - Measure token usage, latency, accuracy across providers
-  - Document performance differences by provider
-  - Gather user feedback
+  - Test platform operations with OpenAI (via VercelProvider)
+  - Test remediation with Google Gemini (via VercelProvider)
+  - Measure token usage, latency, accuracy across all providers
+  - Document performance differences and provider-specific behavior
+  - Validate scoped tools approach across different AI models
+  - Gather internal feedback and adjust tool descriptions if needed
 
-- [ ] **Milestone 4: Recommend Migration (Week 3-4)**
-  - Define capability search tools (`search_capabilities`, `get_resource_schema`, `search_patterns`)
-  - Convert `recommend.ts` capability search to tools
-  - Remove pre-fetching of 50 capabilities
-  - Update resource selection logic
+- [ ] **Milestone 5: Capability Search Migration (Days 16-25)**
+  - Define 3 recommendation tools with scoped focus
+  - Convert `schema.ts` capability search to use RECOMMEND_TOOLS
+  - Remove pre-fetching of 50 capabilities from `recommend.ts`
+  - Remove `{resources}` and `{patterns}` injections
+  - Add strategic guidance for recommendation workflow
   - Integration tests for recommendation quality across providers
+  - **Token savings validation**: Measure 54% reduction (3,800 tokens per recommendation)
 
-- [ ] **Milestone 5: Platform Migration (Week 5-6)**
-  - Define platform tools (`discover_operations`, `get_operation_parameters`)
-  - Convert `build-platform.ts` script discovery to tools
-  - Update platform operation workflow
-  - End-to-end tests for platform builds
-
-- [ ] **Milestone 6: Production Rollout (Week 6)**
-  - Remove feature flags after validation
+- [ ] **Milestone 6: Production Rollout & Documentation (Days 26-30)**
+  - Remove feature flags after validation (if all metrics green)
   - Remove legacy prompt-based code paths
-  - Update CLAUDE.md with tool use patterns
-  - Update documentation to mention multi-provider tool support
-  - Announce architecture change to users
+  - Update CLAUDE.md with scoped tool patterns and strategic guidance examples
+  - Create tool development guide for future additions
+  - Document multi-provider tool use best practices
+  - Update PRD status to "Complete"
+  - Announce architecture change to users with token savings metrics
 
 ### Testing Strategy
 
@@ -673,10 +949,14 @@ export const PLATFORM_TOOLS = [
 - Latency benchmarks
 
 #### Success Metrics
-- **Token Reduction**: ≥70% reduction in average input tokens
-- **Code Complexity**: ≥30% reduction in cyclomatic complexity
-- **Reliability**: Zero increase in error rates
+- **Token Reduction**: ≥80% reduction in average input tokens (combined: tool-based + scoped tools)
+  - Platform operations: 80-90% reduction
+  - Remediate investigation: 84% reduction (168,000 tokens saved per investigation)
+  - Capability search: 54% reduction (3,800 tokens saved per recommendation)
+- **Code Complexity**: ≥30% reduction in cyclomatic complexity (400+ lines removed from remediate.ts)
+- **Reliability**: Zero increase in error rates across all providers
 - **Performance**: Latency improvement or ≤10% regression acceptable
+- **Multi-Provider**: Tool use works consistently across Anthropic, OpenAI, and Google
 
 ---
 
@@ -792,6 +1072,7 @@ export const PLATFORM_TOOLS = [
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2025-10-05 | **Critical Optimization Update**: Added scoped tool sets per workflow (60-80% token reduction on tool schemas). Added strategic guidance patterns (50-100 tokens vs prescriptive instructions). Restructured implementation to data-source-first approach starting with platform operations (fastest/lowest risk). Updated all phases with detailed tool definitions, token savings calculations, and informative descriptions. Changed milestones to 6 sprints (30 days) with platform operations as first implementation target. Updated success metrics to reflect 80%+ combined token reduction. | Claude Code |
 | 2025-10-05 | **Major Update**: Aligned with PRD #73 multi-provider architecture. Updated solution to use AIProvider interface. Revised implementation to support Anthropic, OpenAI, and Google providers. Updated architecture diagrams, code examples, and milestones. | Claude Code |
 | 2025-10-05 | Implementation started - Phase 1 (Foundation) | Claude Code |
 | 2025-10-03 | Initial PRD created | Claude Code |
