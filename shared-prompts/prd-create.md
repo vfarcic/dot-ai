@@ -117,3 +117,65 @@ Work through the PRD template focusing on project management, milestone tracking
 7. **Review & Validation**: Ensure completeness and clarity
 
 **CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.
+
+## Next Steps After PRD Creation
+
+After completing the PRD, present the user with numbered options:
+
+```
+✅ PRD Created Successfully!
+
+**PRD File**: prds/[issue-id]-[feature-name].md
+**GitHub Issue**: #[issue-id]
+
+What would you like to do next?
+
+**1. Start working on this PRD now**
+   Begin implementation immediately (recommended if you're ready to start)
+
+**2. Commit and push PRD for later**
+   Save the PRD and work on it later (will use [skip ci] flag)
+
+Please enter 1 or 2:
+```
+
+### Option 1: Start Working Now
+
+If user chooses option 1, execute: **prd-start [issue-id]**
+
+This will help identify the first task and set up the development workflow.
+
+### Option 2: Commit and Push for Later
+
+If user chooses option 2:
+
+```bash
+# Stage the PRD file
+git add prds/[issue-id]-[feature-name].md
+
+# Commit with skip CI flag to avoid unnecessary CI runs
+git commit -m "docs(prd-[issue-id]): create PRD #[issue-id] - [feature-name] [skip ci]
+
+- Created PRD for [brief feature description]
+- Defined [X] major milestones
+- Documented problem, solution, and success criteria
+- Ready for implementation"
+
+# Push to main
+git push origin main
+```
+
+**Confirmation Message:**
+```
+✅ PRD committed and pushed to main
+
+The PRD is now available in the repository. To start working on it later, execute:
+prd-start [issue-id]
+```
+
+## Important Notes
+
+- **Option 1**: Best when you have time to begin implementation immediately
+- **Option 2**: Best when creating multiple PRDs or planning future work
+- **Skip CI flag**: Always use `[skip ci]` when committing PRD-only changes
+- **Issue reference**: Include issue number in commit message for traceability
