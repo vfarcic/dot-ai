@@ -48,7 +48,7 @@ export class DotAI {
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
     // ResourceRecommender uses the AI provider directly
-    const ranker = new ResourceRecommender({}, this.ai);
+    const ranker = new ResourceRecommender(this.ai);
     
     this.schema = {
       parser,

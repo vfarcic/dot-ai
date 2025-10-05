@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { ResourceRecommender, AIRankingConfig } from '../core/schema';
+import { ResourceRecommender } from '../core/schema';
 import { AIProvider, IntentAnalysisResult } from '../core/ai-provider.interface';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
@@ -287,9 +287,8 @@ export async function handleRecommendTool(
       // Ensure cluster connectivity before proceeding with recommendations
       await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
 
-      // Initialize AI-powered ResourceRecommender with provider-agnostic config
-      const rankingConfig: AIRankingConfig = {}; // Empty config - provider passed separately
-      const recommender = new ResourceRecommender(rankingConfig, dotAI.ai);
+      // Initialize AI-powered ResourceRecommender with provider
+      const recommender = new ResourceRecommender(dotAI.ai);
 
       // Create discovery function
       const explainResourceFn = async (resource: string) => {

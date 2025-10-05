@@ -126,13 +126,6 @@ export interface ResourceSolution {
   usedPatterns?: boolean; // NEW: Quick indicator if any patterns were used
 }
 
-export interface AIRankingConfig {
-  // Legacy field name for backward compatibility - will be removed in future
-  claudeApiKey?: string;
-  // New provider-agnostic field
-  apiKey?: string;
-}
-
 // Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
 // explainResource function is now passed directly to findBestSolutions
 
@@ -389,13 +382,11 @@ export class ManifestValidator {
  */
 export class ResourceRecommender {
   private aiProvider: AIProvider;
-  private config: AIRankingConfig;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
   private policyService?: PolicyVectorService;
 
-  constructor(config: AIRankingConfig, aiProvider?: AIProvider) {
-    this.config = config;
+  constructor(aiProvider?: AIProvider) {
     // Use provided AI provider or create from environment
     this.aiProvider = aiProvider || (() => {
       // Lazy import to avoid circular dependencies
