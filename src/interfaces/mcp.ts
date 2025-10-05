@@ -46,12 +46,15 @@ import {
   REMEDIATE_TOOL_INPUT_SCHEMA,
   handleRemediateTool,
 } from '../tools/remediate';
+/*
+// DEVELOPER NOTE: Platform Building tool disabled - imports commented out
 import {
   BUILD_PLATFORM_TOOL_NAME,
   BUILD_PLATFORM_TOOL_DESCRIPTION,
   BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
   handleBuildPlatformTool,
 } from '../tools/build-platform';
+*/
 
 import {
   handlePromptsListRequest,
@@ -243,6 +246,8 @@ export class MCPServer {
       ['remediation', 'troubleshooting', 'kubernetes', 'analysis']
     );
 
+    /*
+    // DEVELOPER NOTE: buildPlatform tool disabled - under active development with incomplete functionality
     // Register buildPlatform tool
     this.registerTool(
       BUILD_PLATFORM_TOOL_NAME,
@@ -259,6 +264,7 @@ export class MCPServer {
       'Platform',
       ['platform', 'kubernetes', 'installation', 'infrastructure']
     );
+    */
 
     this.logger.info('Registered all tools with McpServer', {
       tools: [
@@ -267,9 +273,9 @@ export class MCPServer {
         TESTDOCS_TOOL_NAME,
         ORGANIZATIONAL_DATA_TOOL_NAME,
         REMEDIATE_TOOL_NAME,
-        BUILD_PLATFORM_TOOL_NAME,
+        // BUILD_PLATFORM_TOOL_NAME, // Disabled - under development
       ],
-      totalTools: 6,
+      totalTools: 5,
     });
   }
 

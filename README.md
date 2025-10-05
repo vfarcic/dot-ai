@@ -22,10 +22,13 @@ DevOps AI Toolkit is an AI-powered development productivity platform that enhanc
 - **SRE Teams**: Automate root cause analysis and generate executable remediation commands
 - **Support Teams**: Handle incident response with AI-guided investigation and repair workflows
 
+<!--
 ### Platform Building
+DEVELOPER NOTE: This tool is under active development with incomplete functionality. Not recommended for production use.
 - **Platform Engineers**: Install and configure platform tools conversationally without memorizing script paths and commands
 - **New Team Members**: Build platform infrastructure through zero-knowledge guided workflows
 - **DevOps Teams**: Create and manage Kubernetes clusters through natural language interactions
+-->
 
 ### Documentation Testing  
 - **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
@@ -84,7 +87,9 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 
 📖 [Learn more →](./docs/mcp-remediate-guide.md)
 
+<!--
 ### Platform Building
+DEVELOPER NOTE: This tool is under active development with incomplete functionality. Not recommended for production use.
 🗣️ **Natural Language Operations**: Install tools and create clusters through conversation without memorizing commands
 🔍 **Dynamic Discovery**: Automatically discovers 21+ available platform operations from infrastructure scripts
 🤖 **AI-Powered Intent Mapping**: Understands variations like "Install Argo CD", "Set up ArgoCD", "Deploy Argo CD"
@@ -92,6 +97,7 @@ Result: Finds sqls.devopstoolkit.live as perfect match ✨
 🎯 **Zero-Knowledge Onboarding**: New users successfully build platforms without documentation
 
 📖 [Learn more →](./docs/mcp-build-platform-guide.md)
+-->
 
 ### Documentation Testing & Validation
 📖 **Automated Testing**: Validates documentation by executing commands and testing examples  

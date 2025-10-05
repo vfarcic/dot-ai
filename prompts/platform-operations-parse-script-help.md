@@ -2,17 +2,13 @@
 
 You are a specialized parser that extracts available operations from Nushell script help output.
 
-## Input
-
-Here is the help output from a Nu shell script:
-
-```text
-{helpOutput}
-```
-
 ## Task
 
-Parse this help output and extract all available tools/resources with their operations into a structured JSON array.
+Parse the help output below and extract all available tools/resources with their operations into a structured JSON array.
+
+## Help Output
+
+{helpOutput}
 
 ## Rules
 

@@ -84,6 +84,81 @@ export interface AIProviderConfig {
 }
 
 /**
+ * Tool definition for AI providers
+ * Defines a tool that the AI can call during agentic loops
+ */
+export interface AITool {
+  /** Unique tool name (e.g., 'kubectl_get', 'search_capabilities') */
+  name: string;
+
+  /** Human-readable description of what the tool does and when to use it */
+  description: string;
+
+  /** JSON schema for tool input parameters */
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
+  };
+}
+
+/**
+ * Tool executor function type
+ * Called by the provider when AI requests a tool execution
+ */
+export type ToolExecutor = (toolName: string, input: any) => Promise<any>;
+
+/**
+ * Configuration for agentic tool loop
+ */
+export interface ToolLoopConfig {
+  /** System prompt with context and strategic guidance */
+  systemPrompt: string;
+
+  /** User message/query to respond to */
+  userMessage: string;
+
+  /** Available tools for this workflow (scoped to workflow needs) */
+  tools: AITool[];
+
+  /** Function to execute tool calls */
+  toolExecutor: ToolExecutor;
+
+  /** Maximum number of AI iterations (default: 20) */
+  maxIterations?: number;
+
+  /** Optional callback invoked after each iteration */
+  onIteration?: (iteration: number, toolCalls: any[]) => void;
+
+  /** Optional operation identifier for metrics and debugging */
+  operation?: string;
+}
+
+/**
+ * Result from agentic tool loop
+ */
+export interface AgenticResult {
+  /** Final text response from AI after completing tool loop */
+  finalMessage: string;
+
+  /** Number of iterations executed */
+  iterations: number;
+
+  /** All tool calls executed during the loop */
+  toolCallsExecuted: Array<{
+    tool: string;
+    input: any;
+    output: any;
+  }>;
+
+  /** Token usage statistics */
+  totalTokens: {
+    input: number;
+    output: number;
+  };
+}
+
+/**
  * AI Provider Interface
  *
  * Minimal interface based on actual usage across 10 dependent files.
@@ -130,4 +205,41 @@ export interface AIProvider {
    * @returns Provider identifier (e.g., 'anthropic', 'openai', 'google')
    */
   getProviderType(): string;
+
+  /**
+   * Execute agentic loop with tool calling (NEW - PRD #136)
+   *
+   * AI autonomously decides which tools to call and when to stop.
+   * Supports multi-turn conversations with tool execution.
+   *
+   * NOTE: Currently NOT USED in codebase. PRD #136 analysis showed JSON-based loops
+   * achieve same goals without SDK overhead. Kept for potential future use.
+   *
+   * IMPLEMENTATION STATUS:
+   * - AnthropicProvider: ✅ Implemented
+   * - VercelAIProvider: ❌ Not implemented (not needed for current workflows)
+   *
+   * @param config Tool loop configuration with system prompt, tools, and executor
+   * @returns Agentic result with final message, iterations, tool calls, and token usage
+   */
+  toolLoop(config: ToolLoopConfig): Promise<AgenticResult>;
+
+  /**
+   * Single-shot message with tool calling enabled (NEW - PRD #136)
+   *
+   * AI can call tools, but only processes one round.
+   * Useful for simple tool use cases that don't require iteration.
+   *
+   * @param message The message/prompt to send
+   * @param tools Available tools for this request
+   * @param toolExecutor Function to execute tool calls
+   * @param operation Optional operation identifier for debugging
+   * @returns AI response with content, usage, and any tool calls made
+   */
+  sendMessageWithTools(
+    message: string,
+    tools: AITool[],
+    toolExecutor: ToolExecutor,
+    operation?: string
+  ): Promise<AIResponse & { toolCalls?: any[] }>;
 }
