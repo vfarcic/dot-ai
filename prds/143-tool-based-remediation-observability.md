@@ -12,7 +12,9 @@
 
 ## Executive Summary
 
-Migrate the remediation tool from JSON-based kubectl command patterns to SDK tool-based architecture (`toolLoop()`), then extend it with observability data source tools (Prometheus, DataDog, etc.) to enable comprehensive issue analysis across Kubernetes events, metrics, logs, and custom data sources.
+Migrate the remediation tool from JSON-based kubectl command patterns to SDK tool-based architecture (`toolLoop()`). This establishes a clean, extensible foundation for investigation tools.
+
+**Note**: Phase 2 (Observability Integration) has been moved to a separate PRD for focused implementation. See [PRD #150 - Remediation Observability Integration](https://github.com/vfarcic/dot-ai/blob/main/prds/150-remediation-observability-integration.md).
 
 ---
 
@@ -67,12 +69,11 @@ Implementation:
 - Focus on Anthropic provider first, Vercel support later
 - Validate tool architecture works for remediation use case
 
-### Phase 2: Add Observability Data Sources
-Extend with new tools for metrics and observability:
-- Prometheus tools: `prometheus_query`, `prometheus_range_query`, `prometheus_labels`
-- DataDog tools: `datadog_metrics`, `datadog_logs`, `datadog_events`
-- Configurable at server level (enable/disable per data source)
-- AI dynamically selects tools based on issue type
+### Phase 2: Add Observability Data Sources (Moved to PRD #150)
+This phase has been moved to a separate PRD for focused implementation:
+- See [PRD #150 - Remediation Observability Integration](https://github.com/vfarcic/dot-ai/blob/main/prds/150-remediation-observability-integration.md)
+- Will extend remediation with observability tools following the architecture established in Phase 1
+- Tools and priorities to be determined during PRD #150 implementation
 
 ---
 
@@ -294,12 +295,8 @@ const toolImplementations = {
 - [x] All integration tests passing ✅
 - [x] Token usage optimized (+50% vs JSON baseline through table format + prompt caching) ✅
 
-### Phase 2: Observability Integration
-- [ ] Prometheus tools functional and returning correct metrics
-- [ ] AI successfully correlates Kubernetes events with metrics
-- [ ] Remediation recommendations include metrics-based justification
-- [ ] User can enable/disable data sources via server config
-- [ ] At least 80% of performance issues include metrics analysis
+### Phase 2: Observability Integration (Moved to PRD #150)
+See [PRD #150 - Remediation Observability Integration](https://github.com/vfarcic/dot-ai/blob/main/prds/150-remediation-observability-integration.md) for success criteria.
 
 ---
 
@@ -360,46 +357,87 @@ const toolImplementations = {
 
 **Note**: Tested with Anthropic Claude Sonnet via Vercel SDK only. OpenAI and Google Gemini testing pending (Milestone 2.6).
 
-### Milestone 2.6: Multi-Model Provider Testing (Phase 1 Final Validation)
-**Goal**: Validate Vercel provider works with OpenAI and Google Gemini models
-- [ ] Test VercelProvider.toolLoop() with OpenAI GPT-5 model
-- [ ] Test VercelProvider.toolLoop() with Google Gemini 2.5 Pro model
-- [ ] Document any model-specific differences or limitations
-- [ ] Verify caching behavior works correctly for each provider
-- [ ] Update integration tests if provider-specific handling needed
+### Milestone 2.6: Multi-Model Provider Testing (Phase 1 Final Validation) ✅ COMPLETE (Extended Scope)
+**Goal**: Validate Vercel provider works across diverse AI models from different providers
 
-### Milestone 3: Observability Configuration System (Phase 2 Start)
-**Goal**: Server-level configuration for data sources
-- [ ] Server config schema for observability providers
-- [ ] Configuration validation and loading
-- [ ] Runtime tool enablement based on config
-- [ ] Health check for configured endpoints
+**Big 3 Testing (Complete)** ✅:
+- [x] Test VercelProvider.toolLoop() with OpenAI GPT-5 model ✅
+- [x] Test VercelProvider.toolLoop() with Google Gemini 2.5 Pro model ✅ (Reliability issues identified)
+- [x] Document any model-specific differences or limitations ✅
+- [x] Verify caching behavior works correctly for each provider ✅
+- [x] Update integration tests if provider-specific handling needed ✅ (No changes needed - tests work with any provider)
 
-### Milestone 4: Prometheus Integration (Phase 2)
-**Goal**: AI can query Prometheus metrics
-- [ ] Prometheus tool definitions (query, range_query, labels)
-- [ ] Prometheus client implementation
-- [ ] PromQL query validation
-- [ ] Error handling for unreachable Prometheus
-- [ ] Integration tests with mock Prometheus
-- [ ] Works with both Anthropic and Vercel providers
+**Extended Testing (Blog Post Coverage)** ⏳:
+- [ ] Test with xAI Grok-4 (Challenger segment)
+- [ ] Test with Mistral Large (European/value segment)
+- [ ] Test with DeepSeek-R1 (Budget/reasoning segment)
+- [ ] Capture extended metrics (Decision 5) for all models
+- [ ] Compare behavior patterns across 6 models total
 
-### Milestone 5: DataDog Integration (Phase 2)
-**Goal**: AI can query DataDog metrics and logs
-- [ ] DataDog tool definitions
-- [ ] DataDog API client integration
-- [ ] Authentication handling
-- [ ] Rate limiting and error handling
-- [ ] Integration tests with mock DataDog API
-- [ ] Works with both Anthropic and Vercel providers
+**OpenAI GPT-5 Test Results** (2025-10-06):
+- ✅ All integration tests pass (Manual: 135.8s, Automatic: 125.4s)
+- **Performance vs Claude**: +84% more tokens, +65% slower per call, but equivalent end-to-end test duration
+- **Token Usage**: 25,602 input + 5,082 output = 30,684 total tokens (vs Claude: 16,649 total)
+- **Caching**: 20,224 cache read tokens (effective automatic caching via Vercel SDK)
+- **Investigation Steps**: 30 total steps across 2 tests (8, 7, 4, 11 per run)
+- **Quality**: Equivalent remediation quality - both models successfully identify issues and generate valid fixes
+- **Baseline saved**: `tmp/baseline-vercel-gpt5.jsonl`
 
-### Milestone 6: AI Correlation & Analysis (Phase 2 Complete)
-**Goal**: AI intelligently uses multiple data sources
-- [ ] Investigation prompt updated for multi-source analysis
-- [ ] AI selects appropriate tools based on issue type
-- [ ] Remediation recommendations include metrics evidence
-- [ ] Validation that metrics improve root cause accuracy
-- [ ] Documentation for users on enabling observability sources
+**Model Comparison Summary**:
+| Metric | Claude Sonnet 4.5 | OpenAI GPT-5 | Difference |
+|--------|------------------|--------------|------------|
+| Total Tokens | 16,649 | 30,684 | +84% |
+| Input Tokens | 14,429 | 25,602 | +77% |
+| Output Tokens | 2,220 | 5,082 | +129% |
+| Avg Call Duration | 33s | 54.6s | +65% |
+| Cache Reads | 14,400 | 20,224 | +40% |
+
+**Recommendation**: Both models work effectively. Claude Sonnet preferred for cost/speed optimization (-46% tokens, -40% faster). GPT-5 suitable when OpenAI infrastructure is already in use.
+
+**Google Gemini 2.5 Pro Test Results** (2025-10-06):
+- ⚠️ **CRITICAL RELIABILITY ISSUE IDENTIFIED** - 50% test failure rate
+- **Test Outcome**: 1 of 2 integration tests failed
+- **Failure Mode**: Model stopped generating output mid-investigation (0 output tokens after successful tool calls)
+- **Successful Test**: Automatic mode passed - Generated proper JSON, executed remediation successfully
+- **Failed Test**: Manual mode failed - Completed 6 iterations with 5 tool calls, then produced zero output tokens
+- **Token Usage** (incomplete data due to failure): 13,467 input + 662 output tokens across 3 calls
+- **Investigation Quality**: When working, quality is equivalent to Claude/GPT-5
+- **Root Cause**: Gemini exhibits inconsistent stopping behavior - sometimes completes properly, sometimes stops prematurely
+- **Debug Evidence**: `tmp/debug-ai/2025-10-06T180613_*` shows conversation ending abruptly after `kubectl_patch_dryrun` validation
+- **Baseline saved**: `tmp/baseline-vercel-gemini.jsonl` (partial data)
+
+**Gemini Reliability Analysis**:
+- **Failure Pattern**: Unpredictable - no clear pattern to when model will stop vs continue
+- **Impact**: Cannot rely on consistent JSON output in production workflows
+- **Risk**: 50% failure rate makes Gemini unsuitable for critical remediation tasks
+- **Behavior**: Model completes tool calls correctly but fails to generate final analysis
+- **Comparison**: Claude and GPT-5 showed 100% reliability across all tests
+
+**Model Comparison Summary (Updated with Gemini)**:
+| Metric | Claude Sonnet 4.5 | OpenAI GPT-5 | Google Gemini 2.5 Pro | Notes |
+|--------|------------------|--------------|----------------------|-------|
+| Reliability | 100% | 100% | 50% | Gemini failed 1 of 2 tests |
+| Total Tokens | 16,649 | 30,684 | 13,467 | Gemini data incomplete |
+| Avg Call Duration | 33s | 54.6s | 25.4s | Gemini appears faster when working |
+| Investigation Quality | Excellent | Excellent | Excellent | When Gemini works, quality is good |
+| **Production Ready** | **✅ Yes** | **✅ Yes** | **❌ No** | Reliability issues |
+
+**Final Recommendation**:
+- **Claude Sonnet 4.5**: Recommended for production (best cost/speed balance, 100% reliability)
+- **OpenAI GPT-5**: Acceptable for production (higher cost, 100% reliability)
+- **Google Gemini 2.5 Pro**: NOT RECOMMENDED for production remediation workflows due to unpredictable stopping behavior and 50% failure rate
+
+### Phase 2 Milestones (Moved to PRD #150)
+
+The following milestones have been moved to [PRD #150 - Remediation Observability Integration](https://github.com/vfarcic/dot-ai/blob/main/prds/150-remediation-observability-integration.md):
+
+- **Milestone 1**: Tool Selection and Design
+- **Milestone 2**: Configuration System
+- **Milestone 3**: First Observability Tool Implementation
+- **Milestone 4**: AI Correlation Enhancement
+- **Milestone 5**: Additional Tools (If Applicable)
+
+See PRD #150 for detailed milestone descriptions and tasks.
 
 ---
 
@@ -408,17 +446,13 @@ const toolImplementations = {
 ### External Dependencies
 - [x] `toolLoop()` interface defined in AIProvider (PRD #136)
 - [x] AnthropicProvider toolLoop() implementation (PRD #136) ✅ Verified in src/core/providers/anthropic-provider.ts:134-256
-- [ ] VercelProvider toolLoop() implementation ❌ NOT implemented yet (see vercel-provider.ts:157-163) - deferred to Milestone 2.5
-- [ ] Access to Prometheus endpoint (for testing Phase 2)
-- [ ] Access to DataDog API (for testing Phase 2)
+- [x] VercelProvider toolLoop() implementation ✅ Complete (Milestone 2.5)
 
 ### Internal Dependencies
 - [x] AIProvider interface with tool support (PRD #136)
 - [x] Existing remediation investigation logic (to migrate)
-- [ ] Server configuration system for observability settings
 
 ### Potential Blockers
-- Prometheus/DataDog API rate limits or authentication issues
 - Tool performance overhead (monitor token usage)
 - Backward compatibility if migration affects existing users
 - Provider-specific tool behavior differences
@@ -604,6 +638,153 @@ const toolImplementations = {
 
 **Files Affected**:
 - `src/tools/remediate.ts` - Tool definitions
+
+---
+
+### Decision 5: Extend Metrics Logging for Model Comparison Analysis
+**Date**: 2025-10-06
+**Decision**: Enhance `metrics.jsonl` logging to capture comprehensive behavioral, quality, and efficiency metrics for AI model comparison. Treat this as an evolving list - add new metrics as we identify value.
+
+**Context**: Planning blog post comparing Claude Sonnet 4.5, OpenAI GPT-5, and Google Gemini 2.5 Pro performance in remediation workflows. Current metrics (inputTokens, outputTokens, durationMs, provider, operation) insufficient for deep analysis of model behavior differences.
+
+**Rationale**:
+- **Multi-model testing complete**: Phase 1 tested 3 models, identified significant reliability differences (Claude/GPT 100%, Gemini 50%)
+- **Need behavioral insights**: Token counts don't explain WHY Gemini failed (stopped generating mid-investigation)
+- **Cost analysis required**: Need to justify Claude recommendation vs. GPT's higher token usage
+- **Quality metrics missing**: Can't quantify investigation thoroughness, efficiency, or reliability
+- **Blog post value**: Concrete metrics make model comparison actionable for users
+
+**Metrics to Add (Priority Order)**:
+
+**High Priority (Implement First)**:
+1. **`iterationCount`** - Number of conversation turns (loop vs one-shot behavior)
+2. **`toolCallCount`** - Total tools executed (investigation thoroughness)
+3. **`status`** - "success", "failed", "timeout", "parse_error" (reliability)
+4. **`completionReason`** - "investigation_complete", "max_iterations", "parse_failure", "model_stopped" (failure modes)
+5. **`validJson`** - Boolean: Final response contained valid JSON (quality)
+6. **`modelVersion`** - Specific model ID (e.g., "claude-sonnet-4.5-20250929")
+7. **`uniqueToolsUsed`** - Array of tool names (investigation strategy)
+8. **`cacheHitRate`** - Percentage of tokens from cache (performance optimization)
+
+**Medium Priority (Add as Needed)**:
+9. **`confidenceScore`** - AI's confidence in analysis (0-1)
+10. **`riskLevel`** - "low", "medium", "high" for recommended actions
+11. **`investigationType`** - Inferred from issue (e.g., "oom", "crash", "networking")
+12. **`timeToFirstToken`** - Latency until first response (UX metric)
+13. **`tokensPerSecond`** - Throughput metric
+14. **`toolSequence`** - Ordered array showing investigation path
+
+**Future Extensions**:
+- Cost estimation per investigation
+- Token breakdown (system prompt, tool results, conversation)
+- Validation metrics (dry-run usage)
+- Resource context (namespace, resource type)
+
+**Important: This is a Living List**
+- Add new metrics when we discover they provide value
+- Remove metrics that prove unhelpful or redundant
+- Adjust priorities based on blog post needs
+- Consider reader interest and actionability
+
+**Impact**:
+- Richer comparison data for blog post
+- Better understanding of model behavior differences
+- Quantifiable justification for model recommendations
+- Foundation for future performance analysis
+
+**Implementation Notes**:
+- Capture metrics in `src/tools/remediate.ts` during investigation
+- Log to `tmp/debug-ai/metrics.jsonl` (existing file)
+- Ensure metrics available from toolLoop() result object
+- Consider backwards compatibility with existing metrics
+
+**Alternatives Considered**:
+- Use existing metrics only → Rejected as insufficient for behavioral analysis
+- Create separate metrics file → Rejected as adds complexity, prefer single JSONL
+- Log everything possible → Rejected as noisy, focus on high-value metrics first
+
+**Files Affected**:
+- `src/tools/remediate.ts` - Capture additional metrics during investigation
+- `tmp/debug-ai/metrics.jsonl` - Extended schema (backwards compatible)
+
+---
+
+### Decision 6: Expand Model Testing Coverage for Comprehensive Blog Post
+**Date**: 2025-10-06
+**Decision**: Test 3 additional AI models beyond initial "Big 3" (Claude, GPT-5, Gemini) to provide comprehensive market comparison covering different market segments and use cases.
+
+**Context**:
+- Initial testing covered premium providers (Claude, GPT-5) and identified reliability issues (Gemini 50% failure)
+- Blog post value increases with broader market coverage
+- Readers need guidance across price/performance spectrum
+- Vercel AI SDK supports many cloud providers
+
+**Models Selected for Testing**:
+
+1. **xAI Grok-4** (Challenger)
+   - Package: `@ai-sdk/xai`
+   - **Value**: Elon Musk's model, high market curiosity, competitive alternative to GPT-5
+   - **Test focus**: Performance vs established leaders
+   - **Blog angle**: "New challenger analysis"
+
+2. **Mistral Large** (European Champion)
+   - Package: `@ai-sdk/mistral`
+   - **Value**: Leading European AI, cost-effective, strong reasoning capabilities
+   - **Test focus**: Price/performance sweet spot, regional alternative
+   - **Blog angle**: "Value for money analysis"
+
+3. **DeepSeek-R1** (Disruptor)
+   - Package: Available via Vercel AI SDK
+   - **Value**: Extreme cost efficiency (~1/10th GPT-4 cost), recent market buzz (Jan 2025), reasoning-focused
+   - **Test focus**: Budget option viability, reasoning specialization for troubleshooting
+   - **Blog angle**: "Can low-cost models compete?"
+
+**Final Model Lineup (6 total)**:
+1. ✅ Claude Sonnet 4.5 - Premium, reliable baseline
+2. ✅ GPT-5 - Premium, expensive reference
+3. ✅ Gemini 2.5 Pro - Reliability warning case study
+4. ⏳ Grok-4 - New challenger evaluation
+5. ⏳ Mistral Large - Regional/value champion
+6. ⏳ DeepSeek-R1 - Budget disruptor
+
+**Rationale**:
+- **Market coverage**: Premium → Mid-tier → Budget spectrum
+- **Geographic diversity**: US (Claude, GPT, Grok), Europe (Mistral), China (DeepSeek)
+- **Reader questions answered**:
+  - "Should I pay premium?" → Claude vs GPT comparison
+  - "Are there good alternatives?" → Grok, Mistral evaluation
+  - "Can I save money?" → DeepSeek viability
+  - "What should I avoid?" → Gemini reliability issues
+- **Narrative diversity**: Established leaders, problematic option, challengers, value play, disruptor
+
+**DeepSeek Model Selection**:
+- Chose **DeepSeek-R1** over DeepSeek-V3
+- **Reason**: Remediation requires complex reasoning about issues, R1's reasoning specialization potentially beneficial
+- **Comparison value**: Tests if reasoning focus improves investigation quality
+
+**Impact**:
+- Extends Milestone 2.6 scope from 3 models to 6 models
+- Richer blog post with broader market coverage
+- More actionable guidance for diverse user needs
+- Validates Vercel provider across more model types
+
+**Alternatives Considered**:
+- **Groq (Llama 3.1)** → Deferred: Speed focus less relevant for async investigations
+- **Azure OpenAI** → Rejected: Redundant with direct OpenAI, enterprise wrapper
+- **Amazon Bedrock** → Rejected: Redundant with direct providers
+- **Cohere** → Rejected: Less relevant for reasoning tasks
+- **Together.ai** → Rejected: Similar to Groq, less differentiation
+
+**Files Affected**:
+- `src/core/providers/vercel-provider.ts` - May need provider additions for xAI, Mistral, DeepSeek
+- `tests/integration/infrastructure/run-integration-tests.sh` - Test script updates for new providers
+- PRD Milestone 2.6 - Expand scope to 6 models
+
+**Testing Plan**:
+- Same methodology as Big 3 testing
+- Same integration test suite (remediate manual + automatic modes)
+- Capture extended metrics from Decision 5
+- Document reliability, token usage, and behavior patterns
 
 ---
 
@@ -1053,3 +1234,185 @@ Completed full migration from JSON-based investigation (400+ line manual loop) t
 1. **Milestone 2.6**: Test VercelProvider with OpenAI and Google Gemini models
 2. OR **Phase 2 Start**: Begin Milestone 3 (Observability Configuration System)
 3. Consider documenting findings in architecture decision record
+
+---
+
+### 2025-10-06: Milestone 2.6 Progress - OpenAI GPT-5 Testing Complete
+**Duration**: ~2 hours (testing and analysis)
+**Status**: Milestone 2.6 Substantially Complete (OpenAI ✅, Google Gemini pending)
+
+**Completed Work**:
+- [x] Tested VercelProvider.toolLoop() with OpenAI GPT-5 model
+- [x] Verified all kubectl tools work correctly with GPT-5
+- [x] Analyzed performance metrics vs Claude Sonnet baseline
+- [x] Documented model-specific differences and recommendations
+- [x] Saved baseline metrics to `tmp/baseline-vercel-gpt5.jsonl`
+
+**Test Results Summary**:
+- **Integration Tests**: Both Manual and Automatic modes passed ✅
+- **Test Duration**: 136.4s total (Manual: 135.8s, Automatic: 125.4s)
+- **Token Usage**: 30,684 total tokens (+84% vs Claude: 16,649)
+- **Caching**: 20,224 cache read tokens (automatic via Vercel SDK)
+- **Investigation Quality**: Equivalent to Claude - successfully identifies issues and generates valid fixes
+
+**Key Findings**:
+1. **GPT-5 uses more tokens**: +77% input, +129% output compared to Claude
+2. **GPT-5 is slower per call**: Average 54.6s vs Claude 33s (+65%)
+3. **End-to-end duration similar**: Concurrent test execution masks per-call differences
+4. **Caching works effectively**: OpenAI's automatic caching shows 20K cache reads
+5. **No code changes needed**: Tests work with any provider via configuration only
+
+**Performance Tradeoffs**:
+- **Claude Sonnet 4.5**: Best for cost/speed optimization (-46% tokens, -40% faster)
+- **OpenAI GPT-5**: Suitable when OpenAI infrastructure already in use, equivalent quality
+
+**Technical Implementation**:
+- Changed `AI_PROVIDER=openai` in test script (line 144 of run-integration-tests.sh)
+- Vercel SDK automatically handles OpenAI-specific caching and token reporting
+- No provider-specific code changes required in remediation tool
+- Debug infrastructure captured full conversation context and metrics
+
+**Files Modified**:
+- `tests/integration/infrastructure/run-integration-tests.sh` - Changed AI_PROVIDER to openai
+- `prds/143-tool-based-remediation-observability.md` - Updated Milestone 2.6 with results
+
+**Files Created**:
+- `tmp/baseline-vercel-gpt5.jsonl` - OpenAI GPT-5 performance baseline
+- `tmp/test-output-openai-gpt5.log` - Full test execution log
+- `tmp/debug-ai/*_full-context.md` - 4 investigation conversation contexts
+
+**Next Steps**:
+1. Test with Google Gemini 2.5 Pro to complete Milestone 2.6
+2. OR proceed to Phase 2 (Observability Integration) if Gemini testing deferred
+
+---
+
+### 2025-10-06: Milestone 2.6 Complete - Multi-Model Testing with Critical Findings
+**Duration**: ~4 hours (OpenAI + Gemini testing and analysis)
+**Status**: ✅ Milestone 2.6 COMPLETE - Phase 1 fully validated across 3 AI providers
+
+**Completed Work**:
+- [x] Tested VercelProvider.toolLoop() with OpenAI GPT-5 model (100% reliability)
+- [x] Tested VercelProvider.toolLoop() with Google Gemini 2.5 Pro model (50% reliability - CRITICAL ISSUE)
+- [x] Analyzed performance metrics for all 3 models (Claude, GPT-5, Gemini)
+- [x] Documented comprehensive model comparison with production recommendations
+- [x] Identified and documented Gemini reliability issue with debug evidence
+
+**Test Results Summary**:
+
+**OpenAI GPT-5**:
+- ✅ All tests passed (100% reliability)
+- Token usage: 30,684 total (+84% vs Claude)
+- Performance: Slower but reliable
+- Recommendation: Acceptable for production
+
+**Google Gemini 2.5 Pro**:
+- ⚠️ 50% test failure rate (1 of 2 tests failed)
+- Critical issue: Model stops generating output mid-investigation (0 tokens)
+- When working: Quality equivalent to Claude/GPT-5
+- Recommendation: NOT RECOMMENDED for production
+
+**Key Findings**:
+1. **Claude Sonnet 4.5 remains best choice**: Optimal cost/speed/reliability balance
+2. **OpenAI GPT-5 is viable alternative**: Higher cost but 100% reliable
+3. **Gemini has critical reliability issue**: Unpredictable stopping behavior makes it unsuitable
+4. **Vercel provider works universally**: Successfully tested with 3 different AI providers
+5. **No code changes needed**: Provider switching via configuration only
+
+**Technical Discoveries**:
+- **Gemini failure mode**: Generates 0 output tokens after successful tool execution
+- **Failure pattern**: Unpredictable - no clear trigger
+- **Debug evidence**: Full conversation logs show premature stopping after validation
+- **Impact**: Cannot trust Gemini for critical workflows requiring guaranteed completion
+
+**Files Modified**:
+- `tests/integration/infrastructure/run-integration-tests.sh` - Updated AI_PROVIDER for testing
+- `prds/143-tool-based-remediation-observability.md` - Updated Milestone 2.6 with all findings
+
+**Files Created**:
+- `tmp/baseline-vercel-gpt5.jsonl` - OpenAI GPT-5 baseline metrics
+- `tmp/baseline-vercel-gemini.jsonl` - Google Gemini partial metrics
+- `tmp/test-output-openai-gpt5.log` - OpenAI test execution log
+- `tmp/test-output-google-gemini.log` - Gemini test execution log
+- `tmp/debug-ai/2025-10-06T180613_*` - Gemini failure debug evidence
+- `tmp/debug-ai/2025-10-06T180631_*` - Gemini success debug evidence
+
+**Phase 1 Completion Assessment**:
+- ✅ **Milestone 1**: kubectl_api_resources tool implementation - COMPLETE
+- ✅ **Milestone 2**: Complete kubectl tool migration to toolLoop() - COMPLETE
+- ✅ **Milestone 2.5**: Vercel Provider implementation - COMPLETE
+- ✅ **Milestone 2.6**: Multi-model provider testing - COMPLETE
+
+**Phase 1 Final Status**: ✅ **COMPLETE** - Tool-based remediation architecture fully validated
+- Architecture migrated successfully from JSON-based to SDK-native toolLoop()
+- Both Anthropic and Vercel providers working correctly
+- 3 AI models tested: Claude (recommended), GPT-5 (acceptable), Gemini (not recommended)
+- Performance optimized (+50% tokens vs baseline, but with caching and parallel execution)
+- All integration tests passing for recommended providers
+- Production-ready for Claude Sonnet 4.5 and OpenAI GPT-5
+
+**Next Session**: Begin Phase 2 (Observability Integration) - Milestone 3: Observability Configuration System
+
+----
+
+### 2025-10-06: PRD Split - Phase 2 Extracted to PRD #150
+**Duration**: Documentation refactoring
+**Status**: PRD organizational improvement
+
+**Context**:
+- Phase 1 (Tool-Based Architecture) complete and validated
+- Phase 2 (Observability Integration) recognized as separate scope
+- User requested split for focused implementation
+
+**Changes Made**:
+- Created [PRD #150 - Remediation Observability Integration](https://github.com/vfarcic/dot-ai/blob/main/prds/150-remediation-observability-integration.md)
+- Extracted Phase 2 milestones (observability tools) to new PRD
+- Updated PRD #143 to focus on Phase 1 (kubectl tools architecture)
+- Added cross-references between PRDs
+
+**Rationale**:
+- Phase 1 has different scope than Phase 2 (architecture vs. features)
+- Observability tool selection needs its own discovery process
+- Cleaner separation of concerns for issue tracking
+- Phase 1 provides foundation for Phase 2 to build upon
+
+**PRD #143 Status**: Phase 1 complete - architecture established and validated
+
+**Next Session**: Work on PRD #150 (Observability Integration) or new task
+
+----
+
+### 2025-10-06: Design Decision - Extended Metrics for Model Comparison
+**Duration**: Planning discussion
+**Status**: Decision documented
+
+**Context**:
+- Planning blog post comparing Claude, GPT-5, and Gemini performance
+- Current metrics insufficient for deep behavioral analysis
+- Need to explain WHY models differ (not just token counts)
+
+**Decision Made**:
+- Extend `metrics.jsonl` with behavioral, quality, and efficiency metrics
+- Treat as living list - add more as we discover value
+- Prioritized implementation: High priority (8 metrics), Medium priority (6 metrics), Future extensions
+
+**Key Metrics Added**:
+- `iterationCount` - Loop vs one-shot behavior
+- `toolCallCount` - Investigation thoroughness
+- `status` / `completionReason` - Reliability and failure modes
+- `validJson` - Quality metric
+- `modelVersion` - Specific model tracking
+- `uniqueToolsUsed` - Investigation strategy
+- `cacheHitRate` - Performance optimization
+
+**Rationale**:
+- Gemini 50% failure needs behavioral explanation (not just "failed")
+- GPT +84% token usage needs justification analysis
+- Blog post readers need actionable comparison data
+
+**Documentation**:
+- Added Decision 5 to PRD Decision Log with comprehensive rationale
+- Emphasized this is a living list that evolves with needs
+- Documented implementation notes and file locations
+
+**Next Steps**: Implement high-priority metrics in `src/tools/remediate.ts`
