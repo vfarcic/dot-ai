@@ -56,7 +56,7 @@ qdrant:
   enabled: true                     # Deploy Qdrant as dependency (false = use external)
   image:
     repository: qdrant/qdrant       # Qdrant image repository
-    tag: v1.15.4                    # Qdrant image tag
+    tag: v1.15.5                    # Qdrant image tag
   external:
     url: ""                         # External Qdrant URL (required when enabled=false)
     apiKey: ""                      # External Qdrant API key (optional)
