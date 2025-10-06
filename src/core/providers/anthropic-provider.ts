@@ -13,7 +13,7 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, logMetrics } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logMetrics } from './provider-debug-utils';
 
 export class AnthropicProvider implements AIProvider {
   private client: Anthropic;
@@ -66,7 +66,15 @@ export class AnthropicProvider implements AIProvider {
 
     const debugId = generateDebugId(operation);
     debugLogInteraction(debugId, prompt, response, operation, this.getProviderType(), this.model, this.debugMode);
-    logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
+    // Use logMetrics for sendMessage calls (simple token structure, no extended metrics)
+    logMetrics(operation, this.getProviderType(), {
+      totalTokens: {
+        input: response.usage.input_tokens,
+        output: response.usage.output_tokens,
+        cacheCreation: response.usage.cache_creation_input_tokens,
+        cacheRead: response.usage.cache_read_input_tokens
+      }
+    }, durationMs, this.debugMode);
   }
 
   async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
@@ -244,25 +252,24 @@ export class AnthropicProvider implements AIProvider {
             (c): c is Anthropic.TextBlock => c.type === 'text'
           );
 
-          const result: AgenticResult = {
+          return createAndLogAgenticResult({
             finalMessage: textContent?.text || '',
             iterations,
             toolCallsExecuted,
-            totalTokens
-          };
-
-          // Log summary metrics for the entire tool loop
-          const durationMs = Date.now() - startTime;
-          if (this.debugMode) {
-            logMetrics(`${operation}-summary`, this.getProviderType(), {
-              input_tokens: totalTokens.input,
-              output_tokens: totalTokens.output,
-              cache_creation_input_tokens: totalTokens.cacheCreation,
-              cache_read_input_tokens: totalTokens.cacheRead
-            }, durationMs, this.debugMode);
-          }
-
-          return result;
+            totalTokens: {
+              input: totalTokens.input,
+              output: totalTokens.output,
+              cacheCreation: totalTokens.cacheCreation,
+              cacheRead: totalTokens.cacheRead
+            },
+            status: 'success',
+            completionReason: 'investigation_complete',
+            modelVersion: this.model,
+            operation: `${operation}-summary`,
+            sdk: this.getProviderType(),
+            startTime,
+            debugMode: this.debugMode
+          });
         }
 
         // Execute all requested tools in parallel
@@ -326,13 +333,46 @@ export class AnthropicProvider implements AIProvider {
         }
       }
 
-      throw new Error(`Tool loop exceeded max iterations (${maxIterations})`);
+      // Reached max iterations without completion
+      return createAndLogAgenticResult({
+        finalMessage: `Investigation incomplete - reached maximum ${maxIterations} iterations`,
+        iterations,
+        toolCallsExecuted,
+        totalTokens: {
+          input: totalTokens.input,
+          output: totalTokens.output,
+          cacheCreation: totalTokens.cacheCreation,
+          cacheRead: totalTokens.cacheRead
+        },
+        status: 'failed',
+        completionReason: 'max_iterations',
+        modelVersion: this.model,
+        operation: `${operation}-max-iterations`,
+        sdk: this.getProviderType(),
+        startTime,
+        debugMode: this.debugMode
+      });
 
     } catch (error) {
-      if (error instanceof Error && error.message.includes('exceeded max iterations')) {
-        throw error;
-      }
-      throw new Error(`Anthropic tool loop error: ${error}`);
+      // Return error result with extended metrics
+      return createAndLogAgenticResult({
+        finalMessage: `Error during investigation: ${error instanceof Error ? error.message : String(error)}`,
+        iterations,
+        toolCallsExecuted,
+        totalTokens: {
+          input: totalTokens.input,
+          output: totalTokens.output,
+          cacheCreation: totalTokens.cacheCreation,
+          cacheRead: totalTokens.cacheRead
+        },
+        status: 'failed',
+        completionReason: 'error',
+        modelVersion: this.model,
+        operation: `${operation}-error`,
+        sdk: this.getProviderType(),
+        startTime,
+        debugMode: this.debugMode
+      });
     }
   }
 

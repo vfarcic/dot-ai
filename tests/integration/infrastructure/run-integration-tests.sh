@@ -132,8 +132,13 @@ mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 
 # Step 5: Start MCP server in background
+# Set provider defaults if not already set
+AI_PROVIDER=${AI_PROVIDER:-anthropic}
+AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
+
 log_info "Starting MCP server on port ${PORT}..."
-log_info "Using Anthropic Claude Sonnet via Vercel AI SDK..."
+log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
+
 KUBECONFIG=./kubeconfig-test.yaml \
 PORT=${PORT} \
 DOT_AI_SESSION_DIR=./tmp/sessions \
@@ -141,8 +146,6 @@ DEBUG_DOT_AI=true \
 TRANSPORT_TYPE=http \
 QDRANT_URL=http://localhost:6335 \
 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
-AI_PROVIDER=anthropic \
-AI_PROVIDER_SDK=vercel \
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
 OPENAI_API_KEY=$OPENAI_API_KEY \
 GOOGLE_API_KEY=$GOOGLE_API_KEY \
