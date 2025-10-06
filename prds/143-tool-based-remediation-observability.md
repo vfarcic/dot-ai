@@ -351,12 +351,22 @@ const toolImplementations = {
 - [x] Debug logging infrastructure added (operation parameter, per-iteration logging) ✅
 - [x] Performance optimized to viable production levels ✅ See optimization results below
 
-### Milestone 2.5: Add Vercel Provider Support (Phase 1 Complete)
+### Milestone 2.5: Add Vercel Provider Support (Phase 1 Complete) ✅
 **Goal**: Implement toolLoop() for VercelProvider
-- [ ] Implement `VercelProvider.toolLoop()` using Vercel AI SDK tool APIs
-- [ ] Test all kubectl tools work with Vercel provider
-- [ ] Update integration tests to validate both providers
-- [ ] Document any provider-specific differences
+- [x] Implement `VercelProvider.toolLoop()` using Vercel AI SDK tool APIs ✅ (src/core/providers/vercel-provider.ts:168-398)
+- [x] Test all kubectl tools work with Vercel provider (Anthropic model) ✅ (Integration tests: Manual 76.8s, Automatic 98s - all passing)
+- [x] Update integration tests to validate Vercel provider ✅ (Both Manual and Automatic mode workflows validated)
+- [x] Document provider-specific differences ✅ (Caching approaches, token metrics normalization, SDK version notes)
+
+**Note**: Tested with Anthropic Claude Sonnet via Vercel SDK only. OpenAI and Google Gemini testing pending (Milestone 2.6).
+
+### Milestone 2.6: Multi-Model Provider Testing (Phase 1 Final Validation)
+**Goal**: Validate Vercel provider works with OpenAI and Google Gemini models
+- [ ] Test VercelProvider.toolLoop() with OpenAI GPT-5 model
+- [ ] Test VercelProvider.toolLoop() with Google Gemini 2.5 Pro model
+- [ ] Document any model-specific differences or limitations
+- [ ] Verify caching behavior works correctly for each provider
+- [ ] Update integration tests if provider-specific handling needed
 
 ### Milestone 3: Observability Configuration System (Phase 2 Start)
 **Goal**: Server-level configuration for data sources
@@ -991,3 +1001,55 @@ Completed full migration from JSON-based investigation (400+ line manual loop) t
 - `tmp/baseline-after-caching-before-parallel.jsonl` - After prompt caching
 
 **Next Session**: Begin Milestone 2.5 (Vercel Provider Support) or proceed to Phase 2 (Observability Integration)
+
+----
+
+### 2025-10-06: Milestone 2.5 Complete - Vercel Provider Implementation
+**Duration**: ~4 hours (conversation-based estimation)
+**Status**: Milestone 2.5 Complete ✅ | Milestone 2.6 (Multi-Model Testing) Pending
+
+**Completed PRD Items**:
+- [x] Implement VercelProvider.toolLoop() using Vercel AI SDK - Evidence: src/core/providers/vercel-provider.ts:168-398
+- [x] Provider-specific caching (Anthropic manual, OpenAI automatic) - Evidence: Lines 192-233
+- [x] Test all kubectl tools with Vercel provider (Anthropic model) - Evidence: Integration tests passing (76.8s Manual, 98s Auto)
+- [x] Cache metrics normalization across providers - Evidence: Lines 362-385
+- [x] Integration tests updated and passing - Evidence: Test output shows 100% pass rate
+- [x] Debug infrastructure working (full-context.md, metrics.jsonl) - Evidence: Files generated successfully
+- [x] Document provider differences and findings - Evidence: Comprehensive code comments + conversation analysis
+
+**Key Implementation Details**:
+- Used `generateText()` with `stopWhen: stepCountIs(maxIterations)` for automatic multi-turn loops
+- Anthropic caching via `providerOptions.anthropic.cacheControl` on last tool + system message
+- Tool result extraction: `(part as any).output.value` structure discovered and implemented
+- Cleaned up debug console outputs - all structured data goes to files now
+- SDK version 5.0.60 includes token reporting fixes from PR #8945
+
+**Performance Validation**:
+- **Vercel SDK: 22 iterations in 132 seconds** (36% faster than Anthropic native)
+- **Anthropic Native: 33 iterations in 206 seconds** (baseline comparison)
+- **Efficiency gain**: Vercel reaches conclusions with 33% fewer iterations
+- **Per-iteration speed**: Nearly identical (6.0s vs 6.2s)
+- **Root cause of lower tokens**: Fewer iterations needed, not SDK bug
+
+**Technical Discoveries**:
+- Vercel SDK v5.0.60 includes token reporting fixes (PR #8945 merged Sept 26, 2025)
+- Token reporting appears lower because fewer iterations needed (efficiency, not a bug)
+- Per-step usage data not available - only cumulative totals from `result.usage`
+- Full conversation context properly maintained in `result.response.messages`
+- GitHub issues referenced: #8349 (cache tokens), #8795 (streaming), PR #8945 (fix)
+
+**Additional Work Done**:
+- Investigated token reporting discrepancies - confirmed SDK working correctly
+- Added GitHub issue references (#8349, #8795, #8945) as code comments for future reference
+- Removed unnecessary debug console outputs while keeping file-based debugging
+- Validated tool output extraction with actual integration test data
+- Created comprehensive performance comparison analysis
+
+**Testing Scope**:
+- ✅ Tested: Anthropic Claude Sonnet 4.5 via Vercel AI SDK
+- ⏳ Pending: OpenAI GPT-5 and Google Gemini 2.5 Pro (Milestone 2.6)
+
+**Next Session Priorities**:
+1. **Milestone 2.6**: Test VercelProvider with OpenAI and Google Gemini models
+2. OR **Phase 2 Start**: Begin Milestone 3 (Observability Configuration System)
+3. Consider documenting findings in architecture decision record
