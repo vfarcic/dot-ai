@@ -20,26 +20,35 @@ describe('Remediate Tool Integration', () => {
   });
 
   describe('Manual Mode Workflow', () => {
-    test('should complete full workflow: setup broken pod → investigate → execute → verify cluster fix', async () => {
+    test('should complete full workflow: setup broken deployment → investigate → execute → verify cluster fix', async () => {
       // SETUP: Create namespace
       await integrationTest.kubectl(`create namespace ${testNamespace}`);
 
-      // SETUP: Create pod with insufficient memory (will OOMKill)
+      // SETUP: Create deployment with insufficient memory (will OOMKill)
       await integrationTest.kubectl(`apply -n ${testNamespace} -f - <<'EOF'
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: test-pod
-  namespace: ${testNamespace}
+  name: test-app
+  namespace: remediate-test
 spec:
-  containers:
-  - name: stress
-    image: polinux/stress
-    command: ["stress"]
-    args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
-    resources:
-      limits:
-        memory: "128Mi"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: stress
+        image: polinux/stress
+        command: ["stress"]
+        args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
+        resources:
+          limits:
+            memory: "128Mi"
 EOF`);
 
       // Wait for pod to start and crash at least once (with retry loop)
@@ -50,22 +59,25 @@ EOF`);
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWaitTime) {
-        const podInfo = await integrationTest.kubectl(
-          `get pod test-pod -n ${testNamespace} -o json`
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${testNamespace} -l app=test-app -o json`
         );
 
-        // Skip if empty response (pod not ready yet)
-        if (!podInfo || podInfo.trim() === '') {
+        // Skip if empty response (pods not ready yet)
+        if (!podsJson || podsJson.trim() === '') {
           await new Promise(resolve => setTimeout(resolve, checkInterval));
           continue;
         }
 
-        podData = JSON.parse(podInfo);
+        const podsData = JSON.parse(podsJson);
+        if (podsData.items && podsData.items.length > 0) {
+          podData = podsData.items[0];
 
-        if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
-          restartCountInitial = podData.status.containerStatuses[0].restartCount;
-          if (restartCountInitial > 0) {
-            break; // Pod has crashed and restarted
+          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+            restartCountInitial = podData.status.containerStatuses[0].restartCount;
+            if (restartCountInitial > 0) {
+              break; // Pod has crashed and restarted
+            }
           }
         }
 
@@ -81,7 +93,7 @@ EOF`);
       // PHASE 1: AI Investigation
       const investigationResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
-        { issue: `test-pod in ${testNamespace} namespace is crashing` }
+        { issue: `my app in ${testNamespace} namespace is crashing` }
       );
 
       // Validate investigation response (based on actual curl inspection)
@@ -94,7 +106,7 @@ EOF`);
             investigation: {
               iterations: expect.any(Number),
               dataGathered: expect.arrayContaining([
-                expect.stringContaining('Analyzed')
+                expect.stringMatching(/^kubectl_\w+ \(call \d+\)$/)
               ])
             },
             analysis: {
@@ -217,31 +229,34 @@ EOF`);
 
       // PHASE 3: Verify ACTUAL cluster remediation ✅ KEY VALIDATION
 
-      // Wait for pod to be recreated and stabilize
+      // Wait for deployment to rollout new pods with updated memory
       await new Promise(resolve => setTimeout(resolve, 10000));
 
-      // Verify pod is now running (not crashing)
-      const afterStatus = await integrationTest.kubectl(
-        `get pod test-pod -n ${testNamespace} -o jsonpath='{.status.phase}'`
+      // Get pod managed by deployment
+      const afterPodsJson = await integrationTest.kubectl(
+        `get pods -n ${testNamespace} -l app=test-app -o json`
       );
-      expect(afterStatus).toBe('Running');
+      const afterPodsData = JSON.parse(afterPodsJson);
+      expect(afterPodsData.items.length).toBeGreaterThan(0);
+      const afterPod = afterPodsData.items[0];
+
+      // Verify pod is now running (not crashing)
+      expect(afterPod.status.phase).toBe('Running');
 
       // Verify pod has not restarted since fix (restart count should be 0 for new pod)
-      const afterRestartCount = await integrationTest.kubectl(
-        `get pod test-pod -n ${testNamespace} -o jsonpath='{.status.containerStatuses[0].restartCount}'`
-      );
-      expect(parseInt(afterRestartCount)).toBe(0); // New pod should have no restarts
+      expect(afterPod.status.containerStatuses[0].restartCount).toBe(0);
 
       // Verify pod is actually healthy (Ready condition)
-      const readyCondition = await integrationTest.kubectl(
-        `get pod test-pod -n ${testNamespace} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'`
-      );
-      expect(readyCondition).toBe('True');
+      const readyCondition = afterPod.status.conditions.find((c: any) => c.type === 'Ready');
+      expect(readyCondition.status).toBe('True');
 
-      // Verify memory limit was increased (should be higher than original 128Mi)
-      const memoryLimit = await integrationTest.kubectl(
-        `get pod test-pod -n ${testNamespace} -o jsonpath='{.spec.containers[0].resources.limits.memory}'`
+      // Verify deployment memory limit was increased (should be higher than original 128Mi)
+      const deploymentJson = await integrationTest.kubectl(
+        `get deployment test-app -n ${testNamespace} -o json`
       );
+      const deploymentData = JSON.parse(deploymentJson);
+      const memoryLimit = deploymentData.spec.template.spec.containers[0].resources.limits.memory;
+
       // Parse memory value and verify it's greater than 128Mi
       const memValue = parseInt(memoryLimit.replace(/Mi|Gi/, ''));
       const isGi = memoryLimit.includes('Gi');

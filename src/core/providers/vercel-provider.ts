@@ -13,8 +13,6 @@ import {
   AIProvider,
   AIResponse,
   AIProviderConfig,
-  AITool,
-  ToolExecutor,
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
@@ -162,24 +160,4 @@ export class VercelProvider implements AIProvider {
     throw new Error(`toolLoop() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based agentic loops (recommended).`);
   }
 
-  /**
-   * Single-shot tool calling - NOT IMPLEMENTED for Vercel provider
-   *
-   * Same reasoning as toolLoop(): not currently needed in codebase.
-   * JSON-based approach achieves same functionality without SDK overhead.
-   *
-   * See AnthropicProvider.sendMessageWithTools() for reference implementation.
-   */
-  async sendMessageWithTools(
-    _message: string,
-    _tools: AITool[],
-    _toolExecutor: ToolExecutor,
-    _operation: string = 'tool-call'
-  ): Promise<AIResponse & { toolCalls?: any[] }> {
-    if (!this.isInitialized()) {
-      throw new Error(`${this.providerType} provider not initialized`);
-    }
-
-    throw new Error(`sendMessageWithTools() not implemented for ${this.providerType} provider. Use AnthropicProvider for tool-based workflows, or use JSON-based approach (recommended).`);
-  }
 }
