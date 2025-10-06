@@ -9,7 +9,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe('Remediate Tool Integration', () => {
+describe.concurrent('Remediate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
   const testNamespace = 'remediate-test';
 

@@ -30,7 +30,7 @@ export const KUBECTL_API_RESOURCES_TOOL: AITool = {
  */
 export const KUBECTL_GET_TOOL: AITool = {
   name: 'kubectl_get',
-  description: 'Get Kubernetes resources and their current state. Use this to list resources, check their status, and gather basic information about pods, deployments, services, configmaps, secrets, nodes, etc. Supports filtering with label selectors and custom output formats.',
+  description: 'Get Kubernetes resources and their current state in TABLE FORMAT (most efficient). Returns compact table with NAME, STATUS, READY, AGE columns. Use this to list resources and check basic status. For detailed information, use kubectl_describe instead. IMPORTANT: Always returns table format - output format flags like -o=yaml or -o=json are automatically stripped.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -45,7 +45,7 @@ export const KUBECTL_GET_TOOL: AITool = {
       args: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Additional kubectl arguments (e.g., ["-o=json"], ["--selector=app=myapp"], ["-o=custom-columns=NAME:.metadata.name,STATUS:.status.phase"]). Use these for filtering, output formatting, and field selection.'
+        description: 'Filtering arguments only (e.g., ["--selector=app=myapp"], ["--field-selector=status.phase=Running"], ["--all-namespaces"], ["--show-labels"]). Output format flags (-o=yaml, -o=json, etc.) are NOT allowed and will be automatically stripped.'
       }
     },
     required: ['resource']
@@ -258,9 +258,19 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
           cmdArgs.push('-n', namespace);
         }
 
-        // Add additional arguments
+        // Strip output format args - we always return table format for efficiency
+        // Allow filtering args like --selector, --field-selector, --all-namespaces, --show-labels
         if (args && Array.isArray(args)) {
-          cmdArgs.push(...args);
+          const filteredArgs = args.filter(arg => {
+            const argLower = arg.toLowerCase();
+            // Block any output format flags
+            return !argLower.startsWith('-o=') &&
+                   !argLower.startsWith('-o') &&
+                   !argLower.startsWith('--output') &&
+                   !argLower.includes('=json') &&
+                   !argLower.includes('=yaml');
+          });
+          cmdArgs.push(...filteredArgs);
         }
 
         const output = await executeKubectl(cmdArgs);

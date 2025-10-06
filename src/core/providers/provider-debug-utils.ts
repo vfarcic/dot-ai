@@ -37,7 +37,12 @@ export function generateDebugId(operation: string): string {
 export function logMetrics(
   operation: string,
   provider: string,
-  usage: { input_tokens: number; output_tokens: number },
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  },
   durationMs: number,
   debugMode: boolean
 ): void {
@@ -47,16 +52,24 @@ export function logMetrics(
     const debugDir = ensureDebugDirectory();
     const metricsFile = path.join(debugDir, 'metrics.jsonl');
 
-    const entry = JSON.stringify({
+    const entry: any = {
       timestamp: new Date().toISOString(),
       provider,
       operation,
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
       durationMs
-    }) + '\n';
+    };
 
-    fs.appendFileSync(metricsFile, entry);
+    // Add cache metrics if present
+    if (usage.cache_creation_input_tokens) {
+      entry.cacheCreationTokens = usage.cache_creation_input_tokens;
+    }
+    if (usage.cache_read_input_tokens) {
+      entry.cacheReadTokens = usage.cache_read_input_tokens;
+    }
+
+    fs.appendFileSync(metricsFile, JSON.stringify(entry) + '\n');
   } catch (error) {
     console.warn('Failed to log metrics:', error);
   }

@@ -170,12 +170,9 @@ async function conductInvestigation(
   });
 
   try {
-    // Load investigation prompt template
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate.md');
-    const promptTemplate = fs.readFileSync(promptPath, 'utf8');
-
-    // Replace template variable with issue description
-    const investigationPrompt = promptTemplate.replace('{issue}', session.issue);
+    // Load investigation system prompt (static, cacheable)
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-system.md');
+    const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
     logger.debug('Starting toolLoop with kubectl investigation tools', {
       requestId,
@@ -184,9 +181,10 @@ async function conductInvestigation(
     });
 
     // Use toolLoop for AI-driven investigation with kubectl tools
+    // System prompt is static (cached), issue description is dynamic (userMessage)
     const result = await aiProvider.toolLoop({
-      systemPrompt: investigationPrompt,
-      userMessage: '',
+      systemPrompt: systemPrompt,
+      userMessage: `Investigate this Kubernetes issue: ${session.issue}`,
       tools: KUBECTL_INVESTIGATION_TOOLS,
       toolExecutor: executeKubectlTools,
       maxIterations: maxIterations,
