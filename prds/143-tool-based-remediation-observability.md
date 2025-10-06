@@ -1416,3 +1416,77 @@ Completed full migration from JSON-based investigation (400+ line manual loop) t
 - Documented implementation notes and file locations
 
 **Next Steps**: Implement high-priority metrics in `src/tools/remediate.ts`
+
+----
+
+### 2025-10-07: Decision 5 Implementation - Extended Metrics Collection Complete
+**Duration**: ~2 hours (based on conversation timestamps)
+**Status**: ✅ Extended metrics infrastructure COMPLETE
+
+**Completed Work**:
+- [x] Extended `AgenticResult` interface with new metrics fields (flat structure)
+- [x] Implemented `logMetrics()` function accepting result object
+- [x] Created `createAndLogAgenticResult()` helper to reduce provider duplication
+- [x] Updated both AnthropicProvider and VercelProvider to use helper
+- [x] Added manual annotation placeholders for post-test analysis
+- [x] Renamed `provider` field to `sdk` for clarity (distinguishes SDK from model)
+- [x] Configured test script defaults (native Anthropic SDK, env var override support)
+
+**Key Architectural Decisions**:
+1. **Flat metrics structure**: Rejected nested "extendedMetrics" wrapper - made all metrics first-class fields in AgenticResult
+2. **Shared helper function**: Created `createAndLogAgenticResult()` to eliminate ~50 lines of duplication across providers
+3. **SDK vs Provider naming**: Renamed field from `provider` to `sdk` to distinguish SDK implementation (vercel/anthropic) from AI model
+4. **Test defaults**: Made native Anthropic the default SDK to match CI configuration, support env var override (`AI_PROVIDER_SDK=vercel`)
+
+**Extended Metrics Implemented (Decision 5)**:
+- `iterationCount` - Number of conversation turns in investigation loop
+- `toolCallCount` - Total tools executed (investigation thoroughness metric)
+- `uniqueToolsUsed` - Array of distinct tool names called
+- `status` - "success" | "failed" | "timeout" | "parse_error" (reliability tracking)
+- `completionReason` - "investigation_complete" | "max_iterations" | "parse_failure" | "model_stopped" | "error"
+- `modelVersion` - Specific model ID (e.g., "claude-sonnet-4-5-20250929")
+- `cacheHitRate` - Percentage of tokens from cache (calculated from cacheRead/input ratio)
+
+**Manual Annotation Placeholders**:
+- `manualNotes` - General observations after test review
+- `failureReason` - Root cause of failures
+- `qualityIssues` - List of quality problems discovered
+- `comparisonNotes` - Cross-model comparison insights
+
+**Critical Discovery - Token Reporting Discrepancy**:
+- Native Anthropic SDK reports **2-3x more tokens** than Vercel SDK
+- **Test Results**:
+  - Native Anthropic: 11,493 input / 1,293 output tokens (1st investigation)
+  - Vercel SDK: 3,682 input / 440 output tokens (1st investigation)
+  - **Difference**: 3.1x more input, 2.9x more output via native SDK
+- **Same model** (claude-sonnet-4-5-20250929), same operations, similar durations
+- Confirms Vercel SDK **underreports ~70% of tokens** compared to native Anthropic SDK
+- Aligns with code comment in vercel-provider.ts:371 about token discrepancy
+- **Impact**: Cannot trust Vercel SDK token metrics for cost estimation
+
+**Files Modified**:
+- `src/core/ai-provider.interface.ts` - Extended `AgenticResult` interface with new fields
+- `src/core/providers/provider-debug-utils.ts` - Updated `logMetrics()` signature, added `createAndLogAgenticResult()` helper
+- `src/core/providers/anthropic-provider.ts` - Updated all toolLoop exit points to use helper (3 locations)
+- `src/core/providers/vercel-provider.ts` - Changed `getProviderType()` to return 'vercel', updated to use helper (2 locations)
+- `tests/integration/infrastructure/run-integration-tests.sh` - Added env var defaults with logging
+
+**Metrics Storage**:
+- Location: `tests/integration/metrics/` (committed to Git for historical comparison)
+- Format: Compact JSONL (one JSON object per line, no commas between objects)
+- Baseline saved: `anthropic-native-sonnet-20251007-001434.jsonl`
+- Purpose: Enable regression detection, historical comparison, documentation
+
+**Test Validation**:
+- ✅ Build succeeded with no errors
+- ✅ Integration tests passed with native Anthropic SDK
+- ✅ Metrics properly captured with `sdk: "anthropic"` field
+- ✅ Manual annotation placeholders present in output
+- ✅ Extended metrics populated correctly
+
+**Next Session Priorities**:
+1. Run comprehensive tests across all providers (Anthropic, Vercel, OpenAI, Google Gemini)
+2. Populate manual annotation fields after analyzing test results
+3. Complete full model comparison analysis (6 models total per Decision 6)
+4. Investigate Vercel SDK token reporting discrepancy (consider filing GitHub issue)
+5. Use extended metrics to create blog post comparing AI model performance

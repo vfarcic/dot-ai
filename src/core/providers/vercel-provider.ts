@@ -16,7 +16,7 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, logMetrics } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, logMetrics, createAndLogAgenticResult } from './provider-debug-utils';
 
 /**
  * Provider-specific default models
@@ -89,7 +89,7 @@ export class VercelProvider implements AIProvider {
   }
 
   getProviderType(): string {
-    return this.providerType;
+    return 'vercel';
   }
 
   getDefaultModel(): string {
@@ -110,7 +110,15 @@ export class VercelProvider implements AIProvider {
 
     const debugId = generateDebugId(operation);
     debugLogInteraction(debugId, prompt, response, operation, this.getProviderType(), this.model, this.debugMode);
-    logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
+    // Use logMetrics for sendMessage calls (simple token structure, no extended metrics)
+    logMetrics(operation, this.getProviderType(), {
+      totalTokens: {
+        input: response.usage.input_tokens,
+        output: response.usage.output_tokens,
+        cacheCreation: response.usage.cache_creation_input_tokens,
+        cacheRead: response.usage.cache_read_input_tokens
+      }
+    }, durationMs, this.debugMode);
   }
 
   async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
@@ -142,7 +150,14 @@ export class VercelProvider implements AIProvider {
       if (this.debugMode) {
         const debugId = generateDebugId(operation);
         debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
-        logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
+        logMetrics(operation, this.getProviderType(), {
+          totalTokens: {
+            input: response.usage.input_tokens,
+            output: response.usage.output_tokens,
+            cacheCreation: response.usage.cache_creation_input_tokens,
+            cacheRead: response.usage.cache_read_input_tokens
+          }
+        }, durationMs, this.debugMode);
       }
 
       return response;
@@ -373,31 +388,45 @@ export class VercelProvider implements AIProvider {
         }
       }
 
-      const agenticResult: AgenticResult = {
+      return createAndLogAgenticResult({
         finalMessage: finalText || '',
         iterations: result.steps?.length || 1,
         toolCallsExecuted,
         totalTokens: {
           input: usage.inputTokens || 0,
-          output: usage.outputTokens || 0
-        }
-      };
-
-      // Log metrics if debug mode enabled
-      const durationMs = Date.now() - startTime;
-      if (this.debugMode) {
-        logMetrics(`${operation}-summary`, this.getProviderType(), {
-          input_tokens: usage.inputTokens || 0,
-          output_tokens: usage.outputTokens || 0,
-          cache_creation_input_tokens: cacheCreationTokens,
-          cache_read_input_tokens: cacheReadTokens
-        }, durationMs, this.debugMode);
-      }
-
-      return agenticResult;
+          output: usage.outputTokens || 0,
+          cacheCreation: cacheCreationTokens,
+          cacheRead: cacheReadTokens
+        },
+        status: 'success',
+        completionReason: 'investigation_complete',
+        modelVersion: this.model,
+        operation: `${operation}-summary`,
+        sdk: this.getProviderType(),
+        startTime,
+        debugMode: this.debugMode
+      });
 
     } catch (error) {
-      throw new Error(`${this.providerType} toolLoop error: ${error}`);
+      // Return error result with extended metrics
+      return createAndLogAgenticResult({
+        finalMessage: `Error during investigation: ${error instanceof Error ? error.message : String(error)}`,
+        iterations: 0,
+        toolCallsExecuted: [],
+        totalTokens: {
+          input: 0,
+          output: 0,
+          cacheCreation: 0,
+          cacheRead: 0
+        },
+        status: 'failed',
+        completionReason: 'error',
+        modelVersion: this.model,
+        operation: `${operation}-error`,
+        sdk: this.getProviderType(),
+        startTime,
+        debugMode: this.debugMode
+      });
     }
   }
 

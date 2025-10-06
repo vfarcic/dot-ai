@@ -153,11 +153,22 @@ export interface AgenticResult {
     output: any;
   }>;
 
-  /** Token usage statistics */
+  /** Token usage statistics including cache metrics */
   totalTokens: {
     input: number;
     output: number;
+    cacheCreation?: number;
+    cacheRead?: number;
   };
+
+  /** Execution status (PRD #143 Decision 5) */
+  status?: 'success' | 'failed' | 'timeout' | 'parse_error';
+
+  /** Reason for loop completion (PRD #143 Decision 5) */
+  completionReason?: 'investigation_complete' | 'max_iterations' | 'parse_failure' | 'model_stopped' | 'error';
+
+  /** Specific model version used (PRD #143 Decision 5) */
+  modelVersion?: string;
 }
 
 /**
