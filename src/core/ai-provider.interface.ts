@@ -224,22 +224,4 @@ export interface AIProvider {
    */
   toolLoop(config: ToolLoopConfig): Promise<AgenticResult>;
 
-  /**
-   * Single-shot message with tool calling enabled (NEW - PRD #136)
-   *
-   * AI can call tools, but only processes one round.
-   * Useful for simple tool use cases that don't require iteration.
-   *
-   * @param message The message/prompt to send
-   * @param tools Available tools for this request
-   * @param toolExecutor Function to execute tool calls
-   * @param operation Optional operation identifier for debugging
-   * @returns AI response with content, usage, and any tool calls made
-   */
-  sendMessageWithTools(
-    message: string,
-    tools: AITool[],
-    toolExecutor: ToolExecutor,
-    operation?: string
-  ): Promise<AIResponse & { toolCalls?: any[] }>;
 }

@@ -10,8 +10,6 @@ import {
   AIProvider,
   AIResponse,
   AIProviderConfig,
-  AITool,
-  ToolExecutor,
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
@@ -53,6 +51,22 @@ export class AnthropicProvider implements AIProvider {
 
   isInitialized(): boolean {
     return this.client !== undefined;
+  }
+
+  /**
+   * Helper method to log debug information if debug mode is enabled
+   */
+  private logDebugIfEnabled(
+    operation: string,
+    prompt: string,
+    response: AIResponse,
+    durationMs: number
+  ): void {
+    if (!this.debugMode) return;
+
+    const debugId = generateDebugId(operation);
+    debugLogInteraction(debugId, prompt, response, operation, this.getProviderType(), this.model, this.debugMode);
+    logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
   }
 
   async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
@@ -98,11 +112,7 @@ export class AnthropicProvider implements AIProvider {
       const durationMs = Date.now() - startTime;
 
       // Debug log the interaction if enabled
-      if (this.debugMode) {
-        const debugId = generateDebugId(operation);
-        debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
-        logMetrics(operation, this.getProviderType(), response.usage, durationMs, this.debugMode);
-      }
+      this.logDebugIfEnabled(operation, message, response, durationMs);
 
       return response;
 
@@ -158,10 +168,12 @@ export class AnthropicProvider implements AIProvider {
     const toolCallsExecuted: Array<{ tool: string; input: any; output: any }> = [];
     const totalTokens = { input: 0, output: 0 };
     const maxIterations = config.maxIterations || 20;
+    const operation = config.operation || 'tool-loop';
 
     try {
       while (iterations < maxIterations) {
         iterations++;
+        const iterationStartTime = Date.now();
 
         // Call Anthropic API with tools
         const response = await this.client.messages.create({
@@ -174,6 +186,24 @@ export class AnthropicProvider implements AIProvider {
         // Track token usage
         totalTokens.input += response.usage.input_tokens;
         totalTokens.output += response.usage.output_tokens;
+
+        // Debug log this iteration if enabled
+        if (this.debugMode) {
+          const currentPrompt = conversationHistory.map(m =>
+            typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2)
+          ).join('\n\n---\n\n');
+
+          const aiResponse: AIResponse = {
+            content: response.content.map(c => c.type === 'text' ? c.text : `[${c.type}]`).join('\n'),
+            usage: {
+              input_tokens: response.usage.input_tokens,
+              output_tokens: response.usage.output_tokens
+            }
+          };
+
+          const iterationDurationMs = Date.now() - iterationStartTime;
+          this.logDebugIfEnabled(`${operation}-iter${iterations}`, currentPrompt, aiResponse, iterationDurationMs);
+        }
 
         // Check if AI wants to use tools
         const toolUses = response.content.filter(
@@ -193,11 +223,10 @@ export class AnthropicProvider implements AIProvider {
             totalTokens
           };
 
-          // Log metrics for the entire tool loop
+          // Log summary metrics for the entire tool loop
           const durationMs = Date.now() - startTime;
           if (this.debugMode) {
-            const operation = config.operation || 'tool-loop';
-            logMetrics(operation, this.getProviderType(), {
+            logMetrics(`${operation}-summary`, this.getProviderType(), {
               input_tokens: totalTokens.input,
               output_tokens: totalTokens.output
             }, durationMs, this.debugMode);
@@ -259,78 +288,4 @@ export class AnthropicProvider implements AIProvider {
     }
   }
 
-  async sendMessageWithTools(
-    message: string,
-    tools: AITool[],
-    toolExecutor: ToolExecutor,
-    operation: string = 'tool-call'
-  ): Promise<AIResponse & { toolCalls?: any[] }> {
-    if (!this.client) {
-      throw new Error('Anthropic client not initialized');
-    }
-
-    // Convert AITool[] to Anthropic Tool format
-    const anthropicTools: Anthropic.Tool[] = tools.map(t => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.inputSchema
-    }));
-
-    try {
-      // Single API call with tools
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: message }],
-        tools: anthropicTools
-      });
-
-      const toolCalls: any[] = [];
-      let textContent = '';
-
-      // Process response content
-      for (const block of response.content) {
-        if (block.type === 'text') {
-          textContent += block.text;
-        } else if (block.type === 'tool_use') {
-          // Execute the tool
-          try {
-            const result = await toolExecutor(block.name, block.input);
-            toolCalls.push({
-              tool: block.name,
-              input: block.input,
-              output: result
-            });
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            toolCalls.push({
-              tool: block.name,
-              input: block.input,
-              error: errorMessage
-            });
-          }
-        }
-      }
-
-      const aiResponse: AIResponse & { toolCalls?: any[] } = {
-        content: textContent,
-        usage: {
-          input_tokens: response.usage.input_tokens,
-          output_tokens: response.usage.output_tokens
-        },
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined
-      };
-
-      // Debug log if enabled
-      if (this.debugMode) {
-        const debugId = generateDebugId(operation);
-        debugLogInteraction(debugId, message, aiResponse, operation, this.getProviderType(), this.model, this.debugMode);
-      }
-
-      return aiResponse;
-
-    } catch (error) {
-      throw new Error(`Anthropic tool call error: ${error}`);
-    }
-  }
 }

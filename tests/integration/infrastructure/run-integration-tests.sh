@@ -137,6 +137,7 @@ log_info "Using default AI provider (Anthropic Claude Sonnet with native SDK)...
 KUBECONFIG=./kubeconfig-test.yaml \
 PORT=${PORT} \
 DOT_AI_SESSION_DIR=./tmp/sessions \
+DEBUG_DOT_AI=${DEBUG_DOT_AI:-} \
 TRANSPORT_TYPE=http \
 QDRANT_URL=http://localhost:6335 \
 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
