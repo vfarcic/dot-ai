@@ -1,9 +1,10 @@
 # PRD: Tool-Based Remediation with Observability Data Sources
 
 **Created**: 2025-10-06
-**Status**: Draft
+**Status**: Complete
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-10-06
+**Last Updated**: 2025-10-07
+**Completed**: 2025-10-07
 **GitHub Issue**: [#143](https://github.com/vfarcic/dot-ai/issues/143)
 **Priority**: High
 **Complexity**: High
@@ -367,12 +368,10 @@ See [PRD #150 - Remediation Observability Integration](https://github.com/vfarci
 - [x] Verify caching behavior works correctly for each provider ✅
 - [x] Update integration tests if provider-specific handling needed ✅ (No changes needed - tests work with any provider)
 
-**Extended Testing (Blog Post Coverage)** ⏳:
-- [ ] Test with xAI Grok-4 (Challenger segment)
-- [ ] Test with Mistral Large (European/value segment)
-- [ ] Test with DeepSeek-R1 (Budget/reasoning segment)
-- [ ] Capture extended metrics (Decision 5) for all models
-- [ ] Compare behavior patterns across 6 models total
+**Extended Testing (Moved to PRD #151)** ✅:
+- Extended model testing moved to [PRD #151 - AI Model Comparison for MCP Platform](https://github.com/vfarcic/dot-ai/blob/main/prds/151-ai-model-comparison-mcp-platform.md)
+- Comprehensive testing across ALL MCP AI interactions (not just remediation)
+- 6 models total: Claude, GPT-5, Gemini + xAI Grok-4, Mistral Large, DeepSeek-R1
 
 **OpenAI GPT-5 Test Results** (2025-10-06):
 - ✅ All integration tests pass (Manual: 135.8s, Automatic: 125.4s)
@@ -709,9 +708,11 @@ See PRD #150 for detailed milestone descriptions and tasks.
 
 ---
 
-### Decision 6: Expand Model Testing Coverage for Comprehensive Blog Post
-**Date**: 2025-10-06
+### Decision 6: Expand Model Testing Coverage (Moved to PRD #151)
+**Date**: 2025-10-06  
 **Decision**: Test 3 additional AI models beyond initial "Big 3" (Claude, GPT-5, Gemini) to provide comprehensive market comparison covering different market segments and use cases.
+
+**Status**: **MOVED TO PRD #151** - Extended to comprehensive MCP platform testing rather than remediation-only.
 
 **Context**:
 - Initial testing covered premium providers (Claude, GPT-5) and identified reliability issues (Gemini 50% failure)
