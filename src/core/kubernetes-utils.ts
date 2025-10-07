@@ -15,6 +15,7 @@ export interface KubectlConfig {
   namespace?: string;
   kubeconfig?: string;
   timeout?: number;
+  stdin?: string;  // For piping input to kubectl (e.g., apply -f -)
 }
 
 /**
@@ -25,7 +26,40 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
   const timeout = config?.timeout || 30000;
 
   try {
-    const { stdout, stderr } = await execAsync(command, { 
+    // If stdin is provided, use spawn for proper stdin piping
+    if (config?.stdin) {
+      const { spawn } = require('child_process');
+      return new Promise((resolve, reject) => {
+        let stdout = '';
+        let stderr = '';
+
+        const proc = spawn('sh', ['-c', command], {
+          timeout,
+          maxBuffer: 100 * 1024 * 1024
+        });
+
+        proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+        proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+        proc.on('error', (error: Error) => reject(error));
+        proc.on('close', (code: number) => {
+          if (code !== 0) {
+            reject(new Error(`kubectl command failed: ${stderr || stdout}`));
+          } else if (stderr && !stderr.includes('Warning')) {
+            reject(new Error(`kubectl command failed: ${stderr}`));
+          } else {
+            resolve(stdout.trim());
+          }
+        });
+
+        // Write stdin and close
+        proc.stdin.write(config.stdin);
+        proc.stdin.end();
+      });
+    }
+
+    // No stdin - use regular execAsync
+    const { stdout, stderr } = await execAsync(command, {
       timeout,
       maxBuffer: 100 * 1024 * 1024  // 100MB buffer for large clusters with 1000+ CRDs
     });
@@ -37,7 +71,7 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
     if (error.code === 'ENOENT') {
       throw new Error('kubectl binary not found. Please install kubectl and ensure it\'s in your PATH.');
     }
-    
+
     // Use error classification for better error messages
     const classified = ErrorClassifier.classifyError(error);
     throw new Error(classified.enhancedMessage);

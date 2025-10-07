@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { AIResponse } from '../ai-provider.interface';
+import { AIResponse, AgenticResult } from '../ai-provider.interface';
 
 /**
  * Create debug directory if it doesn't exist
@@ -33,11 +33,25 @@ export function generateDebugId(operation: string): string {
 
 /**
  * Log metrics for token usage and execution time when DEBUG_DOT_AI=true
+ *
+ * PRD #143 Decision 5: Extended metrics for model comparison analysis
  */
 export function logMetrics(
   operation: string,
-  provider: string,
-  usage: { input_tokens: number; output_tokens: number },
+  sdk: string,
+  result: {
+    totalTokens: {
+      input: number;
+      output: number;
+      cacheCreation?: number;
+      cacheRead?: number;
+    };
+    iterations?: number;
+    toolCallsExecuted?: Array<{ tool: string; input: any; output: any }>;
+    status?: string;
+    completionReason?: string;
+    modelVersion?: string;
+  },
   durationMs: number,
   debugMode: boolean
 ): void {
@@ -47,19 +61,100 @@ export function logMetrics(
     const debugDir = ensureDebugDirectory();
     const metricsFile = path.join(debugDir, 'metrics.jsonl');
 
-    const entry = JSON.stringify({
+    const entry: any = {
       timestamp: new Date().toISOString(),
-      provider,
+      sdk,
       operation,
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
+      inputTokens: result.totalTokens.input,
+      outputTokens: result.totalTokens.output,
       durationMs
-    }) + '\n';
+    };
 
-    fs.appendFileSync(metricsFile, entry);
+    // Add cache metrics if present
+    if (result.totalTokens.cacheCreation !== undefined) {
+      entry.cacheCreationTokens = result.totalTokens.cacheCreation;
+    }
+    if (result.totalTokens.cacheRead !== undefined) {
+      entry.cacheReadTokens = result.totalTokens.cacheRead;
+    }
+
+    // Calculate cache hit rate (percentage)
+    if (result.totalTokens.cacheRead !== undefined && result.totalTokens.input > 0) {
+      entry.cacheHitRate = Math.round((result.totalTokens.cacheRead / result.totalTokens.input) * 100);
+    }
+
+    // Add extended metrics (PRD #143 Decision 5)
+    if (result.iterations !== undefined) {
+      entry.iterationCount = result.iterations;
+    }
+    if (result.toolCallsExecuted) {
+      entry.toolCallCount = result.toolCallsExecuted.length;
+      // Extract unique tool names
+      const uniqueTools = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
+      entry.uniqueToolsUsed = uniqueTools;
+    }
+    if (result.status) {
+      entry.status = result.status;
+    }
+    if (result.completionReason) {
+      entry.completionReason = result.completionReason;
+    }
+    if (result.modelVersion) {
+      entry.modelVersion = result.modelVersion;
+    }
+
+    // Manual annotation placeholders (populate after test analysis)
+    entry.manualNotes = '';
+    entry.failureReason = '';
+    entry.qualityIssues = [];
+    entry.comparisonNotes = '';
+
+    fs.appendFileSync(metricsFile, JSON.stringify(entry) + '\n');
   } catch (error) {
     console.warn('Failed to log metrics:', error);
   }
+}
+
+/**
+ * Create AgenticResult and log metrics in one step
+ * Reduces code duplication across providers
+ *
+ * PRD #143 Decision 5: Standardized metrics logging
+ */
+export function createAndLogAgenticResult(config: {
+  finalMessage: string;
+  iterations: number;
+  toolCallsExecuted: Array<{ tool: string; input: any; output: any }>;
+  totalTokens: {
+    input: number;
+    output: number;
+    cacheCreation: number;
+    cacheRead: number;
+  };
+  status: 'success' | 'failed' | 'timeout' | 'parse_error';
+  completionReason: 'investigation_complete' | 'max_iterations' | 'parse_failure' | 'model_stopped' | 'error';
+  modelVersion: string;
+  operation: string;
+  sdk: string;
+  startTime: number;
+  debugMode: boolean;
+}): AgenticResult {
+  const result: AgenticResult = {
+    finalMessage: config.finalMessage,
+    iterations: config.iterations,
+    toolCallsExecuted: config.toolCallsExecuted,
+    totalTokens: config.totalTokens,
+    status: config.status,
+    completionReason: config.completionReason,
+    modelVersion: config.modelVersion
+  };
+
+  const durationMs = Date.now() - config.startTime;
+  if (config.debugMode) {
+    logMetrics(config.operation, config.sdk, result, durationMs, config.debugMode);
+  }
+
+  return result;
 }
 
 /**
