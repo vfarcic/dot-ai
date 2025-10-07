@@ -42,7 +42,9 @@ RUN apt-get update && \
     curl "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && \
     ./aws/install && \
-    rm -rf awscliv2.zip aws
+    rm -rf awscliv2.zip aws && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install dot-ai globally
 RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
