@@ -28,6 +28,22 @@ RUN ARCH=$(dpkg --print-architecture) && \
     mv "nu-${NU_VERSION}-${NU_ARCH}/nu" /usr/local/bin/ && \
     rm -rf "nu-${NU_VERSION}-${NU_ARCH}" "nu-${NU_VERSION}-${NU_ARCH}.tar.gz"
 
+# Install AWS CLI
+RUN apt-get update && \
+    apt-get install -y unzip && \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        AWS_ARCH="x86_64"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        AWS_ARCH="aarch64"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws
+
 # Install dot-ai globally
 RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
 
