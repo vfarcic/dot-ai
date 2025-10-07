@@ -360,7 +360,7 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
     const parsed = JSON.parse(jsonString) as AIFinalAnalysisResponse;
     
     // Validate required fields
-    if (!parsed.issueStatus || !parsed.rootCause || !parsed.confidence || !Array.isArray(parsed.factors) || !parsed.remediation) {
+    if (!parsed.issueStatus || !parsed.rootCause || parsed.confidence === undefined || !Array.isArray(parsed.factors) || !parsed.remediation) {
       throw new Error('Invalid AI final analysis response structure');
     }
     

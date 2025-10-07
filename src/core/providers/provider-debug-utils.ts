@@ -71,15 +71,15 @@ export function logMetrics(
     };
 
     // Add cache metrics if present
-    if (result.totalTokens.cacheCreation) {
+    if (result.totalTokens.cacheCreation !== undefined) {
       entry.cacheCreationTokens = result.totalTokens.cacheCreation;
     }
-    if (result.totalTokens.cacheRead) {
+    if (result.totalTokens.cacheRead !== undefined) {
       entry.cacheReadTokens = result.totalTokens.cacheRead;
     }
 
     // Calculate cache hit rate (percentage)
-    if (result.totalTokens.cacheRead && result.totalTokens.input > 0) {
+    if (result.totalTokens.cacheRead !== undefined && result.totalTokens.input > 0) {
       entry.cacheHitRate = Math.round((result.totalTokens.cacheRead / result.totalTokens.input) * 100);
     }
 
