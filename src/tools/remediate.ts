@@ -7,31 +7,17 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } fro
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
-import { executeKubectl } from '../core/kubernetes-utils';
+import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+
+// PRD #143 Milestone 1: Hybrid approach - AI can use kubectl_api_resources tool OR continue with JSON dataRequests
 
 // Tool metadata for direct MCP registration
 export const REMEDIATE_TOOL_NAME = 'remediate';
 export const REMEDIATE_TOOL_DESCRIPTION = 'AI-powered Kubernetes issue analysis that provides root cause identification and actionable remediation steps. Unlike basic kubectl commands, this tool performs multi-step investigation, correlates cluster data, and generates intelligent solutions. Use when users want to understand WHY something is broken, not just see raw status. Ideal for: troubleshooting failures, diagnosing performance issues, analyzing pod problems, investigating networking/storage issues, or any "what\'s wrong" questions.';
 
-// Safety: Whitelist of allowed read-only operations
-export const SAFE_OPERATIONS = ['get', 'describe', 'logs', 'events', 'top', 'explain'] as const;
-export type SafeOperation = typeof SAFE_OPERATIONS[number];
-
-/**
- * Check if command arguments contain dry-run flag (making any operation safe)
- */
-function hasDryRunFlag(args?: string[]): boolean {
-  if (!args) return false;
-  return args.some(arg => 
-    arg === '--dry-run=client' || 
-    arg === '--dry-run=server' || 
-    arg === '--dry-run' ||
-    arg.startsWith('--dry-run=')
-  );
-}
 
 // Zod schema for MCP registration
 export const REMEDIATE_TOOL_INPUT_SCHEMA = {
@@ -55,28 +41,10 @@ export interface RemediateInput {
   executedCommands?: string[];  // Commands that were executed to remediate the issue
 }
 
-export interface DataRequest {
-  type: string;  // Allow any kubectl operation
-  resource: string;
-  namespace?: string;
-  args?: string[];  // Additional arguments like --dry-run=client
-  rationale: string;
-}
-
-export interface InvestigationIteration {
-  step: number;
-  aiAnalysis: string;
-  dataRequests: DataRequest[];
-  gatheredData: { [key: string]: any };
-  complete: boolean;
-  timestamp: Date;
-}
-
 export interface RemediateSession {
   sessionId: string;
   issue: string;
   mode: 'manual' | 'automatic';
-  iterations: InvestigationIteration[];
   finalAnalysis?: RemediateOutput;
   created: Date;
   updated: Date;
@@ -184,7 +152,7 @@ function updateSessionFile(sessionDir: string, sessionId: string, updates: Parti
 }
 
 /**
- * AI-driven investigation loop - iteratively gather data and analyze until complete
+ * AI-driven investigation - uses toolLoop for single-phase investigation and analysis
  */
 async function conductInvestigation(
   session: RemediateSession,
@@ -193,245 +161,132 @@ async function conductInvestigation(
   logger: Logger,
   requestId: string
 ): Promise<RemediateOutput> {
-  const maxIterations = 20; // Allow more comprehensive investigations
-  let currentIteration = session.iterations.length;
+  const maxIterations = 20;
 
-  logger.info('Starting AI investigation loop', { 
-    requestId, 
-    sessionId: session.sessionId, 
-    currentIterations: currentIteration 
+  logger.info('Starting AI investigation with toolLoop', {
+    requestId,
+    sessionId: session.sessionId,
+    issue: session.issue
   });
 
-  while (currentIteration < maxIterations) {
-    logger.debug(`Starting investigation iteration ${currentIteration + 1}`, { requestId, sessionId: session.sessionId });
-
-    try {
-      // Get AI analysis with investigation prompts
-      const aiAnalysis = await analyzeCurrentState(session, aiProvider, logger, requestId);
-      
-      // Parse AI response for data requests and completion status
-      const { dataRequests, isComplete, needsMoreSpecificInfo, parsedResponse } = parseAIResponse(aiAnalysis);
-      
-      // Handle early termination when issue description is too vague
-      if (needsMoreSpecificInfo) {
-        logger.info('Investigation terminated: needs more specific information', {
-          requestId,
-          sessionId: session.sessionId,
-          iteration: currentIteration + 1
-        });
-        
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.MEDIUM,
-          'Unable to find relevant resources for the reported issue. Please be more specific about which resource type or component is having problems (e.g., "my sqls.devopstoolkit.live resource named test-db" instead of "my database").',
-          {
-            operation: 'investigation_early_termination',
-            component: 'RemediateTool',
-            input: { sessionId: session.sessionId, issue: session.issue }
-          }
-        );
-      }
-      
-      // Gather safe data from Kubernetes using kubectl
-      const gatheredData = await gatherSafeData(dataRequests, logger, requestId);
-      
-      // Create iteration record
-      const iteration: InvestigationIteration = {
-        step: currentIteration + 1,
-        aiAnalysis,
-        dataRequests,
-        gatheredData,
-        complete: isComplete,
-        timestamp: new Date()
-      };
-      
-      // Store parsed response data if available
-      if (parsedResponse) {
-        logger.debug('AI investigation analysis', {
-          requestId,
-          sessionId: session.sessionId,
-          confidence: parsedResponse.confidence,
-          reasoning: parsedResponse.reasoning,
-          dataRequestCount: parsedResponse.dataRequests.length
-        });
-      }
-
-      // Update session with new iteration
-      session.iterations.push(iteration);
-      updateSessionFile(sessionDir, session.sessionId, { iterations: session.iterations });
-
-      logger.debug('Investigation iteration completed', { 
-        requestId, 
-        sessionId: session.sessionId, 
-        step: iteration.step,
-        dataRequestCount: dataRequests.length,
-        complete: iteration.complete
-      });
-
-      // Check if analysis is complete
-      if (iteration.complete) {
-        logger.info('Investigation completed by AI decision', { 
-          requestId, 
-          sessionId: session.sessionId, 
-          totalIterations: iteration.step,
-          confidence: parsedResponse?.confidence,
-          reasoning: parsedResponse?.reasoning 
-        });
-        break;
-      }
-
-      currentIteration++;
-    } catch (error) {
-      logger.error('Investigation iteration failed', error as Error, { 
-        requestId, 
-        sessionId: session.sessionId, 
-        iteration: currentIteration + 1
-      });
-      
-      // Mark session as failed
-      updateSessionFile(sessionDir, session.sessionId, { status: 'failed' });
-      
-      throw ErrorHandler.createError(
-        ErrorCategory.AI_SERVICE,
-        ErrorSeverity.HIGH,
-        `Investigation failed at iteration ${currentIteration + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        {
-          operation: 'investigation_loop',
-          component: 'RemediateTool',
-          input: { sessionId: session.sessionId, iteration: currentIteration + 1 }
-        }
-      );
-    }
-  }
-
-  // Generate final analysis
-  const finalAnalysis = await generateFinalAnalysis(session, logger, requestId);
-  
-  // Update session with final analysis
-  updateSessionFile(sessionDir, session.sessionId, { 
-    finalAnalysis, 
-    status: 'analysis_complete' 
-  });
-
-  logger.info('Investigation and analysis completed', { 
-    requestId, 
-    sessionId: session.sessionId, 
-    rootCause: finalAnalysis.analysis.rootCause,
-    recommendedActions: finalAnalysis.remediation.actions.length
-  });
-
-  return finalAnalysis;
-}
-
-/**
- * Analyze current state using AI with investigation prompts
- */
-async function analyzeCurrentState(
-  session: RemediateSession,
-  aiProvider: AIProvider,
-  logger: Logger,
-  requestId: string
-): Promise<string> {
-  logger.debug('Analyzing current state with AI', { requestId, sessionId: session.sessionId });
-  
   try {
-    // Load investigation prompt template
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-investigation.md');
-    const promptTemplate = fs.readFileSync(promptPath, 'utf8');
-    
-    // Discover cluster API resources for complete visibility - REQUIRED for quality remediation
-    let clusterApiResources = '';
-    try {
-      // Use kubectl api-resources directly - simple and reliable
-      clusterApiResources = await executeKubectl(['api-resources']);
-      
-      logger.debug('Discovered cluster API resources', { 
-        requestId, 
-        sessionId: session.sessionId,
-        outputLength: clusterApiResources.length
-      });
-    } catch (error) {
-      const errorMessage = `Failed to discover cluster API resources: ${error instanceof Error ? error.message : String(error)}. Complete API visibility is required for quality remediation recommendations.`;
-      logger.error('API discovery failed - aborting remediation', error as Error, { 
-        requestId, 
-        sessionId: session.sessionId
-      });
-      throw new Error(errorMessage);
+    // Load investigation system prompt (static, cacheable)
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-system.md');
+    const systemPrompt = fs.readFileSync(promptPath, 'utf8');
+
+    logger.debug('Starting toolLoop with kubectl investigation tools', {
+      requestId,
+      sessionId: session.sessionId,
+      toolCount: KUBECTL_INVESTIGATION_TOOLS.length
+    });
+
+    // Use toolLoop for AI-driven investigation with kubectl tools
+    // System prompt is static (cached), issue description is dynamic (userMessage)
+    const result = await aiProvider.toolLoop({
+      systemPrompt: systemPrompt,
+      userMessage: `Investigate this Kubernetes issue: ${session.issue}`,
+      tools: KUBECTL_INVESTIGATION_TOOLS,
+      toolExecutor: executeKubectlTools,
+      maxIterations: maxIterations,
+      operation: 'remediate-investigation'
+    });
+
+    logger.info('Investigation completed by toolLoop', {
+      requestId,
+      sessionId: session.sessionId,
+      iterations: result.iterations,
+      toolCallsExecuted: result.toolCallsExecuted.length,
+      responseLength: result.finalMessage.length
+    });
+
+    // Parse final response as JSON (AI returns final analysis in JSON format)
+    const finalAnalysis = parseAIFinalAnalysis(result.finalMessage);
+
+    // Build RemediateOutput from parsed analysis
+    const output: RemediateOutput = {
+      status: finalAnalysis.issueStatus === 'active' ? 'awaiting_user_approval' : 'success',
+      sessionId: session.sessionId,
+      investigation: {
+        iterations: result.iterations,
+        dataGathered: result.toolCallsExecuted.map((tc, i) => `${tc.tool} (call ${i + 1})`)
+      },
+      analysis: {
+        rootCause: finalAnalysis.rootCause,
+        confidence: finalAnalysis.confidence,
+        factors: finalAnalysis.factors
+      },
+      remediation: finalAnalysis.remediation,
+      validationIntent: finalAnalysis.validationIntent,
+      executed: false,
+      mode: session.mode
+    };
+
+    // Add guidance based on issue status
+    if (finalAnalysis.issueStatus === 'resolved' || finalAnalysis.issueStatus === 'non_existent') {
+      const statusMessage = finalAnalysis.issueStatus === 'resolved'
+        ? 'Issue has been successfully resolved'
+        : 'No issues found - system is healthy';
+
+      output.guidance = `✅ ${statusMessage.toUpperCase()}: ${finalAnalysis.remediation.summary}`;
+      output.agentInstructions = `1. Show user that the ${finalAnalysis.issueStatus === 'resolved' ? 'issue has been resolved' : 'no issues were found'}\n2. Display the analysis and confidence level\n3. Explain the current healthy state\n4. No further action required`;
+      output.message = `${statusMessage} with ${Math.round(finalAnalysis.confidence * 100)}% confidence.`;
+    } else {
+      // Active issue - generate execution options
+      const commandsSummary = finalAnalysis.remediation.actions.length === 1
+        ? `The following kubectl command will be executed:\n${finalAnalysis.remediation.actions[0].command}`
+        : `The following ${finalAnalysis.remediation.actions.length} kubectl commands will be executed:\n${finalAnalysis.remediation.actions.map((action, i) => `${i + 1}. ${action.command}`).join('\n')}`;
+
+      const highRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'high');
+      const mediumRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'medium');
+      const riskSummary = [
+        ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review`] : []),
+        ...(mediumRiskActions.length > 0 ? [`${mediumRiskActions.length} MEDIUM RISK actions should be executed with monitoring`] : []),
+        "All actions are designed to be safe kubectl operations (no destructive commands)"
+      ].join('. ');
+
+      output.guidance = `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`;
+      output.agentInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.mode}"\n6. DO NOT automatically execute any commands until user makes their choice`;
+      output.nextAction = 'remediate';
+      output.message = `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`;
     }
 
-    // Prepare template variables
-    const currentIteration = session.iterations.length + 1;
-    const maxIterations = 20;
-    const previousIterationsJson = JSON.stringify(
-      session.iterations.map(iter => ({
-        step: iter.step,
-        analysis: iter.aiAnalysis,
-        dataRequests: iter.dataRequests,
-        gatheredData: iter.gatheredData
-      })), 
-      null, 
-      2
-    );
-    
-    // Replace template variables
-    const investigationPrompt = promptTemplate
-      .replace('{issue}', session.issue)
-      .replace('{currentIteration}', currentIteration.toString())
-      .replace('{maxIterations}', maxIterations.toString())
-      .replace('{previousIterations}', previousIterationsJson)
-      .replace('{clusterApiResources}', clusterApiResources);
-    
-    logger.debug('Sending investigation prompt to AI', { 
-      requestId, 
-      sessionId: session.sessionId,
-      promptLength: investigationPrompt.length,
-      iteration: currentIteration
+    // Update session with final analysis
+    updateSessionFile(sessionDir, session.sessionId, {
+      finalAnalysis: output,
+      status: 'analysis_complete'
     });
-    
-    // Send to AI provider
-    const aiResponse = await aiProvider.sendMessage(investigationPrompt);
-    
-    logger.debug('Received AI analysis response', { 
-      requestId, 
+
+    logger.info('Investigation and analysis completed', {
+      requestId,
       sessionId: session.sessionId,
-      responseLength: aiResponse.content.length
+      rootCause: output.analysis.rootCause,
+      recommendedActions: output.remediation.actions.length
     });
-    
-    return aiResponse.content;
-    
+
+    return output;
+
   } catch (error) {
-    logger.error('Failed to analyze current state with AI', error as Error, { requestId, sessionId: session.sessionId });
-    
+    logger.error('Investigation failed', error as Error, {
+      requestId,
+      sessionId: session.sessionId
+    });
+
+    // Mark session as failed
+    updateSessionFile(sessionDir, session.sessionId, { status: 'failed' });
+
     throw ErrorHandler.createError(
       ErrorCategory.AI_SERVICE,
       ErrorSeverity.HIGH,
-      `AI analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Investigation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       {
-        operation: 'ai_analysis',
+        operation: 'investigation_loop',
         component: 'RemediateTool',
-        requestId,
-        sessionId: session.sessionId,
-        suggestedActions: [
-          'Check AI provider API key is set correctly',
-          'Verify prompts/remediate-investigation.md exists',
-          'Check network connectivity to AI provider'
-        ]
+        input: { sessionId: session.sessionId }
       }
     );
   }
 }
 
-/**
- * AI Response interface matching our prompt format
- */
-interface AIInvestigationResponse {
-  analysis: string;
-  dataRequests: DataRequest[];
-  investigationComplete: boolean;
-  confidence: number;
-  reasoning: string;
-  needsMoreSpecificInfo?: boolean;
-}
 
 /**
  * AI Final Analysis Response interface matching final analysis prompt format
@@ -455,15 +310,57 @@ interface AIFinalAnalysisResponse {
 export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisResponse {
   try {
     // Try to extract JSON from the response
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Use non-greedy match and try to parse incrementally to handle extra text after JSON
+    const firstBraceIndex = aiResponse.indexOf('{');
+    if (firstBraceIndex === -1) {
       throw new Error('No JSON found in AI final analysis response');
     }
-    
-    const parsed = JSON.parse(jsonMatch[0]) as AIFinalAnalysisResponse;
+
+    // Try to find the end of the JSON object by tracking brace depth
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    let jsonEndIndex = -1;
+
+    for (let i = firstBraceIndex; i < aiResponse.length; i++) {
+      const char = aiResponse[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) continue;
+
+      if (char === '{') braceCount++;
+      if (char === '}') {
+        braceCount--;
+        if (braceCount === 0) {
+          jsonEndIndex = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (jsonEndIndex === -1) {
+      throw new Error('Could not find complete JSON object in AI response');
+    }
+
+    const jsonString = aiResponse.substring(firstBraceIndex, jsonEndIndex);
+    const parsed = JSON.parse(jsonString) as AIFinalAnalysisResponse;
     
     // Validate required fields
-    if (!parsed.issueStatus || !parsed.rootCause || !parsed.confidence || !Array.isArray(parsed.factors) || !parsed.remediation) {
+    if (!parsed.issueStatus || !parsed.rootCause || parsed.confidence === undefined || !Array.isArray(parsed.factors) || !parsed.remediation) {
       throw new Error('Invalid AI final analysis response structure');
     }
     
@@ -502,397 +399,6 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
   }
 }
 
-/**
- * Parse AI response for data requests and investigation status
- */
-export function parseAIResponse(aiResponse: string): { dataRequests: DataRequest[], isComplete: boolean, needsMoreSpecificInfo?: boolean, parsedResponse?: AIInvestigationResponse } {
-  try {
-    // Try to extract JSON from the response
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
-    
-    const parsed = JSON.parse(jsonMatch[0]) as AIInvestigationResponse;
-    
-    // Validate required fields
-    if (typeof parsed.investigationComplete !== 'boolean') {
-      throw new Error('Missing or invalid investigationComplete field');
-    }
-    
-    if (!Array.isArray(parsed.dataRequests)) {
-      throw new Error('Missing or invalid dataRequests field');
-    }
-    
-    // Validate data requests format
-    for (const request of parsed.dataRequests) {
-      // Check if operation is safe (read-only) or has dry-run flag
-      const isDryRun = hasDryRunFlag(request.args);
-      const isSafeOperation = SAFE_OPERATIONS.includes(request.type as SafeOperation);
-      
-      if (!isSafeOperation && !isDryRun) {
-        throw new Error(`Invalid data request type: ${request.type}. Allowed: ${SAFE_OPERATIONS.join(', ')} or any operation with --dry-run flag`);
-      }
-      if (!request.resource || !request.rationale) {
-        throw new Error('Data request missing required fields: resource, rationale');
-      }
-    }
-    
-    return {
-      dataRequests: parsed.dataRequests,
-      isComplete: parsed.investigationComplete,
-      needsMoreSpecificInfo: parsed.needsMoreSpecificInfo,
-      parsedResponse: parsed
-    };
-    
-  } catch (error) {
-    // Fallback: try to extract data requests from text patterns
-    console.warn('Failed to parse AI JSON response, using fallback parsing:', error instanceof Error ? error.message : 'Unknown error');
-    
-    // Simple fallback - assume investigation needs to continue and no data requests
-    return {
-      dataRequests: [],
-      isComplete: false
-    };
-  }
-}
-
-/**
- * Data gathering result for a single kubectl request
- */
-interface DataGatheringResult {
-  successful: { [requestId: string]: any };
-  failed: { 
-    [requestId: string]: {
-      error: string;
-      command: string;  
-      suggestion?: string;
-    }
-  };
-  summary: {
-    total: number;
-    successful: number;
-    failed: number;
-  };
-}
-
-/**
- * Gather safe data from Kubernetes using kubectl
- * Implements resilient error handling - failed requests don't kill the investigation
- */
-async function gatherSafeData(
-  dataRequests: DataRequest[],
-  logger: Logger,
-  requestId: string
-): Promise<DataGatheringResult> {
-  logger.debug('Gathering safe data from Kubernetes', { requestId, requestCount: dataRequests.length });
-  
-  const result: DataGatheringResult = {
-    successful: {},
-    failed: {},
-    summary: {
-      total: dataRequests.length,
-      successful: 0,
-      failed: 0
-    }
-  };
-  
-  // Process each data request independently
-  for (let i = 0; i < dataRequests.length; i++) {
-    const request = dataRequests[i];
-    const dataRequestId = `${requestId}-req-${i}`;
-    
-    try {
-      // Safety validation - allow read-only operations OR operations with dry-run flag
-      const isDryRun = hasDryRunFlag(request.args);
-      const isReadOnlyOperation = SAFE_OPERATIONS.includes(request.type as SafeOperation);
-      
-      if (!isReadOnlyOperation && !isDryRun) {
-        const error = `Unsafe operation '${request.type}' - only allowed: ${SAFE_OPERATIONS.join(', ')} or any operation with --dry-run flag`;
-        result.failed[dataRequestId] = {
-          error,
-          command: `kubectl ${request.type} ${request.resource}${request.args ? ' ' + request.args.join(' ') : ''}`,
-          suggestion: 'Use read-only operations (get, describe, logs, events, top) or add --dry-run=client to validate commands safely'
-        };
-        result.summary.failed++;
-        logger.warn('Rejected unsafe kubectl operation', { requestId, dataRequestId, operation: request.type, isDryRun });
-        continue;
-      }
-      
-      // Build kubectl command
-      const args: string[] = [request.type, request.resource];
-      if (request.namespace) {
-        args.push('-n', request.namespace);
-      }
-      
-      // Add any additional arguments (like --dry-run=client)
-      if (request.args && request.args.length > 0) {
-        args.push(...request.args);
-      }
-      
-      // Add output format for structured data (only for read-only commands that support it)
-      if ((request.type === 'get' || request.type === 'events' || request.type === 'top') && !isDryRun) {
-        args.push('-o', 'yaml');
-      }
-      
-      logger.debug('Executing kubectl command', { 
-        requestId, 
-        dataRequestId, 
-        command: `kubectl ${args.join(' ')}`,
-        rationale: request.rationale 
-      });
-      
-      // Execute kubectl command
-      const output = await executeKubectl(args, { timeout: 30000 });
-      
-      // Store successful result
-      result.successful[dataRequestId] = {
-        request,
-        output,
-        command: `kubectl ${args.join(' ')}`,
-        timestamp: new Date().toISOString()
-      };
-      result.summary.successful++;
-      
-      logger.debug('kubectl command successful', { 
-        requestId, 
-        dataRequestId, 
-        outputLength: output.length 
-      });
-      
-    } catch (error) {
-      // Store failed result with error details
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const command = `kubectl ${request.type} ${request.resource}${request.namespace ? ` -n ${request.namespace}` : ''}`;
-      
-      result.failed[dataRequestId] = {
-        error: errorMessage,
-        command,
-        suggestion: generateErrorSuggestion(errorMessage)
-      };
-      result.summary.failed++;
-      
-      logger.warn('kubectl command failed', { 
-        requestId, 
-        dataRequestId, 
-        command,
-        error: errorMessage,
-        rationale: request.rationale
-      });
-    }
-  }
-  
-  logger.info('Data gathering completed', {
-    requestId,
-    successful: result.summary.successful,
-    failed: result.summary.failed,
-    total: result.summary.total
-  });
-  
-  return result;
-}
-
-/**
- * Generate helpful suggestions based on kubectl error messages
- */
-function generateErrorSuggestion(errorMessage: string): string | undefined {
-  const lowerError = errorMessage.toLowerCase();
-  
-  if (lowerError.includes('not found')) {
-    return 'Resource may not exist or may be in a different namespace. Try listing available resources first.';
-  }
-  
-  if (lowerError.includes('forbidden')) {
-    return 'Insufficient permissions. Check RBAC configuration for read access to this resource.';
-  }
-  
-  if (lowerError.includes('namespace') && lowerError.includes('not found')) {
-    return 'Namespace does not exist. Try listing available namespaces first.';
-  }
-  
-  if (lowerError.includes('connection refused') || lowerError.includes('timeout')) {
-    return 'Cannot connect to Kubernetes cluster. Verify cluster connectivity and kubectl configuration.';
-  }
-  
-  return undefined;
-}
-
-
-/**
- * Generate final analysis and remediation recommendations using AI
- */
-async function generateFinalAnalysis(
-  session: RemediateSession,
-  logger: Logger,
-  requestId: string
-): Promise<RemediateOutput> {
-  logger.debug('Generating final analysis with AI', { requestId, sessionId: session.sessionId });
-
-  try {
-    // Initialize AI provider (will validate API key automatically)
-    const aiProvider = createAIProvider();
-
-    // Load final analysis prompt template
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'remediate-final-analysis.md');
-    const promptTemplate = fs.readFileSync(promptPath, 'utf8');
-    
-    // Prepare template variables - extract actual data source identifiers
-    const dataSources = session.iterations.flatMap(iter => {
-      if (iter.gatheredData && iter.gatheredData.successful) {
-        return Object.keys(iter.gatheredData.successful);
-      }
-      return [];
-    });
-    // Compile complete investigation data for AI analysis
-    const completeInvestigationData = session.iterations.map(iter => ({
-      iteration: iter.step,
-      analysis: iter.aiAnalysis,
-      dataGathered: Object.entries(iter.gatheredData).map(([key, value]) => ({
-        source: key,
-        data: typeof value === 'string' ? value.substring(0, 1000) : JSON.stringify(value).substring(0, 1000)
-      }))
-    }));
-
-    // Replace template variables
-    const finalAnalysisPrompt = promptTemplate
-      .replace('{issue}', session.issue)
-      .replace('{iterations}', session.iterations.length.toString())
-      .replace('{dataSources}', dataSources.join(', '))
-      .replace('{completeInvestigationData}', JSON.stringify(completeInvestigationData, null, 2));
-
-    logger.debug('Sending final analysis request to AI provider', { 
-      requestId, 
-      sessionId: session.sessionId,
-      promptLength: finalAnalysisPrompt.length
-    });
-    
-    // Send to AI provider
-    const aiResponse = await aiProvider.sendMessage(finalAnalysisPrompt);
-    
-    logger.debug('Received AI final analysis response', { 
-      requestId, 
-      sessionId: session.sessionId,
-      responseLength: aiResponse.content.length
-    });
-
-    // Parse AI response
-    const finalAnalysis = parseAIFinalAnalysis(aiResponse.content);
-
-    logger.info('Final analysis generated successfully', { 
-      requestId, 
-      sessionId: session.sessionId,
-      confidence: finalAnalysis.confidence,
-      actionCount: finalAnalysis.remediation.actions.length,
-      overallRisk: finalAnalysis.remediation.risk
-    });
-
-    // Convert data sources to human-readable format
-    const humanReadableDataSources = dataSources.length > 0 
-      ? [`Analyzed ${dataSources.length} data sources from ${session.iterations.length} investigation iterations`]
-      : ['cluster-resources', 'pod-status', 'node-capacity'];
-
-    // Handle different issue statuses
-    if (finalAnalysis.issueStatus === 'resolved' || finalAnalysis.issueStatus === 'non_existent') {
-      // Issue is resolved or doesn't exist - return success status
-      const statusMessage = finalAnalysis.issueStatus === 'resolved' 
-        ? 'Issue has been successfully resolved'
-        : 'No issues found - system is healthy';
-        
-      return {
-        status: 'success',
-        analysis: {
-          rootCause: finalAnalysis.rootCause,
-          confidence: finalAnalysis.confidence,
-          factors: finalAnalysis.factors
-        },
-        remediation: {
-          summary: finalAnalysis.remediation.summary,
-          actions: finalAnalysis.remediation.actions,
-          risk: finalAnalysis.remediation.risk
-        },
-        validationIntent: finalAnalysis.validationIntent,
-        sessionId: session.sessionId,
-        investigation: {
-          iterations: session.iterations.length,
-          dataGathered: humanReadableDataSources
-        },
-        executed: false,
-        mode: session.mode,
-        // Success state guidance
-        guidance: `✅ ${statusMessage.toUpperCase()}: ${finalAnalysis.remediation.summary}`,
-        agentInstructions: `1. Show user that the ${finalAnalysis.issueStatus === 'resolved' ? 'issue has been resolved' : 'no issues were found'}\n2. Display the analysis and confidence level\n3. Explain the current healthy state\n4. No further action required`,
-        nextAction: undefined,
-        message: `${statusMessage} with ${Math.round(finalAnalysis.confidence * 100)}% confidence.`
-      };
-    }
-
-    // Issue is active - generate execution options
-    const commandsSummary = finalAnalysis.remediation.actions.length === 1 
-      ? `The following kubectl command will be executed:\n${finalAnalysis.remediation.actions[0].command}`
-      : `The following ${finalAnalysis.remediation.actions.length} kubectl commands will be executed:\n${finalAnalysis.remediation.actions.map((action, i) => `${i + 1}. ${action.command}`).join('\n')}`;
-
-    // Generate risk summary  
-    const highRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'high');
-    const mediumRiskActions = finalAnalysis.remediation.actions.filter(a => a.risk === 'medium');
-    const riskSummary = [
-      ...(highRiskActions.length > 0 ? [`${highRiskActions.length} HIGH RISK actions require careful review`] : []),
-      ...(mediumRiskActions.length > 0 ? [`${mediumRiskActions.length} MEDIUM RISK actions should be executed with monitoring`] : []),
-      "All actions are designed to be safe kubectl operations (no destructive commands)"
-    ].join('. ');
-
-    // Return active issue response with execution choices
-    return {
-      status: 'awaiting_user_approval',
-      analysis: {
-        rootCause: finalAnalysis.rootCause,
-        confidence: finalAnalysis.confidence,
-        factors: finalAnalysis.factors
-      },
-      remediation: {
-        summary: finalAnalysis.remediation.summary,
-        actions: finalAnalysis.remediation.actions,
-        risk: finalAnalysis.remediation.risk
-      },
-      validationIntent: finalAnalysis.validationIntent,
-      sessionId: session.sessionId,
-      investigation: {
-        iterations: session.iterations.length,
-        dataGathered: humanReadableDataSources
-      },
-      executed: false,
-      mode: session.mode,
-      // Active issue guidance
-      guidance: `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`,
-      agentInstructions: `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.mode}"\n6. Do NOT automatically execute any commands until user makes their choice`,
-      nextAction: 'remediate',
-      message: `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`
-    };
-    
-  } catch (error) {
-    logger.error('Failed to generate final analysis', error as Error, { 
-      requestId, 
-      sessionId: session.sessionId 
-    });
-    
-    throw ErrorHandler.createError(
-      ErrorCategory.AI_SERVICE,
-      ErrorSeverity.HIGH,
-      `Final analysis generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      {
-        operation: 'generateFinalAnalysis',
-        component: 'RemediateTool',
-        requestId,
-        sessionId: session.sessionId,
-        suggestedActions: [
-          'Check AI provider API key is set correctly',
-          'Verify prompts/remediate-final-analysis.md exists',
-          'Check network connectivity to AI provider',
-          'Review AI response format for parsing issues'
-        ]
-      }
-    );
-  }
-}
 
 /**
  * Execute user choice from previous session
@@ -1283,7 +789,6 @@ export async function handleRemediateTool(args: any): Promise<any> {
       sessionId,
       issue: validatedInput.issue,
       mode: validatedInput.mode || 'manual',
-      iterations: [],
       created: new Date(),
       updated: new Date(),
       status: 'investigating'

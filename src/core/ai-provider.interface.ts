@@ -19,6 +19,8 @@ export interface AIResponse {
   usage: {
     input_tokens: number;
     output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
   };
 }
 
@@ -151,11 +153,22 @@ export interface AgenticResult {
     output: any;
   }>;
 
-  /** Token usage statistics */
+  /** Token usage statistics including cache metrics */
   totalTokens: {
     input: number;
     output: number;
+    cacheCreation?: number;
+    cacheRead?: number;
   };
+
+  /** Execution status (PRD #143 Decision 5) */
+  status?: 'success' | 'failed' | 'timeout' | 'parse_error';
+
+  /** Reason for loop completion (PRD #143 Decision 5) */
+  completionReason?: 'investigation_complete' | 'max_iterations' | 'parse_failure' | 'model_stopped' | 'error';
+
+  /** Specific model version used (PRD #143 Decision 5) */
+  modelVersion?: string;
 }
 
 /**
@@ -224,22 +237,4 @@ export interface AIProvider {
    */
   toolLoop(config: ToolLoopConfig): Promise<AgenticResult>;
 
-  /**
-   * Single-shot message with tool calling enabled (NEW - PRD #136)
-   *
-   * AI can call tools, but only processes one round.
-   * Useful for simple tool use cases that don't require iteration.
-   *
-   * @param message The message/prompt to send
-   * @param tools Available tools for this request
-   * @param toolExecutor Function to execute tool calls
-   * @param operation Optional operation identifier for debugging
-   * @returns AI response with content, usage, and any tool calls made
-   */
-  sendMessageWithTools(
-    message: string,
-    tools: AITool[],
-    toolExecutor: ToolExecutor,
-    operation?: string
-  ): Promise<AIResponse & { toolCalls?: any[] }>;
 }
