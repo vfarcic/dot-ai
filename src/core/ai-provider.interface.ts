@@ -169,6 +169,12 @@ export interface AgenticResult {
 
   /** Specific model version used (PRD #143 Decision 5) */
   modelVersion?: string;
+
+  /** Debug files created during toolLoop execution (PRD #154) */
+  debugFiles?: {
+    full_prompt: string;
+    full_response: string;
+  };
 }
 
 /**

@@ -9,7 +9,7 @@ import { AIProvider } from './ai-provider.interface';
 import { Logger } from './error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execAsync, getScriptsDir, stripMarkdownCodeBlocks } from './platform-utils';
+import { execAsync, getScriptsDir, extractJsonFromAIResponse } from './platform-utils';
 
 // Import Operation interfaces from the tool (single source of truth)
 export { Operation, OperationCommand } from '../tools/platform/discover-operations.tool';
@@ -80,8 +80,7 @@ export async function discoverOperations(
     const response = await aiProvider.sendMessage(prompt, 'platform-discover-operations');
 
     // Parse operations from AI response
-    const jsonContent = stripMarkdownCodeBlocks(response.content);
-    const operations = JSON.parse(jsonContent);
+    const operations = extractJsonFromAIResponse(response.content);
 
     logger.info?.('Discovered operations from Nu scripts', {
       count: operations.length
@@ -116,9 +115,8 @@ export async function mapIntentToOperation(
     // Send to AI provider for AI-powered intent matching
     const response = await aiProvider.sendMessage(prompt, 'platform-map-intent');
 
-    // Strip markdown code blocks and parse JSON
-    const jsonContent = stripMarkdownCodeBlocks(response.content);
-    const mapping: IntentMapping = JSON.parse(jsonContent);
+    // Extract JSON from AI response with robust parsing
+    const mapping: IntentMapping = extractJsonFromAIResponse(response.content);
 
     // Validate that AI returned required fields
     if (mapping.matched && mapping.operation) {

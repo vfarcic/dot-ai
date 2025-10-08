@@ -159,7 +159,8 @@ async function conductInvestigation(
   sessionDir: string,
   aiProvider: AIProvider,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  isValidation: boolean = false
 ): Promise<RemediateOutput> {
   const maxIterations = 20;
 
@@ -182,13 +183,14 @@ async function conductInvestigation(
 
     // Use toolLoop for AI-driven investigation with kubectl tools
     // System prompt is static (cached), issue description is dynamic (userMessage)
+    const operationName = isValidation ? 'remediate-validation' : 'remediate-investigation';
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.issue}`,
       tools: KUBECTL_INVESTIGATION_TOOLS,
       toolExecutor: executeKubectlTools,
       maxIterations: maxIterations,
-      operation: 'remediate-investigation'
+      operation: operationName
     });
 
     logger.info('Investigation completed by toolLoop', {
@@ -198,6 +200,7 @@ async function conductInvestigation(
       toolCallsExecuted: result.toolCallsExecuted.length,
       responseLength: result.finalMessage.length
     });
+
 
     // Parse final response as JSON (AI returns final analysis in JSON format)
     const finalAnalysis = parseAIFinalAnalysis(result.finalMessage);
@@ -801,13 +804,15 @@ export async function handleRemediateTool(args: any): Promise<any> {
     // Initialize AI provider (will validate API key automatically)
     const aiProvider = createAIProvider();
 
-    // Conduct AI-driven investigation
+    // Conduct AI-driven investigation (detect if this is post-execution validation)
+    const isValidation = validatedInput.executedCommands && validatedInput.executedCommands.length > 0;
     const finalAnalysis = await conductInvestigation(
       session,
       sessionDir,
       aiProvider,
       logger,
-      requestId
+      requestId,
+      isValidation
     );
 
     logger.info('Remediation analysis completed', {

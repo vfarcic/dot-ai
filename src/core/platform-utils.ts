@@ -19,15 +19,43 @@ export function getScriptsDir(): string {
     return path.join(__dirname, '..', '..', 'scripts');
 }
 
+
 /**
- * Strip markdown code blocks from AI response
+ * Extract JSON object from AI response with robust parsing
+ * Handles markdown code blocks and finds proper JSON boundaries
  */
-export function stripMarkdownCodeBlocks(content: string): string {
-  let jsonContent = content.trim();
-  if (jsonContent.startsWith('```json')) {
-    jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  } else if (jsonContent.startsWith('```')) {
-    jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+export function extractJsonFromAIResponse(aiResponse: string): any {
+  let jsonContent = aiResponse;
+  
+  // First try to find JSON wrapped in code blocks
+  const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    jsonContent = codeBlockMatch[1];
+  } else {
+    // Try to find JSON that starts with { and find the matching closing }
+    const startIndex = aiResponse.indexOf('{');
+    if (startIndex !== -1) {
+      let braceCount = 0;
+      let endIndex = startIndex;
+      
+      for (let i = startIndex; i < aiResponse.length; i++) {
+        if (aiResponse[i] === '{') braceCount++;
+        if (aiResponse[i] === '}') braceCount--;
+        if (braceCount === 0) {
+          endIndex = i;
+          break;
+        }
+      }
+      
+      if (endIndex > startIndex) {
+        jsonContent = aiResponse.substring(startIndex, endIndex + 1);
+      }
+    }
   }
-  return jsonContent;
+  
+  try {
+    return JSON.parse(jsonContent.trim());
+  } catch (error) {
+    throw new Error(`Failed to parse JSON from AI response: ${error}`);
+  }
 }

@@ -17,6 +17,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
+import { extractJsonFromAIResponse } from './platform-utils';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -532,7 +533,7 @@ export class ResourceRecommender {
   private parseSimpleSolutionResponse(aiResponse: string): ResourceSolution[] {
     try {
       // Use robust JSON extraction
-      const parsed = this.extractJsonFromAIResponse(aiResponse);
+      const parsed = extractJsonFromAIResponse(aiResponse);
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
         const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
@@ -1005,40 +1006,6 @@ export class ResourceRecommender {
     }
   }
 
-  /**
-   * Extract JSON object from AI response with robust parsing
-   */
-  private extractJsonFromAIResponse(aiResponse: string): any {
-    let jsonContent = aiResponse;
-    
-    // First try to find JSON wrapped in code blocks
-    const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (codeBlockMatch) {
-      jsonContent = codeBlockMatch[1];
-    } else {
-      // Try to find JSON that starts with { and find the matching closing }
-      const startIndex = aiResponse.indexOf('{');
-      if (startIndex !== -1) {
-        let braceCount = 0;
-        let endIndex = startIndex;
-        
-        for (let i = startIndex; i < aiResponse.length; i++) {
-          if (aiResponse[i] === '{') braceCount++;
-          if (aiResponse[i] === '}') braceCount--;
-          if (braceCount === 0) {
-            endIndex = i;
-            break;
-          }
-        }
-        
-        if (braceCount === 0) {
-          jsonContent = aiResponse.substring(startIndex, endIndex + 1);
-        }
-      }
-    }
-    
-    return JSON.parse(jsonContent.trim());
-  }
 
   /**
    * Generate contextual questions using AI based on user intent and solution resources
@@ -1148,7 +1115,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       const response = await this.aiProvider.sendMessage(questionPrompt, 'question-generation');
       
       // Use robust JSON extraction
-      const questions = this.extractJsonFromAIResponse(response.content);
+      const questions = extractJsonFromAIResponse(response.content);
       
       // Validate the response structure
       if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {

@@ -32,9 +32,81 @@ export function generateDebugId(operation: string): string {
 }
 
 /**
- * Log metrics for token usage and execution time when DEBUG_DOT_AI=true
- *
- * PRD #143 Decision 5: Extended metrics for model comparison analysis
+ * Unified evaluation metrics entry for AI quality assessment and performance tracking
+ * PRD #154: Single interface for all metrics and evaluation data
+ */
+export interface EvaluationMetrics {
+  // Core execution data
+  operation: string;
+  sdk: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  
+  // Optional performance data
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+  cacheHitRate?: number;
+  iterationCount?: number;
+  toolCallCount?: number;
+  uniqueToolsUsed?: string[];
+  status?: string;
+  completionReason?: string;
+  modelVersion?: string;
+  
+  // Evaluation context for AI quality assessment
+  test_scenario?: string;
+  input_issue?: string;
+  ai_response_summary?: string;
+  debug_files?: {
+    full_prompt: string;
+    full_response: string;
+  };
+  cluster_context?: {
+    namespace?: string;
+    pod_restart_count?: number;
+    deployment_name?: string;
+    [key: string]: any;
+  };
+  expected_outcome?: {
+    root_cause: string;
+    solution_category: string;
+    diagnostic_commands: string[];
+    remediation_actions: string[];
+  };
+}
+
+/**
+ * Log unified evaluation metrics when DEBUG_DOT_AI=true
+ * Single function for all metrics and evaluation data capture
+ */
+export function logEvaluationMetrics(
+  metrics: EvaluationMetrics,
+  debugMode: boolean = false
+): void {
+  if (!debugMode) return;
+
+  try {
+    const debugDir = ensureDebugDirectory();
+    const metricsFile = path.join(debugDir, 'metrics.jsonl');
+
+    // Create unified entry with timestamp
+    const entry = {
+      timestamp: new Date().toISOString(),
+      ...metrics
+    };
+
+    fs.appendFileSync(metricsFile, JSON.stringify(entry) + '\n');
+    
+    console.log(`📊 Logged evaluation metrics: ${metrics.operation} (${metrics.durationMs}ms, ${metrics.inputTokens}+${metrics.outputTokens} tokens)`);
+  } catch (error) {
+    console.warn('Failed to log evaluation metrics:', error);
+  }
+}
+
+/**
+ * Backward-compatible logMetrics function 
+ * Converts old format to new unified EvaluationMetrics
  */
 export function logMetrics(
   operation: string,
@@ -51,75 +123,74 @@ export function logMetrics(
     status?: string;
     completionReason?: string;
     modelVersion?: string;
+    finalMessage?: string; // AI response for evaluation context
+    debugFiles?: { // Debug file references for evaluation
+      full_prompt: string;
+      full_response: string;
+    };
   },
   durationMs: number,
-  debugMode: boolean
+  debugMode: boolean,
+  debugFiles?: { promptFile: string; responseFile: string } | null
 ): void {
-  if (!debugMode) return;
+  const metrics: EvaluationMetrics = {
+    operation,
+    sdk,
+    inputTokens: result.totalTokens.input,
+    outputTokens: result.totalTokens.output,
+    durationMs,
+    ...(result.totalTokens.cacheCreation !== undefined && { cacheCreationTokens: result.totalTokens.cacheCreation }),
+    ...(result.totalTokens.cacheRead !== undefined && { cacheReadTokens: result.totalTokens.cacheRead }),
+    ...(result.iterations !== undefined && { iterationCount: result.iterations }),
+    ...(result.toolCallsExecuted && { 
+      toolCallCount: result.toolCallsExecuted.length,
+      uniqueToolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
+    }),
+    ...(result.status && { status: result.status }),
+    ...(result.completionReason && { completionReason: result.completionReason }),
+    ...(result.modelVersion && { modelVersion: result.modelVersion })
+  };
 
-  try {
-    const debugDir = ensureDebugDirectory();
-    const metricsFile = path.join(debugDir, 'metrics.jsonl');
-
-    const entry: any = {
-      timestamp: new Date().toISOString(),
-      sdk,
-      operation,
-      inputTokens: result.totalTokens.input,
-      outputTokens: result.totalTokens.output,
-      durationMs
-    };
-
-    // Add cache metrics if present
-    if (result.totalTokens.cacheCreation !== undefined) {
-      entry.cacheCreationTokens = result.totalTokens.cacheCreation;
-    }
-    if (result.totalTokens.cacheRead !== undefined) {
-      entry.cacheReadTokens = result.totalTokens.cacheRead;
-    }
-
-    // Calculate cache hit rate (percentage)
-    if (result.totalTokens.cacheRead !== undefined && result.totalTokens.input > 0) {
-      entry.cacheHitRate = Math.round((result.totalTokens.cacheRead / result.totalTokens.input) * 100);
-    }
-
-    // Add extended metrics (PRD #143 Decision 5)
-    if (result.iterations !== undefined) {
-      entry.iterationCount = result.iterations;
-    }
-    if (result.toolCallsExecuted) {
-      entry.toolCallCount = result.toolCallsExecuted.length;
-      // Extract unique tool names
-      const uniqueTools = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
-      entry.uniqueToolsUsed = uniqueTools;
-    }
-    if (result.status) {
-      entry.status = result.status;
-    }
-    if (result.completionReason) {
-      entry.completionReason = result.completionReason;
-    }
-    if (result.modelVersion) {
-      entry.modelVersion = result.modelVersion;
-    }
-
-    // Manual annotation placeholders (populate after test analysis)
-    entry.manualNotes = '';
-    entry.failureReason = '';
-    entry.qualityIssues = [];
-    entry.comparisonNotes = '';
-
-    fs.appendFileSync(metricsFile, JSON.stringify(entry) + '\n');
-  } catch (error) {
-    console.warn('Failed to log metrics:', error);
+  // Calculate cache hit rate if applicable
+  if (result.totalTokens.cacheRead !== undefined && result.totalTokens.input > 0) {
+    metrics.cacheHitRate = Math.round((result.totalTokens.cacheRead / result.totalTokens.input) * 100);
   }
+
+  // Add evaluation context for summary operations (PRD #154)
+  if (result.finalMessage && operation.includes('remediate')) {
+    try {
+      // Extract AI response summary from the final message
+      const aiResponseSummary = result.finalMessage.length > 200 
+        ? result.finalMessage.substring(0, 200) + '...'
+        : result.finalMessage;
+      
+      // Extract test scenario from operation name
+      const testScenario = operation.replace('-summary', '').replace('-', '_');
+      
+      // Add evaluation context
+      metrics.test_scenario = testScenario;
+      metrics.ai_response_summary = aiResponseSummary;
+      
+      // Set debug file references for summary operations (files created by logDebugIfEnabled)
+      if (operation.endsWith('-summary') && debugFiles) {
+        metrics.debug_files = {
+          full_prompt: debugFiles.promptFile,
+          full_response: debugFiles.responseFile
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to extract evaluation context:', error);
+    }
+  }
+
+  logEvaluationMetrics(metrics, debugMode);
 }
 
 /**
  * Create AgenticResult and log metrics in one step
  * Reduces code duplication across providers
  *
- * PRD #143 Decision 5: Standardized metrics logging
+ * PRD #154: Updated to use unified evaluation metrics
  */
 export function createAndLogAgenticResult(config: {
   finalMessage: string;
@@ -138,6 +209,7 @@ export function createAndLogAgenticResult(config: {
   sdk: string;
   startTime: number;
   debugMode: boolean;
+  debugFiles?: { promptFile: string; responseFile: string } | null;
 }): AgenticResult {
   const result: AgenticResult = {
     finalMessage: config.finalMessage,
@@ -150,8 +222,13 @@ export function createAndLogAgenticResult(config: {
   };
 
   const durationMs = Date.now() - config.startTime;
-  if (config.debugMode) {
-    logMetrics(config.operation, config.sdk, result, durationMs, config.debugMode);
+  if (config.debugMode) {    
+    // Enhanced metrics logging with evaluation context
+    const enhancedResult = {
+      ...result,
+      finalMessage: config.finalMessage // Pass the final AI response for evaluation context
+    };
+    logMetrics(config.operation, config.sdk, enhancedResult, durationMs, config.debugMode, config.debugFiles);
   }
 
   return result;

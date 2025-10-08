@@ -425,11 +425,49 @@ eval-configs/               # OpenAI Evals compatible configs
 - **LangSmith Export**: Validate full experiment export/import
 - **Statistical Validation**: Academic review of methodology
 
+## Work Log
+
+### 2025-10-08: Tactical Evaluation System Improvements
+**Duration**: ~4 hours (estimated from conversation flow)
+**Focus**: Foundational improvements to existing evaluation infrastructure
+
+**Additional Work Done (Outside PRD Scope)**:
+- **Unified Metrics System**: Consolidated `logMetrics` and `EvaluationContext` into single `EvaluationMetrics` interface in `src/core/providers/provider-debug-utils.ts`
+- **Token Count Accuracy**: Fixed Vercel AI SDK token reporting (~70% discrepancy resolved using `result.totalUsage` instead of `result.usage`)
+- **Debug File Coordination**: Improved debug file naming, content extraction, and metrics references between providers
+- **Evaluation Noise Reduction**: Removed intermediate iteration logging for cleaner metrics (reduced from 26+ entries to expected 4 per test run)
+- **Context Completeness**: Added missing user intent and system prompts to Vercel provider debug files
+
+**Technical Discoveries**:
+- Vercel AI SDK `result.usage` only reports final step tokens; `result.totalUsage` required for multi-step token accuracy
+- Token count discrepancy between Anthropic native SDK and Vercel AI SDK resolved (now matching: 10K-32K tokens vs previous 2K-9K)
+- Current custom evaluation system provides solid foundation for future standards compliance
+- Debug file coordination between providers requires careful operation name management
+
+**Evidence of Completion**:
+- Integration tests passing with accurate token counts
+- Debug files contain complete prompts with real content instead of `[content]` placeholders
+- Metrics show clean high-level MCP tool calls without iteration noise
+- User intent properly included in Vercel provider debug prompts
+
+**Strategic Value**:
+These tactical improvements strengthen the existing evaluation infrastructure and provide a solid foundation for future migration to industry-standard frameworks. The enhanced metrics accuracy, debug coordination, and unified interface reduce technical debt while maintaining evaluation capabilities.
+
+**Next Session Priorities** (if continuing tactical approach):
+- Address debug file naming differentiation between investigation/validation phases
+- Consider provider performance comparison using improved token accuracy
+- Evaluate prompt optimization opportunities with better debug context
+
+**Next Session Priorities** (if pivoting to PRD standards):
+- Begin converting integration tests to standard JSONL datasets
+- Implement OpenAI Evals-compatible evaluator interface using improved foundation
+- Design migration path from current improvements to standard framework
+
 ---
 
 **Status**: Draft - Standards-First Approach
 **Compliance**: OpenAI Evals, LangSmith, MLflow Standards
 **Next Review**: After standards validation and team approval
 **Owner**: AI Engineering Team
-**Last Updated**: 2025-01-15
+**Last Updated**: 2025-10-08
 **Breaking Changes**: Yes - Full refactor to industry standards
