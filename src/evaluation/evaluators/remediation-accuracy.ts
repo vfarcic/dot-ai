@@ -9,6 +9,8 @@ import { StandardEvaluator, EvaluationScore, EvaluationSample } from './base.js'
 import { VercelProvider } from '../../core/providers/vercel-provider';
 import { getCurrentModel } from '../../core/model-config';
 import { extractJsonFromAIResponse } from '../../core/platform-utils';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export class RemediationAccuracyEvaluator extends StandardEvaluator {
   readonly name = 'remediation_accuracy';
@@ -22,46 +24,31 @@ export class RemediationAccuracyEvaluator extends StandardEvaluator {
     this.evaluatorModel = new VercelProvider({
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY!,
-      model: getCurrentModel('anthropic') // Use centralized model config
+      model: getCurrentModel('anthropic'), // Use centralized model config
+      debugMode: process.env.DEBUG_DOT_AI === 'true' // Enable debug logging for evaluation
     });
   }
 
   async evaluate(sample: EvaluationSample): Promise<EvaluationScore> {
     const { input, output, ideal } = sample;
 
-    // Domain-specific evaluation prompt for troubleshooting
-    const gradingPrompt = `You are evaluating a Kubernetes troubleshooting response. You are an expert in Kubernetes operations and diagnosis.
-
-TROUBLESHOOTING SCENARIO:
-User Issue: "${input.issue}"
-
-AI RESPONSE TO EVALUATE:
-${output}
-
-EXPECTED SOLUTION BENCHMARK:
-- Root Cause: ${ideal.root_cause}
-- Solution Category: ${ideal.solution_category}
-- Expected Diagnostic Commands: ${ideal.diagnostic_commands.join(', ')}
-- Expected Remediation Actions: ${ideal.remediation_actions.join(', ')}
-
-EVALUATION CRITERIA FOR KUBERNETES TROUBLESHOOTING:
-1. Root Cause Identification (0-1): Did the AI correctly identify the underlying issue?
-2. Diagnostic Approach (0-1): Are the diagnostic steps logical, comprehensive, and following Kubernetes best practices?
-3. Solution Quality (0-1): Are the remediation actions appropriate, safe, and likely to resolve the issue?
-4. Command Accuracy (0-1): Are kubectl commands syntactically correct and appropriate for the diagnosis?
-
-Analyze the AI response against these criteria and return ONLY a JSON object:
-{
-  "root_cause_identification": <score 0-1>,
-  "diagnostic_approach": <score 0-1>,
-  "solution_quality": <score 0-1>,
-  "command_accuracy": <score 0-1>,
-  "overall_score": <average of all four scores>,
-  "reasoning": "<2-3 sentence explanation focusing on what the AI did well or missed>"
-}`;
+    // Load markdown prompt template from file and replace placeholders
+    const promptPath = join(process.cwd(), 'src', 'evaluation', 'prompts', 'remediation-accuracy.md');
+    const template = readFileSync(promptPath, 'utf8');
+    
+    const gradingPrompt = template
+      .replace('{issue}', input.issue || 'Unknown issue')
+      .replace('{ai_response}', output)
+      .replace('{expected_root_cause}', ideal?.root_cause || 'Not specified')
+      .replace('{expected_solution_category}', ideal?.solution_category || 'Not specified')
+      .replace('{expected_diagnostic_commands}', ideal?.diagnostic_commands?.join(', ') || 'Not specified')
+      .replace('{expected_remediation_actions}', ideal?.remediation_actions?.join(', ') || 'Not specified');
 
     try {
-      const response = await this.evaluatorModel.sendMessage(gradingPrompt);
+      const response = await this.evaluatorModel.sendMessage(
+        gradingPrompt, 
+        'remediation-evaluation' // Clear operation name for debug files
+      );
       
       // Extract JSON from AI response with robust parsing
       const evaluation = extractJsonFromAIResponse(response.content);

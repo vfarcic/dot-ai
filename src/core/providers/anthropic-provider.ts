@@ -13,7 +13,7 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, createAndLogAgenticResult } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
 import { getCurrentModel } from '../model-config';
 
 export class AnthropicProvider implements AIProvider {
@@ -74,10 +74,19 @@ export class AnthropicProvider implements AIProvider {
     };
   }
 
-  async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
+  async sendMessage(
+    message: string, 
+    operation: string = 'generic',
+    evaluationContext?: {
+      user_intent?: string;
+      interaction_id?: string;
+    }
+  ): Promise<AIResponse> {
     if (!this.client) {
       throw new Error('Anthropic client not initialized');
     }
+
+    const startTime = Date.now();
 
     try {
       // Make real API call to Anthropic with streaming
@@ -115,6 +124,35 @@ export class AnthropicProvider implements AIProvider {
       // Debug log the interaction if enabled
       this.logDebugIfEnabled(operation, message, response);
 
+      // PRD #154: Log evaluation dataset if evaluation context is provided
+      if (this.debugMode && evaluationContext?.interaction_id) {
+        const durationMs = Date.now() - startTime;
+        const evaluationMetrics: EvaluationMetrics = {
+          // Core execution data
+          operation,
+          sdk: this.getProviderType(),
+          inputTokens: input_tokens,
+          outputTokens: output_tokens,
+          durationMs,
+          
+          // Required fields
+          iterationCount: 1,
+          toolCallCount: 0,
+          status: 'completed',
+          completionReason: 'stop',
+          modelVersion: this.model,
+          
+          // Required evaluation context - NO DEFAULTS, must be provided
+          test_scenario: operation,
+          ai_response_summary: content,
+          user_intent: evaluationContext?.user_intent || '',
+          interaction_id: evaluationContext?.interaction_id || '',
+          
+        };
+
+        logEvaluationDataset(evaluationMetrics, this.debugMode);
+      }
+
       return response;
 
     } catch (error) {
@@ -148,7 +186,7 @@ export class AnthropicProvider implements AIProvider {
     }
 
     const startTime = Date.now();
-
+    
     // Convert AITool[] to Anthropic Tool format with caching on last tool
     const tools: Anthropic.Tool[] = config.tools.map((t, index) => {
       const tool: Anthropic.Tool = {
@@ -290,7 +328,9 @@ export class AnthropicProvider implements AIProvider {
             sdk: this.getProviderType(),
             startTime,
             debugMode: this.debugMode,
-            debugFiles
+            debugFiles,
+            evaluationContext: config.evaluationContext,
+            interaction_id: config.interaction_id
           });
         }
 
@@ -372,7 +412,9 @@ export class AnthropicProvider implements AIProvider {
         operation: `${operation}-max-iterations`,
         sdk: this.getProviderType(),
         startTime,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
 
     } catch (error) {
@@ -393,7 +435,9 @@ export class AnthropicProvider implements AIProvider {
         operation: `${operation}-error`,
         sdk: this.getProviderType(),
         startTime,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
     }
   }

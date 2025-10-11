@@ -108,7 +108,10 @@ export class CapabilityInferenceEngine {
   }> {
     try {
       const prompt = await this.buildInferencePrompt(resourceName, resourceDefinition);
-      const response = await this.aiProvider.sendMessage(prompt);
+      const response = await this.aiProvider.sendMessage(prompt, 'capability-inference', {
+        user_intent: '', // Will be enhanced later by EvalDatasetEnhancer if needed
+        interaction_id: 'capability_inference'
+      });
       return this.parseCapabilitiesFromAI(response.content);
     } catch (error) {
       this.logger.error('AI capability inference failed', error as Error, {

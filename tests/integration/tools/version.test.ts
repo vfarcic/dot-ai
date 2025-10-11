@@ -118,7 +118,9 @@ describe.concurrent('Version Tool Integration', () => {
       };
 
       // Call version tool via REST API (POST request as required)
-      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {});
+      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {
+        interaction_id: 'system_status'
+      });
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedVersionResponse);
@@ -177,7 +179,9 @@ describe.concurrent('Version Tool Integration', () => {
         }
       };
 
-      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {});
+      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {
+        interaction_id: 'test_environment_validation'
+      });
 
       // Validate test environment configuration in API response
       expect(response).toMatchObject(expectedTestResponse);

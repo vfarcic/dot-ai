@@ -300,6 +300,7 @@ export class RestApiRouter {
         return;
       }
 
+
       this.logger.info('Executing tool via REST API', {
         requestId,
         toolName,

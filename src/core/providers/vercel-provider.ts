@@ -16,7 +16,7 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, logMetrics, createAndLogAgenticResult } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
 import { CURRENT_MODELS } from '../model-config';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
@@ -43,15 +43,16 @@ export class VercelProvider implements AIProvider {
       throw new Error(`API key is required for ${this.providerType} provider`);
     }
 
-    if (!['openai', 'google', 'anthropic'].includes(this.providerType)) {
-      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'google', or 'anthropic'`);
+    if (!['openai', 'openai_pro', 'google', 'anthropic'].includes(this.providerType)) {
+      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', or 'anthropic'`);
     }
   }
 
   private initializeModel(): void {
     try {
       switch (this.providerType) {
-        case 'openai': {
+        case 'openai':
+        case 'openai_pro': {
           const provider = createOpenAI({
             apiKey: this.apiKey
           });
@@ -109,7 +110,14 @@ export class VercelProvider implements AIProvider {
     };
   }
 
-  async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
+  async sendMessage(
+    message: string, 
+    operation: string = 'generic',
+    evaluationContext?: {
+      user_intent?: string;
+      interaction_id?: string;
+    }
+  ): Promise<AIResponse> {
     if (!this.isInitialized()) {
       throw new Error(`${this.providerType} provider not initialized`);
     }
@@ -138,14 +146,40 @@ export class VercelProvider implements AIProvider {
       if (this.debugMode) {
         const debugId = generateDebugId(operation);
         debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
-        logMetrics(operation, this.getProviderType(), {
-          totalTokens: {
-            input: response.usage.input_tokens,
-            output: response.usage.output_tokens,
-            cacheCreation: response.usage.cache_creation_input_tokens,
-            cacheRead: response.usage.cache_read_input_tokens
-          }
-        }, durationMs, this.debugMode);
+        
+        // PRD #154: Always use new evaluation dataset system
+        const evaluationMetrics: EvaluationMetrics = {
+          // Core execution data
+          operation,
+          sdk: this.getProviderType(),
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+          durationMs,
+          
+          // Required fields
+          iterationCount: 1,
+          toolCallCount: 0,
+          status: 'completed',
+          completionReason: 'stop',
+          modelVersion: this.model,
+          
+          // Required evaluation context - NO DEFAULTS, must be provided
+          test_scenario: operation,
+          ai_response_summary: response.content,
+          user_intent: evaluationContext?.user_intent || '',
+          interaction_id: evaluationContext?.interaction_id || '',
+          
+          // Optional performance data
+          ...(response.usage.cache_creation_input_tokens && { cacheCreationTokens: response.usage.cache_creation_input_tokens }),
+          ...(response.usage.cache_read_input_tokens && { cacheReadTokens: response.usage.cache_read_input_tokens })
+        };
+        
+        // Calculate cache hit rate if applicable
+        if (response.usage.cache_read_input_tokens && response.usage.input_tokens > 0) {
+          evaluationMetrics.cacheHitRate = Math.round((response.usage.cache_read_input_tokens / response.usage.input_tokens) * 100);
+        }
+        
+        logEvaluationDataset(evaluationMetrics, this.debugMode);
       }
 
       return response;
@@ -402,7 +436,9 @@ export class VercelProvider implements AIProvider {
         sdk: this.getProviderType(),
         startTime,
         debugMode: this.debugMode,
-        debugFiles
+        debugFiles,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
 
     } catch (error) {
@@ -423,7 +459,9 @@ export class VercelProvider implements AIProvider {
         operation: `${operation}-error`,
         sdk: this.getProviderType(),
         startTime,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
     }
   }

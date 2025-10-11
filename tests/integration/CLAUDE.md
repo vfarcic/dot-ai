@@ -26,6 +26,14 @@ npm run test:integration build-platform
 
 # Run with debug metrics enabled
 DEBUG_DOT_AI=true npm run test:integration build-platform
+
+# Run tests with specific models (generates eval datasets)
+npm run test:integration:sonnet    # Claude via Vercel AI SDK
+npm run test:integration:gpt       # GPT via Vercel AI SDK
+
+# Run specific tests with model selection
+npm run test:integration:sonnet -- -t "Remediate"
+npm run test:integration:gpt -- -t "Build Platform"
 ```
 
 **❌ TEST IS NOT ACCEPTABLE IF:**

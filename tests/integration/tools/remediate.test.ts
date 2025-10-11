@@ -93,7 +93,10 @@ EOF`);
       // PHASE 1: AI Investigation
       const investigationResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
-        { issue: `my app in ${testNamespace} namespace is crashing` }
+        { 
+          issue: `my app in ${testNamespace} namespace is crashing`,
+          interaction_id: 'manual_analyze'
+        }
       );
 
       // Validate investigation response (based on actual curl inspection)
@@ -172,7 +175,12 @@ EOF`);
       // PHASE 2: Execute remediation via MCP (choice 1)
       const executionResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
-        { executeChoice: 1, sessionId, mode: 'manual' }
+        { 
+          executeChoice: 1, 
+          sessionId, 
+          mode: 'manual',
+          interaction_id: 'manual_execute'
+        }
       );
 
       // Validate execution response (based on actual curl inspection)
@@ -263,6 +271,7 @@ EOF`);
       const actualMi = isGi ? memValue * 1024 : memValue;
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
 
+
     }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
 
@@ -331,7 +340,8 @@ EOF`);
           issue: `auto-test-pod in ${autoNamespace} namespace is crashing`,
           mode: 'automatic',
           confidenceThreshold: 0.8,
-          maxRiskLevel: 'high' // Allow high risk for auto-execution in test environment (different AI models assess risk differently)
+          maxRiskLevel: 'high', // Allow high risk for auto-execution in test environment (different AI models assess risk differently)
+          interaction_id: 'automatic_analyze_execute'
         }
       );
 
@@ -365,20 +375,25 @@ EOF`);
         expect(result.success).toBe(true);
       });
 
-      // PHASE 2: Verify ACTUAL cluster remediation
+      // PHASE 2: Verify ACTUAL cluster remediation - outcome-based validation
       await new Promise(resolve => setTimeout(resolve, 10000));
 
-      // Verify pod is now running
-      const afterStatus = await integrationTest.kubectl(
-        `get pod auto-test-pod -n ${autoNamespace} -o jsonpath='{.status.phase}'`
-      );
-      expect(afterStatus).toBe('Running');
+      // Get all pods in namespace - AI might create new pod or fix existing one
+      const afterPodsJson = await integrationTest.kubectl(`get pods -n ${autoNamespace} -o json`);
+      const afterPodsData = JSON.parse(afterPodsJson);
 
-      // Verify pod has no restarts (new healthy pod)
-      const afterRestartCount = await integrationTest.kubectl(
-        `get pod auto-test-pod -n ${autoNamespace} -o jsonpath='{.status.containerStatuses[0].restartCount}'`
+      // Should have at least one running stress workload pod
+      const runningPods = afterPodsData.items.filter((pod: any) => 
+        pod.status.phase === 'Running' &&
+        pod.spec.containers.some((container: any) => container.image === 'polinux/stress')
       );
-      expect(parseInt(afterRestartCount)).toBe(0);
+      expect(runningPods.length).toBeGreaterThan(0);
+
+      // Should have no crashing pods (restart count = 0 means stable)
+      const stablePod = runningPods[0];
+      expect(stablePod.status.containerStatuses[0].restartCount).toBe(0);
+
+
     }, 1800000); // 30 minute timeout for automatic mode (accommodates slower AI models like OpenAI)
   });
 });

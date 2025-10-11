@@ -8,6 +8,7 @@
 export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-5-20250929',
   openai: 'gpt-5', 
+  openai_pro: 'gpt-5-pro',
   google: 'gemini-2.5-pro'
 } as const;
 

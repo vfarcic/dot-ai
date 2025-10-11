@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { z } from 'zod';
 import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
@@ -16,7 +17,9 @@ import { NushellRuntime } from '../core/nushell-runtime';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, AI provider connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
-export const VERSION_TOOL_INPUT_SCHEMA = {};
+export const VERSION_TOOL_INPUT_SCHEMA = {
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+};
 
 export interface VersionInfo {
   version: string;
@@ -525,7 +528,7 @@ async function getNushellStatus(): Promise<SystemStatus['nushell']> {
 /**
  * Test AI provider connectivity
  */
-async function getAIProviderStatus(): Promise<SystemStatus['aiProvider']> {
+async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatus['aiProvider']> {
   try {
     // Import AI provider factory and test connectivity
     const { createAIProvider } = await import('../core/ai-provider-factory');
@@ -541,7 +544,10 @@ async function getAIProviderStatus(): Promise<SystemStatus['aiProvider']> {
     }
 
     // Test with a minimal request to check connectivity
-    await aiProvider.sendMessage('test');
+    await aiProvider.sendMessage('test', 'version-connectivity-check', {
+      user_intent: '', // Will be enhanced later by EvalDatasetEnhancer based on test context
+      interaction_id: interaction_id
+    });
 
     return {
       connected: true,
@@ -603,6 +609,9 @@ export async function handleVersionTool(
   requestId: string
 ): Promise<any> {
   try {
+    // Extract interaction_id for evaluation dataset generation
+    const interaction_id = args.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
+    
     logger.info('Processing version tool request with system diagnostics', { requestId });
     
     // Get version info
@@ -613,7 +622,7 @@ export async function handleVersionTool(
     const [vectorDBStatus, embeddingStatus, aiProviderStatus, kubernetesStatus, capabilityStatus, kyvernoStatus, nushellStatus] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
-      getAIProviderStatus(),
+      getAIProviderStatus(interaction_id),
       getKubernetesStatus(),
       getCapabilityStatus(),
       getKyvernoStatus(),

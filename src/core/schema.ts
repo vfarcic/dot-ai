@@ -523,7 +523,10 @@ export class ResourceRecommender {
     patterns: OrganizationalPattern[]
   ): Promise<ResourceSolution[]> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
-    const response = await this.aiProvider.sendMessage(prompt, 'solution-assembly');
+    const response = await this.aiProvider.sendMessage(prompt, 'recommend-solution-assembly', {
+      user_intent: '', // Will be enhanced later by EvalDatasetEnhancer  
+      interaction_id: 'recommend_solution_assembly'
+    });
     return this.parseSimpleSolutionResponse(response.content);
   }
 
@@ -1112,7 +1115,10 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{cluster_options}', clusterOptionsText)
         .replace('{policy_context}', policyContextText);
 
-      const response = await this.aiProvider.sendMessage(questionPrompt, 'question-generation');
+      const response = await this.aiProvider.sendMessage(questionPrompt, 'recommend-question-generation', {
+        user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
+        interaction_id: 'recommend_question_generation'
+      });
       
       // Use robust JSON extraction
       const questions = extractJsonFromAIResponse(response.content);
