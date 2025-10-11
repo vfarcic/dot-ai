@@ -15,12 +15,7 @@ def --env "main apply crossplane" [
     --github-token: string,  # GitHub token required for the DOT GitHub Configuration and optinal for the DOT App Configuration
     --policies = false,      # Whether to create Validating Admission Policies
     --skip-login = false,    # Whether to skip the login (only for Azure)
-    --db-provider = false,   # Whether to apply database provider (not needed if --db-config is `true`)
-    --aws-access-key-id: string,      # AWS Access Key ID (optional, falls back to AWS_ACCESS_KEY_ID env var)
-    --aws-secret-access-key: string,  # AWS Secret Access Key (optional, falls back to AWS_SECRET_ACCESS_KEY env var)
-    --azure-tenant: string,           # Azure Tenant ID (optional, falls back to AZURE_TENANT env var)
-    --upcloud-username: string,       # UpCloud username (optional, falls back to UPCLOUD_USERNAME env var)
-    --upcloud-password: string        # UpCloud password (optional, falls back to UPCLOUD_PASSWORD env var)
+    --db-provider = false    # Whether to apply database provider (not needed if --db-config is `true`)
 ] {
 
     print $"\nInstalling (ansi green_bold)Crossplane(ansi reset)...\n"
@@ -40,11 +35,11 @@ def --env "main apply crossplane" [
     if $provider == "google" {
         $provider_data = setup google
     } else if $provider == "aws" {
-        setup aws --aws-access-key-id $aws_access_key_id --aws-secret-access-key $aws_secret_access_key
+        setup aws
     } else if $provider == "azure" {
-        setup azure --skip-login $skip_login --azure-tenant $azure_tenant
+        setup azure --skip-login $skip_login
     } else if $provider == "upcloud" {
-        setup upcloud --upcloud-username $upcloud_username --upcloud-password $upcloud_password
+        setup upcloud
     }
 
     if $app_config {
@@ -114,7 +109,7 @@ def --env "main apply crossplane" [
 
         print $"\n(ansi green_bold)Applying `dot-sql` Configuration...(ansi reset)\n"
 
-        let version = "v2.1.68"
+        let version = "v2.1.83"
         {
             apiVersion: "pkg.crossplane.io/v1"
             kind: "Configuration"
@@ -407,8 +402,8 @@ def "apply providerconfig" [
     if $provider == "google" {
 
         {
-            apiVersion: "gcp.upbound.io/v1beta1"
-            kind: "ProviderConfig"
+            apiVersion: "gcp.m.upbound.io/v1beta1"
+            kind: "ClusterProviderConfig"
             metadata: { name: "default" }
             spec: {
                 projectID: $google_project_id
@@ -426,8 +421,8 @@ def "apply providerconfig" [
     } else if $provider == "aws" {
 
         {
-            apiVersion: "aws.upbound.io/v1beta1"
-            kind: "ProviderConfig"
+            apiVersion: "aws.m.upbound.io/v1beta1"
+            kind: "ClusterProviderConfig"
             metadata: { name: default }
             spec: {
                 credentials: {
@@ -444,8 +439,8 @@ def "apply providerconfig" [
     } else if $provider == "azure" {
 
         {
-            apiVersion: "azure.upbound.io/v1beta1"
-            kind: "ProviderConfig"
+            apiVersion: "azure.m.upbound.io/v1beta1"
+            kind: "ClusterProviderConfig"
             metadata: { name: default }
             spec: {
                 credentials: {
@@ -601,30 +596,19 @@ Press the (ansi yellow_bold)enter key(ansi reset) to continue.
 
 }
 
-def "setup aws" [
-    --aws-access-key-id: string,
-    --aws-secret-access-key: string
-] {
+def "setup aws" [] {
 
     print $"\nInstalling (ansi green_bold)Crossplane AWS Provider(ansi reset)...\n"
 
-    mut access_key = $aws_access_key_id
-    if ($access_key | is-empty) and ("AWS_ACCESS_KEY_ID" in $env) {
-        $access_key = $env.AWS_ACCESS_KEY_ID
-    } else if ($access_key | is-empty) {
-        error make { msg: "AWS Access Key ID required via --aws-access-key-id parameter or AWS_ACCESS_KEY_ID environment variable" }
+    if AWS_ACCESS_KEY_ID not-in $env {
+        $env.AWS_ACCESS_KEY_ID = input $"(ansi yellow_bold)Enter AWS Access Key ID: (ansi reset)"
     }
-    $env.AWS_ACCESS_KEY_ID = $access_key
     $"export AWS_ACCESS_KEY_ID=($env.AWS_ACCESS_KEY_ID)\n"
         | save --append .env
 
-    mut secret_key = $aws_secret_access_key
-    if ($secret_key | is-empty) and ("AWS_SECRET_ACCESS_KEY" in $env) {
-        $secret_key = $env.AWS_SECRET_ACCESS_KEY
-    } else if ($secret_key | is-empty) {
-        error make { msg: "AWS Secret Access Key required via --aws-secret-access-key parameter or AWS_SECRET_ACCESS_KEY environment variable" }
+    if AWS_SECRET_ACCESS_KEY not-in $env {
+        $env.AWS_SECRET_ACCESS_KEY = input $"(ansi yellow_bold)Enter AWS Secret Access Key: (ansi reset)"
     }
-    $env.AWS_SECRET_ACCESS_KEY = $secret_key
     $"export AWS_SECRET_ACCESS_KEY=($env.AWS_SECRET_ACCESS_KEY)\n"
         | save --append .env
 
@@ -644,21 +628,20 @@ aws_secret_access_key = ($env.AWS_SECRET_ACCESS_KEY)
 }
 
 def "setup azure" [
-    --skip-login = false,
-    --azure-tenant: string
+    --skip-login = false
 ] {
 
     print $"\nInstalling (ansi green_bold)Crossplane Azure Provider(ansi reset)...\n"
 
-    mut tenant = $azure_tenant
-    if ($tenant | is-empty) and ("AZURE_TENANT" in $env) {
-        $tenant = $env.AZURE_TENANT
-    } else if ($tenant | is-empty) {
-        error make { msg: "Azure Tenant ID required via --azure-tenant parameter or AZURE_TENANT environment variable" }
+    mut azure_tenant = ""
+    if AZURE_TENANT not-in $env {
+        $azure_tenant = input $"(ansi yellow_bold)Enter Azure Tenant: (ansi reset)"
+    } else {
+        $azure_tenant = $env.AZURE_TENANT
     }
-    $"export AZURE_TENANT=($tenant)\n" | save --append .env
+    $"export AZURE_TENANT=($azure_tenant)\n" | save --append .env
 
-    if $skip_login == false { az login --tenant $tenant }
+    if $skip_login == false { az login --tenant $azure_tenant }
 
     let subscription_id = (az account show --query id -o tsv)
 
@@ -676,30 +659,19 @@ def "setup azure" [
 
 }
 
-def "setup upcloud" [
-    --upcloud-username: string,
-    --upcloud-password: string
-] {
+def "setup upcloud" [] {
 
     print $"\nInstalling (ansi green_bold)Crossplane UpCloud Provider(ansi reset)...\n"
 
-    mut username = $upcloud_username
-    if ($username | is-empty) and ("UPCLOUD_USERNAME" in $env) {
-        $username = $env.UPCLOUD_USERNAME
-    } else if ($username | is-empty) {
-        error make { msg: "UpCloud username required via --upcloud-username parameter or UPCLOUD_USERNAME environment variable" }
+    if UPCLOUD_USERNAME not-in $env {
+        $env.UPCLOUD_USERNAME = input $"(ansi yellow_bold)UpCloud Username: (ansi reset)"
     }
-    $env.UPCLOUD_USERNAME = $username
     $"export UPCLOUD_USERNAME=($env.UPCLOUD_USERNAME)\n"
         | save --append .env
 
-    mut password = $upcloud_password
-    if ($password | is-empty) and ("UPCLOUD_PASSWORD" in $env) {
-        $password = $env.UPCLOUD_PASSWORD
-    } else if ($password | is-empty) {
-        error make { msg: "UpCloud password required via --upcloud-password parameter or UPCLOUD_PASSWORD environment variable" }
+    if UPCLOUD_PASSWORD not-in $env {
+        $env.UPCLOUD_PASSWORD = input $"(ansi yellow_bold)UpCloud Password: (ansi reset)"
     }
-    $env.UPCLOUD_PASSWORD = $password
     $"export UPCLOUD_PASSWORD=($env.UPCLOUD_PASSWORD)\n"
         | save --append .env
 
