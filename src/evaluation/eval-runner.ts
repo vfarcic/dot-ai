@@ -3,12 +3,15 @@
 /**
  * Evaluation Runner for Multi-Model Comparative Analysis
  * 
- * Runs comparative evaluation on remediation datasets from multiple models
+ * Runs comparative evaluation on available datasets from multiple models
+ * Automatically detects and evaluates both remediation and recommendation datasets
  */
 
 import { RemediationComparativeEvaluator } from './evaluators/remediation-comparative.js';
+import { RecommendationComparativeEvaluator } from './evaluators/recommendation-comparative.js';
+import { readdir } from 'fs/promises';
 
-function generateMarkdownReport(results: any[], stats: any): string {
+function generateMarkdownReport(results: any[], stats: any, evaluationType: 'remediation' | 'recommendation'): string {
   const timestamp = new Date().toISOString();
   
   // Calculate overall statistics
@@ -39,7 +42,9 @@ function generateMarkdownReport(results: any[], stats: any): string {
     modelAverages.set(model, Math.round(avg * 1000) / 1000);
   });
   
-  return `# Remediation AI Model Comparison Report
+  const reportTitle = evaluationType === 'remediation' ? 'Remediation AI Model Comparison Report' : 'Recommendation AI Model Comparison Report';
+  
+  return `# ${reportTitle}
 
 **Generated**: ${timestamp}  
 **Scenarios Analyzed**: ${results.length}  
@@ -65,7 +70,7 @@ ${Array.from(modelAverages.entries())
 ## Detailed Scenario Results
 
 ${results.map((result, index) => {
-  const scenarioTitle = result.key.replace(/_/g, ' ').replace(/remediation comparative /, '').toUpperCase();
+  const scenarioTitle = result.key.replace(/_/g, ' ').replace(/(remediation|recommendation) comparative /, '').toUpperCase();
   
   return `### ${index + 1}. ${scenarioTitle}
 
@@ -84,19 +89,7 @@ ${result.comment}
 ---`;
 }).join('\n\n')}
 
-## Key Insights & Recommendations
-
-### Performance Patterns
-- **Speed vs Quality Trade-off**: Higher quality models often require longer processing times
-- **Cache Utilization**: Models with effective caching showed significantly better performance
-- **Resource Efficiency**: Token usage patterns varied significantly between models
-
-### Production Recommendations
-1. **Real-time Troubleshooting**: Use the fastest performing model with acceptable accuracy
-2. **Automated Remediation**: Balance speed and reliability for production environments  
-3. **Complex Analysis**: Consider using higher-scoring models when time permits detailed investigation
-
-### Model Selection Guide
+## Model Selection Guide
 ${sortedWins.slice(0, 3).map(([model], index) => {
   const score = modelAverages.get(model) || 0;
   const useCase = index === 0 ? 'Primary choice for most scenarios' : 
@@ -110,10 +103,27 @@ ${sortedWins.slice(0, 3).map(([model], index) => {
 `;
 }
 
-async function main() {
-  console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
+async function detectAvailableDatasets(datasetsDir: string): Promise<{
+  hasRemediation: boolean;
+  hasRecommendation: boolean;
+}> {
+  try {
+    const files = await readdir(datasetsDir);
+    const hasRemediation = files.some(file => file.startsWith('remediate_'));
+    const hasRecommendation = files.some(file => file.startsWith('recommend_'));
+    return { hasRemediation, hasRecommendation };
+  } catch (error) {
+    console.warn('Could not read datasets directory, assuming no datasets available');
+    return { hasRemediation: false, hasRecommendation: false };
+  }
+}
+
+async function runEvaluation(evaluatorType: 'remediation' | 'recommendation', datasetsDir: string) {
+  const evaluator = evaluatorType === 'remediation' 
+    ? new RemediationComparativeEvaluator(datasetsDir)
+    : new RecommendationComparativeEvaluator(datasetsDir);
   
-  const evaluator = new RemediationComparativeEvaluator('./eval/datasets');
+  console.log(`\n🔬 Starting ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Evaluation\n`);
   
   // Show dataset stats
   console.log('📊 Dataset Analysis:');
@@ -137,34 +147,66 @@ async function main() {
   // Run comparative evaluation on all scenarios
   console.log('🚀 Running Comparative Evaluation...\n');
   
+  const results = await evaluator.evaluateAllScenarios();
+  
+  console.log(`✅ ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Evaluation Complete! Analyzed ${results.length} scenarios\n`);
+  
+  // Generate markdown report
+  const reportContent = generateMarkdownReport(results, stats, evaluatorType);
+  
+  // Save report to file
+  const reportPath = `./eval/reports/${evaluatorType}-evaluation-${new Date().toISOString().split('T')[0]}.md`;
+  const reportDir = './eval/reports';
+  
+  // Ensure report directory exists
+  const fs = await import('fs');
+  if (!fs.existsSync(reportDir)) {
+    fs.mkdirSync(reportDir, { recursive: true });
+  }
+  
+  fs.writeFileSync(reportPath, reportContent);
+  
+  console.log(`📊 ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} report generated: ${reportPath}`);
+  
+  // Brief console summary
+  console.log(`🏆 ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Results:`);
+  results.forEach((result, index) => {
+    console.log(`   ${index + 1}. ${result.key}: ${result.bestModel} (${result.score})`);
+  });
+  
+  return results;
+}
+
+async function main() {
+  console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
+  
+  const datasetsDir = './eval/datasets';
+  const { hasRemediation, hasRecommendation } = await detectAvailableDatasets(datasetsDir);
+  
+  console.log('🔍 Dataset Detection:');
+  console.log(`- Remediation datasets: ${hasRemediation ? '✅' : '❌'}`);
+  console.log(`- Recommendation datasets: ${hasRecommendation ? '✅' : '❌'}`);
+  
+  if (!hasRemediation && !hasRecommendation) {
+    console.error('❌ No evaluation datasets found. Please run integration tests first to generate datasets.');
+    process.exit(1);
+  }
+  
   try {
-    const results = await evaluator.evaluateAllScenarios();
+    const allResults = [];
     
-    console.log(`✅ Evaluation Complete! Analyzed ${results.length} scenarios\n`);
-    
-    // Generate markdown report
-    const reportContent = generateMarkdownReport(results, stats);
-    
-    // Save report to file
-    const reportPath = `./eval/reports/comparative-evaluation-${new Date().toISOString().split('T')[0]}.md`;
-    const reportDir = './eval/reports';
-    
-    // Ensure report directory exists
-    const fs = await import('fs');
-    if (!fs.existsSync(reportDir)) {
-      fs.mkdirSync(reportDir, { recursive: true });
+    if (hasRemediation) {
+      const remediationResults = await runEvaluation('remediation', datasetsDir);
+      allResults.push(...remediationResults);
     }
     
-    fs.writeFileSync(reportPath, reportContent);
+    if (hasRecommendation) {
+      const recommendationResults = await runEvaluation('recommendation', datasetsDir);  
+      allResults.push(...recommendationResults);
+    }
     
-    console.log(`📊 Markdown report generated: ${reportPath}`);
-    console.log(`📁 Open the report to see detailed comparison analysis\n`);
-    
-    // Brief console summary
-    console.log('🏆 Quick Results:');
-    results.forEach((result, index) => {
-      console.log(`   ${index + 1}. ${result.key}: ${result.bestModel} (${result.score})`);
-    });
+    console.log(`\n🎉 All Evaluations Complete! Total scenarios analyzed: ${allResults.length}`);
+    console.log(`📁 Check ./eval/reports/ for detailed analysis reports\n`);
     
   } catch (error) {
     console.error('❌ Evaluation failed:', error);

@@ -1,7 +1,7 @@
 /**
- * Remediation Comparative Evaluator
+ * Recommendation Comparative Evaluator
  * 
- * Compares multiple AI models on Kubernetes troubleshooting scenarios
+ * Compares multiple AI models on Kubernetes recommendation scenarios
  * Uses dynamic model inclusion based on available datasets
  * Follows reference-free comparative evaluation methodology
  */
@@ -45,9 +45,9 @@ interface ComparativeEvaluationScore extends EvaluationScore {
   modelCount: number;
 }
 
-export class RemediationComparativeEvaluator extends StandardEvaluator {
-  readonly name = 'remediation_comparative';
-  readonly description = 'Compares multiple AI models on Kubernetes troubleshooting scenarios';
+export class RecommendationComparativeEvaluator extends StandardEvaluator {
+  readonly name = 'recommendation_comparative';
+  readonly description = 'Compares multiple AI models on Kubernetes deployment recommendation scenarios';
 
   private evaluatorModel: VercelProvider;
   private datasetAnalyzer: DatasetAnalyzer;
@@ -67,16 +67,16 @@ export class RemediationComparativeEvaluator extends StandardEvaluator {
     this.datasetAnalyzer = new DatasetAnalyzer(datasetDir);
 
     // Load comparative evaluation prompt template
-    const promptPath = join(process.cwd(), 'src', 'evaluation', 'prompts', 'remediation-comparative.md');
+    const promptPath = join(process.cwd(), 'src', 'evaluation', 'prompts', 'recommendation-comparative.md');
     this.promptTemplate = readFileSync(promptPath, 'utf8');
   }
 
   /**
-   * Evaluate all available models for remediation scenarios
+   * Evaluate all available models for recommendation scenarios
    * This method finds all scenarios with multiple model responses and evaluates them comparatively
    */
   async evaluateAllScenarios(): Promise<ComparativeEvaluationScore[]> {
-    const scenarios = this.datasetAnalyzer.groupByScenario('remediate');
+    const scenarios = this.datasetAnalyzer.groupByScenario('recommend');
     const results: ComparativeEvaluationScore[] = [];
 
     console.log(`Found ${scenarios.length} scenarios with multiple models for comparative evaluation`);
@@ -137,12 +137,13 @@ ${modelResponse.response}
     const evaluationPrompt = this.promptTemplate
       .replace('{issue}', scenario.issue)
       .replace('{model_responses}', modelResponsesText)
-      .replace('{model_list}', modelList);
+      .replace('{model_list}', modelList)
+      .replace('{phase}', scenario.interaction_id);
 
     try {
       const response = await this.evaluatorModel.sendMessage(
         evaluationPrompt, 
-        `remediation-comparative-${scenario.interaction_id}`
+        `recommendation-comparative-${scenario.interaction_id}`
       );
       
       // Extract JSON from AI response with robust parsing
@@ -193,7 +194,7 @@ ${modelResponse.response}
    * Get statistics about available datasets
    */
   getDatasetStats() {
-    return this.datasetAnalyzer.getDatasetStats('remediate');
+    return this.datasetAnalyzer.getDatasetStats('recommend');
   }
 
   /**
@@ -205,7 +206,7 @@ ${modelResponse.response}
     availableModels: string[];
     scenarioCount: number;
   }[] {
-    const scenarios = this.datasetAnalyzer.groupByScenario('remediate');
+    const scenarios = this.datasetAnalyzer.groupByScenario('recommend');
     const phaseGroups = new Map<string, {
       models: Set<string>;
       count: number;
@@ -229,9 +230,10 @@ ${modelResponse.response}
 
     // Convert to structured output with descriptions
     const phaseDescriptions: Record<string, string> = {
-      'manual_analyze': 'Manual Investigation Phase - How well each model investigates and diagnoses issues',
-      'manual_execute': 'Manual Execution Phase - How well each model validates and confirms fixes worked',
-      'automatic_analyze_execute': 'Automatic Full Workflow - End-to-end troubleshooting in single automated workflow'
+      'clarification_phase': 'Intent Analysis Phase - How well each model analyzes user intents and identifies missing context',
+      'question_generation': 'Question Generation Phase - How well each model generates clarifying questions to enhance requirements',
+      'solution_assembly': 'Solution Assembly Phase - How well each model selects appropriate Kubernetes resources and deployment patterns',
+      'generate_manifests_phase': 'Manifest Generation Phase - How well each model generates production-ready Kubernetes manifests'
     };
 
     return Array.from(phaseGroups.entries()).map(([phase, data]) => ({

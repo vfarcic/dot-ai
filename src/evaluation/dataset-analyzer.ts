@@ -56,6 +56,11 @@ export interface ModelResponse {
     test_scenario: string;
     issue?: string;
     interaction_count?: number;
+    failure_analysis?: {
+      failure_type: string;
+      failure_reason: string;
+      time_to_failure: number;
+    };
   };
 }
 
@@ -167,6 +172,21 @@ export class DatasetAnalyzer {
         modelGroups.set(modelKey, []);
       }
 
+      // Parse failure_analysis if it exists
+      let failure_analysis = undefined;
+      if (sample.metadata.failure_analysis && sample.metadata.failure_analysis !== "") {
+        try {
+          if (typeof sample.metadata.failure_analysis === 'string') {
+            failure_analysis = JSON.parse(sample.metadata.failure_analysis);
+          } else {
+            failure_analysis = sample.metadata.failure_analysis;
+          }
+        } catch (error) {
+          // If parsing fails, treat as no failure analysis
+          failure_analysis = undefined;
+        }
+      }
+
       modelGroups.get(modelKey)!.push({
         model: modelKey,
         response: sample.output,
@@ -175,7 +195,8 @@ export class DatasetAnalyzer {
           timestamp: sample.metadata.timestamp,
           complexity: sample.metadata.complexity,
           test_scenario: sample.metadata.test_scenario,
-          issue: sample.input.issue
+          issue: sample.input.issue,
+          failure_analysis
         }
       });
     }

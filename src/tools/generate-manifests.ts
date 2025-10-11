@@ -233,7 +233,7 @@ ${errorContext.previousManifests}
   const aiProvider = dotAI.ai;
 
   // Send prompt to AI
-  const response = await aiProvider.sendMessage(aiPrompt, 'generate-manifests-generation', {
+  const response = await aiProvider.sendMessage(aiPrompt, 'recommend-manifests-generation', {
     user_intent: solution.initialIntent || 'Kubernetes manifest generation',
     interaction_id: interaction_id
   });

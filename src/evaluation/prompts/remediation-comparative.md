@@ -25,11 +25,22 @@ User Issue: "{issue}"
 - **Response Time**: How quickly did the model respond?
 - **Iteration Count**: How many investigation iterations were needed?
 - **Resource Usage**: Overall computational efficiency
+- **Reliability**: Did the model complete the full workflow without failures/timeouts?
 
 ### Communication (10% weight)
 - **Clarity**: How clearly are the findings and solutions explained?
 - **Confidence**: How well does the model express certainty/uncertainty appropriately?
 - **Structure**: How well-organized and readable is the response?
+
+## FAILURE ANALYSIS CONSIDERATION
+
+Some models may have failure analysis metadata indicating they experienced timeouts, errors, or other issues during the full workflow execution. When evaluating:
+
+- **Successful individual responses**: If a model provided a good response for this specific phase but failed elsewhere in the workflow, focus on the quality of THIS response but apply a **reliability penalty** to the performance score
+- **Timeout failures**: Models that timed out during the full workflow should receive reduced performance scores even if their individual responses were good
+- **Reliability scoring**: Factor workflow completion reliability into the performance score (models that couldn't complete the full workflow are less reliable for production use)
+
+The AI responses below will include reliability context where relevant.
 
 ## RESPONSE FORMAT
 

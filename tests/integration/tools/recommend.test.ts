@@ -37,7 +37,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const clarificationResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         intent: 'deploy database',
         // stage omitted - should default to 'recommend'
-        interaction_id: 'recommend_clarification_phase'
+        interaction_id: 'clarification_phase'
       });
 
       // Validate clarification response structure (based on actual API inspection)
@@ -74,7 +74,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         stage: 'recommend', // Explicit stage parameter
         intent: 'deploy postgresql database',
         final: true,
-        interaction_id: 'recommend_solutions_phase'
+        interaction_id: 'solution_assembly_phase'
       });
 
       // Validate solutions response structure (based on actual API inspection)
@@ -113,7 +113,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'chooseSolution',
         solutionId,
-        interaction_id: 'recommend_choose_solution_phase'
+        interaction_id: 'choose_solution_phase'
       });
 
       // Validate chooseSolution response structure (based on actual API inspection)
@@ -167,7 +167,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         stage: 'answerQuestion:required', // Combined stage routing
         solutionId,
         answers: requiredAnswers,
-        interaction_id: 'recommend_answer_required_phase'
+        interaction_id: 'answer_required_phase'
       });
 
       // Validate answerQuestion response (should return next stage questions)
@@ -191,7 +191,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         stage: 'answerQuestion:basic', // Combined stage routing
         solutionId,
         answers: {},
-        interaction_id: 'recommend_skip_basic_phase'
+        interaction_id: 'skip_basic_phase'
       });
 
       // Validate skip basic response (based on actual API inspection)
@@ -222,7 +222,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         stage: 'answerQuestion:advanced', // Combined stage routing
         solutionId,
         answers: {},
-        interaction_id: 'recommend_skip_advanced_phase'
+        interaction_id: 'skip_advanced_phase'
       });
 
       // Validate skip advanced response (based on actual API inspection)
@@ -252,7 +252,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         stage: 'answerQuestion:open', // Combined stage routing
         solutionId,
         answers: { open: 'N/A' },
-        interaction_id: 'recommend_complete_open_phase'
+        interaction_id: 'complete_open_phase'
       });
 
       // Validate open stage completion response (based on actual API inspection)
@@ -282,7 +282,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'generateManifests',
         solutionId,
-        interaction_id: 'recommend_generate_manifests_phase'
+        interaction_id: 'generate_manifests_phase'
       });
 
       // Validate generateManifests response (based on actual API inspection)
@@ -320,7 +320,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'deployManifests',
         solutionId,
-        interaction_id: 'recommend_deploy_manifests_phase'
+        interaction_id: 'deploy_manifests_phase'
       });
 
       // Validate deployManifests response (based on actual API inspection)
