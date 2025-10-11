@@ -5,7 +5,7 @@ deployment:
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "0.110.0"                     # Container image tag - set by CI pipeline during release
+  tag: "0.111.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
