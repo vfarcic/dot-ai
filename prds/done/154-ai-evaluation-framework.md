@@ -205,27 +205,29 @@ interface EvaluationExperiment {
 - [ ] `docs/evaluation-standards.md`: Complete evaluator documentation
 - [ ] `docs/model-graded-evaluation.md`: Model-graded evaluation methodology
 
-### Milestone 3: Standard Experiment Tracking & Comparison ⬜
+### Milestone 3: Standard Experiment Tracking & Comparison ⬜ *(DEFERRED)*
 **Target**: Full experiment tracking system compatible with industry standards
 
+**Status**: Deferred to separate PRD due to scope and complexity - see [PRD 156: AI Evaluation Standards Compliance Framework](https://github.com/vfarcic/dot-ai/issues/156)
+
 **Key Deliverables:**
-- [ ] **Experiment Management**: Track evaluation runs with standard metadata
-- [ ] **Multi-Provider Comparison**: Standardized comparison across Anthropic, OpenAI, Google
-- [ ] **Statistical Analysis**: Significance testing, confidence intervals, effect sizes
-- [ ] **Standard Export**: Export to MLflow, LangSmith, Weights & Biases formats
+- [~] **Experiment Management**: Track evaluation runs with standard metadata *(moved to PRD 156)*
+- [~] **Multi-Provider Comparison**: Standardized comparison across Anthropic, OpenAI, Google *(moved to PRD 156)*
+- [~] **Statistical Analysis**: Significance testing, confidence intervals, effect sizes *(moved to PRD 156)*
+- [~] **Standard Export**: Export to MLflow, LangSmith, Weights & Biases formats *(moved to PRD 156)*
 
 **Breaking Changes:**
-- [ ] **Replace**: Current JSONL metrics with standard experiment format
-- [ ] **Restructure**: All evaluation data storage to use standard schema
+- [~] **Replace**: Current JSONL metrics with standard experiment format *(moved to PRD 156)*
+- [~] **Restructure**: All evaluation data storage to use standard schema *(moved to PRD 156)*
 
 **Success Criteria:**
-- [ ] Can import/export experiments to/from standard ML platforms
-- [ ] Statistical significance testing for all model comparisons
-- [ ] Reproducible evaluation results across different environments
+- [~] Can import/export experiments to/from standard ML platforms *(moved to PRD 156)*
+- [~] Statistical significance testing for all model comparisons *(moved to PRD 156)*
+- [~] Reproducible evaluation results across different environments *(moved to PRD 156)*
 
 **Documentation Updates:**
-- [ ] `docs/evaluation-standards.md`: Experiment tracking and analysis
-- [ ] `docs/provider-comparison.md`: Standard comparison methodology
+- [~] `docs/evaluation-standards.md`: Experiment tracking and analysis *(moved to PRD 156)*
+- [~] `docs/provider-comparison.md`: Standard comparison methodology *(moved to PRD 156)*
 
 ### Milestone 4: Standard Prompt Evaluation & Optimization ⬜
 **Target**: Systematic prompt evaluation following industry best practices
@@ -982,15 +984,68 @@ This completes the core organizational data management evaluation framework (cap
 This completes the core multi-tool evaluation framework with production-quality assessment capabilities. The system provides data-driven AI provider selection based on measurable criteria while accounting for real-world reliability constraints. The abstract base class architecture ensures consistent evaluation methodology as new tools are added.
 
 **Next Session Priorities**:
-- Implement remaining organizational data tool evaluations (patterns 6.3.2, policies 6.3.3)
-- Begin standards compliance work (OpenAI Evals, LangSmith compatibility)
-- Add statistical significance testing for comparative results
+- Consider implementing remaining tool evaluators (Question Generation, Manifest Generation) 
+- Alternative: Move to new PRD given core framework completion
+- Evaluate need for formal standards compliance vs practical framework utility
+
+## Strategic Design Decisions Log
+
+### Decision: Reference-Free Evaluation Methodology
+- **Date**: 2025-10-08
+- **Decision**: Use AI-as-judge comparative evaluation without predetermined "ideal" answers
+- **Rationale**: Kubernetes problems often have multiple valid solutions; eliminates manual answer curation burden; industry standard for complex domains
+- **Impact**: Enabled evaluation of nuanced problem-solving approaches without gold standard creation
+- **Evidence**: All comparative evaluators successfully implemented using this methodology
+
+### Decision: Weighted Multi-Criteria Evaluation Framework  
+- **Date**: 2025-10-08
+- **Decision**: Group metrics into weighted categories (Quality 40%, Efficiency 30%, Performance 20%, Communication 10%)
+- **Rationale**: Prevents cognitive overload for evaluator AI; allows customization for different use cases; provides interpretable results
+- **Impact**: Defines clear evaluation structure enabling systematic comparison and optimization
+- **Evidence**: Consistent application across all 5 implemented tool evaluators
+
+### Decision: Reliability-Aware Evaluation Integration
+- **Date**: 2025-10-11  
+- **Decision**: Include timeout failures and performance constraints in evaluation scoring
+- **Rationale**: Production systems require both quality AND reliability; timeout failures disqualify solutions regardless of quality
+- **Impact**: GPT-5 timeout penalties properly reflected in comparative scoring (e.g., Claude 91.45 vs GPT-5 83.85 in capability evaluation)
+- **Evidence**: Critical bug fix in DatasetAnalyzer.combineModelInteractions() preserving ALL failure analysis
+
+### Decision: Multi-Provider Integration Test Approach
+- **Date**: 2025-10-08
+- **Decision**: Use existing multi-provider integration test capability instead of manual scenario extraction  
+- **Rationale**: More cost-effective (3N vs 4N AI calls); captures real system behavior; leverages existing infrastructure
+- **Impact**: Changes Milestone 1 approach from manual conversion to automated result extraction
+- **Evidence**: 150+ evaluation datasets generated across multiple tools and providers
+
+### Decision: BaseComparativeEvaluator Abstract Class Architecture
+- **Date**: 2025-10-12
+- **Decision**: Create shared base class eliminating code duplication across comparative evaluators
+- **Rationale**: ~70% code duplication identified across evaluators; ensures consistent evaluation methodology
+- **Impact**: Reduced codebase size while ensuring architectural consistency across all comparative evaluations  
+- **Evidence**: All comparative evaluators (remediation, recommendation, capability, pattern, policy) use shared base class
+
+### Decision: Documentation Testing Tool Evaluation Deferral
+- **Date**: 2025-10-12
+- **Decision**: Defer documentation testing tool evaluation due to missing integration test infrastructure
+- **Rationale**: Documentation testing tool lacks integration tests required for evaluation dataset generation
+- **Impact**: Reduces tool evaluation scope from 7 tools to 5 tools; focuses resources on tools with existing infrastructure
+- **Evidence**: Marked as deferred ([~]) rather than incomplete in tool evaluation status
+
+### Decision: Framework Completion Strategy  
+- **Date**: 2025-10-12
+- **Decision**: Consider core framework complete with 5/7 tools evaluated rather than pursuing remaining 2 tools
+- **Rationale**: Major tools covered (remediation, recommendation, organizational data management); remaining tools (question generation, manifest generation) provide marginal value
+- **Impact**: Enables focus shift to new PRDs rather than pursuing completionist approach
+- **Evidence**: Operational command framework (`.claude/commands/run-evaluations.md`) provides complete workflow for existing evaluations
 
 ---
 
-**Status**: In Progress - Core Framework + 3 Tools Complete (~45% Complete)
-**Compliance**: OpenAI Evals, LangSmith, MLflow Standards
-**Next Review**: After tool-specific evaluator expansion
-**Owner**: AI Engineering Team
-**Last Updated**: 2025-10-12 (Major Framework Completion)
+**Status**: Complete - 5/7 Tools Evaluated with Core Framework Implementation
+**Completion Date**: 2025-10-12
+**Implementation Success**: ✅ Core AI evaluation framework implemented with multi-provider comparative analysis
+**Standards Compliance**: Reference-free comparative evaluation methodology established; Advanced standards compliance deferred to PRD 156
+**Final Review**: Core evaluation framework complete - Question Generation & Manifest Generation evaluators deferred to future enhancement
+**Owner**: AI Engineering Team  
+**Last Updated**: 2025-10-12 (PRD Complete - Ready for Production)
 **Breaking Changes**: Yes - Full refactor to industry standards
