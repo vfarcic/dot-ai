@@ -526,7 +526,7 @@ export class ResourceRecommender {
   ): Promise<ResourceSolution[]> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
     const response = await this.aiProvider.sendMessage(prompt, 'recommend-solution-assembly', {
-      user_intent: '', // Will be enhanced later by EvalDatasetEnhancer  
+      user_intent: intent ? `Kubernetes solution assembly for: ${intent}` : 'Kubernetes solution assembly',
       interaction_id: interaction_id || 'recommend_solution_assembly'
     });
     return this.parseSimpleSolutionResponse(response.content);
@@ -1118,7 +1118,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{policy_context}', policyContextText);
 
       const response = await this.aiProvider.sendMessage(questionPrompt, 'recommend-question-generation', {
-        user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
+        user_intent: `Generate deployment questions for: ${intent}`,
         interaction_id: interaction_id || 'recommend_question_generation'
       });
       

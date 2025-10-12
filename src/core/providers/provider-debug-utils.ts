@@ -109,23 +109,33 @@ export function logEvaluationDataset(
     const operationParts = metrics.operation.split('-');
     const toolName = operationParts[0]; // e.g., "remediate"
     
-    // Extract model name from modelVersion or sdk
-    let modelName = 'unknown';
-    if (metrics.modelVersion) {
-      if (metrics.modelVersion.includes('sonnet')) {
-        modelName = 'sonnet';
-      } else if (metrics.modelVersion.includes('gpt-5-pro')) {
-        modelName = 'gpt-pro';
-      } else if (metrics.modelVersion.includes('gpt')) {
-        modelName = 'gpt';
-      } else if (metrics.modelVersion.includes('gemini')) {
-        modelName = 'gemini';
-      }
-    }
+    // Check if this is a comparative evaluation
+    const isComparativeEvaluation = metrics.operation.includes('-comparative-');
     
-    // Create filename with interaction ID, SDK, model, and timestamp
+    let datasetFile: string;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T').join('_');
-    const datasetFile = path.join(evalDir, `${toolName}_${metrics.interaction_id}_${metrics.sdk}_${modelName}_${timestamp}.jsonl`);
+    
+    if (isComparativeEvaluation) {
+      // For comparative evaluations, don't include single model name since it compares multiple models
+      datasetFile = path.join(evalDir, `${toolName}_comparative_evaluation_${timestamp}.jsonl`);
+    } else {
+      // Extract model name from modelVersion or sdk for single-model datasets
+      let modelName = 'unknown';
+      if (metrics.modelVersion) {
+        if (metrics.modelVersion.includes('sonnet')) {
+          modelName = 'sonnet';
+        } else if (metrics.modelVersion.includes('gpt-5-pro')) {
+          modelName = 'gpt-pro';
+        } else if (metrics.modelVersion.includes('gpt')) {
+          modelName = 'gpt';
+        } else if (metrics.modelVersion.includes('gemini')) {
+          modelName = 'gemini';
+        }
+      }
+      
+      // Create filename with interaction ID, SDK, model, and timestamp for single-model datasets
+      datasetFile = path.join(evalDir, `${toolName}_${metrics.interaction_id}_${metrics.sdk}_${modelName}_${timestamp}.jsonl`);
+    }
 
     // Transform metrics into OpenAI Evals format (no ideal field - using model-graded evaluation)
     const evalEntry = {

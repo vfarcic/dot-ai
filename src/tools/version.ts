@@ -545,7 +545,7 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
 
     // Test with a minimal request to check connectivity
     await aiProvider.sendMessage('test', 'version-connectivity-check', {
-      user_intent: '', // Will be enhanced later by EvalDatasetEnhancer based on test context
+      user_intent: 'Test AI provider connectivity and system version check',
       interaction_id: interaction_id
     });
 

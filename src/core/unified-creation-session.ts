@@ -360,8 +360,8 @@ export class UnifiedCreationSessionManager {
     });
 
     try {
-      const response = await aiProvider.sendMessage(prompt, 'organizational-data-trigger-expansion', {
-        user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
+      const response = await aiProvider.sendMessage(prompt, `${this.config.entityType}-trigger-expansion`, {
+        user_intent: `Create organizational ${this.config.entityType} for ${initialTriggers.join(', ') || 'unspecified domain'}`,
         interaction_id: interaction_id || 'trigger_expansion'
       });
       const expandedText = response.content.trim();
@@ -802,8 +802,8 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           const { createAIProvider } = require('./ai-provider-factory');
           const aiProvider = createAIProvider();
           
-          const response = await aiProvider.sendMessage(prompt, 'organizational-data-kyverno-generation', {
-            user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
+          const response = await aiProvider.sendMessage(prompt, 'policy-kyverno-generation', {
+            user_intent: data.description ? `Create Kyverno policy: ${data.description}` : `Generate Kyverno policy for ${finalTriggers.join(', ')}`,
             interaction_id: args?.interaction_id || 'kyverno_generation'
           });
           

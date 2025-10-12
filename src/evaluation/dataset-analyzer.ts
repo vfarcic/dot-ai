@@ -61,6 +61,11 @@ export interface ModelResponse {
       failure_reason: string;
       time_to_failure: number;
     };
+    all_failures?: Array<{
+      failure_type: string;
+      failure_reason: string;
+      time_to_failure: number;
+    }>;
   };
 }
 

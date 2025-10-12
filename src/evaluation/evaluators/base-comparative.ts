@@ -151,7 +151,11 @@ ${modelResponse.response}
     try {
       const response = await this.evaluatorModel.sendMessage(
         evaluationPrompt, 
-        `${this.name}-${scenario.interaction_id}`
+        `${this.name}-${scenario.interaction_id}`,
+        {
+          user_intent: `Comparative ${this.name} evaluation for ${scenario.interaction_id}`,
+          interaction_id: scenario.interaction_id
+        }
       );
       
       // Extract JSON from AI response with robust parsing

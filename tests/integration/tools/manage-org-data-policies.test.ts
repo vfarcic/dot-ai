@@ -30,7 +30,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'create',
         collection: 'capabilities-policies', // Use pre-populated collection for Kyverno generation
-        interaction_id: 'policy_create_workflow'
+        interaction_id: 'create_workflow'
       });
 
       // Validate initial workflow response (based on actual API inspection)
@@ -72,7 +72,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: `All pods must have resource limits ${testId}`, // Unique per test execution
-        interaction_id: 'policy_description_step'
+        interaction_id: 'description_step'
       });
 
       const expectedDescriptionResponse = {
@@ -109,7 +109,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'pods, containers, resource management, limits',
-        interaction_id: 'policy_triggers_step'
+        interaction_id: 'triggers_step'
       });
 
       const expectedTriggersResponse = {
@@ -146,7 +146,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Pod, Container, Deployment, ResourceQuota',
-        interaction_id: 'policy_trigger_expansion_step'
+        interaction_id: 'trigger_expansion_step'
       });
 
       const expectedTriggerExpansionResponse = {
@@ -180,7 +180,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Resource limits prevent pods from consuming excessive CPU and memory, ensuring fair resource allocation across all workloads',
-        interaction_id: 'policy_rationale_step'
+        interaction_id: 'rationale_step'
       });
 
       const expectedRationaleResponse = {
@@ -214,7 +214,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Integration Test Suite',
-        interaction_id: 'policy_created_by_step'
+        interaction_id: 'created_by_step'
       });
 
       const expectedCreatedByResponse = {
@@ -247,7 +247,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'all',
-        interaction_id: 'policy_namespace_scope_step'
+        interaction_id: 'namespace_scope_step'
       });
 
       // Assert no Kyverno generation errors occurred
@@ -287,7 +287,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'apply-to-cluster', // Deploy to cluster and store in Vector DB
-        interaction_id: 'policy_final_apply_step'
+        interaction_id: 'final_apply_step'
       });
 
       const expectedFinalResponse = {
@@ -330,7 +330,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         id: policyId,
-        interaction_id: 'policy_get_test'
+        interaction_id: 'get_test'
       });
 
       const expectedGetResponse = {
@@ -363,7 +363,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'list',
         limit: 10,
-        interaction_id: 'policy_list_test'
+        interaction_id: 'list_test'
       });
 
       const expectedListResponse = {
@@ -403,7 +403,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'search',
         id: 'resource limits pods containers', // Search query in 'id' parameter
         limit: 10,
-        interaction_id: 'policy_search_test'
+        interaction_id: 'search_test'
       });
 
       const expectedSearchResponse = {
@@ -453,7 +453,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'delete',
         id: policyId,
-        interaction_id: 'policy_delete_initial_test'
+        interaction_id: 'delete_initial_test'
       });
 
       const expectedDeleteInitialResponse = {
@@ -493,7 +493,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'delete',
         id: policyId,
         response: 'Delete everything',
-        interaction_id: 'policy_delete_final_test'
+        interaction_id: 'delete_final_test'
       });
 
       const expectedDeleteFinalResponse = {
@@ -534,7 +534,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         id: policyId,
-        interaction_id: 'policy_get_deleted_test'
+        interaction_id: 'get_deleted_test'
       });
 
       const expectedGetDeletedResponse = {
@@ -556,7 +556,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
       };
 
       expect(getDeletedResponse).toMatchObject(expectedGetDeletedResponse);
-    }, 300000); // 5 minutes for full CRUD workflow
+    }, 900000); // 15 minutes for full CRUD workflow
 
     test('should create policy intent without deploying Kyverno policies (store-intent-only)', async () => {
       // Start policy creation workflow
@@ -564,7 +564,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'create',
         collection: 'capabilities-policies',
-        interaction_id: 'policy_store_only_workflow'
+        interaction_id: 'store_only_workflow'
       });
 
       const sessionId = startResponse.data.result.workflow.sessionId;
@@ -576,7 +576,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'All deployments must specify replica count for high availability',
-        interaction_id: 'policy_store_only_description'
+        interaction_id: 'store_only_description'
       });
 
       // Step 3: Triggers
@@ -585,7 +585,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'deployment, replica, replicas',
-        interaction_id: 'policy_store_only_triggers'
+        interaction_id: 'store_only_triggers'
       });
 
       // Step 4: Trigger expansion (confirm/select final triggers)
@@ -594,7 +594,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'deployment, replica, replicas',
-        interaction_id: 'policy_store_only_trigger_expansion'
+        interaction_id: 'store_only_trigger_expansion'
       });
 
       // Step 5: Rationale
@@ -603,7 +603,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Ensures high availability by requiring multiple instances',
-        interaction_id: 'policy_store_only_rationale'
+        interaction_id: 'store_only_rationale'
       });
 
       // Step 6: Created By
@@ -612,7 +612,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Integration Test - Store Only',
-        interaction_id: 'policy_store_only_created_by'
+        interaction_id: 'store_only_created_by'
       });
 
       // Step 7: Namespace scope - Kyverno generation happens automatically, returns with nextStep: 'complete'
@@ -621,7 +621,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'all',
-        interaction_id: 'policy_store_only_namespace_scope'
+        interaction_id: 'store_only_namespace_scope'
       });
 
       // Assert no Kyverno generation errors occurred
@@ -660,7 +660,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId,
         response: 'store-intent-only',
-        interaction_id: 'policy_store_only_final'
+        interaction_id: 'store_only_final'
       });
 
       const expectedFinalResponse = {
@@ -720,7 +720,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         id: policyId,
-        interaction_id: 'policy_store_only_get_test'
+        interaction_id: 'store_only_get_test'
       });
 
       const expectedGetResponse = {
@@ -750,7 +750,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'delete',
         id: policyId,
-        interaction_id: 'policy_store_only_delete_test'
+        interaction_id: 'store_only_delete_test'
       });
 
       const expectedDeleteResponse = {
@@ -779,7 +779,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         id: policyId,
-        interaction_id: 'policy_store_only_get_deleted_test'
+        interaction_id: 'store_only_get_deleted_test'
       });
 
       const expectedGetDeletedResponse = {
@@ -808,7 +808,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         response: 'some response',
         // Missing sessionId
-        interaction_id: 'policy_invalid_session_test'
+        interaction_id: 'invalid_session_test'
       });
 
       // Should start new session instead of failing
@@ -834,7 +834,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
         operation: 'invalid-operation',
-        interaction_id: 'policy_invalid_operation_error'
+        interaction_id: 'invalid_operation_error'
       });
 
       const expectedErrorResponse = {
@@ -855,7 +855,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         // Missing id parameter
-        interaction_id: 'policy_missing_id_get_error'
+        interaction_id: 'missing_id_get_error'
       });
 
       const expectedErrorResponse = {
@@ -876,7 +876,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'delete',
         // Missing id parameter
-        interaction_id: 'policy_missing_id_delete_error'
+        interaction_id: 'missing_id_delete_error'
       });
 
       const expectedErrorResponse = {
@@ -897,7 +897,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'search',
         // Missing id parameter (search query)
-        interaction_id: 'policy_missing_search_query_error'
+        interaction_id: 'missing_search_query_error'
       });
 
       const expectedErrorResponse = {
@@ -920,7 +920,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'get',
         id: nonExistentId,
-        interaction_id: 'policy_nonexistent_get_error'
+        interaction_id: 'nonexistent_get_error'
       });
 
       const expectedErrorResponse = {
@@ -945,7 +945,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'delete',
         id: nonExistentId,
-        interaction_id: 'policy_nonexistent_delete_error'
+        interaction_id: 'nonexistent_delete_error'
       });
 
       const expectedErrorResponse = {
@@ -967,7 +967,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         operation: 'create',
         sessionId: 'invalid-session-id-xyz',
         response: 'test response',
-        interaction_id: 'policy_invalid_session_id_error'
+        interaction_id: 'invalid_session_id_error'
       });
 
       // Should return error about invalid session

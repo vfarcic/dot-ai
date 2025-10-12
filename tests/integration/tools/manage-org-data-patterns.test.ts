@@ -26,7 +26,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'pattern',
         operation: 'create',
-        interaction_id: 'pattern_create_workflow'
+        interaction_id: 'create_workflow'
       });
 
       // Validate initial workflow response (based on actual API inspection)
@@ -68,7 +68,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: `Database clustering ${testId}`, // Unique per test execution
-        interaction_id: 'pattern_description_step'
+        interaction_id: 'description_step'
       });
 
       const expectedDescriptionResponse = {
@@ -105,7 +105,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'databases, SQL databases, persistent storage, high availability',
-        interaction_id: 'pattern_triggers_step'
+        interaction_id: 'triggers_step'
       });
 
       const expectedTriggersResponse = {
@@ -142,7 +142,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'PostgreSQL, MySQL, StatefulSet, PersistentVolume',
-        interaction_id: 'pattern_trigger_expansion_step'
+        interaction_id: 'trigger_expansion_step'
       });
 
       const expectedTriggerExpansionResponse = {
@@ -176,7 +176,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'StatefulSet, Service, PersistentVolumeClaim, ConfigMap, Secret',
-        interaction_id: 'pattern_resources_step'
+        interaction_id: 'resources_step'
       });
 
       const expectedResourcesResponse = {
@@ -210,7 +210,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'StatefulSet provides ordered deployment and persistent identity for database pods, while PVC ensures data persistence across pod restarts',
-        interaction_id: 'pattern_rationale_step'
+        interaction_id: 'rationale_step'
       });
 
       const expectedRationaleResponse = {
@@ -244,7 +244,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'Integration Test Suite',
-        interaction_id: 'pattern_created_by_step'
+        interaction_id: 'created_by_step'
       });
 
       const expectedCreatedByResponse = {
@@ -278,7 +278,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId,
         response: 'confirm',
-        interaction_id: 'pattern_final_step'
+        interaction_id: 'final_step'
       });
 
       // Final response should indicate successful creation with storage info
@@ -304,7 +304,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'get',
         id: patternId,
-        interaction_id: 'pattern_get_test'
+        interaction_id: 'get_test'
       });
 
       const expectedGetResponse = {
@@ -338,7 +338,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'list',
         limit: 10,
-        interaction_id: 'pattern_list_test'
+        interaction_id: 'list_test'
       });
 
       const expectedListResponse = {
@@ -386,7 +386,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'search',
         id: 'database persistent storage stateful', // Search query in 'id' parameter
         limit: 10,
-        interaction_id: 'pattern_search_test'
+        interaction_id: 'search_test'
       });
 
       const expectedSearchResponse = {
@@ -433,7 +433,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'delete',
         id: patternId,
-        interaction_id: 'pattern_delete_test'
+        interaction_id: 'delete_test'
       });
 
       const expectedDeleteResponse = {
@@ -456,7 +456,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'get',
         id: patternId,
-        interaction_id: 'pattern_get_deleted_test'
+        interaction_id: 'get_deleted_test'
       });
 
       const expectedGetDeletedResponse = {
@@ -482,7 +482,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         response: 'some response',
         // Missing sessionId
-        interaction_id: 'pattern_invalid_session_test'
+        interaction_id: 'invalid_session_test'
       });
 
       // Should start new session instead of failing
@@ -508,7 +508,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'pattern',
         operation: 'invalid-operation',
-        interaction_id: 'pattern_invalid_operation_error'
+        interaction_id: 'invalid_operation_error'
       });
 
       const expectedErrorResponse = {
@@ -531,7 +531,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'get',
         // Missing id parameter
-        interaction_id: 'pattern_missing_id_get_error'
+        interaction_id: 'missing_id_get_error'
       });
 
       const expectedErrorResponse = {
@@ -554,7 +554,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'delete',
         // Missing id parameter
-        interaction_id: 'pattern_missing_id_delete_error'
+        interaction_id: 'missing_id_delete_error'
       });
 
       const expectedErrorResponse = {
@@ -577,7 +577,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'search',
         // Missing id parameter (search query)
-        interaction_id: 'pattern_missing_search_query_error'
+        interaction_id: 'missing_search_query_error'
       });
 
       const expectedErrorResponse = {
@@ -602,7 +602,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'get',
         id: nonExistentId,
-        interaction_id: 'pattern_nonexistent_get_error'
+        interaction_id: 'nonexistent_get_error'
       });
 
       const expectedErrorResponse = {
@@ -627,7 +627,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         dataType: 'pattern',
         operation: 'delete',
         id: nonExistentId,
-        interaction_id: 'pattern_nonexistent_delete_error'
+        interaction_id: 'nonexistent_delete_error'
       });
 
       const expectedErrorResponse = {
@@ -651,7 +651,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
         operation: 'create',
         sessionId: 'invalid-session-id-xyz',
         response: 'test response',
-        interaction_id: 'pattern_invalid_session_id_error'
+        interaction_id: 'invalid_session_id_error'
       });
 
       // Should return error about invalid session

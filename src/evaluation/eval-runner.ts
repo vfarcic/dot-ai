@@ -10,9 +10,41 @@
 import { RemediationComparativeEvaluator } from './evaluators/remediation-comparative.js';
 import { RecommendationComparativeEvaluator } from './evaluators/recommendation-comparative.js';
 import { CapabilityComparativeEvaluator } from './evaluators/capability-comparative.js';
+import { PatternComparativeEvaluator } from './evaluators/pattern-comparative.js';
+import { PolicyComparativeEvaluator } from './evaluators/policy-comparative.js';
 import { readdir } from 'fs/promises';
 
-function generateMarkdownReport(results: any[], stats: any, evaluationType: 'remediation' | 'recommendation' | 'capability'): string {
+const EVALUATOR_CONFIG = {
+  remediation: { 
+    evaluator: RemediationComparativeEvaluator, 
+    prefix: 'remediate_', 
+    title: 'Remediation AI Model Comparison Report' 
+  },
+  recommendation: { 
+    evaluator: RecommendationComparativeEvaluator, 
+    prefix: 'recommend_', 
+    title: 'Recommendation AI Model Comparison Report' 
+  },
+  capability: { 
+    evaluator: CapabilityComparativeEvaluator, 
+    prefix: 'capability_', 
+    title: 'Capability AI Model Comparison Report' 
+  },
+  pattern: { 
+    evaluator: PatternComparativeEvaluator, 
+    prefix: 'pattern_', 
+    title: 'Pattern AI Model Comparison Report' 
+  },
+  policy: { 
+    evaluator: PolicyComparativeEvaluator, 
+    prefix: 'policy_', 
+    title: 'Policy AI Model Comparison Report' 
+  }
+} as const;
+
+type EvaluationType = keyof typeof EVALUATOR_CONFIG;
+
+function generateMarkdownReport(results: any[], stats: any, evaluationType: EvaluationType): string {
   const timestamp = new Date().toISOString();
   
   // Calculate overall statistics
@@ -43,9 +75,7 @@ function generateMarkdownReport(results: any[], stats: any, evaluationType: 'rem
     modelAverages.set(model, Math.round(avg * 1000) / 1000);
   });
   
-  const reportTitle = evaluationType === 'remediation' ? 'Remediation AI Model Comparison Report' : 
-    evaluationType === 'recommendation' ? 'Recommendation AI Model Comparison Report' : 
-    'Capability AI Model Comparison Report';
+  const reportTitle = EVALUATOR_CONFIG[evaluationType].title;
   
   return `# ${reportTitle}
 
@@ -106,29 +136,29 @@ ${sortedWins.slice(0, 3).map(([model], index) => {
 `;
 }
 
-async function detectAvailableDatasets(datasetsDir: string): Promise<{
-  hasRemediation: boolean;
-  hasRecommendation: boolean;
-  hasCapability: boolean;
-}> {
+async function detectAvailableDatasets(datasetsDir: string): Promise<Record<EvaluationType, boolean>> {
   try {
     const files = await readdir(datasetsDir);
-    const hasRemediation = files.some(file => file.startsWith('remediate_'));
-    const hasRecommendation = files.some(file => file.startsWith('recommend_'));
-    const hasCapability = files.some(file => file.startsWith('capability_'));
-    return { hasRemediation, hasRecommendation, hasCapability };
+    const result: Record<string, boolean> = {};
+    
+    for (const [type, config] of Object.entries(EVALUATOR_CONFIG)) {
+      result[type] = files.some(file => file.startsWith(config.prefix));
+    }
+    
+    return result as Record<EvaluationType, boolean>;
   } catch (error) {
     console.warn('Could not read datasets directory, assuming no datasets available');
-    return { hasRemediation: false, hasRecommendation: false, hasCapability: false };
+    const result: Record<string, boolean> = {};
+    for (const type of Object.keys(EVALUATOR_CONFIG)) {
+      result[type] = false;
+    }
+    return result as Record<EvaluationType, boolean>;
   }
 }
 
-async function runEvaluation(evaluatorType: 'remediation' | 'recommendation' | 'capability', datasetsDir: string) {
-  const evaluator = evaluatorType === 'remediation' 
-    ? new RemediationComparativeEvaluator(datasetsDir)
-    : evaluatorType === 'recommendation'
-    ? new RecommendationComparativeEvaluator(datasetsDir)
-    : new CapabilityComparativeEvaluator(datasetsDir);
+async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string) {
+  const EvaluatorClass = EVALUATOR_CONFIG[evaluatorType].evaluator;
+  const evaluator = new EvaluatorClass(datasetsDir);
   
   console.log(`\n🔬 Starting ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Evaluation\n`);
   
@@ -188,14 +218,15 @@ async function main() {
   console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
   
   const datasetsDir = './eval/datasets';
-  const { hasRemediation, hasRecommendation, hasCapability } = await detectAvailableDatasets(datasetsDir);
+  const availableDatasets = await detectAvailableDatasets(datasetsDir);
   
   console.log('🔍 Dataset Detection:');
-  console.log(`- Remediation datasets: ${hasRemediation ? '✅' : '❌'}`);
-  console.log(`- Recommendation datasets: ${hasRecommendation ? '✅' : '❌'}`);
-  console.log(`- Capability datasets: ${hasCapability ? '✅' : '❌'}`);
+  for (const [type, available] of Object.entries(availableDatasets)) {
+    console.log(`- ${type.charAt(0).toUpperCase() + type.slice(1)} datasets: ${available ? '✅' : '❌'}`);
+  }
   
-  if (!hasRemediation && !hasRecommendation && !hasCapability) {
+  const hasAnyDatasets = Object.values(availableDatasets).some(Boolean);
+  if (!hasAnyDatasets) {
     console.error('❌ No evaluation datasets found. Please run integration tests first to generate datasets.');
     process.exit(1);
   }
@@ -203,19 +234,11 @@ async function main() {
   try {
     const allResults = [];
     
-    if (hasRemediation) {
-      const remediationResults = await runEvaluation('remediation', datasetsDir);
-      allResults.push(...remediationResults);
-    }
-    
-    if (hasRecommendation) {
-      const recommendationResults = await runEvaluation('recommendation', datasetsDir);  
-      allResults.push(...recommendationResults);
-    }
-    
-    if (hasCapability) {
-      const capabilityResults = await runEvaluation('capability', datasetsDir);
-      allResults.push(...capabilityResults);
+    for (const [type, available] of Object.entries(availableDatasets)) {
+      if (available) {
+        const results = await runEvaluation(type as EvaluationType, datasetsDir);
+        allResults.push(...results);
+      }
     }
     
     console.log(`\n🎉 All Evaluations Complete! Total scenarios analyzed: ${allResults.length}`);
