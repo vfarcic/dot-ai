@@ -433,7 +433,8 @@ export class ResourceRecommender {
    */
   async findBestSolutions(
     intent: string,
-    _explainResource: (resource: string) => Promise<any>
+    _explainResource: (resource: string) => Promise<any>,
+    interaction_id?: string
   ): Promise<ResourceSolution[]> {
     if (!this.aiProvider.isInitialized()) {
       throw new Error('AI provider not initialized. API key required for AI-powered resource ranking.');
@@ -494,11 +495,11 @@ export class ResourceRecommender {
       const enhancedResources = await this.addMissingPatternResources(capabilityFilteredResources, relevantPatterns);
 
       // Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking phases)
-      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns);
+      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns, interaction_id);
       
       // Phase 3: Generate questions for each solution
       for (const solution of solutions) {
-        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource);
+        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource, interaction_id);
       }
       
       return solutions;
@@ -520,12 +521,13 @@ export class ResourceRecommender {
       namespaced: boolean;
       capabilities: any;
     }>,
-    patterns: OrganizationalPattern[]
+    patterns: OrganizationalPattern[],
+    interaction_id?: string
   ): Promise<ResourceSolution[]> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
     const response = await this.aiProvider.sendMessage(prompt, 'recommend-solution-assembly', {
       user_intent: '', // Will be enhanced later by EvalDatasetEnhancer  
-      interaction_id: 'recommend_solution_assembly'
+      interaction_id: interaction_id || 'recommend_solution_assembly'
     });
     return this.parseSimpleSolutionResponse(response.content);
   }
@@ -1013,7 +1015,7 @@ export class ResourceRecommender {
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>, interaction_id?: string): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
@@ -1117,7 +1119,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
 
       const response = await this.aiProvider.sendMessage(questionPrompt, 'recommend-question-generation', {
         user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
-        interaction_id: 'recommend_question_generation'
+        interaction_id: interaction_id || 'recommend_question_generation'
       });
       
       // Use robust JSON extraction

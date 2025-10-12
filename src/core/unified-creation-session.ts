@@ -218,7 +218,7 @@ export class UnifiedCreationSessionManager {
         };
         
       case 'trigger-expansion':
-        return await this.generateTriggerExpansionStep(session);
+        return await this.generateTriggerExpansionStep(session, args?.interaction_id);
         
       case 'resources':
         if (this.config.entityType === 'pattern') {
@@ -298,13 +298,13 @@ export class UnifiedCreationSessionManager {
   /**
    * Generate trigger expansion step with AI suggestions
    */
-  private async generateTriggerExpansionStep(session: UnifiedCreationSession): Promise<UnifiedWorkflowStepResponse> {
+  private async generateTriggerExpansionStep(session: UnifiedCreationSession, interaction_id?: string): Promise<UnifiedWorkflowStepResponse> {
     const description = session.data.description || '';
     const initialTriggers = session.data.initialTriggers || [];
     
     try {
       // Generate expanded triggers internally using AI
-      const expandedTriggers = await this.generateInternalTriggerExpansion(initialTriggers, description);
+      const expandedTriggers = await this.generateInternalTriggerExpansion(initialTriggers, description, interaction_id);
       
       // Combine initial and expanded triggers into full list
       const fullTriggerList = [...initialTriggers, ...expandedTriggers];
@@ -345,7 +345,7 @@ export class UnifiedCreationSessionManager {
   /**
    * Generate trigger expansion using internal AI
    */
-  private async generateInternalTriggerExpansion(initialTriggers: string[], description: string): Promise<string[]> {
+  private async generateInternalTriggerExpansion(initialTriggers: string[], description: string, interaction_id?: string): Promise<string[]> {
     const { createAIProvider } = require('./ai-provider-factory');
     const aiProvider = createAIProvider();
 
@@ -362,7 +362,7 @@ export class UnifiedCreationSessionManager {
     try {
       const response = await aiProvider.sendMessage(prompt, 'organizational-data-trigger-expansion', {
         user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
-        interaction_id: 'organizational_data_trigger_expansion'
+        interaction_id: interaction_id || 'trigger_expansion'
       });
       const expandedText = response.content.trim();
       
@@ -804,7 +804,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           
           const response = await aiProvider.sendMessage(prompt, 'organizational-data-kyverno-generation', {
             user_intent: '', // Will be enhanced later by EvalDatasetEnhancer
-            interaction_id: 'organizational_data_kyverno_generation'
+            interaction_id: args?.interaction_id || 'kyverno_generation'
           });
           
           // Response should be clean YAML with analysis comments

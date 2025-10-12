@@ -6,13 +6,13 @@ When an integration test fails, analyze the failure and enhance the related data
 
 Analyze the test failure by:
 
-1. **Find Related Dataset**: Look in `eval/datasets/` for datasets generated before the failure, matching timestamps from test logs
+1. **Find Related Dataset**: Look in `eval/datasets/` for the last dataset of the failing test type, matching timestamps from test logs
 2. **Categorize Failure Type**: 
-   - Timeout: Model too slow → Performance characteristic
-   - Error: API/parsing issues → Reliability characteristic  
-   - Infrastructure: Cluster/network → Not model-related
-3. **Update Dataset**: Add `failure_analysis` to dataset metadata with failure type, duration, and evaluation insights
-4. **Document Impact**: What this tells us about model suitability for different use cases
+   - Timeout: Request exceeded time limit
+   - Error: API/parsing/execution issues
+   - Infrastructure: Cluster/network issues
+3. **Update Dataset**: Add `failure_analysis` to dataset metadata with objective failure data
+4. **Document Facts**: Record what happened without interpretation
 
 Generate failure analysis in this format (objective facts only):
 ```json
@@ -25,4 +25,4 @@ Generate failure analysis in this format (objective facts only):
 }
 ```
 
-Add this analysis to the dataset's metadata section and explain implications for comparative evaluation.
+Add this analysis to the dataset's metadata section for evaluators to assess.

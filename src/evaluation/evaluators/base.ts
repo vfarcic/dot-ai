@@ -57,26 +57,3 @@ export interface EvaluationResult {
   ideal?: any;
 }
 
-/**
- * Base evaluator following OpenAI Evals standard
- */
-export abstract class StandardEvaluator {
-  abstract readonly name: string;
-  abstract readonly description: string;
-
-  /**
-   * Evaluate a single sample
-   * @param sample - Input/output/ideal sample to evaluate
-   * @returns Promise<EvaluationScore>
-   */
-  abstract evaluate(sample: EvaluationSample): Promise<EvaluationScore>;
-
-  /**
-   * Evaluate multiple samples (batch processing)
-   * @param samples - Array of samples to evaluate
-   * @returns Promise<EvaluationScore[]>
-   */
-  evaluateBatch(samples: EvaluationSample[]): Promise<EvaluationScore[]> {
-    return Promise.all(samples.map(sample => this.evaluate(sample)));
-  }
-}

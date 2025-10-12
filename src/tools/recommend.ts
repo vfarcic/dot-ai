@@ -316,7 +316,8 @@ export async function handleRecommendTool(
       logger.debug('Generating recommendations with AI', { requestId });
       const solutions = await recommender.findBestSolutions(
         args.intent,
-        explainResourceFn
+        explainResourceFn,
+        args.interaction_id
       );
 
       logger.info('Recommendation process completed', {

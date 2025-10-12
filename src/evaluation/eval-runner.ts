@@ -9,9 +9,10 @@
 
 import { RemediationComparativeEvaluator } from './evaluators/remediation-comparative.js';
 import { RecommendationComparativeEvaluator } from './evaluators/recommendation-comparative.js';
+import { CapabilityComparativeEvaluator } from './evaluators/capability-comparative.js';
 import { readdir } from 'fs/promises';
 
-function generateMarkdownReport(results: any[], stats: any, evaluationType: 'remediation' | 'recommendation'): string {
+function generateMarkdownReport(results: any[], stats: any, evaluationType: 'remediation' | 'recommendation' | 'capability'): string {
   const timestamp = new Date().toISOString();
   
   // Calculate overall statistics
@@ -42,7 +43,9 @@ function generateMarkdownReport(results: any[], stats: any, evaluationType: 'rem
     modelAverages.set(model, Math.round(avg * 1000) / 1000);
   });
   
-  const reportTitle = evaluationType === 'remediation' ? 'Remediation AI Model Comparison Report' : 'Recommendation AI Model Comparison Report';
+  const reportTitle = evaluationType === 'remediation' ? 'Remediation AI Model Comparison Report' : 
+    evaluationType === 'recommendation' ? 'Recommendation AI Model Comparison Report' : 
+    'Capability AI Model Comparison Report';
   
   return `# ${reportTitle}
 
@@ -106,22 +109,26 @@ ${sortedWins.slice(0, 3).map(([model], index) => {
 async function detectAvailableDatasets(datasetsDir: string): Promise<{
   hasRemediation: boolean;
   hasRecommendation: boolean;
+  hasCapability: boolean;
 }> {
   try {
     const files = await readdir(datasetsDir);
     const hasRemediation = files.some(file => file.startsWith('remediate_'));
     const hasRecommendation = files.some(file => file.startsWith('recommend_'));
-    return { hasRemediation, hasRecommendation };
+    const hasCapability = files.some(file => file.startsWith('capability_'));
+    return { hasRemediation, hasRecommendation, hasCapability };
   } catch (error) {
     console.warn('Could not read datasets directory, assuming no datasets available');
-    return { hasRemediation: false, hasRecommendation: false };
+    return { hasRemediation: false, hasRecommendation: false, hasCapability: false };
   }
 }
 
-async function runEvaluation(evaluatorType: 'remediation' | 'recommendation', datasetsDir: string) {
+async function runEvaluation(evaluatorType: 'remediation' | 'recommendation' | 'capability', datasetsDir: string) {
   const evaluator = evaluatorType === 'remediation' 
     ? new RemediationComparativeEvaluator(datasetsDir)
-    : new RecommendationComparativeEvaluator(datasetsDir);
+    : evaluatorType === 'recommendation'
+    ? new RecommendationComparativeEvaluator(datasetsDir)
+    : new CapabilityComparativeEvaluator(datasetsDir);
   
   console.log(`\n🔬 Starting ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Evaluation\n`);
   
@@ -181,13 +188,14 @@ async function main() {
   console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
   
   const datasetsDir = './eval/datasets';
-  const { hasRemediation, hasRecommendation } = await detectAvailableDatasets(datasetsDir);
+  const { hasRemediation, hasRecommendation, hasCapability } = await detectAvailableDatasets(datasetsDir);
   
   console.log('🔍 Dataset Detection:');
   console.log(`- Remediation datasets: ${hasRemediation ? '✅' : '❌'}`);
   console.log(`- Recommendation datasets: ${hasRecommendation ? '✅' : '❌'}`);
+  console.log(`- Capability datasets: ${hasCapability ? '✅' : '❌'}`);
   
-  if (!hasRemediation && !hasRecommendation) {
+  if (!hasRemediation && !hasRecommendation && !hasCapability) {
     console.error('❌ No evaluation datasets found. Please run integration tests first to generate datasets.');
     process.exit(1);
   }
@@ -203,6 +211,11 @@ async function main() {
     if (hasRecommendation) {
       const recommendationResults = await runEvaluation('recommendation', datasetsDir);  
       allResults.push(...recommendationResults);
+    }
+    
+    if (hasCapability) {
+      const capabilityResults = await runEvaluation('capability', datasetsDir);
+      allResults.push(...capabilityResults);
     }
     
     console.log(`\n🎉 All Evaluations Complete! Total scenarios analyzed: ${allResults.length}`);

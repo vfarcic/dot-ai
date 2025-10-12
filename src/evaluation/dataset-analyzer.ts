@@ -253,6 +253,21 @@ export class DatasetAnalyzer {
     const totalInputTokens = sorted.reduce((sum, i) => sum + i.performance.input_tokens, 0);
     const totalOutputTokens = sorted.reduce((sum, i) => sum + i.performance.output_tokens, 0);
     
+    // Collect all failure analyses from all interactions that have them
+    const allFailures: any[] = [];
+    sorted.forEach((interaction, index) => {
+      if (interaction.metadata.failure_analysis) {
+        allFailures.push({
+          interaction_number: index + 1,
+          issue: interaction.metadata.issue,
+          ...interaction.metadata.failure_analysis
+        });
+      }
+    });
+    
+    // Use the first failure as the primary failure_analysis, but preserve all failures
+    const primaryFailureAnalysis = allFailures.length > 0 ? allFailures[0] : undefined;
+    
     return {
       model: modelKey,
       response: combinedResponse,
@@ -266,7 +281,9 @@ export class DatasetAnalyzer {
       metadata: {
         ...sorted[0].metadata,
         issue: sorted[0].metadata.issue, // Use first interaction's issue as primary
-        interaction_count: interactions.length
+        interaction_count: interactions.length,
+        failure_analysis: primaryFailureAnalysis,
+        all_failures: allFailures.length > 0 ? allFailures : undefined
       }
     };
   }

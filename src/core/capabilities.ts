@@ -60,7 +60,8 @@ export class CapabilityInferenceEngine {
    */
   async inferCapabilities(
     resourceName: string,
-    resourceDefinition?: string
+    resourceDefinition?: string,
+    interaction_id?: string
   ): Promise<ResourceCapability> {
     const requestId = `capability-inference-${Date.now()}`;
     
@@ -71,7 +72,7 @@ export class CapabilityInferenceEngine {
     });
 
     // Use AI to analyze all available information
-    const aiResult = await this.inferWithAI(resourceName, resourceDefinition, requestId);
+    const aiResult = await this.inferWithAI(resourceName, resourceDefinition, requestId, interaction_id);
 
     // Convert AI result to final capability structure
     const finalCapability = this.buildResourceCapability(resourceName, aiResult);
@@ -96,7 +97,8 @@ export class CapabilityInferenceEngine {
   private async inferWithAI(
     resourceName: string,
     resourceDefinition?: string,
-    requestId?: string
+    requestId?: string,
+    interaction_id?: string
   ): Promise<{
     capabilities: string[];
     providers: string[];
@@ -109,8 +111,8 @@ export class CapabilityInferenceEngine {
     try {
       const prompt = await this.buildInferencePrompt(resourceName, resourceDefinition);
       const response = await this.aiProvider.sendMessage(prompt, 'capability-inference', {
-        user_intent: '', // Will be enhanced later by EvalDatasetEnhancer if needed
-        interaction_id: 'capability_inference'
+        user_intent: `Analyze capabilities of Kubernetes resource: ${resourceName}`,
+        interaction_id: interaction_id || 'inference'
       });
       return this.parseCapabilitiesFromAI(response.content);
     } catch (error) {

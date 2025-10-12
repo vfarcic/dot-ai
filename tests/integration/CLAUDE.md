@@ -31,9 +31,9 @@ DEBUG_DOT_AI=true npm run test:integration build-platform
 npm run test:integration:sonnet    # Claude via Vercel AI SDK
 npm run test:integration:gpt       # GPT via Vercel AI SDK
 
-# Run specific tests with model selection
-npm run test:integration:sonnet -- -t "Remediate"
-npm run test:integration:gpt -- -t "Build Platform"
+# Run specific test files with model selection
+npm run test:integration:sonnet tests/integration/tools/manage-org-data-capabilities.test.ts
+npm run test:integration:gpt tests/integration/tools/remediate.test.ts
 ```
 
 **❌ TEST IS NOT ACCEPTABLE IF:**

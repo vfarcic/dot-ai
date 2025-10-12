@@ -32,7 +32,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_scan_workflow'
+        interaction_id: 'scan_workflow'
       });
 
       // Validate initial workflow response
@@ -99,7 +99,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-selection',
         response: 'all',
-        interaction_id: 'capability_resource_selection'
+        interaction_id: 'resource_selection'
       });
 
       // Validate resource selection response
@@ -158,7 +158,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'processing-mode',
         response: 'auto',
-        interaction_id: 'capability_auto_scan'
+        interaction_id: 'auto_scan'
       });
 
       // Validate final scan completion response (based on createCapabilityScanCompletionResponse)
@@ -216,7 +216,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_specific_scan_workflow'
+        interaction_id: 'specific_scan_workflow'
       });
 
       const sessionId = startResponse.data.result.workflow.sessionId;
@@ -228,7 +228,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-selection',
         response: 'specific',
-        interaction_id: 'capability_specific_selection'
+        interaction_id: 'specific_selection'
       });
 
       // Should ask for resource specification
@@ -243,7 +243,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-specification',
         resourceList: 'Deployment.apps,Service',
-        interaction_id: 'capability_resource_specification'
+        interaction_id: 'resource_specification'
       });
 
       // Should proceed to processing mode
@@ -260,7 +260,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_manual_scan_workflow'
+        interaction_id: 'manual_scan_workflow'
       });
       const sessionId = startResponse.data.result.workflow.sessionId;
 
@@ -270,7 +270,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-selection',
         response: 'specific',
-        interaction_id: 'capability_manual_resource_selection'
+        interaction_id: 'manual_resource_selection'
       });
 
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -279,7 +279,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-specification',
         response: 'Deployment.apps',
-        interaction_id: 'capability_manual_resource_spec'
+        interaction_id: 'manual_resource_spec'
       });
 
       // Select manual processing mode
@@ -289,7 +289,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'processing-mode',
         response: 'manual',
-        interaction_id: 'capability_manual_processing'
+        interaction_id: 'manual_processing'
       });
 
       // Should provide manual review workflow or completion - manual mode may return success: false with error info
@@ -310,7 +310,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_crud_test_setup'
+        interaction_id: 'crud_test_setup'
       });
       const sessionId = startResponse.data.result.workflow.sessionId;
 
@@ -320,7 +320,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-selection',
         response: 'specific',
-        interaction_id: 'capability_crud_resource_selection'
+        interaction_id: 'crud_resource_selection'
       });
 
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -329,7 +329,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-specification',
         resourceList: 'Service,ConfigMap',
-        interaction_id: 'capability_crud_resource_spec'
+        interaction_id: 'crud_resource_spec'
       });
 
       const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -338,7 +338,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'processing-mode',
         response: 'auto',
-        interaction_id: 'capability_crud_auto_scan'
+        interaction_id: 'crud_auto_scan'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
       // Ensure scan completed successfully
@@ -350,7 +350,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'list',
         limit: 10,
-        interaction_id: 'capability_list_test'
+        interaction_id: 'list_test'
       });
 
       expect(listResponse.success).toBe(true);
@@ -363,7 +363,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'get',
         id: capabilityId,
-        interaction_id: 'capability_get_test'
+        interaction_id: 'get_test'
       });
 
       expect(getResponse.success).toBe(true);
@@ -374,7 +374,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'delete',
         id: capabilityId,
-        interaction_id: 'capability_delete_test'
+        interaction_id: 'delete_test'
       });
 
       expect(deleteResponse.success).toBe(true);
@@ -386,7 +386,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'get',
         id: capabilityId,
-        interaction_id: 'capability_get_deleted_test'
+        interaction_id: 'get_deleted_test'
       });
 
       expect(getDeletedResponse.success).toBe(true);
@@ -400,7 +400,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_list_setup_scan'
+        interaction_id: 'list_setup_scan'
       });
       const sessionId = startResponse.data.result.workflow.sessionId;
 
@@ -410,7 +410,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-selection',
         response: 'specific',
-        interaction_id: 'capability_list_resource_selection'
+        interaction_id: 'list_resource_selection'
       });
 
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -419,7 +419,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'resource-specification',
         resourceList: 'Service',
-        interaction_id: 'capability_list_resource_spec'
+        interaction_id: 'list_resource_spec'
       });
 
       const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -428,7 +428,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId,
         step: 'processing-mode',
         response: 'auto',
-        interaction_id: 'capability_list_auto_scan'
+        interaction_id: 'list_auto_scan'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
       // Ensure scan completed successfully
@@ -440,7 +440,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'list',
         limit: 10,
-        interaction_id: 'capability_list_after_setup'
+        interaction_id: 'list_after_setup'
       });
 
       const expectedListResponse = {
@@ -490,7 +490,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           dataType: 'capabilities',
           operation: 'get',
           id: capabilityId,
-          interaction_id: 'capability_get_by_id_test'
+          interaction_id: 'get_by_id_test'
         });
 
         const expectedGetResponse = {
@@ -518,7 +518,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'progress',
-        interaction_id: 'capability_progress_check'
+        interaction_id: 'progress_check'
       });
 
       // Progress check should always succeed
@@ -532,27 +532,27 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'capability_search_setup_scan'
+        interaction_id: 'search_setup_scan'
       });
       const sessionId = startResponse.data.result.workflow.sessionId;
 
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities', operation: 'scan', sessionId,
         step: 'resource-selection', response: 'specific',
-        interaction_id: 'capability_search_resource_selection'
+        interaction_id: 'search_resource_selection'
       });
 
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities', operation: 'scan', sessionId,
         step: 'resource-specification', resourceList: 'Service,Deployment',
-        interaction_id: 'capability_search_resource_spec'
+        interaction_id: 'search_resource_spec'
       });
 
       integrationTest.httpClient.setTimeout(180000); // 3 minutes for specific resource scan with AI
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities', operation: 'scan', sessionId,
         step: 'processing-mode', response: 'auto',
-        interaction_id: 'capability_search_auto_scan'
+        interaction_id: 'search_auto_scan'
       });
 
       // Reset timeout to default for search (semantic search can take time with embeddings)
@@ -563,7 +563,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'search',
         id: 'workload application deployment', // Search query
-        interaction_id: 'capability_semantic_search_test'
+        interaction_id: 'semantic_search_test'
       });
 
       const expectedSearchResponse = {
@@ -606,7 +606,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           group: 'apps',
           apiVersion: 'apps/v1'
         },
-        interaction_id: 'capability_resource_get_error_test'
+        interaction_id: 'resource_get_error_test'
       });
 
       // Resource-specific get operations require an ID - should return error
@@ -623,7 +623,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'invalid-operation',
-        interaction_id: 'capability_invalid_operation_error'
+        interaction_id: 'invalid_operation_error'
       });
 
       // API returns success but with error message in data for invalid operations
@@ -639,7 +639,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         step: 'resource-selection',
         response: 'all',
         // Missing sessionId
-        interaction_id: 'capability_missing_session_error'
+        interaction_id: 'missing_session_error'
       });
 
       // API returns success but handles errors in workflow response
@@ -654,7 +654,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         sessionId: 'invalid-session-id',
         step: 'resource-selection',
         response: 'all',
-        interaction_id: 'capability_invalid_session_error'
+        interaction_id: 'invalid_session_error'
       });
 
       // API returns success but handles errors in workflow response

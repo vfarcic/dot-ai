@@ -288,16 +288,36 @@ interface EvaluationExperiment {
 - [x] **Recommendation Metrics**: Measure resource selection, configuration accuracy, best practices compliance
 - [x] **Recommendation Dataset Analysis**: Analyze deployment scenarios across databases, applications, operators
 
-#### 6.3 Documentation Testing Tool Evaluation ⬜
+#### 6.3 Organizational Data Management Tool Evaluation ⚠️
+**Target**: Evaluate AI model performance across the three domains of organizational data management
+
+##### 6.3.1 Capabilities Evaluation ✅
+- [x] **CapabilityComparativeEvaluator**: Implemented evaluator for Kubernetes capability analysis quality
+- [x] **Multi-Model Capability Comparison**: Successfully compared Claude Sonnet vs GPT-5 capability inference approaches across 4 scenarios
+- [x] **Capability Analysis Metrics**: Implemented weighted evaluation measuring accuracy, completeness, clarity, consistency with reliability assessment
+- [x] **Capability Dataset Analysis**: Generated and analyzed 118+ capability inference datasets across auto_scan, crud_auto_scan, list_auto_scan, search_auto_scan scenarios
+
+##### 6.3.2 Patterns Evaluation ⬜
+- [ ] **PatternComparativeEvaluator**: Create evaluator for organizational pattern creation and matching accuracy
+- [ ] **Multi-Model Pattern Comparison**: Compare provider performance on pattern identification, creation, and application
+- [ ] **Pattern Quality Metrics**: Measure pattern relevance, completeness, practical applicability, and matching accuracy
+- [ ] **Pattern Dataset Analysis**: Analyze pattern management scenarios across different organizational contexts
+
+##### 6.3.3 Policies Evaluation ⬜
+- [ ] **PolicyComparativeEvaluator**: Create evaluator for policy intent creation and management quality
+- [ ] **Multi-Model Policy Comparison**: Compare provider performance on policy creation, validation, and enforcement recommendations
+- [ ] **Policy Quality Metrics**: Measure policy correctness, completeness, enforceability, and compliance alignment
+- [ ] **Policy Dataset Analysis**: Analyze policy management scenarios across security, governance, and operational contexts
+
+#### 6.4 Documentation Testing Tool Evaluation ⬜
 - [ ] **DocTestingAccuracyEvaluator**: Create evaluator for documentation testing quality
 - [ ] **Multi-Model Doc Testing Comparison**: Compare provider performance on documentation validation
 - [ ] **Doc Testing Metrics**: Measure test completeness, accuracy, edge case detection
 - [ ] **Doc Testing Dataset Analysis**: Analyze documentation testing scenarios across different doc types
 
-#### 6.4 Additional Tool Evaluations ⬜
+#### 6.5 Additional Tool Evaluations ⬜
 - [ ] **Question Generation**: Evaluate question quality and relevance for solution enhancement
 - [ ] **Manifest Generation**: Evaluate generated Kubernetes manifest quality and compliance
-- [ ] **Pattern Management**: Evaluate organizational pattern creation and matching accuracy
 
 *Note: Version tool excluded from evaluation as it only performs connectivity checks without complex AI reasoning.*
 
@@ -727,6 +747,84 @@ This completes the core comparative evaluation framework, enabling data-driven A
 - Extend evaluation framework to documentation testing and remaining tools
 - Implement CI/CD integration for automated evaluation on model changes
 - Add statistical significance testing for comparative results
+
+### 2025-10-12: Capability Analysis Tool Evaluation Implementation
+**Duration**: ~6 hours (estimated from dataset generation and evaluation)
+**Focus**: Complete organizational data management capability inference evaluation
+
+**Completed PRD Items (Task 6.3.1 - Capabilities Evaluation)**:
+- [x] **CapabilityComparativeEvaluator**: Implemented evaluator for Kubernetes capability analysis quality - Evidence: `src/evaluation/evaluators/capability-comparative.ts`
+- [x] **Multi-Model Capability Comparison**: Successfully compared Claude Sonnet vs GPT-5 capability inference approaches across 4 scenarios - Evidence: `eval/reports/capability-evaluation-2025-10-12.md`
+- [x] **Capability Analysis Metrics**: Implemented weighted evaluation measuring accuracy, completeness, clarity, consistency with reliability assessment - Evidence: 4 evaluation scenarios with detailed scoring
+- [x] **Capability Dataset Analysis**: Generated and analyzed 118+ capability inference datasets across auto_scan, crud_auto_scan, list_auto_scan, search_auto_scan scenarios - Evidence: `eval/datasets/capability/` directory
+
+**Technical Achievements**:
+- **Comprehensive Dataset Generation**: 118+ evaluation datasets across 4 capability analysis scenarios
+- **Multi-Model Performance Analysis**: Claude Sonnet wins 1 scenario (91.45 score) vs GPT-5's 3 scenarios (avg 89.25 score)
+- **Reliability-Aware Evaluation**: Proper timeout failure penalties integrated (GPT-5's 30-minute timeout properly accounted for)
+- **Production Insights**: Performance vs quality trade-offs identified for capability inference workflows
+
+**Key Evaluation Results**:
+- **Auto Scan**: Claude Sonnet superior (91.45 vs 83.85) due to reliability and consistency despite GPT-5's completeness advantage
+- **CRUD/List/Search Scans**: GPT-5 demonstrates superior technical depth (91.75-92.05 scores) with comprehensive capability coverage
+- **Performance Trade-offs**: GPT-5 provides 2-3x more capabilities but with significantly slower processing times
+- **Reliability Assessment**: Claude's 6-minute completion vs GPT-5's 30-minute timeout represents critical production constraint
+
+**Infrastructure Enhancements**:
+- **Core Capability System**: Enhanced capability scanning workflow and schema - Evidence: Modified `src/core/capabilities.ts`, `capability-scan-workflow.ts`, `schema.ts`
+- **Integration Testing**: Updated capability management integration tests - Evidence: `tests/integration/tools/manage-org-data-capabilities.test.ts`
+- **Evaluation Prompt Template**: Created capability-specific evaluation template - Evidence: `src/evaluation/prompts/capability-comparative.md`
+
+**Evidence of Completion**:
+- Complete evaluation report: `eval/reports/capability-evaluation-2025-10-12.md`
+- 118+ capability datasets: `eval/datasets/capability/` directory with comprehensive scenario coverage
+- Working capability evaluator: `src/evaluation/evaluators/capability-comparative.ts` following base class pattern
+- Enhanced core capability infrastructure with evaluation-ready dataset generation
+
+**Strategic Value**:
+This completes the first of three organizational data management evaluations, providing data-driven insights for capability inference optimization. The evaluation demonstrates clear model trade-offs between completeness and reliability, enabling production-realistic provider selection for capability analysis workflows.
+
+**Next Session Priorities**:
+- Implement pattern evaluation (6.3.2) for organizational pattern creation and matching
+- Implement policy evaluation (6.3.3) for policy intent creation and management
+- Complete documentation testing tool evaluation (6.4)
+
+### 2025-10-12: Comparative Evaluator Architecture Refactoring & Critical Bug Fixes
+**Duration**: ~4 hours (estimated from conversation)
+**Focus**: Code deduplication, reliability integration, and timeout failure handling
+
+**Completed Infrastructure Enhancements**:
+- [x] **BaseComparativeEvaluator Abstract Class**: Created shared base class eliminating ~70% code duplication across remediation, recommendation, and capability evaluators
+- [x] **Critical Failure Analysis Bug Fix**: Fixed DatasetAnalyzer.combineModelInteractions() to preserve ALL failure_analysis from any interaction (was only preserving first interaction metadata)
+- [x] **Reliability-Aware Evaluation**: Enhanced all comparative evaluators to include timeout failures and performance constraints in evaluation prompts
+- [x] **Architecture Consistency**: Implemented abstract class pattern ensuring consistent reliability context across all comparative evaluators
+
+**Critical Bug Resolution**:
+- **GPT-5 Timeout Penalty**: Fixed issue where GPT-5 was winning evaluations despite 30-minute timeout failures
+- **Evidence**: Claude Sonnet now correctly wins capability auto_scan evaluation (91.45 vs 83.85) due to reliability penalty
+- **Failure Context Integration**: Timeout failures now appear as "⚠️ **TIMEOUT FAILURE**: Auto scan workflow test exceeded 1800000ms timeout limit" in evaluation prompts
+- **All Failures Preserved**: Changed from "most severe failure" to preserving ALL failures in evaluation context
+
+**Architecture Improvements**:
+- **Code Deduplication**: Abstract BaseComparativeEvaluator handles common functionality (prompt loading, reliability context, evaluation execution)
+- **Prompt Template Verification**: Confirmed capability-comparative.md template loading via "ability to analyze" → "capability to analyze" test
+- **Failure Analysis Integration**: Base class provides properly formatted model responses with reliability status for all evaluators
+- **TypeScript Compatibility**: Resolved abstract property access in constructor through initializePrompt() pattern
+
+**Evidence of Completion**:
+- Working abstract class: `src/evaluation/evaluators/base-comparative.ts`
+- Enhanced dataset analyzer: Fixed combineModelInteractions() preserving all failure analysis
+- Updated evaluators: capability-comparative.ts, remediation-comparative.ts, recommendation-comparative.ts
+- Verified evaluation reports showing proper timeout failure penalties
+- All comparative evaluators now use consistent reliability-aware evaluation
+
+**Strategic Value**:
+This refactoring eliminates significant technical debt (~70% code reduction) while fixing critical evaluation accuracy issues. The abstract class pattern ensures consistent reliability assessment across all AI model comparisons, providing production-realistic evaluation results that account for workflow completion constraints.
+
+**Next Session Priorities**:
+- Complete remaining tool-specific evaluators (documentation testing, question generation, pattern management)
+- Implement statistical significance testing for comparative results
+- Add OpenAI Evals and LangSmith compatibility for standards compliance
 
 ### 2025-10-11: Recommendation Tool Evaluation & Failure Analysis Integration
 **Duration**: ~6 hours (estimated from conversation and implementation)
