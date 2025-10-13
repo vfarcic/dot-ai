@@ -9,6 +9,7 @@ import { generateText, jsonSchema, tool, stepCountIs } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createXai } from '@ai-sdk/xai';
 import {
   AIProvider,
   AIResponse,
@@ -43,39 +44,36 @@ export class VercelProvider implements AIProvider {
       throw new Error(`API key is required for ${this.providerType} provider`);
     }
 
-    if (!['openai', 'openai_pro', 'google', 'anthropic'].includes(this.providerType)) {
-      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', or 'anthropic'`);
+    if (!['openai', 'openai_pro', 'google', 'google_fast', 'anthropic', 'xai', 'xai_fast'].includes(this.providerType)) {
+      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', 'google_fast', 'anthropic', 'xai', or 'xai_fast'`);
     }
   }
 
   private initializeModel(): void {
     try {
+      let provider: any;
+      
       switch (this.providerType) {
         case 'openai':
-        case 'openai_pro': {
-          const provider = createOpenAI({
-            apiKey: this.apiKey
-          });
-          this.modelInstance = provider(this.model);
+        case 'openai_pro':
+          provider = createOpenAI({ apiKey: this.apiKey });
           break;
-        }
-        case 'google': {
-          const provider = createGoogleGenerativeAI({
-            apiKey: this.apiKey
-          });
-          this.modelInstance = provider(this.model);
+        case 'google':
+        case 'google_fast':
+          provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
-        }
-        case 'anthropic': {
-          const provider = createAnthropic({
-            apiKey: this.apiKey
-          });
-          this.modelInstance = provider(this.model);
+        case 'anthropic':
+          provider = createAnthropic({ apiKey: this.apiKey });
           break;
-        }
+        case 'xai':
+        case 'xai_fast':
+          provider = createXai({ apiKey: this.apiKey });
+          break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);
       }
+      
+      this.modelInstance = provider(this.model);
     } catch (error) {
       throw new Error(`Failed to initialize ${this.providerType} model: ${error}`);
     }
@@ -304,6 +302,89 @@ export class VercelProvider implements AIProvider {
 
       const result = await generateText(generateConfig);
 
+      // Log raw response immediately after generation (before any processing)
+      let debugFiles: { promptFile: string; responseFile: string } | null = null;
+      if (this.debugMode) {
+        // Build the full conversation context like Anthropic provider does
+        let finalPrompt = `System: ${config.systemPrompt}\n\n`;
+        
+        // Always include the original user intent first
+        finalPrompt += `user: ${config.userMessage}\n\n`;
+        
+        // Then add the conversation history if available
+        if (result.response?.messages) {
+          finalPrompt += result.response.messages
+            .map(msg => {
+              if (typeof msg.content === 'string') {
+                return `${msg.role}: ${msg.content}`;
+              } else if (Array.isArray(msg.content)) {
+                const contentParts = msg.content.map(part => {
+                  if (part.type === 'text') {
+                    return (part as any).text;
+                  } else if (part.type === 'tool-call') {
+                    return `[TOOL_USE: ${(part as any).toolName}]`;
+                  } else if (part.type === 'tool-result') {
+                    const resultData = (part as any).output || (part as any).result || (part as any).content;
+                    if (typeof resultData === 'string') {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
+                    } else if (resultData) {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
+                    }
+                    return `[TOOL_RESULT: ${(part as any).toolName}]`;
+                  }
+                  return `[${part.type}]`;
+                }).join(' ');
+                return `${msg.role}: ${contentParts}`;
+              }
+              return `${msg.role}: [complex_content]`;
+            })
+            .join('\n\n');
+        }
+        
+        // Create raw response content that includes ALL data from result
+        let rawResponseContent = `# RAW RESPONSE DATA\n\n`;
+        rawResponseContent += `**result.text**: ${result.text || '[EMPTY]'}\n\n`;
+        
+        if (result.steps && result.steps.length > 0) {
+          rawResponseContent += `**Steps (${result.steps.length})**:\n`;
+          result.steps.forEach((step, i) => {
+            rawResponseContent += `\nStep ${i + 1}:\n`;
+            rawResponseContent += `- text: ${step.text || '[EMPTY]'}\n`;
+            if (step.toolCalls) {
+              rawResponseContent += `- toolCalls: ${step.toolCalls.length}\n`;
+            }
+            if (step.toolResults) {
+              rawResponseContent += `- toolResults: ${step.toolResults.length}\n`;
+            }
+          });
+          rawResponseContent += '\n';
+        }
+        
+        // Add the last step's text for easy access
+        let lastStepText = '';
+        if (result.steps && result.steps.length > 0) {
+          for (let i = result.steps.length - 1; i >= 0; i--) {
+            if (result.steps[i].text && result.steps[i].text.trim()) {
+              lastStepText = result.steps[i].text;
+              break;
+            }
+          }
+        }
+        rawResponseContent += `**Last step with text**: ${lastStepText || '[NONE]'}\n\n`;
+        
+        const usage = result.totalUsage || result.usage;
+        const rawAiResponse = {
+          content: rawResponseContent,
+          usage: {
+            input_tokens: usage.inputTokens || 0,
+            output_tokens: usage.outputTokens || 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0
+          }
+        };
+        
+        debugFiles = this.logDebugIfEnabled(`${operation}-raw`, finalPrompt, rawAiResponse);
+      }
 
       // Extract tool call history from steps
       const toolCallsExecuted: Array<{ tool: string; input: any; output: any }> = [];
@@ -367,44 +448,10 @@ export class VercelProvider implements AIProvider {
         }
       }
 
-      // Log debug for summary operations to capture complete prompts/responses for evaluation
-      let debugFiles: { promptFile: string; responseFile: string } | null = null;
-      if (this.debugMode) {
-        // Build the full conversation context like Anthropic provider does
-        let finalPrompt = `System: ${config.systemPrompt}\n\n`;
-        
-        // Always include the original user intent first
-        finalPrompt += `user: ${config.userMessage}\n\n`;
-        
-        // Then add the conversation history if available
-        if (result.response?.messages) {
-          finalPrompt += result.response.messages
-            .map(msg => {
-              if (typeof msg.content === 'string') {
-                return `${msg.role}: ${msg.content}`;
-              } else if (Array.isArray(msg.content)) {
-                const contentParts = msg.content.map(part => {
-                  if (part.type === 'text') {
-                    return (part as any).text;
-                  } else if (part.type === 'tool-call') {
-                    return `[TOOL_USE: ${(part as any).toolName}]`;
-                  } else if (part.type === 'tool-result') {
-                    const resultData = (part as any).output || (part as any).result || (part as any).content;
-                    if (typeof resultData === 'string') {
-                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
-                    } else if (resultData) {
-                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
-                    }
-                    return `[TOOL_RESULT: ${(part as any).toolName}]`;
-                  }
-                  return `[${part.type}]`;
-                }).join(' ');
-                return `${msg.role}: ${contentParts}`;
-              }
-              return `${msg.role}: [complex_content]`;
-            })
-            .join('\n\n');
-        }
+      // Log processed summary response (keep existing functionality)
+      if (this.debugMode && debugFiles === null) {
+        // Only log summary if we haven't already logged raw response
+        let finalPrompt = `System: ${config.systemPrompt}\n\nuser: ${config.userMessage}`;
         
         const aiResponse: AIResponse = {
           content: finalText || '',

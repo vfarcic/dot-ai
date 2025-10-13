@@ -25,12 +25,15 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   openai: 'OPENAI_API_KEY',
   openai_pro: 'OPENAI_API_KEY', // Uses same API key as regular OpenAI
   google: 'GOOGLE_API_KEY',
+  google_fast: 'GOOGLE_API_KEY', // Uses same API key as regular Google
+  xai: 'XAI_API_KEY',
+  xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
 };
 
 /**
  * Providers implemented in Phase 1-2
  */
-const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'openai_pro', 'google'] as const;
+const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'openai_pro', 'google', 'google_fast', 'xai', 'xai_fast'] as const;
 type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
 
 /**
@@ -88,6 +91,15 @@ export class AIProviderFactory {
 
       case 'google':
         return this.createGoogleProvider(config);
+
+      case 'google_fast':
+        return this.createGoogleFastProvider(config);
+
+      case 'xai':
+        return this.createXaiProvider(config);
+
+      case 'xai_fast':
+        return this.createXaiFastProvider(config);
 
       default:
         // This should never happen due to IMPLEMENTED_PROVIDERS check above
@@ -184,6 +196,30 @@ export class AIProviderFactory {
    * @private
    */
   private static createGoogleProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
+  }
+
+  /**
+   * Create Google Fast provider instance
+   * @private
+   */
+  private static createGoogleFastProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
+  }
+
+  /**
+   * Create xAI provider instance
+   * @private
+   */
+  private static createXaiProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
+  }
+
+  /**
+   * Create xAI Fast provider instance
+   * @private
+   */
+  private static createXaiFastProvider(config: AIProviderConfig): AIProvider {
     return new VercelProvider(config);
   }
 

@@ -9,7 +9,10 @@ export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-5-20250929',
   openai: 'gpt-5', 
   openai_pro: 'gpt-5-pro',
-  google: 'gemini-2.5-pro'
+  google: 'gemini-2.5-pro',
+  google_fast: 'gemini-2.5-flash',
+  xai: 'grok-4',
+  xai_fast: 'grok-4-fast-reasoning'
 } as const;
 
 /**

@@ -14,3 +14,4 @@ providers:
           aws-account-id: AWS_ACCOUNT_ID
           azure-tenant: AZURE_TENANT
           github-token: GITHUB_TOKEN
+          xai-api-key: XAI_API_KEY
