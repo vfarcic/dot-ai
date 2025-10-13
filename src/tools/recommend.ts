@@ -33,7 +33,8 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
   // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
   answers: z.record(z.any()).optional().describe('User answers for answerQuestion stage'),
   // Parameters for deployManifests stage
-  timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage')
+  timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 
@@ -50,7 +51,13 @@ async function analyzeIntentForClarification(
   intent: string,
   aiProvider: AIProvider,
   logger: Logger,
-  organizationalPatterns: string = ''
+  organizationalPatterns: string = '',
+  evaluationContext?: {
+    user_intent?: string;
+    setup_context?: string;
+    failure_analysis?: string;
+    interaction_id?: string;
+  }
 ): Promise<IntentAnalysisResult> {
   try {
     // Load intent analysis prompt template
@@ -60,7 +67,7 @@ async function analyzeIntentForClarification(
     });
 
     // Send to AI for analysis
-    const response = await aiProvider.sendMessage(analysisPrompt, 'intent-analysis');
+    const response = await aiProvider.sendMessage(analysisPrompt, 'recommend-intent-analysis', evaluationContext);
 
     // Parse JSON response with robust error handling
     let jsonContent = response.content;
@@ -233,7 +240,16 @@ export async function handleRecommendTool(
       if (!args.final) {
         logger.debug('Analyzing intent for clarification opportunities', { requestId, intent: args.intent });
 
-        const analysisResult = await analyzeIntentForClarification(args.intent, aiProvider, logger);
+        const analysisResult = await analyzeIntentForClarification(
+          args.intent, 
+          aiProvider, 
+          logger, 
+          '', // organizationalPatterns - empty for now
+          {
+            user_intent: args.intent,
+            interaction_id: args.interaction_id
+          }
+        );
         
         // If clarification opportunities exist, return them to the client agent
         if (analysisResult.clarificationOpportunities && 
@@ -300,7 +316,8 @@ export async function handleRecommendTool(
       logger.debug('Generating recommendations with AI', { requestId });
       const solutions = await recommender.findBestSolutions(
         args.intent,
-        explainResourceFn
+        explainResourceFn,
+        args.interaction_id
       );
 
       logger.info('Recommendation process completed', {

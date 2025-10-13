@@ -20,7 +20,8 @@ export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return 
 export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
   solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
   stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
-  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})')
+  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 
@@ -370,7 +371,8 @@ function getStageGuidance(stage: Stage): string {
 async function analyzeResourceNeeds(
   currentSolution: any,
   openResponse: string,
-  context: { requestId: string; logger: Logger; dotAI: DotAI }
+  context: { requestId: string; logger: Logger; dotAI: DotAI },
+  interaction_id?: string
 ): Promise<any> {
   const template = loadPrompt('resource-analysis');
   
@@ -400,7 +402,10 @@ async function analyzeResourceNeeds(
   });
 
   try {
-    const response = await aiProvider.sendMessage(analysisPrompt);
+    const response = await aiProvider.sendMessage(analysisPrompt, 'answer-question-resource-analysis', {
+      user_intent: openResponse,
+      interaction_id: interaction_id
+    });
     const analysisResult = parseEnhancementResponse(response.content);
     
     // Check for capability gap and throw specific error
@@ -435,7 +440,8 @@ async function applySolutionEnhancement(
   solution: any,
   openResponse: string,
   analysisResult: any,
-  context: { requestId: string; logger: Logger; dotAI: DotAI }
+  context: { requestId: string; logger: Logger; dotAI: DotAI },
+  interaction_id?: string
 ): Promise<any> {
   if (analysisResult.approach === 'capability_gap') {
     throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
@@ -448,7 +454,7 @@ async function applySolutionEnhancement(
       reasoning: analysisResult.reasoning
     });
 
-    return autoPopulateQuestions(solution, openResponse, analysisResult, context);
+    return autoPopulateQuestions(solution, openResponse, analysisResult, context, interaction_id);
   }
   
   if (analysisResult.approach === 'add_resources') {
@@ -472,7 +478,8 @@ async function autoPopulateQuestions(
   solution: any,
   openResponse: string,
   analysisResult: any,
-  context: { requestId: string; logger: Logger; dotAI: DotAI }
+  context: { requestId: string; logger: Logger; dotAI: DotAI },
+  interaction_id?: string
 ): Promise<any> {
   const template = loadPrompt('solution-enhancement');
 
@@ -485,7 +492,10 @@ async function autoPopulateQuestions(
   // Get AI provider from context
   const aiProvider = context.dotAI.ai;
 
-  const response = await aiProvider.sendMessage(enhancementPrompt);
+  const response = await aiProvider.sendMessage(enhancementPrompt, 'answer-question-solution-enhancement', {
+    user_intent: openResponse,
+    interaction_id: interaction_id
+  });
   const enhancementData = parseEnhancementResponse(response.content);
   
   if (enhancementData.enhancedSolution) {
@@ -538,7 +548,8 @@ function parseEnhancementResponse(content: string): any {
 async function enhanceSolutionWithOpenAnswer(
   solution: any,
   openAnswer: string,
-  context: { requestId: string; logger: Logger; dotAI: DotAI }
+  context: { requestId: string; logger: Logger; dotAI: DotAI },
+  interaction_id?: string
 ): Promise<any> {
   try {
     context.logger.info('Starting AI enhancement of solution', {
@@ -547,10 +558,10 @@ async function enhanceSolutionWithOpenAnswer(
     });
     
     // Phase 1: Analyze what resources are needed
-    const analysisResult = await analyzeResourceNeeds(solution, openAnswer, context);
+    const analysisResult = await analyzeResourceNeeds(solution, openAnswer, context, interaction_id);
     
     // Phase 2: Apply enhancements based on analysis
-    const enhancedSolution = await applySolutionEnhancement(solution, openAnswer, analysisResult, context);
+    const enhancedSolution = await applySolutionEnhancement(solution, openAnswer, analysisResult, context, interaction_id);
     
     context.logger.info('AI enhancement completed', {
       approach: analysisResult.approach,
@@ -569,7 +580,7 @@ async function enhanceSolutionWithOpenAnswer(
  * Direct MCP tool handler for answerQuestion functionality
  */
 export async function handleAnswerQuestionTool(
-  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, any> },
+  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, any>; interaction_id?: string },
   dotAI: DotAI,
   logger: Logger,
   requestId: string
@@ -777,7 +788,7 @@ export async function handleAnswerQuestionTool(
               openAnswer
             });
             
-            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, { requestId, logger, dotAI });
+            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, { requestId, logger, dotAI }, args.interaction_id);
             
             // Save enhanced solution
             saveSolutionFile(solution, args.solutionId, sessionDir);

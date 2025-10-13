@@ -21,7 +21,8 @@ export const GENERATEMANIFESTS_TOOL_DESCRIPTION = 'Generate final Kubernetes man
 
 // Zod schema for MCP registration
 export const GENERATEMANIFESTS_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)')
+  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 
@@ -185,7 +186,8 @@ async function generateManifestsWithAI(
   dotAI: DotAI,
   logger: Logger,
   errorContext?: ErrorContext,
-  dotAiLabels?: Record<string, string>
+  dotAiLabels?: Record<string, string>,
+  interaction_id?: string
 ): Promise<string> {
   
   // Load prompt template
@@ -231,7 +233,10 @@ ${errorContext.previousManifests}
   const aiProvider = dotAI.ai;
 
   // Send prompt to AI
-  const response = await aiProvider.sendMessage(aiPrompt);
+  const response = await aiProvider.sendMessage(aiPrompt, 'recommend-manifests-generation', {
+    user_intent: solution.initialIntent || 'Kubernetes manifest generation',
+    interaction_id: interaction_id
+  });
   
   // Extract YAML content from response
   let manifestContent = response.content;
@@ -313,7 +318,7 @@ function generateMetadataConfigMap(solution: any, userAnswers: Record<string, an
  * Direct MCP tool handler for generateManifests functionality
  */
 export async function handleGenerateManifestsTool(
-  args: { solutionId: string },
+  args: { solutionId: string; interaction_id?: string },
   dotAI: DotAI,
   logger: Logger,
   requestId: string
@@ -411,7 +416,8 @@ export async function handleGenerateManifestsTool(
             dotAI,
             logger,
             lastError,
-            dotAiLabels
+            dotAiLabels,
+            args.interaction_id
           );
           
           // Generate metadata ConfigMap

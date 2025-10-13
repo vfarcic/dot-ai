@@ -35,8 +35,9 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PHASE 1: Request recommendations without final flag (clarification)
       // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
       const clarificationResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        intent: 'deploy database'
+        intent: 'deploy database',
         // stage omitted - should default to 'recommend'
+        interaction_id: 'clarification_phase'
       });
 
       // Validate clarification response structure (based on actual API inspection)
@@ -72,7 +73,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'recommend', // Explicit stage parameter
         intent: 'deploy postgresql database',
-        final: true
+        final: true,
+        interaction_id: 'solution_assembly_phase'
       });
 
       // Validate solutions response structure (based on actual API inspection)
@@ -110,7 +112,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PHASE 3: Call chooseSolution stage with solutionId
       const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'chooseSolution',
-        solutionId
+        solutionId,
+        interaction_id: 'choose_solution_phase'
       });
 
       // Validate chooseSolution response structure (based on actual API inspection)
@@ -163,7 +166,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'answerQuestion:required', // Combined stage routing
         solutionId,
-        answers: requiredAnswers
+        answers: requiredAnswers,
+        interaction_id: 'answer_required_phase'
       });
 
       // Validate answerQuestion response (should return next stage questions)
@@ -186,7 +190,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const skipBasicResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'answerQuestion:basic', // Combined stage routing
         solutionId,
-        answers: {}
+        answers: {},
+        interaction_id: 'skip_basic_phase'
       });
 
       // Validate skip basic response (based on actual API inspection)
@@ -216,7 +221,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const skipAdvancedResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'answerQuestion:advanced', // Combined stage routing
         solutionId,
-        answers: {}
+        answers: {},
+        interaction_id: 'skip_advanced_phase'
       });
 
       // Validate skip advanced response (based on actual API inspection)
@@ -245,7 +251,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const completeOpenResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'answerQuestion:open', // Combined stage routing
         solutionId,
-        answers: { open: 'N/A' }
+        answers: { open: 'N/A' },
+        interaction_id: 'complete_open_phase'
       });
 
       // Validate open stage completion response (based on actual API inspection)
@@ -274,7 +281,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PHASE 8: Generate manifests
       const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'generateManifests',
-        solutionId
+        solutionId,
+        interaction_id: 'generate_manifests_phase'
       });
 
       // Validate generateManifests response (based on actual API inspection)
@@ -311,7 +319,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PHASE 9: Deploy manifests to cluster
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'deployManifests',
-        solutionId
+        solutionId,
+        interaction_id: 'deploy_manifests_phase'
       });
 
       // Validate deployManifests response (based on actual API inspection)
