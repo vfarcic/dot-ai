@@ -406,7 +406,16 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
     
     return parsed;
   } catch (error) {
-    throw new Error(`Failed to parse AI final analysis response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Log the actual AI response content when parsing fails - critical for debugging
+    console.error('🚨 JSON PARSING FAILED - AI Response Content:', {
+      responseLength: aiResponse.length,
+      actualResponse: aiResponse,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      firstChars: aiResponse.substring(0, 100),
+      lastChars: aiResponse.length > 100 ? aiResponse.substring(aiResponse.length - 100) : ''
+    });
+    
+    throw new Error(`Failed to parse AI final analysis response: ${error instanceof Error ? error.message : 'Unknown error'}. Response content: "${aiResponse}"`);
   }
 }
 

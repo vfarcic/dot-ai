@@ -30,6 +30,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   xai: 'XAI_API_KEY',
   xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
   mistral: 'MISTRAL_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
 };
 
 /**
@@ -86,27 +87,10 @@ export class AIProviderFactory {
       case 'anthropic':
         return this.createAnthropicProvider(config);
 
-      case 'openai':
-        return this.createOpenAIProvider(config);
-
-      case 'openai_pro':
-        return this.createOpenAIProProvider(config);
-
-      case 'google':
-        return this.createGoogleProvider(config);
-
-      case 'google_fast':
-        return this.createGoogleFastProvider(config);
-
-      case 'xai':
-        return this.createXaiProvider(config);
-
-      case 'xai_fast':
-        return this.createXaiFastProvider(config);
-
       default:
-        // This should never happen due to IMPLEMENTED_PROVIDERS check above
-        throw new Error(`Unsupported provider: ${config.provider}`);
+        // All non-Anthropic providers use VercelProvider
+        // This matches the integration test behavior with AI_PROVIDER_SDK=vercel
+        return new VercelProvider(config);
     }
   }
 
@@ -176,54 +160,6 @@ export class AIProviderFactory {
    */
   private static createAnthropicProvider(config: AIProviderConfig): AIProvider {
     return new AnthropicProvider(config);
-  }
-
-  /**
-   * Create OpenAI provider instance
-   * @private
-   */
-  private static createOpenAIProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create OpenAI Pro provider instance
-   * @private
-   */
-  private static createOpenAIProProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create Google provider instance
-   * @private
-   */
-  private static createGoogleProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create Google Fast provider instance
-   * @private
-   */
-  private static createGoogleFastProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create xAI provider instance
-   * @private
-   */
-  private static createXaiProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create xAI Fast provider instance
-   * @private
-   */
-  private static createXaiFastProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
   }
 
   /**

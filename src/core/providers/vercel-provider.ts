@@ -76,6 +76,12 @@ export class VercelProvider implements AIProvider {
         case 'mistral':
           provider = createMistral({ apiKey: this.apiKey });
           break;
+        case 'deepseek':
+          provider = createOpenAI({ 
+            apiKey: this.apiKey,
+            baseURL: 'https://api.deepseek.com/v1'
+          });
+          break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);
       }

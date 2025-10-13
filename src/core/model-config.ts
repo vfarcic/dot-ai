@@ -13,7 +13,8 @@ export const CURRENT_MODELS = {
   google_fast: 'gemini-2.5-flash',
   xai: 'grok-4',
   xai_fast: 'grok-4-fast-reasoning',
-  mistral: 'mistral-large-latest'
+  mistral: 'mistral-large-latest',
+  deepseek: 'deepseek-reasoner'
 } as const;
 
 /**
