@@ -1,6 +1,6 @@
 {
   "name": "@vfarcic/dot-ai",
-  "version": "0.110.0",
+  "version": "0.112.0",
   "description": "AI-powered development productivity platform that enhances software development workflows through intelligent automation and AI-driven assistance",
   "mcpName": "io.github.vfarcic/dot-ai",
   "main": "dist/index.js",
@@ -18,6 +18,10 @@
     "test:integration:server": "KUBECONFIG=./kubeconfig-test.yaml PORT=3456 DOT_AI_SESSION_DIR=./tmp/sessions TRANSPORT_TYPE=http QDRANT_URL=http://localhost:6335 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY OPENAI_API_KEY=$OPENAI_API_KEY node dist/mcp/server.js",
     "test:integration": "./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:watch": "vitest --config=vitest.integration.config.ts --test-timeout=1200000",
+    "test:integration:sonnet": "AI_PROVIDER=anthropic AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:gpt": "AI_PROVIDER=openai AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:gpt-pro": "AI_PROVIDER=openai_pro AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "eval:comparative": "DEBUG_DOT_AI=true npx tsx src/evaluation/eval-runner.ts",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",

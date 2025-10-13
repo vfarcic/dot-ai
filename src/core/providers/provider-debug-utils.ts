@@ -32,94 +32,154 @@ export function generateDebugId(operation: string): string {
 }
 
 /**
- * Log metrics for token usage and execution time when DEBUG_DOT_AI=true
- *
- * PRD #143 Decision 5: Extended metrics for model comparison analysis
+ * Unified evaluation metrics entry for AI quality assessment and performance tracking
+ * PRD #154: Single interface for all metrics and evaluation data
  */
-export function logMetrics(
-  operation: string,
-  sdk: string,
-  result: {
-    totalTokens: {
-      input: number;
-      output: number;
-      cacheCreation?: number;
-      cacheRead?: number;
-    };
-    iterations?: number;
-    toolCallsExecuted?: Array<{ tool: string; input: any; output: any }>;
-    status?: string;
-    completionReason?: string;
-    modelVersion?: string;
-  },
-  durationMs: number,
-  debugMode: boolean
+export interface EvaluationMetrics {
+  // Core execution data
+  operation: string;
+  sdk: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  
+  // Required performance data for evaluation
+  iterationCount: number;
+  toolCallCount: number;
+  status: string;
+  completionReason: string;
+  modelVersion: string;
+  
+  // Optional performance data (not all providers support)
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+  cacheHitRate?: number;
+  uniqueToolsUsed?: string[];
+  
+  // Required evaluation context for AI quality assessment
+  test_scenario: string;
+  ai_response_summary: string;
+  debug_files?: {
+    full_prompt: string;
+    full_response: string;
+  };
+  
+  // PRD #154: Required evaluation fields for dataset generation
+  user_intent: string;        // Required: Original user request (e.g., "my app in namespace is crashing")
+  interaction_id: string;     // Required: Unique identifier for this interaction (e.g., "interaction1")
+  
+  // Optional test context (not always available)
+  failure_analysis?: string;  // Empty for passing tests, analysis for failed tests
+}
+
+/**
+ * Determine if dataset generation should be skipped for specific operations
+ */
+export function shouldSkipDatasetGeneration(operation: string): boolean {
+  const skipDatasetOperations = ['version-connectivity-check', 'generic'];
+  return skipDatasetOperations.includes(operation);
+}
+
+/**
+ * Log unified evaluation metrics when DEBUG_DOT_AI=true
+ * Single function for all metrics and evaluation data capture
+ */
+/**
+ * Generate eval dataset entry in standard OpenAI Evals format
+ * Logs evaluation metrics to JSONL dataset files for AI quality assessment
+ */
+export function logEvaluationDataset(
+  metrics: EvaluationMetrics,
+  debugMode: boolean = false
 ): void {
   if (!debugMode) return;
+  
+  // Skip dataset generation for non-evaluable operations
+  if (shouldSkipDatasetGeneration(metrics.test_scenario)) return;
 
   try {
-    const debugDir = ensureDebugDirectory();
-    const metricsFile = path.join(debugDir, 'metrics.jsonl');
+    const evalDir = path.join(process.cwd(), 'eval', 'datasets');
+    
+    // Ensure eval datasets directory exists
+    if (!fs.existsSync(evalDir)) {
+      fs.mkdirSync(evalDir, { recursive: true });
+    }
 
-    const entry: any = {
-      timestamp: new Date().toISOString(),
-      sdk,
-      operation,
-      inputTokens: result.totalTokens.input,
-      outputTokens: result.totalTokens.output,
-      durationMs
+    // Parse operation for tool name
+    const operationParts = metrics.operation.split('-');
+    const toolName = operationParts[0]; // e.g., "remediate"
+    
+    // Check if this is a comparative evaluation
+    const isComparativeEvaluation = metrics.operation.includes('-comparative-');
+    
+    let datasetFile: string;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T').join('_');
+    
+    if (isComparativeEvaluation) {
+      // For comparative evaluations, don't include single model name since it compares multiple models
+      datasetFile = path.join(evalDir, `${toolName}_comparative_evaluation_${timestamp}.jsonl`);
+    } else {
+      // Extract model name from modelVersion or sdk for single-model datasets
+      let modelName = 'unknown';
+      if (metrics.modelVersion) {
+        if (metrics.modelVersion.includes('sonnet')) {
+          modelName = 'sonnet';
+        } else if (metrics.modelVersion.includes('gpt-5-pro')) {
+          modelName = 'gpt-pro';
+        } else if (metrics.modelVersion.includes('gpt')) {
+          modelName = 'gpt';
+        } else if (metrics.modelVersion.includes('gemini')) {
+          modelName = 'gemini';
+        }
+      }
+      
+      // Create filename with interaction ID, SDK, model, and timestamp for single-model datasets
+      datasetFile = path.join(evalDir, `${toolName}_${metrics.interaction_id}_${metrics.sdk}_${modelName}_${timestamp}.jsonl`);
+    }
+
+    // Transform metrics into OpenAI Evals format (no ideal field - using model-graded evaluation)
+    const evalEntry = {
+      input: {
+        issue: metrics.user_intent || "Tool execution scenario"
+      },
+      output: metrics.ai_response_summary || "",
+      performance: {
+        duration_ms: metrics.durationMs,
+        input_tokens: metrics.inputTokens,
+        output_tokens: metrics.outputTokens, 
+        total_tokens: metrics.inputTokens + metrics.outputTokens,
+        sdk: metrics.sdk,
+        model_version: metrics.modelVersion,
+        iterations: metrics.iterationCount,
+        tool_calls_executed: metrics.toolCallCount,
+        cache_read_tokens: metrics.cacheReadTokens || 0,
+        cache_creation_tokens: metrics.cacheCreationTokens || 0
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        complexity: "medium",
+        tags: ["troubleshooting"],
+        source: "integration_test",
+        tool: toolName,
+        test_scenario: metrics.test_scenario || `${toolName}_test`,
+        failure_analysis: metrics.failure_analysis || ""
+      }
     };
 
-    // Add cache metrics if present
-    if (result.totalTokens.cacheCreation !== undefined) {
-      entry.cacheCreationTokens = result.totalTokens.cacheCreation;
-    }
-    if (result.totalTokens.cacheRead !== undefined) {
-      entry.cacheReadTokens = result.totalTokens.cacheRead;
-    }
-
-    // Calculate cache hit rate (percentage)
-    if (result.totalTokens.cacheRead !== undefined && result.totalTokens.input > 0) {
-      entry.cacheHitRate = Math.round((result.totalTokens.cacheRead / result.totalTokens.input) * 100);
-    }
-
-    // Add extended metrics (PRD #143 Decision 5)
-    if (result.iterations !== undefined) {
-      entry.iterationCount = result.iterations;
-    }
-    if (result.toolCallsExecuted) {
-      entry.toolCallCount = result.toolCallsExecuted.length;
-      // Extract unique tool names
-      const uniqueTools = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
-      entry.uniqueToolsUsed = uniqueTools;
-    }
-    if (result.status) {
-      entry.status = result.status;
-    }
-    if (result.completionReason) {
-      entry.completionReason = result.completionReason;
-    }
-    if (result.modelVersion) {
-      entry.modelVersion = result.modelVersion;
-    }
-
-    // Manual annotation placeholders (populate after test analysis)
-    entry.manualNotes = '';
-    entry.failureReason = '';
-    entry.qualityIssues = [];
-    entry.comparisonNotes = '';
-
-    fs.appendFileSync(metricsFile, JSON.stringify(entry) + '\n');
+    fs.writeFileSync(datasetFile, JSON.stringify(evalEntry) + '\n');
+    
+    console.log(`📊 Generated eval dataset: ${path.basename(datasetFile)} (${metrics.interaction_id}, ${metrics.durationMs}ms, ${metrics.inputTokens}+${metrics.outputTokens} tokens)`);
   } catch (error) {
-    console.warn('Failed to log metrics:', error);
+    console.error(`❌ Failed to generate eval dataset for ${metrics.interaction_id} (${metrics.test_scenario}):`, error);
   }
 }
+
 
 /**
  * Create AgenticResult and log metrics in one step
  * Reduces code duplication across providers
  *
- * PRD #143 Decision 5: Standardized metrics logging
+ * PRD #154: Updated to use unified evaluation metrics
  */
 export function createAndLogAgenticResult(config: {
   finalMessage: string;
@@ -138,6 +198,16 @@ export function createAndLogAgenticResult(config: {
   sdk: string;
   startTime: number;
   debugMode: boolean;
+  debugFiles?: { promptFile: string; responseFile: string } | null;
+  
+  // PRD #154: Evaluation context for dataset generation
+  evaluationContext?: {
+    user_intent?: string;
+    failure_analysis?: string;
+  };
+  
+  // PRD #154: Interaction ID for dataset generation pairing
+  interaction_id?: string;
 }): AgenticResult {
   const result: AgenticResult = {
     finalMessage: config.finalMessage,
@@ -151,7 +221,44 @@ export function createAndLogAgenticResult(config: {
 
   const durationMs = Date.now() - config.startTime;
   if (config.debugMode) {
-    logMetrics(config.operation, config.sdk, result, durationMs, config.debugMode);
+    // PRD #154: Use unified evaluation metrics system
+    const evaluationMetrics: EvaluationMetrics = {
+      // Core execution data
+      operation: config.operation,
+      sdk: config.sdk,
+      inputTokens: config.totalTokens.input,
+      outputTokens: config.totalTokens.output,
+      durationMs,
+      
+      // Required fields
+      iterationCount: config.iterations,
+      toolCallCount: config.toolCallsExecuted.length,
+      status: config.status,
+      completionReason: config.completionReason,
+      modelVersion: config.modelVersion,
+      
+      // Required evaluation context - NO DEFAULTS, must be provided
+      test_scenario: config.operation,
+      ai_response_summary: config.finalMessage,
+      user_intent: config.evaluationContext?.user_intent || '', // Will be enhanced later by EvalDatasetEnhancer
+      interaction_id: config.interaction_id || '', // Will be enhanced later if missing
+      
+      // Optional performance data
+      ...(config.totalTokens.cacheCreation !== undefined && { cacheCreationTokens: config.totalTokens.cacheCreation }),
+      ...(config.totalTokens.cacheRead !== undefined && { cacheReadTokens: config.totalTokens.cacheRead }),
+      ...(config.toolCallsExecuted.length > 0 && { 
+        uniqueToolsUsed: [...new Set(config.toolCallsExecuted.map(tc => tc.tool))]
+      }),
+      ...(config.debugFiles && { debug_files: { full_prompt: config.debugFiles.promptFile, full_response: config.debugFiles.responseFile } }),
+      ...(config.evaluationContext?.failure_analysis && { failure_analysis: config.evaluationContext.failure_analysis })
+    };
+
+    // Calculate cache hit rate if applicable
+    if (config.totalTokens.cacheRead !== undefined && config.totalTokens.input > 0) {
+      evaluationMetrics.cacheHitRate = Math.round((config.totalTokens.cacheRead / config.totalTokens.input) * 100);
+    }
+
+    logEvaluationDataset(evaluationMetrics, config.debugMode);
   }
 
   return result;

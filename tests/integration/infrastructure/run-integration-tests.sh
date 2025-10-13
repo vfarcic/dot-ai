@@ -126,8 +126,8 @@ sleep 3
 # Step 4: Create tmp directory for logs, PID, and sessions
 log_info "Cleaning up old session files and debug prompts/outputs..."
 rm -rf ./tmp/sessions/*
-# Clean debug prompts/outputs but keep metrics.jsonl (cumulative)
-find ./tmp/debug-ai -type f ! -name 'metrics.jsonl' -delete 2>/dev/null || true
+# Clean debug prompts/outputs but keep evaluation datasets (cumulative)
+find ./tmp/debug-ai -type f ! -name '*.jsonl' -delete 2>/dev/null || true
 mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 

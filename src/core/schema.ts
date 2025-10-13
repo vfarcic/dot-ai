@@ -17,6 +17,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
+import { extractJsonFromAIResponse } from './platform-utils';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -432,7 +433,8 @@ export class ResourceRecommender {
    */
   async findBestSolutions(
     intent: string,
-    _explainResource: (resource: string) => Promise<any>
+    _explainResource: (resource: string) => Promise<any>,
+    interaction_id?: string
   ): Promise<ResourceSolution[]> {
     if (!this.aiProvider.isInitialized()) {
       throw new Error('AI provider not initialized. API key required for AI-powered resource ranking.');
@@ -493,11 +495,11 @@ export class ResourceRecommender {
       const enhancedResources = await this.addMissingPatternResources(capabilityFilteredResources, relevantPatterns);
 
       // Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking phases)
-      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns);
+      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns, interaction_id);
       
       // Phase 3: Generate questions for each solution
       for (const solution of solutions) {
-        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource);
+        solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource, interaction_id);
       }
       
       return solutions;
@@ -519,10 +521,14 @@ export class ResourceRecommender {
       namespaced: boolean;
       capabilities: any;
     }>,
-    patterns: OrganizationalPattern[]
+    patterns: OrganizationalPattern[],
+    interaction_id?: string
   ): Promise<ResourceSolution[]> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
-    const response = await this.aiProvider.sendMessage(prompt, 'solution-assembly');
+    const response = await this.aiProvider.sendMessage(prompt, 'recommend-solution-assembly', {
+      user_intent: intent ? `Kubernetes solution assembly for: ${intent}` : 'Kubernetes solution assembly',
+      interaction_id: interaction_id || 'recommend_solution_assembly'
+    });
     return this.parseSimpleSolutionResponse(response.content);
   }
 
@@ -532,7 +538,7 @@ export class ResourceRecommender {
   private parseSimpleSolutionResponse(aiResponse: string): ResourceSolution[] {
     try {
       // Use robust JSON extraction
-      const parsed = this.extractJsonFromAIResponse(aiResponse);
+      const parsed = extractJsonFromAIResponse(aiResponse);
       
       const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
         const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
@@ -1005,45 +1011,11 @@ export class ResourceRecommender {
     }
   }
 
-  /**
-   * Extract JSON object from AI response with robust parsing
-   */
-  private extractJsonFromAIResponse(aiResponse: string): any {
-    let jsonContent = aiResponse;
-    
-    // First try to find JSON wrapped in code blocks
-    const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (codeBlockMatch) {
-      jsonContent = codeBlockMatch[1];
-    } else {
-      // Try to find JSON that starts with { and find the matching closing }
-      const startIndex = aiResponse.indexOf('{');
-      if (startIndex !== -1) {
-        let braceCount = 0;
-        let endIndex = startIndex;
-        
-        for (let i = startIndex; i < aiResponse.length; i++) {
-          if (aiResponse[i] === '{') braceCount++;
-          if (aiResponse[i] === '}') braceCount--;
-          if (braceCount === 0) {
-            endIndex = i;
-            break;
-          }
-        }
-        
-        if (braceCount === 0) {
-          jsonContent = aiResponse.substring(startIndex, endIndex + 1);
-        }
-      }
-    }
-    
-    return JSON.parse(jsonContent.trim());
-  }
 
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>, interaction_id?: string): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
@@ -1145,10 +1117,13 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         .replace('{cluster_options}', clusterOptionsText)
         .replace('{policy_context}', policyContextText);
 
-      const response = await this.aiProvider.sendMessage(questionPrompt, 'question-generation');
+      const response = await this.aiProvider.sendMessage(questionPrompt, 'recommend-question-generation', {
+        user_intent: `Generate deployment questions for: ${intent}`,
+        interaction_id: interaction_id || 'recommend_question_generation'
+      });
       
       // Use robust JSON extraction
-      const questions = this.extractJsonFromAIResponse(response.content);
+      const questions = extractJsonFromAIResponse(response.content);
       
       // Validate the response structure
       if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {

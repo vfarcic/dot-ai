@@ -27,7 +27,8 @@ export const REMEDIATE_TOOL_INPUT_SCHEMA = {
   maxRiskLevel: z.enum(['low', 'medium', 'high']).optional().default('low').describe('For automatic mode: maximum risk level allowed for execution (default: low)'),
   executeChoice: z.number().min(1).max(2).optional().describe('Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)'),
   sessionId: z.string().optional().describe('Session ID from previous remediate call when executing a choice'),
-  executedCommands: z.array(z.string()).optional().describe('Commands that were executed to remediate the issue')
+  executedCommands: z.array(z.string()).optional().describe('Commands that were executed to remediate the issue'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 // Core interfaces matching PRD specification
@@ -39,12 +40,14 @@ export interface RemediateInput {
   executeChoice?: number;  // Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)
   sessionId?: string;      // Session ID from previous remediate call when executing a choice
   executedCommands?: string[];  // Commands that were executed to remediate the issue
+  interaction_id?: string;  // INTERNAL ONLY - Used for evaluation dataset generation
 }
 
 export interface RemediateSession {
   sessionId: string;
   issue: string;
   mode: 'manual' | 'automatic';
+  interaction_id?: string;
   finalAnalysis?: RemediateOutput;
   created: Date;
   updated: Date;
@@ -159,7 +162,9 @@ async function conductInvestigation(
   sessionDir: string,
   aiProvider: AIProvider,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  isValidation: boolean = false,
+  interactionId?: string
 ): Promise<RemediateOutput> {
   const maxIterations = 20;
 
@@ -182,13 +187,18 @@ async function conductInvestigation(
 
     // Use toolLoop for AI-driven investigation with kubectl tools
     // System prompt is static (cached), issue description is dynamic (userMessage)
+    const operationName = isValidation ? 'remediate-validation' : 'remediate-investigation';
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.issue}`,
       tools: KUBECTL_INVESTIGATION_TOOLS,
       toolExecutor: executeKubectlTools,
       maxIterations: maxIterations,
-      operation: 'remediate-investigation'
+      operation: operationName,
+      evaluationContext: {
+        user_intent: session.issue
+      },
+      interaction_id: interactionId
     });
 
     logger.info('Investigation completed by toolLoop', {
@@ -198,6 +208,7 @@ async function conductInvestigation(
       toolCallsExecuted: result.toolCallsExecuted.length,
       responseLength: result.finalMessage.length
     });
+
 
     // Parse final response as JSON (AI returns final analysis in JSON format)
     const finalAnalysis = parseAIFinalAnalysis(result.finalMessage);
@@ -408,7 +419,8 @@ async function executeUserChoice(
   sessionId: string,
   choice: number,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  currentInteractionId?: string
 ): Promise<any> {
   try {
     // Load previous session
@@ -433,7 +445,7 @@ async function executeUserChoice(
     // Handle different choices
     switch (choice) {
       case 1: // Execute automatically via MCP
-        return await executeRemediationCommands(session, sessionDir, logger, requestId);
+        return await executeRemediationCommands(session, sessionDir, logger, requestId, currentInteractionId);
         
       case 2: { // Execute via agent
         // Use validation intent directly from final analysis
@@ -495,7 +507,8 @@ async function executeRemediationCommands(
   session: RemediateSession,
   sessionDir: string,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  currentInteractionId?: string
 ): Promise<any> {
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.finalAnalysis!;
@@ -582,7 +595,8 @@ async function executeRemediationCommands(
           const validationInput = {
             issue: validationIntent,
             sessionDir: sessionDir,
-            executedCommands: executedCommands
+            executedCommands: executedCommands,
+            interaction_id: currentInteractionId || session.interaction_id // Use current interaction_id for validation
           };
       
           // Recursive call to main function for validation
@@ -769,7 +783,8 @@ export async function handleRemediateTool(args: any): Promise<any> {
         validatedInput.sessionId,
         validatedInput.executeChoice,
         logger,
-        requestId
+        requestId,
+        validatedInput.interaction_id
       );
     }
     
@@ -789,6 +804,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
       sessionId,
       issue: validatedInput.issue,
       mode: validatedInput.mode || 'manual',
+      interaction_id: validatedInput.interaction_id,
       created: new Date(),
       updated: new Date(),
       status: 'investigating'
@@ -801,13 +817,16 @@ export async function handleRemediateTool(args: any): Promise<any> {
     // Initialize AI provider (will validate API key automatically)
     const aiProvider = createAIProvider();
 
-    // Conduct AI-driven investigation
+    // Conduct AI-driven investigation (detect if this is post-execution validation)
+    const isValidation = validatedInput.executedCommands && validatedInput.executedCommands.length > 0;
     const finalAnalysis = await conductInvestigation(
       session,
       sessionDir,
       aiProvider,
       logger,
-      requestId
+      requestId,
+      isValidation,
+      validatedInput.interaction_id
     );
 
     logger.info('Remediation analysis completed', {
@@ -891,7 +910,8 @@ export async function handleRemediateTool(args: any): Promise<any> {
         session,
         sessionDir,
         logger,
-        requestId
+        requestId,
+        validatedInput.interaction_id
       );
     }
 
@@ -1004,7 +1024,11 @@ function validateRemediateInput(args: any): RemediateInput {
         REMEDIATE_TOOL_INPUT_SCHEMA.maxRiskLevel.parse(args.maxRiskLevel) : 'low',
       executeChoice: args.executeChoice !== undefined ?
         REMEDIATE_TOOL_INPUT_SCHEMA.executeChoice.parse(args.executeChoice) : undefined,
-      sessionId: args.sessionId ? REMEDIATE_TOOL_INPUT_SCHEMA.sessionId.parse(args.sessionId) : undefined
+      sessionId: args.sessionId ? REMEDIATE_TOOL_INPUT_SCHEMA.sessionId.parse(args.sessionId) : undefined,
+      executedCommands: args.executedCommands
+        ? REMEDIATE_TOOL_INPUT_SCHEMA.executedCommands.parse(args.executedCommands)
+        : undefined,
+      interaction_id: args.interaction_id ? REMEDIATE_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined
     } as RemediateInput;
 
     return validated;

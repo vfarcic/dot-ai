@@ -35,7 +35,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
     test('should complete full workflow: list operations, map intent, handle ambiguous intent', async () => {
       // Step 1: List all available operations
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        stage: 'list'
+        stage: 'list',
+        interaction_id: 'list_operations'
       });
 
       const expectedListResponse = {
@@ -78,7 +79,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
 
       // Step 2: Map specific intent to operation and get ALL parameters
       const intentResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install Argo CD'
+        intent: 'Install Argo CD',
+        interaction_id: 'map_intent_argocd'
       });
 
       // Assert success and output full response if failed
@@ -168,7 +170,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
         answers: {
           'host-name': 'argocd.example.com'
           // Skip 'apply-apps' and 'ingress-class-name' to test defaults
-        }
+        },
+        interaction_id: 'submit_argocd_answers'
       });
 
       // Assert success and output error if failed
@@ -199,7 +202,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
     test('should execute immediately when operation has no parameters', async () => {
       // Step 1: Send intent for operation with no parameters
       const intentResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install cert-manager'
+        intent: 'Install cert-manager',
+        interaction_id: 'install_cert_manager'
       });
 
       // Assert success and output error if failed
@@ -234,7 +238,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
     test('should return error when no script matches the intent', async () => {
       // Intent that doesn't match any available operations
       const response = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install FooBarBaz'
+        intent: 'Install FooBarBaz',
+        interaction_id: 'test_no_match_error'
       });
 
       const expectedNoMatchResponse = {
@@ -260,7 +265,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
     test('should return error when required parameters are missing in submitAnswers', async () => {
       // First get parameters
       const intentResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Create Kubernetes cluster' // This likely has required parameters
+        intent: 'Create Kubernetes cluster', // This likely has required parameters
+        interaction_id: 'test_required_params'
       });
 
       const sessionId = intentResponse.data.result.workflow.sessionId;
@@ -274,7 +280,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
         const submitResponse = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
           stage: 'submitAnswers',
           sessionId,
-          answers: {} // Empty answers - missing required params
+          answers: {}, // Empty answers - missing required params
+          interaction_id: 'test_missing_required_params'
         });
 
         const expectedErrorResponse = {
@@ -299,6 +306,7 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
       // Missing required intent parameter
       const response = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
         // No intent provided
+        interaction_id: 'test_missing_intent_error'
       });
 
       const expectedErrorResponse = {
@@ -327,7 +335,8 @@ describe.skip('Build Platform Tool - Phase 1: Basic Invocation', () => {
   describe.concurrent('Nushell Runtime Validation', () => {
     test('should validate Nushell availability before processing', async () => {
       const response = await integrationTest.httpClient.post('/api/v1/tools/buildPlatform', {
-        intent: 'Install kro'
+        intent: 'Install kro',
+        interaction_id: 'validate_nushell_runtime'
       });
 
       expect(response.success).toBe(true);
