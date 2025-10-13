@@ -12,7 +12,8 @@ export const CURRENT_MODELS = {
   google: 'gemini-2.5-pro',
   google_fast: 'gemini-2.5-flash',
   xai: 'grok-4',
-  xai_fast: 'grok-4-fast-reasoning'
+  xai_fast: 'grok-4-fast-reasoning',
+  mistral: 'mistral-large-latest'
 } as const;
 
 /**

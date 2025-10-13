@@ -14,6 +14,7 @@ import {
 } from './ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic-provider';
 import { VercelProvider } from './providers/vercel-provider';
+import { CURRENT_MODELS } from './model-config';
 
 /**
  * Provider environment variable mappings
@@ -28,13 +29,15 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   google_fast: 'GOOGLE_API_KEY', // Uses same API key as regular Google
   xai: 'XAI_API_KEY',
   xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
+  mistral: 'MISTRAL_API_KEY',
 };
 
 /**
- * Providers implemented in Phase 1-2
+ * Providers implemented - dynamically generated from CURRENT_MODELS
+ * Single source of truth maintained in model-config.ts
  */
-const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'openai_pro', 'google', 'google_fast', 'xai', 'xai_fast'] as const;
-type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
+type ImplementedProvider = keyof typeof CURRENT_MODELS;
+const IMPLEMENTED_PROVIDERS = Object.keys(CURRENT_MODELS) as ImplementedProvider[];
 
 /**
  * Factory for creating AI provider instances

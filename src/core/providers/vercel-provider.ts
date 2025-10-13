@@ -10,6 +10,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
+import { createMistral } from '@ai-sdk/mistral';
 import {
   AIProvider,
   AIResponse,
@@ -21,6 +22,9 @@ import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEva
 import { CURRENT_MODELS } from '../model-config';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
+
+// Get all supported provider keys dynamically from CURRENT_MODELS
+const SUPPORTED_PROVIDERS = Object.keys(CURRENT_MODELS) as SupportedProvider[];
 
 export class VercelProvider implements AIProvider {
   private providerType: SupportedProvider;
@@ -44,8 +48,8 @@ export class VercelProvider implements AIProvider {
       throw new Error(`API key is required for ${this.providerType} provider`);
     }
 
-    if (!['openai', 'openai_pro', 'google', 'google_fast', 'anthropic', 'xai', 'xai_fast'].includes(this.providerType)) {
-      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', 'google_fast', 'anthropic', 'xai', or 'xai_fast'`);
+    if (!SUPPORTED_PROVIDERS.includes(this.providerType)) {
+      throw new Error(`Unsupported provider: ${this.providerType}. Must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`);
     }
   }
 
@@ -68,6 +72,9 @@ export class VercelProvider implements AIProvider {
         case 'xai':
         case 'xai_fast':
           provider = createXai({ apiKey: this.apiKey });
+          break;
+        case 'mistral':
+          provider = createMistral({ apiKey: this.apiKey });
           break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);

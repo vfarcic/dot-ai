@@ -166,7 +166,7 @@ async function conductInvestigation(
   isValidation: boolean = false,
   interactionId?: string
 ): Promise<RemediateOutput> {
-  const maxIterations = 20;
+  const maxIterations = 30; // Increased for thorough models like Mistral
 
   logger.info('Starting AI investigation with toolLoop', {
     requestId,

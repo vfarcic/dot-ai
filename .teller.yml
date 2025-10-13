@@ -15,3 +15,4 @@ providers:
           azure-tenant: AZURE_TENANT
           github-token: GITHUB_TOKEN
           xai-api-key: XAI_API_KEY
+          mistral-api-key: MISTRAL_API_KEY
