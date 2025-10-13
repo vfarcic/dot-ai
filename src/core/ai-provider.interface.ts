@@ -134,6 +134,14 @@ export interface ToolLoopConfig {
 
   /** Optional operation identifier for metrics and debugging */
   operation?: string;
+
+  /** PRD #154: Evaluation context for dataset generation */
+  evaluationContext?: {
+    user_intent?: string;
+  };
+
+  /** PRD #154: Interaction ID for dataset generation pairing */
+  interaction_id?: string;
 }
 
 /**
@@ -169,6 +177,12 @@ export interface AgenticResult {
 
   /** Specific model version used (PRD #143 Decision 5) */
   modelVersion?: string;
+
+  /** Debug files created during toolLoop execution (PRD #154) */
+  debugFiles?: {
+    full_prompt: string;
+    full_response: string;
+  };
 }
 
 /**
@@ -187,9 +201,17 @@ export interface AIProvider {
    *
    * @param message The message/prompt to send
    * @param operation Optional operation identifier for debugging (e.g., 'deployment', 'intent-analysis')
+   * @param evaluationContext Optional evaluation context for dataset generation (PRD #154)
    * @returns AI response with content and usage statistics
    */
-  sendMessage(message: string, operation?: string): Promise<AIResponse>;
+  sendMessage(
+    message: string, 
+    operation?: string,
+    evaluationContext?: {
+      user_intent?: string;
+      interaction_id?: string;
+    }
+  ): Promise<AIResponse>;
 
   /**
    * Check if the provider is properly initialized

@@ -16,18 +16,10 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, logMetrics, createAndLogAgenticResult } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
+import { CURRENT_MODELS } from '../model-config';
 
-/**
- * Provider-specific default models
- */
-const PROVIDER_MODELS = {
-  openai: 'gpt-5',
-  google: 'gemini-2.5-pro',
-  anthropic: 'claude-sonnet-4-5-20250929'
-} as const;
-
-type SupportedProvider = keyof typeof PROVIDER_MODELS;
+type SupportedProvider = keyof typeof CURRENT_MODELS;
 
 export class VercelProvider implements AIProvider {
   private providerType: SupportedProvider;
@@ -51,15 +43,16 @@ export class VercelProvider implements AIProvider {
       throw new Error(`API key is required for ${this.providerType} provider`);
     }
 
-    if (!['openai', 'google', 'anthropic'].includes(this.providerType)) {
-      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'google', or 'anthropic'`);
+    if (!['openai', 'openai_pro', 'google', 'anthropic'].includes(this.providerType)) {
+      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', or 'anthropic'`);
     }
   }
 
   private initializeModel(): void {
     try {
       switch (this.providerType) {
-        case 'openai': {
+        case 'openai':
+        case 'openai_pro': {
           const provider = createOpenAI({
             apiKey: this.apiKey
           });
@@ -93,7 +86,7 @@ export class VercelProvider implements AIProvider {
   }
 
   getDefaultModel(): string {
-    return PROVIDER_MODELS[this.providerType];
+    return CURRENT_MODELS[this.providerType];
   }
 
   isInitialized(): boolean {
@@ -103,25 +96,28 @@ export class VercelProvider implements AIProvider {
   private logDebugIfEnabled(
     operation: string,
     prompt: string,
-    response: AIResponse,
-    durationMs: number
-  ): void {
-    if (!this.debugMode) return;
+    response: AIResponse
+  ): { promptFile: string; responseFile: string } | null {
+    if (!this.debugMode) return null;
 
     const debugId = generateDebugId(operation);
     debugLogInteraction(debugId, prompt, response, operation, this.getProviderType(), this.model, this.debugMode);
-    // Use logMetrics for sendMessage calls (simple token structure, no extended metrics)
-    logMetrics(operation, this.getProviderType(), {
-      totalTokens: {
-        input: response.usage.input_tokens,
-        output: response.usage.output_tokens,
-        cacheCreation: response.usage.cache_creation_input_tokens,
-        cacheRead: response.usage.cache_read_input_tokens
-      }
-    }, durationMs, this.debugMode);
+    
+    // Return the actual debug file names created
+    return {
+      promptFile: `${debugId}_prompt.md`,
+      responseFile: `${debugId}_response.md`
+    };
   }
 
-  async sendMessage(message: string, operation: string = 'generic'): Promise<AIResponse> {
+  async sendMessage(
+    message: string, 
+    operation: string = 'generic',
+    evaluationContext?: {
+      user_intent?: string;
+      interaction_id?: string;
+    }
+  ): Promise<AIResponse> {
     if (!this.isInitialized()) {
       throw new Error(`${this.providerType} provider not initialized`);
     }
@@ -139,8 +135,8 @@ export class VercelProvider implements AIProvider {
       const response: AIResponse = {
         content: result.text,
         usage: {
-          input_tokens: result.usage.inputTokens || 0,
-          output_tokens: result.usage.outputTokens || 0
+          input_tokens: (result.totalUsage || result.usage).inputTokens || 0,
+          output_tokens: (result.totalUsage || result.usage).outputTokens || 0
         }
       };
 
@@ -150,14 +146,40 @@ export class VercelProvider implements AIProvider {
       if (this.debugMode) {
         const debugId = generateDebugId(operation);
         debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
-        logMetrics(operation, this.getProviderType(), {
-          totalTokens: {
-            input: response.usage.input_tokens,
-            output: response.usage.output_tokens,
-            cacheCreation: response.usage.cache_creation_input_tokens,
-            cacheRead: response.usage.cache_read_input_tokens
-          }
-        }, durationMs, this.debugMode);
+        
+        // PRD #154: Always use new evaluation dataset system
+        const evaluationMetrics: EvaluationMetrics = {
+          // Core execution data
+          operation,
+          sdk: this.getProviderType(),
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+          durationMs,
+          
+          // Required fields
+          iterationCount: 1,
+          toolCallCount: 0,
+          status: 'completed',
+          completionReason: 'stop',
+          modelVersion: this.model,
+          
+          // Required evaluation context - NO DEFAULTS, must be provided
+          test_scenario: operation,
+          ai_response_summary: response.content,
+          user_intent: evaluationContext?.user_intent || '',
+          interaction_id: evaluationContext?.interaction_id || '',
+          
+          // Optional performance data
+          ...(response.usage.cache_creation_input_tokens && { cacheCreationTokens: response.usage.cache_creation_input_tokens }),
+          ...(response.usage.cache_read_input_tokens && { cacheReadTokens: response.usage.cache_read_input_tokens })
+        };
+        
+        // Calculate cache hit rate if applicable
+        if (response.usage.cache_read_input_tokens && response.usage.input_tokens > 0) {
+          evaluationMetrics.cacheHitRate = Math.round((response.usage.cache_read_input_tokens / response.usage.input_tokens) * 100);
+        }
+        
+        logEvaluationDataset(evaluationMetrics, this.debugMode);
       }
 
       return response;
@@ -282,49 +304,6 @@ export class VercelProvider implements AIProvider {
 
       const result = await generateText(generateConfig);
 
-      // Debug: Log the full cumulative context that was actually sent to the AI
-      if (this.debugMode && result.response?.messages) {
-        const path = await import('path');
-        const debugId = generateDebugId(`${operation}-final-context`);
-        const debugDir = path.join(process.cwd(), 'tmp', 'debug-ai');
-        const contextFile = path.join(debugDir, `${debugId}_full-context.md`);
-
-        // Build full conversation history representation
-        const messages = result.response.messages;
-        const contextParts = [`# Full Conversation Context - ${operation}\n`];
-        contextParts.push(`\nTimestamp: ${new Date().toISOString()}`);
-        contextParts.push(`Provider: ${this.getProviderType()}`);
-        contextParts.push(`Model: ${this.model}`);
-        contextParts.push(`Total Messages: ${messages.length}`);
-        contextParts.push(`Total Steps: ${result.steps?.length || 0}`);
-        contextParts.push('\n---\n');
-
-        for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i];
-          contextParts.push(`\n## Message ${i + 1} - Role: ${msg.role}\n`);
-
-          if (typeof msg.content === 'string') {
-            contextParts.push(msg.content);
-          } else if (Array.isArray(msg.content)) {
-            for (const part of msg.content) {
-              if (part.type === 'text') {
-                contextParts.push((part as any).text || '');
-              } else if (part.type === 'tool-call') {
-                contextParts.push(`\n[TOOL CALL: ${(part as any).toolName}]`);
-                contextParts.push(JSON.stringify((part as any).args, null, 2));
-              } else if (part.type === 'tool-result') {
-                contextParts.push(`\n[TOOL RESULT: ${(part as any).toolName}]`);
-                const resultData = (part as any).output || (part as any).result || (part as any).content || part;
-                contextParts.push(JSON.stringify(resultData, null, 2));
-              }
-            }
-          }
-        }
-
-        const fs = await import('fs');
-        fs.writeFileSync(contextFile, contextParts.join('\n'));
-        console.log(`🐛 DEBUG: Full conversation context logged to ${contextFile}`);
-      }
 
       // Extract tool call history from steps
       const toolCallsExecuted: Array<{ tool: string; input: any; output: any }> = [];
@@ -349,12 +328,12 @@ export class VercelProvider implements AIProvider {
       // - GitHub Issue #8795: Token reporting issues with Anthropic provider (streaming)
       // Our version (5.0.60, released Oct 2, 2025) includes these fixes.
       // However, testing still shows ~70% fewer tokens reported vs Anthropic native SDK.
-      // Root cause unknown - may be additional unreported bugs or different calculation methods.
-      const usage = result.usage;
+      // Root cause: We were using result.usage (final step only) instead of result.totalUsage (sum of all steps)!
+      const usage = result.totalUsage || result.usage;
       let cacheReadTokens = 0;
       let cacheCreationTokens = 0;
 
-      // Anthropic via Vercel uses cachedInputTokens
+      // Anthropic via Vercel uses cachedInputTokens (confirmed in AI SDK 5+)
       if ((usage as any).cachedInputTokens) {
         cacheReadTokens = (usage as any).cachedInputTokens;
       }
@@ -388,6 +367,58 @@ export class VercelProvider implements AIProvider {
         }
       }
 
+      // Log debug for summary operations to capture complete prompts/responses for evaluation
+      let debugFiles: { promptFile: string; responseFile: string } | null = null;
+      if (this.debugMode) {
+        // Build the full conversation context like Anthropic provider does
+        let finalPrompt = `System: ${config.systemPrompt}\n\n`;
+        
+        // Always include the original user intent first
+        finalPrompt += `user: ${config.userMessage}\n\n`;
+        
+        // Then add the conversation history if available
+        if (result.response?.messages) {
+          finalPrompt += result.response.messages
+            .map(msg => {
+              if (typeof msg.content === 'string') {
+                return `${msg.role}: ${msg.content}`;
+              } else if (Array.isArray(msg.content)) {
+                const contentParts = msg.content.map(part => {
+                  if (part.type === 'text') {
+                    return (part as any).text;
+                  } else if (part.type === 'tool-call') {
+                    return `[TOOL_USE: ${(part as any).toolName}]`;
+                  } else if (part.type === 'tool-result') {
+                    const resultData = (part as any).output || (part as any).result || (part as any).content;
+                    if (typeof resultData === 'string') {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
+                    } else if (resultData) {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
+                    }
+                    return `[TOOL_RESULT: ${(part as any).toolName}]`;
+                  }
+                  return `[${part.type}]`;
+                }).join(' ');
+                return `${msg.role}: ${contentParts}`;
+              }
+              return `${msg.role}: [complex_content]`;
+            })
+            .join('\n\n');
+        }
+        
+        const aiResponse: AIResponse = {
+          content: finalText || '',
+          usage: {
+            input_tokens: usage.inputTokens || 0,
+            output_tokens: usage.outputTokens || 0,
+            cache_creation_input_tokens: cacheCreationTokens,
+            cache_read_input_tokens: cacheReadTokens
+          }
+        };
+        
+        debugFiles = this.logDebugIfEnabled(`${operation}-summary`, finalPrompt, aiResponse);
+      }
+
       return createAndLogAgenticResult({
         finalMessage: finalText || '',
         iterations: result.steps?.length || 1,
@@ -404,7 +435,10 @@ export class VercelProvider implements AIProvider {
         operation: `${operation}-summary`,
         sdk: this.getProviderType(),
         startTime,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        debugFiles,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
 
     } catch (error) {
@@ -425,7 +459,9 @@ export class VercelProvider implements AIProvider {
         operation: `${operation}-error`,
         sdk: this.getProviderType(),
         startTime,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        evaluationContext: config.evaluationContext,
+        interaction_id: config.interaction_id
       });
     }
   }

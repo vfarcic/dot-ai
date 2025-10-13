@@ -18,17 +18,19 @@ import { VercelProvider } from './providers/vercel-provider';
 /**
  * Provider environment variable mappings
  * Phase 1 (PRD 73): anthropic, openai, google
+ * Phase 2 (PRD 154): openai_pro for GPT-5 Pro
  */
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
+  openai_pro: 'OPENAI_API_KEY', // Uses same API key as regular OpenAI
   google: 'GOOGLE_API_KEY',
 };
 
 /**
- * Providers implemented in Phase 1
+ * Providers implemented in Phase 1-2
  */
-const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'google'] as const;
+const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'openai_pro', 'google'] as const;
 type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
 
 /**
@@ -80,6 +82,9 @@ export class AIProviderFactory {
 
       case 'openai':
         return this.createOpenAIProvider(config);
+
+      case 'openai_pro':
+        return this.createOpenAIProProvider(config);
 
       case 'google':
         return this.createGoogleProvider(config);
@@ -163,6 +168,14 @@ export class AIProviderFactory {
    * @private
    */
   private static createOpenAIProvider(config: AIProviderConfig): AIProvider {
+    return new VercelProvider(config);
+  }
+
+  /**
+   * Create OpenAI Pro provider instance
+   * @private
+   */
+  private static createOpenAIProProvider(config: AIProviderConfig): AIProvider {
     return new VercelProvider(config);
   }
 

@@ -56,7 +56,8 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)'),
 
   // Collection name for capabilities (allows using different collections for different purposes)
-  collection: z.string().optional().describe('Collection name for capabilities operations (default: "capabilities", use "capabilities-policies" for pre-populated test data)')
+  collection: z.string().optional().describe('Collection name for capabilities operations (default: "capabilities", use "capabilities-policies" for pre-populated test data)'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 /**

@@ -659,7 +659,7 @@ export async function handleScanning(
     
     if (session.processingMode === 'manual') {
       // Manual mode: Show capability data for user review
-      const capability = await engine.inferCapabilities(resourceName, resourceDefinition);
+      const capability = await engine.inferCapabilities(resourceName, resourceDefinition, args.interaction_id);
       const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
       
       return {
@@ -813,7 +813,7 @@ export async function handleScanning(
             percentage: Math.round(((i + 1) / totalResources) * 100)
           });
           
-          const capability = await engine.inferCapabilities(currentResource, currentResourceDefinition);
+          const capability = await engine.inferCapabilities(currentResource, currentResourceDefinition, args.interaction_id);
           const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
           
           // Store capability in Vector DB

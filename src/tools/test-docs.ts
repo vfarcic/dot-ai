@@ -22,7 +22,8 @@ export const TESTDOCS_TOOL_INPUT_SCHEMA = {
   phase: z.enum(['scan', 'test', 'analyze', 'fix', 'done']).optional().describe('Specific phase to run (defaults to scan)'),
   sectionId: z.string().optional().describe('Section ID when submitting test results'),
   results: z.string().optional().describe('Test results to store (for client agent reporting back)'),
-  filePattern: z.string().optional().describe('File pattern for discovery (e.g., "**/*.md", "*.rst")')
+  filePattern: z.string().optional().describe('File pattern for discovery (e.g., "**/*.md", "*.rst")'),
+  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
 /**
@@ -39,7 +40,8 @@ export async function handleTestDocsTool(
       requestId, 
       filePath: args.filePath,
       sessionId: args.sessionId,
-      phase: args.phase
+      phase: args.phase,
+      interaction_id: args.interaction_id
     });
 
     // Check if we're in discovery mode (no filePath and no sessionId provided)
