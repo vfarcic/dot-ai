@@ -11,6 +11,7 @@
 Current capability scanning processes Kubernetes resources sequentially, with each AI-powered capability inference taking 4-6 seconds. For a typical cluster scan of 66 resources, this results in 4-6 minutes of processing time, creating poor user experience and limiting scalability for larger environments.
 
 **Impact Analysis:**
+
 - **User Experience**: Long wait times discourage usage of capability scanning features
 - **Scalability**: Sequential processing doesn't scale for enterprise environments with hundreds of CRDs
 - **Resource Utilization**: Underutilizes available AI provider capacity and system resources
@@ -106,7 +107,9 @@ Implement parallel processing of capability analysis with intelligent concurrenc
 - [ ] Update session management throughout capability workflow
 - [ ] Add session corruption detection and recovery
 
-**Acceptance Criteria**: Multiple parallel processes can safely update session state without data loss or corruption
+### Acceptance Criteria
+
+Multiple parallel processes can safely update session state without data loss or corruption
 
 ### Milestone 3: Real-Time Progress Tracking ⬜
 **Goal**: Provide live progress updates during parallel execution

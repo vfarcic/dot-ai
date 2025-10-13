@@ -1025,6 +1025,9 @@ function validateRemediateInput(args: any): RemediateInput {
       executeChoice: args.executeChoice !== undefined ?
         REMEDIATE_TOOL_INPUT_SCHEMA.executeChoice.parse(args.executeChoice) : undefined,
       sessionId: args.sessionId ? REMEDIATE_TOOL_INPUT_SCHEMA.sessionId.parse(args.sessionId) : undefined,
+      executedCommands: args.executedCommands
+        ? REMEDIATE_TOOL_INPUT_SCHEMA.executedCommands.parse(args.executedCommands)
+        : undefined,
       interaction_id: args.interaction_id ? REMEDIATE_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined
     } as RemediateInput;
 

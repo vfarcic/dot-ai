@@ -313,13 +313,13 @@ class LangSmithExporter {
 
 ### High Impact Risks
 
-**Risk: Standards Compatibility Complexity**
+#### Risk: Standards Compatibility Complexity
 - **Probability**: Medium
 - **Impact**: High
 - **Mitigation**: Start with OpenAI Evals format first, expand gradually
 - **Owner**: AI Engineering Team
 
-**Risk: Statistical Analysis Overhead**
+#### Risk: Statistical Analysis Overhead
 - **Probability**: High
 - **Impact**: Medium  
 - **Mitigation**: Implement optional statistical analysis, use efficient algorithms
@@ -327,13 +327,13 @@ class LangSmithExporter {
 
 ### Medium Impact Risks
 
-**Risk: Breaking Changes to Existing Workflow**
+#### Risk: Breaking Changes to Existing Workflow
 - **Probability**: Medium
 - **Impact**: Medium
 - **Mitigation**: Maintain backward compatibility, phased migration
 - **Owner**: Development Team
 
-**Risk: Platform Integration Complexity**
+#### Risk: Platform Integration Complexity
 - **Probability**: Medium
 - **Impact**: Medium
 - **Mitigation**: Start with export-only, add import functionality later

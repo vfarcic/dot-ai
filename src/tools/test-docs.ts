@@ -40,7 +40,8 @@ export async function handleTestDocsTool(
       requestId, 
       filePath: args.filePath,
       sessionId: args.sessionId,
-      phase: args.phase
+      phase: args.phase,
+      interaction_id: args.interaction_id
     });
 
     // Check if we're in discovery mode (no filePath and no sessionId provided)
