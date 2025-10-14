@@ -98,6 +98,14 @@ export class VercelProvider implements AIProvider {
     return CURRENT_MODELS[this.providerType];
   }
 
+  getModelName(): string {
+    return this.model;
+  }
+
+  getSDKProvider(): string {
+    return this.providerType;
+  }
+
   isInitialized(): boolean {
     return this.modelInstance !== undefined;
   }

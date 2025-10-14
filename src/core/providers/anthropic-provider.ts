@@ -50,6 +50,14 @@ export class AnthropicProvider implements AIProvider {
     return getCurrentModel('anthropic');
   }
 
+  getModelName(): string {
+    return this.model;
+  }
+
+  getSDKProvider(): string {
+    return 'anthropic';
+  }
+
   isInitialized(): boolean {
     return this.client !== undefined;
   }

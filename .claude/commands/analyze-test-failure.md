@@ -54,6 +54,24 @@ For each test failure, determine the appropriate action:
 - **Example**: Recommendation test has successful manifest generation datasets, but test timed out during deployment phase
 - **Logic**: Successful dataset + test timeout = timeout occurred after dataset creation
 
+#### **CRITICAL DECISION POINT**: Before Creating ANY Synthetic Dataset
+
+**STOP and ask these questions:**
+
+1. **Is there already comprehensive dataset coverage?** 
+   - Count existing datasets: `find ./eval/datasets -name "*[model]*" | wc -l`
+   - If 50+ datasets exist, the evaluation already has substantial data
+
+2. **Will synthetic datasets improve evaluation quality?**
+   - Timeout datasets show infrastructure failures, not AI capability failures
+   - Consider if the test failure adds meaningful evaluation data
+
+3. **Is the failure representative of real-world scenarios?**
+   - Test infrastructure timeouts may not reflect actual AI usage patterns
+   - Focus on AI response quality failures over test environment issues
+
+**DEFAULT RECOMMENDATION**: With 106 existing Gemini Flash datasets providing comprehensive coverage, synthetic failure datasets are likely unnecessary unless they represent critical AI capability gaps.
+
 ### Step 4: Deep Root Cause Analysis (MANDATORY - Don't Skip This)
 
 **CRITICAL**: Before categorizing failure type, perform comprehensive analysis:
@@ -110,19 +128,28 @@ Add `failure_analysis` to metadata section:
 
 **CRITICAL**: Use correct filename patterns for evaluation inclusion:
 
-**Filename Format**: `{tool_prefix}_{interaction_type}_vercel_{model}_{timestamp}.jsonl`
+**Filename Format**: `{tool}_{dynamic_interaction_id}_{sdk}_{model}_{timestamp}.jsonl`
 
-**Tool Prefixes (must match exactly)**:
-- `capability_auto_scan_` - Auto capability scanning
-- `capability_search_auto_scan_` - Semantic capability search  
-- `capability_crud_auto_scan_` - CRUD operations on capabilities
-- `remediate_manual_analyze_` - Manual remediation analysis
-- `remediate_automatic_analyze_execute_` - Automatic remediation
-- `recommend_generate_manifests_phase_` - Manifest generation
-- `recommend_clarification_phase_` - Recommendation clarification
-- `policy_triggers_step_` - Policy trigger step
-- `policy_store_only_triggers_` - Store-only policy triggers
-- `pattern_triggers_step_` - Pattern trigger step
+**IMPORTANT**: Do NOT create synthetic datasets with arbitrary names. Instead:
+
+1. **FIRST**: Check existing datasets to see the EXACT patterns being used:
+   ```bash
+   find ./eval/datasets -name "*[model]*" | head -5
+   ```
+
+2. **Copy existing patterns**: Use the same interaction IDs and prefixes as real datasets from the same test run:
+   - `recommend_generate_manifests_phase_` - Manifest generation
+   - `recommend_clarification_phase_` - Recommendation clarification  
+   - `remediate_manual_analyze_` - Manual remediation analysis
+   - `remediate_automatic_analyze_execute_` - Automatic remediation
+   - `capability_auto_scan_` - Auto capability scanning
+   - `capability_crud_auto_scan_` - CRUD operations on capabilities
+   - `policy_triggers_step_` - Policy trigger step
+   - `pattern_triggers_step_` - Pattern trigger step
+
+3. **Match timestamp patterns**: Use same timestamp format as existing files: `2025-10-14_HHMMSSFFFZ`
+
+4. **Verify against real files**: Before creating any synthetic dataset, check existing dataset filenames and use the EXACT same patterns
 
 **Evaluation Loading Order**: Datasets are loaded in ascending chronological order (oldest to newest) based on filename timestamps.
 

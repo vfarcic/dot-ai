@@ -17,7 +17,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
-import { extractJsonFromAIResponse, extractJsonArrayFromAIResponse } from './platform-utils';
+import { extractJsonFromAIResponse } from './platform-utils';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -796,70 +796,6 @@ export class ResourceRecommender {
 
   // REMOVED: selectResourceCandidates - replaced by single-phase assembleAndRankSolutions
   // REMOVED: fetchDetailedSchemas - no longer needed in single-phase architecture
-
-  /**
-      const basic = `${index}: ${resource.kind} (${resource.apiVersion})
-   Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced}`;
-      
-      // Include rich capability context if available (from capability-based pre-filtering)
-      if (resource.capabilities) {
-        const cap = resource.capabilities;
-        return `${basic}
-   Resource Name: ${resource.resourceName || 'Not specified'}
-   Capabilities: ${cap.capabilities?.join(', ') || 'Not specified'}
-   Providers: ${cap.providers?.join(', ') || 'Not specified'}
-   Complexity: ${cap.complexity || 'Not specified'}
-   Use Case: ${cap.useCase || 'Not specified'}
-   Description: ${cap.description || 'Not specified'}
-   Confidence: ${cap.confidence || 'N/A'}`;
-      }
-      
-      return basic;
-    }).join('\n\n');
-
-    // Format organizational patterns for AI context
-    const patternsContext = patterns.length > 0 
-      ? patterns.map(pattern => 
-          `- ID: ${pattern.id}
-            Description: ${pattern.description}
-            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
-            Rationale: ${pattern.rationale}
-            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
-        ).join('\n')
-      : 'No organizational patterns found for this request.';
-
-
-    const template = loadPrompt('resource-selection');
-    
-    const selectionPrompt = template
-      .replace('{intent}', intent)
-      .replace('{resources}', resourceSummary)
-      .replace('{patterns}', patternsContext);
-
-
-    const response = await this.aiProvider.sendMessage(selectionPrompt, 'resource-selection');
-    
-    try {
-      // Extract JSON array using shared utility
-      const selectedResources = extractJsonArrayFromAIResponse(response.content);
-      
-      if (!Array.isArray(selectedResources)) {
-        throw new Error('AI response is not an array');
-      }
-      
-      // Validate that each resource has required fields
-      for (const resource of selectedResources) {
-        if (!resource.kind || !resource.apiVersion) {
-          throw new Error(`AI selected invalid resource: ${JSON.stringify(resource)}`);
-        }
-      }
-      
-      return selectedResources;
-    } catch (error) {
-      throw new Error(`AI failed to select resources in valid JSON format. Error: ${(error as Error).message}. AI response: "${response.content.substring(0, 200)}..."`);
-    }
-  }
 
   /**
    * Phase 2: Fetch detailed schemas for selected candidates

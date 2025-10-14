@@ -62,7 +62,8 @@ describe.concurrent('Version Tool Integration', () => {
               aiProvider: {
                 connected: true, // Specific - should be connected with API key
                 keyConfigured: true, // Specific - API key should be configured
-                providerType: expect.any(String) // Generic - accepts any configured provider
+                providerType: expect.any(String), // Generic - accepts any configured provider
+                modelName: expect.any(String) // Generic - accepts any configured model
               },
               kubernetes: {
                 connected: true, // Specific - should be connected to our test cluster

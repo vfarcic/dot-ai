@@ -63,6 +63,7 @@ export interface SystemStatus {
     connected: boolean;
     keyConfigured: boolean;
     providerType?: string;
+    modelName?: string;
     error?: string;
   };
   kubernetes: {
@@ -552,23 +553,28 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
     return {
       connected: true,
       keyConfigured: true,
-      providerType: aiProvider.getProviderType()
+      providerType: aiProvider.getProviderType(),
+      modelName: aiProvider.getModelName()
     };
   } catch (error) {
-    // Try to get provider type even on error
+    // Try to get provider type and model name even on error
     let providerType: string | undefined;
+    let modelName: string | undefined;
     try {
       const { createAIProvider } = await import('../core/ai-provider-factory');
       const aiProvider = createAIProvider();
       providerType = aiProvider.getProviderType();
+      modelName = aiProvider.getModelName();
     } catch {
       providerType = undefined;
+      modelName = undefined;
     }
 
     return {
       connected: false,
       keyConfigured: false,
       providerType,
+      modelName,
       error: error instanceof Error ? error.message : String(error)
     };
   }
