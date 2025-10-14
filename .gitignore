@@ -107,3 +107,6 @@ start-http-server.sh
 # Test files
 argocd-values.yaml
 argocd/
+
+# Evaluation datasets (exclude only .jsonl files, not subdirectories)
+eval/datasets/*.jsonl

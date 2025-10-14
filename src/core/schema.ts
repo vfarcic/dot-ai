@@ -17,7 +17,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
-import { extractJsonFromAIResponse } from './platform-utils';
+import { extractJsonFromAIResponse, extractJsonArrayFromAIResponse } from './platform-utils';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -841,36 +841,8 @@ export class ResourceRecommender {
     const response = await this.aiProvider.sendMessage(selectionPrompt, 'resource-selection');
     
     try {
-      // Extract JSON from response with robust parsing
-      let jsonContent = response.content;
-      
-      // First try to find JSON array wrapped in code blocks
-      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-      if (codeBlockMatch) {
-        jsonContent = codeBlockMatch[1];
-      } else {
-        // Try to find JSON array that starts with [ and find the matching closing ]
-        const startIndex = response.content.indexOf('[');
-        if (startIndex !== -1) {
-          let bracketCount = 0;
-          let endIndex = startIndex;
-          
-          for (let i = startIndex; i < response.content.length; i++) {
-            if (response.content[i] === '[') bracketCount++;
-            if (response.content[i] === ']') bracketCount--;
-            if (bracketCount === 0) {
-              endIndex = i;
-              break;
-            }
-          }
-          
-          if (bracketCount === 0) {
-            jsonContent = response.content.substring(startIndex, endIndex + 1);
-          }
-        }
-      }
-      
-      const selectedResources = JSON.parse(jsonContent.trim());
+      // Extract JSON array using shared utility
+      const selectedResources = extractJsonArrayFromAIResponse(response.content);
       
       if (!Array.isArray(selectedResources)) {
         throw new Error('AI response is not an array');

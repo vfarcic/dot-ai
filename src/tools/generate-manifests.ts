@@ -14,6 +14,7 @@ import { loadPrompt } from '../core/shared-prompt-loader';
 import * as yaml from 'js-yaml';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
 import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
+import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -239,16 +240,8 @@ ${errorContext.previousManifests}
   });
   
   // Extract YAML content from response
-  let manifestContent = response.content;
-  
-  // Try to extract YAML from code blocks if wrapped
-  const yamlBlockMatch = manifestContent.match(/```(?:yaml|yml)?\s*([\s\S]*?)\s*```/);
-  if (yamlBlockMatch) {
-    manifestContent = yamlBlockMatch[1];
-  }
-  
-  // Clean up any leading/trailing whitespace
-  manifestContent = manifestContent.trim();
+  // Use shared utility to extract from code blocks if wrapped
+  const manifestContent = extractContentFromMarkdownCodeBlocks(response.content, 'yaml');
   
   logger.info('AI manifest generation completed', {
     manifestLength: manifestContent.length,

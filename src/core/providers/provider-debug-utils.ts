@@ -69,7 +69,11 @@ export interface EvaluationMetrics {
   interaction_id: string;     // Required: Unique identifier for this interaction (e.g., "interaction1")
   
   // Optional test context (not always available)
-  failure_analysis?: string;  // Empty for passing tests, analysis for failed tests
+  failure_analysis?: string | {  // String for legacy, object for new format
+    failure_type: "timeout" | "error" | "infrastructure";
+    failure_reason: string;
+    time_to_failure: number;
+  };
 }
 
 /**

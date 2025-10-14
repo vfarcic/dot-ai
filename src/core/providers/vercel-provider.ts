@@ -11,6 +11,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createMistral } from '@ai-sdk/mistral';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 import {
   AIProvider,
   AIResponse,
@@ -77,10 +78,7 @@ export class VercelProvider implements AIProvider {
           provider = createMistral({ apiKey: this.apiKey });
           break;
         case 'deepseek':
-          provider = createOpenAI({ 
-            apiKey: this.apiKey,
-            baseURL: 'https://api.deepseek.com/v1'
-          });
+          provider = createDeepSeek({ apiKey: this.apiKey });
           break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);
@@ -196,6 +194,33 @@ export class VercelProvider implements AIProvider {
       return response;
 
     } catch (error) {
+      // Generate dataset for failed AI interaction
+      if (this.debugMode && evaluationContext) {
+        const failureMetrics: EvaluationMetrics = {
+          operation,
+          user_intent: evaluationContext.user_intent || '',
+          ai_response_summary: `Error: ${error instanceof Error ? error.message : String(error)}`,
+          durationMs: Date.now() - startTime,
+          inputTokens: 0,
+          outputTokens: 0,
+          iterationCount: 0,
+          toolCallCount: 0,
+          status: 'failed',
+          completionReason: 'error',
+          sdk: this.getProviderType(),
+          modelVersion: this.model,
+          test_scenario: operation,
+          interaction_id: evaluationContext.interaction_id || generateDebugId(operation),
+          failure_analysis: {
+            failure_type: "error",
+            failure_reason: `${this.providerType} API error: ${error instanceof Error ? error.message : String(error)}`,
+            time_to_failure: Date.now() - startTime
+          }
+        };
+        
+        logEvaluationDataset(failureMetrics, this.debugMode);
+      }
+      
       throw new Error(`${this.providerType} API error: ${error}`);
     }
   }

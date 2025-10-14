@@ -21,6 +21,7 @@
     "test:integration:sonnet": "AI_PROVIDER=anthropic AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gpt": "AI_PROVIDER=openai AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gpt-pro": "AI_PROVIDER=openai_pro AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:gemini": "AI_PROVIDER=google AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gemini-flash": "AI_PROVIDER=google_fast AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:grok": "AI_PROVIDER=xai AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:grok-fast": "AI_PROVIDER=xai_fast AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
@@ -91,6 +92,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.23",
+    "@ai-sdk/deepseek": "^1.0.23",
     "@ai-sdk/google": "^2.0.17",
     "@ai-sdk/mistral": "^2.0.19",
     "@ai-sdk/openai": "^2.0.42",
