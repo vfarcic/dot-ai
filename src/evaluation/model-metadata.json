@@ -1,0 +1,88 @@
+{
+  "lastUpdated": "2025-01-14",
+  "dataSource": "Manual collection from provider websites", 
+  "updateInstructions": "Execute command `/update-model-metadata` when this data becomes stale",
+  "models": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3.0,
+        "output_cost_per_million_tokens": 15.0
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI", 
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10.0
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15.0,
+        "output_cost_per_million_tokens": 120.0
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4.0,
+        "output_cost_per_million_tokens": 20.0
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.30,
+        "output_cost_per_million_tokens": 2.50
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3.0,
+        "output_cost_per_million_tokens": 15.0
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.20,
+        "output_cost_per_million_tokens": 0.50
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2.0,
+        "output_cost_per_million_tokens": 6.0
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  }
+}

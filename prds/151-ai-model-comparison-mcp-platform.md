@@ -1,9 +1,9 @@
 # PRD: AI Model Comparison for MCP Platform
 
 **Created**: 2025-10-07
-**Status**: In Progress - Milestone 1 Complete ✅, Milestone 2 Ready
+**Status**: In Progress - Milestone 2 Complete ✅, Milestone 3 Ready (Enhanced Pipeline)
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-10-13
+**Last Updated**: 2025-10-14
 **GitHub Issue**: [#151](https://github.com/vfarcic/dot-ai/issues/151)
 **Priority**: Medium
 **Complexity**: Medium
@@ -307,15 +307,28 @@ npm run eval:comparative              # Generate comparative reports from all da
 ### Milestone 3: Enhanced Platform-Wide Analysis
 **Goal**: Extract comprehensive insights from complete testing data with cost-aware decision framework
 
-**Tasks**:
-- [ ] Collect model metadata (pricing, capabilities, characteristics) for all 5 working models
-- [ ] Implement dual-format report generation (JSON + markdown) in eval-runner.ts
-- [ ] Build AI-powered platform-wide synthesis system using structured JSON input
+**Implementation Phases** (Sequential execution to avoid evaluation duplication):
+
+**Phase 3.1: Infrastructure Enhancement**
+- [x] Implement dual-format report generation (JSON + markdown) in eval-runner.ts ✅
+- [x] Collect model metadata (pricing, capabilities, characteristics) for all 9 tested models ✅
+- [x] Validate enhanced evaluation pipeline with sample data ✅
+
+**Phase 3.2: Comprehensive Evaluation Execution** 
+- [ ] Execute enhanced evaluation pipeline once with all datasets (673+ total)
+- [ ] Generate individual tool reports (JSON + markdown) for all 5 tool types
+- [ ] Validate JSON output structure for platform-wide synthesis compatibility
+
+**Phase 3.3: Platform-Wide Synthesis System**
+- [ ] Build AI-powered platform-wide synthesis system using generated JSON reports
 - [ ] Analyze cross-tool performance consistency patterns (objective quality scoring)
-- [ ] Calculate cost implications and value ratios (separate from quality analysis) 
+- [ ] Calculate cost implications and value ratios (separate from quality analysis)
 - [ ] Generate multi-dimensional decision matrices (quality vs speed vs cost vs reliability)
+
+**Phase 3.4: Final Analysis & Recommendations**
 - [ ] Create usage pattern recommendations for different user priorities
 - [ ] Document reliability and production readiness patterns
+- [ ] Generate comprehensive platform-wide model selection guide
 
 **Success Criteria**: 
 - Platform-wide model selection guide with separate quality and cost dimensions
@@ -481,8 +494,50 @@ interface ModelMetadata {
 
 **Implementation Impact**:
 - Enhanced final reports with cost-per-request analysis and value scoring
-- Multi-dimensional decision matrices (quality vs speed vs cost vs reliability)
+- Multi-dimensional decision matrices (quality vs speed vs cost vs reliability)  
 - Usage pattern recommendations for different cost/performance priorities
+
+### Decision 5: Milestone 3 Implementation Sequence Optimization (2025-10-14)
+
+**Context**: Discussion during Milestone 3 planning revealed inefficient evaluation execution approach
+
+**Decision**: Execute evaluation pipeline in optimized sequential phases to avoid duplicate runs
+- **Phase 3.1**: Implement dual-format output and model metadata collection first
+- **Phase 3.2**: Execute enhanced evaluation pipeline once with all 673+ datasets  
+- **Phase 3.3**: Build platform-wide synthesis system using generated JSON reports
+- **Phase 3.4**: Generate final analysis and recommendations
+
+**Rationale**: 
+- Prevents expensive duplicate evaluation runs across 9 models × 5 tool types
+- Ensures JSON format available for platform-wide synthesis from start
+- Establishes clear data dependency chain between individual and platform-wide analysis
+- Enables incremental validation at each phase
+
+**Implementation Impact**:
+- Restructured Milestone 3 into 4 sequential phases with clear dependencies
+- Platform-wide synthesizer depends on JSON reports from individual tool evaluations
+- Single comprehensive evaluation execution rather than iterative approach
+- Reduced computational overhead and API usage costs
+
+### Decision 6: Platform-Wide Synthesis Data Flow Architecture (2025-10-14)
+
+**Context**: Clarification needed on data flow between individual tool analysis and cross-tool synthesis
+
+**Decision**: Platform-wide synthesizer consumes structured JSON reports from individual evaluators
+- **Input**: JSON files with ComparativeEvaluationScore[] from each tool evaluation
+- **Processing**: AI-powered cross-tool analysis using structured data
+- **Output**: Multi-dimensional decision matrices and platform-wide recommendations
+
+**Rationale**:
+- Confirms and reinforces Decision 3 (dual-format report generation)  
+- Prevents markdown formatting conflicts in AI prompt injection
+- Enables reliable structured data analysis across all tool types
+- Maintains separation between individual tool insights and platform-wide synthesis
+
+**Architecture Benefits**:
+- Clean data dependency chain: datasets → individual JSON reports → platform synthesis
+- Structured input ensures consistent cross-tool comparative analysis
+- Scalable to additional tool types or models in future iterations
 
 ---
 
@@ -652,3 +707,38 @@ interface ModelMetadata {
 **Next Phase Priority**: 
 1. Complete final model testing (Gemini Flash) OR proceed with 8-model analysis
 2. Begin Milestone 3 platform-wide analysis using extensive dataset collection
+
+### 2025-01-14: Milestone 3 Phase 3.1 Infrastructure Enhancement Complete
+**Duration**: ~4 hours comprehensive implementation session
+**Primary Focus**: Complete Phase 3.1 infrastructure enhancements for platform-wide analysis
+
+**Completed PRD Items**:
+- [x] Implement dual-format report generation (JSON + markdown) in eval-runner.ts - Evidence: Added generateJsonReport() function, modified runEvaluation() to save both formats
+- [x] Collect model metadata (pricing, capabilities, characteristics) for all 9 tested models - Evidence: Created src/evaluation/model-metadata.json with verified official pricing from all providers
+- [x] Validate enhanced evaluation pipeline with sample data - Evidence: Tested metadata loading, freshness validation, and failure mechanisms successfully
+
+**Technical Implementation Achievements**:
+- **Dual-Format Reports**: Enhanced eval-runner.ts to generate both human-readable markdown and machine-readable JSON reports simultaneously
+- **Model Metadata System**: Created comprehensive metadata file with pricing ($0.20-$120 per million tokens), context windows (128K-2M tokens), and function calling support
+- **Freshness Validation**: Implemented 30-day metadata freshness check with automatic failure and clear update instructions
+- **Data Collection Command**: Created .claude/commands/update-model-metadata.md with systematic data collection process from official provider sources
+- **Pricing Accuracy**: Verified and corrected pricing for all 9 models using official provider documentation (GPT-5 Pro corrected from $5/$20 to $15/$120, Grok-4-fast from $3/$15 to $0.20/$0.50, etc.)
+
+**Architecture Improvements Made**:
+- Centralized model metadata loading with loadModelMetadata() function in eval-runner.ts
+- Enhanced JSON report structure to include both evaluation results and model context for platform-wide synthesis
+- Implemented conservative metadata update policy requiring manual verification vs automated web scraping
+- Established clear data dependency chain: datasets → individual JSON reports → platform synthesis
+
+**Infrastructure Validation Results**:
+- Enhanced evaluation pipeline successfully loads metadata and fails gracefully when data is stale
+- JSON report format confirmed compatible with planned platform-wide synthesis system
+- Metadata freshness check prevents evaluations with outdated cost analysis data
+
+**Phase 3.1 Status**: **COMPLETE** ✅ (3/3 items) - All infrastructure enhancement finished
+**Ready for Phase 3.2**: Enhanced evaluation pipeline ready to execute with 673+ datasets and comprehensive model metadata
+
+**Next Session Priorities**:
+1. Execute Phase 3.2: Run enhanced evaluation pipeline once with all datasets
+2. Generate individual tool reports (JSON + markdown) for all 5 tool types  
+3. Begin Phase 3.3: Build platform-wide synthesis system using generated JSON reports
