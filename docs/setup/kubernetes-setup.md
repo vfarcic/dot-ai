@@ -30,7 +30,7 @@
 
 - Kubernetes cluster (1.19+) with kubectl access
 - Helm 3.x installed
-- AI model API key (default: Anthropic API key, see [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for 9 model options)
+- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (required for vector operations)
 - Ingress controller (any standard controller)
 

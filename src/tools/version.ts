@@ -252,10 +252,12 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
         
         // Test MCP-used operations: verify vector operations work
         const embeddingService = new EmbeddingService();
+        const embeddingStatus = embeddingService.getStatus();
+        const expectedDimensions = embeddingStatus.dimensions || 1536; // Use provider's dimension or default
         const testEmbedding = await embeddingService.generateEmbedding('diagnostic test query');
-        
-        if (!testEmbedding || testEmbedding.length !== 1536) {
-          throw new Error(`Embedding dimension mismatch: expected 1536, got ${testEmbedding?.length || 'null'} dimensions`);
+
+        if (!testEmbedding || testEmbedding.length !== expectedDimensions) {
+          throw new Error(`Embedding dimension mismatch: expected ${expectedDimensions}, got ${testEmbedding?.length || 'null'} dimensions`);
         }
         
         // Validate embedding values are numbers (not NaN, Infinity, etc.)

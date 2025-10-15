@@ -28,7 +28,7 @@
 
 - Docker and Docker Compose installed
 - Kubernetes cluster access (kubectl configured)
-- AI model API key (default: Anthropic API key, see [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for 9 model options)
+- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (for enhanced semantic search)
 
 ## Quick Start (2 Minutes)

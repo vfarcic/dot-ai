@@ -134,7 +134,9 @@ Add `failure_analysis` to metadata section:
 
 1. **FIRST**: Check existing datasets to see the EXACT patterns being used:
    ```bash
-   find ./eval/datasets -name "*[model]*" | head -5
+   # List datasets for a specific model (replace MODEL with actual model name)
+   MODEL="vercel_gemini-2.5-pro"
+   find ./eval/datasets -name "*${MODEL}*" | head -5
    ```
 
 2. **Copy existing patterns**: Use the same interaction IDs and prefixes as real datasets from the same test run:
@@ -196,7 +198,11 @@ Create new dataset file with this structure:
 ## Practical Workflow
 
 ### Before Creating Any Datasets:
-1. **Search for existing datasets**: `grep -l "Error\|timeout\|failed" eval/datasets/*[model]*[date]*.jsonl`
+1. **Search for existing datasets**:
+   ```bash
+   # Search for error patterns in datasets
+   grep -lE "Error|timeout|failed" eval/datasets/*.jsonl
+   ```
 2. **Check failure_analysis status**: Look for `"failure_analysis":""` (empty) vs populated content
 3. **Verify test scenario match**: Ensure dataset corresponds to the actual failed test
 4. **Review debug files**: Check `./tmp/debug-ai/` for detailed error context and root cause analysis
