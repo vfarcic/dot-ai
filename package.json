@@ -28,6 +28,7 @@
     "test:integration:mistral": "AI_PROVIDER=mistral AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:deepseek": "AI_PROVIDER=deepseek AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "eval:comparative": "DEBUG_DOT_AI=true npx tsx src/evaluation/eval-runner.ts",
+    "eval:platform-synthesis": "DEBUG_DOT_AI=true npx tsx src/evaluation/run-platform-synthesis.ts",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",

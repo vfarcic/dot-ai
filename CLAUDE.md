@@ -50,6 +50,7 @@ npm run start:mcp                                   # Start MCP server
 npm run eval:comparative                            # Run comparative evaluations (all datasets)
 npm run eval:comparative remediation                # Run comparative evaluations (remediation only)
 npm run eval:comparative capability                 # Run comparative evaluations (capability only)
+npm run eval:platform-synthesis                     # Generate platform-wide model analysis from evaluation results
 ```
 
 ## AI Prompt Management 🤖
