@@ -108,5 +108,8 @@
     "openai": "^5.11.0",
     "yaml": "^2.8.0",
     "zod-to-json-schema": "^3.24.6"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.52.3"
   }
 }
