@@ -19,6 +19,7 @@
     "test:integration": "./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:watch": "vitest --config=vitest.integration.config.ts --test-timeout=1200000",
     "test:integration:sonnet": "AI_PROVIDER=anthropic AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:haiku": "AI_PROVIDER=anthropic_haiku AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gpt": "AI_PROVIDER=openai AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gpt-pro": "AI_PROVIDER=openai_pro AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gemini": "AI_PROVIDER=google AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",

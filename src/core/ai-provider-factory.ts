@@ -23,6 +23,7 @@ import { CURRENT_MODELS } from './model-config';
  */
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
+  anthropic_haiku: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   openai: 'OPENAI_API_KEY',
   openai_pro: 'OPENAI_API_KEY', // Uses same API key as regular OpenAI
   google: 'GOOGLE_API_KEY',
@@ -85,6 +86,7 @@ export class AIProviderFactory {
     // Create provider based on type
     switch (config.provider) {
       case 'anthropic':
+      case 'anthropic_haiku':
         return this.createAnthropicProvider(config);
 
       default:

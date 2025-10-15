@@ -1,288 +1,301 @@
 # Platform-Wide AI Model Analysis Report
 
-Generated: 2025
+Generated: 2025-01-27
 
 ## Executive Summary
 
-This report analyzes 9 AI models across 5 types of specialized AI agent interactions to provide comprehensive platform-wide insights and recommendations for Kubernetes platform operations. The evaluation spans capability analysis, pattern recognition, policy compliance, deployment recommendations, and issue remediation scenarios.
+This report analyzes 10 AI models across 5 distinct Kubernetes-focused AI agent interaction patterns to provide comprehensive platform-wide insights and recommendations. The evaluation reveals clear performance tiers, with Anthropic's Claude models demonstrating exceptional reliability and consistency, while highlighting significant reliability concerns with certain premium-tier models that make them unsuitable for production use.
 
 ## Evaluation Scenarios
 
+**CRITICAL: Understanding what each tool evaluates is essential for interpreting model performance:**
+
 ### Tool Summaries
+- **Capability Analysis**: Tests model endurance and consistency through ~100 consecutive AI interactions during complete cluster resource discovery. Requires sustained high-quality analysis across 30+ minute sessions while mapping deployment capabilities for all Kubernetes resource types. Models must maintain reasoning quality throughout extensive resource scanning without degradation.
 
-- **Capability Analysis**: Tests model endurance and consistency by performing complete Kubernetes cluster resource discovery. Requires handling ~100 consecutive AI interactions over 30+ minute sessions to analyze all cluster resources, mapping deployment capabilities and constraints. Success depends on maintaining quality throughout extended operations without degradation.
+- **Pattern Recognition**: Evaluates multi-step interactive workflow handling where models must expand trigger keywords into comprehensive lists, create reusable organizational templates, and abstract specific requirements into deployment patterns. Success requires workflow management, keyword expansion capabilities, and pattern abstraction skills for Vector DB storage.
 
-- **Pattern Recognition**: Evaluates multi-step interactive workflow completion for creating organizational deployment patterns. Models must expand trigger keywords into comprehensive lists, abstract specific requirements into reusable templates, and maintain context across multiple interaction steps to generate searchable organizational patterns.
+- **Policy Compliance**: Tests trigger expansion from policy keywords to comprehensive Kubernetes resource lists, schema-by-schema analysis of cluster resources, and generation of complete Kyverno ClusterPolicies with CEL expressions. Models must perform detailed schema analysis and generate syntactically correct validation policies.
 
-- **Policy Compliance**: Assesses ability to create Kyverno compliance policies through trigger expansion and automated policy generation. Requires detailed schema-by-schema analysis of cluster resources, expansion of policy keywords into comprehensive resource lists, and generation of syntactically correct Kyverno ClusterPolicies with CEL validation expressions.
+- **Recommendations**: Assesses intent analysis and manifest generation with extremely large schema contexts (100K+ tokens). Models must generate focused clarification questions from minimal user intent, then transform requirements into production-ready Kubernetes YAML using up to 50 large resource schemas. Requires exceptional context window handling and synthesis capabilities.
 
-- **Recommendations**: Tests intent analysis and manifest generation capabilities with large schema context (100K+ tokens). Models must generate relevant clarification questions from minimal user intent, then synthesize complete production-ready Kubernetes YAML manifests using up to 50 large resource schemas while balancing comprehensiveness with efficiency.
-
-- **Remediation**: Evaluates troubleshooting and problem-solving through systematic cluster investigation. Models must accurately diagnose issues from minimal descriptions, perform multi-step investigations using kubectl commands (5-8 iterations), identify root causes, and generate executable remediation commands with proper risk assessment.
+- **Remediation**: Evaluates systematic troubleshooting through multi-step investigation workflows (5-8 iterations). Models must analyze symptoms, execute kubectl commands, identify root causes with high confidence, and generate executable remediation commands with proper risk assessment. Tests investigation methodology and diagnostic reasoning.
 
 ## Key Findings
 
-- **Clear Quality Leader**: Claude Sonnet 4.5 dominates with an 0.872 average score and exceptional 0.967 cross-tool consistency, leading in 3 of 5 tool categories. Its 0.945 reliability score demonstrates superior endurance for long-running operations like capability analysis that require 100+ consecutive interactions.
+- **Clear Performance Tiers Emerge**: Claude Sonnet 4.5 (0.846 overall, 0.952 reliability) and Claude Haiku 4.5 (0.836 overall, 0.916 reliability) establish the top tier with >98% and >91% consistency respectively, demonstrating production-ready performance across all tools including the demanding capability analysis requiring ~100 consecutive interactions.
 
-- **Outstanding Value Champion**: Grok-4-Fast-Reasoning delivers 0.765 average performance at only $0.35/1M tokens (96% cheaper than premium models), achieving a remarkable 2.187 value score—4x better than the next competitor. Its 2M token context window and strong 0.910 consistency make it production-ready despite the lower cost.
+- **Exceptional Value Discovery**: Grok-4-fast-reasoning delivers 74% of top-tier performance at just 3.9% of the cost ($0.35/1M vs $9.00/1M tokens), achieving a 2.12 value score—the highest cost-performance ratio in the evaluation. This makes it ideal for high-volume operations where budget constraints are critical.
 
-- **Critical Reliability Issues**: GPT-5-Pro shows catastrophic failure with 0.065 consistency and only 30.8% average score, failing completely on pattern recognition and recommendations. Mistral-Large-Latest exhibits severe remediation failures (0.000 score) and poor 0.482 consistency despite strong performance in pattern and policy tools.
+- **Critical Production Failures**: GPT-5-Pro shows catastrophic reliability (0.332 reliability score, 7.9% consistency) with complete failures in pattern recognition and recommendations—tools requiring multi-step workflows and large context handling. Mistral Large exhibits severe inconsistency (48% cross-tool consistency, 0.542 reliability) with complete failure in remediation tasks, making both unsuitable for production deployment.
 
-- **Tool-Specific Performance Gaps**: Policy compliance proves most challenging (average 0.742 across models) due to complex Kyverno policy generation requirements. Models show significant variance: some excel at trigger expansion but fail at CEL expression generation, indicating policy work demands specialized capabilities.
+- **Tool-Specific Performance Patterns**: Claude Haiku dominates capability analysis (0.906), recommendations (0.855), and remediation (0.899)—all tools requiring sustained interaction or complex reasoning. Claude Sonnet leads in pattern recognition (0.83) and policy compliance (0.858), excelling at multi-step workflows and policy generation. No single model leads all categories, suggesting workload-specific optimization opportunities.
 
-- **Context Window vs Performance**: Models with massive context windows (Grok-4-Fast at 2M, Gemini-2.5-Flash at 1M tokens) don't necessarily outperform in recommendation scenarios requiring large schema processing. Claude Sonnet's 200K window achieves highest recommendation scores (0.844), suggesting efficient context utilization matters more than raw capacity.
+- **Context Window Correlation**: Models with larger context windows (Grok-4-fast-reasoning: 2M, Gemini Pro: 1M, Claude Sonnet: 1M) show stronger performance in recommendations (requiring 100K+ token contexts with 50 schemas), while smaller context models (DeepSeek: 128K) struggle with policy and pattern tasks requiring extensive schema analysis.
 
 ## Model Profiles
 
-### Claude Sonnet 4.5 - Production Ready (Anthropic)
-**Overall Score**: 0.872 | **Reliability**: 0.945 | **Consistency**: 0.967 | **Cost**: $9.00/1M tokens
+### claude-sonnet-4-5-20250929 - Production Ready (Anthropic)
+**Overall Score**: 0.846 | **Reliability**: 0.952 | **Consistency**: 0.983 | **Cost**: $9.00/1M tokens
 
 **Strengths**:
-- Exceptional endurance across all tools, with perfect 0.92 capability analysis score demonstrating sustained quality through 100+ interaction sessions
-- Universal leader status—only model consistently performing above 0.84 across all five evaluation categories
-- Highest remediation performance (0.879) indicating superior multi-step investigation and root cause diagnosis capabilities
-- Outstanding cross-tool consistency (0.967) shows reliable, predictable behavior regardless of workload type
+- Exceptional 98.3% cross-tool consistency demonstrates rock-solid predictable performance across all five evaluation scenarios
+- Leads in pattern recognition (0.83) and policy compliance (0.858), excelling at multi-step interactive workflows and complex Kyverno policy generation with CEL expressions
+- Strongest overall reliability (0.952) with 100% participation rate—completes all tasks including the demanding ~100 consecutive AI interactions in capability analysis without degradation
+- Massive 1M token context window enables handling of the recommendation tool's requirement for 50 large Kubernetes schemas simultaneously
 
 **Weaknesses**:
-- Premium pricing at $9.00/1M tokens—15-45x more expensive than budget alternatives
-- No significant performance advantage in policy compliance (0.84) despite higher cost compared to Mistral (0.85)
+- Premium pricing at $9.00/1M tokens (3x cost of Claude Haiku, 25x cost of budget options) limits viability for high-volume operations
+- Slightly edges out by Claude Haiku in capability analysis (0.868 vs 0.906) and remediation (0.841 vs 0.899), suggesting Haiku may better handle sustained interaction patterns
 
-**Best Use Cases**: Production deployments requiring maximum reliability, critical troubleshooting where accuracy is paramount, complex multi-step recommendations, long-running capability analysis operations
+**Best Use Cases**: Critical production deployments requiring maximum consistency, complex policy generation workflows, multi-step pattern creation, and mission-critical troubleshooting where reliability trumps cost considerations
 
-**Avoid For**: Budget-conscious deployments, high-frequency low-stakes operations, cost-sensitive development environments
+**Avoid For**: High-volume budget-conscious operations, exploratory development work, or scenarios where Claude Haiku's performance (98.8% as good) at 33% of the cost provides better value
 
 ---
 
-### Grok-4-Fast-Reasoning - Cost-Optimized (xAI)
-**Overall Score**: 0.765 | **Reliability**: 0.857 | **Consistency**: 0.910 | **Cost**: $0.35/1M tokens
+### claude-haiku-4-5-20251001 - Production Ready (Anthropic)
+**Overall Score**: 0.836 | **Reliability**: 0.916 | **Consistency**: 0.913 | **Cost**: $3.00/1M tokens
 
 **Strengths**:
-- Extraordinary value proposition with 2.187 value score—delivers 88% of Claude's quality at 4% of the cost
-- Massive 2M token context window enables handling of extremely large schema sets in recommendation scenarios
-- Strong remediation performance (0.867) nearly matching Claude, making it excellent for troubleshooting workflows
-- Excellent consistency (0.910) across tools demonstrates production-grade reliability despite budget pricing
+- Dominates in capability analysis (0.906), recommendations (0.855), and remediation (0.899)—all requiring sustained interactions or large context handling
+- Outstanding 91.3% cross-tool consistency with 100% participation rate, making it the most reliable model for varied workloads
+- Superior cost-performance balance: delivers 98.8% of Claude Sonnet's performance at exactly one-third the cost ($3.00 vs $9.00/1M tokens)
+- Excels at the capability analysis tool's demanding requirement of ~100 consecutive AI interactions without quality degradation across 30+ minute sessions
 
 **Weaknesses**:
-- Policy compliance performance (0.66) lags significantly, suggesting challenges with complex Kyverno CEL expression generation
-- Recommendation score (0.727) indicates some difficulty with intent clarification and manifest synthesis despite large context window
+- Smaller 200K context window (vs Sonnet's 1M) may limit performance on the most demanding recommendation scenarios requiring simultaneous processing of 50 large schemas
+- Trails Claude Sonnet in policy compliance (0.707 vs 0.858) and pattern recognition (0.815 vs 0.83), suggesting slightly weaker performance in Kyverno policy generation and pattern abstraction
 
-**Best Use Cases**: Budget-conscious production deployments, frequent operations requiring cost control, remediation and troubleshooting workflows, general-purpose usage
+**Best Use Cases**: General purpose production deployments, balanced workloads mixing all tool types, troubleshooting workflows requiring multi-step investigation, capability analysis requiring sustained high-quality interactions, and cost-conscious deployments still requiring enterprise-grade reliability
 
-**Avoid For**: Policy-heavy environments requiring extensive Kyverno generation, scenarios demanding absolute maximum accuracy
+**Avoid For**: Extreme policy complexity requiring cutting-edge CEL expression generation, or scenarios with unlimited budget where maximum consistency is paramount regardless of cost
 
 ---
 
-### Grok-4 - Production Ready (xAI)
-**Overall Score**: 0.762 | **Reliability**: 0.852 | **Consistency**: 0.954 | **Cost**: $9.00/1M tokens
+### gemini-2.5-pro - Production Ready (Google)
+**Overall Score**: 0.768 | **Reliability**: 0.837 | **Consistency**: 0.888 | **Cost**: $12.00/1M tokens
 
 **Strengths**:
-- Second-highest consistency score (0.954) demonstrates exceptional cross-tool predictability
-- Strong balanced performance across capability (0.778), policy (0.78), and remediation (0.809)
-- Remediation performance (0.809) shows solid multi-step investigation capabilities
-- 256K context window adequate for most Kubernetes schema requirements
+- Strong capability analysis (0.847) and policy compliance (0.828), handling cluster resource discovery and Kyverno policy generation effectively
+- Massive 1M token context window matches Claude Sonnet's capacity for handling recommendation tool's requirement of 50 large Kubernetes schemas
+- High 93.4% participation rate with 88.8% consistency demonstrates solid reliability across most evaluation scenarios
 
 **Weaknesses**:
-- Pattern recognition score (0.728) indicates struggles with multi-step interactive workflows and trigger expansion
-- Recommendation performance (0.714) suggests challenges with intent analysis and manifest generation
-- Same premium pricing as Claude but delivers 11% lower average performance
+- Critical weakness in remediation (0.605)—the lowest score among production-ready models—indicating struggles with multi-step troubleshooting investigations and root cause diagnosis
+- Most expensive option at $12.00/1M tokens (33% more than Claude Sonnet, 4x Claude Haiku) without commensurate performance advantages
+- Overall performance (0.768) trails both Claude models significantly (9-10 percentage points lower) while costing substantially more
 
-**Best Use Cases**: Scenarios requiring predictable consistent behavior, mixed workloads balancing multiple tool types, production environments with consistency requirements
+**Best Use Cases**: Organizations standardized on Google Cloud ecosystem requiring capability analysis and policy compliance, scenarios where GCP integration is paramount, or deployments requiring maximum context window capacity with Google-specific features
 
-**Avoid For**: Pattern-heavy workflows, recommendation-focused deployments, cost-sensitive projects (given premium pricing without premium performance)
+**Avoid For**: Troubleshooting and remediation workflows (weak 0.605 score), cost-conscious deployments, or any scenario where Claude Haiku delivers 8.6 percentage points better performance at 25% of the cost
 
 ---
 
-### GPT-5 - Production Ready (OpenAI)
-**Overall Score**: 0.760 | **Reliability**: 0.890 | **Consistency**: 0.914 | **Cost**: $5.63/1M tokens
+### grok-4 - Production Ready (xAI)
+**Overall Score**: 0.743 | **Reliability**: 0.834 | **Consistency**: 0.908 | **Cost**: $9.00/1M tokens
 
 **Strengths**:
-- Highest reliability score (0.890) indicates exceptional stability and completion rates
-- Strong pattern recognition (0.818) and remediation (0.829) demonstrate excellence in interactive workflows and troubleshooting
-- Mid-tier pricing provides reasonable value for quality delivered
-- Excellent performance consistency (0.914) across different workload types
+- Strong remediation performance (0.831) demonstrates effective multi-step investigation workflows and root cause diagnosis capabilities
+- Solid 90.8% cross-tool consistency with perfect 100% participation rate shows reliable completion across all evaluation tools
+- Balanced performance across policy compliance (0.80) and remediation (0.831) makes it suitable for compliance-focused troubleshooting workflows
 
 **Weaknesses**:
-- Capability analysis performance (0.698) lowest among production-ready models, suggesting endurance issues with long-running 100+ interaction sessions
-- Recommendation score (0.667) indicates challenges with large schema context processing and manifest generation
+- Significantly trails top performers with 10+ percentage point gaps: capability (0.737 vs Haiku's 0.906), pattern (0.708 vs Sonnet's 0.83), recommendations (0.638 vs Haiku's 0.855)
+- Particularly weak in recommendations (0.638), suggesting struggles with the tool's requirement for handling 100K+ token contexts with 50 large schemas
+- Premium $9.00/1M pricing (matching Claude Sonnet) without matching performance—delivers 12.3 percentage points less overall score for the same cost
 
-**Best Use Cases**: Pattern creation workflows, interactive troubleshooting sessions, scenarios prioritizing reliability over raw performance, mid-budget production deployments
+**Best Use Cases**: Remediation-focused workflows where troubleshooting is primary concern, organizations with xAI partnerships or specific integration requirements, policy compliance scenarios not requiring cutting-edge accuracy
 
-**Avoid For**: Extensive capability analysis operations, recommendation-heavy workflows requiring large schema processing, budget-constrained environments
+**Avoid For**: Capability analysis, pattern creation, or recommendation workflows where it significantly underperforms competitors, or cost-conscious deployments where better options exist at both higher and lower price points
 
 ---
 
-### Gemini 2.5 Flash - Cost-Optimized (Google)
-**Overall Score**: 0.759 | **Reliability**: 0.846 | **Consistency**: 0.936 | **Cost**: $1.40/1M tokens
+### grok-4-fast-reasoning - Cost-Optimized (xAI)
+**Overall Score**: 0.740 | **Reliability**: 0.802 | **Consistency**: 0.909 | **Cost**: $0.35/1M tokens
 
 **Strengths**:
-- Strong capability analysis (0.847) with best-in-class performance among cost-optimized models
-- Excellent value score (0.542) provides good quality-to-cost ratio
-- Massive 1M token context window enables extensive schema processing
-- High consistency (0.936) demonstrates predictable behavior across tool types
+- Exceptional value leader with 2.12 value score—delivers 87.5% of Claude Sonnet's performance at just 3.9% of the cost, making it the clear winner for cost-performance ratio
+- Massive 2M token context window (largest in evaluation) enables excellent handling of recommendation tool's 100K+ token requirements with 50 schemas
+- Strong remediation performance (0.856) rivals top-tier models, demonstrating effective multi-step troubleshooting investigation capabilities
+- Excellent 90.9% cross-tool consistency with 93.4% participation rate shows solid reliability across varied workloads
+
+**Strengths** (continued):
+- At $0.35/1M tokens, enables 25x more operations than Claude Sonnet for the same budget—transformative for high-volume deployments
 
 **Weaknesses**:
-- Remediation performance (0.705) significantly trails leaders, suggesting weaker multi-step investigation capabilities
-- Recommendation score (0.731) indicates moderate challenges with intent clarification and manifest synthesis
+- Weakest performance in policy compliance (0.648) suggests struggles with Kyverno policy generation and CEL expression creation
+- Trails top performers by 6-12 percentage points in capability analysis (0.747 vs 0.906) and pattern recognition (0.73 vs 0.83)
+- 93.4% participation rate (not perfect 100%) indicates occasional reliability issues in completing all evaluations
 
-**Best Use Cases**: Capability-heavy workflows requiring extensive cluster scanning, cost-sensitive production environments, scenarios with large context requirements
+**Best Use Cases**: Budget-conscious production deployments, high-volume operations where cost per operation is critical, remediation and troubleshooting workflows, exploratory development work, and scenarios requiring frequent AI interactions where aggregate cost becomes prohibitive with premium models
 
-**Avoid For**: Remediation-focused troubleshooting workflows, scenarios demanding premium troubleshooting capabilities
+**Avoid For**: Policy compliance workflows requiring precise Kyverno generation, scenarios demanding absolute maximum consistency and reliability, or use cases where the 6-12 percentage point performance gap vs top-tier models creates unacceptable risk
 
 ---
 
-### Gemini 2.5 Pro - Production Ready (Google)
-**Overall Score**: 0.752 | **Reliability**: 0.738 | **Consistency**: 0.854 | **Cost**: $12.00/1M tokens
+### gemini-2.5-flash - Cost-Optimized (Google)
+**Overall Score**: 0.733 | **Reliability**: 0.859 | **Consistency**: 0.886 | **Cost**: $1.40/1M tokens
 
 **Strengths**:
-- Strong capability analysis (0.868) demonstrates excellent extended session endurance
-- Solid policy compliance (0.83) and pattern recognition (0.772) show competency in complex generation tasks
-- Large 1M token context window supports extensive schema processing
+- Strong capability analysis (0.847) matches Gemini Pro's performance, effectively handling ~100 consecutive AI interactions for cluster resource discovery
+- Excellent value proposition with 0.523 value score—delivers 86.7% of Claude Sonnet's performance at 15.6% of the cost
+- Massive 1M token context window enables handling of recommendation tool's demanding 100K+ token contexts with 50 large Kubernetes schemas
+- Perfect 100% participation rate with 88.6% consistency demonstrates solid reliability across all evaluation scenarios
 
 **Weaknesses**:
-- Catastrophic remediation failure (0.551) with only 93.4% participation rate indicates serious reliability issues in troubleshooting workflows
-- Lowest reliability score (0.738) among production-ready models raises concerns about completion rates
-- Premium pricing ($12/1M tokens) unjustified given mediocre overall performance and consistency (0.854)
-- Poor consistency (0.854) suggests unpredictable behavior across different workload types
+- Significant weakness in pattern recognition (0.64)—lowest among cost-optimized options—indicating struggles with multi-step interactive workflows and trigger expansion
+- Poor remediation performance (0.641) suggests difficulties with systematic troubleshooting investigations and root cause diagnosis
+- Overall performance (0.733) trails Claude Haiku by 10.3 percentage points while costing 47% as much, making the value proposition less compelling than even cheaper alternatives
 
-**Best Use Cases**: Capability analysis operations where it shows strength, policy generation when remediation isn't required
+**Best Use Cases**: Capability analysis workflows on Google Cloud Platform, deployments requiring large context windows for recommendation generation, cost-conscious scenarios prioritizing GCP ecosystem integration
 
-**Avoid For**: Any remediation workflows, production environments requiring high reliability, cost-conscious deployments (poor value at premium pricing)
+**Avoid For**: Pattern creation workflows (weak 0.64 score), remediation and troubleshooting tasks (0.641 score), or scenarios where Grok-4-fast-reasoning delivers similar performance at 25% of the cost ($0.35 vs $1.40/1M tokens)
 
 ---
 
-### DeepSeek Reasoner - Cost-Optimized (DeepSeek)
-**Overall Score**: 0.673 | **Reliability**: 0.703 | **Consistency**: 0.885 | **Cost**: $1.37/1M tokens
+### gpt-5 - Production Ready (OpenAI)
+**Overall Score**: 0.732 | **Reliability**: 0.827 | **Consistency**: 0.909 | **Cost**: $5.63/1M tokens
 
 **Strengths**:
-- Strong recommendation (0.755) and remediation (0.756) scores show competency in complex reasoning tasks
-- Excellent value pricing at $1.37/1M tokens makes it budget-friendly
-- Reasonable consistency (0.885) given lower-tier positioning
+- Strong remediation performance (0.817) demonstrates capable multi-step investigation workflows and troubleshooting capabilities
+- Excellent 90.9% cross-tool consistency with perfect 100% participation rate shows reliable completion across all evaluation scenarios
+- Balanced performance across policy compliance (0.796) and pattern recognition (0.728) indicates competence in workflow-heavy tasks
 
 **Weaknesses**:
-- Pattern recognition failure (0.548) indicates severe struggles with multi-step interactive workflows and trigger expansion
-- Only 90% participation rate signals reliability concerns
-- Lacks function calling support, limiting integration capabilities
-- Small 128K context window restricts large schema processing in recommendations
-- Low capability analysis score (0.656) suggests poor endurance for extended operations
+- Weakest capability analysis (0.674) among production-ready models suggests struggles with sustained ~100 consecutive AI interactions during cluster resource discovery
+- Poor recommendations performance (0.645) indicates difficulties handling the tool's 100K+ token contexts with 50 large Kubernetes schemas, despite having 272K context window
+- Mid-tier pricing ($5.63/1M) without mid-tier performance—trails Claude Haiku by 10.4 percentage points while costing 88% more
 
-**Best Use Cases**: Budget development environments, simple remediation tasks, recommendation scenarios not requiring extensive schemas
+**Best Use Cases**: Organizations standardized on OpenAI ecosystem, remediation-focused workflows where troubleshooting is primary concern, balanced workloads emphasizing policy compliance over capability analysis
 
-**Avoid For**: Pattern creation workflows, production deployments, capability analysis operations, scenarios requiring function calling
+**Avoid For**: Capability analysis workflows requiring sustained high-quality interactions, recommendation generation with large schema contexts, or cost-conscious deployments where Claude Haiku delivers significantly better performance for less cost
 
 ---
 
-### Mistral Large Latest - Avoid for Production (Mistral)
-**Overall Score**: 0.639 | **Reliability**: 0.650 | **Consistency**: 0.482 | **Cost**: $4.00/1M tokens
+### deepseek-reasoner - Avoid for Production (DeepSeek)
+**Overall Score**: 0.640 | **Reliability**: 0.645 | **Consistency**: 0.843 | **Cost**: $1.37/1M tokens
 
 **Strengths**:
-- Exceptional pattern recognition (0.879) and policy compliance (0.850) demonstrate strong performance in specific domains
-- Strong recommendation performance (0.828) shows competency in intent analysis and manifest generation
-- Mid-tier pricing provides value in supported scenarios
+- Competitive remediation (0.746) and recommendation (0.758) scores show reasonable competence in troubleshooting and intent analysis workflows
+- Budget-friendly $1.37/1M pricing provides cost-effective option for non-critical deployments
+- 84.3% consistency score suggests some degree of predictable behavior when tasks complete successfully
 
 **Weaknesses**:
-- **CRITICAL**: Complete remediation failure (0.000 score) makes this model entirely unsuitable for troubleshooting workflows
-- Catastrophic consistency score (0.482)—by far the lowest—indicates severe unpredictability across different workload types
-- Poor reliability (0.650) and participation rate (88.4%) signal frequent failures
-- Tool-specific leader in pattern/policy but complete failure in remediation creates dangerous inconsistency
+- Critical reliability concern with 64.5% reliability score and only 95% participation rate—highest incompletion rate among models claiming production readiness
+- Severe capability analysis weakness (0.613) and pattern recognition failure (0.49)—lowest scores in evaluation—indicating inability to handle sustained interactions or multi-step workflows
+- Policy compliance struggles (0.594) suggest difficulties with schema analysis and Kyverno policy generation
+- Lacks function calling support, fundamentally limiting integration capabilities required for MCP tool interactions
 
-**Best Use Cases**: Pattern creation workflows only (if remediation never required), policy generation in isolated non-production scenarios
+**Best Use Cases**: Experimental deployments, non-critical recommendation workflows where occasional failures are acceptable, ultra-budget-conscious scenarios willing to accept 35.5% reliability concerns
 
-**Avoid For**: **Any production deployment**, remediation workflows, scenarios requiring reliability, mixed workloads spanning multiple tool types
+**Avoid For**: Any production deployment, capability analysis requiring sustained interactions, pattern creation workflows, policy compliance tasks, or scenarios requiring function calling support for proper MCP tool integration
 
 ---
 
-### GPT-5-Pro - Avoid for Production (OpenAI)
-**Overall Score**: 0.308 | **Reliability**: 0.290 | **Consistency**: 0.065 | **Cost**: $67.50/1M tokens
+### mistral-large-latest - Avoid for Production (Mistral)
+**Overall Score**: 0.589 | **Reliability**: 0.542 | **Consistency**: 0.480 | **Cost**: $4.00/1M tokens
 
 **Strengths**:
-- Moderate capability analysis (0.551) and remediation (0.713) show some competency in specific isolated scenarios
+- Strong performance in capability (0.751), pattern (0.795), and recommendation (0.818) tasks when it completes them, showing potential for quality work
+- Mid-tier pricing ($4.00/1M) positions between budget and premium options
 
 **Weaknesses**:
-- **CRITICAL**: Catastrophic consistency (0.065)—worst in evaluation—indicates complete unreliability across tool types
-- Complete failures on pattern recognition (0.000) and recommendations (0.000) make it unsuitable for half the platform
-- Abysmal 76.6% participation rate with 29% reliability score signals frequent complete failures
-- Extreme premium pricing ($67.50/1M tokens) makes failures even more costly
-- Poor policy compliance (0.275) rounds out comprehensive failure profile
+- Catastrophic reliability failure: 48% cross-tool consistency (lowest in evaluation) and 54.2% reliability score indicate severe unpredictability
+- Complete failure in remediation tool (0.000 score)—unable to complete any troubleshooting workflow evaluations
+- Only 75.6% participation rate demonstrates systematic completion failures across multiple evaluation tools
+- Policy compliance weakness (0.581) despite decent other scores suggests inconsistent quality even when participating
 
-**Best Use Cases**: None—no production use cases justified given failure profile and extreme cost
+**Best Use Cases**: None recommended for production use given severe reliability concerns
 
-**Avoid For**: **All production scenarios**, any critical operations, cost-conscious environments, pattern/recommendation workflows
+**Avoid For**: All production deployments, any remediation or troubleshooting workflows, scenarios requiring predictable consistent performance, or use cases where 48% consistency and 54% reliability create unacceptable risk of systematic failures
+
+---
+
+### gpt-5-pro - Avoid for Production (OpenAI)
+**Overall Score**: 0.311 | **Reliability**: 0.332 | **Consistency**: 0.079 | **Cost**: $67.50/1M tokens
+
+**Strengths**:
+- Moderate remediation performance (0.719) when tasks complete successfully
+- Premium positioning suggests targeting high-end use cases
+
+**Weaknesses**:
+- Catastrophic across-the-board failure: 7.9% cross-tool consistency (lowest by massive margin) and 33.2% reliability score make it fundamentally unsuitable for any production use
+- Complete failures in pattern recognition (0.000) and recommendations (0.000)—unable to handle multi-step workflows or large context requirements despite 272K context window
+- Severe capability analysis failure (0.534) and policy compliance weakness (0.301) indicate systematic inability to complete sustained interactions or complex analysis
+- Only 68.4% participation rate—highest incompletion rate in evaluation—demonstrates fundamental reliability issues
+- Extreme pricing ($67.50/1M tokens—7.5x Claude Sonnet, 22.5x Claude Haiku) without any justifiable performance advantages
+
+**Best Use Cases**: None whatsoever—model is fundamentally broken for evaluated tasks
+
+**Avoid For**: All production and non-production deployments, any task requiring multi-step workflows, large context handling, sustained interactions, or predictable performance; the 7.9% consistency score makes this model unsuitable for any real-world use case
 
 ## Production Recommendations
 
 ### Quality-First Priority
-- **Primary Model**: Claude Sonnet 4.5
-- **Fallback Model**: Grok-4-Fast-Reasoning
-- **Reasoning**: Claude's 0.872 average score, 0.967 consistency, and universal leadership across tool categories ensure maximum accuracy and reliability. Its 0.945 reliability score guarantees completion of long-running capability analysis sessions. Grok-4-Fast provides cost-effective fallback with 0.910 consistency and strong 0.857 reliability.
-- **Cost**: $9.00/1M tokens (primary), $0.35/1M tokens (fallback)
-- **Use Cases**: Production deployments where accuracy is critical, complex multi-step troubleshooting requiring root cause analysis, capability analysis requiring sustained quality through 100+ interactions, critical policy generation, high-stakes recommendation workflows
+- **Primary Model**: claude-sonnet-4-5-20250929
+- **Fallback Model**: claude-haiku-4-5-20251001
+- **Reasoning**: This combination delivers maximum reliability and consistency across all evaluation scenarios. Claude Sonnet's 98.3% consistency and 0.952 reliability score provide rock-solid predictable performance, particularly excelling in policy compliance (0.858) and pattern recognition (0.83) for complex multi-step workflows. Claude Haiku serves as an exceptional fallback with 91.3% consistency and 0.916 reliability, actually outperforming Sonnet in capability analysis (0.906 vs 0.868) and remediation (0.899 vs 0.841), ensuring no degradation in quality during failover. Both models handle the demanding capability analysis tool's ~100 consecutive interactions without quality degradation and excel at recommendation generation with large schema contexts.
+- **Cost**: $9.00/1M tokens (primary), $3.00/1M tokens (fallback)
+- **Use Cases**: Critical production deployments where downtime or errors are unacceptable, complex policy generation workflows requiring precise Kyverno ClusterPolicy creation with CEL expressions, mission-critical troubleshooting where root cause accuracy is paramount, pattern creation for organizational templates requiring high abstraction quality
 
 ### Cost-First Priority
-- **Primary Model**: Grok-4-Fast-Reasoning
-- **Fallback Model**: Gemini 2.5 Flash
-- **Reasoning**: Grok-4-Fast delivers exceptional 2.187 value score with 0.765 average performance at only $0.35/1M tokens—96% cost reduction versus premium models while maintaining production-grade 0.910 consistency. Its 2M context window and strong remediation (0.867) make it highly capable. Gemini 2.5 Flash provides similar value profile with excellent capability analysis (0.847) as backup.
+- **Primary Model**: grok-4-fast-reasoning
+- **Fallback Model**: gemini-2.5-flash
+- **Reasoning**: This combination delivers exceptional value with minimal performance compromise. Grok-4-fast-reasoning's 2.12 value score provides 87.5% of top-tier performance at just 3.9% of the cost, with particular strength in remediation (0.856) and massive 2M context window for recommendation workflows. Gemini Flash serves as a capable fallback at $1.40/1M tokens with strong capability analysis (0.847) and 1M context window, maintaining quality during failover. Together they enable 25-70x more operations than premium models for the same budget, transformative for high-volume deployments while maintaining 80-90% of premium quality.
 - **Cost**: $0.35/1M tokens (primary), $1.40/1M tokens (fallback)
-- **Use Cases**: Budget-conscious production deployments, high-frequency operations requiring cost control, development and staging environments, general troubleshooting workflows, non-critical capability analysis
+- **Use Cases**: Budget-conscious production deployments, high-volume operations where aggregate cost becomes prohibitive with premium models, exploratory development work and prototyping, remediation and troubleshooting workflows where Grok excels (0.856), recommendation generation where massive 2M context window provides advantages
 
 ### Balanced Priority
-- **Primary Model**: Grok-4-Fast-Reasoning
-- **Fallback Model**: GPT-5
-- **Reasoning**: Grok-4-Fast provides optimal balance of quality (0.765), consistency (0.910), and value (2.187 score) for general-purpose usage. Its strong remediation and broad capability make it suitable for mixed workloads. GPT-5 fallback adds highest reliability (0.890) and strong pattern recognition (0.818) for scenarios requiring maximum completion rates.
-- **Cost**: $0.35/1M tokens (primary), $5.63/1M tokens (fallback)
-- **Use Cases**: General-purpose production usage, mixed workloads spanning multiple tool types, default platform configuration, scenarios balancing quality and cost requirements
+- **Primary Model**: claude-haiku-4-5-20251001
+- **Fallback Model**: grok-4-fast-reasoning
+- **Reasoning**: This combination optimizes the quality-cost curve by pairing the best-balanced production model with the best value option. Claude Haiku delivers 98.8% of Claude Sonnet's performance at 33% of the cost, with particular excellence in capability analysis (0.906), recommendations (0.855), and remediation (0.899)—the three most demanding evaluation tools. Its 91.3% consistency and 100% participation rate provide enterprise-grade reliability. Grok-4-fast-reasoning serves as an excellent fallback at 11.7% of Haiku's cost with strong remediation (0.856) and 90.9% consistency, ensuring minimal degradation during cost-saving failover scenarios. This pairing handles all workload types effectively while optimizing total cost of ownership.
+- **Cost**: $3.00/1M tokens (primary), $0.35/1M tokens (fallback)
+- **Use Cases**: General purpose production deployments requiring reliability without premium costs, mixed workloads incorporating all evaluation tool types (capability, pattern, policy, recommendation, remediation), cost-conscious enterprises requiring enterprise-grade reliability, default recommendation for new deployments without specific optimization requirements
 
 ### Speed-First Priority
-- **Primary Model**: Grok-4-Fast-Reasoning
-- **Fallback Model**: Gemini 2.5 Flash
-- **Reasoning**: Both models optimized for fast response times while maintaining production-grade quality. Grok-4-Fast's name indicates speed optimization while delivering 0.765 performance. Gemini Flash provides similar speed profile with strong capability analysis as backup.
+- **Primary Model**: grok-4-fast-reasoning
+- **Fallback Model**: gemini-2.5-flash
+- **Reasoning**: While explicit speed metrics aren't available in this evaluation, these models' "fast" and "flash" designations combined with their cost structures (typically correlated with faster inference) and strong performance make them optimal for latency-sensitive workflows. Grok-4-fast-reasoning's 2M context window and 0.856 remediation score enable rapid troubleshooting iterations, while Gemini Flash's 1M context window and 0.847 capability analysis score support quick cluster assessments. Both maintain >88% consistency ensuring speed doesn't sacrifice reliability, and their budget pricing ($0.35 and $1.40/1M tokens) makes frequent rapid interactions economically viable.
 - **Cost**: $0.35/1M tokens (primary), $1.40/1M tokens (fallback)
-- **Use Cases**: Time-sensitive troubleshooting requiring rapid diagnosis, interactive debugging sessions, rapid prototyping workflows, scenarios prioritizing latency over maximum accuracy
+- **Use Cases**: Interactive debugging sessions requiring rapid response times, time-sensitive troubleshooting where quick root cause identification is critical, rapid prototyping and development workflows with frequent iterations, real-time assistance scenarios where user wait time is paramount
 
 ## Critical Warnings
 
 ### Models to Avoid for Production
 
-- **GPT-5-Pro**: Catastrophic 0.065 consistency score and 30.8% average performance with complete failures on pattern recognition (0.000) and recommendations (0.000). Only 76.6% participation rate indicates frequent complete failures. Extreme $67.50/1M token pricing makes failures even more costly. No production use cases justified under any scenario.
+- **gpt-5-pro**: CATASTROPHIC FAILURE - 7.9% cross-tool consistency (lowest by massive margin) and 33.2% reliability with complete failures in pattern recognition (0.000) and recommendations (0.000). Only 68.4% participation rate demonstrates fundamental inability to complete evaluations. Despite premium $67.50/1M pricing (7.5x Claude Sonnet cost), this model systematically fails at multi-step workflows, large context handling, and sustained interactions. The 7.9% consistency score indicates this model is fundamentally broken for real-world MCP tool interactions and should not be used under any circumstances, even for experimental work.
 
-- **Mistral Large Latest**: Complete remediation failure (0.000 score) combined with catastrophic 0.482 consistency makes this model dangerously unpredictable. Despite strong pattern (0.879) and policy (0.850) performance, the 88.4% participation rate and severe cross-tool inconsistency create unacceptable reliability risks for production deployments.
+- **mistral-large-latest**: SEVERE RELIABILITY FAILURE - 48% cross-tool consistency (second-lowest) and 54.2% reliability score with complete failure in remediation tool (0.000). Only 75.6% participation rate indicates systematic completion issues across multiple evaluation tools. While showing decent capability (0.751), pattern (0.795), and recommendation (0.818) scores when it completes tasks, the unpredictable nature makes it unsuitable for production. At $4.00/1M tokens, you're paying mid-tier pricing for bottom-tier reliability—essentially gambling on whether each request will complete successfully.
 
-- **DeepSeek Reasoner**: While not catastrophically bad, the 90% participation rate, lack of function calling support, and poor pattern recognition (0.548) make it unsuitable for production. The 128K context window limits recommendation scenarios. Acceptable only for budget development environments with limited requirements.
-
-### Specific Risk Scenarios
-
-- **Gemini 2.5 Pro Remediation**: Despite "Production Ready" classification, its 0.551 remediation score and 93.4% participation rate indicate serious reliability issues in troubleshooting workflows. Avoid for any remediation-critical deployments despite strength in other areas.
-
-- **Policy Compliance Challenges**: Average policy score of 0.742 across all models (lowest tool category) indicates Kyverno policy generation with CEL expressions remains challenging. Even leaders struggle—plan for additional validation and testing of generated policies.
-
-- **Context Window Misconceptions**: Massive context windows (Grok-4-Fast's 2M, Gemini's 1M tokens) don't guarantee superior recommendation performance. Claude's 200K window achieves highest scores (0.844), demonstrating efficient utilization matters more than raw capacity.
+- **deepseek-reasoner**: RELIABILITY CONCERNS - 64.5% reliability score with 95% participation rate (highest incompletion rate among models claiming production readiness) combined with severe weaknesses in capability analysis (0.613, indicating struggles with sustained ~100 consecutive interactions) and catastrophic pattern recognition failure (0.49, lowest in evaluation). Lacks function calling support, fundamentally limiting MCP tool integration capabilities. While budget-friendly at $1.37/1M, the 35.5% unreliability risk and inability to handle multi-step workflows make it unsuitable for production deployments where consistent completion is required.
 
 ## Cross-Tool Performance Insights
 
 ### Universal Performers
+- **claude-sonnet-4-5-20250929**: Achieves exceptional universal performance through 98.3% cross-tool consistency and balanced excellence across all five evaluation tools (0.83-0.868 range). Its 1M context window enables handling of recommendation tool's demanding 100K+ token requirements with 50 schemas, while sustained high-quality reasoning maintains performance through capability analysis's ~100 consecutive interactions without degradation. Excels particularly in pattern recognition (0.83) through effective multi-step workflow management and policy compliance (0.858) via sophisticated Kyverno policy generation with CEL expressions. Perfect 100% participation rate demonstrates reliable completion across all scenarios—the definition of universally dependable.
 
-- **Claude Sonnet 4.5**: Only model achieving consistent excellence across all five evaluation categories (all scores >0.84). Its 0.967 consistency demonstrates reliable behavior regardless of workload type—whether handling 100+ interaction capability analysis sessions, multi-step pattern creation workflows, complex Kyverno policy generation, large-schema recommendations, or multi-iteration troubleshooting. This universal competency justifies premium pricing for critical production workloads.
+- **claude-haiku-4-5-20251001**: Demonstrates universal excellence through 91.3% cross-tool consistency with particular dominance in the three most demanding tools: capability analysis (0.906, best in evaluation) via sustained interaction quality, recommendations (0.855) through effective large-schema context handling, and remediation (0.899, best in evaluation) via systematic multi-step troubleshooting investigations. While slightly trailing Sonnet in policy compliance (0.707 vs 0.858) and pattern recognition (0.815 vs 0.83), it maintains enterprise-grade performance across all scenarios. Perfect 100% participation rate combined with 0.916 reliability makes it the most dependable universal performer considering its 33% lower cost versus Sonnet.
 
 ### Tool-Specific Leaders
 
-- **Capability Analysis**: Claude Sonnet 4.5 (0.920) - Superior endurance through extended 100+ interaction sessions performing complete cluster resource discovery. Its reliability score (0.945) ensures consistent quality throughout 30+ minute evaluation sessions without degradation.
+- **Capability Analysis**: claude-haiku-4-5-20251001 (0.906) - Dominates this demanding evaluation requiring ~100 consecutive AI interactions across 30+ minute sessions for complete cluster resource discovery and capability mapping. Maintains consistent high-quality analysis across all Kubernetes resource types without degradation, demonstrating exceptional endurance and sustained reasoning quality. Claude Sonnet follows closely (0.868), while other models show significant 4-16 percentage point gaps, highlighting how sustained interaction quality separates top performers from the rest.
 
-- **Pattern Recognition**: Mistral Large Latest (0.879) - Exceptional multi-step workflow handling and trigger expansion capabilities. However, catastrophic remediation failure and poor consistency (0.482) make this leadership position dangerous—avoid despite strength in this specific area.
+- **Pattern Recognition**: claude-sonnet-4-5-20250929 (0.83) - Leads in this multi-step interactive workflow evaluation requiring trigger expansion from keywords to comprehensive lists, pattern abstraction, and template creation for Vector DB storage. Excels at managing complex multi-phase interactions and abstracting specific requirements into reusable organizational patterns. Claude Haiku follows closely (0.815) with only 1.5 percentage point gap, while other models trail by 5-19 percentage points, demonstrating how workflow management capabilities differentiate premium models.
 
-- **Policy Compliance**: Mistral Large Latest (0.850) - Strong schema analysis and Kyverno policy generation with proper CEL expressions. Again, overall unreliability negates this advantage. Claude Sonnet (0.840) provides nearly equivalent capability with universal reliability.
+- **Policy Compliance**: claude-sonnet-4-5-20250929 (0.858) - Dominates this evaluation testing trigger expansion to comprehensive Kubernetes resource lists, schema-by-schema analysis, and complete Kyverno ClusterPolicy generation with CEL expressions. Superior performance in detailed schema analysis and syntactically correct policy generation sets it apart. Gemini Pro follows at distance (0.828, 3 percentage point gap), while Claude Haiku's weaker performance (0.707, 15 percentage point gap) reveals a specific limitation in complex policy generation despite excellence elsewhere.
 
-- **Recommendations**: Claude Sonnet 4.5 (0.844) - Superior intent analysis generating relevant clarification questions and synthesis of production-ready Kubernetes manifests. Efficiently handles large schema context (up to 50 resource definitions) despite smaller 200K window versus competitors' 1M+ capacity.
+- **Recommendations**: claude-haiku-4-5-20251001 (0.855) - Leads this evaluation requiring intent clarification question generation from minimal user input, then transformation into production-ready Kubernetes YAML using up to 50 large resource schemas in 100K+ token contexts. Exceptional large context handling and synthesis capabilities enable comprehensive manifest generation while maintaining efficiency. Claude Sonnet follows closely (0.832, 2.3 percentage point gap), with other models showing 7-22 percentage point deficits, highlighting how context window utilization and synthesis quality separate leaders.
 
-- **Remediation**: Claude Sonnet 4.5 (0.879) - Strongest systematic cluster investigation using kubectl commands, accurate root cause diagnosis from minimal descriptions, and generation of executable remediation commands with proper risk assessment across 5-8 iteration workflows.
+- **Remediation**: claude-haiku-4-5-20251001 (0.899) - Dominates this evaluation testing systematic troubleshooting through 5-8 iteration workflows: symptom analysis, kubectl command execution, log analysis, root cause identification, and executable remediation command generation with risk assessment. Superior investigation methodology and diagnostic reasoning enable high-confidence problem resolution. Grok-4-fast-reasoning follows at distance (0.856, 4.3 percentage point gap), while Claude Sonnet's weaker performance (0.841, 5.8 percentage point gap) represents one of few areas where Haiku significantly outperforms its premium sibling.
 
-### Performance Pattern Analysis
+### Consistency Patterns
 
-**Endurance-Dependent Tools** (Capability Analysis, Remediation): Models with high reliability scores excel here. Claude (0.945 reliability) and GPT-5 (0.890 reliability) lead because these tools require sustained quality through many consecutive interactions. Budget models struggle more in extended sessions.
+**High Consistency Cluster (>90%)**: Claude Sonnet (98.3%), Claude Haiku (91.3%), Grok-4-fast-reasoning (90.9%), and GPT-5 (90.9%) demonstrate predictable behavior across all evaluation tools. These models maintain their relative performance levels regardless of task type, making them suitable for production deployments where reliability and predictability are paramount. Their consistency scores indicate minimal variance in quality between different evaluation scenarios.
 
-**Complex Generation Tools** (Policy Compliance, Pattern Recognition): Require sophisticated schema understanding and generation capabilities. Mistral excels in these specific areas but lacks holistic reliability. Claude maintains strong performance while adding universal consistency.
+**Moderate Consistency Cluster (84-89%)**: Gemini Pro (88.8%), Gemini Flash (88.6%), Grok-4 (90.8%), and DeepSeek (84.3%) show acceptable but not exceptional consistency. These models may exhibit more variation in performance quality depending on the specific task, requiring more careful workload matching. The 84-90% consistency range suggests generally predictable behavior with occasional quality variations.
 
-**Context-Heavy Tools** (Recommendations): Surprisingly, massive context windows don't guarantee success. Claude's efficient 200K window outperforms models with 5-10x larger capacity, suggesting prompt engineering and context utilization matter more than raw size.
-
-**Multi-Step Reasoning** (All Tools): Cross-tool consistency scores correlate strongly with overall performance. Models with >0.90 consistency (Claude, Grok-4-Fast, Grok-4, GPT-5, Gemini Flash) demonstrate reliable multi-step reasoning. Models with <0.50 consistency (Mistral, GPT-5-Pro) show dangerous unpredictability.
+**Unreliable Cluster (<50%)**: Mistral Large (48.0%) and GPT-5-Pro (7.9%) demonstrate fundamentally unpredictable behavior. These catastrophically low consistency scores indicate severe quality variations between different tools and even within the same tool type—making them unsuitable for any production use where predictable performance is required. The <50% consistency means you cannot reliably predict whether a given task will be completed successfully or at what quality level.
 
 ---
 

@@ -72,27 +72,29 @@ All setup methods need the same core configuration, but handle it differently:
 
 ### AI Model Configuration
 
-The DevOps AI Toolkit supports 9 different AI models from 5 providers. Choose based on your quality, cost, and reliability requirements.
+The DevOps AI Toolkit supports 10 different AI models from 5 providers. Choose based on your quality, cost, and reliability requirements.
 
 #### Model Recommendations
 
-| Model | Provider | Quality Score | Recommendation |
-|-------|----------|---------------|----------------|
-| **Claude Sonnet 4.5** | Anthropic | 0.872 | ✅ **Best overall** - Maximum reliability, production-ready |
-| **Grok-4-Fast-Reasoning** | xAI | 0.765 | ✅ **Best value** - Excellent performance, cost-effective |
-| **Grok-4** | xAI | 0.762 | ✅ **Most consistent** - Predictable across all tools |
-| **GPT-5** | OpenAI | 0.760 | ✅ **Most reliable** - Highest completion rates |
-| **Gemini 2.5 Flash** | Google | 0.759 | ✅ **Large context** - Good for capability analysis |
-| **Gemini 2.5 Pro** | Google | 0.752 | ⚠️ **Use cautiously** - Poor remediation performance |
-| **DeepSeek Reasoner** | DeepSeek | 0.673 | ⚠️ **Limited use** - Budget option, pattern issues |
-| **Mistral Large Latest** | Mistral | 0.639 | ❌ **Avoid** - Complete remediation failures |
-| **GPT-5-Pro** | OpenAI | 0.308 | ❌ **Avoid** - Catastrophic failures |
+| Model | Provider | Overall Score | Reliability | Recommendation |
+|-------|----------|----------------|-------------|----------------|
+| **Claude Sonnet 4.5** | Anthropic | 0.846 | 0.952 | ✅ **Best overall** - Maximum reliability, production-ready |
+| **Claude Haiku 4.5** | Anthropic | 0.836 | 0.916 | ✅ **Best balanced** - Excellent performance at 1/3 cost of Sonnet |
+| **Grok-4-Fast-Reasoning** | xAI | 0.740 | 0.802 | ✅ **Best value** - 87% of Sonnet performance at 3.9% of cost |
+| **Gemini 2.5 Pro** | Google | 0.768 | 0.837 | ⚠️ **Use cautiously** - Good capability analysis, weak remediation |
+| **Grok-4** | xAI | 0.743 | 0.834 | ⚠️ **Use cautiously** - Good remediation, weaker on other tools |
+| **GPT-5** | OpenAI | 0.732 | 0.827 | ⚠️ **Use cautiously** - Weak capability analysis performance |
+| **Gemini 2.5 Flash** | Google | 0.733 | 0.859 | ⚠️ **Limited use** - Weak pattern & remediation tasks |
+| **DeepSeek Reasoner** | DeepSeek | 0.640 | 0.645 | ❌ **Avoid** - Reliability concerns, lacks function calling |
+| **Mistral Large Latest** | Mistral | 0.589 | 0.542 | ❌ **Avoid** - Complete remediation failures, inconsistent |
+| **GPT-5-Pro** | OpenAI | 0.311 | 0.332 | ❌ **Avoid** - Catastrophic failures across all tools |
 
 **Usage Guidelines:**
-- **Production**: Use Claude Sonnet 4.5 for maximum reliability
-- **Development**: Use Grok-4-Fast-Reasoning for best value
-- **Budget-constrained**: Use Grok-4-Fast-Reasoning or Gemini 2.5 Flash
-- **Avoid**: Mistral Large Latest and GPT-5-Pro due to reliability issues
+- **Production (max reliability)**: Use Claude Sonnet 4.5
+- **Production (best balanced)**: Use Claude Haiku 4.5 (98.8% of Sonnet at 33% cost)
+- **Development & testing**: Use Grok-4-Fast-Reasoning for best value
+- **Budget-constrained**: Use Grok-4-Fast-Reasoning (25x more operations than Sonnet)
+- **Avoid**: Mistral Large Latest, DeepSeek Reasoner, and GPT-5-Pro due to reliability issues
 
 📖 **[Complete Model Analysis Report](../eval/analysis/platform/synthesis-report.md)** - Detailed performance analysis, technical evaluation methodology, and comprehensive testing results across all MCP tools.
 
@@ -103,6 +105,7 @@ Choose your AI model by setting the provider:
 | Model | AI_PROVIDER | API Key Required |
 |-------|-------------|------------------|
 | **Claude Sonnet 4.5** | `anthropic` | `ANTHROPIC_API_KEY` |
+| **Claude Haiku 4.5** | `anthropic_haiku` | `ANTHROPIC_API_KEY` |
 | **GPT-5** | `openai` | `OPENAI_API_KEY` |
 | **GPT-5-Pro** | `openai_pro` | `OPENAI_API_KEY` |
 | **Gemini 2.5 Pro** | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` |
@@ -116,14 +119,14 @@ Choose your AI model by setting the provider:
 
 1. **Set your provider** (defaults to anthropic):
 ```bash
-AI_PROVIDER=xai_fast  # Example: using Grok-4-Fast-Reasoning
+AI_PROVIDER=anthropic_haiku  # Example: using Claude Haiku 4.5
 ```
 
 2. **Set the corresponding API key** (**only one** needed):
 ```bash
 # Choose ONE based on your selected provider:
 
-# For Claude Sonnet 4.5 (default - recommended)
+# For Claude Sonnet 4.5 or Claude Haiku 4.5 (default - recommended)
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # For OpenAI models (GPT-5, GPT-5-Pro)

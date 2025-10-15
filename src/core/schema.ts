@@ -485,10 +485,8 @@ export class ResourceRecommender {
       const capabilityFilteredResources = relevantCapabilities.map(cap => ({
         kind: this.extractKindFromResourceName(cap.data.resourceName),
         group: this.extractGroupFromResourceName(cap.data.resourceName),
-        apiVersion: this.constructApiVersionFromResourceName(cap.data.resourceName),
         resourceName: cap.data.resourceName,
-        namespaced: true, // Default assumption, could be enhanced
-        capabilities: cap.data // Include capability data for AI decision-making
+        capabilities: cap.data // Include capability data for AI decision-making (includes namespaced, etc.)
       }));
 
       // Phase 1: Add missing pattern-suggested resources to available resources list
@@ -516,9 +514,7 @@ export class ResourceRecommender {
     availableResources: Array<{
       kind: string;
       group: string;
-      apiVersion: string; 
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[],
@@ -590,9 +586,7 @@ export class ResourceRecommender {
     resources: Array<{
       kind: string;
       group: string;
-      apiVersion: string;
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[]
@@ -601,9 +595,8 @@ export class ResourceRecommender {
     
     // Format resources for the prompt with capability information
     const resourcesText = resources.map((resource, index) => {
-      return `${index}: ${resource.kind.toUpperCase()} (${resource.apiVersion})
+      return `${index}: ${resource.kind.toUpperCase()}
    Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced}
    Resource Name: ${resource.resourceName}
    Capabilities: ${Array.isArray(resource.capabilities.capabilities) ? resource.capabilities.capabilities.join(', ') : 'Not specified'}
    Providers: ${Array.isArray(resource.capabilities.providers) ? resource.capabilities.providers.join(', ') : resource.capabilities.providers || 'kubernetes'}
@@ -636,19 +629,15 @@ export class ResourceRecommender {
   private async addMissingPatternResources(
     capabilityResources: Array<{
       kind: string;
-      group: string; 
-      apiVersion: string;
+      group: string;
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[]
   ): Promise<Array<{
     kind: string;
     group: string;
-    apiVersion: string; 
     resourceName: string;
-    namespaced: boolean;
     capabilities: any;
   }>> {
     if (!patterns.length) {
@@ -662,9 +651,7 @@ export class ResourceRecommender {
     const missingPatternResources: Array<{
       kind: string;
       group: string;
-      apiVersion: string;
       resourceName: string; 
-      namespaced: boolean;
       capabilities: any;
     }> = [];
 
@@ -686,15 +673,11 @@ export class ResourceRecommender {
               const parts = suggestedResource.split('.');
               const kind = parts[0]; // Use resource name as-is: resourcegroups, servicemonitors, etc.
               const group = parts.length > 1 ? parts.slice(1).join('.') : '';
-              const version = 'v1beta1'; // Default version for CRDs, could be enhanced
-              const apiVersion = group ? `${group}/${version}` : version;
 
               missingPatternResources.push({
                 kind,
                 group,
-                apiVersion,
                 resourceName,
-                namespaced: true, // Default assumption for pattern resources
                 capabilities: {
                   resourceName,
                   description: `Resource suggested by organizational pattern: ${pattern.description}`,
@@ -758,18 +741,8 @@ export class ResourceRecommender {
     return resourceName.substring(resourceName.indexOf('.') + 1);
   }
 
-  /**
-   * Construct API version from resource name (simplified approach)
-   */
-  private constructApiVersionFromResourceName(resourceName: string): string {
-    if (!resourceName.includes('.')) {
-      return 'v1'; // Core resources typically use v1
-    }
-    
-    // For CRDs, construct group/version format
-    const group = this.extractGroupFromResourceName(resourceName);
-    return `${group}/v1beta1`; // Default to v1beta1 for CRDs
-  }
+  // Note: constructApiVersionFromResourceName method removed - no longer needed
+  // API versions are extracted from kubectl explain schema content during manifest generation
 
   /**
    * Phase 0: Search for relevant organizational patterns using multi-concept approach

@@ -12,6 +12,15 @@
       "context_window": 1000000,
       "supports_function_calling": true
     },
+    "claude-haiku-4-5-20251001": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.0,
+        "output_cost_per_million_tokens": 5.0
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
     "gpt-5": {
       "provider": "OpenAI", 
       "pricing": {

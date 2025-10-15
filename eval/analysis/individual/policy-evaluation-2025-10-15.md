@@ -1,158 +1,151 @@
 # Policy AI Model Comparison Report
 
-**Generated**: 2025-10-15T12:12:44.909Z  
+**Generated**: 2025-10-15T21:05:55.474Z  
 **Scenarios Analyzed**: 4  
-**Models Evaluated**: 9  
-**Total Datasets**: 62
+**Models Evaluated**: 10  
+**Total Datasets**: 69
 
 ## Executive Summary
 
 ### 🏆 Overall Winner (AI Assessment)
 
-**vercel_gemini-2.5-pro**
+**vercel_claude-sonnet-4-5-20250929**
 
-Gemini-2.5-Pro wins based on superior reliability metrics despite not having the fastest response times. Key decision factors: (1) PERFECT PARTICIPATION - 100% scenario completion with zero catastrophic failures, unlike 5 other models that failed in 25-50% of scenarios. (2) HIGHEST RELIABILITY SCORE - 0.93 reliability with minimal variance (0.75-0.87 range), demonstrating consistent production-grade performance. (3) DOMAIN EXPERTISE - Only model to include HorizontalPodAutoscaler validation and correctly enforce HA requirements (replicas >= 2), showing deep Kubernetes understanding critical for policy correctness. (4) CRITICAL SCENARIO VICTORY - Won the most complex policy generation scenario (0.87) requiring extensive schema handling, proving capability in hardest use cases. (5) CONSISTENCY OVER PEAK PERFORMANCE - While Claude-Sonnet-4 had slightly higher average (0.84 vs 0.83), Gemini-Pro's lower variance makes it more predictable for production. The evaluation prioritizes reliability and consistency over raw speed - models with 50% failure rates (DeepSeek, GPT-5-Pro, Mistral) are disqualified regardless of peak performance. Gemini-Pro represents the safest production choice with proven ability to handle all policy workflow types without catastrophic failures, making it the only model suitable for comprehensive policy management systems requiring both trigger generation and complex policy validation.
+Claude Sonnet-4.5 demonstrates superior production reliability with 100% participation across all 4 scenarios, highest consistency score (0.98), and best average performance (0.8575). It's the only model that never failed a scenario, won the most complex scenario (namespace scope step: 0.89), and maintained excellent performance across all task types. While Gemini-2.5-Pro shows slightly higher peak performance in specific scenarios (2 wins vs. 1 win), Sonnet's near-zero variance, optimal response times (28-37s), and superior CEL validation expertise make it the most reliable choice for production Kubernetes policy generation. The key differentiator is Sonnet's consistency - it never scores below 0.84 across any scenario type, whereas other top performers show more variance. In production environments where reliability is paramount, Sonnet's proven track record of never failing plus consistent high-quality output across complex policy generation, storage operations, and trigger identification makes it the safest and most dependable choice.
 
 
 ### 📊 AI Reliability Rankings
 
-1. **vercel_gemini-2.5-pro** (93%) - 100% participation, 0.83 avg score, 0.93 consistency - Highest reliability with zero failures and minimal variance
-2. **vercel_claude-sonnet-4-5-20250929** (91%) - 100% participation, 0.84 avg score, 0.91 consistency - Second-highest reliability with best average score
-3. **vercel_gpt-5** (88%) - 100% participation, 0.79 avg score, 0.88 consistency - Solid reliability with most consistent performance
-4. **vercel_grok-4** (86%) - 100% participation, 0.78 avg score, 0.86 consistency - Good reliability with strong policy generation
-5. **vercel_gemini-2.5-flash** (79%) - 100% participation, 0.77 avg score, 0.79 consistency - Decent reliability but quality variance concerns
-6. **vercel_mistral-large-latest** (71%) - 75% participation (2/4), 0.85 avg score, 0.95 consistency - Excellent when successful but 50% failure rate disqualifies
-7. **vercel_grok-4-fast-reasoning** (71%) - 100% participation, 0.66 avg score, 0.71 consistency - Full participation but significant quality issues
-8. **vercel_deepseek-reasoner** (49%) - 50% participation (2/4), 0.65 avg score, 0.98 consistency - Catastrophic 50% failure rate, unsuitable for production
-9. **vercel_gpt-5-pro** (0%) - 50% participation (2/4), 0.275 avg score, 0.0 consistency - Worst reliability with 50% failures and poor quality
+1. **vercel_claude-sonnet-4-5-20250929** (98%) - 100% participation, 0.8575 avg score, 0.98 consistency, zero failures, winner in most complex scenario
+2. **vercel_gemini-2.5-pro** (93%) - 100% participation, 0.8278 avg score, 0.93 consistency, best comprehensive HA understanding, 2 scenario wins
+3. **vercel_gemini-2.5-flash** (89%) - 100% participation, 0.8025 avg score, 0.89 consistency, excellent speed/quality tradeoff
+4. **vercel_grok-4** (89%) - 100% participation, 0.8 avg score, 0.89 consistency, consistent mid-tier performance
+5. **vercel_gpt-5** (88%) - 100% participation, 0.7958 avg score, 0.88 consistency, slower but deliberate
+6. **vercel_claude-haiku-4-5-20251001** (72%) - 100% participation, 0.7065 avg score, 0.72 consistency, high variance (0.51-0.896)
+7. **vercel_grok-4-fast-reasoning** (68%) - 100% participation, 0.6475 avg score, 0.68 consistency, formatting errors and speed issues
+8. **vercel_deepseek-reasoner** (37%) - 75% participation (50% failure rate), 0.5935 avg score, catastrophic latency and context failures
+9. **vercel_mistral-large-latest** (36%) - 75% participation (25% failure rate), 0.5807 avg score, context window catastrophic failure
+10. **vercel_gpt-5-pro** (25%) - 75% participation (50% failure rate), 0.301 avg score, worst performer, complete unreliability
 
 ### 📋 Production Recommendations
 
 
-- **Primary Choice**: vercel_gemini-2.5-pro - Most reliable choice for comprehensive Kubernetes policy management requiring both trigger generation and complex policy validation. Zero catastrophic failures, deepest Kubernetes expertise, correct HA enforcement. Accept slower response times (110s+) as trade-off for production reliability and correctness.
-- **Secondary Option**: vercel_claude-sonnet-4-5-20250929 - Excellent alternative with highest average score (0.84) and strong reliability (0.91). Better response times than Gemini-Pro in trigger scenarios (<5s) while maintaining comprehensive coverage. Optimal for organizations prioritizing balanced speed-quality trade-offs with proven reliability.
-- **Avoid for Production**: vercel_gpt-5-pro - 50% catastrophic failure rate with context limitations and timeouts, completely unsuitable for production, vercel_deepseek-reasoner - 50% failure rate with 135s response times and context window limitations eliminate production viability, vercel_mistral-large-latest - Despite excellence in trigger generation, 50% failure rate in policy generation makes it unreliable for comprehensive policy tooling
+- **Primary Choice**: vercel_claude-sonnet-4-5-20250929 - Most reliable all-around performer with zero failures, consistent excellence across all policy generation tasks, optimal response times, and proven CEL validation expertise. Best choice for production environments requiring dependable Kubernetes policy automation.
+- **Secondary Option**: vercel_gemini-2.5-pro - Best choice when policy comprehensiveness matters more than speed. Superior HA policy understanding and schema analysis make it ideal for complex compliance requirements, though slower response times require consideration for interactive workflows.
+- **Avoid for Production**: vercel_gpt-5-pro - 50% failure rate, worst average score (0.301), completely unreliable for production, vercel_deepseek-reasoner - 50% failure rate, catastrophic latency (167s), context window failures make it unsuitable for schema-heavy tasks, vercel_mistral-large-latest - 25% failure rate due to context limits, cannot handle large schema contexts required for production Kubernetes policy work
 
 **Specialized Use Cases:**
-- **fast_trigger_generation_only**: vercel_mistral-large-latest - Best-in-class for standalone trigger workflows with sub-2s response times and structured categorization. Use only when policy validation is handled separately and context requirements are minimal.
-- **speed_optimized_simple_policies**: vercel_gemini-2.5-flash - Optimal for cost-sensitive deployments with simple policy requirements where 40-75s response times and rule consolidation provide sufficient quality. Not suitable for HA-critical or complex validation scenarios.
-- **balanced_speed_quality**: vercel_grok-4 - Best choice for organizations requiring 2-3x faster response than Gemini-Pro (40-75s) with 85-90% of its quality. Strong for interactive workflows where speed matters but reliability cannot be compromised.
+- **speed_critical_simple_triggers**: vercel_claude-haiku-4-5-20251001 - Excels at fast trigger generation (under 3s) when comprehensiveness isn't critical and tasks are straightforward
+- **rapid_iteration_workflows**: vercel_gemini-2.5-flash - Best speed/quality balance (11.8s) for development environments requiring quick feedback cycles
+- **comprehensive_ha_policies**: vercel_gemini-2.5-pro - Superior understanding of high-availability requirements including HPA minReplicas and replica enforcement
+- **multi_cloud_environments**: vercel_gpt-5 - Valuable cross-platform coverage when policies span multiple orchestration systems beyond Kubernetes
 
 
 ### 📊 Supplementary Statistics (Reference Only)
 
 | Model | Avg Score | Notes |
 |-------|-----------|-------|
-| vercel_claude-sonnet-4-5-20250929 | 0.84 | See AI assessment above |
-| vercel_gemini-2.5-pro | 0.818 | See AI assessment above |
-| vercel_grok-4 | 0.803 | See AI assessment above |
-| vercel_gpt-5 | 0.799 | See AI assessment above |
-| vercel_gemini-2.5-flash | 0.74 | See AI assessment above |
-| vercel_grok-4-fast-reasoning | 0.633 | See AI assessment above |
-| vercel_mistral-large-latest | 0.439 | See AI assessment above |
-| vercel_deepseek-reasoner | 0.326 | See AI assessment above |
-| vercel_gpt-5-pro | 0.183 | See AI assessment above |
+| vercel_claude-sonnet-4-5-20250929 | 0.859 | See AI assessment above |
+| vercel_gemini-2.5-pro | 0.809 | See AI assessment above |
+| vercel_grok-4 | 0.799 | See AI assessment above |
+| vercel_gpt-5 | 0.777 | See AI assessment above |
+| vercel_gemini-2.5-flash | 0.774 | See AI assessment above |
+| vercel_claude-haiku-4-5-20251001 | 0.721 | See AI assessment above |
+| vercel_grok-4-fast-reasoning | 0.565 | See AI assessment above |
+| vercel_mistral-large-latest | 0.428 | See AI assessment above |
+| vercel_deepseek-reasoner | 0.297 | See AI assessment above |
+| vercel_gpt-5-pro | 0.201 | See AI assessment above |
 
 ## Detailed Scenario Results
 
 ### 1. POLICY-COMPARATIVE POLICY NAMESPACE SCOPE STEP
 
-**Winner**: vercel_grok-4 (Score: 0.9)  
-**Models Compared**: 9  
+**Winner**: vercel_claude-sonnet-4-5-20250929 (Score: 0.89)  
+**Models Compared**: 10  
 **Confidence**: 90%
 
 #### Rankings
-1. **vercel_grok-4** - 0.9
-2. **vercel_gemini-2.5-flash** - 0.89
-3. **vercel_gpt-5** - 0.88
-4. **vercel_claude-sonnet-4-5-20250929** - 0.86
-5. **vercel_gemini-2.5-pro** - 0.8
-6. **vercel_grok-4-fast-reasoning** - 0.34
-7. **vercel_deepseek-reasoner** - 0
-8. **vercel_gpt-5-pro** - 0
-9. **vercel_mistral-large-latest** - 0
+1. **vercel_claude-sonnet-4-5-20250929** - 0.89
+2. **vercel_gemini-2.5-flash** - 0.86
+3. **vercel_gpt-5** - 0.85
+4. **vercel_grok-4** - 0.84
+5. **vercel_gemini-2.5-pro** - 0.78
+6. **vercel_claude-haiku-4-5-20251001** - 0.51
+7. **vercel_grok-4-fast-reasoning** - 0.38
+8. **vercel_mistral-large-latest** - 0.02
+9. **vercel_deepseek-reasoner** - 0
+10. **vercel_gpt-5-pro** - 0
 
 #### Analysis
-This evaluation reveals critical patterns in AI model capabilities for Kubernetes policy generation:
-
-**Context Window Management**: 33% of models (3/9) completely failed due to context limitations (DeepSeek, Mistral, GPT-5 Pro), highlighting that context window size is a hard requirement for production policy workflows with extensive schema sets. Models must either have 140K+ context windows or implement intelligent context management strategies.
-
-**Performance vs Quality Tradeoffs**: Clear tiers emerged - Grok-4 and Gemini Flash balanced speed (~40-75s) with quality, while Claude and Gemini Pro sacrificed performance (110s+) for marginal quality improvements. For production workflows, the 2-3x speed advantage of faster models outweighs minor comprehensiveness gains.
-
-**Policy Optimization Skills**: Top performers (Gemini Flash, Grok-4) demonstrated mature understanding by consolidating rules for similar workload types, while lower performers generated verbose, repetitive policies. This optimization skill directly impacts policy maintainability and cluster performance.
-
-**CEL Expression Sophistication**: All successful models used CEL over pattern-based validation (Grok-4-Fast-Reasoning's pattern approach was fundamentally broken). However, expression quality varied - best models included defensive has() checks, handled optional containers (init/ephemeral), and added empty string validation.
-
-**Conceptual Understanding**: Critical differentiator was understanding which resources directly enforce pod-level constraints. Grok-4's exclusion of ResourceQuota/LimitRange showed superior practical understanding vs Grok-4-Fast-Reasoning's inclusion of these namespace-level constructs.
-
-**Production Readiness Factors**: Successful deployment requires: (1) <2min response times for interactive workflows, (2) robust error handling and context management, (3) consolidated rules to minimize policy overhead, (4) comprehensive container type coverage, (5) proper API version specifications.
-
-**Recommendation**: For production Kubernetes policy generation, Grok-4 and Gemini Flash represent optimal choices, offering 85-90% of Claude's comprehensiveness at 2-3x the speed and 50% lower token costs. Gemini Pro and Claude suit offline/batch generation where completeness matters more than speed. Models with context failures (DeepSeek, Mistral, GPT-5 Pro) are unsuitable regardless of other capabilities.
+This scenario reveals critical model limitations for complex Kubernetes policy generation: (1) Context window is decisive - 3/10 models failed entirely due to insufficient capacity for large schema processing; (2) CEL validation mastery separates top performers from mid-tier - Sonnet, Gemini-Flash, and GPT-5 demonstrate superior null-safety and expression quality; (3) Workload consolidation efficiency is a key differentiator - Gemini-Flash and Grok-4's multi-kind rules show architectural maturity; (4) Performance varies dramatically (37s to 908s timeout) making speed a critical production factor; (5) Iteration quality matters - Haiku's three attempts show inconsistency while top models succeed on first try; (6) YAML formatting competency is non-negotiable - Grok-4-Fast's markdown wrapping shows fundamental output generation issues. Claude Sonnet-4.5 emerges as the clear winner with optimal balance of technical correctness, efficiency, and reliability. For production Kubernetes policy generation, models must have: 150K+ context windows, CEL expertise, workload pattern recognition, and sub-60s response times. The 40% failure rate highlights this remains a challenging domain requiring specialized model capabilities.
 
 ---
 
 ### 2. POLICY-COMPARATIVE POLICY STORE ONLY NAMESPACE SCOPE
 
-**Winner**: vercel_gemini-2.5-pro (Score: 0.87)  
-**Models Compared**: 8  
+**Winner**: vercel_gemini-2.5-pro (Score: 0.82)  
+**Models Compared**: 9  
 **Confidence**: 90%
 
 #### Rankings
-1. **vercel_gemini-2.5-pro** - 0.87
-2. **vercel_gemini-2.5-flash** - 0.85
-3. **vercel_grok-4** - 0.83
-4. **vercel_claude-sonnet-4-5-20250929** - 0.82
-5. **vercel_gpt-5** - 0.8
-6. **vercel_grok-4-fast-reasoning** - 0.58
-7. **vercel_deepseek-reasoner** - 0
-8. **vercel_mistral-large-latest** - 0
+1. **vercel_gemini-2.5-pro** - 0.82
+2. **vercel_claude-sonnet-4-5-20250929** - 0.85
+3. **vercel_gemini-2.5-flash** - 0.8
+4. **vercel_grok-4** - 0.79
+5. **vercel_gpt-5** - 0.75
+6. **vercel_claude-haiku-4-5-20251001** - 0.6
+7. **vercel_grok-4-fast-reasoning** - 0.23
+8. **vercel_deepseek-reasoner** - 0
+9. **vercel_mistral-large-latest** - 0
 
 #### Analysis
-This evaluation reveals critical differences in AI models' ability to handle complex Kubernetes policy scenarios: (1) **Context Window Limitations**: 25% of models (DeepSeek Reasoner, Mistral Large) completely failed due to inability to process large schema contexts (~140K tokens), highlighting a fundamental barrier for enterprise Kubernetes environments with extensive CRDs. (2) **High Availability Understanding**: Only 50% of successful models correctly enforced replicas >= 2 (Gemini 2.5 Pro, Grok-4, GPT-5), while others either allowed single replicas or only validated field existence - a critical distinction for production HA requirements. (3) **Resource Coverage Depth**: Gemini 2.5 Pro demonstrated superior Kubernetes expertise by including HorizontalPodAutoscaler validation, showing understanding that HA concerns extend beyond static replica counts to autoscaling configurations. (4) **Efficiency vs. Quality Trade-offs**: Gemini 2.5 Flash achieved best efficiency through rule consolidation but compromised on HA correctness, while Gemini 2.5 Pro prioritized comprehensive correctness over performance. (5) **Output Formatting Reliability**: Grok-4 Fast Reasoning's markdown wrapping issue demonstrates that even with reasonable logic, formatting errors can render policies completely unusable in production. (6) **Performance Patterns**: Response times varied dramatically (2,893ms to 156,090ms), with larger models generally slower but not necessarily more accurate. For production Kubernetes policy management, **Gemini 2.5 Pro emerges as the most reliable choice** despite slower performance, due to its comprehensive resource coverage, correct HA enforcement, and deep understanding of Kubernetes patterns. Organizations requiring faster responses might consider Gemini 2.5 Flash with manual review to strengthen HA requirements. Models with context limitations should be avoided for enterprise scenarios with extensive CRD ecosystems.
+This scenario exposed critical differences in model capabilities for Kubernetes policy generation. Key findings: (1) Context Length Crisis - Two models (DeepSeek, Mistral) completely failed due to context limits, highlighting that large schema contexts (~140K tokens) exceed many models' capabilities. (2) Validation Method Matters - Models split between modern CEL expressions (Sonnet, Gemini, GPT-5, Grok) and deprecated pattern validation (Haiku). CEL is the correct approach. (3) HA Understanding Gap - Critical difference between checking field presence vs. enforcing minimum values. Only Gemini-2.5-Pro, Grok-4, and GPT-5 correctly enforced replicas >= 2. Sonnet only checked field existence. (4) Performance vs. Quality Tradeoff - Slower models (GPT-5: 56s, Grok-4: 85s, Gemini-Pro: 49s) often had better policy quality, while faster models (Gemini-Flash: 11.8s, Sonnet: 28s) sometimes missed requirements. (5) Production Viability - Grok-4-Fast-Reasoning's formatting errors and extremely slow performance (156s) demonstrate that speed claims don't guarantee usability. (6) Schema Analysis Quality - Best models performed comprehensive schema-by-schema analysis identifying all workload controllers with replica fields. Gemini-2.5-Pro uniquely identified HPA minReplicas importance. (7) Winner: Gemini-2.5-Pro provides the most comprehensive HA policy despite slower performance, correctly understanding that HA requires both base replicas >= 2 AND HPA minReplicas > 1 where applicable. For production use requiring fast iteration, Gemini-2.5-Flash offers best speed/quality tradeoff despite missing >= 2 enforcement.
 
 ---
 
 ### 3. POLICY-COMPARATIVE POLICY STORE ONLY TRIGGERS
 
-**Winner**: vercel_mistral-large-latest (Score: 0.83)  
-**Models Compared**: 9  
+**Winner**: vercel_gemini-2.5-pro (Score: 0.85)  
+**Models Compared**: 10  
 **Confidence**: 90%
 
 #### Rankings
-1. **vercel_mistral-large-latest** - 0.83
-2. **vercel_grok-4-fast-reasoning** - 0.8
-3. **vercel_claude-sonnet-4-5-20250929** - 0.78
-4. **vercel_gemini-2.5-pro** - 0.75
-5. **vercel_gpt-5** - 0.68
-6. **vercel_deepseek-reasoner** - 0.67
-7. **vercel_grok-4** - 0.67
-8. **vercel_gemini-2.5-flash** - 0.54
-9. **vercel_gpt-5-pro** - 0
+1. **vercel_gemini-2.5-pro** - 0.85
+2. **vercel_claude-haiku-4-5-20251001** - 0.88
+3. **vercel_grok-4-fast-reasoning** - 0.88
+4. **vercel_claude-sonnet-4-5-20250929** - 0.84
+5. **vercel_mistral-large-latest** - 0.8
+6. **vercel_grok-4** - 0.77
+7. **vercel_gemini-2.5-flash** - 0.71
+8. **vercel_gpt-5** - 0.7
+9. **vercel_deepseek-reasoner** - 0.59
+10. **vercel_gpt-5-pro** - 0
 
 #### Analysis
-This evaluation reveals a critical trade-off between quality and performance in policy trigger generation. Models cluster into three categories: (1) Fast and balanced (Mistral, Grok-4-fast, Claude) deliver practical results quickly with good accuracy; (2) Slow but accurate (DeepSeek, Grok-4) provide excellent Kubernetes-specific terms but with unacceptable latency; (3) Broad but unfocused (Gemini-flash, GPT-5) sacrifice precision for comprehensiveness. The winner (Mistral) achieved the best balance with sub-2-second response time and 75% quality score. A key insight is that pure technical accuracy (DeepSeek's 95% quality) means little if response times approach 3 minutes - users need fast, 'good enough' results for iterative policy workflows. The complete failure of GPT-5-Pro highlights critical reliability concerns for certain models in production policy management contexts. For organizational policy intent management, speed and reliability are as important as technical perfection - models must support interactive workflows where policy creators iterate quickly on trigger terms and policy definitions.
+This evaluation reveals critical tradeoffs between quality, efficiency, and performance in policy intent management. The top performers (Gemini-2.5-Pro, Claude-Haiku, Grok-4-Fast-Reasoning) achieve strong quality while maintaining practical response times. A clear pattern emerges: models that over-reason (DeepSeek-Reasoner: 167s) or attempt excessive comprehensiveness (Gemini-Flash, GPT-5) sacrifice efficiency without proportional quality gains. The catastrophic failure of GPT-5-Pro highlights the critical importance of reliability in production policy workflows. For Kubernetes organizational policy management, teams should prioritize models that balance Kubernetes-native accuracy with user-friendly synonyms while maintaining sub-5-second response times. The best models (Gemini-2.5-Pro, Claude-Haiku) demonstrate that concise, focused outputs with core controllers (StatefulSets, ReplicaSets, Deployments, DaemonSets) plus policy-relevant resources (HorizontalPodAutoscaler, PodDisruptionBudget) provide optimal value. Cross-platform coverage (GPT-5) may be valuable for multi-cloud environments but should be opt-in to avoid diluting Kubernetes-focused workflows. Performance consistency matters more than peak quality when rapid policy intent capture is required for organizational governance workflows.
 
 ---
 
 ### 4. POLICY-COMPARATIVE POLICY TRIGGERS STEP
 
-**Winner**: vercel_mistral-large-latest (Score: 0.926)  
-**Models Compared**: 9  
+**Winner**: vercel_claude-haiku-4-5-20251001 (Score: 0.896)  
+**Models Compared**: 10  
 **Confidence**: 90%
 
 #### Rankings
-1. **vercel_mistral-large-latest** - 0.926
-2. **vercel_claude-sonnet-4-5-20250929** - 0.898
-3. **vercel_gemini-2.5-pro** - 0.85
-4. **vercel_gpt-5** - 0.834
-5. **vercel_grok-4** - 0.812
-6. **vercel_grok-4-fast-reasoning** - 0.81
-7. **vercel_gemini-2.5-flash** - 0.68
-8. **vercel_deepseek-reasoner** - 0.634
-9. **vercel_gpt-5-pro** - 0.55
+1. **vercel_claude-haiku-4-5-20251001** - 0.896
+2. **vercel_mistral-large-latest** - 0.892
+3. **vercel_claude-sonnet-4-5-20250929** - 0.856
+4. **vercel_gpt-5** - 0.808
+5. **vercel_grok-4** - 0.796
+6. **vercel_gemini-2.5-pro** - 0.786
+7. **vercel_grok-4-fast-reasoning** - 0.77
+8. **vercel_gemini-2.5-flash** - 0.724
+9. **vercel_gpt-5-pro** - 0.602
+10. **vercel_deepseek-reasoner** - 0.598
 
 #### Analysis
-The evaluation reveals significant performance divergence in policy trigger generation. Top performers (Mistral-Large, Claude-Sonnet-4) excel by combining comprehensive Kubernetes resource coverage with sub-5-second response times, making them ideal for interactive policy workflows. The critical success factors are: (1) Complete coverage of core resource management primitives (quotas, limits, requests, QoS), (2) All major workload controller types, (3) Fast response times enabling iterative refinement, and (4) Clear organization enhancing usability. Models showed three distinct patterns: efficiency-optimized (Gemini-2.5-Pro, Grok-4-fast), comprehensiveness-focused (GPT-5, Mistral-Large), and balanced performers (Claude-Sonnet-4). The most critical finding is that extreme reasoning overhead (DeepSeek-Reasoner's 135s) or workflow timeouts (GPT-5-Pro's 15min failure) eliminate otherwise capable models from production consideration. For Kubernetes organizational policy management, reliability and reasonable response times are non-negotiable requirements. Mistral-Large's structured categorization approach appears optimal for guiding users through complex policy creation workflows while maintaining both speed and comprehensiveness.
+The evaluation reveals critical performance trade-offs in policy trigger generation: (1) Claude Haiku and Mistral Large demonstrate that speed and comprehensiveness aren't mutually exclusive - both deliver excellent coverage in under 3 seconds; (2) Reasoning models (DeepSeek Reasoner, GPT-5-Pro) show catastrophic latency issues for workflow steps requiring quick responses, with timeouts making them unsuitable for interactive policy management; (3) The best models balance breadth (workload types, resource constraints, enforcement mechanisms) with depth (QoS classes, admission controllers, container variations); (4) Response time matters significantly - even good quality responses lose value when they take 20-135 seconds for simple trigger lists; (5) Structure and categorization (as shown by Mistral) improve usability without sacrificing speed; (6) Models that include enforcement mechanisms (admission controllers, limit ranges, QoS classes) demonstrate deeper understanding of Kubernetes policy architecture versus those listing only workload types; (7) For production policy management workflows, sub-5-second responses with comprehensive trigger coverage (Claude Haiku, Mistral Large) are the gold standard - anything over 10 seconds becomes a UX liability regardless of quality.
 
 ---
 
@@ -160,12 +153,12 @@ The evaluation reveals significant performance divergence in policy trigger gene
 
 
 ### Key Insights
-This evaluation reveals context window capacity as the PRIMARY failure mode for Kubernetes policy generation - 5 of 9 models (56%) experienced complete failures in scenarios requiring ~140K tokens for extensive CRD schemas, representing catastrophic production risks for enterprise environments. The critical insight is that peak performance means nothing without reliability: Mistral-Large won both trigger scenarios (0.83, 0.926) but failed 50% of evaluations, while Gemini-Pro consistently performed across all scenarios with lower peak scores but zero failures. Response time variance exposed fundamental trade-offs: fast models (Gemini-Flash, Grok-Fast-Reasoning) sacrificed correctness (wrong HA requirements, broken CEL patterns), while slower models (Gemini-Pro, Claude-Sonnet) prioritized comprehensive correctness. For production policy systems, the evaluation proves reliability and consistency trump optimization for any single metric - organizations need models that work predictably across all policy workflow types rather than excel in some while catastrophically failing in others. The 0% reliability of GPT-5-Pro and 49% reliability of DeepSeek-Reasoner highlight that even technically capable models are unsuitable for production if they cannot consistently handle enterprise-scale schema contexts. Recommendation: Deploy Gemini-2.5-Pro for mission-critical policy management despite performance costs, use Claude-Sonnet-4 where faster iteration is needed with acceptable reliability trade-offs, and completely avoid models with <75% participation rates regardless of their peak capabilities.
+This evaluation reveals four critical patterns: (1) Context Window Crisis - 40% of models suffer catastrophic failures on large schema contexts (~140K tokens), with GPT-5-Pro, DeepSeek-Reasoner, and Mistral-Large showing 25-50% failure rates. This is a non-negotiable requirement for production Kubernetes policy work. (2) Reliability Paradox - Peak performance matters less than consistency. Gemini-2.5-Pro wins 2 scenarios but Sonnet's zero-failure record makes it more production-ready. (3) Speed vs. Quality Tradeoff - Fast models (Haiku, Gemini-Flash: <12s) sacrifice depth, while slow models (DeepSeek: 167s) sacrifice usability. The sweet spot is 28-49s deliberate analysis. (4) CEL Mastery Separates Tiers - Top performers (Sonnet, Gemini-Flash, GPT-5, Grok-4) demonstrate modern CEL validation expertise vs. deprecated pattern validation, showing architectural maturity. For production Kubernetes policy automation, teams must prioritize: 150K+ context windows, 100% scenario participation, sub-60s response times, and modern CEL validation capabilities. The 40% failure rate demonstrates this remains a specialized domain where general-purpose models without sufficient context capacity pose catastrophic operational risks.
 
 ### Recommended Selection Strategy
-- **For Production Use**: Choose vercel_gemini-2.5-pro - Most reliable choice for comprehensive Kubernetes policy management requiring both trigger generation and complex policy validation. Zero catastrophic failures, deepest Kubernetes expertise, correct HA enforcement. Accept slower response times (110s+) as trade-off for production reliability and correctness.
-- **For Secondary Option**: Consider vercel_claude-sonnet-4-5-20250929 - Excellent alternative with highest average score (0.84) and strong reliability (0.91). Better response times than Gemini-Pro in trigger scenarios (<5s) while maintaining comprehensive coverage. Optimal for organizations prioritizing balanced speed-quality trade-offs with proven reliability.
-- **Avoid**: vercel_gpt-5-pro - 50% catastrophic failure rate with context limitations and timeouts, completely unsuitable for production, vercel_deepseek-reasoner - 50% failure rate with 135s response times and context window limitations eliminate production viability, vercel_mistral-large-latest - Despite excellence in trigger generation, 50% failure rate in policy generation makes it unreliable for comprehensive policy tooling (reliability concerns)
+- **For Production Use**: Choose vercel_claude-sonnet-4-5-20250929 - Most reliable all-around performer with zero failures, consistent excellence across all policy generation tasks, optimal response times, and proven CEL validation expertise. Best choice for production environments requiring dependable Kubernetes policy automation.
+- **For Secondary Option**: Consider vercel_gemini-2.5-pro - Best choice when policy comprehensiveness matters more than speed. Superior HA policy understanding and schema analysis make it ideal for complex compliance requirements, though slower response times require consideration for interactive workflows.
+- **Avoid**: vercel_gpt-5-pro - 50% failure rate, worst average score (0.301), completely unreliable for production, vercel_deepseek-reasoner - 50% failure rate, catastrophic latency (167s), context window failures make it unsuitable for schema-heavy tasks, vercel_mistral-large-latest - 25% failure rate due to context limits, cannot handle large schema contexts required for production Kubernetes policy work (reliability concerns)
 
 ### Decision Framework
 The AI assessment prioritizes **reliability and consistency** over peak performance. Models that fail completely in any scenario are heavily penalized, ensuring production-ready recommendations.

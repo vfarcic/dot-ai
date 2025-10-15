@@ -68,6 +68,7 @@ export class VercelProvider implements AIProvider {
           provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
         case 'anthropic':
+        case 'anthropic_haiku':
           provider = createAnthropic({ 
             apiKey: this.apiKey,
             // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
@@ -280,7 +281,7 @@ export class VercelProvider implements AIProvider {
 
       // Add cache control ONLY to last tool for Anthropic (max 4 cache breakpoints)
       // This caches the system prompt + all tools together
-      if (this.providerType === 'anthropic' && isLastTool) {
+      if ((this.providerType === 'anthropic' || this.providerType === 'anthropic_haiku') && isLastTool) {
         (toolDef as any).providerOptions = {
           anthropic: {
             cacheControl: { type: 'ephemeral' }
@@ -303,7 +304,7 @@ export class VercelProvider implements AIProvider {
     const messages: any[] = [];
     let systemParam: string | undefined;
 
-    if (this.providerType === 'anthropic') {
+    if (this.providerType === 'anthropic' || this.providerType === 'anthropic_haiku') {
       // For Anthropic: Put system in messages array with cacheControl
       messages.push({
         role: 'system',
