@@ -1,0 +1,181 @@
+{
+  "lastUpdated": "2025-10-15",
+  "dataSource": "Manual collection from provider websites", 
+  "updateInstructions": "Execute command `/update-model-metadata` when this data becomes stale",
+  "models": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3.0,
+        "output_cost_per_million_tokens": 15.0
+      },
+      "context_window": 1000000,
+      "supports_function_calling": true
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.0,
+        "output_cost_per_million_tokens": 5.0
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI", 
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10.0
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15.0,
+        "output_cost_per_million_tokens": 120.0
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4.0,
+        "output_cost_per_million_tokens": 20.0
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.30,
+        "output_cost_per_million_tokens": 2.50
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3.0,
+        "output_cost_per_million_tokens": 15.0
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.20,
+        "output_cost_per_million_tokens": 0.50
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2.0,
+        "output_cost_per_million_tokens": 6.0
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "tools": {
+    "capability": {
+      "name": "Capability Analysis",
+      "description": "Analyzes all Kubernetes cluster resources to understand deployment capabilities and constraints",
+      "primaryFunction": "Complete cluster resource discovery and capability mapping",
+      "successCriteria": [
+        "Complete resource discovery without missing critical components",
+        "Accurate capability mapping for each resource type",
+        "Consistent analysis quality across all resources",
+        "Reliable completion of full cluster scan"
+      ],
+      "modelRequirements": {
+        "endurance": "Must handle ~100 consecutive AI interactions reliably",
+        "consistency": "Maintain quality across 30+ minute evaluation sessions",
+        "reasoning": "Deep Kubernetes knowledge for each resource type"
+      }
+    },
+    "pattern": {
+      "name": "Pattern Recognition",
+      "description": "Creates organizational deployment patterns through interactive workflow for consistent application deployments",
+      "primaryFunction": "Multi-step pattern creation and organizational template generation",
+      "successCriteria": [
+        "Successful completion of multi-step interactive workflow",
+        "Accurate trigger expansion from keywords to comprehensive lists",
+        "Proper pattern abstraction and template creation",
+        "Effective pattern storage and searchability in Vector DB"
+      ],
+      "modelRequirements": {
+        "workflow": "Handle multi-step interactive pattern creation sessions",
+        "expansion": "Expand trigger keywords into comprehensive related terms",
+        "abstraction": "Convert specific requirements into reusable organizational patterns"
+      }
+    },
+    "policy": {
+      "name": "Policy Compliance",
+      "description": "Creates and manages organizational compliance policies through trigger expansion and Kyverno policy generation",
+      "primaryFunction": "Multi-step policy creation with automated Kyverno policy generation",
+      "successCriteria": [
+        "Accurate trigger expansion from policy keywords to comprehensive resource lists",
+        "Proper schema-by-schema analysis of all cluster resources",
+        "Complete Kyverno ClusterPolicy generation with CEL expressions",
+        "Correct resource matching and validation rule creation"
+      ],
+      "modelRequirements": {
+        "expansion": "Expand policy triggers into comprehensive Kubernetes resource categories",
+        "analysis": "Perform detailed schema analysis to identify relevant resource fields",
+        "generation": "Generate complete, syntactically correct Kyverno policies with CEL validation"
+      }
+    },
+    "recommendation": {
+      "name": "Deployment Recommendations", 
+      "description": "AI-powered analysis of user deployment intent and generation of production-ready Kubernetes manifests",
+      "primaryFunction": "Intent clarification and manifest generation with large schema context",
+      "successCriteria": [
+        "Generate relevant, actionable clarification questions from minimal user intent",
+        "Create production-ready, deployable Kubernetes YAML manifests",
+        "Complete multi-phase workflow within reasonable timeframes",
+        "Balance comprehensiveness with practical efficiency"
+      ],
+      "modelRequirements": {
+        "analysis": "Analyze user intent and generate focused clarification questions",
+        "synthesis": "Transform user requirements into complete Kubernetes manifests using up to 50 large resource schemas", 
+        "context": "Handle very large context windows (100K+ tokens) with multiple Kubernetes schema definitions",
+        "efficiency": "Process extensive schema context without excessive token usage or timeouts"
+      }
+    },
+    "remediation": {
+      "name": "Issue Remediation",
+      "description": "AI-powered troubleshooting that analyzes Kubernetes issues and provides step-by-step remediation guidance",
+      "primaryFunction": "Problem diagnosis and solution generation with optional automated execution",
+      "successCriteria": [
+        "Accurate root cause identification from minimal issue descriptions",
+        "Comprehensive cluster investigation using kubectl commands and tool calls", 
+        "Generation of correct, executable remediation commands",
+        "Proper risk assessment and validation steps for proposed solutions"
+      ],
+      "modelRequirements": {
+        "investigation": "Systematically explore cluster state using multiple kubectl commands and API calls",
+        "diagnosis": "Analyze symptoms, logs, and events to identify root causes with high confidence",
+        "solution": "Generate specific, executable kubectl commands with proper risk assessment",
+        "iteration": "Handle multi-step investigation workflows with 5-8 iterations of analysis"
+      }
+    }
+  }
+}

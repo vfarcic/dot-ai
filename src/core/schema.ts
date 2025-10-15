@@ -485,10 +485,8 @@ export class ResourceRecommender {
       const capabilityFilteredResources = relevantCapabilities.map(cap => ({
         kind: this.extractKindFromResourceName(cap.data.resourceName),
         group: this.extractGroupFromResourceName(cap.data.resourceName),
-        apiVersion: this.constructApiVersionFromResourceName(cap.data.resourceName),
         resourceName: cap.data.resourceName,
-        namespaced: true, // Default assumption, could be enhanced
-        capabilities: cap.data // Include capability data for AI decision-making
+        capabilities: cap.data // Include capability data for AI decision-making (includes namespaced, etc.)
       }));
 
       // Phase 1: Add missing pattern-suggested resources to available resources list
@@ -516,9 +514,7 @@ export class ResourceRecommender {
     availableResources: Array<{
       kind: string;
       group: string;
-      apiVersion: string; 
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[],
@@ -590,9 +586,7 @@ export class ResourceRecommender {
     resources: Array<{
       kind: string;
       group: string;
-      apiVersion: string;
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[]
@@ -601,9 +595,8 @@ export class ResourceRecommender {
     
     // Format resources for the prompt with capability information
     const resourcesText = resources.map((resource, index) => {
-      return `${index}: ${resource.kind.toUpperCase()} (${resource.apiVersion})
+      return `${index}: ${resource.kind.toUpperCase()}
    Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced}
    Resource Name: ${resource.resourceName}
    Capabilities: ${Array.isArray(resource.capabilities.capabilities) ? resource.capabilities.capabilities.join(', ') : 'Not specified'}
    Providers: ${Array.isArray(resource.capabilities.providers) ? resource.capabilities.providers.join(', ') : resource.capabilities.providers || 'kubernetes'}
@@ -636,19 +629,15 @@ export class ResourceRecommender {
   private async addMissingPatternResources(
     capabilityResources: Array<{
       kind: string;
-      group: string; 
-      apiVersion: string;
+      group: string;
       resourceName: string;
-      namespaced: boolean;
       capabilities: any;
     }>,
     patterns: OrganizationalPattern[]
   ): Promise<Array<{
     kind: string;
     group: string;
-    apiVersion: string; 
     resourceName: string;
-    namespaced: boolean;
     capabilities: any;
   }>> {
     if (!patterns.length) {
@@ -662,9 +651,7 @@ export class ResourceRecommender {
     const missingPatternResources: Array<{
       kind: string;
       group: string;
-      apiVersion: string;
       resourceName: string; 
-      namespaced: boolean;
       capabilities: any;
     }> = [];
 
@@ -686,15 +673,11 @@ export class ResourceRecommender {
               const parts = suggestedResource.split('.');
               const kind = parts[0]; // Use resource name as-is: resourcegroups, servicemonitors, etc.
               const group = parts.length > 1 ? parts.slice(1).join('.') : '';
-              const version = 'v1beta1'; // Default version for CRDs, could be enhanced
-              const apiVersion = group ? `${group}/${version}` : version;
 
               missingPatternResources.push({
                 kind,
                 group,
-                apiVersion,
                 resourceName,
-                namespaced: true, // Default assumption for pattern resources
                 capabilities: {
                   resourceName,
                   description: `Resource suggested by organizational pattern: ${pattern.description}`,
@@ -758,18 +741,8 @@ export class ResourceRecommender {
     return resourceName.substring(resourceName.indexOf('.') + 1);
   }
 
-  /**
-   * Construct API version from resource name (simplified approach)
-   */
-  private constructApiVersionFromResourceName(resourceName: string): string {
-    if (!resourceName.includes('.')) {
-      return 'v1'; // Core resources typically use v1
-    }
-    
-    // For CRDs, construct group/version format
-    const group = this.extractGroupFromResourceName(resourceName);
-    return `${group}/v1beta1`; // Default to v1beta1 for CRDs
-  }
+  // Note: constructApiVersionFromResourceName method removed - no longer needed
+  // API versions are extracted from kubectl explain schema content during manifest generation
 
   /**
    * Phase 0: Search for relevant organizational patterns using multi-concept approach
@@ -796,98 +769,6 @@ export class ResourceRecommender {
 
   // REMOVED: selectResourceCandidates - replaced by single-phase assembleAndRankSolutions
   // REMOVED: fetchDetailedSchemas - no longer needed in single-phase architecture
-
-  /**
-      const basic = `${index}: ${resource.kind} (${resource.apiVersion})
-   Group: ${resource.group || 'core'}
-   Namespaced: ${resource.namespaced}`;
-      
-      // Include rich capability context if available (from capability-based pre-filtering)
-      if (resource.capabilities) {
-        const cap = resource.capabilities;
-        return `${basic}
-   Resource Name: ${resource.resourceName || 'Not specified'}
-   Capabilities: ${cap.capabilities?.join(', ') || 'Not specified'}
-   Providers: ${cap.providers?.join(', ') || 'Not specified'}
-   Complexity: ${cap.complexity || 'Not specified'}
-   Use Case: ${cap.useCase || 'Not specified'}
-   Description: ${cap.description || 'Not specified'}
-   Confidence: ${cap.confidence || 'N/A'}`;
-      }
-      
-      return basic;
-    }).join('\n\n');
-
-    // Format organizational patterns for AI context
-    const patternsContext = patterns.length > 0 
-      ? patterns.map(pattern => 
-          `- ID: ${pattern.id}
-            Description: ${pattern.description}
-            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
-            Rationale: ${pattern.rationale}
-            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
-        ).join('\n')
-      : 'No organizational patterns found for this request.';
-
-
-    const template = loadPrompt('resource-selection');
-    
-    const selectionPrompt = template
-      .replace('{intent}', intent)
-      .replace('{resources}', resourceSummary)
-      .replace('{patterns}', patternsContext);
-
-
-    const response = await this.aiProvider.sendMessage(selectionPrompt, 'resource-selection');
-    
-    try {
-      // Extract JSON from response with robust parsing
-      let jsonContent = response.content;
-      
-      // First try to find JSON array wrapped in code blocks
-      const codeBlockMatch = response.content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-      if (codeBlockMatch) {
-        jsonContent = codeBlockMatch[1];
-      } else {
-        // Try to find JSON array that starts with [ and find the matching closing ]
-        const startIndex = response.content.indexOf('[');
-        if (startIndex !== -1) {
-          let bracketCount = 0;
-          let endIndex = startIndex;
-          
-          for (let i = startIndex; i < response.content.length; i++) {
-            if (response.content[i] === '[') bracketCount++;
-            if (response.content[i] === ']') bracketCount--;
-            if (bracketCount === 0) {
-              endIndex = i;
-              break;
-            }
-          }
-          
-          if (bracketCount === 0) {
-            jsonContent = response.content.substring(startIndex, endIndex + 1);
-          }
-        }
-      }
-      
-      const selectedResources = JSON.parse(jsonContent.trim());
-      
-      if (!Array.isArray(selectedResources)) {
-        throw new Error('AI response is not an array');
-      }
-      
-      // Validate that each resource has required fields
-      for (const resource of selectedResources) {
-        if (!resource.kind || !resource.apiVersion) {
-          throw new Error(`AI selected invalid resource: ${JSON.stringify(resource)}`);
-        }
-      }
-      
-      return selectedResources;
-    } catch (error) {
-      throw new Error(`AI failed to select resources in valid JSON format. Error: ${(error as Error).message}. AI response: "${response.content.substring(0, 200)}..."`);
-    }
-  }
 
   /**
    * Phase 2: Fetch detailed schemas for selected candidates

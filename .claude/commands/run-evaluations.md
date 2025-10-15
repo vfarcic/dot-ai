@@ -17,6 +17,12 @@ When this command is invoked, ask the user to specify:
    - `sonnet` - Claude Sonnet via Vercel AI SDK
    - `gpt` - GPT-5 via Vercel AI SDK
    - `gpt-pro` - GPT-5 Pro via Vercel AI SDK
+   - `gemini` - Google Gemini 2.5 Pro via Vercel AI SDK
+   - `gemini-flash` - Google Gemini 2.5 Flash via Vercel AI SDK
+   - `grok` - xAI Grok-4 via Vercel AI SDK
+   - `grok-fast` - xAI Grok-4-Fast-Reasoning via Vercel AI SDK
+   - `mistral` - Mistral Large via Vercel AI SDK
+   - `deepseek` - DeepSeek-R1 via Vercel AI SDK (Note: Limited function calling support)
 
 ## Test File Mapping
 
@@ -31,20 +37,35 @@ Tool types map to specific test files:
 
 For each specified model (in order):
 
-1. **Execute Tests**: Run integration tests for the tool type with the current model in foreground
+1. **Execute Tests**: Due to Claude Code's 10-minute timeout limitation, run tests manually in terminal:
    ```bash
-   npm run test:integration:{model} {test_file_path}
+   # For complete test suite (all tools)
+   npm run test:integration:{model} 2>&1 | tee ./tmp/test-results-{model}.log
+   
+   # For specific tool type
+   npm run test:integration:{model} {test_file_path} 2>&1 | tee ./tmp/test-results-{model}-{tool}.log
    ```
+   
+   **IMPORTANT**: 
+   - Policy and remediation tests can take 3-5 minutes each
+   - Full test suites may exceed 15 minutes total runtime
+   - The `tee` command captures output to `./tmp/` directory while displaying in terminal
 
-2. **Report Results**: Provide summary including:
-   - Test duration
-   - Number of tests passed/failed
-   - Any failure details if applicable
+2. **Report Results**: Once manual execution completes, report:
+   - "Tests completed for {model}"
+   - Claude will read the log file from `./tmp/` and provide summary including:
+     - Test duration  
+     - Number of tests passed/failed
+     - Any failure details if applicable
+     - **Dataset Verification**: Compare number of datasets generated against previous runs:
+       - Count datasets before: `find ./eval/datasets -name "*{model}*" | wc -l`
+       - Count datasets after test execution
+       - Report if dataset generation is incomplete (may indicate missing AI interactions)
 
 3. **Handle Failures**: If any tests failed:
-   - Stop execution
-   - Report the failure details
-   - Instruct user: "Tests failed. Please execute the `/analyze-test-failure` command to analyze the failure and enhance datasets."
+   - Claude will analyze the log file
+   - Execute `/analyze-test-failure` command automatically to enhance datasets
+   - Report failure details and patterns
 
 4. **Continuation Decision**: If all tests passed, ask user:
    "All {model} tests passed successfully. Continue with next model ({next_model})? [y/n]"

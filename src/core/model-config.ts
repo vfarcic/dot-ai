@@ -7,9 +7,15 @@
 
 export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-5-20250929',
+  anthropic_haiku: 'claude-haiku-4-5-20251001',
   openai: 'gpt-5', 
   openai_pro: 'gpt-5-pro',
-  google: 'gemini-2.5-pro'
+  google: 'gemini-2.5-pro',
+  google_fast: 'gemini-2.5-flash',
+  xai: 'grok-4',
+  xai_fast: 'grok-4-fast-reasoning',
+  mistral: 'mistral-large-latest',
+  deepseek: 'deepseek-reasoner'
 } as const;
 
 /**

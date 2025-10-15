@@ -27,9 +27,10 @@ This provides:
 
 ### Required Environment Variables
 
-Set these before running tests:
+Set these before running tests (see [MCP Setup Guide](mcp-setup.md) for all supported models):
 
 ```bash
+# Example with Claude (default) + OpenAI embeddings
 export ANTHROPIC_API_KEY="your-api-key"
 export OPENAI_API_KEY="your-api-key"
 ```

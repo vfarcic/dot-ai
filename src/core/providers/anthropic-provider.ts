@@ -30,6 +30,10 @@ export class AnthropicProvider implements AIProvider {
     this.validateApiKey();
     this.client = new Anthropic({
       apiKey: this.apiKey,
+      // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
+      defaultHeaders: {
+        'anthropic-beta': 'context-1m-2025-08-07'
+      }
     });
   }
 
@@ -48,6 +52,14 @@ export class AnthropicProvider implements AIProvider {
 
   getDefaultModel(): string {
     return getCurrentModel('anthropic');
+  }
+
+  getModelName(): string {
+    return this.model;
+  }
+
+  getSDKProvider(): string {
+    return 'anthropic';
   }
 
   isInitialized(): boolean {

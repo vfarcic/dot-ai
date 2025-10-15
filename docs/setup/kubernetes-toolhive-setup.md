@@ -34,7 +34,7 @@
 - Kubernetes cluster (1.19+) with kubectl access
 - Helm 3.x installed
 - Cluster admin permissions (required for ToolHive operator installation)
-- Anthropic API key (required)
+- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (required for vector operations)
 
 ## Quick Start (10 Minutes)

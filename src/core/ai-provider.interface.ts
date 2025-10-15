@@ -242,6 +242,20 @@ export interface AIProvider {
   getProviderType(): string;
 
   /**
+   * Get the current model name being used
+   *
+   * @returns Model name (e.g., 'grok-4-fast-reasoning', 'claude-3-5-sonnet-20241022')
+   */
+  getModelName(): string;
+
+  /**
+   * Get the underlying SDK provider being used (for Vercel AI SDK)
+   *
+   * @returns SDK provider name (e.g., 'xai', 'anthropic', 'openai') or the provider type for native SDKs
+   */
+  getSDKProvider(): string;
+
+  /**
    * Execute agentic loop with tool calling (NEW - PRD #136)
    *
    * AI autonomously decides which tools to call and when to stop.

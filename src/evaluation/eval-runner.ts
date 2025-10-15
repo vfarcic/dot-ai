@@ -13,6 +13,10 @@ import { CapabilityComparativeEvaluator } from './evaluators/capability-comparat
 import { PatternComparativeEvaluator } from './evaluators/pattern-comparative.js';
 import { PolicyComparativeEvaluator } from './evaluators/policy-comparative.js';
 import { readdir } from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const EVALUATOR_CONFIG = {
   remediation: { 
@@ -44,18 +48,15 @@ const EVALUATOR_CONFIG = {
 
 type EvaluationType = keyof typeof EVALUATOR_CONFIG;
 
-function generateMarkdownReport(results: any[], stats: any, evaluationType: EvaluationType): string {
+function generateMarkdownReport(results: any[], stats: any, evaluationType: EvaluationType, finalAssessment?: any): string {
   const timestamp = new Date().toISOString();
   
-  // Calculate overall statistics
-  const modelWins = new Map<string, number>();
-  const modelScores = new Map<string, number[]>();
+  // Use final assessment if provided
+  const overallAssessment = finalAssessment?.overall_assessment || null;
   
+  // Calculate basic statistics for reference
+  const modelScores = new Map<string, number[]>();
   results.forEach(result => {
-    const winner = result.bestModel;
-    modelWins.set(winner, (modelWins.get(winner) || 0) + 1);
-    
-    // Collect all scores for each model
     if (result.modelRankings) {
       result.modelRankings.forEach((ranking: any) => {
         if (!modelScores.has(ranking.model)) {
@@ -66,9 +67,7 @@ function generateMarkdownReport(results: any[], stats: any, evaluationType: Eval
     }
   });
   
-  const sortedWins = Array.from(modelWins.entries()).sort((a, b) => b[1] - a[1]);
-  
-  // Calculate average scores
+  // Calculate average scores for supplementary information
   const modelAverages = new Map<string, number>();
   modelScores.forEach((scores, model) => {
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -86,20 +85,39 @@ function generateMarkdownReport(results: any[], stats: any, evaluationType: Eval
 
 ## Executive Summary
 
-### 🏆 Overall Winners
-${sortedWins.map(([model, wins]) => `- **${model}**: ${wins} scenario${wins > 1 ? 's' : ''} won`).join('\n')}
+### 🏆 Overall Winner (AI Assessment)
+${overallAssessment ? `
+**${overallAssessment.winner}**
 
-### 📊 Model Performance Overview
+${overallAssessment.rationale}
+` : 'Overall assessment not available'}
 
-| Model | Avg Score | Scenarios Won | Performance Notes |
-|-------|-----------|---------------|-------------------|
+### 📊 AI Reliability Rankings
+
+${overallAssessment ? overallAssessment.reliability_ranking
+  .map((ranking: any, index: number) => `${index + 1}. **${ranking.model}** (${Math.round(ranking.reliability_score * 100)}%) - ${ranking.reliability_notes}`)
+  .join('\n') : 'Reliability rankings not available'}
+
+### 📋 Production Recommendations
+
+${overallAssessment ? `
+- **Primary Choice**: ${overallAssessment.production_recommendations.primary}
+- **Secondary Option**: ${overallAssessment.production_recommendations.secondary}
+- **Avoid for Production**: ${overallAssessment.production_recommendations.avoid.length > 0 ? overallAssessment.production_recommendations.avoid.join(', ') : 'None'}
+${Object.keys(overallAssessment.production_recommendations.specialized_use).length > 0 ? 
+  '\n**Specialized Use Cases:**\n' + Object.entries(overallAssessment.production_recommendations.specialized_use)
+    .map(([useCase, model]) => `- **${useCase}**: ${model}`)
+    .join('\n') : ''}
+` : 'Production recommendations not available'}
+
+### 📊 Supplementary Statistics (Reference Only)
+
+| Model | Avg Score | Notes |
+|-------|-----------|-------|
 ${Array.from(modelAverages.entries())
   .sort((a, b) => b[1] - a[1])
-  .map(([model, avgScore]) => {
-    const wins = modelWins.get(model) || 0;
-    const performance = wins > 0 ? '🟢 Strong' : wins === 0 && avgScore > 0.8 ? '🟡 Good' : '🔴 Weak';
-    return `| ${model} | ${avgScore} | ${wins} | ${performance} |`;
-  }).join('\n')}
+  .map(([model, avgScore]) => `| ${model} | ${avgScore} | See AI assessment above |`)
+  .join('\n')}
 
 ## Detailed Scenario Results
 
@@ -123,14 +141,21 @@ ${result.comment}
 ---`;
 }).join('\n\n')}
 
-## Model Selection Guide
-${sortedWins.slice(0, 3).map(([model], index) => {
-  const score = modelAverages.get(model) || 0;
-  const useCase = index === 0 ? 'Primary choice for most scenarios' : 
-                  index === 1 ? 'Good alternative with different strengths' : 
-                  'Specialized use cases';
-  return `- **${model}** (Avg: ${score}): ${useCase}`;
-}).join('\n')}
+## AI Model Selection Guide
+
+${overallAssessment ? `
+### Key Insights
+${overallAssessment.key_insights}
+
+### Recommended Selection Strategy
+- **For Production Use**: Choose ${overallAssessment.production_recommendations.primary}
+- **For Secondary Option**: Consider ${overallAssessment.production_recommendations.secondary}
+${overallAssessment.production_recommendations.avoid.length > 0 ? 
+  `- **Avoid**: ${overallAssessment.production_recommendations.avoid.join(', ')} (reliability concerns)` : ''}
+
+### Decision Framework
+The AI assessment prioritizes **reliability and consistency** over peak performance. Models that fail completely in any scenario are heavily penalized, ensuring production-ready recommendations.
+` : 'AI model selection guide not available'}
 
 ---
 
@@ -140,13 +165,82 @@ Report generated by DevOps AI Toolkit Comparative Evaluation System
 `;
 }
 
-async function detectAvailableDatasets(datasetsDir: string): Promise<Record<EvaluationType, boolean>> {
+function loadModelMetadata() {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const metadataPath = path.join(__dirname, 'model-metadata.json');
+    
+    if (!fs.existsSync(metadataPath)) {
+      console.error('❌ Model metadata file not found');
+      console.error('📊 Pricing and capabilities data required for cost analysis');
+      console.error('');
+      console.error('🔄 To create model metadata, run:');
+      console.error('   /update-model-metadata');
+      console.error('');
+      process.exit(1);
+    }
+    
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    
+    // Check if metadata is older than 30 days
+    const metadataAge = Date.now() - new Date(metadata.lastUpdated).getTime();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    
+    if (metadataAge > thirtyDays) {
+      console.error('❌ Model metadata is over 30 days old (last updated: ' + metadata.lastUpdated + ')');
+      console.error('📊 Pricing and capabilities data may be outdated, affecting cost analysis accuracy');
+      console.error('');
+      console.error('🔄 To update model metadata, run:');
+      console.error('   /update-model-metadata');
+      console.error('');
+      process.exit(1);
+    }
+    
+    console.log('✅ Model metadata loaded (updated: ' + metadata.lastUpdated + ')');
+    return metadata;
+  } catch (error) {
+    console.error('❌ Failed to load model metadata:', error instanceof Error ? error.message : String(error));
+    console.error('🔄 To create model metadata, run: /update-model-metadata');
+    process.exit(1);
+  }
+}
+
+function generateJsonReport(results: any[], stats: any, evaluationType: EvaluationType, modelMetadata: any, finalAssessment?: any) {
+  const timestamp = new Date().toISOString();
+  
+  // Use final assessment if provided
+  const overallAssessment = finalAssessment || null;
+  
+  return {
+    metadata: {
+      reportType: 'comparative-evaluation',
+      evaluationType: evaluationType,
+      generated: timestamp,
+      scenariosAnalyzed: results.length,
+      modelsEvaluated: stats.availableModels.length,
+      totalDatasets: stats.totalDatasets,
+      tool: EVALUATOR_CONFIG[evaluationType].title
+    },
+    modelMetadata: modelMetadata.models,
+    overallAssessment: overallAssessment,
+    results: results,
+    summary: stats
+  };
+}
+
+async function detectAvailableDatasets(datasetsDir: string, filterType?: EvaluationType): Promise<Record<EvaluationType, boolean>> {
   try {
     const files = await readdir(datasetsDir);
     const result: Record<string, boolean> = {};
     
     for (const [type, config] of Object.entries(EVALUATOR_CONFIG)) {
-      result[type] = files.some(file => file.startsWith(config.prefix));
+      // If filter specified, only check for that type
+      if (filterType && type !== filterType) {
+        result[type] = false;
+      } else {
+        result[type] = files.some(file => file.startsWith(config.prefix));
+      }
     }
     
     return result as Record<EvaluationType, boolean>;
@@ -160,7 +254,7 @@ async function detectAvailableDatasets(datasetsDir: string): Promise<Record<Eval
   }
 }
 
-async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string) {
+async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string, modelMetadata: any) {
   const EvaluatorClass = EVALUATOR_CONFIG[evaluatorType].evaluator;
   const evaluator = new EvaluatorClass(datasetsDir);
   
@@ -192,12 +286,18 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string)
   
   console.log(`✅ ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Evaluation Complete! Analyzed ${results.length} scenarios\n`);
   
-  // Generate markdown report
-  const reportContent = generateMarkdownReport(results, stats, evaluatorType);
+  // Conduct final assessment across all scenarios
+  const finalAssessment = await evaluator.conductFinalAssessment(results);
   
-  // Save report to file
-  const reportPath = `./eval/reports/${evaluatorType}-evaluation-${new Date().toISOString().split('T')[0]}.md`;
-  const reportDir = './eval/reports';
+  // Generate dual-format reports using final assessment
+  const reportContent = generateMarkdownReport(results, stats, evaluatorType, finalAssessment);
+  const jsonResults = generateJsonReport(results, stats, evaluatorType, modelMetadata, finalAssessment);
+  
+  // Save reports to files
+  const dateStamp = new Date().toISOString().split('T')[0];
+  const markdownPath = `./eval/analysis/individual/${evaluatorType}-evaluation-${dateStamp}.md`;
+  const jsonPath = `./eval/analysis/individual/${evaluatorType}-results-${dateStamp}.json`;
+  const reportDir = './eval/analysis/individual';
   
   // Ensure report directory exists
   const fs = await import('fs');
@@ -205,9 +305,12 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string)
     fs.mkdirSync(reportDir, { recursive: true });
   }
   
-  fs.writeFileSync(reportPath, reportContent);
+  fs.writeFileSync(markdownPath, reportContent);
+  fs.writeFileSync(jsonPath, JSON.stringify(jsonResults, null, 2));
   
-  console.log(`📊 ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} report generated: ${reportPath}`);
+  console.log(`📊 ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} reports generated:`);
+  console.log(`   📝 Markdown: ${markdownPath}`);
+  console.log(`   📄 JSON: ${jsonPath}`);
   
   // Brief console summary
   console.log(`🏆 ${evaluatorType.charAt(0).toUpperCase() + evaluatorType.slice(1)} Results:`);
@@ -221,27 +324,76 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string)
 async function main() {
   console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
   
+  // Clean old debug files but preserve evaluation datasets
+  console.log('🧹 Cleaning old debug files...');
+  try {
+    await execAsync('find ./tmp/debug-ai -type f ! -name \'*.jsonl\' -delete 2>/dev/null || true');
+    await execAsync('mkdir -p ./tmp/debug-ai');
+    console.log('✅ Debug files cleaned (datasets preserved)\n');
+  } catch (error) {
+    console.warn('⚠️  Could not clean debug files:', error instanceof Error ? error.message : String(error));
+  }
+  
+  // Check model metadata freshness before starting any evaluation work
+  const modelMetadata = loadModelMetadata();
+  
   const datasetsDir = './eval/datasets';
-  const availableDatasets = await detectAvailableDatasets(datasetsDir);
+  
+  // Parse command line arguments for subset evaluation
+  const args = process.argv.slice(2);
+  let filterType: EvaluationType | undefined = undefined;
+  
+  if (args.length > 0) {
+    const requestedType = args[0];
+    if (requestedType in EVALUATOR_CONFIG) {
+      filterType = requestedType as EvaluationType;
+    } else {
+      console.error(`❌ Invalid evaluation type: "${requestedType}"`);
+      console.error(`✅ Available types: ${Object.keys(EVALUATOR_CONFIG).join(', ')}`);
+      process.exit(1);
+    }
+  }
+  
+  const availableDatasets = await detectAvailableDatasets(datasetsDir, filterType);
   
   console.log('🔍 Dataset Detection:');
   for (const [type, available] of Object.entries(availableDatasets)) {
     console.log(`- ${type.charAt(0).toUpperCase() + type.slice(1)} datasets: ${available ? '✅' : '❌'}`);
   }
   
+  if (filterType) {
+    console.log(`\n🎯 Running evaluation for: ${filterType}`);
+  }
+  
   const hasAnyDatasets = Object.values(availableDatasets).some(Boolean);
   if (!hasAnyDatasets) {
-    console.error('❌ No evaluation datasets found. Please run integration tests first to generate datasets.');
+    if (filterType) {
+      console.error(`❌ No datasets found for type: ${filterType}`);
+    } else {
+      console.error('❌ No evaluation datasets found. Please run integration tests first to generate datasets.');
+    }
     process.exit(1);
   }
   
   try {
     const allResults = [];
     
-    for (const [type, available] of Object.entries(availableDatasets)) {
-      if (available) {
-        const results = await runEvaluation(type as EvaluationType, datasetsDir);
+    // If filterType is specified, only run that evaluation type
+    if (filterType) {
+      if (availableDatasets[filterType]) {
+        const results = await runEvaluation(filterType, datasetsDir, modelMetadata);
         allResults.push(...results);
+      } else {
+        console.error(`❌ No datasets available for type: ${filterType}`);
+        process.exit(1);
+      }
+    } else {
+      // Run all available evaluations
+      for (const [type, available] of Object.entries(availableDatasets)) {
+        if (available) {
+          const results = await runEvaluation(type as EvaluationType, datasetsDir, modelMetadata);
+          allResults.push(...results);
+        }
       }
     }
     

@@ -1,0 +1,402 @@
+{
+  "metadata": {
+    "reportType": "comparative-evaluation",
+    "evaluationType": "pattern",
+    "generated": "2025-10-15T21:00:35.182Z",
+    "scenariosAnalyzed": 1,
+    "modelsEvaluated": 10,
+    "totalDatasets": 11,
+    "tool": "Pattern AI Model Comparison Report"
+  },
+  "modelMetadata": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 1000000,
+      "supports_function_calling": true
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 1,
+        "output_cost_per_million_tokens": 5
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15,
+        "output_cost_per_million_tokens": 120
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4,
+        "output_cost_per_million_tokens": 20
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.2,
+        "output_cost_per_million_tokens": 0.5
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2,
+        "output_cost_per_million_tokens": 6
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "overallAssessment": {
+    "assessment_summary": "Cross-scenario evaluation of 10 models across 1 scenario for pattern evaluation reveals a critical reliability stratification. 90% of models (9/10) successfully participated, with one catastrophic failure (GPT-5-Pro). Performance spans from production-ready leaders (Claude Sonnet 4.5: 0.83) to complete operational failures (GPT-5-Pro: 0.0). The evaluation demonstrates clear correlation between Kubernetes-specific expertise, token efficiency, and production suitability, with reasoning models showing poor ROI due to extreme latencies without proportional quality gains.",
+    "models_analyzed": [
+      "vercel_claude-sonnet-4-5-20250929",
+      "vercel_claude-haiku-4-5-20251001",
+      "vercel_mistral-large-latest",
+      "vercel_gemini-2.5-pro",
+      "vercel_grok-4-fast-reasoning",
+      "vercel_gpt-5",
+      "vercel_grok-4",
+      "vercel_gemini-2.5-flash",
+      "vercel_deepseek-reasoner",
+      "vercel_gpt-5-pro"
+    ],
+    "detailed_analysis": {
+      "vercel_claude-sonnet-4-5-20250929": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.83,
+        "consistency_score": 1,
+        "reliability_score": 1,
+        "strengths": "Production-ready champion with optimal balance of comprehensive Kubernetes-specific triggers, architectural pattern coverage, and reliable performance. Best overall comprehensiveness for StatefulSets, PVCs, and storage classes. Token efficiency in sweet spot (100-300 range). Zero failures across evaluation.",
+        "weaknesses": "None identified in current evaluation scope. Represents the baseline standard for production deployment.",
+        "production_readiness": "primary"
+      },
+      "vercel_claude-haiku-4-5-20251001": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.815,
+        "consistency_score": 1,
+        "reliability_score": 1,
+        "strengths": "Efficiency leader with sub-2-second response times (1.37s) - ideal for high-throughput scenarios. Minimal 1.7% performance gap from top performer while offering 40x speed advantage over reasoning models. Excellent Kubernetes resource awareness with optimal token efficiency.",
+        "weaknesses": "Marginally less comprehensive than Claude Sonnet (1.5 percentage points), though still exceeds production requirements. May have slightly narrower pattern coverage in complex enterprise scenarios.",
+        "production_readiness": "primary"
+      },
+      "vercel_mistral-large-latest": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.795,
+        "consistency_score": 1,
+        "reliability_score": 1,
+        "strengths": "Exceptional comprehensiveness for enterprise environments requiring granular pattern matching across complex storage and data architectures. Strong performance in Kubernetes-specific resource identification with reliable execution.",
+        "weaknesses": "3.5 percentage point gap from top performer. May provide slightly broader scope than necessary, potentially including patterns beyond core database/storage focus.",
+        "production_readiness": "primary"
+      },
+      "vercel_gemini-2.5-pro": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.775,
+        "consistency_score": 1,
+        "reliability_score": 1,
+        "strengths": "Solid reliability with complete scenario participation. Maintains good Kubernetes awareness and architectural pattern coverage. Consistent performance without catastrophic failures.",
+        "weaknesses": "5.5 percentage point gap from leader. Performance positioned in upper-middle tier rather than top tier. May lack some specialized Kubernetes storage pattern nuances present in top performers.",
+        "production_readiness": "secondary"
+      },
+      "vercel_grok-4-fast-reasoning": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.73,
+        "consistency_score": 1,
+        "reliability_score": 0.95,
+        "strengths": "Complete scenario participation with functional output. 'Fast reasoning' variant offers better latency profile than full Grok-4 reasoning model.",
+        "weaknesses": "10 percentage point gap from leader. Reasoning overhead provides poor ROI - extreme latencies without proportional quality gains. Performance positioned in middle tier with notable comprehensiveness gaps in Kubernetes-specific patterns.",
+        "production_readiness": "secondary"
+      },
+      "vercel_gpt-5": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.728,
+        "consistency_score": 1,
+        "reliability_score": 0.95,
+        "strengths": "Reliable participation across scenarios with functional pattern identification. Maintains consistency without catastrophic failures.",
+        "weaknesses": "10.2 percentage point gap from leader. Performance slightly below mid-tier threshold. May lack depth in Kubernetes-specific StatefulSet and storage class patterns compared to top performers. Concerning given GPT-5-Pro's complete failure suggests potential family-wide reliability risks.",
+        "production_readiness": "secondary"
+      },
+      "vercel_grok-4": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.708,
+        "consistency_score": 1,
+        "reliability_score": 0.85,
+        "strengths": "Complete scenario participation with functional execution. Full reasoning model provides comprehensive analysis capabilities.",
+        "weaknesses": "12.2 percentage point gap from leader. Extreme latency (58-79s range) without proportional quality improvement - 40x slower than efficiency leaders. Poor ROI for time-sensitive pattern workflows. Lower comprehensiveness score despite reasoning overhead.",
+        "production_readiness": "limited"
+      },
+      "vercel_gemini-2.5-flash": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.64,
+        "consistency_score": 1,
+        "reliability_score": 0.75,
+        "strengths": "Reliable participation with zero catastrophic failures. Flash variant likely offers speed advantages for lightweight pattern tasks.",
+        "weaknesses": "19 percentage point gap from leader - significant performance deficit. Positioned in lower tier with notable gaps in Kubernetes-specific pattern coverage. May suffer from over-simplification of complex storage architectures. Token generation may fall outside optimal 100-300 range.",
+        "production_readiness": "limited"
+      },
+      "vercel_deepseek-reasoner": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.49,
+        "consistency_score": 1,
+        "reliability_score": 0.5,
+        "strengths": "Participates in all scenarios without complete failures. Reasoning architecture provides deep analytical capabilities.",
+        "weaknesses": "34 percentage point gap from leader - largest deficit among participating models. Extreme latency (78.64s) with worst ROI among all models. Performance below acceptable production threshold (0.49 vs 0.5+ for limited use). Reasoning overhead provides minimal quality benefit while creating severe user experience issues for interactive workflows.",
+        "production_readiness": "avoid"
+      },
+      "vercel_gpt-5-pro": {
+        "participation_rate": 0,
+        "scenarios_participated": [],
+        "scenarios_failed": [
+          "pattern-comparative_pattern_triggers_step"
+        ],
+        "average_score": 0,
+        "consistency_score": 0,
+        "reliability_score": 0,
+        "strengths": "None identified - complete failure to participate in evaluation.",
+        "weaknesses": "Catastrophic production failure with 0% participation rate. Complete inability to execute pattern trigger identification workflow. Represents critical reliability risk with 100% failure rate. Model failed to execute, timed out, or encountered critical errors preventing any output generation. Zero reliability for production deployment.",
+        "production_readiness": "avoid"
+      }
+    },
+    "overall_assessment": {
+      "winner": "vercel_claude-sonnet-4-5-20250929",
+      "rationale": "Claude Sonnet 4.5 emerges as the clear overall winner based on optimal reliability-performance balance. Achieves highest score (0.83) with 100% participation rate, perfect consistency (1.0), and maximum reliability score (1.0). Demonstrates comprehensive Kubernetes-specific resource awareness (StatefulSets, PVCs, storage classes) critical for production pattern management, token efficiency in optimal 100-300 range, and zero failures across evaluation. Represents the production-ready standard with best architectural pattern coverage and reliable performance. While Claude Haiku offers marginal speed advantages (1.37s vs ~2-3s estimated), Claude Sonnet's 1.7% quality edge and superior comprehensiveness justify its position as primary recommendation for standard pattern workflows where both reliability and depth matter. Zero catastrophic failures and consistent execution make it the safest choice for production deployment where operational risk must be minimized.",
+      "reliability_ranking": [
+        {
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "reliability_score": 1,
+          "reliability_notes": "100% participation, 0.83 average score, perfect consistency - production-ready champion"
+        },
+        {
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "reliability_score": 1,
+          "reliability_notes": "100% participation, 0.815 average score, perfect consistency, sub-2s response time - efficiency leader"
+        },
+        {
+          "model": "vercel_mistral-large-latest",
+          "reliability_score": 1,
+          "reliability_notes": "100% participation, 0.795 average score, perfect consistency - enterprise comprehensiveness specialist"
+        },
+        {
+          "model": "vercel_gemini-2.5-pro",
+          "reliability_score": 1,
+          "reliability_notes": "100% participation, 0.775 average score, perfect consistency - solid secondary option"
+        },
+        {
+          "model": "vercel_grok-4-fast-reasoning",
+          "reliability_score": 0.95,
+          "reliability_notes": "100% participation, 0.73 average score, latency concerns reduce production readiness"
+        },
+        {
+          "model": "vercel_gpt-5",
+          "reliability_score": 0.95,
+          "reliability_notes": "100% participation, 0.728 average score, family reliability concerns given GPT-5-Pro failure"
+        },
+        {
+          "model": "vercel_grok-4",
+          "reliability_score": 0.85,
+          "reliability_notes": "100% participation, 0.708 average score, extreme latency (58-79s) limits production suitability"
+        },
+        {
+          "model": "vercel_gemini-2.5-flash",
+          "reliability_score": 0.75,
+          "reliability_notes": "100% participation, 0.64 average score - below secondary threshold, limited use only"
+        },
+        {
+          "model": "vercel_deepseek-reasoner",
+          "reliability_score": 0.5,
+          "reliability_notes": "100% participation, 0.49 average score, 78.64s latency - worst ROI, avoid for production"
+        },
+        {
+          "model": "vercel_gpt-5-pro",
+          "reliability_score": 0,
+          "reliability_notes": "0% participation, complete catastrophic failure - critical production risk"
+        }
+      ],
+      "production_recommendations": {
+        "primary": "vercel_claude-sonnet-4-5-20250929",
+        "secondary": "vercel_claude-haiku-4-5-20251001",
+        "avoid": [
+          "vercel_gpt-5-pro",
+          "vercel_deepseek-reasoner"
+        ],
+        "specialized_use": {
+          "high_throughput_low_latency": "vercel_claude-haiku-4-5-20251001 - sub-2s response times ideal for interactive pattern creation workflows",
+          "complex_enterprise_storage": "vercel_mistral-large-latest - exceptional granular pattern matching for complex storage/data architectures",
+          "cost_sensitive_basic_patterns": "vercel_gemini-2.5-flash - acceptable for non-critical pattern identification where budget constraints dominate",
+          "reasoning_workflows": "None recommended - all reasoning models (Grok-4, DeepSeek) show poor ROI with extreme latencies (58-79s) without proportional quality gains"
+        }
+      },
+      "key_insights": "Critical reliability stratification reveals 90% model participation rate with one catastrophic failure (GPT-5-Pro). Top-tier models (Claude Sonnet, Claude Haiku, Mistral Large) demonstrate production-ready reliability (1.0 scores) with Kubernetes-specific expertise, while reasoning models universally underperform with 40x latency penalties without quality benefits. Token efficiency correlation is clear: 100-300 token range optimal, extremes (38 too narrow, 2312 over-engineering) correlate with lower scores. Kubernetes-specific resource awareness (StatefulSets, PVCs, storage classes) strongly predicts production utility - models missing these scored 10-34 percentage points lower despite database coverage. GPT-5-Pro's complete failure represents critical operational risk warranting immediate production exclusion. DeepSeek's 0.49 score with 78.64s latency demonstrates worst ROI. Performance variance spans 83 percentage points (0.83 to 0.0), highlighting importance of rigorous pre-production evaluation. For pattern management workflows: prioritize Claude Sonnet for standard operations, Claude Haiku for latency-critical scenarios, and completely avoid GPT-5-Pro and reasoning models for time-sensitive interactive pattern creation."
+    }
+  },
+  "results": [
+    {
+      "key": "pattern-comparative_pattern_triggers_step",
+      "score": 0.83,
+      "comment": "The evaluation reveals significant performance stratification across models for Kubernetes pattern trigger identification. **Claude Sonnet 4.5** emerges as the production-ready champion, offering the best balance of comprehensive Kubernetes-specific triggers, architectural pattern coverage, and reliable performance. **Claude Haiku 4.5** excels as the efficiency leader, ideal for high-throughput scenarios where sub-2-second response times are critical. **Mistral Large** demonstrates exceptional comprehensiveness for enterprise environments requiring granular pattern matching across complex storage and data architectures.\n\nKey insights: (1) **Kubernetes-specific resource awareness** (StatefulSets, PVCs, storage classes) strongly correlates with practical utility - models missing these scored lower despite comprehensive database coverage; (2) **Reasoning models show poor ROI** for this task - DeepSeek and Grok-4 had extreme latencies (58-79s) without proportional quality gains; (3) **Token efficiency matters** - models generating 100-300 tokens hit the sweet spot, while extremes (38 tokens too narrow, 2312 tokens over-engineering) faced limitations; (4) **Reliability is non-negotiable** - GPT-5-Pro's complete failure demonstrates that even advanced models can have critical production issues; (5) **Scope control separates good from great** - top performers focused on database/storage/HA patterns while lower-ranked models included tangential triggers (monitoring, compute, networking).\n\nFor production pattern management: use **Claude Sonnet** for standard workflows, **Claude Haiku** for high-speed requirements, **Mistral Large** for complex enterprise environments, and avoid reasoning models and GPT-5-Pro for time-sensitive operations. The 40x performance difference between fastest (1.37s) and slowest successful model (78.64s) has major implications for user experience in interactive pattern creation workflows.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.83
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.815
+        },
+        {
+          "rank": 3,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.795
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.775
+        },
+        {
+          "rank": 5,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.73
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5",
+          "score": 0.728
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4",
+          "score": 0.708
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.64
+        },
+        {
+          "rank": 9,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.49
+        },
+        {
+          "rank": 10,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_claude-sonnet-4-5-20250929",
+      "modelCount": 10
+    }
+  ],
+  "summary": {
+    "totalDatasets": 11,
+    "availableModels": [
+      "vercel_claude-haiku-4-5-20251001_2025-10-15",
+      "vercel_claude-sonnet-4-5-20250929_2025-10-13",
+      "vercel_deepseek-reasoner_2025-10-13",
+      "vercel_gemini-2.5-flash_2025-10-14",
+      "vercel_gemini-2.5-pro_2025-10-14",
+      "vercel_gpt-5-pro_2025-10-14",
+      "vercel_gpt-5_2025-10-14",
+      "vercel_grok-4-fast-reasoning_2025-10-14",
+      "vercel_grok-4_2025-10-14",
+      "vercel_mistral-large-latest_2025-10-14"
+    ],
+    "scenariosWithMultipleModels": 1,
+    "interactionTypes": [
+      "triggers_step"
+    ]
+  }
+}

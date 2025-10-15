@@ -63,6 +63,7 @@ export interface SystemStatus {
     connected: boolean;
     keyConfigured: boolean;
     providerType?: string;
+    modelName?: string;
     error?: string;
   };
   kubernetes: {
@@ -251,10 +252,12 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
         
         // Test MCP-used operations: verify vector operations work
         const embeddingService = new EmbeddingService();
+        const embeddingStatus = embeddingService.getStatus();
+        const expectedDimensions = embeddingStatus.dimensions || 1536; // Use provider's dimension or default
         const testEmbedding = await embeddingService.generateEmbedding('diagnostic test query');
-        
-        if (!testEmbedding || testEmbedding.length !== 1536) {
-          throw new Error(`Embedding dimension mismatch: expected 1536, got ${testEmbedding?.length || 'null'} dimensions`);
+
+        if (!testEmbedding || testEmbedding.length !== expectedDimensions) {
+          throw new Error(`Embedding dimension mismatch: expected ${expectedDimensions}, got ${testEmbedding?.length || 'null'} dimensions`);
         }
         
         // Validate embedding values are numbers (not NaN, Infinity, etc.)
@@ -552,23 +555,28 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
     return {
       connected: true,
       keyConfigured: true,
-      providerType: aiProvider.getProviderType()
+      providerType: aiProvider.getProviderType(),
+      modelName: aiProvider.getModelName()
     };
   } catch (error) {
-    // Try to get provider type even on error
+    // Try to get provider type and model name even on error
     let providerType: string | undefined;
+    let modelName: string | undefined;
     try {
       const { createAIProvider } = await import('../core/ai-provider-factory');
       const aiProvider = createAIProvider();
       providerType = aiProvider.getProviderType();
+      modelName = aiProvider.getModelName();
     } catch {
       providerType = undefined;
+      modelName = undefined;
     }
 
     return {
       connected: false,
       keyConfigured: false,
       providerType,
+      modelName,
       error: error instanceof Error ? error.message : String(error)
     };
   }

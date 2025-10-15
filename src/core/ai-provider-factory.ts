@@ -14,6 +14,7 @@ import {
 } from './ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic-provider';
 import { VercelProvider } from './providers/vercel-provider';
+import { CURRENT_MODELS } from './model-config';
 
 /**
  * Provider environment variable mappings
@@ -22,16 +23,23 @@ import { VercelProvider } from './providers/vercel-provider';
  */
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
+  anthropic_haiku: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   openai: 'OPENAI_API_KEY',
   openai_pro: 'OPENAI_API_KEY', // Uses same API key as regular OpenAI
   google: 'GOOGLE_API_KEY',
+  google_fast: 'GOOGLE_API_KEY', // Uses same API key as regular Google
+  xai: 'XAI_API_KEY',
+  xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
+  mistral: 'MISTRAL_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
 };
 
 /**
- * Providers implemented in Phase 1-2
+ * Providers implemented - dynamically generated from CURRENT_MODELS
+ * Single source of truth maintained in model-config.ts
  */
-const IMPLEMENTED_PROVIDERS = ['anthropic', 'openai', 'openai_pro', 'google'] as const;
-type ImplementedProvider = typeof IMPLEMENTED_PROVIDERS[number];
+type ImplementedProvider = keyof typeof CURRENT_MODELS;
+const IMPLEMENTED_PROVIDERS = Object.keys(CURRENT_MODELS) as ImplementedProvider[];
 
 /**
  * Factory for creating AI provider instances
@@ -78,20 +86,13 @@ export class AIProviderFactory {
     // Create provider based on type
     switch (config.provider) {
       case 'anthropic':
+      case 'anthropic_haiku':
         return this.createAnthropicProvider(config);
 
-      case 'openai':
-        return this.createOpenAIProvider(config);
-
-      case 'openai_pro':
-        return this.createOpenAIProProvider(config);
-
-      case 'google':
-        return this.createGoogleProvider(config);
-
       default:
-        // This should never happen due to IMPLEMENTED_PROVIDERS check above
-        throw new Error(`Unsupported provider: ${config.provider}`);
+        // All non-Anthropic providers use VercelProvider
+        // This matches the integration test behavior with AI_PROVIDER_SDK=vercel
+        return new VercelProvider(config);
     }
   }
 
@@ -161,30 +162,6 @@ export class AIProviderFactory {
    */
   private static createAnthropicProvider(config: AIProviderConfig): AIProvider {
     return new AnthropicProvider(config);
-  }
-
-  /**
-   * Create OpenAI provider instance
-   * @private
-   */
-  private static createOpenAIProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create OpenAI Pro provider instance
-   * @private
-   */
-  private static createOpenAIProProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
-  }
-
-  /**
-   * Create Google provider instance
-   * @private
-   */
-  private static createGoogleProvider(config: AIProviderConfig): AIProvider {
-    return new VercelProvider(config);
   }
 
   /**

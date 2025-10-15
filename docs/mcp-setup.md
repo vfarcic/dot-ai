@@ -59,16 +59,149 @@ All setup methods need the same core configuration, but handle it differently:
 
 | Component | Purpose | Example |
 |----------|---------|---------|
-| `ANTHROPIC_API_KEY` | Claude API key for AI analysis | `sk-ant-api03-...` |
+| `AI_PROVIDER` | AI model selection (defaults to anthropic) | [See AI Model Configuration](#ai-model-configuration) |
+| `EMBEDDINGS_PROVIDER` | Embedding provider selection (defaults to openai) | [See Embedding Provider Configuration](#embedding-provider-configuration) |
 | `DOT_AI_SESSION_DIR` | Directory for session storage | `./tmp/sessions` |
 | `KUBECONFIG` | Path to Kubernetes configuration | `~/.kube/config` |
 | `QDRANT_URL` | Qdrant vector database connection | `http://localhost:6333` |
-| `OPENAI_API_KEY` | OpenAI key for enhanced semantic search | `sk-proj-...` |
 | `QDRANT_API_KEY` | Qdrant API key (for cloud instances) | `your-qdrant-api-key` |
+| **AI Model API Keys** | **Corresponding API key for your chosen provider** | [See AI Model Configuration](#ai-model-configuration) |
+| **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
 
 **Note**: How you configure these depends on your chosen setup method. See the individual setup guides for specific configuration instructions.
 
-### Environment Variable Management
+### AI Model Configuration
+
+The DevOps AI Toolkit supports 10 different AI models from 5 providers. Choose based on your quality, cost, and reliability requirements.
+
+#### Model Recommendations
+
+| Model | Provider | Overall Score | Reliability | Recommendation |
+|-------|----------|----------------|-------------|----------------|
+| **Claude Sonnet 4.5** | Anthropic | 0.846 | 0.952 | ✅ **Best overall** - Maximum reliability, production-ready |
+| **Claude Haiku 4.5** | Anthropic | 0.836 | 0.916 | ✅ **Best balanced** - Excellent performance at 1/3 cost of Sonnet |
+| **Grok-4-Fast-Reasoning** | xAI | 0.740 | 0.802 | ✅ **Best value** - 87% of Sonnet performance at 3.9% of cost |
+| **Gemini 2.5 Pro** | Google | 0.768 | 0.837 | ⚠️ **Use cautiously** - Good capability analysis, weak remediation |
+| **Grok-4** | xAI | 0.743 | 0.834 | ⚠️ **Use cautiously** - Good remediation, weaker on other tools |
+| **GPT-5** | OpenAI | 0.732 | 0.827 | ⚠️ **Use cautiously** - Weak capability analysis performance |
+| **Gemini 2.5 Flash** | Google | 0.733 | 0.859 | ⚠️ **Limited use** - Weak pattern & remediation tasks |
+| **DeepSeek Reasoner** | DeepSeek | 0.640 | 0.645 | ❌ **Avoid** - Reliability concerns, lacks function calling |
+| **Mistral Large Latest** | Mistral | 0.589 | 0.542 | ❌ **Avoid** - Complete remediation failures, inconsistent |
+| **GPT-5-Pro** | OpenAI | 0.311 | 0.332 | ❌ **Avoid** - Catastrophic failures across all tools |
+
+**Usage Guidelines:**
+- **Production (max reliability)**: Use Claude Sonnet 4.5
+- **Production (best balanced)**: Use Claude Haiku 4.5 (98.8% of Sonnet at 33% cost)
+- **Development & testing**: Use Grok-4-Fast-Reasoning for best value
+- **Budget-constrained**: Use Grok-4-Fast-Reasoning (25x more operations than Sonnet)
+- **Avoid**: Mistral Large Latest, DeepSeek Reasoner, and GPT-5-Pro due to reliability issues
+
+📖 **[Complete Model Analysis Report](../eval/analysis/platform/synthesis-report.md)** - Detailed performance analysis, technical evaluation methodology, and comprehensive testing results across all MCP tools.
+
+#### Model Selection
+
+Choose your AI model by setting the provider:
+
+| Model | AI_PROVIDER | API Key Required |
+|-------|-------------|------------------|
+| **Claude Sonnet 4.5** | `anthropic` | `ANTHROPIC_API_KEY` |
+| **Claude Haiku 4.5** | `anthropic_haiku` | `ANTHROPIC_API_KEY` |
+| **GPT-5** | `openai` | `OPENAI_API_KEY` |
+| **GPT-5-Pro** | `openai_pro` | `OPENAI_API_KEY` |
+| **Gemini 2.5 Pro** | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| **Gemini 2.5 Flash** | `google_fast` | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| **Grok-4** | `xai` | `XAI_API_KEY` |
+| **Grok-4-Fast-Reasoning** | `xai_fast` | `XAI_API_KEY` |
+| **Mistral Large Latest** | `mistral` | `MISTRAL_API_KEY` |
+| **DeepSeek Reasoner** | `deepseek` | `DEEPSEEK_API_KEY` |
+
+**Configuration Steps:**
+
+1. **Set your provider** (defaults to anthropic):
+```bash
+AI_PROVIDER=anthropic_haiku  # Example: using Claude Haiku 4.5
+```
+
+2. **Set the corresponding API key** (**only one** needed):
+```bash
+# Choose ONE based on your selected provider:
+
+# For Claude Sonnet 4.5 or Claude Haiku 4.5 (default - recommended)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# For OpenAI models (GPT-5, GPT-5-Pro)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# For Google models (Gemini 2.5 Pro, Gemini 2.5 Flash)
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key_here
+
+# For xAI models (Grok-4, Grok-4-Fast-Reasoning)
+XAI_API_KEY=your_xai_api_key_here
+
+# For Mistral model (Mistral Large Latest)
+MISTRAL_API_KEY=your_mistral_api_key_here
+
+# For DeepSeek model (DeepSeek Reasoner)
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+```
+
+### Embedding Provider Configuration
+
+The DevOps AI Toolkit supports multiple embedding providers for enhanced semantic search capabilities in pattern management, capability discovery, and policy matching.
+
+#### Provider Comparison
+
+| Provider | Model | Dimensions | Pros | Cons | Best For |
+|----------|-------|------------|------|------|----------|
+| **OpenAI** | `text-embedding-3-small` | 1536 | ✅ High quality, mature API | Higher cost | Production deployments |
+| **Google** | `text-embedding-004` | 768 | ✅ Cost-effective, good performance | Smaller dimensions | Development, cost-conscious setups |
+| **Mistral** | `mistral-embed` | 1024 | ✅ Balanced dimensions, cost-effective | Newer option | Alternative to OpenAI/Google |
+
+**Usage Guidelines:**
+- **Production**: Use OpenAI for maximum semantic search quality
+- **Development**: Use Google for cost-effective development and testing  
+- **Alternative**: Use Mistral for balanced performance and dimensions
+
+#### Provider Selection
+
+Choose your embedding provider by setting the provider:
+
+| Provider | EMBEDDINGS_PROVIDER | API Key Required | Model Used |
+|----------|-------------------|------------------|------------|
+| **OpenAI** | `openai` (default) | `OPENAI_API_KEY` | `text-embedding-3-small` |
+| **Google** | `google` | `GOOGLE_API_KEY` | `text-embedding-004` |
+| **Mistral** | `mistral` | `MISTRAL_API_KEY` | `mistral-embed` |
+
+**Configuration Steps:**
+
+1. **Set your embedding provider** (defaults to openai):
+```bash
+EMBEDDINGS_PROVIDER=google  # Example: using Google embeddings
+```
+
+2. **Set the corresponding API key** (**only one** needed):
+```bash
+# Choose ONE based on your selected provider:
+
+# For OpenAI embeddings (default - recommended for production)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# For Google embeddings (cost-effective alternative)
+GOOGLE_API_KEY=your_google_api_key_here
+
+# For Mistral embeddings (alternative option)
+MISTRAL_API_KEY=your_mistral_api_key_here
+```
+
+**Important Notes:**
+- **Same Provider Efficiency**: If using the same provider for both AI models and embeddings (e.g., `AI_PROVIDER=google` and `EMBEDDINGS_PROVIDER=google`), you only need to set one API key (`GOOGLE_API_KEY`)
+- **Mixed Providers**: You can mix embedding and AI providers. For example, use Claude for AI (`AI_PROVIDER=anthropic`) with Google embeddings (`EMBEDDINGS_PROVIDER=google`) - embeddings are very cost-effective, so using different providers is economical
+- **Limited Embedding Support**: Not all AI model providers support embeddings. Popular combinations:
+  - Anthropic AI models + OpenAI embeddings (premium quality)
+  - Anthropic AI models + Google embeddings (cost-optimized)
+  - Google AI models + Google embeddings (unified setup)
+
+#### Environment Variable Management
 
 All setup methods benefit from using `.env` files for easier environment variable management:
 
