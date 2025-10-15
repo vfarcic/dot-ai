@@ -77,7 +77,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Prerequisites
 
 - **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)  
-- **API keys**: `ANTHROPIC_API_KEY` for AI features
+- **API keys**: AI model API key for AI features (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options)
 - **Cluster access**: `KUBECONFIG` for Kubernetes integration
 - **Vector database**: Qdrant for capability, pattern, and policy storage
 

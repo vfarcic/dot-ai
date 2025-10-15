@@ -49,7 +49,7 @@ Before using Policy Management, ensure you have:
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
 - **Vector DB service** (Qdrant) for policy storage
-- **API keys** (ANTHROPIC_API_KEY, QDRANT_API_KEY, OPENAI_API_KEY) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [Configuration Guide](mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
 
 ### Optional (for Kyverno enforcement)
 - **[Kyverno](https://kyverno.io/)** installed in your cluster for optional policy enforcement
@@ -462,16 +462,7 @@ The recommendation system automatically:
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   ```json
-   {
-     "env": {
-       "ANTHROPIC_API_KEY": "required_for_ai_features",
-       "QDRANT_URL": "required_for_policy_storage", 
-       "QDRANT_API_KEY": "required_for_qdrant_access",
-       "OPENAI_API_KEY": "required_for_semantic_search"
-     }
-   }
-   ```
+   See [Complete Configuration Guide](mcp-setup.md#configuration-components) for AI model and embedding provider setup with all available options.
 
 #### Kyverno Policy Generation Fails
 
@@ -522,13 +513,8 @@ The recommendation system automatically:
    - Test with different request phrasings
 
 2. **Check embedding service**:
-   ```json
-   {
-     "env": {
-       "OPENAI_API_KEY": "sk-proj-your-key-here"
-     }
-   }
-   ```
+   - Verify embedding provider is configured (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
+   - Confirm embedding service API key is properly set
 
 3. **Verify policy storage**:
    ```
@@ -580,7 +566,7 @@ The recommendation system automatically:
 
 **Solutions**:
 1. **Verify OpenAI configuration**:
-   - Confirm valid `OPENAI_API_KEY` in environment
+   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
    - Test API key with simple request
    - Check API usage limits and billing status
 

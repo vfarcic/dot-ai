@@ -193,7 +193,7 @@ All with policy-compliant configurations and organizational best practices
 **All types require**:
 - DevOps AI Toolkit MCP server configured
 - Vector DB service (Qdrant) for semantic storage
-- API keys (ANTHROPIC_API_KEY, QDRANT_API_KEY, OPENAI_API_KEY)
+- API keys for AI models and embedding providers (see [Configuration Guide](mcp-setup.md#configuration-components))
 
 **Additionally for Policies**:
 - Kyverno installed (optional - only needed for cluster enforcement)

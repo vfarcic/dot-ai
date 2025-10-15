@@ -30,7 +30,7 @@
 - Node.js 18+ and npm installed
 - Git for repository cloning
 - Kubernetes cluster access (kubectl configured)
-- Anthropic API key
+- AI model API key (default: Anthropic API key, see [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for 9 model options)
 - OpenAI API key (for enhanced semantic search)
 - **External Qdrant setup** (see [Qdrant Setup](#qdrant-setup) section)
 

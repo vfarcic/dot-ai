@@ -41,7 +41,7 @@ Before using Pattern Management, ensure you have:
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
 - **Vector DB service** (Qdrant) for pattern storage
-- **API keys** (ANTHROPIC_API_KEY, QDRANT_API_KEY, OPENAI_API_KEY) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [Configuration Guide](mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
 
 For complete setup instructions, see the [MCP Setup Guide](./mcp-setup.md).
 
@@ -82,17 +82,15 @@ curl http://localhost:6333/healthz
 
 ### Embedding Service Setup
 
-For semantic pattern matching, configure an embedding service:
+For semantic pattern matching, configure an embedding provider:
 
-#### OpenAI Embeddings (Recommended)
+#### Embedding Provider Configuration
 
-1. **Get API key** from [OpenAI Platform](https://platform.openai.com/api-keys) <!-- dotai-ignore: requires authentication -->
-2. **Add to environment**: `"OPENAI_API_KEY": "sk-proj-..."`
-3. **Automatic model**: Uses `text-embedding-3-small` (1536 dimensions)
+The toolkit supports multiple embedding providers (OpenAI, Google, Mistral) for enhanced semantic search.
 
-#### Alternative: Keyword-Only Matching
+📖 **[Complete Embedding Provider Setup Guide](mcp-setup.md#embedding-provider-configuration)** - Choose your provider, set API keys, and configure dimensions.
 
-If no embedding service is configured, the system automatically falls back to keyword-based pattern matching, which still provides good results for exact term matches.
+**Note**: An embedding provider is **required** for pattern management. The system cannot store or search patterns without embedding generation capabilities.
 
 ## Pattern Management Operations
 
@@ -485,15 +483,9 @@ These are manual best practices for creating effective patterns. The system perf
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   ```json
-   {
-     "env": {
-       "ANTHROPIC_API_KEY": "required_for_ai_features",
-       "QDRANT_URL": "required_for_pattern_storage", 
-       "QDRANT_API_KEY": "required_for_qdrant_access"
-     }
-   }
-   ```
+   - Check that your AI model API key is configured (see [AI Model Configuration](mcp-setup.md#ai-model-configuration))
+   - Verify `QDRANT_URL` and `QDRANT_API_KEY` are properly set
+   - Confirm all required environment variables are loaded in your MCP client
 
 #### Patterns Not Found During Search
 
@@ -516,7 +508,7 @@ These are manual best practices for creating effective patterns. The system perf
    ```
 
 3. **Verify embedding service**:
-   - Confirm `OPENAI_API_KEY` is set for semantic search
+   - Confirm embedding provider API key is set (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
    - Test that embedding service is responding
    - Check if patterns have embeddings stored
 
@@ -531,7 +523,7 @@ These are manual best practices for creating effective patterns. The system perf
 
 **Solutions**:
 1. **Verify OpenAI configuration**:
-   - Confirm valid `OPENAI_API_KEY` in environment
+   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
    - Test OpenAI API accessibility
    - Check API key permissions and usage limits
 
@@ -620,8 +612,8 @@ List all organizational patterns
 **Q: Do I need Qdrant's paid embedding service?**  
 A: No! The system uses OpenAI to generate embeddings and stores them in Qdrant. The free Qdrant tier works perfectly for pattern storage and search.
 
-**Q: Can I use pattern management without semantic search?**  
-A: Yes! Without an embedding service, the system uses keyword-based matching, which still provides good results for exact term matches.
+**Q: Can I use pattern management without an embedding service?**  
+A: No. Pattern management requires an embedding provider. See [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration) for setup options.
 
 **Q: How many patterns should I create?**  
 A: Start with 3-5 core patterns covering your most common deployment types. Expand based on team feedback and usage patterns.
