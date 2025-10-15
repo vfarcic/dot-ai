@@ -109,4 +109,6 @@ argocd-values.yaml
 argocd/
 
 # Evaluation datasets (exclude only .jsonl files, not subdirectories)
+# Evaluation data - exclude large raw datasets but keep analysis reports
 eval/datasets/*.jsonl
+eval/results/*.jsonl

@@ -1,0 +1,490 @@
+{
+  "metadata": {
+    "reportType": "comparative-evaluation",
+    "evaluationType": "remediation",
+    "generated": "2025-10-15T10:41:24.900Z",
+    "scenariosAnalyzed": 3,
+    "modelsEvaluated": 9,
+    "totalDatasets": 32,
+    "tool": "Remediation AI Model Comparison Report"
+  },
+  "modelMetadata": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15,
+        "output_cost_per_million_tokens": 120
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4,
+        "output_cost_per_million_tokens": 20
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.2,
+        "output_cost_per_million_tokens": 0.5
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2,
+        "output_cost_per_million_tokens": 6
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "overallAssessment": {
+    "assessment_summary": "Cross-scenario evaluation of 9 models across 3 Kubernetes remediation scenarios reveals significant reliability stratification. Gemini-2.5-Flash demonstrates exceptional consistency (ranks 1st, 1st, 7th), while several 'pro' and 'reasoner' variants show critical reliability failures. Two models (Gemini-2.5-Pro, Mistral) exhibit catastrophic failure patterns across multiple scenarios. The evaluation exposes a counterintuitive pattern: simpler/faster models often outperform sophisticated variants in production reliability.",
+    "models_analyzed": [
+      "vercel_gemini-2.5-flash",
+      "vercel_claude-sonnet-4-5-20250929",
+      "vercel_grok-4-fast-reasoning",
+      "vercel_gpt-5",
+      "vercel_grok-4",
+      "vercel_gpt-5-pro",
+      "vercel_deepseek-reasoner",
+      "vercel_gemini-2.5-pro",
+      "vercel_mistral-large-latest"
+    ],
+    "detailed_analysis": {
+      "vercel_gemini-2.5-flash": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.705,
+        "consistency_score": 0.51,
+        "reliability_score": 0.85,
+        "strengths": "Dominant performance in diagnostic scenarios (rank 1st twice), exceptional speed (13-70s), superior token efficiency, perfect participation rate. Excels at rapid, accurate problem identification with minimal resource consumption.",
+        "weaknesses": "Critical failure in manual execution scenario (score 0.23, rank 7th) due to complete tool usage failure. High performance variance (0.945 to 0.23) indicates scenario-dependent reliability issues. May fail to engage with tools in verification-focused tasks.",
+        "production_readiness": "secondary"
+      },
+      "vercel_claude-sonnet-4-5-20250929": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.879,
+        "consistency_score": 0.95,
+        "reliability_score": 0.95,
+        "strengths": "Exceptional consistency across all scenarios (ranks 2nd, 2nd, 2nd), highest average score, excellent diagnostic depth and communication quality, zero catastrophic failures. Most reliable performer with predictable, high-quality output across diverse task types.",
+        "weaknesses": "Higher computational costs (slower response times, more token usage) compared to flash variants. Not the fastest option when speed is critical. Thoroughness may be excessive for simple verification tasks.",
+        "production_readiness": "primary"
+      },
+      "vercel_grok-4-fast-reasoning": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.867,
+        "consistency_score": 0.97,
+        "reliability_score": 0.97,
+        "strengths": "Best-in-class for verification tasks (rank 1st in manual execute), excellent consistency (ranks 3rd, 6th, 1st), optimal balance of speed and thoroughness with focused tool usage (3-5 calls). Strong reliability across diverse scenarios.",
+        "weaknesses": "Not the absolute fastest option. Mid-tier ranking in diagnostic scenarios suggests it may not be optimal for complex problem identification requiring extensive investigation.",
+        "production_readiness": "primary"
+      },
+      "vercel_gpt-5": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.829,
+        "consistency_score": 0.96,
+        "reliability_score": 0.92,
+        "strengths": "Consistent solid performance across all scenarios (ranks 4th, 4th, 3rd), high diagnostic accuracy, good reliability with no failures. Predictable quality with minimal variance.",
+        "weaknesses": "2-3x slower than top performers despite comparable quality. No area of excellence - consistently good but never best. Higher response times (100-150s) may impact user experience in time-sensitive operations.",
+        "production_readiness": "secondary"
+      },
+      "vercel_grok-4": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.809,
+        "consistency_score": 0.93,
+        "reliability_score": 0.87,
+        "strengths": "Perfect participation rate, consistent mid-tier performance (ranks 5th, 3rd, 4th), reliable diagnostics with acceptable quality-performance tradeoffs. No catastrophic failures.",
+        "weaknesses": "Slower than fast-reasoning variant without clear quality advantages. Consistently outperformed by sibling model (Grok-4-Fast). No compelling reason to choose over alternatives.",
+        "production_readiness": "secondary"
+      },
+      "vercel_gpt-5-pro": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.713,
+        "consistency_score": 0.96,
+        "reliability_score": 0.68,
+        "strengths": "Good diagnostic quality when it completes, comprehensive analysis capabilities. Participates in all scenarios without complete failures.",
+        "weaknesses": "Catastrophic performance issues: 22-minute duration (scenario 1), 9-minute timeout (scenario 2), consistently poor efficiency. Excellent quality undermined by operationally unacceptable response times. 38x slower than competitors with similar quality.",
+        "production_readiness": "avoid"
+      },
+      "vercel_deepseek-reasoner": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze",
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.756,
+        "consistency_score": 0.92,
+        "reliability_score": 0.7,
+        "strengths": "Perfect participation rate, extensive reasoning capabilities (116K tokens), correct diagnostic conclusions. Attempts comprehensive analysis.",
+        "weaknesses": "Critical pattern: extensive reasoning doesn't translate to better outcomes. Infrastructure validation failures, inefficient token usage, slower performance. Ranks consistently in bottom half (7th, 5th, 5th). Over-thinking leads to diminishing returns.",
+        "production_readiness": "limited"
+      },
+      "vercel_gemini-2.5-pro": {
+        "participation_rate": 0.67,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze"
+        ],
+        "scenarios_failed": [
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "average_score": 0.551,
+        "consistency_score": 0.22,
+        "reliability_score": 0.15,
+        "strengths": "Capable of correct investigation when functioning. Has potential for quality analysis.",
+        "weaknesses": "CATASTROPHIC: Missing from 33% of scenarios (complete failure), response format failures despite correct analysis (rank 8th with 0.672), lowest consistency score (0.22). Critical reliability concerns - cannot be trusted for production workflows. Pro variant dramatically underperforms Flash variant.",
+        "production_readiness": "avoid"
+      },
+      "vercel_mistral-large-latest": {
+        "participation_rate": 0.67,
+        "scenarios_participated": [
+          "remediation_comparative_remediate_automatic_analyze_execute",
+          "remediation_comparative_remediate_manual_analyze"
+        ],
+        "scenarios_failed": [
+          "remediation_comparative_remediate_manual_execute"
+        ],
+        "average_score": 0,
+        "consistency_score": 0,
+        "reliability_score": 0,
+        "strengths": "None identified in this evaluation.",
+        "weaknesses": "CATASTROPHIC: Complete failures in all participated scenarios (scores of 0), missing from 33% of scenarios, rate limiting issues, total inability to complete workflows. Represents highest production risk. Unusable for Kubernetes remediation tasks.",
+        "production_readiness": "avoid"
+      }
+    },
+    "overall_assessment": {
+      "winner": "vercel_claude-sonnet-4-5-20250929",
+      "rationale": "Claude-Sonnet-4-5 wins based on superior cross-scenario reliability (95% reliability score) and exceptional consistency (95% consistency score, 0.879 average). While Gemini-2.5-Flash achieved two first-place finishes, its catastrophic failure in scenario 3 (0.23 score, tool engagement failure) disqualifies it as most reliable. Claude demonstrates the critical production requirement: predictable, high-quality performance across ALL scenarios without catastrophic failures. Its consistent 2nd-place rankings represent the optimal risk-reward profile - never the fastest, but always reliable. Grok-4-Fast-Reasoning is nearly equal (97% reliability) but shows more variance. In production environments, the cost of a single catastrophic failure outweighs marginal speed advantages. Claude's computational overhead is a worthwhile trade for guaranteed reliability. Key insight: The evaluation validates that consistency and zero-failure rate are more valuable than peak performance with reliability gaps.",
+      "reliability_ranking": [
+        {
+          "model": "vercel_grok-4-fast-reasoning",
+          "reliability_score": 0.97,
+          "reliability_notes": "100% participation, 100% success rate, 97% consistency. Excellent balance of speed and reliability with focused execution."
+        },
+        {
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "reliability_score": 0.95,
+          "reliability_notes": "100% participation, 100% success rate, 95% consistency. Highest average score with zero catastrophic failures."
+        },
+        {
+          "model": "vercel_gpt-5",
+          "reliability_score": 0.92,
+          "reliability_notes": "100% participation, 100% success rate, 96% consistency. Solid performer with predictable quality but slower response times."
+        },
+        {
+          "model": "vercel_grok-4",
+          "reliability_score": 0.87,
+          "reliability_notes": "100% participation, 100% success rate, 93% consistency. Reliable but outperformed by fast-reasoning variant."
+        },
+        {
+          "model": "vercel_gemini-2.5-flash",
+          "reliability_score": 0.85,
+          "reliability_notes": "100% participation, 67% success rate (tool failure in scenario 3), 51% consistency. High variance undermines otherwise excellent performance."
+        },
+        {
+          "model": "vercel_deepseek-reasoner",
+          "reliability_score": 0.7,
+          "reliability_notes": "100% participation, 100% success rate, 92% consistency. Inefficient reasoning with diminishing returns."
+        },
+        {
+          "model": "vercel_gpt-5-pro",
+          "reliability_score": 0.68,
+          "reliability_notes": "100% participation, 100% success rate, 96% consistency. Operationally unacceptable response times (9-22 minutes)."
+        },
+        {
+          "model": "vercel_gemini-2.5-pro",
+          "reliability_score": 0.15,
+          "reliability_notes": "67% participation (1 complete failure), 50% success rate, 22% consistency. Critical reliability failures and format issues."
+        },
+        {
+          "model": "vercel_mistral-large-latest",
+          "reliability_score": 0,
+          "reliability_notes": "67% participation (1 complete failure), 0% success rate (all scores = 0), 0% consistency. Complete system failure."
+        }
+      ],
+      "production_recommendations": {
+        "primary": "vercel_claude-sonnet-4-5-20250929 - Most reliable choice with consistent high-quality performance across all scenarios. Zero catastrophic failures, predictable behavior, excellent diagnostic depth. Best for production environments where reliability cannot be compromised.",
+        "secondary": "vercel_grok-4-fast-reasoning - Excellent alternative with optimal speed-quality balance. Best choice when verification tasks are primary use case. Nearly equivalent reliability to Claude with faster response times.",
+        "avoid": [
+          "vercel_mistral-large-latest - Complete system failures, 0% success rate, unusable",
+          "vercel_gemini-2.5-pro - 33% scenario failure rate, critical reliability issues, format compliance failures",
+          "vercel_gpt-5-pro - Operationally unacceptable 9-22 minute response times despite quality"
+        ],
+        "specialized_use": {
+          "rapid_diagnostics": "vercel_gemini-2.5-flash - Fastest diagnostics (13-70s) when tool engagement is guaranteed, but requires fallback strategy for verification tasks",
+          "verification_tasks": "vercel_grok-4-fast-reasoning - Optimal for post-deployment verification with focused tool usage and sub-20s response times",
+          "comprehensive_analysis": "vercel_claude-sonnet-4-5-20250929 - Best for complex scenarios requiring detailed investigation and thorough documentation"
+        }
+      },
+      "key_insights": "This evaluation reveals five critical patterns: (1) SOPHISTICATION PARADOX - 'Pro' and 'reasoner' variants consistently underperform simpler models, suggesting architectural complexity introduces failure modes without quality gains. (2) CONSISTENCY OVER PEAKS - Models with first-place finishes but catastrophic failures (Gemini-Flash, Grok-Fast) are less production-ready than consistent performers (Claude). (3) SPEED-RELIABILITY CORRELATION - Faster models often maintain quality while reducing failure surface area; excessive iteration provides diminishing returns. (4) CATASTROPHIC FAILURE MODES - Missing scenarios and zero scores indicate systemic issues, not edge cases (Mistral, Gemini-Pro). (5) PRODUCTION REALITY - 38x speed differences and tool engagement failures represent operational showstoppers that outweigh diagnostic quality differences. The winner (Claude-Sonnet) exemplifies production excellence: not the fastest, cheapest, or most innovative, but the most reliably excellent across diverse scenarios. For Kubernetes remediation, reliability is the primary feature."
+    }
+  },
+  "results": [
+    {
+      "key": "remediation_comparative_remediate_automatic_analyze_execute",
+      "score": 0.945,
+      "comment": "This evaluation reveals significant performance stratification among models for Kubernetes troubleshooting. The top tier (Gemini-2.5-Flash, Claude-Sonnet-4-5, Grok-4-Fast) demonstrates that speed, efficiency, and quality can coexist - all completed in under 70 seconds with accurate diagnoses. The middle tier shows quality-performance tradeoffs: GPT-5 and Grok-4 provide excellent analysis but at 2-3x the duration. The bottom tier reveals critical failure modes: GPT-5-Pro's 22-minute duration despite excellent quality, Deepseek's infrastructure validation failures despite extensive reasoning, Gemini-2.5-Pro's response format failures despite correct investigation, and Mistral's complete failure. Key patterns: (1) Smaller/faster models often outperform larger ones in practical production scenarios, (2) extensive reasoning (Deepseek: 116K tokens) doesn't guarantee better outcomes, (3) reliability and format compliance are as critical as diagnostic accuracy, (4) token efficiency correlates with overall performance. For production Kubernetes troubleshooting, Gemini-2.5-Flash offers the best combination of speed, accuracy, and reliability, while Claude-Sonnet provides superior detail for complex scenarios requiring comprehensive analysis.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.945
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.918
+        },
+        {
+          "rank": 3,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.892
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gpt-5",
+          "score": 0.816
+        },
+        {
+          "rank": 5,
+          "model": "vercel_grok-4",
+          "score": 0.806
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.726
+        },
+        {
+          "rank": 7,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.718
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.672
+        },
+        {
+          "rank": 9,
+          "model": "vercel_mistral-large-latest",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_gemini-2.5-flash",
+      "modelCount": 9
+    },
+    {
+      "key": "remediation_comparative_remediate_manual_analyze",
+      "score": 0.94,
+      "comment": "The evaluation reveals clear performance tiers: (1) Gemini-2.5-Flash emerges as the optimal production model, combining speed (13.8s), efficiency (4 tool calls), and quality. (2) Claude-Sonnet-4-5 excels in diagnostic depth and communication, ideal when thoroughness trumps speed. (3) Mid-tier models (Grok-4, GPT-5, Deepseek) provide correct answers but with efficiency trade-offs. (4) Critical failures highlight reliability risks: Gemini-2.5-Pro's response format failure, GPT-5-Pro's 9-minute timeout, and Mistral's rate limiting demonstrate that even capable models can fail in production workflows. For OOMKilled scenarios, all successful models correctly identified the memory mismatch, with most recommending 300Mi (optimal buffer) over 256Mi (minimal buffer). Key insight: faster models (Gemini-Flash) achieved similar diagnostic quality to slower models, suggesting over-iteration provides diminishing returns. Token efficiency and response time matter significantly for user experience - Gemini-Flash's 14s vs GPT-5-Pro's 538s represents a 38x difference with comparable quality. Reliability and workflow completion are prerequisites; diagnostic quality is secondary if the model cannot consistently deliver structured responses.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.94
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.9
+        },
+        {
+          "rank": 3,
+          "model": "vercel_grok-4",
+          "score": 0.87
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gpt-5",
+          "score": 0.87
+        },
+        {
+          "rank": 5,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.84
+        },
+        {
+          "rank": 6,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.84
+        },
+        {
+          "rank": 7,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.74
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.43
+        },
+        {
+          "rank": 9,
+          "model": "vercel_mistral-large-latest",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_gemini-2.5-flash",
+      "modelCount": 9
+    },
+    {
+      "key": "remediation_comparative_remediate_manual_execute",
+      "score": 0.87,
+      "comment": "This scenario reveals critical trade-offs between diagnostic thoroughness and operational efficiency. The verification task was relatively straightforward (confirm rollout completion and pod stability), yet models showed 250x variance in response time (2.5s to 626s) and 18x variance in token usage (3K to 58K). Grok-4-Fast-Reasoning emerged as the winner by optimally balancing quality and speed - using only 3 focused tool calls to achieve accurate diagnosis in under 20 seconds. Claude-Sonnet-4-5 delivered the most comprehensive analysis but at significant computational cost. The 'reasoner' and 'pro' variants paradoxically performed worse, suggesting that more sophisticated reasoning capabilities don't necessarily improve performance on straightforward verification tasks. Gemini-2.5-Flash's complete failure to use tools highlights a critical reliability concern - some models may fail to engage with diagnostic tools entirely. For production Kubernetes troubleshooting, models should prioritize fast, focused investigation (3-5 tool calls) over exhaustive analysis, as the scenario typically requires confirmation rather than deep forensics. Models achieving sub-30-second response times with <20K tokens while maintaining >0.85 quality represent the optimal zone for operational use.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.87
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.82
+        },
+        {
+          "rank": 3,
+          "model": "vercel_gpt-5",
+          "score": 0.8
+        },
+        {
+          "rank": 4,
+          "model": "vercel_grok-4",
+          "score": 0.75
+        },
+        {
+          "rank": 5,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.71
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.68
+        },
+        {
+          "rank": 7,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.23
+        }
+      ],
+      "bestModel": "vercel_grok-4-fast-reasoning",
+      "modelCount": 7
+    }
+  ],
+  "summary": {
+    "totalDatasets": 32,
+    "availableModels": [
+      "vercel_claude-sonnet-4-5-20250929_2025-10-13",
+      "vercel_deepseek-reasoner_2025-10-13",
+      "vercel_gemini-2.5-flash_2025-10-14",
+      "vercel_gemini-2.5-pro_2025-10-14",
+      "vercel_gpt-5-pro_2025-10-14",
+      "vercel_gpt-5_2025-10-14",
+      "vercel_grok-4-fast-reasoning_2025-10-14",
+      "vercel_grok-4_2025-10-14",
+      "vercel_mistral-large-latest_2025-10-14"
+    ],
+    "scenariosWithMultipleModels": 3,
+    "interactionTypes": [
+      "automatic_analyze_execute",
+      "manual_analyze",
+      "manual_execute"
+    ]
+  }
+}

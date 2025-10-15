@@ -69,6 +69,6 @@ Analyze all AI responses against these weighted criteria and return ONLY a JSON 
       "rationale": "<why this model ranked first>"
     }
   ],
-  "overall_insights": "<key insights about model differences and performance patterns>"
+  "overall_insights": "<key insights about model differences and performance patterns for this scenario>"
 }
 ```

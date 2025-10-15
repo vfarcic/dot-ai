@@ -68,7 +68,14 @@ export class VercelProvider implements AIProvider {
           provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
         case 'anthropic':
-          provider = createAnthropic({ apiKey: this.apiKey });
+          provider = createAnthropic({ 
+            apiKey: this.apiKey,
+            // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
+            // Required for models like claude-sonnet-4-5-20250929
+            headers: {
+              'anthropic-beta': 'context-1m-2025-08-07'
+            }
+          });
           break;
         case 'xai':
         case 'xai_fast':
@@ -143,10 +150,11 @@ export class VercelProvider implements AIProvider {
 
     try {
       // Use Vercel AI SDK generateText
-      // Note: maxTokens omitted - let SDK/provider use model-specific optimal defaults
+      // Set maxOutputTokens to 8192 for better support of comprehensive responses
       const result = await generateText({
         model: this.modelInstance,
         prompt: message,
+        maxOutputTokens: 8192, // Increased from default 4096 to support longer responses
       });
 
       const response: AIResponse = {
@@ -338,7 +346,8 @@ export class VercelProvider implements AIProvider {
         model: this.modelInstance,
         messages,
         tools,
-        stopWhen: stepCountIs(maxIterations)
+        stopWhen: stepCountIs(maxIterations),
+        maxOutputTokens: 8192 // Increased from default 4096 to support longer responses
       };
 
       // Add system parameter for non-Anthropic providers

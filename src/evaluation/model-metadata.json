@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2025-01-14",
+  "lastUpdated": "2025-10-15",
   "dataSource": "Manual collection from provider websites", 
   "updateInstructions": "Execute command `/update-model-metadata` when this data becomes stale",
   "models": {

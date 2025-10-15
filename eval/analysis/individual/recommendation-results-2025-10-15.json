@@ -1,0 +1,493 @@
+{
+  "metadata": {
+    "reportType": "comparative-evaluation",
+    "evaluationType": "recommendation",
+    "generated": "2025-10-15T12:19:11.924Z",
+    "scenariosAnalyzed": 3,
+    "modelsEvaluated": 9,
+    "totalDatasets": 160,
+    "tool": "Recommendation AI Model Comparison Report"
+  },
+  "modelMetadata": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15,
+        "output_cost_per_million_tokens": 120
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4,
+        "output_cost_per_million_tokens": 20
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.2,
+        "output_cost_per_million_tokens": 0.5
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2,
+        "output_cost_per_million_tokens": 6
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "overallAssessment": {
+    "assessment_summary": "Cross-scenario evaluation of 9 models across 3 recommendation workflow phases (clarification, manifest generation, solution assembly) reveals clear performance tiers. Critical finding: vercel_gpt-5-pro demonstrates catastrophic reliability failure with 0% participation rate. Top performers show distinct specialization patterns - Gemini-2.5-Pro excels at interactive phases, Claude-Sonnet dominates complex generation tasks, while most models struggle with the demanding manifest generation phase that exposed timeout and efficiency issues.",
+    "models_analyzed": [
+      "vercel_gemini-2.5-pro",
+      "vercel_gemini-2.5-flash",
+      "vercel_mistral-large-latest",
+      "vercel_grok-4-fast-reasoning",
+      "vercel_grok-4",
+      "vercel_claude-sonnet-4-5-20250929",
+      "vercel_gpt-5",
+      "vercel_deepseek-reasoner",
+      "vercel_gpt-5-pro"
+    ],
+    "detailed_analysis": {
+      "vercel_gemini-2.5-pro": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.7417,
+        "consistency_score": 0.79,
+        "reliability_score": 0.79,
+        "strengths": "Wins 2 of 3 scenarios (clarification and solution assembly). Excellent balance of quality, efficiency, and speed. Best response times for interactive phases (142s solution assembly). Consistent top-3 performance across all scenarios. Optimal token efficiency for user-facing interactions.",
+        "weaknesses": "Timed out in manifest generation phase (score 0.563) despite quality content. High token consumption (604K) in complex generation tasks. Reliability issues when workflows exceed certain complexity thresholds.",
+        "production_readiness": "secondary"
+      },
+      "vercel_gemini-2.5-flash": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.7307,
+        "consistency_score": 0.81,
+        "reliability_score": 0.81,
+        "strengths": "Second place in clarification phase (0.868). Consistently strong performance across all scenarios. Good quality-efficiency balance. Reliable participation across diverse workflows.",
+        "weaknesses": "Similar manifest generation timeout issues as Pro variant (score 0.544). Extremely high token consumption (604K) before timeout. Mid-tier performance in solution assembly (0.78).",
+        "production_readiness": "secondary"
+      },
+      "vercel_mistral-large-latest": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.8283,
+        "consistency_score": 0.89,
+        "reliability_score": 0.89,
+        "strengths": "Second place in manifest generation (0.905) - one of only 3 models to complete successfully. Tied for 3rd in clarification (0.85). Completed all scenarios reliably. Strong technical accuracy and comprehensive outputs.",
+        "weaknesses": "High token consumption (159K in solution assembly). Lower ranking in solution assembly (0.73, rank 7). Trade-off between comprehensiveness and efficiency. Response times can be prohibitive for interactive use.",
+        "production_readiness": "primary"
+      },
+      "vercel_grok-4-fast-reasoning": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.727,
+        "consistency_score": 0.82,
+        "reliability_score": 0.82,
+        "strengths": "Lives up to 'fast' promise with 2-3x faster response times. Second place in solution assembly (0.82). Excellent token efficiency (53K tokens). Good quality-speed balance. Tied for 3rd in clarification.",
+        "weaknesses": "Timed out in manifest generation (0.511). Struggles with complex generation tasks requiring extended reasoning. Lower absolute scores compared to top performers.",
+        "production_readiness": "secondary"
+      },
+      "vercel_grok-4": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.7137,
+        "consistency_score": 0.81,
+        "reliability_score": 0.81,
+        "strengths": "Participated in all scenarios. Third place in solution assembly (0.8). Consistent mid-tier performance. Good reliability profile for general-purpose use.",
+        "weaknesses": "Timed out in manifest generation (0.522). Fifth place in clarification (0.819). No standout strengths across scenarios. Middle-of-pack efficiency metrics.",
+        "production_readiness": "secondary"
+      },
+      "vercel_claude-sonnet-4-5-20250929": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.8442,
+        "consistency_score": 0.88,
+        "reliability_score": 0.88,
+        "strengths": "Winner of manifest generation (0.9575) - the most demanding scenario. Only 29K tokens in manifest generation (most efficient). Advanced problem-solving (CRD detection, operator manifests). Tied for 4th in solution assembly (0.78). Complete workflow reliability.",
+        "weaknesses": "Lower ranking in clarification phase (0.795, rank 6). High verbosity impacts efficiency in interactive phases. Slower response times for user-facing interactions. High token costs in some scenarios.",
+        "production_readiness": "primary"
+      },
+      "vercel_gpt-5": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.6673,
+        "consistency_score": 0.84,
+        "reliability_score": 0.84,
+        "strengths": "Participated in all scenarios. Consistent performance without catastrophic failures. Good technical quality in content generation.",
+        "weaknesses": "Timed out in manifest generation (0.526). Seventh place in clarification (0.736). Sixth place in solution assembly (0.74). High verbosity and token costs. Poor efficiency-quality balance. Significant response time issues (108s in clarification).",
+        "production_readiness": "limited"
+      },
+      "vercel_deepseek-reasoner": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.7548,
+        "consistency_score": 0.85,
+        "reliability_score": 0.85,
+        "strengths": "Third place in manifest generation (0.8335) - one of only 3 successful completions. Completed all scenarios including the most demanding one. Reliability over speed (376s but successful).",
+        "weaknesses": "Last place in clarification (0.721, rank 8). Last place in solution assembly (0.71, rank 8). Very slow response times (376s manifest generation, 530s solution assembly). Poor user experience for interactive workflows.",
+        "production_readiness": "limited"
+      },
+      "vercel_gpt-5-pro": {
+        "participation_rate": 0.33,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase"
+        ],
+        "scenarios_failed": [
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "average_score": 0,
+        "consistency_score": 0,
+        "reliability_score": 0,
+        "strengths": "None identifiable - catastrophic failure pattern.",
+        "weaknesses": "Scored 0.0 in clarification phase despite participating. Completely missing from 2 of 3 scenarios. 67% failure rate across all scenarios. Critical reliability issues indicating systemic problems. Represents catastrophic production risk.",
+        "production_readiness": "avoid"
+      }
+    },
+    "overall_assessment": {
+      "winner": "vercel_mistral-large-latest",
+      "rationale": "Mistral-Large emerges as the overall winner based on superior cross-scenario reliability and production readiness. Key factors: (1) 100% participation rate across all scenarios with no failures. (2) Second-highest average score (0.8283) demonstrating strong performance. (3) High consistency score (0.89) indicating predictable behavior. (4) Critical success in manifest generation (0.905, rank 2) - one of only 3 models to complete the most demanding scenario. (5) Solid performance in clarification phase (0.85, tied rank 3). (6) Completed all workflows successfully without timeouts or catastrophic failures. While Claude-Sonnet has a slightly higher average score (0.8442) and wins manifest generation, Mistral offers better balance across interactive and batch scenarios. Claude's lower clarification ranking (0.795, rank 6) and high verbosity create user experience concerns for interactive workflows. Gemini-2.5-Pro wins 2 scenarios but has reliability issues in complex generation tasks. The winner must excel not just in peak performance but in consistent, reliable execution across diverse workflow phases - Mistral achieves this balance.",
+      "reliability_ranking": [
+        {
+          "model": "vercel_mistral-large-latest",
+          "reliability_score": 0.89,
+          "reliability_notes": "100% participation, 100% success rate (all scores >0.3), high consistency (0.89), completed demanding manifest generation successfully"
+        },
+        {
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "reliability_score": 0.88,
+          "reliability_notes": "100% participation, 100% success rate, excellent consistency (0.88), wins most demanding scenario with exceptional efficiency"
+        },
+        {
+          "model": "vercel_deepseek-reasoner",
+          "reliability_score": 0.85,
+          "reliability_notes": "100% participation, 100% success rate, one of only 3 to complete manifest generation, trades speed for reliability"
+        },
+        {
+          "model": "vercel_gpt-5",
+          "reliability_score": 0.84,
+          "reliability_notes": "100% participation, 100% success rate, but consistently lower rankings and efficiency issues"
+        },
+        {
+          "model": "vercel_grok-4-fast-reasoning",
+          "reliability_score": 0.82,
+          "reliability_notes": "100% participation, 100% success rate, excellent speed-quality balance, manifest timeout is only concern"
+        },
+        {
+          "model": "vercel_gemini-2.5-flash",
+          "reliability_score": 0.81,
+          "reliability_notes": "100% participation, 100% success rate, strong clarification performance, manifest timeout reduces reliability"
+        },
+        {
+          "model": "vercel_grok-4",
+          "reliability_score": 0.81,
+          "reliability_notes": "100% participation, 100% success rate, consistent mid-tier performer, manifest timeout present"
+        },
+        {
+          "model": "vercel_gemini-2.5-pro",
+          "reliability_score": 0.79,
+          "reliability_notes": "100% participation, wins 2 scenarios but manifest timeout (0.563) indicates reliability concerns for complex tasks"
+        },
+        {
+          "model": "vercel_gpt-5-pro",
+          "reliability_score": 0,
+          "reliability_notes": "33% participation rate, 0.0 score in participated scenario, missing from 67% of scenarios - catastrophic failure"
+        }
+      ],
+      "production_recommendations": {
+        "primary": "vercel_mistral-large-latest - Best overall reliability and consistency across all workflow phases. Successfully handles both interactive clarification and complex manifest generation. Predictable performance characteristics suitable for production deployment.",
+        "secondary": "vercel_claude-sonnet-4-5-20250929 - Exceptional for complex generation tasks and batch processing. Best choice when workflow reliability and technical depth matter more than interactive response times. Ideal for enterprise planning scenarios.",
+        "avoid": [
+          "vercel_gpt-5-pro - Catastrophic 67% failure rate with 0.0 scores makes it unsuitable for any production use. Systemic reliability issues require investigation before deployment consideration."
+        ],
+        "specialized_use": {
+          "interactive_clarification_workflows": "vercel_gemini-2.5-pro - Wins clarification phase with optimal balance of quality, efficiency, and speed. Best for user-facing interactive scenarios requiring quick responses.",
+          "complex_manifest_generation": "vercel_claude-sonnet-4-5-20250929 - Dominates manifest generation with 0.9575 score and exceptional token efficiency (29K). Advanced problem-solving capabilities for complex Kubernetes workflows.",
+          "speed_critical_applications": "vercel_grok-4-fast-reasoning - Delivers 2-3x faster response times while maintaining good quality. Optimal for latency-sensitive production deployments.",
+          "cost_sensitive_deployments": "vercel_gemini-2.5-flash - Strong performance with reasonable efficiency. Good alternative when balancing quality and operational costs."
+        }
+      },
+      "key_insights": "Critical insights from cross-scenario analysis: (1) RELIABILITY CRISIS: Only 3 of 9 models successfully completed the demanding manifest generation phase, revealing a fundamental divide between production-ready and prototype-grade models. (2) CATASTROPHIC FAILURE PATTERN: GPT-5-Pro's 67% failure rate demonstrates that missing scenarios indicate systemic reliability issues, not just poor performance. (3) SPECIALIZATION vs GENERALIZATION: Top performers show distinct patterns - Gemini excels at interactive workflows, Claude dominates complex generation, Mistral provides balanced reliability. (4) EFFICIENCY PARADOX: Token consumption varies 20x (29K to 604K) for same task, with highest consumers often timing out - efficiency directly impacts reliability. (5) SPEED-RELIABILITY TRADEOFF: DeepSeek proves slower models can be reliable (376s but completes), while faster Gemini models timeout - speed without completion is worthless. (6) PRODUCTION READINESS FACTORS: Success requires participation (100%), completion (no timeouts), consistency (low variance), and efficiency (reasonable resources). Only 4 models achieve all criteria. (7) INTERACTIVE vs BATCH DICHOTOMY: Different workflow phases favor different models - single model may not optimize all scenarios. (8) CONSISTENCY TRUMPS PEAK PERFORMANCE: Mistral's balanced 0.85-0.905 range beats Gemini's 0.563-0.882 volatility for production deployment. (9) TIMEOUT AS FAILURE MODE: Manifest generation exposed critical reliability issues - 6 of 9 models failed to complete, making this scenario the key discriminator for production readiness. (10) RECOMMENDATION: Deploy Mistral for general reliability, keep Claude for complex batch tasks, use Gemini-Pro for interactive-only workflows, and completely avoid GPT-5-Pro until reliability issues resolved."
+    }
+  },
+  "results": [
+    {
+      "key": "recommendation_comparative_recommend_clarification_phase",
+      "score": 0.882,
+      "comment": "The evaluation reveals clear performance tiers: Gemini models (2.5-pro and 2.5-flash) lead with optimal quality-efficiency-performance balance, making them ideal for production clarification workflows. Mid-tier models (Mistral, Grok variants) provide solid alternatives with different trade-offs - Mistral emphasizes comprehensiveness while Grok-fast prioritizes efficiency. High-verbosity models (Claude, GPT-5) achieve exceptional quality but at significant efficiency costs, making them better suited for comprehensive enterprise planning than interactive clarification. The catastrophic failure of GPT-5-pro highlights reliability as a critical factor. Key insight: for clarification phases, focused precision (10-16 opportunities) outperforms exhaustive enumeration, as users need actionable questions to progress rather than overwhelming detail. Response time variance (25s to 108s) significantly impacts user experience, with sub-40s responses providing notably better interactivity. Token efficiency correlates strongly with practical usability - models using 1600-2200 tokens deliver optimal information density without overwhelming users.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.882
+        },
+        {
+          "rank": 2,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.868
+        },
+        {
+          "rank": 3,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.85
+        },
+        {
+          "rank": 3,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.85
+        },
+        {
+          "rank": 5,
+          "model": "vercel_grok-4",
+          "score": 0.819
+        },
+        {
+          "rank": 6,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.795
+        },
+        {
+          "rank": 7,
+          "model": "vercel_gpt-5",
+          "score": 0.736
+        },
+        {
+          "rank": 8,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.721
+        },
+        {
+          "rank": 9,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_gemini-2.5-pro",
+      "modelCount": 9
+    },
+    {
+      "key": "recommendation_comparative_recommend_generate_manifests_phase",
+      "score": 0.9575,
+      "comment": "This evaluation reveals critical differences in model reliability and efficiency for complex Kubernetes manifest generation workflows. The top performers (Claude Sonnet and Mistral Large) distinguished themselves through complete workflow reliability and efficient convergence on correct solutions. A significant divide exists between models that completed successfully (Claude, Mistral, DeepSeek) and those that timed out despite generating quality content (Gemini variants, GPT-5, Grok-4 variants). Token efficiency varies dramatically - Claude achieved the best results with just 29K tokens while Gemini-Flash consumed 604K tokens before timing out. The manifest generation phase appears to be a discriminator for production readiness: models must balance technical accuracy with practical efficiency and reliability. Interestingly, model speed doesn't correlate directly with success - DeepSeek took 376s but completed reliably, while faster models failed. The ability to recognize missing CRDs and generate operator installation manifests (as Claude did) represents advanced problem-solving. For production Kubernetes workflows, reliability and efficiency are as critical as technical accuracy - a perfect manifest that arrives after 20 minutes is less valuable than a good manifest that arrives in 30 seconds.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.9575
+        },
+        {
+          "rank": 2,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.905
+        },
+        {
+          "rank": 3,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.8335
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.563
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.544
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5",
+          "score": 0.526
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4",
+          "score": 0.522
+        },
+        {
+          "rank": 8,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.511
+        },
+        {
+          "rank": 9,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_claude-sonnet-4-5-20250929",
+      "modelCount": 9
+    },
+    {
+      "key": "recommendation_comparative_recommend_solution_assembly_phase",
+      "score": 0.88,
+      "comment": "This evaluation reveals significant performance divergence among models for the PostgreSQL deployment recommendation phase. Key findings: (1) Gemini-2.5-Pro emerges as the clear winner, offering the best balance of quality, efficiency, and speed - ideal for production deployments requiring reliability and responsiveness. (2) There's a strong inverse correlation between comprehensiveness and efficiency - Claude Sonnet, GPT-5, and Mistral produce excellent technical content but at prohibitive token/time costs. (3) The 'fast-reasoning' models (Grok-4-fast) deliver on their promise with 2-3x faster response times while maintaining good quality. (4) All models correctly identified CloudNativePG as the preferred solution for production PostgreSQL deployments, showing good alignment on best practices. (5) Performance variance is extreme - from 142s (Gemini-2.5-Pro) to 530s (DeepSeek), a 3.7x difference that significantly impacts user experience. (6) Token efficiency varies dramatically - from 53K (Grok-4-fast) to 159K (Mistral), a 3x difference that impacts costs and latency. (7) For the solution_assembly_phase specifically, quality is paramount but efficiency cannot be ignored - models that take 5-9 minutes to respond are impractical for interactive workflows regardless of quality. (8) Question generation quality correlates strongly with overall model quality - top performers generate well-structured, validated questions with clear hints. (9) The weighted scoring approach successfully balances multiple dimensions, preventing single-dimension outliers from dominating rankings. (10) For production Kubernetes deployments, Gemini-2.5-Pro, Grok-4-fast, and Grok-4 represent the best practical choices, combining solid technical quality with acceptable performance characteristics.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.88
+        },
+        {
+          "rank": 2,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.82
+        },
+        {
+          "rank": 3,
+          "model": "vercel_grok-4",
+          "score": 0.8
+        },
+        {
+          "rank": 4,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.78
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.78
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5",
+          "score": 0.74
+        },
+        {
+          "rank": 7,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.73
+        },
+        {
+          "rank": 8,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.71
+        }
+      ],
+      "bestModel": "vercel_gemini-2.5-pro",
+      "modelCount": 8
+    }
+  ],
+  "summary": {
+    "totalDatasets": 160,
+    "availableModels": [
+      "vercel_claude-sonnet-4-5-20250929_2025-10-13",
+      "vercel_deepseek-reasoner_2025-10-13",
+      "vercel_gemini-2.5-flash_2025-10-14",
+      "vercel_gemini-2.5-pro_2025-10-14",
+      "vercel_gpt-5-pro_2025-10-14",
+      "vercel_gpt-5_2025-10-14",
+      "vercel_grok-4-fast-reasoning_2025-10-14",
+      "vercel_grok-4_2025-10-14",
+      "vercel_mistral-large-latest_2025-10-14"
+    ],
+    "scenariosWithMultipleModels": 3,
+    "interactionTypes": [
+      "clarification_phase",
+      "generate_manifests_phase",
+      "solution_assembly_phase"
+    ]
+  }
+}

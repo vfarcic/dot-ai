@@ -47,7 +47,9 @@
 npm run test:integration                            # Run integration tests
 npm run build                                       # Build the project
 npm run start:mcp                                   # Start MCP server
-npm run eval:comparative                            # Run comparative evaluations
+npm run eval:comparative                            # Run comparative evaluations (all datasets)
+npm run eval:comparative remediation                # Run comparative evaluations (remediation only)
+npm run eval:comparative capability                 # Run comparative evaluations (capability only)
 ```
 
 ## AI Prompt Management 🤖

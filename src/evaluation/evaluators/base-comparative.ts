@@ -37,7 +37,6 @@ export interface ComparativeEvaluationResult {
     reasoning?: string;
   }>;
   overall_insights?: string;
-  overall_assessment?: string;
 }
 
 export interface ComparativeEvaluationScore extends EvaluationScore {
@@ -106,6 +105,54 @@ export abstract class BaseComparativeEvaluator {
   }
 
   /**
+   * Conduct final assessment across all scenarios to determine overall winner
+   */
+  async conductFinalAssessment(scenarioResults: ComparativeEvaluationScore[]): Promise<any> {
+    if (scenarioResults.length === 0) {
+      throw new Error('No scenario results provided for final assessment');
+    }
+
+    // Load the overall winner assessment prompt
+    const promptPath = join(process.cwd(), 'src', 'evaluation', 'prompts', 'overall-winner-assessment.md');
+    const overallWinnerTemplate = readFileSync(promptPath, 'utf8');
+
+    // Get all models that should have been tested (from first scenario)
+    const allModels = scenarioResults[0]?.modelRankings?.map(r => r.model) || [];
+    
+    // Build the final assessment prompt with raw data
+    const finalPrompt = overallWinnerTemplate
+      .replace('{tool_type}', this.toolName)
+      .replace('{total_scenarios}', scenarioResults.length.toString())
+      .replace('{expected_models}', JSON.stringify(allModels))
+      .replace('{scenario_results}', JSON.stringify(scenarioResults, null, 2));
+
+    try {
+      console.log(`\n🔍 Conducting final assessment across ${scenarioResults.length} scenarios for ${this.toolName}\n`);
+      
+      const response = await this.evaluatorModel.sendMessage(
+        finalPrompt,
+        `${this.name}-final-assessment`,
+        {
+          user_intent: `Final cross-scenario assessment for ${this.toolName}`,
+          interaction_id: 'final-assessment'
+        }
+      );
+
+      // Extract JSON from AI response
+      const finalAssessment = extractJsonFromAIResponse(response.content);
+      
+      console.log(`✅ Final Assessment Complete for ${this.toolName}`);
+      console.log(`🏆 Overall Winner: ${finalAssessment.overall_assessment?.winner || 'Unknown'}`);
+      
+      return finalAssessment;
+
+    } catch (error) {
+      console.error(`Final assessment failed for ${this.toolName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Evaluate a single scenario comparing all available models
    */
   async evaluateScenario(scenario: ComparisonScenario): Promise<ComparativeEvaluationScore> {
@@ -169,7 +216,7 @@ ${modelResponse.response}
       return {
         key: `${this.name}_${scenario.interaction_id}`,
         score: bestScore,
-        comment: evaluation.overall_insights || evaluation.overall_assessment || 'Comparative evaluation completed',
+        comment: evaluation.overall_insights || 'Comparative evaluation completed',
         confidence: 0.9, // High confidence for comparative evaluation
         modelRankings: rankings.map(r => ({
           rank: r.rank,

@@ -102,13 +102,6 @@ export function logEvaluationDataset(
   if (shouldSkipDatasetGeneration(metrics.test_scenario)) return;
 
   try {
-    const evalDir = path.join(process.cwd(), 'eval', 'datasets');
-    
-    // Ensure eval datasets directory exists
-    if (!fs.existsSync(evalDir)) {
-      fs.mkdirSync(evalDir, { recursive: true });
-    }
-
     // Parse operation for tool name
     const operationParts = metrics.operation.split('-');
     const toolName = operationParts[0]; // e.g., "remediate"
@@ -116,18 +109,28 @@ export function logEvaluationDataset(
     // Check if this is a comparative evaluation
     const isComparativeEvaluation = metrics.operation.includes('-comparative-');
     
+    // Use different directories for comparative evaluations vs raw test datasets
+    const baseDir = isComparativeEvaluation ? 
+      path.join(process.cwd(), 'eval', 'results') :  // Comparative evaluation results go here
+      path.join(process.cwd(), 'eval', 'datasets');  // Raw test datasets go here
+    
+    // Ensure directory exists
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
+    }
+
     let datasetFile: string;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T').join('_');
     
     if (isComparativeEvaluation) {
-      // For comparative evaluations, don't include single model name since it compares multiple models
-      datasetFile = path.join(evalDir, `${toolName}_comparative_evaluation_${timestamp}.jsonl`);
+      // For comparative evaluations, save to results directory
+      datasetFile = path.join(baseDir, `${toolName}_comparative_evaluation_${timestamp}.jsonl`);
     } else {
       // Use modelVersion directly for accurate model identification
       const modelName = metrics.modelVersion || 'unknown';
       
       // Create filename with interaction ID, SDK, model, and timestamp for single-model datasets
-      datasetFile = path.join(evalDir, `${toolName}_${metrics.interaction_id}_${metrics.sdk}_${modelName}_${timestamp}.jsonl`);
+      datasetFile = path.join(baseDir, `${toolName}_${metrics.interaction_id}_${metrics.sdk}_${modelName}_${timestamp}.jsonl`);
     }
 
     // Transform metrics into OpenAI Evals format (no ideal field - using model-graded evaluation)
