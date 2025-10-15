@@ -291,24 +291,28 @@ jobs:
         
         echo "Released coordinated version: $VERSION"
     
-    - name: Publish to MCP Registry
-      run: |
-        VERSION=${{ needs.version.outputs.new-version }}
-        echo "Publishing dot-ai v$VERSION to MCP Registry"
-        
-        # Install MCP publisher CLI (latest version with bug fixes)
-        echo "Installing MCP publisher CLI v1.1.0..."
-        curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.1.0/mcp-publisher_1.1.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
-        
-        # Use GitHub OIDC for authentication (no login needed in GitHub Actions)
-        echo "Authenticating with GitHub OIDC..."
-        ./mcp-publisher login github-oidc
-        
-        # Publish the server
-        echo "Publishing server.json..."
-        ./mcp-publisher publish server.json
-        
-        echo "Successfully published dot-ai v$VERSION to MCP Registry"
+    # Temporarily disabled: MCP Registry schema migration in progress
+    # The 2025-09-29 schema is marked as deprecated but documentation hasn't been updated
+    # with the new schema version yet. Re-enable once new schema is documented.
+    # See: https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/server-json/CHANGELOG.md
+    # - name: Publish to MCP Registry
+    #   run: |
+    #     VERSION=${{ needs.version.outputs.new-version }}
+    #     echo "Publishing dot-ai v$VERSION to MCP Registry"
+    #
+    #     # Install MCP publisher CLI (latest version with bug fixes)
+    #     echo "Installing MCP publisher CLI v1.1.0..."
+    #     curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.1.0/mcp-publisher_1.1.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+    #
+    #     # Use GitHub OIDC for authentication (no login needed in GitHub Actions)
+    #     echo "Authenticating with GitHub OIDC..."
+    #     ./mcp-publisher login github-oidc
+    #
+    #     # Publish the server
+    #     echo "Publishing server.json..."
+    #     ./mcp-publisher publish server.json
+    #
+    #     echo "Successfully published dot-ai v$VERSION to MCP Registry"
     
     - name: Generate release notes
       run: |
