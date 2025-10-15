@@ -9,6 +9,9 @@ import { generateText, jsonSchema, tool, stepCountIs } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createXai } from '@ai-sdk/xai';
+import { createMistral } from '@ai-sdk/mistral';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 import {
   AIProvider,
   AIResponse,
@@ -20,6 +23,9 @@ import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEva
 import { CURRENT_MODELS } from '../model-config';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
+
+// Get all supported provider keys dynamically from CURRENT_MODELS
+const SUPPORTED_PROVIDERS = Object.keys(CURRENT_MODELS) as SupportedProvider[];
 
 export class VercelProvider implements AIProvider {
   private providerType: SupportedProvider;
@@ -43,39 +49,50 @@ export class VercelProvider implements AIProvider {
       throw new Error(`API key is required for ${this.providerType} provider`);
     }
 
-    if (!['openai', 'openai_pro', 'google', 'anthropic'].includes(this.providerType)) {
-      throw new Error(`Unsupported provider: ${this.providerType}. Must be 'openai', 'openai_pro', 'google', or 'anthropic'`);
+    if (!SUPPORTED_PROVIDERS.includes(this.providerType)) {
+      throw new Error(`Unsupported provider: ${this.providerType}. Must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`);
     }
   }
 
   private initializeModel(): void {
     try {
+      let provider: any;
+      
       switch (this.providerType) {
         case 'openai':
-        case 'openai_pro': {
-          const provider = createOpenAI({
-            apiKey: this.apiKey
-          });
-          this.modelInstance = provider(this.model);
+        case 'openai_pro':
+          provider = createOpenAI({ apiKey: this.apiKey });
           break;
-        }
-        case 'google': {
-          const provider = createGoogleGenerativeAI({
-            apiKey: this.apiKey
-          });
-          this.modelInstance = provider(this.model);
+        case 'google':
+        case 'google_fast':
+          provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
-        }
-        case 'anthropic': {
-          const provider = createAnthropic({
-            apiKey: this.apiKey
+        case 'anthropic':
+        case 'anthropic_haiku':
+          provider = createAnthropic({ 
+            apiKey: this.apiKey,
+            // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
+            // Required for models like claude-sonnet-4-5-20250929
+            headers: {
+              'anthropic-beta': 'context-1m-2025-08-07'
+            }
           });
-          this.modelInstance = provider(this.model);
           break;
-        }
+        case 'xai':
+        case 'xai_fast':
+          provider = createXai({ apiKey: this.apiKey });
+          break;
+        case 'mistral':
+          provider = createMistral({ apiKey: this.apiKey });
+          break;
+        case 'deepseek':
+          provider = createDeepSeek({ apiKey: this.apiKey });
+          break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);
       }
+      
+      this.modelInstance = provider(this.model);
     } catch (error) {
       throw new Error(`Failed to initialize ${this.providerType} model: ${error}`);
     }
@@ -87,6 +104,14 @@ export class VercelProvider implements AIProvider {
 
   getDefaultModel(): string {
     return CURRENT_MODELS[this.providerType];
+  }
+
+  getModelName(): string {
+    return this.model;
+  }
+
+  getSDKProvider(): string {
+    return this.providerType;
   }
 
   isInitialized(): boolean {
@@ -126,10 +151,11 @@ export class VercelProvider implements AIProvider {
 
     try {
       // Use Vercel AI SDK generateText
-      // Note: maxTokens omitted - let SDK/provider use model-specific optimal defaults
+      // Set maxOutputTokens to 8192 for better support of comprehensive responses
       const result = await generateText({
         model: this.modelInstance,
         prompt: message,
+        maxOutputTokens: 8192, // Increased from default 4096 to support longer responses
       });
 
       const response: AIResponse = {
@@ -185,6 +211,33 @@ export class VercelProvider implements AIProvider {
       return response;
 
     } catch (error) {
+      // Generate dataset for failed AI interaction
+      if (this.debugMode && evaluationContext) {
+        const failureMetrics: EvaluationMetrics = {
+          operation,
+          user_intent: evaluationContext.user_intent || '',
+          ai_response_summary: `Error: ${error instanceof Error ? error.message : String(error)}`,
+          durationMs: Date.now() - startTime,
+          inputTokens: 0,
+          outputTokens: 0,
+          iterationCount: 0,
+          toolCallCount: 0,
+          status: 'failed',
+          completionReason: 'error',
+          sdk: this.getProviderType(),
+          modelVersion: this.model,
+          test_scenario: operation,
+          interaction_id: evaluationContext.interaction_id || generateDebugId(operation),
+          failure_analysis: {
+            failure_type: "error",
+            failure_reason: `${this.providerType} API error: ${error instanceof Error ? error.message : String(error)}`,
+            time_to_failure: Date.now() - startTime
+          }
+        };
+        
+        logEvaluationDataset(failureMetrics, this.debugMode);
+      }
+      
       throw new Error(`${this.providerType} API error: ${error}`);
     }
   }
@@ -228,7 +281,7 @@ export class VercelProvider implements AIProvider {
 
       // Add cache control ONLY to last tool for Anthropic (max 4 cache breakpoints)
       // This caches the system prompt + all tools together
-      if (this.providerType === 'anthropic' && isLastTool) {
+      if ((this.providerType === 'anthropic' || this.providerType === 'anthropic_haiku') && isLastTool) {
         (toolDef as any).providerOptions = {
           anthropic: {
             cacheControl: { type: 'ephemeral' }
@@ -251,7 +304,7 @@ export class VercelProvider implements AIProvider {
     const messages: any[] = [];
     let systemParam: string | undefined;
 
-    if (this.providerType === 'anthropic') {
+    if (this.providerType === 'anthropic' || this.providerType === 'anthropic_haiku') {
       // For Anthropic: Put system in messages array with cacheControl
       messages.push({
         role: 'system',
@@ -294,7 +347,8 @@ export class VercelProvider implements AIProvider {
         model: this.modelInstance,
         messages,
         tools,
-        stopWhen: stepCountIs(maxIterations)
+        stopWhen: stepCountIs(maxIterations),
+        maxOutputTokens: 8192 // Increased from default 4096 to support longer responses
       };
 
       // Add system parameter for non-Anthropic providers
@@ -304,6 +358,89 @@ export class VercelProvider implements AIProvider {
 
       const result = await generateText(generateConfig);
 
+      // Log raw response immediately after generation (before any processing)
+      let debugFiles: { promptFile: string; responseFile: string } | null = null;
+      if (this.debugMode) {
+        // Build the full conversation context like Anthropic provider does
+        let finalPrompt = `System: ${config.systemPrompt}\n\n`;
+        
+        // Always include the original user intent first
+        finalPrompt += `user: ${config.userMessage}\n\n`;
+        
+        // Then add the conversation history if available
+        if (result.response?.messages) {
+          finalPrompt += result.response.messages
+            .map(msg => {
+              if (typeof msg.content === 'string') {
+                return `${msg.role}: ${msg.content}`;
+              } else if (Array.isArray(msg.content)) {
+                const contentParts = msg.content.map(part => {
+                  if (part.type === 'text') {
+                    return (part as any).text;
+                  } else if (part.type === 'tool-call') {
+                    return `[TOOL_USE: ${(part as any).toolName}]`;
+                  } else if (part.type === 'tool-result') {
+                    const resultData = (part as any).output || (part as any).result || (part as any).content;
+                    if (typeof resultData === 'string') {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
+                    } else if (resultData) {
+                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
+                    }
+                    return `[TOOL_RESULT: ${(part as any).toolName}]`;
+                  }
+                  return `[${part.type}]`;
+                }).join(' ');
+                return `${msg.role}: ${contentParts}`;
+              }
+              return `${msg.role}: [complex_content]`;
+            })
+            .join('\n\n');
+        }
+        
+        // Create raw response content that includes ALL data from result
+        let rawResponseContent = `# RAW RESPONSE DATA\n\n`;
+        rawResponseContent += `**result.text**: ${result.text || '[EMPTY]'}\n\n`;
+        
+        if (result.steps && result.steps.length > 0) {
+          rawResponseContent += `**Steps (${result.steps.length})**:\n`;
+          result.steps.forEach((step, i) => {
+            rawResponseContent += `\nStep ${i + 1}:\n`;
+            rawResponseContent += `- text: ${step.text || '[EMPTY]'}\n`;
+            if (step.toolCalls) {
+              rawResponseContent += `- toolCalls: ${step.toolCalls.length}\n`;
+            }
+            if (step.toolResults) {
+              rawResponseContent += `- toolResults: ${step.toolResults.length}\n`;
+            }
+          });
+          rawResponseContent += '\n';
+        }
+        
+        // Add the last step's text for easy access
+        let lastStepText = '';
+        if (result.steps && result.steps.length > 0) {
+          for (let i = result.steps.length - 1; i >= 0; i--) {
+            if (result.steps[i].text && result.steps[i].text.trim()) {
+              lastStepText = result.steps[i].text;
+              break;
+            }
+          }
+        }
+        rawResponseContent += `**Last step with text**: ${lastStepText || '[NONE]'}\n\n`;
+        
+        const usage = result.totalUsage || result.usage;
+        const rawAiResponse = {
+          content: rawResponseContent,
+          usage: {
+            input_tokens: usage.inputTokens || 0,
+            output_tokens: usage.outputTokens || 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0
+          }
+        };
+        
+        debugFiles = this.logDebugIfEnabled(`${operation}-raw`, finalPrompt, rawAiResponse);
+      }
 
       // Extract tool call history from steps
       const toolCallsExecuted: Array<{ tool: string; input: any; output: any }> = [];
@@ -367,44 +504,10 @@ export class VercelProvider implements AIProvider {
         }
       }
 
-      // Log debug for summary operations to capture complete prompts/responses for evaluation
-      let debugFiles: { promptFile: string; responseFile: string } | null = null;
-      if (this.debugMode) {
-        // Build the full conversation context like Anthropic provider does
-        let finalPrompt = `System: ${config.systemPrompt}\n\n`;
-        
-        // Always include the original user intent first
-        finalPrompt += `user: ${config.userMessage}\n\n`;
-        
-        // Then add the conversation history if available
-        if (result.response?.messages) {
-          finalPrompt += result.response.messages
-            .map(msg => {
-              if (typeof msg.content === 'string') {
-                return `${msg.role}: ${msg.content}`;
-              } else if (Array.isArray(msg.content)) {
-                const contentParts = msg.content.map(part => {
-                  if (part.type === 'text') {
-                    return (part as any).text;
-                  } else if (part.type === 'tool-call') {
-                    return `[TOOL_USE: ${(part as any).toolName}]`;
-                  } else if (part.type === 'tool-result') {
-                    const resultData = (part as any).output || (part as any).result || (part as any).content;
-                    if (typeof resultData === 'string') {
-                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
-                    } else if (resultData) {
-                      return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
-                    }
-                    return `[TOOL_RESULT: ${(part as any).toolName}]`;
-                  }
-                  return `[${part.type}]`;
-                }).join(' ');
-                return `${msg.role}: ${contentParts}`;
-              }
-              return `${msg.role}: [complex_content]`;
-            })
-            .join('\n\n');
-        }
+      // Log processed summary response (keep existing functionality)
+      if (this.debugMode && debugFiles === null) {
+        // Only log summary if we haven't already logged raw response
+        let finalPrompt = `System: ${config.systemPrompt}\n\nuser: ${config.userMessage}`;
         
         const aiResponse: AIResponse = {
           content: finalText || '',

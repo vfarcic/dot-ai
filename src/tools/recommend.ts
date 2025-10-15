@@ -18,6 +18,7 @@ import { handleAnswerQuestionTool } from './answer-question';
 import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import { extractJsonFromAIResponse } from '../core/platform-utils';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
@@ -69,23 +70,8 @@ async function analyzeIntentForClarification(
     // Send to AI for analysis
     const response = await aiProvider.sendMessage(analysisPrompt, 'recommend-intent-analysis', evaluationContext);
 
-    // Parse JSON response with robust error handling
-    let jsonContent = response.content;
-
-    // Try to find JSON object wrapped in code blocks
-    const codeBlockMatch = response.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (codeBlockMatch) {
-      jsonContent = codeBlockMatch[1];
-    } else {
-      // Try to find JSON object that starts with { and find the matching closing }
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonContent = jsonMatch[0];
-      }
-    }
-
-    // Parse the JSON
-    const analysisResult = JSON.parse(jsonContent);
+    // Parse JSON response using shared utility
+    const analysisResult = extractJsonFromAIResponse(response.content);
 
     // Validate the response structure
     if (!analysisResult.clarificationOpportunities || !Array.isArray(analysisResult.clarificationOpportunities)) {

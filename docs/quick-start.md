@@ -3,13 +3,12 @@
 ## Prerequisites
 
 **For Kubernetes deployment and documentation testing:**
-- **Claude API key** (required for AI analysis)
-  - Get your API key from [Anthropic Console](https://console.anthropic.com/) (requires account login)
-  <!-- dotai-ignore: Console URL may return 403 - expected behavior for auth-protected endpoint -->
-  - Set it as environment variable: `export ANTHROPIC_API_KEY=your_api_key_here`
+- **AI Model API key** (required for AI analysis)
+  - **Multiple AI models supported** - see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for all options and setup
+  - **Quick setup**: Claude (default) - `export ANTHROPIC_API_KEY=your_key_here`
 
 **For shared prompts library:**
-- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require ANTHROPIC_API_KEY)
+- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require AI model API key)
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
@@ -46,8 +45,9 @@ curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot
 
 2. **Set environment variables and create MCP configuration:**
 ```bash
-# Set your API keys
+# Set your AI model API key (example with Claude - see setup guide for other models)
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
+# Set embedding provider key if needed (see setup guide for options)
 export OPENAI_API_KEY="sk-proj-your-openai-key-here"
 
 # Create MCP configuration for Claude Code

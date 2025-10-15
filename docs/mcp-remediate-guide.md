@@ -6,7 +6,7 @@
 
 Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure your MCP server with:
 - DevOps AI Toolkit MCP server running  
-- `ANTHROPIC_API_KEY` configured
+- AI model API key configured (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional for pure analysis)
 - kubectl command-line tool installed
 

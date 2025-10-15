@@ -61,11 +61,11 @@ Before using Capability Management, ensure you have:
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
 - **Vector DB service** (Qdrant) for capability storage and semantic search
-- **Claude AI integration** for capability inference (ANTHROPIC_API_KEY)
+- **AI integration** for capability inference (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for supported models and API keys)
 - **Kubernetes cluster access** for resource discovery and schema analysis
 
 ### Optional Enhancements  
-- **OpenAI API key** for embedding generation (falls back to deterministic embeddings)
+- **Embedding provider** configured for semantic search (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration) for options)
 - **Organizational patterns** for enhanced recommendations (see [Pattern Management Guide](./pattern-management-guide.md))
 
 For complete setup instructions, see the [MCP Setup Guide](./mcp-setup.md).

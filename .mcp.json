@@ -8,8 +8,7 @@
       "env": {
         "KUBECONFIG": "./kubeconfig.yaml",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
-        "QDRANT_URL": "http://localhost:6333",
-        "AI_PROVIDER": "openai"
+        "QDRANT_URL": "http://localhost:6333"
       }
     },
     "coderabbitai": {

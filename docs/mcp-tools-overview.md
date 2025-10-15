@@ -2,6 +2,12 @@
 
 **Quick reference to all available tools in the DevOps AI Toolkit MCP server.**
 
+## Why Your Infrastructure AI Sucks (And How to Fix It)
+
+[![Why Your Infrastructure AI Sucks (And How to Fix It)](https://img.youtube.com/vi/Ma3gKmuXahc/maxresdefault.jpg)](https://youtu.be/Ma3gKmuXahc)
+
+This video demonstrates the core AI-powered deployment workflow: capabilities discovery, organizational patterns, policy enforcement, context management, and intelligent workflows. Watch how these components work together to transform generic AI responses into infrastructure solutions that actually work in your organization.
+
 ## Available Tools
 
 ### 🚀 Kubernetes Deployment Recommendations
@@ -71,7 +77,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Prerequisites
 
 - **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)  
-- **API keys**: `ANTHROPIC_API_KEY` for AI features
+- **API keys**: AI model API key for AI features (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options)
 - **Cluster access**: `KUBECONFIG` for Kubernetes integration
 - **Vector database**: Qdrant for capability, pattern, and policy storage
 

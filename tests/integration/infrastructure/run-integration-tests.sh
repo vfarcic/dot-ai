@@ -132,8 +132,8 @@ mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 
 # Step 5: Start MCP server in background
-# Set provider defaults if not already set
-AI_PROVIDER=${AI_PROVIDER:-anthropic}
+# Set provider defaults if not already set (using Haiku for cost efficiency)
+AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
 AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 
 log_info "Starting MCP server on port ${PORT}..."
@@ -149,6 +149,9 @@ QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
 OPENAI_API_KEY=$OPENAI_API_KEY \
 GOOGLE_API_KEY=$GOOGLE_API_KEY \
+XAI_API_KEY=$XAI_API_KEY \
+MISTRAL_API_KEY=$MISTRAL_API_KEY \
+DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
 node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
 
 SERVER_PID=$!

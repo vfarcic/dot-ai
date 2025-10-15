@@ -15,6 +15,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { ManifestValidator } from './schema';
 import { getKyvernoStatus } from '../tools/version';
+import { extractContentFromMarkdownCodeBlocks } from './platform-utils';
 import * as yaml from 'js-yaml';
 import { 
   UnifiedCreationSession, 
@@ -808,7 +809,8 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           });
           
           // Response should be clean YAML with analysis comments
-          const kyvernoPolicy = response.content.trim();
+          // Extract YAML from code blocks if wrapped (using shared utility)
+          const kyvernoPolicy = extractContentFromMarkdownCodeBlocks(response.content, 'yaml');
           
           // Save policy to file immediately after generation
           const yamlPath = path.join(policySessionDir, `${session.sessionId}-kyverno.yaml`);
