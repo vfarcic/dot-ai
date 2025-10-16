@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { VercelProvider } from '../core/providers/vercel-provider.js';
+import { GraphGenerator } from './graph-generator.js';
+import { loadEvaluationMetadata } from './metadata-loader.js';
 
 export interface ModelPerformance {
   modelId: string;
@@ -46,47 +48,54 @@ export class PlatformSynthesizer {
     this.reportsDir = reportsDir;
   }
 
-  async generatePlatformWideAnalysis(): Promise<string> {
+  async generatePlatformWideAnalysis(graphsToGenerate?: string[], skipReport = false): Promise<string> {
     console.log('🔍 Loading all evaluation reports...');
     const allReports = await this.loadAllReports();
-    
+
     console.log('🔧 Loading tool metadata...');
     const toolMetadata = this.loadToolMetadata();
-    
+
     console.log('📊 Analyzing cross-tool performance patterns...');
     const crossToolAnalysis = await this.analyzeCrossToolPerformance(allReports);
-    
-    console.log('🎯 Generating decision matrices...');
-    const decisionMatrices = this.generateDecisionMatrices(crossToolAnalysis.modelPerformances);
-    
-    console.log('💡 Creating usage recommendations...');
-    const usageRecommendations = this.generateUsageRecommendations(
-      crossToolAnalysis, 
-      decisionMatrices
-    );
-    
-    console.log('🚀 Generating comprehensive AI-powered report...');
-    const markdownReport = await this.generatePlatformInsights(
-      crossToolAnalysis,
-      decisionMatrices,
-      usageRecommendations,
-      toolMetadata
+
+    let markdownReport: string;
+
+    if (skipReport) {
+      console.log('⏭️  Skipping AI report generation...');
+      // Return empty string if we're only generating graphs
+      markdownReport = '';
+    } else {
+      console.log('🎯 Generating decision matrices...');
+      const decisionMatrices = this.generateDecisionMatrices(crossToolAnalysis.modelPerformances);
+
+      console.log('💡 Creating usage recommendations...');
+      const usageRecommendations = this.generateUsageRecommendations(
+        crossToolAnalysis,
+        decisionMatrices
+      );
+
+      console.log('🚀 Generating comprehensive AI-powered report...');
+      markdownReport = await this.generatePlatformInsights(
+        crossToolAnalysis,
+        decisionMatrices,
+        usageRecommendations,
+        toolMetadata
+      );
+    }
+
+    console.log('📊 Generating data visualizations...');
+    const reportWithGraphs = await this.addGraphsToReport(
+      markdownReport,
+      crossToolAnalysis.modelPerformances,
+      graphsToGenerate
     );
 
-    return markdownReport;
+    return reportWithGraphs;
   }
 
   private loadToolMetadata(): any {
-    try {
-      const metadataPath = path.join(process.cwd(), 'src', 'evaluation', 'model-metadata.json');
-      const metadataContent = fs.readFileSync(metadataPath, 'utf8');
-      const metadata = JSON.parse(metadataContent);
-      console.log(`✅ Loaded tool metadata with ${Object.keys(metadata.tools || {}).length} tools`);
-      return metadata.tools || {};
-    } catch (error) {
-      console.warn('⚠️  Failed to load tool metadata, proceeding without it:', error);
-      return {};
-    }
+    const metadata = loadEvaluationMetadata();
+    return { tools: metadata.tools };
   }
 
   private async loadAllReports(): Promise<Record<string, any>> {
@@ -94,8 +103,7 @@ export class PlatformSynthesizer {
     
     // Load all JSON result files from the directory
     const reportFiles = fs.readdirSync(this.reportsDir)
-      .filter(file => file.endsWith('-results-*.json') || file.includes('-results-'))
-      .filter(file => file.endsWith('.json'));
+      .filter(file => file.endsWith('-results.json'));
     
     if (reportFiles.length === 0) {
       throw new Error(`No evaluation result files found in ${this.reportsDir}`);
@@ -105,8 +113,8 @@ export class PlatformSynthesizer {
       const reportPath = path.join(this.reportsDir, fileName);
       const reportContent = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
       
-      // Extract tool type from filename (e.g., "capability-results-2025-10-15.json" -> "capability")
-      const toolType = fileName.split('-results-')[0];
+      // Extract tool type from filename (e.g., "capability-results.json" -> "capability")
+      const toolType = fileName.split('-results.json')[0];
       reports[toolType] = reportContent;
       console.log(`✅ Loaded ${toolType} report: ${fileName}`);
     }
@@ -437,6 +445,55 @@ export class PlatformSynthesizer {
     return fullModelId;
   }
 
+  /**
+   * Generates graphs and replaces placeholders in the markdown report
+   */
+  private async addGraphsToReport(
+    markdownContent: string,
+    modelPerformances: ModelPerformance[],
+    graphsToGenerate?: string[]
+  ): Promise<string> {
+    const graphGenerator = new GraphGenerator('./eval/analysis/platform/graphs');
+
+    try {
+      // Generate all or specific graphs
+      const graphResults = await graphGenerator.generateAllGraphs(modelPerformances, graphsToGenerate);
+
+      // Replace placeholders with actual image markdown
+      let updatedMarkdown = markdownContent;
+
+      const graphMappings = {
+        '[GRAPH:performance-tiers]': '![Performance Tiers](./graphs/performance-tiers.png)',
+        '[GRAPH:cost-vs-quality]': '![Cost vs Quality](./graphs/cost-vs-quality.png)',
+        '[GRAPH:reliability-comparison]': '![Reliability Comparison](./graphs/reliability-comparison.png)',
+        '[GRAPH:tool-performance-heatmap]': '![Tool Performance Heatmap](./graphs/tool-performance-heatmap.png)',
+        '[GRAPH:context-window-correlation]': '![Context Window Correlation](./graphs/context-window-correlation.png)'
+      };
+
+      for (const [placeholder, imageMarkdown] of Object.entries(graphMappings)) {
+        updatedMarkdown = updatedMarkdown.replace(placeholder, imageMarkdown);
+      }
+
+      // Log graph generation results
+      for (const [graphName, result] of Object.entries(graphResults)) {
+        if (result.success) {
+          console.log(`  ✅ ${graphName}: ${result.graphPath}`);
+        } else {
+          console.warn(`  ⚠️  ${graphName}: ${result.error}`);
+          // If graph generation failed, remove the placeholder to avoid broken markdown
+          const placeholderKey = `[GRAPH:${graphName}]`;
+          updatedMarkdown = updatedMarkdown.replace(placeholderKey, `*Graph generation failed: ${result.error}*`);
+        }
+      }
+
+      return updatedMarkdown;
+    } catch (error) {
+      console.error('⚠️  Failed to generate graphs, returning report without visualizations:', error);
+      // If graph generation completely fails, remove all placeholders
+      return markdownContent.replace(/\[GRAPH:[^\]]+\]/g, '*Graph generation failed*');
+    }
+  }
+
   async saveSynthesisReport(
     markdownContent: string,
     outputPath = './eval/analysis/platform/synthesis-report.md'
@@ -445,7 +502,7 @@ export class PlatformSynthesizer {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    
+
     // Save the AI-generated markdown directly
     fs.writeFileSync(outputPath, markdownContent);
     console.log(`✅ Platform synthesis report saved: ${outputPath}`);

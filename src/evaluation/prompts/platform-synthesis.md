@@ -56,6 +56,7 @@ Provide a comprehensive analysis covering:
 - Value leaders: Best performance per dollar across the platform
 - Premium tier: High-cost models and their value justification
 - Budget considerations: Cost-effective options and their trade-offs
+- **CRITICAL: Always show pricing breakdowns** as "$X.XX input, $Y.YY output" when mentioning model costs, especially for models with significant differences between input and output pricing
 
 ### 5. Critical Findings & Warnings
 - Any models with concerning failure patterns
@@ -88,14 +89,32 @@ This report analyzes [X] AI models across [Y] types of AI agent interactions to 
 
 ## Key Findings
 
-- [Critical finding 1 with specific numbers and implications]
-- [Critical finding 2 with specific numbers and implications] 
-- [Critical finding 3 with specific numbers and implications]
+**CRITICAL: Include these five key findings in this EXACT order. Each finding must include specific numbers, clear analysis, and actionable insights. After each finding, include the graph placeholder.**
+
+- **Performance Tiers Emerge**: [Identify and describe the top-tier, mid-tier, and bottom-tier models based on overall score, reliability, and consistency scores. Include specific numbers and explain what differentiates each tier - what makes top performers strong and what weaknesses define lower tiers.]
+
+[GRAPH:performance-tiers]
+
+- **Value Discovery**: [Highlight the model(s) with the best cost-performance ratio. Include specific value scores, cost comparisons ($/1M tokens), and performance percentages. Explain why these models offer exceptional value and what trade-offs users should consider.]
+
+[GRAPH:cost-vs-quality]
+
+- **Production Failures**: [Identify models with critical reliability issues. Include specific failure rates, reliability scores, consistency percentages, and concrete examples of failures. Explain what makes these models problematic and why they should be avoided for certain use cases.]
+
+[GRAPH:reliability-comparison]
+
+- **Tool-Specific Performance Patterns**: [Identify which models lead in each specific tool category. Include tool-specific scores and explain why certain models excel in particular areas while struggling in others. Connect model capabilities to tool requirements.]
+
+[GRAPH:tool-performance-heatmap]
+
+- **Context Window Correlation**: [Analyze how context window size correlates with performance, particularly in context-heavy tools like recommendations. Include specific examples of models with large/small context windows and explain how this capability impacts their performance in relevant tools.]
+
+[GRAPH:context-window-correlation]
 
 ## Model Profiles
 
 ### [model-name] - [Tier] ([Provider])
-**Overall Score**: [X.XXX] | **Reliability**: [X.XX] | **Consistency**: [X.XX] | **Cost**: $[X.XX]/1M tokens
+**Overall Score**: [X.XXX] | **Reliability**: [X.XX] | **Consistency**: [X.XX] | **Cost**: $[X.XX]/1M tokens ($[X.XX] input, $[Y.YY] output)
 
 **Strengths**:
 - [Specific strength with evidence from tool scores]

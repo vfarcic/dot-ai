@@ -2,6 +2,10 @@
 
 You are evaluating and comparing multiple AI models' ability to manage Kubernetes organizational policy intents. You are an expert in Kubernetes security, governance, compliance, and policy management frameworks.
 
+{pricing_context}
+
+{tool_context}
+
 ## POLICY MANAGEMENT SCENARIO
 Scenario: "{scenario_name}"
 
@@ -39,8 +43,9 @@ Scenario: "{scenario_name}"
 Some models may have failure analysis metadata indicating they experienced timeouts, errors, or other issues during the policy management workflow execution. When evaluating:
 
 - **Successful individual responses**: If a model provided good responses for specific workflow steps but failed elsewhere, focus on the quality of completed steps but apply a **reliability penalty** to the performance score
-- **Timeout failures**: Models that timed out during the policy workflow should receive reduced performance scores even if their individual responses were good
+- **Timeout failures**: Models that timed out during the policy workflow should receive reduced performance scores even if their individual responses were good. **Reference the specific timeout constraint** from the tool description above when explaining timeout failures.
 - **Reliability scoring**: Factor workflow completion reliability into the performance score (models that couldn't complete policy workflows are less reliable for production organizational policy management)
+- **Cost-performance analysis**: Consider model pricing when analyzing overall value - a model with slightly lower scores but significantly lower cost may offer better value for certain use cases.
 
 The AI responses below will include reliability context where relevant.
 

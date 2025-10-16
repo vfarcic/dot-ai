@@ -1,0 +1,540 @@
+{
+  "metadata": {
+    "reportType": "comparative-evaluation",
+    "evaluationType": "recommendation",
+    "generated": "2025-10-16T15:50:56.920Z",
+    "scenariosAnalyzed": 3,
+    "modelsEvaluated": 10,
+    "totalDatasets": 169,
+    "tool": "Recommendation AI Model Comparison Report"
+  },
+  "modelMetadata": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 1000000,
+      "supports_function_calling": true
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 1,
+        "output_cost_per_million_tokens": 5
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15,
+        "output_cost_per_million_tokens": 120
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4,
+        "output_cost_per_million_tokens": 20
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.2,
+        "output_cost_per_million_tokens": 0.5
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2,
+        "output_cost_per_million_tokens": 6
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "overallAssessment": {
+    "assessment_summary": "Cross-scenario evaluation of 10 models across 3 recommendation workflow phases (clarification, manifest generation, solution assembly) reveals Claude Haiku-4-5 as the dominant production-ready model with 100% participation, consistent top-tier performance (0.925-0.94 scores), and exceptional efficiency. Critical reliability issues identified: GPT-5-Pro catastrophically failed 2 of 3 scenarios (66% failure rate), while GPT-5 showed severe timeout vulnerabilities. Efficiency-optimized models (Claude Haiku, Gemini Pro/Flash) consistently outperformed reasoning-heavy models (DeepSeek Reasoner, GPT-5) across all phases, demonstrating that strategic focus beats exhaustive processing for recommendation workflows under 20-minute timeout constraints.",
+    "models_analyzed": [
+      "vercel_claude-haiku-4-5-20251001",
+      "vercel_gemini-2.5-pro",
+      "vercel_gemini-2.5-flash",
+      "vercel_mistral-large-latest",
+      "vercel_claude-sonnet-4-5-20250929",
+      "vercel_grok-4-fast-reasoning",
+      "vercel_gpt-5",
+      "vercel_grok-4",
+      "vercel_deepseek-reasoner",
+      "vercel_gpt-5-pro"
+    ],
+    "detailed_analysis": {
+      "vercel_claude-haiku-4-5-20251001": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.932,
+        "consistency_score": 0.998,
+        "reliability_score": 0.998,
+        "strengths": "Absolute consistency leader with #1 ranking across all 3 scenarios. Exceptional efficiency (36-56s response times), optimal token usage (76K-116K), lowest cost ($3/1M), and perfect reliability. Demonstrates superior understanding of CloudNativePG operators, focused clarification strategies (10-15 opportunities vs 20+ from competitors), and efficient iteration patterns (2-4 cycles). Best cost-performance ratio in evaluation.",
+        "weaknesses": "None identified. Model shows no significant weaknesses across any evaluation dimension.",
+        "production_readiness": "primary"
+      },
+      "vercel_gemini-2.5-pro": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.803,
+        "consistency_score": 0.819,
+        "reliability_score": 0.819,
+        "strengths": "Consistent top-3 performer across all scenarios with strong strategic focus over exhaustiveness. Good efficiency profile (under 3 minutes in solution assembly), solid quality scores (0.898-0.90), and reliable workflow completion. Demonstrates good understanding of operator patterns and efficient clarification strategies.",
+        "weaknesses": "Lower performance in manifest generation phase (0.61 score, rank #5) due to workflow integration issues despite generating technically correct manifests. Pricing at $12/1M is 4x Claude Haiku without commensurate performance advantage. Some timeout risk concerns noted in manifest generation context.",
+        "production_readiness": "secondary"
+      },
+      "vercel_gemini-2.5-flash": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.697,
+        "consistency_score": 0.706,
+        "reliability_score": 0.706,
+        "strengths": "100% participation with acceptable performance across all scenarios. Cost-efficient option demonstrating that strategic focus can compete with larger models. Solid clarification phase performance (0.88, rank #3). Good value proposition in efficiency-focused deployments.",
+        "weaknesses": "Critical timeout failure in manifest generation phase (0.38 score, rank #9) despite quality output, consuming excessive time for structured generation tasks. Performance drops significantly in complex schema handling scenarios (4-5 minute response times in solution assembly). High variance across scenarios indicates specialization rather than generalization.",
+        "production_readiness": "limited"
+      },
+      "vercel_mistral-large-latest": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.784,
+        "consistency_score": 0.743,
+        "reliability_score": 0.743,
+        "strengths": "100% participation with solid performance in clarification (0.873, rank #4) and manifest generation (0.83, rank #3). Demonstrates good large context handling and CloudNativePG operator understanding. Efficient iteration patterns (2-4 cycles). Good cost-performance in mid-tier pricing ($4/1M).",
+        "weaknesses": "Critical timeout risk in solution assembly phase (0.65 score, rank #9 of 9) with 9-minute response time consuming 44% of 20-minute budget. Excessive verbosity (159K tokens) causing decision fatigue with 6-8 question iterations. High variance across scenarios (0.873 to 0.65) indicates inconsistent reliability under different workload patterns.",
+        "production_readiness": "limited"
+      },
+      "vercel_claude-sonnet-4-5-20250929": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.867,
+        "consistency_score": 0.983,
+        "reliability_score": 0.983,
+        "strengths": "Excellent consistency with top-3 performance in all scenarios (ranks #2, #3, #5). Superior efficiency in manifest generation (29s, 29K tokens), demonstrating excellent large context handling. Strong reliability profile with minimal variance (0.852-0.88 scores). Good alternative to Haiku when slightly more comprehensive output needed.",
+        "weaknesses": "Slightly lower performance in clarification phase (0.852, rank #5) compared to efficiency leaders. Pricing at $9/1M is 3x Claude Haiku without proportional performance gains. Not the absolute best in any single scenario despite consistent strong performance.",
+        "production_readiness": "primary"
+      },
+      "vercel_grok-4-fast-reasoning": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.72,
+        "consistency_score": 0.803,
+        "reliability_score": 0.803,
+        "strengths": "100% participation with consistent mid-tier performance. Excellent cost efficiency at $0.35/1M (lowest pricing evaluated). Good efficiency in solution assembly (under 3 minutes). Demonstrates reliable workflow completion without catastrophic failures. Best budget option for cost-constrained deployments.",
+        "weaknesses": "Timeout failure in manifest generation phase (0.46 score, rank #8) despite 'fast' designation. Lower quality scores across all phases (0.72 average) compared to top performers. Performance doesn't justify 'reasoning' designation given efficiency-focused competitors outperform at similar speeds.",
+        "production_readiness": "secondary"
+      },
+      "vercel_gpt-5": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.683,
+        "consistency_score": 0.746,
+        "reliability_score": 0.746,
+        "strengths": "100% participation demonstrating no complete catastrophic failures. Generated technically correct manifests in some phases showing underlying capability for quality output.",
+        "weaknesses": "Severe timeout vulnerabilities across multiple scenarios (0.54 in manifest generation rank #6, 0.76 in solution assembly rank #8). Massive over-engineering with 6950-token clarification output and 77K solution assembly tokens causing decision fatigue. 6-9 minute response times consuming 30-44% of timeout budget. Poor cost-performance at implied premium pricing tier. Reasoning-heavy approach fails to deliver efficiency required for production recommendation workflows.",
+        "production_readiness": "avoid"
+      },
+      "vercel_grok-4": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.708,
+        "consistency_score": 0.821,
+        "reliability_score": 0.821,
+        "strengths": "100% participation with acceptable consistency (0.795-0.83 score range). Moderate performance in solution assembly (0.83, rank #6) showing capability for complex reasoning tasks.",
+        "weaknesses": "Timeout failure in manifest generation (0.50 score, rank #7) indicating poor large context handling under time pressure. Lower performance in clarification phase (0.795, rank #8) suggesting weaker strategic questioning. 4-5 minute response times in solution assembly create timeout risk. Mid-tier performance doesn't justify premium pricing tier positioning.",
+        "production_readiness": "limited"
+      },
+      "vercel_deepseek-reasoner": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase",
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.753,
+        "consistency_score": 0.993,
+        "reliability_score": 0.993,
+        "strengths": "100% participation with excellent consistency (minimal variance 0.738-0.78). Demonstrates reliable workflow completion without catastrophic failures. Good error recovery in manifest generation (0.74 score, rank #4) despite efficiency challenges.",
+        "weaknesses": "Severe timeout risk with 108-second clarification response approaching timeout territory. Consistently lowest or near-lowest performance in efficiency-critical phases (rank #9 in clarification, rank #7 in solution assembly). 6-9 minute response times in solution assembly consuming 30-44% of timeout budget. Reasoning-heavy approach fails to deliver competitive performance despite longer processing times.",
+        "production_readiness": "avoid"
+      },
+      "vercel_gpt-5-pro": {
+        "participation_rate": 0.33,
+        "scenarios_participated": [
+          "recommendation_comparative_recommend_clarification_phase"
+        ],
+        "scenarios_failed": [
+          "recommendation_comparative_recommend_generate_manifests_phase",
+          "recommendation_comparative_recommend_solution_assembly_phase"
+        ],
+        "average_score": 0,
+        "consistency_score": 0,
+        "reliability_score": 0,
+        "strengths": "None identified. Model failed to demonstrate any consistent strengths across evaluation scenarios.",
+        "weaknesses": "CATASTROPHIC RELIABILITY FAILURE: 66% failure rate with complete failures in 2 of 3 scenarios. Score of 0.0 in both clarification and manifest generation phases indicates critical systemic issues - unable to execute workflows, severe timeout problems, or fundamental incompatibility with recommendation tasks. Premium pricing at $67.50/1M (22.5x Claude Haiku) with zero delivered value represents worst cost-performance ratio in evaluation. Single participation scenario still resulted in last-place rank (#10). Complete production deployment risk.",
+        "production_readiness": "avoid"
+      }
+    },
+    "overall_assessment": {
+      "winner": "vercel_claude-haiku-4-5-20251001",
+      "rationale": "Claude Haiku-4-5 is the unambiguous overall winner based on exceptional cross-scenario reliability and consistency. RELIABILITY DOMINANCE: 100% participation rate with #1 ranking in all 3 scenarios (0.925-0.94 scores), achieving 0.998 reliability score - the highest in evaluation. CONSISTENCY EXCELLENCE: Near-zero variance (0.932 average, 0.007 std deviation) demonstrates predictable, dependable performance across diverse workflow phases. EFFICIENCY LEADERSHIP: Optimal response times (36-56s), focused output (76K-116K tokens), and efficient iteration patterns (2-4 cycles vs 6-8 for competitors) prove strategic focus beats exhaustive processing. COST-PERFORMANCE CHAMPION: $3/1M pricing (lowest evaluated) with top-tier quality creates unmatched value proposition - 4x cheaper than Gemini Pro, 22.5x cheaper than failed GPT-5-Pro. PRODUCTION-READY: Zero timeout risks, no catastrophic failures, consistent workflow completion, and optimal resource utilization make this the only model suitable for unrestricted production deployment in recommendation systems with 20-minute constraints. RELIABILITY OVER PEAK: While some models achieved comparable scores in individual scenarios, none matched Haiku's combination of universal excellence, zero-failure operation, and operational efficiency. The data decisively shows that for production recommendation workflows requiring clarification, manifest generation, and solution assembly with large context windows under time pressure, Claude Haiku-4-5 is the only model delivering consistent, reliable, cost-effective performance without operational risk.",
+      "reliability_ranking": [
+        {
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "reliability_score": 0.998,
+          "reliability_notes": "100% participation, 0.932 average score, 0.998 consistency, #1 in all scenarios, zero failures"
+        },
+        {
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "reliability_score": 0.983,
+          "reliability_notes": "100% participation, 0.867 average score, 0.983 consistency, top-3 in all scenarios, excellent alternative"
+        },
+        {
+          "model": "vercel_deepseek-reasoner",
+          "reliability_score": 0.993,
+          "reliability_notes": "100% participation, 0.753 average score, 0.993 consistency, but severe timeout risks and poor efficiency"
+        },
+        {
+          "model": "vercel_gemini-2.5-pro",
+          "reliability_score": 0.819,
+          "reliability_notes": "100% participation, 0.803 average score, 0.819 consistency, workflow integration issues in manifest generation"
+        },
+        {
+          "model": "vercel_grok-4",
+          "reliability_score": 0.821,
+          "reliability_notes": "100% participation, 0.708 average score, 0.821 consistency, timeout failure in manifest generation"
+        },
+        {
+          "model": "vercel_grok-4-fast-reasoning",
+          "reliability_score": 0.803,
+          "reliability_notes": "100% participation, 0.720 average score, 0.803 consistency, timeout vulnerability despite 'fast' designation"
+        },
+        {
+          "model": "vercel_gpt-5",
+          "reliability_score": 0.746,
+          "reliability_notes": "100% participation, 0.683 average score, 0.746 consistency, severe timeout risks and over-engineering"
+        },
+        {
+          "model": "vercel_mistral-large-latest",
+          "reliability_score": 0.743,
+          "reliability_notes": "100% participation, 0.784 average score, 0.743 consistency, critical timeout risk in solution assembly"
+        },
+        {
+          "model": "vercel_gemini-2.5-flash",
+          "reliability_score": 0.706,
+          "reliability_notes": "100% participation, 0.697 average score, 0.706 consistency, high variance and timeout failure in manifest generation"
+        },
+        {
+          "model": "vercel_gpt-5-pro",
+          "reliability_score": 0,
+          "reliability_notes": "33% participation (1 of 3 scenarios), catastrophic 66% failure rate, 0.0 effective score, complete production risk"
+        }
+      ],
+      "production_recommendations": {
+        "primary": "vercel_claude-haiku-4-5-20251001 - Only model demonstrating production-grade reliability across all recommendation workflow phases with optimal efficiency, zero timeout risks, lowest cost ($3/1M), and consistent #1 performance. Suitable for unrestricted production deployment.",
+        "secondary": "vercel_claude-sonnet-4-5-20250929 - Excellent alternative offering slightly more comprehensive output with 0.983 reliability score, top-3 performance across all scenarios, and superior manifest generation efficiency. Recommended when additional output detail justifies 3x cost premium over Haiku.",
+        "avoid": [
+          "vercel_gpt-5-pro - CRITICAL: 66% catastrophic failure rate, 0.0 effective reliability, premium pricing ($67.50/1M) with zero delivered value",
+          "vercel_gpt-5 - Severe timeout vulnerabilities, massive over-engineering, poor cost-performance, 0.683 average score",
+          "vercel_deepseek-reasoner - 108s response times approaching timeout, consistently poor efficiency, reasoning approach fails to deliver competitive performance"
+        ],
+        "specialized_use": {
+          "budget_constrained_deployments": "vercel_grok-4-fast-reasoning - $0.35/1M pricing with 0.803 reliability for cost-sensitive applications willing to accept mid-tier quality",
+          "manifest_generation_only": "vercel_mistral-large-latest - Strong performance (0.83 score, rank #3) in manifest generation phase specifically, but avoid for multi-phase workflows due to solution assembly timeout risks",
+          "clarification_phase_only": "vercel_gemini-2.5-pro - Excellent clarification performance (0.898 score, rank #2) but workflow integration issues limit general deployment"
+        }
+      },
+      "key_insights": "EFFICIENCY BEATS REASONING: Across all scenarios, efficiency-optimized models (Claude Haiku, Gemini Pro/Flash) consistently outperformed reasoning-heavy models (DeepSeek Reasoner, GPT-5), demonstrating that strategic focus and rapid iteration trump exhaustive processing for recommendation workflows. TIMEOUT AS QUALITY METRIC: The 20-minute constraint wasn't just operational overhead - it exposed fundamental capability gaps, eliminating 50% of models in manifest generation and revealing that production reliability requires efficiency as a core competency, not an optimization. PREMIUM PRICING FAILURE: Most expensive models (GPT-5-Pro $67.50/1M, Gemini-2.5-Pro $12/1M) failed to deliver proportional value, while cheapest model (Haiku $3/1M) achieved best results, challenging conventional pricing-performance assumptions and suggesting market inefficiencies. PARTICIPATION AS PREDICTOR: 100% scenario participation was necessary but not sufficient for production readiness - models like DeepSeek Reasoner and GPT-5 participated fully but showed severe timeout risks that would cause production incidents. CATASTROPHIC FAILURE PATTERNS: GPT-5-Pro's 66% failure rate and complete workflow incompatibility represents the most severe reliability risk, demonstrating that even premium-tier models can have fundamental architectural issues incompatible with certain task types. CONSISTENCY OVER PEAKS: Claude Haiku's dominance stems from exceptional consistency (0.998 score) rather than extreme peaks, proving that predictable, reliable performance across diverse scenarios is more valuable than specialized excellence. LARGE CONTEXT EFFICIENCY GAP: Manifest generation with 100K+ token CRD schemas exposed critical capability differences - only Claude models and Mistral efficiently processed large contexts under time pressure, while Gemini and GPT variants struggled despite technical correctness. ITERATION EFFICIENCY MATTERS: Successful models converged in 2-4 iterations while struggling models required 6-20+ iterations, suggesting that error recovery and schema understanding are distinct capabilities from raw generation quality."
+    }
+  },
+  "results": [
+    {
+      "key": "recommendation_comparative_recommend_clarification_phase",
+      "score": 0.925,
+      "comment": "Clear tiering emerged with efficiency-focused models dominating. Claude Haiku leads with optimal quality-efficiency balance, while Gemini Pro/Flash demonstrate that strategic focus beats exhaustiveness. The 'reasoning' models (DeepSeek Reasoner, GPT-5) showed disappointing performance: DeepSeek's 108s response time approaches timeout territory, while GPT-5's 6950-token output represents massive over-engineering. GPT-5-Pro's complete failure highlights reliability risks in premium models. Cost-performance analysis reveals exceptional value in the $1-4/1M range (Haiku, Gemini Flash, Mistral Large), while premium models ($9-67.50/1M) failed to justify costs through either performance or quality advantages. For deployment recommendation workflows with 20-minute timeout constraints, models prioritizing focused, efficient clarification (10-15 opportunities, <3000 tokens, <60s) vastly outperform exhaustive approaches. The clarification phase benefits from strategic questioning rather than encyclopedic coverage, making efficiency-optimized models more suitable than reasoning-heavy alternatives.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.925
+        },
+        {
+          "rank": 2,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.898
+        },
+        {
+          "rank": 3,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.88
+        },
+        {
+          "rank": 4,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.873
+        },
+        {
+          "rank": 5,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.852
+        },
+        {
+          "rank": 6,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.84
+        },
+        {
+          "rank": 7,
+          "model": "vercel_gpt-5",
+          "score": 0.795
+        },
+        {
+          "rank": 8,
+          "model": "vercel_grok-4",
+          "score": 0.795
+        },
+        {
+          "rank": 9,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.738
+        },
+        {
+          "rank": 10,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 10
+    },
+    {
+      "key": "recommendation_comparative_recommend_generate_manifests_phase",
+      "score": 0.93,
+      "comment": "This evaluation reveals critical insights about model capabilities for Kubernetes manifest generation with large schema contexts under tight timeout constraints:\n\n1. **Timeout Constraint Dominance**: The 20-minute timeout was the decisive factor, eliminating 5 of 10 models (GPT-5-Pro, GPT-5, Grok-4, Grok-4-fast-reasoning, Gemini-2.5-Flash) despite some generating quality manifests. This demonstrates that large context handling under time pressure is a critical capability gap.\n\n2. **Efficiency Leaders**: Claude Haiku-4 achieved exceptional efficiency (36s, 116K tokens) at lowest cost ($3/M), proving that smaller, optimized models can outperform larger ones for structured manifest generation. Claude Sonnet-4 (29s, 29K tokens) also showed excellent efficiency.\n\n3. **Cost-Performance Winner**: Claude Haiku-4 offers unmatched value at $3/M pricing with 93/100 score, completing in 36 seconds with comprehensive output. This is 20x cheaper than GPT-5-Pro while actually delivering results.\n\n4. **Quality vs Speed Tradeoff**: Models attempting maximum comprehensiveness (GPT-5, Grok variants) failed timeout constraints despite high-quality individual manifests. Production systems require balancing quality with operational constraints.\n\n5. **Iteration Efficiency**: Successful models (Haiku, Sonnet, Mistral) converged in 2-4 iterations, while failing models required 18-20+ iterations, suggesting poor error recovery and schema understanding.\n\n6. **Large Context Handling**: This phase specifically tested ability to process 100K+ token CRD schemas. Only Claude models and Mistral demonstrated efficient handling, while Gemini and GPT models struggled with context processing under time pressure.\n\n7. **Production Readiness Gap**: Several models (Gemini-2.5-Pro, GPT-5) generated technically correct manifests but failed workflow integration or timeout constraints, highlighting the gap between technical correctness and production reliability.\n\n8. **Pricing Inefficiency**: Expensive models (GPT-5-Pro $67.50/M, Gemini-2.5-Pro $12/M) failed to deliver value, while cheapest model (Haiku $3/M) achieved best results, challenging assumptions about pricing-performance correlation.\n\n9. **Operator Pattern Understanding**: Successful models demonstrated strong understanding of CloudNativePG operator patterns (Cluster, Pooler, ScheduledBackup CRDs), while struggling models often fell back to basic StatefulSet approaches.\n\n10. **Reliability for Production**: Only 50% of models successfully completed the workflow, emphasizing the importance of reliability testing beyond individual response quality. Timeout failures make models unsuitable for production CI/CD pipelines requiring fast iteration.\n\nRecommendation: For Kubernetes manifest generation with large CRD schemas under production constraints, Claude Haiku-4 is the clear choice, offering best efficiency, reliability, and cost. Claude Sonnet-4 is excellent alternative for slightly more comprehensive output. Avoid expensive models (GPT-5-Pro, Gemini-2.5-Pro) that cannot deliver within operational constraints despite higher pricing.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.93
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.88
+        },
+        {
+          "rank": 3,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.83
+        },
+        {
+          "rank": 4,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.74
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.61
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5",
+          "score": 0.54
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4",
+          "score": 0.5
+        },
+        {
+          "rank": 8,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.46
+        },
+        {
+          "rank": 9,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.38
+        },
+        {
+          "rank": 10,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 10
+    },
+    {
+      "key": "recommendation_comparative_recommend_solution_assembly_phase",
+      "score": 0.94,
+      "comment": "This evaluation reveals a clear efficiency-quality tradeoff in database deployment recommendation tasks with large schema context. Claude Haiku emerges as the clear winner by achieving 92% quality with 98% efficiency in only 56 seconds, demonstrating that premium quality doesn't require premium processing time. The results show three distinct tiers: (1) Efficient performers (Haiku, Gemini Pro, Grok-fast) that complete in under 3 minutes with high quality, (2) Moderate performers (Gemini Flash, Grok-4) taking 4-5 minutes with acceptable quality, and (3) Slow performers (DeepSeek, GPT-5, Mistral) taking 6-9 minutes with timeout risks despite excellent quality. The 20-minute timeout constraint becomes critical when models consume 33-44% of the budget on a single phase, as this leaves insufficient margin for the complete 4-phase workflow. Performance analysis shows that the most verbose models (Mistral with 159K tokens, GPT-5 with 77K tokens) generate decision fatigue with 6-8 question iterations covering every conceivable option, while efficient models (Haiku with 76K tokens) achieve better user experience with 3-4 focused iterations. For production PostgreSQL deployments, the data strongly favors models that balance CloudNativePG operator recommendations with practical question generation, prioritizing reliability and speed over exhaustive coverage. The pricing analysis reveals that cost-per-quality varies dramatically: Grok-fast at $0.35/1M delivers 82% quality, while Mistral at $4.00/1M delivers 94% quality, suggesting diminishing returns for premium pricing. The key insight is that for recommendation systems with timeout constraints and large context windows, efficiency and reliability are not just performance metrics but critical quality factors that should be weighted equally with technical accuracy.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.94
+        },
+        {
+          "rank": 2,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.9
+        },
+        {
+          "rank": 3,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.87
+        },
+        {
+          "rank": 4,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.86
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.83
+        },
+        {
+          "rank": 6,
+          "model": "vercel_grok-4",
+          "score": 0.83
+        },
+        {
+          "rank": 7,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.78
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gpt-5",
+          "score": 0.76
+        },
+        {
+          "rank": 9,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.65
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 9
+    }
+  ],
+  "summary": {
+    "totalDatasets": 169,
+    "availableModels": [
+      "vercel_claude-haiku-4-5-20251001_2025-10-15",
+      "vercel_claude-sonnet-4-5-20250929_2025-10-13",
+      "vercel_deepseek-reasoner_2025-10-13",
+      "vercel_gemini-2.5-flash_2025-10-14",
+      "vercel_gemini-2.5-pro_2025-10-14",
+      "vercel_gpt-5-pro_2025-10-14",
+      "vercel_gpt-5_2025-10-14",
+      "vercel_grok-4-fast-reasoning_2025-10-14",
+      "vercel_grok-4_2025-10-14",
+      "vercel_mistral-large-latest_2025-10-14"
+    ],
+    "scenariosWithMultipleModels": 3,
+    "interactionTypes": [
+      "clarification_phase",
+      "generate_manifests_phase",
+      "solution_assembly_phase"
+    ]
+  }
+}
