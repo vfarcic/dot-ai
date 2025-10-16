@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2025-10-15",
-  "dataSource": "Manual collection from provider websites", 
+  "dataSource": "Manual collection from provider websites",
   "updateInstructions": "Execute command `/update-model-metadata` when this data becomes stale",
   "models": {
     "claude-sonnet-4-5-20250929": {
@@ -95,19 +95,57 @@
     }
   },
   "tools": {
+    "remediate": {
+      "name": "Issue Remediation",
+      "description": "AI-powered troubleshooting that analyzes Kubernetes issues and provides step-by-step remediation guidance",
+      "primaryFunction": "Problem diagnosis and solution generation with optional automated execution",
+      "testTimeout": "20 minutes for manual mode (1200000ms), 30 minutes for automatic mode (1800000ms) - Models exceeding this are marked as failures regardless of quality",
+      "successCriteria": [
+        "Accurate root cause identification from minimal issue descriptions",
+        "Comprehensive cluster investigation using kubectl commands and tool calls",
+        "Generation of correct, executable remediation commands",
+        "Proper risk assessment and validation steps for proposed solutions",
+        "Complete multi-step investigation workflow within timeout constraints"
+      ],
+      "modelRequirements": {
+        "investigation": "Systematically explore cluster state using multiple kubectl commands and API calls",
+        "diagnosis": "Analyze symptoms, logs, and events to identify root causes with high confidence within 20-30 minute timeout window",
+        "solution": "Generate specific, executable kubectl commands with proper risk assessment",
+        "iteration": "Handle multi-step investigation workflows with 5-8 iterations of analysis within timeout constraints"
+      }
+    },
+    "recommend": {
+      "name": "Deployment Recommendations",
+      "description": "AI-powered analysis of user deployment intent and generation of production-ready Kubernetes manifests",
+      "primaryFunction": "Intent clarification and manifest generation with large schema context",
+      "testTimeout": "20 minutes (1200000ms) - Models exceeding this are marked as failures regardless of quality",
+      "successCriteria": [
+        "Generate relevant, actionable clarification questions from minimal user intent",
+        "Create production-ready, deployable Kubernetes YAML manifests",
+        "Complete multi-phase workflow within 20-minute timeout",
+        "Balance comprehensiveness with practical efficiency"
+      ],
+      "modelRequirements": {
+        "analysis": "Analyze user intent and generate focused clarification questions",
+        "synthesis": "Transform user requirements into complete Kubernetes manifests using up to 50 large resource schemas within 20-minute timeout",
+        "context": "Handle very large context windows (100K+ tokens) with multiple Kubernetes schema definitions",
+        "efficiency": "Process extensive schema context without excessive token usage or timeouts"
+      }
+    },
     "capability": {
       "name": "Capability Analysis",
       "description": "Analyzes all Kubernetes cluster resources to understand deployment capabilities and constraints",
       "primaryFunction": "Complete cluster resource discovery and capability mapping",
+      "testTimeout": "45 minutes (2700000ms) - Models exceeding this are marked as failures regardless of quality",
       "successCriteria": [
         "Complete resource discovery without missing critical components",
         "Accurate capability mapping for each resource type",
         "Consistent analysis quality across all resources",
-        "Reliable completion of full cluster scan"
+        "Reliable completion of full cluster scan within 45-minute timeout"
       ],
       "modelRequirements": {
-        "endurance": "Must handle ~100 consecutive AI interactions reliably",
-        "consistency": "Maintain quality across 30+ minute evaluation sessions",
+        "endurance": "Must handle ~100 consecutive AI interactions reliably within 45-minute timeout",
+        "consistency": "Maintain quality throughout entire evaluation session",
         "reasoning": "Deep Kubernetes knowledge for each resource type"
       }
     },
@@ -115,14 +153,15 @@
       "name": "Pattern Recognition",
       "description": "Creates organizational deployment patterns through interactive workflow for consistent application deployments",
       "primaryFunction": "Multi-step pattern creation and organizational template generation",
+      "testTimeout": "5 minutes (300000ms) - Models exceeding this are marked as failures regardless of quality",
       "successCriteria": [
-        "Successful completion of multi-step interactive workflow",
+        "Successful completion of multi-step interactive workflow within 5-minute timeout",
         "Accurate trigger expansion from keywords to comprehensive lists",
         "Proper pattern abstraction and template creation",
         "Effective pattern storage and searchability in Vector DB"
       ],
       "modelRequirements": {
-        "workflow": "Handle multi-step interactive pattern creation sessions",
+        "workflow": "Handle multi-step interactive pattern creation sessions within 5-minute timeout",
         "expansion": "Expand trigger keywords into comprehensive related terms",
         "abstraction": "Convert specific requirements into reusable organizational patterns"
       }
@@ -131,50 +170,17 @@
       "name": "Policy Compliance",
       "description": "Creates and manages organizational compliance policies through trigger expansion and Kyverno policy generation",
       "primaryFunction": "Multi-step policy creation with automated Kyverno policy generation",
+      "testTimeout": "15 minutes (900000ms) - Models exceeding this are marked as failures regardless of quality",
       "successCriteria": [
         "Accurate trigger expansion from policy keywords to comprehensive resource lists",
         "Proper schema-by-schema analysis of all cluster resources",
-        "Complete Kyverno ClusterPolicy generation with CEL expressions",
+        "Complete Kyverno ClusterPolicy generation with CEL expressions within 15-minute timeout",
         "Correct resource matching and validation rule creation"
       ],
       "modelRequirements": {
         "expansion": "Expand policy triggers into comprehensive Kubernetes resource categories",
-        "analysis": "Perform detailed schema analysis to identify relevant resource fields",
+        "analysis": "Perform detailed schema analysis to identify relevant resource fields within 15-minute timeout",
         "generation": "Generate complete, syntactically correct Kyverno policies with CEL validation"
-      }
-    },
-    "recommendation": {
-      "name": "Deployment Recommendations", 
-      "description": "AI-powered analysis of user deployment intent and generation of production-ready Kubernetes manifests",
-      "primaryFunction": "Intent clarification and manifest generation with large schema context",
-      "successCriteria": [
-        "Generate relevant, actionable clarification questions from minimal user intent",
-        "Create production-ready, deployable Kubernetes YAML manifests",
-        "Complete multi-phase workflow within reasonable timeframes",
-        "Balance comprehensiveness with practical efficiency"
-      ],
-      "modelRequirements": {
-        "analysis": "Analyze user intent and generate focused clarification questions",
-        "synthesis": "Transform user requirements into complete Kubernetes manifests using up to 50 large resource schemas", 
-        "context": "Handle very large context windows (100K+ tokens) with multiple Kubernetes schema definitions",
-        "efficiency": "Process extensive schema context without excessive token usage or timeouts"
-      }
-    },
-    "remediation": {
-      "name": "Issue Remediation",
-      "description": "AI-powered troubleshooting that analyzes Kubernetes issues and provides step-by-step remediation guidance",
-      "primaryFunction": "Problem diagnosis and solution generation with optional automated execution",
-      "successCriteria": [
-        "Accurate root cause identification from minimal issue descriptions",
-        "Comprehensive cluster investigation using kubectl commands and tool calls", 
-        "Generation of correct, executable remediation commands",
-        "Proper risk assessment and validation steps for proposed solutions"
-      ],
-      "modelRequirements": {
-        "investigation": "Systematically explore cluster state using multiple kubectl commands and API calls",
-        "diagnosis": "Analyze symptoms, logs, and events to identify root causes with high confidence",
-        "solution": "Generate specific, executable kubectl commands with proper risk assessment",
-        "iteration": "Handle multi-step investigation workflows with 5-8 iterations of analysis"
       }
     }
   }

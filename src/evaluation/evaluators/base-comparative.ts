@@ -12,6 +12,7 @@ import { extractJsonFromAIResponse } from '../../core/platform-utils';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { DatasetAnalyzer, ComparisonScenario } from '../dataset-analyzer.js';
+import { loadEvaluationMetadata, buildModelPricingContext, buildToolContext, type EvaluationMetadata } from '../metadata-loader.js';
 
 export interface ComparativeEvaluationResult {
   scenario_summary: string;
@@ -58,6 +59,7 @@ export abstract class BaseComparativeEvaluator {
   protected evaluatorModel: VercelProvider;
   protected datasetAnalyzer: DatasetAnalyzer;
   protected promptTemplate: string;
+  protected metadata: EvaluationMetadata;
 
   constructor(datasetDir?: string) {
     // Use Claude via VercelProvider as the evaluator (most reliable for complex comparative evaluation)
@@ -72,6 +74,9 @@ export abstract class BaseComparativeEvaluator {
 
     // Prompt template will be loaded by subclass
     this.promptTemplate = '';
+
+    // Load metadata
+    this.metadata = loadEvaluationMetadata();
   }
 
   /**
@@ -185,6 +190,7 @@ export abstract class BaseComparativeEvaluator {
 ${reliabilityContext}
 
 **Response:**
+
 ${modelResponse.response}
 
 ---`;
@@ -245,11 +251,19 @@ ${modelResponse.response}
    * Build the evaluation prompt - can be overridden by subclasses for custom behavior
    */
   protected buildEvaluationPrompt(scenario: ComparisonScenario, modelResponsesText: string, modelList: string): string {
+    // Build metadata context sections
+    const pricingContext = buildModelPricingContext(this.metadata.models);
+    const toolContext = buildToolContext(this.toolName, this.metadata.tools);
+
+    // Inject all data into prompt template via placeholders
     return this.promptTemplate
+      .replace('{pricing_context}', pricingContext)
+      .replace('{tool_context}', toolContext)
       .replace('{issue}', scenario.issue)
       .replace('{model_responses}', modelResponsesText)
       .replace('{model_list}', modelList)
-      .replace('{phase}', scenario.interaction_id);
+      .replace('{phase}', scenario.interaction_id)
+      .replace('{scenario_name}', scenario.interaction_id);
   }
 
   /**

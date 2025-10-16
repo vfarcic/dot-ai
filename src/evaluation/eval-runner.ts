@@ -294,9 +294,8 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string,
   const jsonResults = generateJsonReport(results, stats, evaluatorType, modelMetadata, finalAssessment);
   
   // Save reports to files
-  const dateStamp = new Date().toISOString().split('T')[0];
-  const markdownPath = `./eval/analysis/individual/${evaluatorType}-evaluation-${dateStamp}.md`;
-  const jsonPath = `./eval/analysis/individual/${evaluatorType}-results-${dateStamp}.json`;
+  const markdownPath = `./eval/analysis/individual/${evaluatorType}-evaluation.md`;
+  const jsonPath = `./eval/analysis/individual/${evaluatorType}-results.json`;
   const reportDir = './eval/analysis/individual';
   
   // Ensure report directory exists
@@ -323,7 +322,7 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string,
 
 async function main() {
   console.log('🔬 Starting Multi-Model Comparative Evaluation\n');
-  
+
   // Clean old debug files but preserve evaluation datasets
   console.log('🧹 Cleaning old debug files...');
   try {
@@ -332,6 +331,16 @@ async function main() {
     console.log('✅ Debug files cleaned (datasets preserved)\n');
   } catch (error) {
     console.warn('⚠️  Could not clean debug files:', error instanceof Error ? error.message : String(error));
+  }
+
+  // Clean old evaluation result files from eval/results
+  console.log('🧹 Cleaning old evaluation result files...');
+  try {
+    await execAsync('rm -f ./eval/results/*_comparative_evaluation_*.jsonl 2>/dev/null || true');
+    await execAsync('mkdir -p ./eval/results');
+    console.log('✅ Old evaluation results cleaned\n');
+  } catch (error) {
+    console.warn('⚠️  Could not clean old evaluation results:', error instanceof Error ? error.message : String(error));
   }
   
   // Check model metadata freshness before starting any evaluation work

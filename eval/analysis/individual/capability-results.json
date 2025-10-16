@@ -1,0 +1,713 @@
+{
+  "metadata": {
+    "reportType": "comparative-evaluation",
+    "evaluationType": "capability",
+    "generated": "2025-10-16T15:59:58.226Z",
+    "scenariosAnalyzed": 10,
+    "modelsEvaluated": 10,
+    "totalDatasets": 594,
+    "tool": "Capability AI Model Comparison Report"
+  },
+  "modelMetadata": {
+    "claude-sonnet-4-5-20250929": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 1000000,
+      "supports_function_calling": true
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "Anthropic",
+      "pricing": {
+        "input_cost_per_million_tokens": 1,
+        "output_cost_per_million_tokens": 5
+      },
+      "context_window": 200000,
+      "supports_function_calling": true
+    },
+    "gpt-5": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 1.25,
+        "output_cost_per_million_tokens": 10
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gpt-5-pro": {
+      "provider": "OpenAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 15,
+        "output_cost_per_million_tokens": 120
+      },
+      "context_window": 272000,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-pro": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 4,
+        "output_cost_per_million_tokens": 20
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "gemini-2.5-flash": {
+      "provider": "Google",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
+      },
+      "context_window": 1048576,
+      "supports_function_calling": true
+    },
+    "grok-4": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 3,
+        "output_cost_per_million_tokens": 15
+      },
+      "context_window": 256000,
+      "supports_function_calling": true
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xAI",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.2,
+        "output_cost_per_million_tokens": 0.5
+      },
+      "context_window": 2000000,
+      "supports_function_calling": true
+    },
+    "mistral-large-latest": {
+      "provider": "Mistral",
+      "pricing": {
+        "input_cost_per_million_tokens": 2,
+        "output_cost_per_million_tokens": 6
+      },
+      "context_window": 128000,
+      "supports_function_calling": true
+    },
+    "deepseek-reasoner": {
+      "provider": "DeepSeek",
+      "pricing": {
+        "input_cost_per_million_tokens": 0.55,
+        "output_cost_per_million_tokens": 2.19
+      },
+      "context_window": 128000,
+      "supports_function_calling": false
+    }
+  },
+  "overallAssessment": {
+    "assessment_summary": "Cross-scenario evaluation of 10 AI models across 10 capability analysis scenarios reveals a severe reliability crisis: 70% of models catastrophically failed the comprehensive auto-scan workflow, while only 3 models (Claude Sonnet 4.5, Gemini 2.5 Flash, Gemini 2.5 Pro) demonstrated production-grade reliability. Claude Haiku 4.5 emerged as the efficiency leader in single-resource scenarios, while Claude Sonnet 4.5 proved most reliable for sustained, multi-resource workflows. The evaluation exposes critical failure modes including HTTP timeouts (Mistral Large, GPT-5 Pro), rate limiting (DeepSeek), and workflow abandonment (GPT-5, Grok variants), highlighting that many models optimize for individual response quality at the expense of workflow completion reliability.",
+    "models_analyzed": [
+      "vercel_claude-sonnet-4-5-20250929",
+      "vercel_gemini-2.5-flash",
+      "vercel_gemini-2.5-pro",
+      "vercel_claude-haiku-4-5-20251001",
+      "vercel_deepseek-reasoner",
+      "vercel_gpt-5-pro",
+      "vercel_gpt-5",
+      "vercel_grok-4-fast-reasoning",
+      "vercel_grok-4",
+      "vercel_mistral-large-latest"
+    ],
+    "detailed_analysis": {
+      "vercel_claude-sonnet-4-5-20250929": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "capability-comparative_capability_auto_scan",
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.8763,
+        "consistency_score": 0.978,
+        "reliability_score": 0.978,
+        "strengths": "Exceptional cross-scenario reliability with 100% participation and consistent high performance (0.87-0.914 range). Only model to successfully complete the catastrophic 67-resource comprehensive auto-scan (rank 1, 0.914). Demonstrates optimal balance of technical accuracy, efficiency, and reliability. Strong token efficiency (~2K tokens per analysis) and reasonable response times (5-10s for single resources, 384s for 67-resource workflow). Consistently ranks in top 4 across all scenarios.",
+        "weaknesses": "Slightly outperformed by Claude Haiku in single-resource efficiency scenarios (rank 3 vs rank 1). Response times of 5-10 seconds for single resources suggest room for latency optimization. In CRUD auto-scan, ranked 3rd behind Haiku and Mistral Large, indicating potential for improved speed-quality balance in certain workloads.",
+        "production_readiness": "primary"
+      },
+      "vercel_gemini-2.5-flash": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "capability-comparative_capability_auto_scan",
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.827,
+        "consistency_score": 0.955,
+        "reliability_score": 0.955,
+        "strengths": "Excellent reliability with 100% scenario participation and consistent mid-to-high performance (0.80-0.906 range). Successfully completed comprehensive 67-resource auto-scan (rank 2, 0.906), demonstrating production-grade workflow completion capability. Provides exceptional technical depth with strong token efficiency. Outperforms higher-tier Gemini 2.5 Pro in some scenarios, suggesting better optimization for certain workload types.",
+        "weaknesses": "Response times can be slower than Claude variants (1246s for comprehensive scan vs 384s for Sonnet). Consistently ranks in positions 2-5, indicating strong but not dominant performance. Token usage (962K for comprehensive scan) higher than Claude Sonnet (1.09M input but more efficient processing). Generally 3-8 percentage points below top performers in individual scenarios.",
+        "production_readiness": "primary"
+      },
+      "vercel_gemini-2.5-pro": {
+        "participation_rate": 1,
+        "scenarios_participated": [
+          "capability-comparative_capability_auto_scan",
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [],
+        "average_score": 0.835,
+        "consistency_score": 0.947,
+        "reliability_score": 0.947,
+        "strengths": "Strong reliability with 100% scenario participation and consistent performance (0.81-0.878 range). Successfully completed comprehensive 67-resource auto-scan (rank 3, 0.878), one of only three models demonstrating production-grade workflow completion. Good provider identification and architectural understanding (recognizes multi-cloud applicability). Reasonable response times (39s for search operations).",
+        "weaknesses": "Paradoxically underperforms Flash variant in several scenarios despite being higher-tier model. Ranks consistently 3-5 across scenarios, never achieving top position. Response times longer than Claude variants for single-resource analysis. Token efficiency and speed-quality tradeoffs less optimal than Claude Haiku or Flash variant.",
+        "production_readiness": "primary"
+      },
+      "vercel_claude-haiku-4-5-20251001": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.8987,
+        "consistency_score": 0.973,
+        "reliability_score": 0.73,
+        "strengths": "Exceptional efficiency champion with best-in-class speed-quality balance for single-resource scenarios. Ranks #1 in 3 of 4 participated scenarios (CRUD: 0.92, List: 0.88, Search: 0.906). Demonstrates optimal token efficiency (200-542 tokens) with sub-10-second response times. When operational, provides production-grade capability analysis covering essential features without excessive verbosity. Best cost-performance ratio among all models.",
+        "weaknesses": "CRITICAL: Complete failure in comprehensive 67-resource auto-scan (scored 0.0, rank 4), representing catastrophic reliability issue for sustained workflows. 25% scenario failure rate disqualifies from primary production recommendation despite excellent performance in participated scenarios. The failure pattern suggests inability to handle long-running, context-accumulating workloads despite excelling at discrete single-resource analysis.",
+        "production_readiness": "secondary"
+      },
+      "vercel_deepseek-reasoner": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.6353,
+        "consistency_score": 0.847,
+        "reliability_score": 0.635,
+        "strengths": "Participates in 75% of scenarios without HTTP timeout failures. Reasoning mechanisms may provide value for complex analytical tasks. Completes workflows that other models abandon.",
+        "weaknesses": "CRITICAL: Complete failure in comprehensive auto-scan (0.0 score). Consistently ranks in bottom tiers (8-9 positions) across all participated scenarios. Severe performance issues: 77-126 second response times represent 30-100x degradation vs efficient models. Scores consistently low (0.60-0.706 range). The 2-minute reasoning overhead provides no discernible quality benefit for structured Kubernetes analysis tasks. Poor production viability due to extreme latency and consistent underperformance.",
+        "production_readiness": "avoid"
+      },
+      "vercel_gpt-5-pro": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.5653,
+        "consistency_score": 0.832,
+        "reliability_score": 0.624,
+        "strengths": "Attempts comprehensive technical analysis with detailed coverage when operational. May provide marginal quality improvements for documentation generation use cases.",
+        "weaknesses": "CATASTROPHIC: Multiple critical failures including complete failure in comprehensive auto-scan (0.0 score) and HTTP timeout failure during semantic search operations. Ranks dead last (position 10) in both CRUD (0.57) and Search (0.548) scenarios. Extreme performance degradation: 270-second response times for minimal quality gains over 5-second alternatives. Demonstrates classic over-engineering antipattern - pursuing completeness at expense of reliability and usability. 25% scenario failure rate with timeout-prone behavior represents unacceptable production risk.",
+        "production_readiness": "avoid"
+      },
+      "vercel_gpt-5": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.7533,
+        "consistency_score": 0.891,
+        "reliability_score": 0.669,
+        "strengths": "Achieves mid-tier performance (0.73-0.776 range) in participated scenarios. Avoids HTTP timeout failures unlike GPT-5-Pro variant. Shows reasonable technical accuracy when operational.",
+        "weaknesses": "CRITICAL: Complete failure in comprehensive 67-resource auto-scan with only 13 completions out of 67 resources analyzed. 25% scenario failure rate indicates severe reliability issues. Consistently ranks in positions 6-8, never achieving top-tier performance. Response times of 60+ seconds provide poor value proposition vs. models achieving similar quality in <10 seconds. The 1-minute processing overhead suggests complex reasoning mechanisms that add latency without proportional benefit for structured analysis tasks.",
+        "production_readiness": "limited"
+      },
+      "vercel_grok-4-fast-reasoning": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.7943,
+        "consistency_score": 0.906,
+        "reliability_score": 0.68,
+        "strengths": "Achieves respectable mid-tier performance (0.78-0.81 range) across participated scenarios. Demonstrates reasonable consistency without extreme variance. Completes workflows without timeout failures.",
+        "weaknesses": "CRITICAL: Complete failure in comprehensive 67-resource auto-scan (0.0 score). 25% scenario failure rate disqualifies from production deployment. Ranks consistently in positions 5-7, indicating reliable mediocrity rather than excellence. Name suggests 'fast-reasoning' but performance metrics show no speed advantage over standard Grok-4 variant, representing potential marketing-reality gap. No compelling differentiation to justify production selection over higher-performing alternatives.",
+        "production_readiness": "limited"
+      },
+      "vercel_grok-4": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.7877,
+        "consistency_score": 0.903,
+        "reliability_score": 0.677,
+        "strengths": "Achieves mid-tier performance (0.774-0.80 range) with reasonable consistency. Came closest to completing comprehensive auto-scan among failed models (66 of 67 resources) but still failed at critical final step. Shows potential for workflow completion but lacks reliability.",
+        "weaknesses": "CRITICAL: Failed comprehensive 67-resource auto-scan at final step (66/67 completions), demonstrating inability to sustain long-running workflows. 25% scenario failure rate indicates production risk. Ranks consistently in positions 6-7, never achieving competitive performance. Offers no clear advantage over fast-reasoning variant despite presumably simpler architecture. Performance profile suggests adequate for low-stakes scenarios but unreliable for production workflows.",
+        "production_readiness": "limited"
+      },
+      "vercel_mistral-large-latest": {
+        "participation_rate": 0.75,
+        "scenarios_participated": [
+          "capability-comparative_capability_crud_auto_scan",
+          "capability-comparative_capability_list_auto_scan",
+          "capability-comparative_capability_search_auto_scan"
+        ],
+        "scenarios_failed": [
+          "capability-comparative_capability_auto_scan"
+        ],
+        "average_score": 0.722,
+        "consistency_score": 0.732,
+        "reliability_score": 0.549,
+        "strengths": "Excels in CRUD auto-scan scenario (rank 2, 0.90 score) demonstrating strong technical comprehensiveness for structured analysis. Sub-8-second response times show efficiency when operational. Can provide detailed capability breakdowns (1000+ capabilities identified in search scenario).",
+        "weaknesses": "CATASTROPHIC: Multiple critical failures including complete failure in comprehensive auto-scan (0.0 score) and HTTP timeout during semantic search operations (rank 10, 0.406 score). Extreme performance variance (scores ranging 0.406-0.90) indicates unreliable behavior across workload types. The over-engineering tendency (17,464 tokens, 1000+ capabilities) reduces practical usability and triggers timeout failures. 25% scenario failure rate with timeout-prone behavior in extended workflows represents severe production risk. Lowest consistency score (0.732) among all models indicates unpredictable behavior.",
+        "production_readiness": "avoid"
+      }
+    },
+    "overall_assessment": {
+      "winner": "vercel_claude-sonnet-4-5-20250929",
+      "rationale": "Claude Sonnet 4.5 wins decisively based on exceptional cross-scenario reliability (100% participation, 0.978 reliability score) and consistent high performance across all workload types. This model uniquely balances three critical production requirements: (1) WORKFLOW COMPLETION RELIABILITY - Successfully completed the catastrophic 67-resource comprehensive auto-scan that eliminated 70% of competitors, proving sustained performance in context-accumulating scenarios; (2) CONSISTENT QUALITY - Maintained 0.84-0.914 score range across all scenarios without the extreme variance plaguing models like Mistral Large (0.406-0.90) or the catastrophic failures affecting 7 of 10 models; (3) OPERATIONAL EFFICIENCY - Achieved production-grade results with reasonable resource usage (384s for 67-resource scan, ~2K tokens for single resources) without the extreme latency of GPT-5 variants (270s timeouts) or over-engineering of Mistral Large (17K tokens). While Claude Haiku technically achieved higher scores in participated scenarios (0.8987 avg), its catastrophic failure in the comprehensive auto-scan (25% failure rate, 0.730 reliability score) disqualifies it from primary production recommendation. The evaluation proves that reliability trumps peak performance: a model that works consistently across ALL scenarios (Claude Sonnet) is objectively more valuable for production deployment than one that excels in 75% of scenarios but catastrophically fails in 25% (Claude Haiku). Claude Sonnet represents the optimal balance point where reliability, consistency, and performance converge without the failure modes, timeout risks, or over-engineering issues plaguing alternative models.",
+      "reliability_ranking": [
+        {
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "reliability_score": 0.978,
+          "reliability_notes": "100% participation rate, consistent 0.84-0.914 performance, only model successfully completing catastrophic 67-resource workflow, zero timeout failures"
+        },
+        {
+          "model": "vercel_gemini-2.5-flash",
+          "reliability_score": 0.955,
+          "reliability_notes": "100% participation rate, consistent 0.80-0.906 performance, completed comprehensive workflow, strong technical depth, zero timeout failures"
+        },
+        {
+          "model": "vercel_gemini-2.5-pro",
+          "reliability_score": 0.947,
+          "reliability_notes": "100% participation rate, consistent 0.81-0.878 performance, completed comprehensive workflow, good architectural understanding, zero timeout failures"
+        },
+        {
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "reliability_score": 0.73,
+          "reliability_notes": "75% participation rate (catastrophic failure in comprehensive auto-scan), excellent performance in participated scenarios (0.88-0.92), best efficiency metrics when operational"
+        },
+        {
+          "model": "vercel_grok-4-fast-reasoning",
+          "reliability_score": 0.68,
+          "reliability_notes": "75% participation rate (failed comprehensive auto-scan), mid-tier performance (0.78-0.81), reasonable consistency but no compelling advantages"
+        },
+        {
+          "model": "vercel_grok-4",
+          "reliability_score": 0.677,
+          "reliability_notes": "75% participation rate (66/67 near-miss in comprehensive scan), mid-tier performance (0.774-0.80), inconsistent workflow completion"
+        },
+        {
+          "model": "vercel_gpt-5",
+          "reliability_score": 0.669,
+          "reliability_notes": "75% participation rate (only 13/67 completions in comprehensive scan), mid-tier scores (0.73-0.776), severe workflow abandonment issues"
+        },
+        {
+          "model": "vercel_deepseek-reasoner",
+          "reliability_score": 0.635,
+          "reliability_notes": "75% participation rate (failed comprehensive auto-scan), consistently bottom-tier performance (0.60-0.706), extreme latency (77-126s) with no quality benefit"
+        },
+        {
+          "model": "vercel_gpt-5-pro",
+          "reliability_score": 0.624,
+          "reliability_notes": "75% participation rate with HTTP timeout failure, ranks last in multiple scenarios (0.548-0.57), extreme latency (270s), catastrophic reliability issues"
+        },
+        {
+          "model": "vercel_mistral-large-latest",
+          "reliability_score": 0.549,
+          "reliability_notes": "75% participation rate with HTTP timeout failure, extreme variance (0.406-0.90), over-engineering tendency causing timeout failures, lowest consistency score"
+        }
+      ],
+      "production_recommendations": {
+        "primary": "vercel_claude-sonnet-4-5-20250929",
+        "secondary": "vercel_gemini-2.5-flash",
+        "avoid": [
+          "vercel_gpt-5-pro",
+          "vercel_deepseek-reasoner",
+          "vercel_mistral-large-latest"
+        ],
+        "specialized_use": {
+          "single_resource_efficiency_critical": "vercel_claude-haiku-4-5-20251001 (only for discrete, non-sustained workflows where 25% failure risk is acceptable)",
+          "maximum_technical_depth_with_patience": "vercel_gemini-2.5-flash (when comprehensive analysis justifies longer processing times)",
+          "cost_sensitive_batch_processing": "vercel_claude-sonnet-4-5-20250929 (optimal token efficiency with reliability)",
+          "avoid_for_sustained_workflows": "All models except Claude Sonnet 4.5, Gemini 2.5 Flash, and Gemini 2.5 Pro - 70% failure rate in comprehensive multi-resource scenarios"
+        }
+      },
+      "key_insights": "This evaluation exposes a fundamental reliability crisis in AI model capabilities for sustained, context-accumulating workflows: (1) CATASTROPHIC FAILURE THRESHOLD - The 67-resource comprehensive auto-scan proved to be a binary pass/fail test, with 70% of models (7 of 10) experiencing complete failure via timeouts, API errors, rate limiting, or workflow abandonment, revealing that individual response quality does not predict workflow completion reliability; (2) RELIABILITY TRIARCHY - Only three models (Claude Sonnet 4.5, Gemini 2.5 Flash, Gemini 2.5 Pro) demonstrated production-grade reliability with 100% scenario participation and workflow completion capability, establishing a clear tier separation; (3) EFFICIENCY PARADOX - Claude Haiku's exceptional single-resource performance (best scores in 3 scenarios) coupled with catastrophic comprehensive workflow failure illustrates that optimization for discrete tasks can compromise sustained operation reliability; (4) OVER-ENGINEERING ANTIPATTERN - Models pursuing maximum comprehensiveness (Mistral Large: 1000+ capabilities, 17K tokens; GPT-5-Pro: 270s response times) consistently triggered timeout failures and delivered poor practical value, proving that 'more complete' does not equal 'more useful'; (5) REASONING OVERHEAD FALLACY - Models with explicit reasoning mechanisms (DeepSeek: 77-126s, GPT-5: 60s) showed no quality advantage over efficient models (Claude Haiku: 7s) while introducing severe latency penalties, suggesting reasoning overhead provides no benefit for structured Kubernetes analysis; (6) TIMEOUT AS PRODUCTION ELIMINATOR - The 180-second HTTP timeout constraint eliminated multiple models (GPT-5-Pro, Mistral Large) from production viability, highlighting that cloud infrastructure constraints create hard reliability boundaries; (7) CONSISTENCY TRUMPS PEAKS - Cross-scenario analysis proves that consistent mid-to-high performance (Claude Sonnet: 0.84-0.914) is more valuable than peak performance with catastrophic failures (Claude Haiku: 0.88-0.92 when operational, 0.0 when failed); (8) PRODUCTION READINESS REALITY - Only 30% of evaluated models are suitable for production Kubernetes capability inference requiring reliable multi-resource analysis, with the remaining 70% posing unacceptable operational risks despite potentially strong individual response quality."
+    }
+  },
+  "results": [
+    {
+      "key": "capability-comparative_capability_auto_scan",
+      "score": 0.914,
+      "comment": "CRITICAL FINDING: Only 3 of 10 models (30%) successfully completed the comprehensive 67-resource capability analysis workflow, revealing severe reliability issues across most tested models for iterative, context-accumulating scenarios. Claude Sonnet 4.5, Gemini 2.5 Flash, and Gemini 2.5 Pro demonstrated production-grade capability, while 7 models failed catastrophically via timeouts (5 models), API errors (1 model), or rate limiting (1 model). Claude Sonnet 4.5 emerged as the clear winner with optimal balance of technical accuracy (92%), efficiency (88%), and reliability, completing the full workflow in 384s with 1.09M tokens. Gemini 2.5 Flash provided exceptional technical depth but at slightly lower token efficiency (962K tokens, 1246s). The 70% failure rate highlights the importance of workflow completion testing for comprehensive capability analysis scenarios - many models showed strong individual response quality but catastrophic failure in sustained, multi-resource analysis. GPT-5-Pro and GPT-5 showed particularly poor performance (8 and 13 completions respectively), while Grok-4 came closest to success (66/67) but still failed at the critical final step. For production Kubernetes capability inference requiring reliable completion of 50+ resource analyses, only Claude Sonnet 4.5 and Gemini 2.5 variants should be considered viable options. The massive performance gap between successful models (914-878 scores) and failed models (all 0.0) demonstrates this is a binary pass/fail scenario rather than a spectrum of capability.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.914
+        },
+        {
+          "rank": 2,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.906
+        },
+        {
+          "rank": 3,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.878
+        },
+        {
+          "rank": 4,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gpt-5-pro",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gpt-5",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_grok-4",
+          "score": 0
+        },
+        {
+          "rank": 4,
+          "model": "vercel_mistral-large-latest",
+          "score": 0
+        }
+      ],
+      "bestModel": "vercel_claude-sonnet-4-5-20250929",
+      "modelCount": 10
+    },
+    {
+      "key": "capability-comparative_capability_crud_auto_scan",
+      "score": 0.92,
+      "comment": "This evaluation reveals critical insights about AI model performance for Kubernetes capability analysis: (1) **Sweet spot balance**: Claude Haiku and Mistral Large demonstrate that comprehensive analysis doesn't require extreme processing time - they achieve 90%+ scores with <8s response times. (2) **Diminishing returns**: GPT-5-pro's 20-minute analysis provides marginally better technical detail than Haiku's 5-second analysis, demonstrating massive inefficiency for minimal quality gains. (3) **Reasoning overhead**: DeepSeek Reasoner's 2-minute processing and GPT-5's 1-minute processing suggest that complex reasoning mechanisms add overhead without proportional benefit for structured analysis tasks. (4) **Model tier paradoxes**: Gemini-2.5-flash outperforms Gemini-2.5-pro in both speed and comprehensiveness; Grok-4-fast-reasoning is slower than expected while Grok-4 offers no advantage. (5) **Production viability**: Only 5 models (Claude Haiku, Claude Sonnet, Mistral Large, and both Gemini variants) complete analysis in <40 seconds, making them production-viable. (6) **Cost-performance considerations**: Claude Haiku offers exceptional value with top-tier quality at presumably lower cost than GPT-5 variants. (7) **Technical accuracy baseline**: All models demonstrate solid Kubernetes knowledge for core resources, but advanced features (dual-stack, traffic policies, immutability) separate top performers. (8) **Optimal use cases**: Fast models (Haiku, Sonnet, Mistral) suit real-time capability analysis; detailed models (GPT-5, Mistral) suit documentation generation; reasoning models show no clear advantage for this structured task type.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.92
+        },
+        {
+          "rank": 2,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.9
+        },
+        {
+          "rank": 3,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.87
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.82
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.81
+        },
+        {
+          "rank": 6,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.81
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4",
+          "score": 0.79
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gpt-5",
+          "score": 0.73
+        },
+        {
+          "rank": 9,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.6
+        },
+        {
+          "rank": 10,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.57
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 10
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_174317177Z.jsonl",
+      "score": 0.885,
+      "comment": "With only one model in this comparison, Claude Sonnet 4.5 establishes a strong baseline for Kubernetes capability analysis. The model excels at balancing comprehensiveness with efficiency, providing technically sound analysis without excessive verbosity. Key strengths include accurate provider identification, appropriate complexity assessment, and practical use case descriptions. The model's approach of combining both broad categories ('networking') and specific capabilities ('service discovery', 'load balancing') provides good coverage, though it introduces some redundancy. The 0.95 confidence score suggests appropriate self-assessment for a well-documented Kubernetes resource. For production capability analysis workflows, this model demonstrates reliable performance with good cost-efficiency (under 6 seconds, ~2K tokens). Future comparisons should evaluate whether other models provide more granular capability breakdowns (e.g., distinguishing Service types as separate capabilities) or better avoid conceptual overlaps in the capabilities array. The model's performance metrics indicate it would scale well for analyzing multiple resources in batch scenarios.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.885
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_174934883Z.jsonl",
+      "score": 0.916,
+      "comment": "With only one model in this comparison, Claude Sonnet 4.5 establishes a strong baseline for Kubernetes Service capability analysis. The model excels at identifying core capabilities with technical precision while maintaining excellent token efficiency (91.6% weighted score). Key observations: (1) The model demonstrates production-ready Kubernetes knowledge by correctly identifying service types and networking abstractions, (2) Token efficiency is exceptional - achieving comprehensive coverage in 167 output tokens suggests the model can scale to analyze many resources cost-effectively, (3) The 5.3-second response time is acceptable but suggests room for optimization in single-resource scenarios, (4) High confidence score (0.95) aligns with actual output quality, indicating good self-assessment, (5) The primary area for improvement is distinguishing between native resource capabilities versus ecosystem integrations (service mesh example). For production capability analysis systems, this model would provide reliable, cost-effective results, particularly valuable when analyzing multiple resources at scale due to its token efficiency. Future comparisons should evaluate whether other models can match this efficiency while improving on edge cases and capability categorization nuances.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.916
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_180302565Z.jsonl",
+      "score": 0.89,
+      "comment": "With only one model in this comparison, Claude Sonnet 4.5 establishes a strong baseline for Kubernetes capability analysis. The model excels at identifying primary capabilities and providing context-rich descriptions that balance technical accuracy with user accessibility. Key strengths include comprehensive enumeration of service types and appropriate confidence calibration. The main area for improvement would be more precise terminology (avoiding overreach like 'service mesh' for basic Services) and potentially faster response times. The 6.6-second response time with 2,124 tokens suggests thorough analysis but could be optimized for production scanning scenarios where hundreds of resources might need analysis. The successful completion without failures demonstrates good reliability, and the structured JSON output format is well-suited for automated capability cataloging systems.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.89
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_181347421Z.jsonl",
+      "score": 0.916,
+      "comment": "This single-model evaluation demonstrates strong capability inference performance from Claude Sonnet 4.5. Key patterns observed: (1) The model balances comprehensiveness with efficiency, identifying 9 capabilities without over-analyzing, (2) Token efficiency is excellent at 181 output tokens for quality analysis, (3) Technical accuracy is high with appropriate mention of Service types and networking concepts, (4) The model appropriately rates confidence and complexity, (5) Response latency of 5.6 seconds suggests room for optimization in production scenarios requiring rapid analysis. For capability inference tasks, this model shows it can provide practical, technically sound analysis that would help users understand Kubernetes resources. The lack of caching utilization and moderate latency suggest opportunities for performance optimization in repeated analysis scenarios. The slight overreach in capability identification (service mesh) indicates the model may benefit from stricter scoping to core, out-of-the-box capabilities versus ecosystem extensions.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.916
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_182036496Z.jsonl",
+      "score": 0.915,
+      "comment": "This single-model evaluation of Claude Sonnet 4.5 reveals a model well-suited for Kubernetes capability analysis tasks. Key observations: (1) The model demonstrates strong domain knowledge of Kubernetes primitives, correctly identifying networking abstractions and service discovery patterns; (2) Token efficiency is excellent - comprehensive analysis delivered in ~2K tokens suggests good value for cost-sensitive deployments; (3) The single-iteration completion without tool calls indicates the model has sufficient internal knowledge for common Kubernetes resources without requiring external documentation retrieval; (4) The medium complexity rating and 0.95 confidence score show appropriate self-assessment calibration; (5) The response structure (capabilities, providers, abstractions, description, use case) provides good organization for downstream consumption in capability databases or documentation systems. For production capability analysis workflows, this model would perform reliably on standard Kubernetes resources, though complex custom resources or operator patterns might benefit from iterative refinement or external documentation access. The ~5.6 second response time positions it well for batch analysis scenarios rather than real-time interactive use cases.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.915
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan_anthropic_claude-sonnet-4-5-20250929_2025-10-15_183417409Z.jsonl",
+      "score": 0.885,
+      "comment": "This single-model evaluation reveals Claude Sonnet 4.5's competent capability analysis for core Kubernetes resources. The model demonstrates solid understanding of Service networking concepts and appropriate technical depth for practitioner consumption. Key observations: (1) Token efficiency is excellent at ~2K tokens for comprehensive Service analysis, (2) Response latency of 6+ seconds suggests potential optimization opportunities for real-time capability scanning workflows, (3) The model appropriately balances technical accuracy with accessibility - avoiding over-technical jargon while maintaining precision, (4) High confidence scoring (0.95) aligns well with the straightforward nature of Service resource capabilities, (5) The single-iteration approach without tool calls suggests the model relies on pre-trained knowledge rather than dynamic exploration, which works well for well-established Kubernetes resources but may limit discovery of custom resource or operator capabilities. For production capability analysis systems, this model would be reliable for standard Kubernetes resources but would benefit from latency optimization and potentially multi-pass analysis for complex custom resources.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "anthropic_claude-sonnet-4-5-20250929",
+          "score": 0.885
+        }
+      ],
+      "bestModel": "anthropic_claude-sonnet-4-5-20250929",
+      "modelCount": 1
+    },
+    {
+      "key": "capability-comparative_capability_list_auto_scan",
+      "score": 0.88,
+      "comment": "This evaluation reveals critical trade-offs between technical comprehensiveness and operational efficiency in Kubernetes capability analysis. The top performers (Claude Haiku, Mistral Large, Gemini Pro) demonstrate that sub-5-second response times with 200-300 output tokens can deliver production-grade Service capability analysis covering essential features like service types, traffic policies, load balancing, and multi-cloud applicability. Mid-tier models (Claude Sonnet, Gemini Flash, Grok variants) show viable alternatives with different speed-depth profiles. The bottom tier illustrates failure modes: DeepSeek Reasoner's 77-second response and GPT-5 Pro's 270-second response represent 30-100x performance degradation that eliminates practical utility regardless of technical accuracy. For Service resource analysis specifically, capabilities fall into clear priority tiers: (1) Core networking (service discovery, load balancing, traffic routing), (2) Service types (ClusterIP, NodePort, LoadBalancer, ExternalName), (3) Advanced features (session affinity, traffic policies, dual-stack), (4) API-level details (traffic distribution, health check ports, IP family policies). Models that efficiently cover tiers 1-3 (Claude Haiku, Mistral Large) provide optimal value, while those pursuing tier 4 completeness (GPT-5 Pro) sacrifice usability. The evaluation also highlights provider identification as a quality signal - models recognizing 'multi-cloud' applicability demonstrate better architectural understanding than those limiting scope to 'kubernetes'. For production capability inference systems, Claude Haiku's 2.5-second response with 0.95 confidence and comprehensive tier 1-3 coverage represents the current quality-efficiency frontier, while Mistral Large offers the best alternative for users prioritizing maximum technical detail within reasonable performance constraints.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.88
+        },
+        {
+          "rank": 2,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.86
+        },
+        {
+          "rank": 3,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.85
+        },
+        {
+          "rank": 4,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.84
+        },
+        {
+          "rank": 5,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.82
+        },
+        {
+          "rank": 6,
+          "model": "vercel_grok-4",
+          "score": 0.8
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.78
+        },
+        {
+          "rank": 8,
+          "model": "vercel_gpt-5",
+          "score": 0.76
+        },
+        {
+          "rank": 9,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.6
+        },
+        {
+          "rank": 10,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.58
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 10
+    },
+    {
+      "key": "capability-comparative_capability_search_auto_scan",
+      "score": 0.906,
+      "comment": "This evaluation reveals stark differences in model approaches to Kubernetes capability inference: (1) **Efficiency-Quality Balance is Critical**: Claude Haiku-4 demonstrates that fast response times (7s) and concise output (542 tokens) can coexist with comprehensive, accurate capability analysis, achieving the best overall score (0.906). This proves that more tokens/time doesn't equal better quality. (2) **Over-Engineering is Counterproductive**: Models like Mistral-Large (1000+ capabilities, 17,464 tokens) and GPT-5 (73s, verbose output) demonstrate that excessive comprehensiveness reduces practical usability. The best models (Claude Haiku, Claude Sonnet) focus on primary capabilities without drowning users in implementation details. (3) **Reliability is Non-Negotiable**: GPT-5-Pro and Mistral-Large both experienced HTTP timeouts (180s limit) during semantic search operations, failing to complete workflows despite good individual analyses. This reliability failure severely impacts production viability, dropping them to ranks 9-10. (4) **Speed-Comprehensiveness Tradeoff**: A clear pattern emerges where models cluster into three tiers: fast & focused (Claude Haiku/Sonnet: 7-10s), balanced & comprehensive (Gemini models: 39s), and slow & over-engineered (GPT-5, Deepseek: 73-126s). The winning strategy is fast & focused with sufficient depth. (5) **Technical Accuracy Varies**: Top performers correctly identify 13-22 Service capabilities covering all service types, traffic policies, and networking features, while lower-ranked models provide only 6-8 basic capabilities. For Deployment, comprehensive models cover 16-26 capabilities including security contexts, volumes, and lifecycle hooks, while minimal models list only 6-7. (6) **Provider Identification Matters**: Best models correctly identify 'kubernetes' for core resources and specific storage providers (AWS EBS, Azure Disk, etc.) for volume-related capabilities, while weaker models either over-generalize ('multi-cloud') or over-specify (listing 20+ providers unnecessarily). (7) **Cost-Performance**: At typical pricing ($0.30-1.00 per 1M input tokens, $1.25-5.00 per 1M output tokens), Claude Haiku's efficiency (16K total tokens in 7s) offers exceptional value compared to Mistral's failure (30K tokens in 359s with timeout). (8) **Production Recommendations**: For production capability inference, prioritize Claude Haiku (best speed-quality-reliability), Claude Sonnet (good balance, slightly less comprehensive), or Gemini-Pro (when detailed provider mapping required). Avoid models with timeout histories (GPT-5-Pro, Mistral-Large) or excessive processing times (Deepseek: 126s). The 3-minute HTTP timeout constraint mentioned in tool context is a real production limitation that eliminates multiple models from consideration.",
+      "confidence": 0.9,
+      "modelRankings": [
+        {
+          "rank": 1,
+          "model": "vercel_claude-haiku-4-5-20251001",
+          "score": 0.906
+        },
+        {
+          "rank": 2,
+          "model": "vercel_claude-sonnet-4-5-20250929",
+          "score": 0.848
+        },
+        {
+          "rank": 3,
+          "model": "vercel_gemini-2.5-pro",
+          "score": 0.816
+        },
+        {
+          "rank": 4,
+          "model": "vercel_gemini-2.5-flash",
+          "score": 0.8
+        },
+        {
+          "rank": 5,
+          "model": "vercel_grok-4-fast-reasoning",
+          "score": 0.792
+        },
+        {
+          "rank": 6,
+          "model": "vercel_gpt-5",
+          "score": 0.776
+        },
+        {
+          "rank": 7,
+          "model": "vercel_grok-4",
+          "score": 0.774
+        },
+        {
+          "rank": 8,
+          "model": "vercel_deepseek-reasoner",
+          "score": 0.706
+        },
+        {
+          "rank": 9,
+          "model": "vercel_gpt-5-pro",
+          "score": 0.548
+        },
+        {
+          "rank": 10,
+          "model": "vercel_mistral-large-latest",
+          "score": 0.406
+        }
+      ],
+      "bestModel": "vercel_claude-haiku-4-5-20251001",
+      "modelCount": 10
+    }
+  ],
+  "summary": {
+    "totalDatasets": 594,
+    "availableModels": [
+      "vercel_claude-haiku-4-5-20251001_2025-10-15",
+      "vercel_claude-sonnet-4-5-20250929_2025-10-15",
+      "vercel_deepseek-reasoner_2025-10-13",
+      "vercel_gemini-2.5-flash_2025-10-14",
+      "vercel_gemini-2.5-pro_2025-10-14",
+      "vercel_gpt-5-pro_2025-10-14",
+      "vercel_gpt-5_2025-10-14",
+      "vercel_grok-4-fast-reasoning_2025-10-14",
+      "vercel_grok-4_2025-10-14",
+      "vercel_mistral-large-latest_2025-10-14"
+    ],
+    "scenariosWithMultipleModels": 10,
+    "interactionTypes": [
+      "auto_scan",
+      "crud_auto_scan",
+      "list_auto_scan",
+      "search_auto_scan"
+    ]
+  }
+}

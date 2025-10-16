@@ -2,6 +2,10 @@
 
 You are evaluating and comparing multiple AI models' responses to the same Kubernetes troubleshooting scenario. You are an expert in Kubernetes operations and diagnosis.
 
+{pricing_context}
+
+{tool_context}
+
 ## TROUBLESHOOTING SCENARIO
 User Issue: "{issue}"
 
@@ -37,8 +41,9 @@ User Issue: "{issue}"
 Some models may have failure analysis metadata indicating they experienced timeouts, errors, or other issues during the full workflow execution. When evaluating:
 
 - **Successful individual responses**: If a model provided a good response for this specific phase but failed elsewhere in the workflow, focus on the quality of THIS response but apply a **reliability penalty** to the performance score
-- **Timeout failures**: Models that timed out during the full workflow should receive reduced performance scores even if their individual responses were good
+- **Timeout failures**: Models that timed out during the full workflow should receive reduced performance scores even if their individual responses were good. **Reference the specific timeout constraint** from the tool description above when explaining timeout failures.
 - **Reliability scoring**: Factor workflow completion reliability into the performance score (models that couldn't complete the full workflow are less reliable for production use)
+- **Cost-performance analysis**: Consider model pricing when analyzing overall value - a model with slightly lower scores but significantly lower cost may offer better value for certain use cases.
 
 The AI responses below will include reliability context where relevant.
 
