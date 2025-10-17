@@ -11,6 +11,10 @@ roleRef:
   name: {{ include "dot-ai.fullname" . }}
 subjects:
 - kind: ServiceAccount
+  {{- if eq .Values.deployment.method "toolhive" }}
+  name: {{ include "dot-ai.fullname" . }}-sa
+  {{- else }}
   name: {{ include "dot-ai.serviceAccountName" . }}
+  {{- end }}
   namespace: {{ .Release.Namespace }}
 {{- end }}
