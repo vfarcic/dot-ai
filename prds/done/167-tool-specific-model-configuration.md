@@ -1,9 +1,10 @@
 # PRD: Tool-Specific AI Model Configuration
 
 **Issue**: #167
-**Status**: Draft
+**Status**: No Longer Needed
 **Created**: 2025-10-16
-**Last Updated**: 2025-10-16
+**Last Updated**: 2025-10-20
+**Closed**: 2025-10-20
 
 ---
 
@@ -248,3 +249,26 @@ Follow existing error handling patterns:
 - PRD created
 - GitHub issue #167 created
 - Ready for implementation planning
+
+### 2025-10-20: PRD Closure - No Longer Needed
+**Duration**: N/A (administrative closure)
+**Status**: Closed
+
+**Closure Summary**:
+After beginning implementation work on this PRD, we determined that the architectural complexity and required changes outweigh the practical benefits for the use case.
+
+**Reason for Closure**:
+- **Architectural Complexity**: Implementing tool-specific model configuration requires significant refactoring of the AI provider system, particularly around making toolName mandatory throughout the call chain
+- **Limited Practical Benefit**: The current global `AI_PROVIDER` and `AI_MODEL` environment variables already provide sufficient flexibility for most use cases
+- **Cost Optimization Alternative**: Users can already switch models globally based on workload, which addresses the primary cost optimization concern
+- **Maintenance Burden**: Adding per-tool configuration increases system complexity and maintenance overhead without proportional value
+- **User Experience**: The current simple global configuration is easier to understand and manage for most users
+
+**Key Points**:
+- Original PRD requested tool-specific AI model configuration via `AI_PROVIDER_[TOOL_NAME]` environment variables
+- Goal was to enable cost optimization and performance tuning by using different models for different tool complexity levels
+- Implementation began but was abandoned after architectural review revealed excessive complexity
+- Current global configuration pattern (`AI_PROVIDER` + optional `AI_MODEL` override) is sufficient
+
+**Decision**:
+This feature does not provide sufficient value to justify the architectural changes and ongoing maintenance burden. The existing configuration system adequately serves user needs.
