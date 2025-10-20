@@ -15,6 +15,12 @@ The DevOps AI Toolkit provides six main capabilities through MCP (Model Context 
 
 This guide helps you choose the right setup method and get started quickly.
 
+## See MCP Deployment Options in Action
+
+[![How to Deploy and Run MCP Servers (NPX, Docker, Kubernetes, ToolHive)](https://img.youtube.com/vi/MHf-M8qOogY/maxresdefault.jpg)](https://youtu.be/MHf-M8qOogY)
+
+This video demonstrates four different ways to deploy MCP servers, from local NPX execution to production-ready Kubernetes deployments. Watch a comprehensive comparison of deployment methods including security implications, isolation patterns, dependency management, and multi-user scenarios. See hands-on demonstrations of NPX, Docker, Kubernetes with standard resources, Kubernetes with ToolHive operator, plus coverage of cloud alternatives like Fly.io, Cloudflare Workers, AWS Lambda, Vercel, Railway, and Podman.
+
 ## Setup Methods
 
 Choose the method that best fits your environment and workflow:
