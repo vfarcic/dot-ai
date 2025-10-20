@@ -42,6 +42,7 @@ DEVELOPER NOTE: This tool is under active development with incomplete functional
 
 ### AI Integration
 - **AI Agents**: Integrate all capabilities with Claude Code, Cursor, or VS Code for conversational workflows
+- **Multiple AI Providers**: Choose from multiple AI models and providers to optimize for quality, cost, and reliability - see [AI Model Configuration](./docs/mcp-setup.md#ai-model-configuration)
 - **REST API**: Access all tools via standard HTTP endpoints for CI/CD pipelines, automation scripts, and traditional applications
 
 ## Key Features
@@ -133,8 +134,9 @@ DEVELOPER NOTE: This tool is under active development with incomplete functional
 📖 [Learn more →](./docs/mcp-prompts-guide.md)
 
 ### AI Integration
-⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol  
+⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol
 🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, pattern management, and shared prompt workflows
+🎯 **Multiple AI Providers**: Choose from multiple AI models and providers to optimize for quality, cost, and reliability - see [AI Model Configuration](./docs/mcp-setup.md#ai-model-configuration)
 
 **Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.
 
