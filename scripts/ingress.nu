@@ -39,11 +39,12 @@ def --env "main apply ingress" [
 
             (
                 kubectl --namespace ingress-nginx wait
-                    --for=condition=Available
-                    deployment ingress-nginx-controller
+                    --for=condition=Ready
+                    pods 
+                    --selector app.kubernetes.io/name=ingress-nginx
+                    --selector app.kubernetes.io/component=controller
+                    --timeout=120s
             )
-
-            sleep 5sec
 
         }
 

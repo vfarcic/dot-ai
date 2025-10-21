@@ -2,23 +2,19 @@
 
 # Retrieves Anthropic token
 #
-# Parameters:
-# --anthropic-api-key: Anthropic API key (optional, falls back to ANTHROPIC_API_KEY env var)
-#
 # Returns:
 # A record with token, and saves values to .env file
-def --env "main get anthropic" [
-    --anthropic-api-key: string
-] {
+def --env "main get anthropic" [] {
 
-    mut key = $anthropic_api_key
-    if ($key | is-empty) and ("ANTHROPIC_API_KEY" in $env) {
-        $key = $env.ANTHROPIC_API_KEY
-    } else if ($key | is-empty) {
-        error make { msg: "Anthropic API key required via --anthropic-api-key parameter or ANTHROPIC_API_KEY environment variable" }
+    mut anthropic_api_key = ""
+    if "ANTHROPIC_API_KEY" in $env {
+        $anthropic_api_key = $env.ANTHROPIC_API_KEY
+    } else {
+        let value = input $"(ansi green_bold)Enter Anthropic token:(ansi reset) "
+        $anthropic_api_key = $value
     }
-    $"export ANTHROPIC_API_KEY=($key)\n" | save --append .env
+    $"export ANTHROPIC_API_KEY=($anthropic_api_key)\n" | save --append .env
 
-    {token: $key}
+    {token: $anthropic_api_key}
 
 }

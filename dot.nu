@@ -16,8 +16,13 @@ def "main setup" [
     --dot-ai-tag: string = "latest",
     --qdrant-run = true,
     --qdrant-tag: string = "latest",
+    --dot-ai-kubernetes-enabled = false,
+    --kyverno-enabled = true,
+    --atlas-enabled = true,
+    --toolhive-enabled = true,
+    --crossplane-enabled = true,
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
-    --crossplane-db-config = true   # Whether to apply DOT SQL Crossplane Configuration
+    --crossplane-db-config = false   # Whether to apply DOT SQL Crossplane Configuration
 ] {
     
     rm --force .env
@@ -55,36 +60,65 @@ def "main setup" [
     cp kubeconfig-dot.yaml kubeconfig.yaml
 
     main apply ingress nginx --provider kind
-
-    (
+    
+    if $crossplane_enabled {(
         main apply crossplane --app-config true --db-config true
             --provider $crossplane_provider
             --db-config $crossplane_db_config
-    )
-
-    main apply kyverno
-
-    main apply atlas
-
-    main apply toolhive
+    )}
 
     kubectl create namespace a-team
 
     kubectl create namespace b-team
 
-    kubectl apply --filename examples/policies
+    if $kyverno_enabled {
+        
+        main apply kyverno
+
+        kubectl apply --filename examples/policies
+    }
+
+    if $atlas_enabled {
+        main apply atlas
+    }
+
+    if $dot_ai_kubernetes_enabled {
+
+        (
+            helm install dot-ai-mcp
+                $"oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:($dot_ai_tag)"
+                --set $"secrets.anthropic.apiKey=($anthropic_data.token)"
+                --set $"secrets.openai.apiKey=($openai_key)"
+                --set ingress.enabled=true
+                --set ingress.host="dot-ai.127.0.0.1.nip.io"
+                --create-namespace
+                --namespace dot-ai
+                --wait
+        )
+
+        (
+            helm install dot-ai-controller
+                oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller
+                --version 0.11.0
+                --namespace dot-ai
+                --wait
+        )
+    }
 
     main print source
 
 }
 
-def "main destroy" [] {
+def "main destroy" [
+    --qdrant-run = true,
+] {
 
     main destroy kubernetes kind
 
-    docker container rm qdrant --force
-
-    docker volume rm qdrant-data
+    if $qdrant_run {
+        docker container rm qdrant --force
+        docker volume rm qdrant-data
+    }
 
 }
 

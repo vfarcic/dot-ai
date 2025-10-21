@@ -17,3 +17,4 @@ providers:
           xai-api-key: XAI_API_KEY
           mistral-api-key: MISTRAL_API_KEY
           deepseek-api-key: DEEPSEEK_API_KEY
+          slack-webhook-url: SLACK_WEBHOOK_URL
