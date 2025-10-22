@@ -1,18 +1,22 @@
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "docker",
+      "command": "node",
       "args": [
-        "compose", 
-        "-f",
-        "docker-compose-dot-ai.yaml",
-        "--env-file",
-        ".env",
-        "run", 
-        "--rm",
-        "--remove-orphans",
-        "dot-ai"
-      ]
+        "./dist/mcp/server.js"
+      ],
+      "env": {
+        "KUBECONFIG": "./kubeconfig.yaml",
+        "DOT_AI_SESSION_DIR": "./tmp/sessions",
+        "QDRANT_URL": "http://localhost:6333"
+      }
+    },
+    "coderabbitai": {
+      "command": "npx",
+      "args": ["coderabbitai-mcp@latest"],
+      "env": {
+        "GITHUB_PAT": "${GITHUB_TOKEN}"
+      }
     }
   }
 }
