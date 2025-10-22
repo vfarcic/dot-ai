@@ -4,7 +4,7 @@ const BedrockRuntimeClient = require('@aws-sdk/client-bedrock-runtime').BedrockR
 const InvokeModelCommand = require('@aws-sdk/client-bedrock-runtime').InvokeModelCommand;
 
 // Set up environment
-const API_KEY = process.env.BEDROCK_API_KEY || 'BEDROCK_API_KEY_REMOVED';
+const API_KEY = process.env.BEDROCK_API_KEY
 const REGION = process.env.AWS_REGION || 'us-west-2';
 const MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0';
 
