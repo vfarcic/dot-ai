@@ -120,6 +120,7 @@ Choose your AI model by setting the provider:
 | **Grok-4-Fast-Reasoning** | `xai_fast` | `XAI_API_KEY` |
 | **Mistral Large Latest** | `mistral` | `MISTRAL_API_KEY` |
 | **DeepSeek Reasoner** | `deepseek` | `DEEPSEEK_API_KEY` |
+| **Amazon Bedrock Models** | `bedrock` | `BEDROCK_API_KEY` + `AWS_REGION` |
 
 **Configuration Steps:**
 
@@ -149,6 +150,12 @@ MISTRAL_API_KEY=your_mistral_api_key_here
 
 # For DeepSeek model (DeepSeek Reasoner)
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# For Amazon Bedrock models
+AI_PROVIDER=bedrock
+BEDROCK_API_KEY=your_bedrock_api_key_here
+AWS_REGION=us-west-2
+AI_MODEL=anthropic.claude-3-sonnet-20240229-v1:0  # Optional: specify model
 ```
 
 ### Embedding Provider Configuration

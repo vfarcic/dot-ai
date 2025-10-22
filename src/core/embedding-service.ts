@@ -9,9 +9,13 @@ import OpenAI from 'openai';
 import { google } from '@ai-sdk/google';
 import { createMistral } from '@ai-sdk/mistral';
 import { embed } from 'ai';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand
+} from "@aws-sdk/client-bedrock-runtime";
 
 export interface EmbeddingConfig {
-  provider?: 'openai' | 'google' | 'mistral';
+  provider?: 'openai' | 'google' | 'mistral' | 'bedrock';
   apiKey?: string;
   model?: string;
   dimensions?: number;
@@ -301,7 +305,7 @@ export class MistralEmbeddingProvider implements EmbeddingProvider {
       const mistral = createMistral({ apiKey: this.apiKey! });
       const model = mistral.textEmbedding(this.model);
       const results = await Promise.all(
-        validTexts.map(text => 
+        validTexts.map(text =>
           embed({
             model,
             value: text
@@ -332,23 +336,176 @@ export class MistralEmbeddingProvider implements EmbeddingProvider {
 }
 
 /**
+ * Bedrock Embedding Provider
+ * Optional provider using Amazon Bedrock embedding models
+ */
+export class BedrockEmbeddingProvider implements EmbeddingProvider {
+  private client: BedrockRuntimeClient | null = null;
+  private model: string;
+  private dimensions: number;
+  private available: boolean;
+  private region: string;
+
+  constructor(config: EmbeddingConfig = {}) {
+    this.region = process.env.AWS_REGION || 'us-east-1';
+    this.model = config.model || process.env.BEDROCK_EMBEDDING_MODEL || 'amazon.titan-embed-text-v1';
+    this.dimensions = config.dimensions || 1536; // Default dimensions for most Bedrock embedding models
+    this.available = false;
+
+    // Initialize client with appropriate authentication
+    const clientOptions: any = {
+      region: this.region
+    };
+
+    // Check if API key authentication is available
+    if (process.env.BEDROCK_API_KEY) {
+      clientOptions.apiKey = process.env.BEDROCK_API_KEY;
+      this.available = true;
+    } else if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+      // Use AWS credentials
+      this.available = true;
+    } else {
+      this.available = false;
+      return;
+    }
+
+    try {
+      this.client = new BedrockRuntimeClient(clientOptions);
+      this.available = true;
+    } catch (error) {
+      this.available = false;
+      this.client = null;
+    }
+  }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.isAvailable()) {
+      throw new Error('Bedrock embedding provider not available');
+    }
+
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text cannot be empty for embedding generation');
+    }
+
+    try {
+      const provider = this.getModelProvider();
+      const requestBody = this.formatRequestForModel(provider, text.trim());
+
+      const command = new InvokeModelCommand({
+        modelId: this.model,
+        body: JSON.stringify(requestBody)
+      });
+
+      const response = await this.client!.send(command);
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+      return this.extractEmbeddingFromResponse(provider, responseBody);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Bedrock embedding failed: ${error.message}`);
+      }
+      throw new Error(`Bedrock embedding failed: ${String(error)}`);
+    }
+  }
+
+  async generateEmbeddings(texts: string[]): Promise<number[][]> {
+    if (!this.isAvailable()) {
+      throw new Error('Bedrock embedding provider not available');
+    }
+
+    if (!texts || texts.length === 0) {
+      return [];
+    }
+
+    const validTexts = texts
+      .map(t => t?.trim())
+      .filter(t => t && t.length > 0);
+
+    if (validTexts.length === 0) {
+      return [];
+    }
+
+    try {
+      // Process each text individually to handle provider-specific formatting
+      const results = await Promise.all(
+        validTexts.map(text => this.generateEmbedding(text))
+      );
+      return results;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Bedrock batch embedding failed: ${error.message}`);
+      }
+      throw new Error(`Bedrock batch embedding failed: ${String(error)}`);
+    }
+  }
+
+  isAvailable(): boolean {
+    return this.available && this.client !== null;
+  }
+
+  getDimensions(): number {
+    return this.dimensions;
+  }
+
+  getModel(): string {
+    return this.model;
+  }
+
+  private getModelProvider(): string {
+    return this.model.split('.')[0];
+  }
+
+  private formatRequestForModel(provider: string, text: string): any {
+    switch (provider) {
+      case 'amazon':
+        return {
+          inputText: text
+        };
+      case 'cohere':
+        return {
+          texts: [text],
+          input_type: "search_document"
+        };
+      default:
+        throw new Error(`Unsupported Bedrock embedding model provider: ${provider}`);
+    }
+  }
+
+  private extractEmbeddingFromResponse(provider: string, response: any): number[] {
+    switch (provider) {
+      case 'amazon':
+        return response.embedding;
+      case 'cohere':
+        return response.embeddings[0];
+      default:
+        throw new Error(`Unsupported Bedrock embedding model provider: ${provider}`);
+    }
+  }
+}
+
+/**
  * Factory function to create embedding provider based on configuration
  */
 function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvider | null {
   const provider = config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai';
-  
+
   try {
     switch (provider.toLowerCase()) {
       case 'google': {
         const googleProvider = new GoogleEmbeddingProvider(config);
         return googleProvider.isAvailable() ? googleProvider : null;
       }
-      
+
       case 'mistral': {
         const mistralProvider = new MistralEmbeddingProvider(config);
         return mistralProvider.isAvailable() ? mistralProvider : null;
       }
-      
+
+      case 'bedrock': {
+        const bedrockProvider = new BedrockEmbeddingProvider(config);
+        return bedrockProvider.isAvailable() ? bedrockProvider : null;
+      }
+
       case 'openai':
       default: {
         const openaiProvider = new OpenAIEmbeddingProvider(config);
@@ -440,6 +597,8 @@ export class EmbeddingService {
         providerName = 'mistral';
       } else if (this.provider instanceof OpenAIEmbeddingProvider) {
         providerName = 'openai';
+      } else if (this.provider instanceof BedrockEmbeddingProvider) {
+        providerName = 'bedrock';
       } else {
         providerName = 'unknown';
       }
@@ -456,7 +615,8 @@ export class EmbeddingService {
     const keyMap = {
       'openai': 'OPENAI_API_KEY',
       'google': 'GOOGLE_API_KEY',
-      'mistral': 'MISTRAL_API_KEY'
+      'mistral': 'MISTRAL_API_KEY',
+      'bedrock': 'BEDROCK_API_KEY or AWS credentials'
     };
     const requiredKey = keyMap[requestedProvider as keyof typeof keyMap] || 'OPENAI_API_KEY';
 

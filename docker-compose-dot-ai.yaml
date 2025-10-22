@@ -4,23 +4,40 @@
 services:
   # DevOps AI Toolkit MCP Server
   dot-ai:
-    image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
+    # Default image (uncomment to use the official image)
+    # image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
+    # Image with Bedrock support
+    image: ${DOT_AI_IMAGE:-jicowan/dot-ai:bedrock}
     container_name: dot-ai
     network_mode: "host"
     environment:
-      # AI Provider Configuration (default: anthropic)
-      # Future: Add AI_PROVIDER variable here for alternative AI providers
-      # Required: Anthropic API key for AI analysis
+      # AI Provider Configuration
+      # Set to 'bedrock' to use Amazon Bedrock
+      AI_PROVIDER: ${AI_PROVIDER}
+      # API key - set either Anthropic API key or Bedrock API key based on provider choice
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # Required: OpenAI API key for embeddings (capabilities, policies, patterns)
+      # Amazon Bedrock configuration (only needed when AI_PROVIDER=bedrock)
+      BEDROCK_API_KEY: ${BEDROCK_API_KEY}
+      AWS_REGION: ${AWS_REGION}
+      # Optional: Set specific model for Bedrock
+      AI_MODEL: ${AI_MODEL}
+      # Embedding configuration
+      # Set to 'bedrock' to use Bedrock for embeddings
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-bedrock}
+      # Optional: Set specific Bedrock embedding model
+      BEDROCK_EMBEDDING_MODEL: ${BEDROCK_EMBEDDING_MODEL:-amazon.titan-embed-text-v1}
+      # Only needed if EMBEDDINGS_PROVIDER is not 'bedrock'
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # Qdrant Vector Database connection
       QDRANT_URL: http://localhost:${QDRANT_PORT:-6333}
       # Kubernetes configuration
       KUBECONFIG: /root/.kube/config
+      # TRANSPORT_TYPE: "http"
     volumes:
       # Mount kubeconfig - uses standard KUBECONFIG environment variable
-      - ${KUBECONFIG:-~/.kube/config}:/root/.kube/config:ro
+      - ${KUBECONFIG:-/Users/jicowan/.kube/config}:/root/.kube/config:ro
+      # Mount AWS credentials
+      - /Users/jicowan/.aws:/root/.aws:ro
     depends_on:
       - qdrant
 
