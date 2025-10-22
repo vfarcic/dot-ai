@@ -35,9 +35,9 @@ services:
       # TRANSPORT_TYPE: "http"
     volumes:
       # Mount kubeconfig - uses standard KUBECONFIG environment variable
-      - ${KUBECONFIG:-/Users/jicowan/.kube/config}:/root/.kube/config:ro
+      - ${KUBECONFIG:-/root/.kube/config}:/root/.kube/config:ro
       # Mount AWS credentials
-      - /Users/jicowan/.aws:/root/.aws:ro
+      - /root/.aws:/root/.aws:ro
     depends_on:
       - qdrant
 
