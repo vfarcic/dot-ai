@@ -45,9 +45,19 @@ curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot
 
 2. **Set environment variables and create MCP configuration:**
 ```bash
-# Set your AI model API key (example with Claude - see setup guide for other models)
+# Set your AI provider (default: anthropic, options include: bedrock)
+export AI_PROVIDER="anthropic"
+
+# OPTION 1: Use Anthropic Claude (default)
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
-# Set embedding provider key if needed (see setup guide for options)
+
+# OPTION 2: Use Amazon Bedrock
+# export AI_PROVIDER="bedrock"
+# export BEDROCK_API_KEY="your-bedrock-api-key-here"
+# export AWS_REGION="us-west-2"
+# export AI_MODEL="anthropic.claude-3-sonnet-20240229-v1:0" # Optional: specify model
+
+# Required for vector embeddings (regardless of AI provider)
 export OPENAI_API_KEY="sk-proj-your-openai-key-here"
 
 # Create MCP configuration for Claude Code

@@ -32,6 +32,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
   mistral: 'MISTRAL_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
+  bedrock: 'BEDROCK_API_KEY', // Can also use AWS credentials as fallback
 };
 
 /**
@@ -66,7 +67,7 @@ export class AIProviderFactory {
    */
   static create(config: AIProviderConfig): AIProvider {
     // Validate configuration
-    if (!config.apiKey) {
+    if (!config.apiKey && config.provider !== 'bedrock') {
       throw new Error(`API key is required for ${config.provider} provider`);
     }
 
@@ -74,12 +75,12 @@ export class AIProviderFactory {
       throw new Error('Provider type must be specified');
     }
 
-    // Check if provider is implemented in Phase 1
+    // Check if provider is implemented
     if (!IMPLEMENTED_PROVIDERS.includes(config.provider as ImplementedProvider)) {
       throw new Error(
         `Provider '${config.provider}' is not yet implemented. ` +
-        `Phase 1 providers: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
-        `Future phases will add support for additional Vercel AI SDK providers.`
+        `Implemented providers: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
+        `Future phases will add support for additional providers.`
       );
     }
 
@@ -89,9 +90,11 @@ export class AIProviderFactory {
       case 'anthropic_haiku':
         return this.createAnthropicProvider(config);
 
+      case 'bedrock':
+        return this.createBedrockProvider(config);
+
       default:
-        // All non-Anthropic providers use VercelProvider
-        // This matches the integration test behavior with AI_PROVIDER_SDK=vercel
+        // All other providers use VercelProvider
         return new VercelProvider(config);
     }
   }
@@ -165,6 +168,16 @@ export class AIProviderFactory {
   }
 
   /**
+   * Create Bedrock provider instance
+   * @private
+   */
+  private static createBedrockProvider(config: AIProviderConfig): AIProvider {
+    // Import BedrockProvider dynamically to avoid circular dependencies
+    const { BedrockProvider } = require('./providers/bedrock-provider');
+    return new BedrockProvider(config);
+  }
+
+  /**
    * Check if a provider is available (has API key configured)
    *
    * @param provider Provider type to check
@@ -173,7 +186,19 @@ export class AIProviderFactory {
   static isProviderAvailable(provider: string): boolean {
     const apiKeyEnvVar = PROVIDER_ENV_KEYS[provider];
     if (!apiKeyEnvVar) return false;
-    return !!process.env[apiKeyEnvVar];
+
+    // Check for primary API key
+    if (process.env[apiKeyEnvVar]) return true;
+
+    // Special case for Bedrock: check for AWS credentials as fallback
+    if (provider === 'bedrock') {
+      const hasAwsCredentials = !!process.env.AWS_ACCESS_KEY_ID &&
+                                !!process.env.AWS_SECRET_ACCESS_KEY &&
+                                !!process.env.AWS_REGION;
+      return hasAwsCredentials;
+    }
+
+    return false;
   }
 
   /**

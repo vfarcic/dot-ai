@@ -43,8 +43,15 @@ curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot
 ### 2. Set Environment Variables
 
 ```bash
-# Required: Anthropic API key
+# OPTION 1: Use Anthropic Claude (default)
+export AI_PROVIDER="anthropic"
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
+
+# OPTION 2: Use Amazon Bedrock
+# export AI_PROVIDER="bedrock"
+# export BEDROCK_API_KEY="your-bedrock-api-key-here"
+# export AWS_REGION="us-west-2"
+# export AI_MODEL="anthropic.claude-3-sonnet-20240229-v1:0"  # Optional: specify model
 
 # Required: OpenAI API key for enhanced semantic search
 export OPENAI_API_KEY="sk-proj-..."
