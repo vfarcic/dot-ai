@@ -60,5 +60,145 @@
         "reason": "NOTICE file is required for Apache 2.0 licensed projects"
       }
     }
+  },
+  "governance": {
+    "files": ["CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "SECURITY.md", "docs/MAINTAINERS.md", "docs/GOVERNANCE.md", "docs/ROADMAP.md"],
+    "questions": [
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "repositoryUrl",
+        "question": "What is the repository URL? (e.g., https://github.com/username/repo)",
+        "required": true
+      },
+      {
+        "id": "enforcementEmail",
+        "question": "Email address for Code of Conduct enforcement",
+        "required": true
+      },
+      {
+        "id": "securityEmail",
+        "question": "Email address for security vulnerability reports",
+        "required": true
+      },
+      {
+        "id": "maintainerEmail",
+        "question": "General maintainer contact email",
+        "required": true
+      },
+      {
+        "id": "maintainerName",
+        "question": "Lead maintainer name",
+        "required": true
+      },
+      {
+        "id": "maintainerGithub",
+        "question": "Lead maintainer GitHub username (without @)",
+        "required": true
+      },
+      {
+        "id": "setupCommand",
+        "question": "Command to install dependencies (e.g., 'npm install', 'pip install -r requirements.txt')",
+        "required": false
+      },
+      {
+        "id": "testCommand",
+        "question": "Command to run tests (e.g., 'npm test', 'pytest')",
+        "required": false
+      },
+      {
+        "id": "lintCommand",
+        "question": "Command to run linters (e.g., 'npm run lint', 'ruff check')",
+        "required": false
+      },
+      {
+        "id": "requiresDco",
+        "question": "Does this project require Developer Certificate of Origin (DCO) sign-off? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "discussionsUrl",
+        "question": "GitHub Discussions URL (optional)",
+        "required": false
+      },
+      {
+        "id": "slackChannel",
+        "question": "Slack community channel URL (optional)",
+        "required": false
+      },
+      {
+        "id": "discordUrl",
+        "question": "Discord server URL (optional)",
+        "required": false
+      },
+      {
+        "id": "supportedVersions",
+        "question": "Supported versions table for SECURITY.md (optional, markdown format)",
+        "required": false
+      },
+      {
+        "id": "maintainerPeriod",
+        "question": "How long should someone contribute before becoming a maintainer? (e.g., '6 months', '1 year')",
+        "required": false
+      },
+      {
+        "id": "inactivityPeriod",
+        "question": "How long before inactive maintainers are removed? (e.g., '6 months', '1 year')",
+        "required": false
+      },
+      {
+        "id": "hasVoting",
+        "question": "Does this project use voting for decisions? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "votingThreshold",
+        "question": "If voting is used, what's the threshold? (e.g., 'majority', '2/3 majority', 'consensus')",
+        "required": false
+      },
+      {
+        "id": "githubProjectUrl",
+        "question": "GitHub Project Board URL for roadmap tracking (optional)",
+        "required": false
+      },
+      {
+        "id": "shortTermGoals",
+        "question": "Short-term goals (1-3 months) in markdown format (optional)",
+        "required": false
+      },
+      {
+        "id": "mediumTermGoals",
+        "question": "Medium-term goals (3-6 months) in markdown format (optional)",
+        "required": false
+      },
+      {
+        "id": "longTermGoals",
+        "question": "Long-term goals (6-12 months) in markdown format (optional)",
+        "required": false
+      },
+      {
+        "id": "roadmapIntro",
+        "question": "Custom introduction for ROADMAP.md (optional)",
+        "required": false
+      },
+      {
+        "id": "requiresConsensus",
+        "question": "Do major decisions require consensus among maintainers? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "hasCommitters",
+        "question": "Does this project have a separate 'Committers' role? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "hasSteeringCommittee",
+        "question": "Does this project have a Steering Committee? (yes/no)",
+        "required": false
+      }
+    ]
   }
 }

@@ -388,6 +388,217 @@ describe.concurrent('Project Setup Tool Integration', () => {
       // Optional license section should not appear when licenseName is missing
       expect(content).not.toContain('## License');
     }, 300000);
+
+    test('should complete full governance workflow with 6 files', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_governance_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        filesToCheck: expect.arrayContaining(['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md', 'docs/MAINTAINERS.md', 'docs/GOVERNANCE.md', 'docs/ROADMAP.md']),
+        availableScopes: expect.arrayContaining(['governance'])
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with governance scope selected
+      await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        interaction_id: `report_governance_${testId}`
+      });
+
+      const initWorkflowResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        selectedScopes: ['governance'],
+        interaction_id: `init_governance_${testId}`
+      });
+
+      expect(initWorkflowResponse.data.result).toMatchObject({
+        success: true,
+        nextStep: 'generateFile',
+        currentFile: 'CODE_OF_CONDUCT.md'
+      });
+
+      // Step 3: Generate all 6 governance files with shared answers
+      const sharedAnswers = {
+        projectName: `Governance Test ${testId}`,
+        repositoryUrl: 'https://github.com/test/governance-test',
+        enforcementEmail: 'conduct@test.com',
+        securityEmail: 'security@test.com',
+        maintainerEmail: 'maintainers@test.com',
+        maintainerName: 'Test Maintainer',
+        maintainerGithub: 'testmaintainer',
+        setupCommand: 'npm install',
+        testCommand: 'npm test',
+        lintCommand: 'npm run lint',
+        requiresDco: 'yes',
+        maintainerPeriod: '6 months',
+        inactivityPeriod: '1 year'
+      };
+
+      // 3a: Generate CODE_OF_CONDUCT.md
+      const conductResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        fileName: 'CODE_OF_CONDUCT.md',
+        answers: sharedAnswers,
+        interaction_id: `generate_conduct_${testId}`
+      });
+
+      expect(conductResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'CODE_OF_CONDUCT.md',
+        content: expect.stringContaining('conduct@test.com'),
+        nextFile: expect.objectContaining({
+          fileName: 'CONTRIBUTING.md'
+        })
+      });
+
+      const conductContent = conductResponse.data.result.content;
+      expect(conductContent).toContain('Contributor Covenant Code of Conduct');
+      expect(conductContent).toContain('conduct@test.com');
+
+      // 3b: Generate CONTRIBUTING.md
+      const contributingResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'CODE_OF_CONDUCT.md',
+        nextFileAnswers: sharedAnswers,
+        interaction_id: `generate_contributing_${testId}`
+      });
+
+      expect(contributingResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'CONTRIBUTING.md',
+        content: expect.stringContaining(`Governance Test ${testId}`)
+      });
+
+      const contributingContent = contributingResponse.data.result.content;
+      expect(contributingContent).toContain(`Contributing to Governance Test ${testId}`);
+      expect(contributingContent).toContain('https://github.com/test/governance-test');
+      expect(contributingContent).toContain('npm install');
+      expect(contributingContent).toContain('npm test');
+      expect(contributingContent).toContain('git commit -s');
+
+      // 3c: Generate SECURITY.md
+      const securityResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'CONTRIBUTING.md',
+        nextFileAnswers: sharedAnswers,
+        interaction_id: `generate_security_${testId}`
+      });
+
+      expect(securityResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'SECURITY.md',
+        content: expect.stringContaining('security@test.com')
+      });
+
+      const securityContent = securityResponse.data.result.content;
+      expect(securityContent).toContain('Security Policy');
+      expect(securityContent).toContain('security@test.com');
+      expect(securityContent).toContain(`Governance Test ${testId}`);
+
+      // 3d: Generate docs/MAINTAINERS.md
+      const maintainersResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'SECURITY.md',
+        nextFileAnswers: sharedAnswers,
+        interaction_id: `generate_maintainers_${testId}`
+      });
+
+      expect(maintainersResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'docs/MAINTAINERS.md',
+        content: expect.stringContaining('Test Maintainer')
+      });
+
+      const maintainersContent = maintainersResponse.data.result.content;
+      expect(maintainersContent).toContain('Test Maintainer');
+      expect(maintainersContent).toContain('maintainers@test.com');
+      expect(maintainersContent).toContain('@testmaintainer');
+
+      // 3e: Generate docs/GOVERNANCE.md
+      const governanceResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'docs/MAINTAINERS.md',
+        nextFileAnswers: sharedAnswers,
+        interaction_id: `generate_governance_${testId}`
+      });
+
+      expect(governanceResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'docs/GOVERNANCE.md',
+        content: expect.stringContaining('Project Governance')
+      });
+
+      const governanceContent = governanceResponse.data.result.content;
+      expect(governanceContent).toContain('Project Governance');
+      expect(governanceContent).toContain(`Governance Test ${testId}`);
+      expect(governanceContent).toContain('6 months');
+      expect(governanceContent).toContain('1 year');
+
+      // 3f: Generate docs/ROADMAP.md (final file)
+      const roadmapResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'docs/GOVERNANCE.md',
+        nextFileAnswers: sharedAnswers,
+        interaction_id: `generate_roadmap_${testId}`
+      });
+
+      expect(roadmapResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'docs/ROADMAP.md',
+        content: expect.stringContaining('Roadmap')
+      });
+
+      const roadmapContent = roadmapResponse.data.result.content;
+      expect(roadmapContent).toContain('Roadmap');
+      expect(roadmapContent).toContain(`Governance Test ${testId}`);
+      expect(roadmapContent).toContain('https://github.com/test/governance-test');
+
+      // Step 4: Complete workflow
+      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'docs/ROADMAP.md',
+        interaction_id: `complete_governance_${testId}`
+      });
+
+      expect(completeResponse.data.result).toMatchObject({
+        success: true,
+        instructions: expect.stringContaining('All files generated successfully')
+      });
+
+      // Verify session contains all 6 files
+      const fs = await import('fs');
+      const path = await import('path');
+      const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
+      expect(fs.existsSync(sessionPath)).toBe(true);
+
+      const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+      expect(sessionData.data.files).toMatchObject({
+        'CODE_OF_CONDUCT.md': { status: 'done', scope: 'governance' },
+        'CONTRIBUTING.md': { status: 'done', scope: 'governance' },
+        'SECURITY.md': { status: 'done', scope: 'governance' },
+        'docs/MAINTAINERS.md': { status: 'done', scope: 'governance' },
+        'docs/GOVERNANCE.md': { status: 'done', scope: 'governance' },
+        'docs/ROADMAP.md': { status: 'done', scope: 'governance' }
+      });
+    }, 300000);
   });
 
   describe('Error Handling', () => {
