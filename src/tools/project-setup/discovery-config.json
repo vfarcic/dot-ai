@@ -200,5 +200,140 @@
         "required": false
       }
     ]
+  },
+  "community": {
+    "files": ["SUPPORT.md", "ADOPTERS.md"],
+    "questions": [
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "projectDescription",
+        "question": "What does this project do? (brief description)",
+        "required": false
+      },
+      {
+        "id": "projectUrl",
+        "question": "What is the project URL? (e.g., https://github.com/username/repo)",
+        "required": true
+      },
+      {
+        "id": "docsUrl",
+        "question": "What is the documentation URL? (e.g., https://docs.example.com or README)",
+        "required": true
+      },
+      {
+        "id": "discussionsUrl",
+        "question": "What is the GitHub Discussions URL? (e.g., https://github.com/username/repo/discussions)",
+        "required": true
+      },
+      {
+        "id": "stackOverflowTag",
+        "question": "Stack Overflow tag for your project (optional, e.g., 'my-project')",
+        "required": false
+      },
+      {
+        "id": "slackUrl",
+        "question": "Slack workspace URL (optional)",
+        "required": false
+      },
+      {
+        "id": "discordUrl",
+        "question": "Discord server URL (optional)",
+        "required": false
+      },
+      {
+        "id": "forumUrl",
+        "question": "Community forum URL (optional)",
+        "required": false
+      },
+      {
+        "id": "maintainerCount",
+        "question": "How many maintainers does this project have? (number)",
+        "required": false
+      },
+      {
+        "id": "criticalResponseTime",
+        "question": "Typical response time for critical bugs (e.g., '24 hours', '48 hours', 'best effort')",
+        "required": false
+      },
+      {
+        "id": "featureResponseTime",
+        "question": "Typical response time for feature requests (e.g., '1 week', '2 weeks', 'best effort')",
+        "required": false
+      },
+      {
+        "id": "questionResponseTime",
+        "question": "Typical response time for questions (e.g., '48 hours', '1 week', 'best effort')",
+        "required": false
+      },
+      {
+        "id": "commercialSupportAvailable",
+        "question": "Is commercial support available? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "commercialSupportProvider",
+        "question": "Who provides commercial support? (if available)",
+        "required": false
+      },
+      {
+        "id": "commercialSupportEmail",
+        "question": "Email for commercial support inquiries (if available)",
+        "required": false
+      },
+      {
+        "id": "securityEmail",
+        "question": "Email address for security vulnerability reports",
+        "required": true
+      },
+      {
+        "id": "includeUseCase",
+        "question": "Should ADOPTERS.md include a use case column? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "maintainerOrganization",
+        "question": "Add your organization as the first adopter? (organization name, optional)",
+        "required": false
+      },
+      {
+        "id": "maintainerUseCase",
+        "question": "Your organization's use case (if adding as first adopter)",
+        "required": false
+      },
+      {
+        "id": "maintainerWebsite",
+        "question": "Your organization's website (if adding as first adopter)",
+        "required": false
+      },
+      {
+        "id": "requiresDco",
+        "question": "Do PRs require DCO sign-off? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "requiresVerification",
+        "question": "Do you verify organizations before adding to ADOPTERS? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "recognitionProgram",
+        "question": "Do you have an adopter recognition program? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "maintainerEmail",
+        "question": "General maintainer contact email",
+        "required": true
+      },
+      {
+        "id": "questionsContact",
+        "question": "Contact email for questions about the adopters list (optional, defaults to maintainer email)",
+        "required": false
+      }
+    ]
   }
 }

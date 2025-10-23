@@ -1,0 +1,119 @@
+# Adopters
+
+This page lists organizations and users who are officially using {{projectName}} in production or development environments.
+
+{{#if projectDescription}}
+{{projectDescription}} is being used by organizations worldwide for various use cases, from development workflows to production deployments.
+{{/if}}
+
+## Organizations Using {{projectName}}
+
+{{#if includeUseCase}}
+| Organization | Use Case | Website |
+|--------------|----------|---------|
+{{#if maintainerOrganization}}
+| {{maintainerOrganization}} | {{maintainerUseCase}} | [{{maintainerWebsite}}]({{maintainerWebsite}}) |
+{{else}}
+| *Add your organization here* | *Describe your use case* | *Your website* |
+{{/if}}
+
+{{else}}
+{{#if maintainerOrganization}}
+1. [{{maintainerOrganization}}]({{maintainerWebsite}})
+{{else}}
+1. *Add your organization here*
+{{/if}}
+
+{{/if}}
+## Adding Your Organization
+
+We'd love to hear from organizations using {{projectName}}! Adding your organization helps:
+
+- Build confidence for other organizations evaluating {{projectName}}
+- Show the diversity of use cases and industries
+- Recognize your support for the project
+- Connect with other users in your industry
+
+### How to Add Yourself
+
+1. **Fork this repository**
+2. **Edit this file** (`ADOPTERS.md`)
+3. **Add your organization** {{#if includeUseCase}}to the table above{{else}}to the list above{{/if}} in **alphabetical order**
+4. **Submit a Pull Request**
+
+{{#if includeUseCase}}
+#### Information to Include
+
+- **Organization**: Your company or organization name
+- **Use Case**: Brief description of how you use {{projectName}} (1-2 sentences)
+- **Website**: Link to your organization's website or public project
+
+#### Example Entry
+
+```markdown
+| Acme Corporation | Using {{projectName}} to automate infrastructure deployment across 50+ Kubernetes clusters | [acme.com](https://acme.com) |
+```
+
+{{else}}
+#### Information to Include
+
+- **Organization name**
+- **Website URL** (optional but recommended)
+
+#### Example Entry
+
+```markdown
+2. [Acme Corporation](https://acme.com)
+```
+
+Please maintain **alphabetical ordering** when adding your organization.
+
+{{/if}}
+{{#if requiresDco}}
+### DCO Sign-off Required
+
+All commits must be signed off (`git commit --signoff`) to comply with the [Developer Certificate of Origin](https://developercertificate.org/).
+
+{{/if}}
+## Verification
+
+{{#if requiresVerification}}
+Organizations listed here have been verified by maintainers. When submitting your PR:
+- Include a link to your deployment or public usage
+- Or request verification from a maintainer via email
+
+{{else}}
+Organizations self-report their usage through pull requests. While we don't formally verify each entry, we may reach out for clarification or examples.
+
+{{/if}}
+## Support and Recognition
+
+{{#if recognitionProgram}}
+Organizations listed here are eligible for:
+- Recognition on our website and documentation
+- Early access to new features (optional program)
+- Direct communication channel with maintainers
+- Featured case studies (upon request)
+
+Contact {{maintainerEmail}} to learn more about our adopter recognition program.
+
+{{else}}
+Thank you to all organizations using {{projectName}}! Your adoption and feedback help drive the project forward.
+
+If you'd like to be featured in a case study or share your story, contact {{maintainerEmail}}.
+
+{{/if}}
+## Why Share Your Adoption?
+
+Publicly sharing your usage:
+- **Helps the project**: Demonstrates real-world validation and builds community trust
+- **Helps others**: Provides proof points for organizations evaluating {{projectName}}
+- **Helps you**: Connects you with other users and increases visibility for your organization
+
+---
+
+**Thank you for using {{projectName}}!** We appreciate your support and willingness to share your experience with the community.
+
+{{#if questionsContact}}
+Questions about the adopters list? Contact {{questionsContact}}
+{{/if}}

@@ -599,6 +599,147 @@ describe.concurrent('Project Setup Tool Integration', () => {
         'docs/ROADMAP.md': { status: 'done', scope: 'governance' }
       });
     }, 300000);
+
+    test('should complete full community artifacts workflow (SUPPORT.md + ADOPTERS.md)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discover_community_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        availableScopes: expect.arrayContaining(['community']),
+        filesToCheck: expect.arrayContaining(['SUPPORT.md', 'ADOPTERS.md'])
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with community scope selected
+      const reportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['community'],
+        interaction_id: `report_community_${testId}`
+      });
+
+      expect(reportResponse.data.result).toMatchObject({
+        success: true,
+        nextStep: 'generateFile',
+        currentFile: 'SUPPORT.md'
+      });
+
+      // Step 3a: Generate SUPPORT.md
+      const generateSupportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        fileName: 'SUPPORT.md',
+        answers: {
+          projectName: `Community Test ${testId}`,
+          projectDescription: 'A test project for community artifacts',
+          projectUrl: 'https://github.com/test/community-test',
+          docsUrl: 'https://docs.example.com',
+          discussionsUrl: 'https://github.com/test/community-test/discussions',
+          stackOverflowTag: 'community-test',
+          slackUrl: 'https://slack.example.com',
+          discordUrl: 'https://discord.gg/test',
+          maintainerCount: '3',
+          criticalResponseTime: '24 hours',
+          featureResponseTime: '1 week',
+          questionResponseTime: '48 hours',
+          commercialSupportAvailable: 'yes',
+          commercialSupportProvider: 'Test Corp',
+          commercialSupportEmail: 'support@test.com',
+          securityEmail: 'security@test.com'
+        },
+        interaction_id: `generate_support_${testId}`
+      });
+
+      expect(generateSupportResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'SUPPORT.md',
+        content: expect.stringContaining('# Support'),
+        nextFile: expect.objectContaining({
+          fileName: 'ADOPTERS.md',
+          scope: 'community'
+        })
+      });
+
+      const supportContent = generateSupportResponse.data.result.content;
+      expect(supportContent).toContain(`Community Test ${testId}`);
+      expect(supportContent).toContain('https://github.com/test/community-test/discussions');
+      expect(supportContent).toContain('community-test');
+      expect(supportContent).toContain('https://slack.example.com');
+      expect(supportContent).toContain('https://discord.gg/test');
+      expect(supportContent).toContain('24 hours');
+      expect(supportContent).toContain('Test Corp');
+      expect(supportContent).toContain('security@test.com');
+
+      // Step 3b: Generate ADOPTERS.md using round-trip optimization
+      const generateAdoptersResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'SUPPORT.md',
+        nextFileAnswers: {
+          projectName: `Community Test ${testId}`,
+          projectDescription: 'A test project for community artifacts',
+          projectUrl: 'https://github.com/test/community-test',
+          includeUseCase: 'yes',
+          maintainerOrganization: 'Test Organization',
+          maintainerUseCase: 'Using for testing and validation',
+          maintainerWebsite: 'https://test-org.com',
+          requiresDco: 'yes',
+          requiresVerification: 'no',
+          recognitionProgram: 'yes',
+          maintainerEmail: 'maintainer@test.com'
+        },
+        interaction_id: `generate_adopters_${testId}`
+      });
+
+      expect(generateAdoptersResponse.data.result).toMatchObject({
+        success: true,
+        fileName: 'ADOPTERS.md',
+        content: expect.stringContaining('# Adopters')
+      });
+
+      const adoptersContent = generateAdoptersResponse.data.result.content;
+      expect(adoptersContent).toContain('# Adopters');
+      expect(adoptersContent).toContain(`Community Test ${testId}`);
+      expect(adoptersContent).toContain('Test Organization');
+      expect(adoptersContent).toContain('Using for testing and validation');
+      expect(adoptersContent).toContain('https://test-org.com');
+      expect(adoptersContent).toContain('DCO');
+      expect(adoptersContent).toContain('git commit --signoff');
+
+      // Step 4: Complete workflow
+      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'ADOPTERS.md',
+        interaction_id: `complete_community_${testId}`
+      });
+
+      expect(completeResponse.data.result).toMatchObject({
+        success: true,
+        instructions: expect.stringContaining('All files generated successfully')
+      });
+
+      // Verify session contains both files
+      const fs = await import('fs');
+      const path = await import('path');
+      const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
+      expect(fs.existsSync(sessionPath)).toBe(true);
+
+      const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+      expect(sessionData.data.files).toMatchObject({
+        'SUPPORT.md': { status: 'done', scope: 'community' },
+        'ADOPTERS.md': { status: 'done', scope: 'community' }
+      });
+    }, 300000);
   });
 
   describe('Error Handling', () => {

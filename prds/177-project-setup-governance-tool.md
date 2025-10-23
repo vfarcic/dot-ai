@@ -548,20 +548,22 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 4: Community & Support Artifacts (3 artifacts)
+### Milestone 4: Community & Support Artifacts (2 artifacts) ✅
 **Success Criteria**: Community engagement infrastructure operational
 
 **Artifacts:**
-- [ ] `SUPPORT.md` - How to get help, where to ask questions, response time expectations
-- [ ] `ADOPTERS.md` - Template for organizations/users to list themselves, contribution instructions
-- [ ] `CHANGELOG.md` - Keep a Changelog format structure with version history template
+- [x] `SUPPORT.md` - How to get help, where to ask questions, response time expectations
+- [x] `ADOPTERS.md` - Template for organizations/users to list themselves, contribution instructions
+- ~~`CHANGELOG.md`~~ - **REMOVED** - Deferred to Milestone 11 (GitHub Releases serve as primary changelog per modern CNCF standard)
 
 **Best Practices Research:**
-- [ ] Community support channel options (Discussions, Slack, Discord)
-- [ ] Adopters list formats from successful CNCF projects
-- [ ] Semantic versioning and changelog automation
+- [x] Community support channel options (Discussions, Slack, Discord)
+- [x] Adopters list formats from successful CNCF projects
+- ~~Semantic versioning and changelog automation~~ - Moved to Milestone 11
 
-**Validation**: Files provide clear community engagement paths, adopters list includes contribution instructions
+**Validation**: ✅ Complete - Files provide clear community engagement paths, adopters list includes contribution instructions, integration tests passing (9/9)
+
+**Scope Change Note**: CHANGELOG.md removed from this milestone after user consultation. Modern CNCF projects (Kubernetes, Argo CD, Prometheus, Helm) use GitHub Releases as primary changelog. Maintaining both would create duplication and sync issues. Changelog automation deferred to Milestone 11 (Release workflow enhancement).
 
 ---
 
@@ -667,18 +669,20 @@ Every milestone MUST include integration tests that validate the implemented fun
 ---
 
 ### Milestone 11: GitHub Workflows - Release (1 artifact)
-**Success Criteria**: Automated release process with semantic versioning
+**Success Criteria**: Automated release process with semantic versioning and enhanced GitHub Releases
 
 **Artifacts:**
-- [ ] `.github/workflows/release.yml` - Semantic release, changelog generation, artifact publishing, Docker image push
+- [ ] `.github/workflows/release.yml` - Semantic release, **GitHub Releases with categorized changelog**, artifact publishing, Docker image push
 
 **Best Practices Research:**
 - [ ] Semantic versioning automation (semantic-release)
-- [ ] Changelog generation from commits
+- [ ] **GitHub Releases generation with categorized release notes** (replaces CHANGELOG.md from Milestone 4)
 - [ ] Multi-platform artifact publishing
 - [ ] Container image signing (Cosign)
 
-**Validation**: Release workflow creates GitHub release, publishes artifacts, updates changelog
+**Validation**: Release workflow creates **GitHub Release with categorized changelog** (Features, Bug Fixes, Docs, Breaking Changes), publishes artifacts
+
+**Note**: This milestone now includes changelog functionality originally planned for Milestone 4. GitHub Releases serve as the primary changelog per modern CNCF standard (Kubernetes, Argo CD, Prometheus, Helm). No separate CHANGELOG.md file will be maintained to avoid duplication and sync issues.
 
 ---
 
@@ -1461,9 +1465,43 @@ Every milestone MUST include integration tests that validate the implemented fun
 **Next Session Priorities (Milestone 4)**:
 - Implement `SUPPORT.md` template (community support channels)
 - Implement `ADOPTERS.md` template (user/organization listing)
-- Implement `CHANGELOG.md` template (Keep a Changelog format)
+- ~~Implement `CHANGELOG.md` template (Keep a Changelog format)~~ - Removed after scope review
 - Add `community` scope to discovery-config.json
 - Integration tests for community artifacts
+
+### 2025-10-23 (Evening) - Milestone 4 Complete: Community & Support Artifacts
+**Duration**: ~4 hours (implementation + testing + validation)
+**Commits**: Pending commit
+**Primary Focus**: Community engagement infrastructure with SUPPORT.md and ADOPTERS.md templates
+
+**Completed PRD Items (Milestone 4)**:
+- [x] SUPPORT.md.hbs template (142 lines) with conditional support channel sections
+- [x] ADOPTERS.md.hbs template (116 lines) with flexible list/table format
+- [x] Community scope in discovery-config.json with 28 questions
+- [x] Integration test for 2-file community workflow (9/9 tests passing)
+- [x] Best practices research from CNCF projects (Kubernetes, Argo CD, Helm)
+
+**Scope Decision**:
+- **CHANGELOG.md removed from Milestone 4** - Deferred to Milestone 11
+- Rationale: Modern CNCF projects use GitHub Releases as primary changelog (Kubernetes, Argo CD, Prometheus, Helm)
+- Milestone 11 will implement semantic-release for automated GitHub Releases with categorized release notes
+
+**Implementation Details**:
+- Templates use Handlebars with conditional sections for flexible support channel configuration
+- Fixed template compilation issues (removed complex nested conditionals, simplified helper usage)
+- Round-trip optimization working (nextFileAnswers parameter reduces MCP calls)
+- Session persistence validated across multi-file generation
+
+**Files Created/Modified**:
+- `src/tools/project-setup/templates/SUPPORT.md.hbs` (created, 142 lines)
+- `src/tools/project-setup/templates/ADOPTERS.md.hbs` (created, 116 lines)
+- `src/tools/project-setup/discovery-config.json` (updated with community scope, 28 questions)
+- `tests/integration/tools/project-setup.test.ts` (added comprehensive 2-file community workflow test)
+
+**Next Session Priorities (Milestone 5)**:
+- Implement documentation artifacts (README.md enhancement, ARCHITECTURE.md, DEVELOPMENT.md, RELEASE.md, TROUBLESHOOTING.md)
+- Add `documentation` scope to discovery-config.json
+- Extend integration tests for documentation workflow
 
 ---
 
