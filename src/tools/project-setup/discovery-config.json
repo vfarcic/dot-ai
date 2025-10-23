@@ -1,22 +1,64 @@
 {
-  "filesToCheck": [
-    "README.md"
-  ],
-  "questions": [
-    {
-      "id": "projectName",
-      "question": "What is the project name?",
-      "required": true
-    },
-    {
-      "id": "projectDescription",
-      "question": "What does this project do?",
-      "required": true
-    },
-    {
-      "id": "licenseName",
-      "question": "What license does this project use? (e.g., MIT, Apache-2.0, GPL-3.0)",
-      "required": false
+  "readme": {
+    "files": ["README.md"],
+    "questions": [
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "projectDescription",
+        "question": "What does this project do?",
+        "required": true
+      },
+      {
+        "id": "licenseName",
+        "question": "What license does this project use? (e.g., MIT, Apache-2.0, GPL-3.0)",
+        "required": false
+      }
+    ]
+  },
+  "legal": {
+    "files": ["LICENSE"],
+    "questions": [
+      {
+        "id": "licenseType",
+        "question": "What license type would you like? (MIT, Apache-2.0, GPL-3.0, BSD-3-Clause)",
+        "required": true,
+        "options": ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+      },
+      {
+        "id": "year",
+        "question": "What year for the copyright? (e.g., 2025)",
+        "required": true
+      },
+      {
+        "id": "copyrightHolder",
+        "question": "Who is the copyright holder? (e.g., Your Name or Your Organization)",
+        "required": true
+      },
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "projectDescription",
+        "question": "What does this project do? (Required for GPL-3.0, optional otherwise)",
+        "required": false
+      },
+      {
+        "id": "projectUrl",
+        "question": "Project URL (optional, used in NOTICE file for Apache-2.0)",
+        "required": false
+      }
+    ],
+    "conditionalFiles": {
+      "NOTICE": {
+        "condition": "licenseType === 'Apache-2.0'",
+        "reason": "NOTICE file is required for Apache 2.0 licensed projects"
+      }
     }
-  ]
+  }
 }

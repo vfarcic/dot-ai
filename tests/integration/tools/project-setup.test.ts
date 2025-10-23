@@ -28,7 +28,8 @@ describe.concurrent('Project Setup Tool Integration', () => {
           result: {
             success: true,
             sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
-            filesToCheck: expect.arrayContaining(['README.md']),
+            filesToCheck: expect.arrayContaining(['README.md', 'LICENSE']),
+            availableScopes: expect.arrayContaining(['readme', 'legal']),
             nextStep: 'reportScan',
             instructions: expect.stringContaining('Scan the repository')
           },
@@ -57,10 +58,8 @@ describe.concurrent('Project Setup Tool Integration', () => {
           result: {
             success: true,
             sessionId: sessionId,
-            existingFiles: [],
-            missingFiles: expect.arrayContaining(['README.md']),
             nextStep: 'generateFile',
-            instructions: expect.stringContaining('Present this report to the user')
+            instructions: expect.stringContaining('scope status report')
           },
           tool: 'projectSetup',
           executionTime: expect.any(Number)
@@ -72,12 +71,11 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       expect(reportResponse).toMatchObject(expectedReportResponse);
 
-      // Step 2b: ReportScan with selectedFiles - Initialize workflow
+      // Step 2b: ReportScan with selectedScopes - Initialize workflow with BOTH scopes
       const initWorkflowResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
-        existingFiles: [],
-        selectedFiles: ['README.md'],
+        selectedScopes: ['readme', 'legal'],
         interaction_id: `init_workflow_${testId}`
       });
 
@@ -87,8 +85,6 @@ describe.concurrent('Project Setup Tool Integration', () => {
           result: {
             success: true,
             sessionId: sessionId,
-            existingFiles: [],
-            missingFiles: expect.arrayContaining(['README.md']),
             nextStep: 'generateFile',
             currentFile: 'README.md',
             questions: expect.arrayContaining([
@@ -120,8 +116,8 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       expect(initWorkflowResponse).toMatchObject(expectedInitResponse);
 
-      // Step 3a: GenerateFile with answers - Generate content
-      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+      // Step 3a: GenerateFile with answers - Generate README.md content
+      const generateReadmeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'generateFile',
         sessionId,
         fileName: 'README.md',
@@ -130,10 +126,11 @@ describe.concurrent('Project Setup Tool Integration', () => {
           projectDescription: 'Integration test project for validation',
           licenseName: 'MIT'
         },
-        interaction_id: `generate_file_${testId}`
+        interaction_id: `generate_readme_${testId}`
       });
 
-      const expectedGenerateResponse = {
+      // Verify README content and nextFile preview for LICENSE
+      const expectedReadmeResponse = {
         success: true,
         data: {
           result: {
@@ -141,7 +138,25 @@ describe.concurrent('Project Setup Tool Integration', () => {
             sessionId: sessionId,
             fileName: 'README.md',
             content: expect.stringContaining(`Test Project ${testId}`),
-            instructions: expect.stringContaining('Write this content to the file')
+            nextFile: expect.objectContaining({
+              fileName: 'LICENSE',
+              scope: 'legal',
+              questions: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 'licenseType',
+                  question: expect.stringContaining('license type')
+                }),
+                expect.objectContaining({
+                  id: 'year',
+                  question: expect.stringContaining('year')
+                }),
+                expect.objectContaining({
+                  id: 'copyrightHolder',
+                  question: expect.stringContaining('copyright holder')
+                })
+              ])
+            }),
+            instructions: expect.stringContaining('completedFileName')
           },
           tool: 'projectSetup',
           executionTime: expect.any(Number)
@@ -151,19 +166,114 @@ describe.concurrent('Project Setup Tool Integration', () => {
         })
       };
 
-      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+      expect(generateReadmeResponse).toMatchObject(expectedReadmeResponse);
 
-      // Verify content has interpolated values
-      const content = generateResponse.data.result.content;
-      expect(content).toContain(`Test Project ${testId}`);
-      expect(content).toContain('Integration test project for validation');
-      expect(content).toContain('MIT');
+      // Verify README content
+      const readmeContent = generateReadmeResponse.data.result.content;
+      expect(readmeContent).toContain(`Test Project ${testId}`);
+      expect(readmeContent).toContain('Integration test project for validation');
+      expect(readmeContent).toContain('MIT');
 
-      // Step 3b: GenerateFile with completedFileName - Mark done and complete workflow
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+      // Step 3b: Use round-trip optimization - Confirm README + provide LICENSE answers
+      const generateLicenseResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'generateFile',
         sessionId,
         completedFileName: 'README.md',
+        nextFileAnswers: {
+          licenseType: 'Apache-2.0',
+          year: '2025',
+          copyrightHolder: 'Test Suite',
+          projectName: `Test Project ${testId}`,
+          projectDescription: 'Integration test project',
+          projectUrl: 'https://example.com'
+        },
+        interaction_id: `generate_license_${testId}`
+      });
+
+      // Verify LICENSE content and nextFile preview for NOTICE
+      const expectedLicenseResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            sessionId: sessionId,
+            fileName: 'LICENSE',
+            content: expect.stringContaining('Apache License'),
+            nextFile: expect.objectContaining({
+              fileName: 'NOTICE',
+              scope: 'legal',
+              questions: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 'projectName'
+                })
+              ])
+            }),
+            instructions: expect.stringContaining('completedFileName')
+          },
+          tool: 'projectSetup',
+          executionTime: expect.any(Number)
+        },
+        meta: expect.objectContaining({
+          version: 'v1'
+        })
+      };
+
+      expect(generateLicenseResponse).toMatchObject(expectedLicenseResponse);
+
+      // Verify LICENSE content
+      const licenseContent = generateLicenseResponse.data.result.content;
+      expect(licenseContent).toContain('Apache License');
+      expect(licenseContent).toContain('2025');
+      expect(licenseContent).toContain('Test Suite');
+
+      // Step 3c: Use round-trip optimization again - Confirm LICENSE + provide NOTICE answers
+      const generateNoticeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'LICENSE',
+        nextFileAnswers: {
+          licenseType: 'Apache-2.0',
+          year: '2025',
+          copyrightHolder: 'Test Suite',
+          projectName: `Test Project ${testId}`,
+          projectUrl: 'https://example.com'
+        },
+        interaction_id: `generate_notice_${testId}`
+      });
+
+      // Verify NOTICE content and completion
+      const expectedNoticeResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            sessionId: sessionId,
+            fileName: 'NOTICE',
+            content: expect.stringContaining(`Test Project ${testId}`),
+            instructions: expect.stringContaining('Write this content')
+          },
+          tool: 'projectSetup',
+          executionTime: expect.any(Number)
+        },
+        meta: expect.objectContaining({
+          version: 'v1'
+        })
+      };
+
+      expect(generateNoticeResponse).toMatchObject(expectedNoticeResponse);
+
+      // Verify NOTICE content
+      const noticeContent = generateNoticeResponse.data.result.content;
+      expect(noticeContent).toContain(`Test Project ${testId}`);
+      expect(noticeContent).toContain('2025');
+      expect(noticeContent).toContain('Test Suite');
+      expect(noticeContent).toContain('https://example.com');
+
+      // Step 3d: Complete workflow by confirming NOTICE
+      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: 'NOTICE',
         interaction_id: `complete_${testId}`
       });
 
@@ -173,7 +283,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
           result: {
             success: true,
             sessionId: sessionId,
-            fileName: 'README.md',
+            fileName: 'NOTICE',
             content: '',
             instructions: expect.stringContaining('All files generated successfully')
           },
@@ -187,7 +297,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       expect(completeResponse).toMatchObject(expectedCompleteResponse);
 
-      // Verify session file exists with correct structure
+      // Verify session file exists with correct structure for all 3 files
       const fs = await import('fs');
       const path = await import('path');
       const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
@@ -198,14 +308,33 @@ describe.concurrent('Project Setup Tool Integration', () => {
         sessionId: sessionId,
         data: {
           currentStep: 'complete',
+          selectedScopes: ['readme', 'legal'],
           files: {
             'README.md': {
               status: 'done',
-              answers: {
+              scope: 'readme',
+              answers: expect.objectContaining({
                 projectName: `Test Project ${testId}`,
-                projectDescription: 'Integration test project for validation',
-                licenseName: 'MIT'
-              }
+                projectDescription: 'Integration test project for validation'
+              })
+            },
+            'LICENSE': {
+              status: 'done',
+              scope: 'legal',
+              answers: expect.objectContaining({
+                licenseType: 'Apache-2.0',
+                year: '2025',
+                copyrightHolder: 'Test Suite'
+              })
+            },
+            'NOTICE': {
+              status: 'done',
+              scope: 'legal',
+              answers: expect.objectContaining({
+                projectName: `Test Project ${testId}`,
+                year: '2025',
+                copyrightHolder: 'Test Suite'
+              })
             }
           }
         }
@@ -226,7 +355,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
         step: 'reportScan',
         sessionId,
         existingFiles: [],
-        selectedFiles: ['README.md'],
+        selectedScopes: ['readme'],
         interaction_id: `init_optional_${testId}`
       });
 
@@ -240,6 +369,14 @@ describe.concurrent('Project Setup Tool Integration', () => {
           // licenseName intentionally omitted
         },
         interaction_id: `generate_optional_${testId}`
+      });
+
+      // Verify generation succeeded
+      expect(generateResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: sessionId,
+        fileName: 'README.md',
+        content: expect.stringContaining(`Optional Test ${testId}`)
       });
 
       const content = generateResponse.data.result.content;
@@ -278,11 +415,20 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(errorResponse).toMatchObject(expectedErrorResponse);
     });
 
-    test('should handle missing existingFiles for reportScan', async () => {
+    test('should handle missing existingFiles for first reportScan', async () => {
       const testId = Date.now();
+
+      // Create a valid session first
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `error_setup_existingfiles_${testId}`
+      });
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Try reportScan without existingFiles on first call
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
-        sessionId: 'proj-test-invalid',
+        sessionId: sessionId,
         interaction_id: `error_missing_files_${testId}`
       });
 
@@ -373,7 +519,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
         step: 'reportScan',
         sessionId,
         existingFiles: [],
-        selectedFiles: ['README.md'],
+        selectedScopes: ['readme'],
         interaction_id: `error_init_${testId}`
       });
 

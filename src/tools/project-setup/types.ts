@@ -20,7 +20,17 @@ export type FileStatus = 'excluded' | 'pending' | 'in-progress' | 'done';
  */
 export interface FileInfo {
   status: FileStatus;
+  scope?: string;  // Scope this file belongs to (e.g., 'readme', 'legal')
   answers?: Record<string, string>;
+}
+
+/**
+ * Scope configuration structure
+ */
+export interface ScopeConfig {
+  files: string[];
+  questions: Question[];
+  conditionalFiles?: Record<string, { condition: string; reason: string }>;
 }
 
 /**
@@ -28,8 +38,10 @@ export interface FileInfo {
  */
 export interface ProjectSetupSessionData {
   currentStep: ProjectSetupStep;
-  questions?: Question[];
-  filesToCheck?: string[];  // From discovery config
+  allScopes?: Record<string, ScopeConfig>;  // All scope configurations
+  selectedScopes?: string[];  // Scopes user chose to generate
+  filesToCheck?: string[];  // All files from all scopes
+  existingFiles?: string[];  // Files that exist in repository (stored after first reportScan)
   files?: Record<string, FileInfo>;  // Map of fileName -> FileInfo
 }
 
@@ -40,6 +52,7 @@ export interface DiscoveryResponse {
   success: true;
   sessionId: string;
   filesToCheck: string[];
+  availableScopes: string[];  // Available scopes (e.g., ['readme', 'legal'])
   nextStep: 'reportScan';
   instructions: string;
 }
@@ -51,17 +64,16 @@ export interface DiscoveryResponse {
 export interface ReportScanResponse {
   success: true;
   sessionId: string;
-  existingFiles: string[];
-  missingFiles: string[];
   nextStep: 'generateFile';
   instructions: string;
-  // If files were selected, return questions for first file
+  // If scopes were selected, return questions for first file
   currentFile?: string;
   questions?: Question[];
 }
 
 /**
  * Generate file response - Step 3 of workflow
+ * Includes preview of next file's questions to reduce round trips
  */
 export interface GenerateFileResponse {
   success: true;
@@ -69,6 +81,12 @@ export interface GenerateFileResponse {
   fileName: string;
   content: string;
   instructions: string;
+  // Preview of next file (if any) to enable batch processing
+  nextFile?: {
+    fileName: string;
+    scope: string;
+    questions: Question[];
+  };
 }
 
 /**
@@ -100,12 +118,13 @@ export interface ProjectSetupParams {
 
   // reportScan parameters
   existingFiles?: string[];
-  selectedFiles?: string[];  // Files user chose to generate
+  selectedScopes?: string[];  // Scopes user chose to setup (e.g., ['readme', 'legal'])
 
   // generateFile parameters
   fileName?: string;
   answers?: Record<string, string>;
   completedFileName?: string;  // Confirmation that file was created
+  nextFileAnswers?: Record<string, string>;  // Optional answers for next file (reduces round trips)
 }
 
 /**

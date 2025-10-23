@@ -12,6 +12,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
+// Register custom Handlebars helpers
+// Block helper for equality comparison: {{#eq a b}}...{{/eq}}
+Handlebars.registerHelper('eq', function(this: any, a: any, b: any, options: any) {
+  if (a === b) {
+    return options.fn(this);
+  } else {
+    return options.inverse(this);
+  }
+});
+
 /**
  * Load template from file and replace variables using Handlebars
  *

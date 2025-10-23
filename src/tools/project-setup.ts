@@ -19,11 +19,12 @@ export const PROJECT_SETUP_TOOL_DESCRIPTION = 'Setup project, audit repository, 
 export const PROJECT_SETUP_TOOL_INPUT_SCHEMA = {
   step: z.enum(['discover', 'reportScan', 'generateFile']).optional().describe('Workflow step: "discover" (default) starts new session and returns file list, "reportScan" analyzes scan results, "generateFile" generates specific file. Defaults to "discover" if omitted.'),
   sessionId: z.string().optional().describe('Session ID from previous step (required for reportScan and generateFile steps)'),
-  existingFiles: z.array(z.string()).optional().describe('List of files that exist in the repository (required for reportScan step)'),
-  selectedFiles: z.array(z.string()).optional().describe('Files user chose to generate (optional for reportScan step)'),
+  existingFiles: z.array(z.string()).optional().describe('List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)'),
+  selectedScopes: z.array(z.string()).optional().describe('Scopes user chose to setup (e.g., ["readme", "legal"]) (required for reportScan step after initial scan)'),
   fileName: z.string().optional().describe('Name of file to generate (required for generateFile step)'),
   answers: z.record(z.string()).optional().describe('Answers to questions for file generation (required for generateFile step with fileName)'),
-  completedFileName: z.string().optional().describe('Confirmation that file was created (for generateFile step)')
+  completedFileName: z.string().optional().describe('Confirmation that file was created (for generateFile step)'),
+  nextFileAnswers: z.record(z.string()).optional().describe('Answers for next file (optional, can be provided with completedFileName)')
 };
 
 /**
@@ -113,20 +114,10 @@ async function handleReportScanStep(
     });
   }
 
-  if (!args.existingFiles) {
-    return createErrorResponse({
-      success: false,
-      error: {
-        message: 'existingFiles is required for reportScan step',
-        details: 'Please provide an array of files that exist in the repository'
-      }
-    });
-  }
-
   const response = await handleReportScan(
     args.sessionId,
     args.existingFiles,
-    args.selectedFiles,
+    args.selectedScopes,
     logger,
     requestId
   );
@@ -163,6 +154,7 @@ async function handleGenerateFileStep(
     args.fileName,
     args.answers,
     args.completedFileName,
+    args.nextFileAnswers,
     logger,
     requestId
   );

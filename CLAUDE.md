@@ -29,7 +29,9 @@
 
 - **Implementation flow**: Code → Integration Tests → `npm run test:integration` → Mark complete
 - **Integration testing standards**: See `tests/integration/CLAUDE.md` for comprehensive integration testing patterns
-- **Lightweight tests**: Use `./tests/integration/infrastructure/run-integration-tests.sh --no-cluster [test-filter]` for tests that don't require Kubernetes cluster or Qdrant (e.g., project-setup tool)
+- **Lightweight tests**: For tests that don't require Kubernetes cluster or Qdrant (e.g., project-setup tool):
+  - `npm run test:integration -- --no-cluster [test-filter]`
+  - Example: `npm run test:integration -- --no-cluster project-setup`
 
 ## Project Overview
 
