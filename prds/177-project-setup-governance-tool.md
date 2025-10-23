@@ -57,6 +57,19 @@
 
 ---
 
+### Decision 4: Skip Documentation Artifacts Milestone (2025-10-23)
+**Rationale**: Documentation artifacts (README.md enhancement, ARCHITECTURE.md, DEVELOPMENT.md, RELEASE.md, TROUBLESHOOTING.md) require project-specific content that cannot be meaningfully templated. Unlike governance and legal files that follow industry standards, technical documentation is unique to each project.
+
+**Impact**:
+- Milestone 5 removed from project scope
+- Total artifact count: 85+ (reduced from 90+)
+- Focus maintained on standardized, process-based files where templating adds real value
+- Timeline reduced by 1-1.5 weeks
+
+**Reasoning**: Our tool's value comes from generating standardized governance, legal, and infrastructure files. Project-specific documentation (architecture details, troubleshooting guides) requires domain knowledge that generic templates cannot provide. Generic templates like "Describe your architecture here" provide zero value to users.
+
+---
+
 ## Problem Statement
 
 Every software project needs proper governance documentation, development infrastructure, and best practices configuration, but creating these artifacts from scratch is time-consuming, error-prone, and requires deep knowledge of current best practices across multiple domains.
@@ -65,7 +78,7 @@ Every software project needs proper governance documentation, development infras
 - **New Projects**: Developers start with minimal structure (README, LICENSE), missing critical governance and community files
 - **Existing Projects**: Many lack proper governance documentation, blocking CNCF submissions and enterprise adoption
 - **Best Practices Gap**: Keeping up with evolving best practices across governance, security, CI/CD, containers, and cloud native is challenging
-- **Manual Process**: Creating 90+ configuration files manually is tedious and inconsistent across projects
+- **Manual Process**: Creating 85+ configuration files manually is tedious and inconsistent across projects
 - **No Validation**: No automated way to audit project completeness against industry standards
 
 ### Problems to Solve
@@ -100,11 +113,10 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 - Include explanatory comments referencing source documentation
 - Version-tracked templates that evolve with industry standards
 
-**90+ Artifact Coverage:**
-- Legal & licensing (LICENSE, NOTICE, COPYRIGHT)
+**85+ Artifact Coverage:**
+- Legal & licensing (LICENSE, NOTICE)
 - Governance (CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, MAINTAINERS, GOVERNANCE, ROADMAP)
-- Community (SUPPORT, ADOPTERS, CHANGELOG)
-- Documentation (ARCHITECTURE, DEVELOPMENT, RELEASE, TROUBLESHOOTING)
+- Community (SUPPORT, ADOPTERS)
 - GitHub infrastructure (issue templates, workflows, automation)
 - Container configuration (Dockerfile, docker-compose)
 - Code quality (linting, formatting, testing configs)
@@ -113,6 +125,7 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 - GitOps (Argo CD, Flux)
 - Infrastructure as Code (Terraform, Crossplane)
 - Security & compliance (scanning configs, SBOM)
+- Documentation directories (structured docs/ hierarchy)
 
 ---
 
@@ -127,7 +140,7 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 - [ ] Audit mode successfully identifies missing artifacts in existing repositories
 - [ ] New mode creates complete repository structure from scratch
 - [ ] Project type detection works with client-provided file contents (95%+ accuracy)
-- [ ] Generates all 90 artifact types with best practices applied
+- [ ] Generates all 85+ artifact types with best practices applied (documentation artifacts excluded - project-specific content)
 - [ ] Interactive questionnaire adapts to user responses and detected context
 - [ ] Validates completeness against CNCF Sandbox and OpenSSF standards
 
@@ -567,23 +580,25 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 5: Documentation Artifacts (5 artifacts)
-**Success Criteria**: Comprehensive project documentation structure
+### Milestone 5: Documentation Artifacts ~~(5 artifacts)~~ **REMOVED**
+**Decision**: Milestone removed from project scope (2025-10-23) - See Decision 4 in Resolved Design Decisions
 
-**Artifacts:**
-- [ ] `README.md` - Enhancement/validation (badges, quick start, links to governance docs, how to contribute)
-- [ ] `ARCHITECTURE.md` - System architecture, component interactions, design decisions, extension points
-- [ ] `DEVELOPMENT.md` - Local development setup, debugging, IDE configuration, common workflows
-- [ ] `RELEASE.md` - Release process, version numbering (SemVer), release checklist, maintainer procedures
-- [ ] `TROUBLESHOOTING.md` - Common issues, solutions, debugging tips, FAQ
+**Rationale**: Documentation artifacts require project-specific content that cannot be meaningfully templated. Unlike governance and legal files that follow industry standards (Contributor Covenant, OpenSSF templates, CNCF requirements), technical documentation is unique to each project's architecture, development workflow, and operational needs.
 
-**Best Practices Research:**
-- [ ] README badge standards and shield.io integration
-- [ ] Architecture documentation patterns (C4 model, ADRs)
-- [ ] Development environment reproducibility
-- [ ] Release process automation best practices
+**Artifacts Removed from Scope:**
+- ~~README.md enhancement/validation~~ - Enhancement contradicts "generate missing files only" architecture; basic README.md template already exists from Milestone 1
+- ~~ARCHITECTURE.md~~ - Completely project-specific, generic template provides no value ("Describe your architecture here")
+- ~~DEVELOPMENT.md~~ - Local setup steps, debugging procedures highly variable per project
+- ~~RELEASE.md~~ - Workflow-specific (semantic-release vs manual vs custom), cannot meaningfully standardize
+- ~~TROUBLESHOOTING.md~~ - Requires knowing actual project issues and solutions, impossible to template
 
-**Validation**: README passes markdown linting, all internal links valid, documentation structure navigable
+**Impact on Project**:
+- Total artifact count reduced from 90+ to 85+
+- Timeline reduced by 1-1.5 weeks
+- Focus maintained on tool's core strength: standardized, process-based files
+- Projects should create documentation files based on their specific needs
+
+**Alternative Approach**: Projects create documentation files manually or use project-specific tools. Our tool focuses on artifacts where standardization and templating provide real value.
 
 ---
 
@@ -1080,10 +1095,10 @@ Every milestone MUST include integration tests that validate the implemented fun
 - Milestone 30: Best practices documentation system (foundation)
 
 ### Phase 2: Governance & Community (Weeks 3-4)
-- Milestone 2: Legal & licensing
-- Milestone 3: Core governance
-- Milestone 4: Community & support
-- Milestone 5: Documentation
+- Milestone 2: Legal & licensing ✅
+- Milestone 3: Core governance ✅
+- Milestone 4: Community & support ✅
+- ~~Milestone 5: Documentation~~ **REMOVED** - Documentation artifacts do not fit tool's standardization model (see Decision 4)
 
 **Use tool on this repository to generate governance for PRD #173**
 
@@ -1109,9 +1124,9 @@ Every milestone MUST include integration tests that validate the implemented fun
 - Milestone 31: Validation & compliance checking
 - Milestone 32: Integration testing & documentation
 
-**Total Timeline**: 12 weeks (3 months) from start to full feature completion
+**Total Timeline**: 11-11.5 weeks (~3 months) from start to full feature completion (reduced from 12 weeks due to Milestone 5 removal)
 
-**Note**: Milestones 2-5 (governance) can be prioritized and completed in 2 weeks to immediately support PRD #173 CNCF submission.
+**Note**: Milestones 2-4 (legal and governance) completed in 1 day, immediately supporting PRD #173 CNCF submission needs.
 
 ---
 
