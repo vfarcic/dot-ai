@@ -180,26 +180,6 @@ User: Apply the Kyverno policy for active enforcement
 Agent: ✅ Policy deployed! Now when users deploy applications, they'll get required questions for CPU/memory limits with your specified ranges, and any non-compliant deployments will be blocked by Kyverno.
 ```
 
-**Example: Documentation Testing**
-```
-User: I want to test my README.md file to make sure all the examples work
-
-Agent: I'll help you test your README.md for accuracy. Let me start a documentation testing session.
-[Uses testDocs tool]
-
-Agent: Found 6 testable sections in your README. Testing installation instructions...
-
-✅ npm install command works correctly
-❌ Configuration example has wrong port number (8080 vs 3000)
-⚠️  Claims "works out of the box" but requires additional setup
-
-Which issues would you like me to help you fix?
-
-User: Fix the port number directly in the doc, and I'll create a GitHub issue for the setup requirements.
-
-Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue tracked externally.
-```
-
 *Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
 
 **Example: Shared Prompts Library**

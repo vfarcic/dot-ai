@@ -126,7 +126,7 @@ Deploy button triggers MCP deployment → Status updates shown graphically
 #### MCP Tool Integration
 - [ ] All existing MCP tools accessible through chat commands
 - [ ] Support for `recommend`, `chooseSolution`, `answerQuestion`, `generateManifests`, `deployManifests`
-- [ ] Support for `manageOrgData`, `remediate`, `testDocs` workflows
+- [ ] Support for `manageOrgData`, `remediate`, `projectSetup` workflows
 
 #### Visual Data Representation
 - [ ] Cluster capabilities displayed as interactive cards/tables

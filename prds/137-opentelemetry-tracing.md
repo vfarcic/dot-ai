@@ -66,7 +66,7 @@ Implement OpenTelemetry instrumentation following industry best practices:
 
 ### Core Functionality
 - [ ] **HTTP/MCP request tracing**: Automatic span creation for all incoming requests - Documented in `docs/observability-guide.md` (Section: "Request Tracing")
-- [ ] **Tool execution spans**: Each of 6 MCP tools traced (recommend, version, testDocs, manageOrgData, remediate, buildPlatform) - Documented in `docs/development-guide.md` (Section: "Tool Spans")
+- [ ] **Tool execution spans**: Each of 5 active MCP tools traced (recommend, version, manageOrgData, remediate, projectSetup) - Documented in `docs/development-guide.md` (Section: "Tool Spans")
 - [ ] **Error tracking**: Integration with existing error-handling system - Documented in `docs/observability-guide.md` (Section: "Error Correlation")
 - [ ] **Trace context propagation**: Session-based workflow correlation - Documented in `docs/development-guide.md` (Section: "Context Propagation")
 
