@@ -1,33 +1,51 @@
 /**
  * Shared Prompt Loader
- * 
- * Loads prompt templates from markdown files and replaces variables
+ *
+ * Loads prompt templates from files and replaces variables using Handlebars
  * Following CLAUDE.md guidelines for file-based prompts
- * 
+ *
  * Extracted from unified-creation-session.ts to be shared across all creation workflows
+ * Extended to support custom base directories and file extensions
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import Handlebars from 'handlebars';
 
 /**
- * Load prompt template from file and replace variables
+ * Load template from file and replace variables using Handlebars
+ *
+ * @param templateName - Name of the template file (without extension)
+ * @param variables - Key-value pairs to replace in template
+ * @param baseDir - Base directory relative to project root (default: 'prompts')
+ * @param fileExtension - File extension (default: '.md')
+ * @returns Processed template content
+ *
+ * Supports Handlebars syntax:
+ * - {{variable}} - Variable interpolation
+ * - {{#if variable}}...{{/if}} - Conditional blocks
+ * - {{#each array}}...{{/each}} - Iteration
  */
-export function loadPrompt(promptName: string, variables: Record<string, string> = {}): string {
+export function loadPrompt(
+  templateName: string,
+  variables: Record<string, any> = {},
+  baseDir: string = 'prompts',
+  fileExtension: string = '.md'
+): string {
   try {
     // Use __dirname to resolve paths relative to the module location
     // This works both locally and when installed as an npm package
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', `${promptName}.md`);
-    let template = fs.readFileSync(promptPath, 'utf8');
-    
-    // Replace template variables
-    for (const [key, value] of Object.entries(variables)) {
-      template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-    }
-    
-    return template;
+    // From dist/core/ we go up two levels to project root, then into baseDir
+    const templatePath = path.join(__dirname, '..', '..', baseDir, `${templateName}${fileExtension}`);
+    const templateContent = fs.readFileSync(templatePath, 'utf8');
+
+    // Compile and execute Handlebars template
+    const template = Handlebars.compile(templateContent);
+    const result = template(variables);
+
+    return result;
   } catch (error) {
-    console.error(`Failed to load prompt ${promptName}:`, error);
-    return `Error loading prompt: ${promptName}`;
+    console.error(`Failed to load template ${templateName} from ${baseDir}:`, error);
+    return `Error loading template: ${templateName}`;
   }
 }

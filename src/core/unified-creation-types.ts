@@ -26,37 +26,45 @@ export interface WorkflowConfig {
   displayName: string;
 }
 
-export interface UnifiedCreationSession {
-  sessionId: string;
+/**
+ * Session data structure for unified creation workflow
+ * Now fits GenericSession<UnifiedCreationSessionData> pattern
+ */
+export interface UnifiedCreationSessionData {
   entityType: EntityType;
   currentStep: WorkflowStep;
+  description?: string;
+  initialTriggers?: string[];
+  expandedTriggers?: string[];
+  suggestedResources?: string[]; // Only used for patterns
+  rationale?: string;
+  createdBy?: string;
+  source?: string;
+  // Kyverno generation data (only used for policies)
+  policyId?: string; // Generated once during kyverno-generation step for consistency
+  generatedKyvernoPolicy?: string;
+  kyvernoGenerationError?: string;
+  kyvernoGenerationSkipped?: boolean; // True when Kyverno is not available
+  kyvernoSkipReason?: string; // Reason why Kyverno generation was skipped
+  deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
+  // Namespace scope data (only used for policies)
+  namespaceScope?: {
+    type: 'all' | 'include' | 'exclude';
+    namespaces?: string[];  // Selected namespace names
+  };
+  // Capabilities collection name (for policy testing with pre-populated data)
+  capabilitiesCollection?: string; // Collection to use for capability search (default: 'capabilities')
+}
+
+/**
+ * Legacy type alias for backwards compatibility during refactoring
+ * TODO: Remove once all code is updated to use GenericSession<UnifiedCreationSessionData>
+ */
+export interface UnifiedCreationSession {
+  sessionId: string;
   createdAt: string;
   updatedAt: string;
-  
-  // Collected data - flexible to accommodate both patterns and policies
-  data: {
-    description?: string;
-    initialTriggers?: string[];
-    expandedTriggers?: string[];
-    suggestedResources?: string[]; // Only used for patterns
-    rationale?: string;
-    createdBy?: string;
-    source?: string;
-    // Kyverno generation data (only used for policies)
-    policyId?: string; // Generated once during kyverno-generation step for consistency
-    generatedKyvernoPolicy?: string;
-    kyvernoGenerationError?: string;
-    kyvernoGenerationSkipped?: boolean; // True when Kyverno is not available
-    kyvernoSkipReason?: string; // Reason why Kyverno generation was skipped
-    deploymentChoice?: string; // 'policy-only', 'apply', 'save', 'discard'
-    // Namespace scope data (only used for policies)
-    namespaceScope?: {
-      type: 'all' | 'include' | 'exclude';
-      namespaces?: string[];  // Selected namespace names
-    };
-    // Capabilities collection name (for policy testing with pre-populated data)
-    capabilitiesCollection?: string; // Collection to use for capability search (default: 'capabilities')
-  };
+  data: UnifiedCreationSessionData;
 }
 
 export interface UnifiedWorkflowStepResponse {

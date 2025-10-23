@@ -1,10 +1,59 @@
 # PRD #177: Project Setup & Governance Tool (MCP)
 
 **GitHub Issue**: [#178](https://github.com/vfarcic/dot-ai/issues/178)
-**Status**: Planning
+**Status**: In Progress - Milestone 1 Complete
 **Priority**: High
 **Created**: 2025-10-23
-**Last Updated**: 2025-10-23
+**Last Updated**: 2025-10-23 (Milestone 1: Core Tool Infrastructure Complete)
+
+---
+
+## Resolved Design Decisions
+
+### Decision 1: MCP Cannot Write Files Directly (2025-10-23)
+**Rationale**: MCP servers run remotely or sandboxed and cannot access client file systems. The MCP protocol is request/response based - servers return data, clients perform I/O operations.
+
+**Impact**:
+- Tool returns file data structures instead of writing files
+- AI client uses its Write tool to create files
+- Cleaner separation of concerns (MCP = logic, client = I/O)
+- Works reliably whether MCP runs locally or remotely
+
+**Implementation**: All workflow stages return file content data, never perform direct file operations.
+
+---
+
+### Decision 2: Client Provides File Inventory (2025-10-23)
+**Rationale**: MCP cannot scan client file systems due to security sandboxing and remote operation. The client (AI assistant) has file system access and must provide file information.
+
+**Impact**:
+- MCP provides list of files to check (discovery stage)
+- Client scans repository using Glob/Read tools
+- Client reports findings back to MCP (analysis stage)
+- Enables gap analysis without requiring MCP file system access
+
+**Implementation**: Three-stage workflow separates discovery, analysis, and generation concerns.
+
+---
+
+### Decision 3: Three-Stage Workflow - Discovery → Analysis → Generation (2025-10-23)
+**Rationale**:
+- **Discovery**: MCP tells client what files to check for (based on scope)
+- **Analysis**: Client reports existing files, MCP identifies gaps
+- **Generation**: MCP returns **only missing files**, not all 90 artifacts
+
+**Impact**:
+- Efficient: Only generates what's needed
+- Transparent: Client knows exactly what will be created
+- Resumable: Session state maintained across stages
+- Scalable: Works for any scope (governance, docker, kubernetes, etc.)
+
+**Benefits**:
+- No file conflicts (never overwrites existing files)
+- Faster execution (skip unnecessary generation)
+- Better user experience (clear what's missing vs exists)
+
+**Implementation**: Stage-based routing in handler, session management for context preservation.
 
 ---
 
@@ -70,9 +119,14 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 ## Success Criteria
 
 ### Tool Functionality
-- [ ] Audit mode successfully scans repositories and identifies missing artifacts
+- [ ] Discovery stage returns complete file inventory list for each scope (governance, docker, k8s, etc.)
+- [ ] Analysis stage correctly identifies gaps (only missing files, never existing ones)
+- [ ] Generation stage returns only missing files, never attempts to update existing ones
+- [ ] Tool works correctly when MCP runs remotely (no file system access required)
+- [ ] Client can resume workflow across multiple MCP calls using sessionId
+- [ ] Audit mode successfully identifies missing artifacts in existing repositories
 - [ ] New mode creates complete repository structure from scratch
-- [ ] Auto-detects project type (language, framework, deployment) with 95%+ accuracy
+- [ ] Project type detection works with client-provided file contents (95%+ accuracy)
 - [ ] Generates all 90 artifact types with best practices applied
 - [ ] Interactive questionnaire adapts to user responses and detected context
 - [ ] Validates completeness against CNCF Sandbox and OpenSSF standards
@@ -87,9 +141,16 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 ### User Experience
 - [ ] Session continuity allows resuming interrupted workflows
 - [ ] Preview mode shows files before generation
-- [ ] Git integration for commits, branches, and PR creation
+- [ ] Clear instructions guide client through each workflow stage
 - [ ] Validation report shows compliance score and recommendations
 - [ ] Average time to complete governance setup: <15 minutes (vs 40+ hours manual)
+
+### Integration Testing (Required for All Milestones)
+- [ ] Each milestone includes integration tests validating the implemented functionality
+- [ ] Integration tests cover full workflow stages (discovery → analysis → generation)
+- [ ] Tests validate returned data structures match specifications
+- [ ] Tests ensure only missing files are generated (no overwrites)
+- [ ] Integration tests run successfully in CI/CD pipeline
 
 ---
 
@@ -97,19 +158,52 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 
 ### New Project Creators
 **Before**: Spend 40+ hours researching and creating governance docs, CI/CD configs, and best practices files
-**After**: Answer 10-15 questions, get complete project structure in minutes with current best practices
+**After**: AI calls MCP tool → answers questions → receives file contents → AI writes files. Complete setup in <15 minutes.
+
+**Workflow Example**:
+```
+User: "Set up governance for my new TypeScript project"
+
+1. [Discovery] AI → MCP: Request governance file list
+2. [Discovery] MCP → AI: Check for these 6 files [CONTRIBUTING.md, SECURITY.md, ...]
+3. [Scan] AI scans repo using Glob → finds none
+4. [Analysis] AI → MCP: No existing files, project is TypeScript
+5. [Analysis] MCP → AI: Need 6 governance files (4 critical, 2 recommended)
+6. [Questions] MCP asks: maintainer name, email, license type
+7. [Generation] MCP → AI: Here are 6 complete files with best practices
+8. [Write] AI uses Write tool to create all 6 files
+9. [Summary] AI: "Created 6 governance files, CNCF Sandbox ready!"
+
+Time: <15 minutes (vs 40+ hours manual)
+```
 
 ### Existing Project Maintainers (CNCF Submission)
 **Before**: Manual audit against CNCF requirements, create 20+ governance files from scratch, uncertainty about completeness
-**After**: Run audit mode, answer questions, get CNCF-ready governance in <30 minutes with validation report
+**After**: AI audits repo via MCP, receives only missing files, writes them. CNCF-ready in <30 minutes.
+
+**Workflow Example**:
+```
+User: "Audit my repo for CNCF Sandbox submission"
+
+1. [Discovery] AI → MCP: Audit mode, governance scope
+2. [Discovery] MCP → AI: Check for these governance files
+3. [Scan] AI finds: README.md, LICENSE (2/6 files)
+4. [Analysis] AI → MCP: Found 2 files, missing 4
+5. [Analysis] MCP → AI: Missing 4 critical files
+6. [Generation] MCP → AI: Here are the 4 missing files only
+7. [Write] AI creates 4 files (skips README.md, LICENSE)
+8. [Summary] AI: "Added 4 missing files. Now 6/6 governance files complete."
+
+Time: <30 minutes
+```
 
 ### Platform Engineering Teams
 **Before**: Manually maintain template repositories, keep best practices updated across dozens of projects, inconsistent structure
-**After**: Single tool ensures consistency, automatically applies latest best practices, validates compliance across all projects
+**After**: Single MCP tool ensures consistency, AI agents apply latest best practices to all projects uniformly
 
 ### Open Source Contributors
 **Before**: Uncertain what files to create, outdated examples from blog posts, missing critical security/governance
-**After**: Confidence that project follows current best practices, clear guidance on what's needed and why
+**After**: AI assistant guides through discovery → analysis → generation flow, ensures current best practices
 
 ---
 
@@ -117,20 +211,38 @@ Create an MCP tool called `projectSetup` that intelligently audits existing repo
 
 ### MCP Tool Interface
 
+**IMPORTANT ARCHITECTURAL CONSTRAINT**: MCP servers cannot write files directly. The tool returns file data structures that the AI client writes using its own tools (Write, Edit). This ensures the tool works correctly whether MCP runs locally or remotely.
+
 ```typescript
 // Tool definition in src/interfaces/mcp.ts
 server.tool(
   'projectSetup',
-  'Audit repository health and generate missing governance, infrastructure, or configuration artifacts with best practices',
+  'Audit repository health and generate missing governance, infrastructure, or configuration artifacts with best practices. Returns file data for client to write - MCP does not write files directly.',
   {
     mode: z.enum(['audit', 'new']).describe('Audit existing repo or create new project'),
     scope: z.enum(['all', 'governance', 'docker', 'ci-cd', 'kubernetes', 'gitops', 'quality']).optional(),
-    autoDetect: z.boolean().optional().default(true).describe('Auto-detect project type and existing files'),
-    updateExisting: z.boolean().optional().default(false).describe('Update existing files vs only add missing'),
-    interactive: z.boolean().optional().default(true).describe('Ask questions vs use defaults'),
+
+    // Session management for multi-stage workflow
     sessionId: z.string().optional().describe('Continue previous session'),
-    step: z.string().optional().describe('Current workflow step'),
+    stage: z.enum(['discovery', 'analysis', 'questions', 'generate']).optional()
+      .describe('Current workflow stage - defaults to discovery if omitted'),
+
+    // Client-provided data (for analysis stage)
+    existingFiles: z.array(z.string()).optional()
+      .describe('List of files found in repository (client provides after discovery stage)'),
+    projectType: z.string().optional()
+      .describe('Detected project type (typescript, python, go, rust, etc.)'),
+    projectInfo: z.record(z.any()).optional()
+      .describe('Project metadata from package files (name, description, version, etc.)'),
+
+    // User responses (for questions stage)
     response: z.string().optional().describe('Answer to previous question'),
+
+    // Options
+    interactive: z.boolean().optional().default(true)
+      .describe('Ask questions vs use defaults'),
+    preview: z.boolean().optional().default(false)
+      .describe('Preview files before generation'),
   },
   async (params) => {
     return projectSetupHandler(params);
@@ -138,42 +250,138 @@ server.tool(
 );
 ```
 
+**Key Changes from Original Design**:
+- ✅ Removed `autoDetect` - client provides detection results instead
+- ✅ Removed `updateExisting` - tool only creates missing files, never updates existing ones
+- ✅ Added `stage` - explicit workflow stage control (discovery → analysis → questions → generate)
+- ✅ Added `existingFiles`, `projectType`, `projectInfo` - client-provided context
+- ✅ Clarified in description that MCP returns data, doesn't write files
+
 ### Workflow Stages
 
-**Stage 1: Analysis**
-- Scan repository structure (if audit mode)
-- Detect project type, language, framework
-- Identify existing artifacts
-- Gap analysis against best practices
+The workflow is split into distinct stages to accommodate the MCP architectural constraint (server cannot access client file system). Each stage has clear responsibilities and handoff points.
 
-**Stage 2: Planning**
-- Determine what artifacts are needed
-- Load best practices for each artifact category
-- Generate context-aware questions
+---
 
-**Stage 3: Questions**
-- Interactive questionnaire (if not skipped)
-- Collect project metadata (name, description, maintainers)
-- Domain-specific questions based on detected/selected scope
-- Skip questions when context can be inferred
+**Stage 1: Discovery** (MCP returns file checklist)
 
-**Stage 4: Generation**
-- Load templates with best practices
-- Apply user answers and detected context
-- Generate files with explanatory comments
-- Validate generated content
+**MCP Action**: Return comprehensive list of files to check based on mode and scope
 
-**Stage 5: Validation**
-- Check completeness against standards (CNCF, OpenSSF)
-- Lint and validate generated files
-- Generate compliance report
-- Provide recommendations
+**Client Action**: Use Glob/Read tools to scan repository for these files
 
-**Stage 6: Integration**
-- Write files to repository
-- Create git commit (optional)
-- Create PR with changes (optional)
-- Display summary and next steps
+**MCP Returns**:
+```typescript
+{
+  success: true,
+  stage: 'discovery',
+  sessionId: 'proj-{timestamp}-{uuid}',
+  scope: 'governance' | 'docker' | 'ci-cd' | ...,
+  requiredFiles: string[],         // Files to check for this scope (e.g., ['CONTRIBUTING.md', 'SECURITY.md', ...])
+  projectDetectionFiles: string[],  // Files to read for project type detection (e.g., ['package.json', 'go.mod'])
+  nextStage: 'analysis',
+  instructions: 'Scan your repository for these files and report which exist. Read projectDetectionFiles to determine project type.'
+}
+```
+
+---
+
+**Stage 2: Analysis** (MCP performs gap analysis)
+
+**Client Action**: Send list of existing files and project metadata to MCP
+
+**MCP Action**:
+- Compare existing files vs required files
+- Identify gaps (critical, recommended, optional)
+- Determine if questions needed or can use defaults
+
+**MCP Returns**:
+```typescript
+{
+  success: true,
+  stage: 'analysis',
+  sessionId: string,
+  gaps: {
+    critical: string[],     // Required files (e.g., CNCF Sandbox requirements)
+    recommended: string[],  // Best practice files
+    optional: string[]      // Nice-to-have files
+  },
+  existingFiles: string[],
+  missingFilesCount: number,
+  detectedProjectType: string,  // 'typescript', 'python', 'go', 'rust', etc.
+  nextStage: 'questions' | 'generate',  // Skip questions if not interactive
+  summary: string  // Human-readable gap analysis summary
+}
+```
+
+---
+
+**Stage 3: Questions** (Optional - Interactive Customization)
+
+**MCP Action**: Ask context-specific questions for template customization
+
+**Client Action**: Present questions to user, collect responses, send back to MCP
+
+**MCP Behavior**: Follows existing interactive question pattern from other tools
+
+**Skip if**: `interactive: false` - MCP uses sensible defaults based on project type
+
+---
+
+**Stage 4: Generation** (MCP returns file contents)
+
+**Client Action**: Request file generation (optionally after answering questions)
+
+**MCP Action**:
+- Load templates for missing files only
+- Apply best practices and user context
+- Generate file contents with variable substitution
+- Include explanatory comments and source citations
+
+**MCP Returns**:
+```typescript
+{
+  success: true,
+  stage: 'complete',
+  sessionId: string,
+  files: [
+    {
+      path: string,            // Relative path (e.g., 'CONTRIBUTING.md', '.github/workflows/test.yml')
+      content: string,          // Complete file content ready to write
+      action: 'create',         // Always 'create' (tool never updates existing files)
+      priority: 'critical' | 'recommended' | 'optional',
+      reason: string,           // Why this file is needed (e.g., 'Required for CNCF Sandbox')
+      bestPracticeSource: string // Citation (e.g., 'CNCF Sandbox requirements', 'OpenSSF Security Policy Template')
+    },
+    // ... more files (only missing ones)
+  ],
+  summary: {
+    toCreate: number,   // Files to be created
+    existing: number,   // Files that already exist (skipped)
+    total: number       // Total files in scope
+  },
+  instructions: 'Use Write tool to create these files in your repository. Files are ready to write as-is.'
+}
+```
+
+---
+
+**Stage 5: Validation** (Client-side, Optional)
+
+**Client Action**:
+- Write files using Write tool
+- Optionally run linters, schema validators
+- Optionally commit changes to git
+
+**MCP Role**: None for basic validation. Future enhancement could add a validation endpoint.
+
+**Notes**:
+- File writing happens on client side using native tools
+- Git integration (commits, PRs) handled by client
+- Validation can be re-triggered by calling MCP with validation scope
+
+---
+
+**Removed**: ~~Stage 6: Integration~~ - MCP never writes files or creates commits directly
 
 ### Template System
 
@@ -256,19 +464,48 @@ src/templates/
 
 ## Milestones
 
-### Milestone 1: Core Tool Infrastructure
+**CRITICAL REQUIREMENT: Integration Testing for All Milestones**
+
+Every milestone MUST include integration tests that validate the implemented functionality. Integration tests should:
+- ✅ Test the complete workflow (discovery → analysis → generation where applicable)
+- ✅ Validate returned data structures match API specifications
+- ✅ Ensure only missing files are generated (no overwrites)
+- ✅ Verify template content includes best practices and source citations
+- ✅ Test error handling and edge cases
+- ✅ Run successfully in CI/CD pipeline before marking milestone complete
+
+**See**: `tests/integration/CLAUDE.md` for comprehensive integration testing standards and patterns.
+
+---
+
+### Milestone 1: Core Tool Infrastructure ✅
 **Success Criteria**: Basic tool framework operational with audit and new modes
 
 **Deliverables:**
-- [ ] MCP tool definition and handler in `src/interfaces/mcp.ts`
-- [ ] Workflow engine in `src/tools/project-setup.ts`
-- [ ] Session management (create, resume, complete)
-- [ ] Repository scanner (detect files, project type)
-- [ ] Template loading system
-- [ ] File generation engine
-- [ ] Basic validation framework
+- [x] MCP tool definition and handler in `src/interfaces/mcp.ts`
+- [x] Workflow engine in `src/tools/project-setup.ts` with stage-based routing
+- [x] Session management (create, resume, complete) across workflow stages
+- [x] File registry system (catalog of all possible artifacts by scope) - Basic implementation with discovery-config.json
+- [x] Gap analysis engine (compare required vs existing files)
+- [x] Template loading system (Handlebars integration via shared-prompt-loader)
+- [x] File generation engine (returns file data, doesn't write)
+- [ ] Basic validation framework - **Deferred to future milestone**
 
-**Validation**: Tool can scan repo, detect project type, and generate a single template file
+**Integration Tests (Required):**
+- [x] Test discovery stage: Returns correct file list for each scope
+- [x] Test analysis stage: Correctly identifies gaps given existing files
+- [x] Test generation stage: Returns only missing file contents
+- [x] Test session continuity: Can resume workflow with sessionId
+- [ ] Test multiple scopes: governance, docker, ci-cd - **Deferred: Currently supports README.md only**
+- [ ] Test both modes: audit and new project creation - **Deferred: Mode distinction not yet implemented**
+- [x] Validate response structures match specifications
+
+**Validation**: ✅ Tool completes full discovery → analysis → generation workflow, core integration tests pass (7/7 tests passing)
+
+**Notes**:
+- MCP returns data structures, never writes files
+- Client provides file inventory from scanning
+- Only generates missing files, never existing ones
 
 ---
 
@@ -914,14 +1151,14 @@ src/templates/
 - Fallback to interactive questions when detection uncertain
 
 ### Risk: Generated File Conflicts in Existing Repos
-**Impact**: High - Overwriting existing files could lose user customizations
-**Likelihood**: Medium - Many repos already have some governance files
-**Mitigation**:
-- Never overwrite without explicit confirmation
-- Diff preview before applying changes
-- Create backup branches automatically
-- Support "merge mode" that preserves user customizations
-- Default to adding missing files only
+**Impact**: None - Risk eliminated by design
+**Likelihood**: None - Tool only generates missing files
+**Resolution**:
+- Tool follows "gap-based generation" pattern
+- Only creates files that don't exist
+- Never attempts to update existing files
+- Client scans and reports existing files in analysis stage
+- MCP filters out existing files before generation
 
 ### Risk: Template Quality Variability
 **Impact**: High - Poor quality templates reflect badly on tool
@@ -932,6 +1169,17 @@ src/templates/
 - Integration tests validate template quality
 - Community feedback loop for template improvements
 - Regular audits of generated file quality
+
+### Risk: Client-MCP Communication Overhead
+**Impact**: Medium - Multiple round trips could slow workflow
+**Likelihood**: Low - Session state minimizes overhead
+**Mitigation**:
+- Session management keeps context between stages
+- Batch operations where possible (return all missing files at once)
+- Clear stage transitions minimize user confusion
+- Client can cache discovery results for same scope/project
+- Discovery stage returns comprehensive file list in one call
+- Analysis stage processes all gaps in single response
 
 ---
 
@@ -1024,9 +1272,9 @@ src/templates/
 
 3. **Validation Strictness**: Should validation be blocking (prevent file generation) or warning-only?
 
-4. **Git Integration**: Should tool automatically commit changes or leave to user?
+4. ~~**Git Integration**: Should tool automatically commit changes or leave to user?~~ **RESOLVED**: Leave to client/user - MCP cannot access git. Client handles commits and PRs using its own tools.
 
-5. **GitHub API**: Should tool create repositories via GitHub API or assume git init locally?
+5. ~~**GitHub API**: Should tool create repositories via GitHub API or assume git init locally?~~ **RESOLVED**: Out of scope for MCP - client handles repository operations.
 
 6. **Multi-repo Support**: Should tool support auditing multiple repositories in one organization?
 
@@ -1034,7 +1282,7 @@ src/templates/
 
 8. **Community Templates**: How to accept and validate community-contributed templates?
 
-9. **Private Repository Support**: Any special handling for private vs public repositories?
+9. **Private Repository Support**: Any special handling for private vs public repositories? **NOTE**: MCP never accesses repositories directly, so no special handling needed.
 
 10. **Language Priority**: Which language configs to implement first beyond TypeScript, Python, Go, Rust?
 
@@ -1042,7 +1290,67 @@ src/templates/
 
 ## Progress Log
 
-### 2025-10-23
+### 2025-10-23: Milestone 1 Complete - Core Tool Infrastructure
+**Duration**: ~3-4 hours (based on conversation timestamps)
+**Commits**: Multiple implementation commits
+**Primary Focus**: Core workflow implementation and integration testing
+
+**Completed PRD Items (Milestone 1)**:
+- ✅ MCP tool definition and handler registered in `src/interfaces/mcp.ts` (projectSetup tool)
+- ✅ Workflow engine with stage-based routing (`src/tools/project-setup.ts`)
+- ✅ Discovery handler loading config-based file/question lists (`src/tools/project-setup/discovery.ts`)
+- ✅ ReportScan handler with two-phase workflow: report → file selection → questions (`src/tools/project-setup/report-scan.ts`)
+- ✅ GenerateFile handler with iterative file-by-file generation and completion tracking (`src/tools/project-setup/generate-file.ts`)
+- ✅ Session management using GenericSessionManager with files map tracking (`proj-*` prefix)
+- ✅ Template loading system with Handlebars integration (extended `shared-prompt-loader.ts`)
+- ✅ README.md template with conditional sections (e.g., `{{#if licenseName}}`)
+- ✅ Integration tests: 7 tests covering discovery, reportScan, generateFile, error handling (all passing in 428ms with `--no-cluster` mode)
+- ✅ Manual workflow validation (full end-to-end test successful in separate Claude Code session)
+
+**Additional Work Done**:
+- Extended `shared-prompt-loader.ts` to support custom directories (`baseDir`) and Handlebars templating
+- Added `--no-cluster` flag to test runner script for lightweight tests (skips K8s cluster and Qdrant setup)
+- Updated `CLAUDE.md` with lightweight testing workflow documentation
+- Improved UX: numbered questions with IDs for user convenience, clear instructions for MCP responses
+- Type definitions: Created comprehensive types in `src/tools/project-setup/types.ts`
+
+**Technical Decisions**:
+- Used files map with status field (`excluded`, `pending`, `in-progress`, `done`) instead of multiple arrays for cleaner state tracking
+- Two-phase reportScan: first call shows report for user selection, second call initializes workflow with questions
+- Three-mode generateFile: (1) generate with answers, (2) mark complete and move to next, (3) detect completion
+- Handlebars for professional templating with conditionals instead of custom template logic
+- Lightweight test runner mode for tools that don't require Kubernetes infrastructure
+
+**Current Limitations / Deferred Items**:
+- File registry only supports README.md (discovery-config.json has limited scope)
+- No audit vs new mode distinction yet (both work the same way currently)
+- Basic validation framework not implemented (deferred to future milestone)
+- Multiple scopes (governance, docker, ci-cd, etc.) not yet supported
+
+**Next Session Priorities (Milestone 2)**:
+- Expand discovery-config.json with LICENSE template
+- Add CONTRIBUTING.md template
+- Implement GitHub Actions workflow templates (.github/workflows/)
+- Build template validation system
+- Expand to full governance scope with multiple file types
+
+### 2025-10-23 (PM) - Architectural Design Decisions
+- **MCP Constraint Identified**: MCP servers cannot write files directly (remote/sandboxed operation)
+- **Workflow Redesign**: Implemented three-stage workflow (Discovery → Analysis → Generation)
+- **Gap-Based Generation**: Tool only generates missing files, never overwrites existing ones
+- **Client-MCP Separation**: MCP provides logic and data, client handles I/O (scanning, writing)
+- **API Updates**: Redesigned tool interface with `stage`, `existingFiles`, `projectInfo` parameters
+- **Resolved Questions**: Git integration and GitHub API questions answered (client responsibility)
+- **Risk Eliminated**: File conflict risk resolved through gap-based generation pattern
+- **Integration Testing**: Added mandatory integration testing requirements to all milestones
+
+**Key Technical Changes**:
+- Discovery stage returns file checklist for client to scan
+- Analysis stage receives client-provided file inventory and identifies gaps
+- Generation stage returns file data structures (never writes)
+- Session management enables workflow resumption across stages
+
+### 2025-10-23 (AM) - Initial PRD Creation
 - **PRD Creation**: Comprehensive PRD drafted with 90 artifacts across 32 milestones
 - **Scope Definition**: Two operation modes (audit, new), best practices integration, validation framework
 - **Immediate Use Case**: Tool will be used on dot-ai repository to generate governance for PRD #173

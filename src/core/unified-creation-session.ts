@@ -9,6 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { GenericSessionManager } from './generic-session-manager';
 import { getAndValidateSessionDirectory } from './session-utils';
 import { loadPrompt } from './shared-prompt-loader';
 import { CapabilityVectorService } from './capability-vector-service';
@@ -17,8 +18,9 @@ import { ManifestValidator } from './schema';
 import { getKyvernoStatus } from '../tools/version';
 import { extractContentFromMarkdownCodeBlocks } from './platform-utils';
 import * as yaml from 'js-yaml';
-import { 
-  UnifiedCreationSession, 
+import {
+  UnifiedCreationSession,
+  UnifiedCreationSessionData,
   UnifiedWorkflowStepResponse,
   UnifiedWorkflowCompletionResponse,
   EntityType,
@@ -33,75 +35,54 @@ import { createPattern } from './pattern-operations';
 export class UnifiedCreationSessionManager {
   private config: WorkflowConfig;
   private discovery: KubernetesDiscovery;
-  
+  private sessionManager: GenericSessionManager<UnifiedCreationSessionData>;
+
   constructor(entityType: EntityType, discovery?: KubernetesDiscovery) {
     this.config = WORKFLOW_CONFIGS[entityType];
     this.discovery = discovery || new KubernetesDiscovery();
+    this.sessionManager = new GenericSessionManager(entityType);
   }
   
   /**
    * Create a new creation session
    */
   createSession(args: any): UnifiedCreationSession {
-    // Validate session directory exists
-    getAndValidateSessionDirectory(args, true);
-    const sessionId = this.generateSessionId();
-
-    const session: UnifiedCreationSession = {
-      sessionId,
+    const sessionData: UnifiedCreationSessionData = {
       entityType: this.config.entityType,
       currentStep: this.config.steps[0], // Start with first step
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: {
-        // Store capabilities collection if provided (for policy testing with pre-populated data)
-        capabilitiesCollection: args.collection
-      }
+      // Store capabilities collection if provided (for policy testing with pre-populated data)
+      capabilitiesCollection: args.collection
     };
 
-    this.saveSession(session, args);
-    return session;
+    return this.sessionManager.createSession(sessionData);
   }
   
   /**
    * Load existing session
    */
-  loadSession(sessionId: string, args: any): UnifiedCreationSession | null {
-    try {
-      const sessionDir = getAndValidateSessionDirectory(args, false);
-      const sessionFile = path.join(sessionDir, `${this.config.entityType}-sessions`, `${sessionId}.json`);
-      
-      if (!fs.existsSync(sessionFile)) {
-        return null;
-      }
-      
-      const sessionData = fs.readFileSync(sessionFile, 'utf8');
-      return JSON.parse(sessionData) as UnifiedCreationSession;
-    } catch (error) {
-      console.error(`Failed to load ${this.config.entityType} session ${sessionId}:`, error);
-      return null;
-    }
+  loadSession(sessionId: string, _args: any): UnifiedCreationSession | null {
+    return this.sessionManager.getSession(sessionId);
   }
-  
+
   /**
    * Process user response and advance session
    */
-  processResponse(sessionId: string, response: string, args: any): UnifiedCreationSession {
-    const session = this.loadSession(sessionId, args);
+  processResponse(sessionId: string, response: string, _args: any): UnifiedCreationSession {
+    const session = this.loadSession(sessionId, _args);
     if (!session) {
       throw new Error(`${this.config.displayName} session ${sessionId} not found`);
     }
     
     // Process response based on current step
-    switch (session.currentStep) {
+    switch (session.data.currentStep) {
       case 'description':
         session.data.description = response.trim();
-        session.currentStep = getNextStep('description', this.config)!;
+        session.data.currentStep = getNextStep('description', this.config)!;
         break;
         
       case 'triggers':
         session.data.initialTriggers = response.split(',').map(t => t.trim()).filter(t => t.length > 0);
-        session.currentStep = getNextStep('triggers', this.config)!;
+        session.data.currentStep = getNextStep('triggers', this.config)!;
         break;
         
       case 'trigger-expansion':
@@ -109,29 +90,29 @@ export class UnifiedCreationSessionManager {
         try {
           const confirmed = JSON.parse(response);
           session.data.expandedTriggers = confirmed;
-          session.currentStep = getNextStep('trigger-expansion', this.config)!;
+          session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
         } catch (error) {
           // If not JSON, treat as comma-separated list
           session.data.expandedTriggers = response.split(',').map(t => t.trim()).filter(t => t.length > 0);
-          session.currentStep = getNextStep('trigger-expansion', this.config)!;
+          session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
         }
         break;
         
       case 'resources':
         if (this.config.entityType === 'pattern') {
           session.data.suggestedResources = response.split(',').map(r => r.trim()).filter(r => r.length > 0);
-          session.currentStep = getNextStep('resources', this.config)!;
+          session.data.currentStep = getNextStep('resources', this.config)!;
         }
         break;
         
       case 'rationale':
         session.data.rationale = response.trim();
-        session.currentStep = getNextStep('rationale', this.config)!;
+        session.data.currentStep = getNextStep('rationale', this.config)!;
         break;
         
       case 'created-by':
         session.data.createdBy = response.trim();
-        session.currentStep = getNextStep('created-by', this.config)!;
+        session.data.currentStep = getNextStep('created-by', this.config)!;
         break;
         
       case 'namespace-scope': {
@@ -146,7 +127,7 @@ export class UnifiedCreationSessionManager {
           const namespaces = scopeChoice.replace('exclude:', '').split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
           session.data.namespaceScope = { type: 'exclude', namespaces };
         }
-        session.currentStep = getNextStep('namespace-scope', this.config)!;
+        session.data.currentStep = getNextStep('namespace-scope', this.config)!;
         break;
       }
         
@@ -159,7 +140,7 @@ export class UnifiedCreationSessionManager {
           session.data.generatedKyvernoPolicy = response;
           session.data.kyvernoGenerationError = undefined;
         }
-        session.currentStep = getNextStep('kyverno-generation', this.config)!;
+        session.data.currentStep = getNextStep('kyverno-generation', this.config)!;
         break;
         
       case 'review':
@@ -175,20 +156,20 @@ export class UnifiedCreationSessionManager {
             // Handle cancel or any other response as discard
             session.data.deploymentChoice = 'discard';
           }
-          session.currentStep = 'complete';
+          session.data.currentStep = 'complete';
         } else {
           // For patterns, user confirmed review
-          session.currentStep = 'complete';
+          session.data.currentStep = 'complete';
         }
         break;
         
         
       default:
-        throw new Error(`Unknown step: ${session.currentStep}`);
+        throw new Error(`Unknown step: ${session.data.currentStep}`);
     }
     
     session.updatedAt = new Date().toISOString();
-    this.saveSession(session, args);
+    this.sessionManager.replaceSession(session.sessionId, session.data);
     
     return session;
   }
@@ -199,7 +180,7 @@ export class UnifiedCreationSessionManager {
   async getNextWorkflowStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse | UnifiedWorkflowCompletionResponse> {
     const sessionId = session.sessionId;
     
-    switch (session.currentStep) {
+    switch (session.data.currentStep) {
       case 'description':
         return {
           sessionId,
@@ -232,7 +213,7 @@ export class UnifiedCreationSessionManager {
           };
         }
         // If not pattern, skip to next step
-        return this.getNextWorkflowStep({ ...session, currentStep: getNextStep('resources', this.config)! }, args);
+        return this.getNextWorkflowStep({ ...session, data: { ...session.data, currentStep: getNextStep('resources', this.config)! } }, args);
         
       case 'rationale':
         return {
@@ -257,7 +238,7 @@ export class UnifiedCreationSessionManager {
         const kyvernoStatus = await getKyvernoStatus();
         if (!kyvernoStatus.installed) {
           // Skip namespace-scope if Kyverno not installed, go to next step
-          session.currentStep = getNextStep('namespace-scope', this.config)!;
+          session.data.currentStep = getNextStep('namespace-scope', this.config)!;
           return this.getNextWorkflowStep(session, args);
         }
         
@@ -292,7 +273,7 @@ export class UnifiedCreationSessionManager {
         return await this.completeWorkflow(session);
         
       default:
-        throw new Error(`Unknown step: ${session.currentStep}`);
+        throw new Error(`Unknown step: ${session.data.currentStep}`);
     }
   }
   
@@ -738,7 +719,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
     const kyvernoStatus = await getKyvernoStatus();
     if (!kyvernoStatus.policyGenerationReady) {
       // Skip Kyverno generation and go directly to review with intent-only option
-      session.currentStep = getNextStep('kyverno-generation', this.config)!;
+      session.data.currentStep = getNextStep('kyverno-generation', this.config)!;
       session.data.kyvernoGenerationSkipped = true;
       session.data.kyvernoSkipReason = kyvernoStatus.reason || 'Kyverno not available for policy generation';
       // Generate policy ID since we skipped the normal generation step
@@ -746,7 +727,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
       
       // Save session and proceed to review
       if (args) {
-        this.saveSession(session, args);
+        this.sessionManager.replaceSession(session.sessionId, session.data);
       }
       
       return this.generateReviewStep(session);
@@ -770,7 +751,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
       );
       
       // Prepare session directory for YAML saving
-      const sessionDir = getAndValidateSessionDirectory(args, true);
+      const sessionDir = getAndValidateSessionDirectory(true);
       const policySessionDir = path.join(sessionDir, 'policy-sessions');
       
       if (!fs.existsSync(policySessionDir)) {
@@ -839,11 +820,11 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
             }
             
             // Skip display step and go directly to review
-            session.currentStep = getNextStep('kyverno-generation', this.config)!;
+            session.data.currentStep = getNextStep('kyverno-generation', this.config)!;
             
             // Save session immediately after generating Kyverno policy AND updating the step
             if (args) {
-              this.saveSession(session, args);
+              this.sessionManager.replaceSession(session.sessionId, session.data);
             }
             
             return this.getNextWorkflowStep(session, args);
@@ -1032,29 +1013,4 @@ ${schemaData.schema}
   }
   
   
-  /**
-   * Save session to file
-   */
-  private saveSession(session: UnifiedCreationSession, args: any): void {
-    try {
-      const sessionDir = getAndValidateSessionDirectory(args, true);
-      const entitySessionsDir = path.join(sessionDir, `${this.config.entityType}-sessions`);
-      
-      if (!fs.existsSync(entitySessionsDir)) {
-        fs.mkdirSync(entitySessionsDir, { recursive: true });
-      }
-      
-      const sessionFile = path.join(entitySessionsDir, `${session.sessionId}.json`);
-      fs.writeFileSync(sessionFile, JSON.stringify(session, null, 2));
-    } catch (error) {
-      throw new Error(`Failed to save ${this.config.displayName.toLowerCase()} session: ${error}`);
-    }
-  }
-  
-  /**
-   * Generate unique session ID
-   */
-  private generateSessionId(): string {
-    return `${this.config.entityType}-${Date.now()}-${randomUUID().substring(0, 8)}`;
-  }
 }

@@ -1,0 +1,22 @@
+{
+  "filesToCheck": [
+    "README.md"
+  ],
+  "questions": [
+    {
+      "id": "projectName",
+      "question": "What is the project name?",
+      "required": true
+    },
+    {
+      "id": "projectDescription",
+      "question": "What does this project do?",
+      "required": true
+    },
+    {
+      "id": "licenseName",
+      "question": "What license does this project use? (e.g., MIT, Apache-2.0, GPL-3.0)",
+      "required": false
+    }
+  ]
+}

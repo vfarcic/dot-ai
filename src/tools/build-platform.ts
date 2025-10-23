@@ -13,7 +13,6 @@ import { Logger } from '../core/error-handling';
 import { NushellRuntime } from '../core/nushell-runtime';
 import { discoverOperations, mapIntentToOperation, getOperationParameters, createSession, loadSession, executeOperation } from '../core/platform-operations';
 import { DotAI } from '../core/index';
-import { randomUUID } from 'crypto';
 
 // Tool metadata for MCP registration
 export const BUILD_PLATFORM_TOOL_NAME = 'buildPlatform';
@@ -188,15 +187,12 @@ export async function handleBuildPlatformTool(
         };
       }
 
-      return createExecutionResponse(session.matchedOperation.tool, session.matchedOperation.operation);
+      return createExecutionResponse(session.data.matchedOperation.tool, session.data.matchedOperation.operation);
     }
 
     // Phase 3: Intent-based workflow with AI mapping and parameter discovery
-    const workflowSessionId = sessionId || `platform-${Date.now()}-${randomUUID()}`;
-
     logger.info('Nushell runtime validated, starting intent mapping', {
       requestId,
-      sessionId: workflowSessionId,
       intent
     });
 
@@ -237,31 +233,15 @@ export async function handleBuildPlatformTool(
       parameterCount: parameters.length
     });
 
-    // Create and persist session
-    await createSession(workflowSessionId, intent!, mapping.operation!, parameters, logger);
+    // Create and persist session (GenericSessionManager generates sessionId)
+    const session = await createSession(intent!, mapping.operation!, parameters, logger);
 
     // If no parameters, execute immediately (skip to submitAnswers stage)
     if (parameters.length === 0) {
       logger.info('No parameters required, executing immediately', {
         requestId,
-        sessionId: workflowSessionId
+        sessionId: session.sessionId
       });
-
-      // Reuse submitAnswers stage logic with empty answers
-      const session = loadSession(workflowSessionId, logger);
-      if (!session) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              success: false,
-              error: {
-                message: `Session ${workflowSessionId} not found`
-              }
-            }, null, 2)
-          }]
-        };
-      }
 
       const executionResult = await executeOperation(session, {}, logger);
 
@@ -279,18 +259,18 @@ export async function handleBuildPlatformTool(
         };
       }
 
-      return createExecutionResponse(session.matchedOperation.tool, session.matchedOperation.operation);
+      return createExecutionResponse(session.data.matchedOperation.tool, session.data.matchedOperation.operation);
     }
 
     const result = {
       success: true,
       workflow: {
-        sessionId: workflowSessionId,
+        sessionId: session.sessionId,
         intent: intent,
         matchedOperation: mapping.operation,
         parameters,
         nextStep: 'collectParameters',
-        message: `Found ${parameters.length} parameters for ${mapping.operation!.tool} ${mapping.operation!.operation}. Collect answers from user (one at a time or all at once - user decides via client agent), then call this tool again with stage: "submitAnswers", sessionId: "${workflowSessionId}", and answers: {param1: value1, ...}`
+        message: `Found ${parameters.length} parameters for ${mapping.operation!.tool} ${mapping.operation!.operation}. Collect answers from user (one at a time or all at once - user decides via client agent), then call this tool again with stage: "submitAnswers", sessionId: "${session.sessionId}", and answers: {param1: value1, ...}`
       }
     };
 

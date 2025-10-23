@@ -773,7 +773,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
   try {
     // Validate and get session directory
-    const sessionDir = getAndValidateSessionDirectory(args, true);
+    const sessionDir = getAndValidateSessionDirectory(true);
     logger.debug('Session directory validated', { requestId, sessionDir });
 
     // Validate input

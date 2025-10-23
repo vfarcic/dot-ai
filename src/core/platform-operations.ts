@@ -10,6 +10,7 @@ import { Logger } from './error-handling';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execAsync, getScriptsDir, extractJsonFromAIResponse } from './platform-utils';
+import { GenericSessionManager, GenericSession } from './generic-session-manager';
 
 // Import Operation interfaces from the tool (single source of truth)
 export { Operation, OperationCommand } from '../tools/platform/discover-operations.tool';
@@ -39,16 +40,21 @@ export interface ParameterMetadata {
   choices?: string[];
 }
 
-export interface PlatformSession {
-  sessionId: string;
+/**
+ * Platform session data structure (stored in GenericSession.data)
+ */
+export interface PlatformSessionData {
   intent: string;
   matchedOperation: MatchedOperation;
   parameters: ParameterMetadata[];
   answers: Record<string, any>;
   currentStep: 'collectParameters' | 'confirm' | 'execute' | 'complete';
-  createdAt: string;
-  updatedAt: string;
 }
+
+/**
+ * Platform session (uses GenericSession pattern)
+ */
+export type PlatformSession = GenericSession<PlatformSessionData>;
 
 /**
  * Discover available operations from Nu shell scripts
@@ -219,38 +225,26 @@ export async function getOperationParameters(
 }
 
 /**
- * Create and persist a platform session
+ * Create and persist a platform session using GenericSessionManager
  */
 export async function createSession(
-  sessionId: string,
   intent: string,
   matchedOperation: MatchedOperation,
   parameters: ParameterMetadata[],
   logger: Logger
 ): Promise<PlatformSession> {
   try {
-    const session: PlatformSession = {
-      sessionId,
+    const sessionManager = new GenericSessionManager<PlatformSessionData>('platform');
+
+    const session = sessionManager.createSession({
       intent,
       matchedOperation,
       parameters,
       answers: {},
-      currentStep: 'collectParameters',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      currentStep: 'collectParameters'
+    });
 
-    // Ensure session directory exists
-    const sessionDir = path.join(process.cwd(), 'tmp', 'sessions', 'platform');
-    if (!fs.existsSync(sessionDir)) {
-      fs.mkdirSync(sessionDir, { recursive: true });
-    }
-
-    // Write session file
-    const sessionPath = path.join(sessionDir, `${sessionId}.json`);
-    fs.writeFileSync(sessionPath, JSON.stringify(session, null, 2), 'utf8');
-
-    logger.info?.('Created platform session', { sessionId, intent });
+    logger.info?.('Created platform session', { sessionId: session.sessionId, intent });
 
     return session;
   } catch (error) {
@@ -260,22 +254,20 @@ export async function createSession(
 }
 
 /**
- * Load a platform session from file
+ * Load a platform session from file using GenericSessionManager
  */
 export function loadSession(
   sessionId: string,
   logger: Logger
 ): PlatformSession | null {
   try {
-    const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'platform', `${sessionId}.json`);
+    const sessionManager = new GenericSessionManager<PlatformSessionData>('platform');
+    const session = sessionManager.getSession(sessionId);
 
-    if (!fs.existsSync(sessionPath)) {
+    if (!session) {
       logger.warn?.('Session file not found', { sessionId });
       return null;
     }
-
-    const sessionData = fs.readFileSync(sessionPath, 'utf8');
-    const session: PlatformSession = JSON.parse(sessionData);
 
     logger.info?.('Loaded platform session', { sessionId });
 
@@ -296,7 +288,7 @@ export async function executeOperation(
 ): Promise<{ success: boolean; message?: string; error?: string; missingParameters?: string[] }> {
   try {
     // Validate required parameters
-    const missingRequired = session.parameters
+    const missingRequired = session.data.parameters
       .filter(p => p.required && !(p.name in answers))
       .map(p => p.name);
 
@@ -310,7 +302,7 @@ export async function executeOperation(
 
     // Merge answers with defaults for optional parameters
     const finalAnswers = { ...answers };
-    for (const param of session.parameters) {
+    for (const param of session.data.parameters) {
       if (!(param.name in finalAnswers) && param.default !== undefined) {
         finalAnswers[param.name] = param.default;
       }
@@ -318,11 +310,11 @@ export async function executeOperation(
 
     // Build Nu script command
     const scriptPath = path.join(getScriptsDir(), 'dot.nu');
-    const command = session.matchedOperation.command;
+    const command = session.data.matchedOperation.command;
 
     // Build command arguments
     const args: string[] = [];
-    for (const param of session.parameters) {
+    for (const param of session.data.parameters) {
       const value = finalAnswers[param.name];
       if (value !== undefined) {
         args.push(`--${param.name}`);
@@ -350,7 +342,7 @@ export async function executeOperation(
 
     return {
       success: true,
-      message: `Successfully executed ${session.matchedOperation.tool} ${session.matchedOperation.operation}`
+      message: `Successfully executed ${session.data.matchedOperation.tool} ${session.data.matchedOperation.operation}`
     };
   } catch (error) {
     logger.error?.('Failed to execute platform operation', error as Error);

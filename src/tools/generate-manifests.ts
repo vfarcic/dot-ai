@@ -331,7 +331,7 @@ export async function handleGenerateManifestsTool(
       // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true for manifest generation
+        sessionDir = getAndValidateSessionDirectory(true); // requireWrite=true for manifest generation
         logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

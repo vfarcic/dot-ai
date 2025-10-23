@@ -29,12 +29,6 @@ import {
   handleVersionTool,
 } from '../tools/version';
 import {
-  TESTDOCS_TOOL_NAME,
-  TESTDOCS_TOOL_DESCRIPTION,
-  TESTDOCS_TOOL_INPUT_SCHEMA,
-  handleTestDocsTool,
-} from '../tools/test-docs';
-import {
   ORGANIZATIONAL_DATA_TOOL_NAME,
   ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
   ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
@@ -46,6 +40,12 @@ import {
   REMEDIATE_TOOL_INPUT_SCHEMA,
   handleRemediateTool,
 } from '../tools/remediate';
+import {
+  PROJECT_SETUP_TOOL_NAME,
+  PROJECT_SETUP_TOOL_DESCRIPTION,
+  PROJECT_SETUP_TOOL_INPUT_SCHEMA,
+  handleProjectSetupTool,
+} from '../tools/project-setup';
 // import {
 //   BUILD_PLATFORM_TOOL_NAME,
 //   BUILD_PLATFORM_TOOL_DESCRIPTION,
@@ -188,22 +188,6 @@ export class MCPServer {
       ['version', 'diagnostics', 'status']
     );
 
-    // Register testDocs tool
-    this.registerTool(
-      TESTDOCS_TOOL_NAME,
-      TESTDOCS_TOOL_DESCRIPTION,
-      TESTDOCS_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${TESTDOCS_TOOL_NAME} tool request`, {
-          requestId,
-        });
-        return await handleTestDocsTool(args, null, this.logger, requestId);
-      },
-      'Documentation',
-      ['testing', 'validation', 'docs']
-    );
-
     // Register organizational-data tool
     this.registerTool(
       ORGANIZATIONAL_DATA_TOOL_NAME,
@@ -243,6 +227,23 @@ export class MCPServer {
       ['remediation', 'troubleshooting', 'kubernetes', 'analysis']
     );
 
+    // Register projectSetup tool
+    this.registerTool(
+      PROJECT_SETUP_TOOL_NAME,
+      PROJECT_SETUP_TOOL_DESCRIPTION,
+      PROJECT_SETUP_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(
+          `Processing ${PROJECT_SETUP_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleProjectSetupTool(args, this.logger);
+      },
+      'Project Setup',
+      ['governance', 'infrastructure', 'configuration', 'files']
+    );
+
     // Register buildPlatform tool
     // this.registerTool(
     //   BUILD_PLATFORM_TOOL_NAME,
@@ -264,9 +265,9 @@ export class MCPServer {
       tools: [
         RECOMMEND_TOOL_NAME,
         VERSION_TOOL_NAME,
-        TESTDOCS_TOOL_NAME,
         ORGANIZATIONAL_DATA_TOOL_NAME,
-        REMEDIATE_TOOL_NAME
+        REMEDIATE_TOOL_NAME,
+        PROJECT_SETUP_TOOL_NAME
         // BUILD_PLATFORM_TOOL_NAME,
       ],
       totalTools: 5,

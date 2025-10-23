@@ -600,7 +600,7 @@ export async function handleAnswerQuestionTool(
       // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, false); // requireWrite=false for reading
+        sessionDir = getAndValidateSessionDirectory(false); // requireWrite=false for reading
         logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

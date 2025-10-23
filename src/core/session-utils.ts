@@ -7,26 +7,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Get session directory from CLI args or environment variable
- * CLI parameter takes precedence over environment variable
- * 
- * @param args - Tool arguments that may contain sessionDir
+ * Get session directory from environment variable
+ *
  * @returns Resolved session directory path (can be relative or absolute)
  */
-export function getSessionDirectory(args: any): string {
-  // For CLI interface, sessionDir is required as parameter
-  if (args.sessionDir) {
-    return args.sessionDir;
-  }
-  
-  // For MCP interface, sessionDir comes from environment
+export function getSessionDirectory(): string {
   const envSessionDir = process.env.DOT_AI_SESSION_DIR;
   if (!envSessionDir) {
     throw new Error(
-      'Session directory must be specified via --session-dir parameter or DOT_AI_SESSION_DIR environment variable'
+      'Session directory must be specified via DOT_AI_SESSION_DIR environment variable'
     );
   }
-  
+
   return envSessionDir;
 }
 
@@ -85,13 +77,12 @@ export function validateSessionDirectory(sessionDir: string, requireWrite: boole
 
 /**
  * Get and validate session directory in one call
- * 
- * @param args - Tool arguments that may contain sessionDir
+ *
  * @param requireWrite - Whether to test write permissions (default: false)
  * @returns Validated session directory path
  */
-export function getAndValidateSessionDirectory(args: any, requireWrite: boolean = false): string {
-  const sessionDir = getSessionDirectory(args);
+export function getAndValidateSessionDirectory(requireWrite: boolean = false): string {
+  const sessionDir = getSessionDirectory();
   validateSessionDirectory(sessionDir, requireWrite);
   return sessionDir;
 }
