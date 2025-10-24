@@ -252,7 +252,7 @@ export async function handlePatternOperation(
 
           // Clean up session file after successful Vector DB storage
           try {
-            const sessionDir = getAndValidateSessionDirectory(args, false);
+            const sessionDir = getAndValidateSessionDirectory(false);
             const sessionFile = path.join(sessionDir, 'pattern-sessions', `${workflowStep.sessionId}.json`);
             if (fs.existsSync(sessionFile)) {
               fs.unlinkSync(sessionFile);

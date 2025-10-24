@@ -1,0 +1,146 @@
+# Support
+
+Welcome to {{projectName}}! We're here to help you get the most out of the project.
+
+## Getting Help
+
+There are several ways to get help with {{projectName}}, listed in order of recommendation:
+
+### 1. Documentation
+
+Start with our [documentation]({{docsUrl}}) which includes:
+- Getting started guides
+- API references
+- Troubleshooting guides
+- Best practices
+
+Most common questions are answered in the docs.
+
+### 2. GitHub Discussions
+
+For questions, ideas, and community discussions, use [GitHub Discussions]({{discussionsUrl}}).
+
+**Best for:**
+- How-to questions
+- Feature discussions
+- Sharing use cases
+- Community Q&A
+
+{{#if stackOverflowTag}}
+### Stack Overflow
+
+Ask questions on [Stack Overflow](https://stackoverflow.com/questions/tagged/{{stackOverflowTag}}) using the `{{stackOverflowTag}}` tag.
+
+**Best for:**
+- Technical questions
+- Implementation guidance
+- Troubleshooting specific scenarios
+
+{{/if}}
+{{#if slackUrl}}
+### Slack
+
+Join our Slack workspace at [{{slackUrl}}]({{slackUrl}}) for real-time chat with maintainers and community members.
+
+**Best for:**
+- Quick questions
+- Real-time collaboration
+- Community networking
+
+{{/if}}
+{{#if discordUrl}}
+### Discord
+
+Join our Discord server at [{{discordUrl}}]({{discordUrl}}) for real-time discussions.
+
+**Best for:**
+- Quick questions
+- Real-time support
+- Community chat
+
+{{/if}}
+{{#if forumUrl}}
+### Forum
+
+Visit our [community forum]({{forumUrl}}) for threaded discussions and long-form conversations.
+
+{{/if}}
+
+## Reporting Bugs
+
+**Please use GitHub Issues ONLY for bug reports and feature requests.**
+
+Before creating a new issue:
+1. Check existing issues to avoid duplicates
+2. Review the [troubleshooting guide]({{docsUrl}}/troubleshooting)
+3. Gather relevant information (logs, versions, reproduction steps)
+
+[Report a bug]({{projectUrl}}/issues/new?template=bug_report.md)
+
+## What NOT to Report as Issues
+
+Please **do not** use GitHub Issues for:
+- ❌ General questions (use Discussions{{#if stackOverflowTag}} or Stack Overflow{{/if}})
+- ❌ Support requests (use Discussions{{#if slackUrl}} or Slack{{/if}})
+- ❌ How-to questions (check documentation first)
+{{#if slackUrl}}
+- ❌ Real-time help (use Slack{{#if discordUrl}} or Discord{{/if}})
+{{/if}}
+
+Issues that don't follow this guideline may be closed and redirected to the appropriate channel.
+
+## Response Time Expectations
+
+{{#if maintainerCount}}
+This project is maintained by {{maintainerCount}} maintainer(s).
+{{/if}}
+
+**Response times vary based on:**
+- Severity and impact of the issue
+- Maintainer availability
+- Community engagement
+
+**Typical response times:**
+- Critical bugs: {{criticalResponseTime}}
+- Feature requests: {{featureResponseTime}}
+- Questions: {{questionResponseTime}}
+
+Please be patient and respectful. This is an open-source project, and responses depend on volunteer time.
+
+{{#if commercialSupportAvailable}}
+## Commercial Support
+
+Professional support is available through {{commercialSupportProvider}}.
+
+For enterprise support inquiries, contact: {{commercialSupportEmail}}
+
+Commercial support includes:
+- Dedicated support team
+- SLA guarantees
+- Custom feature development
+- Priority bug fixes
+- Training and consulting
+
+{{/if}}
+## Security Vulnerabilities
+
+**Do not report security vulnerabilities through public GitHub issues.**
+
+Please follow our [Security Policy]({{projectUrl}}/security/policy) for responsible disclosure.
+
+Report vulnerabilities to: {{securityEmail}}
+
+## Contributing
+
+If you'd like to contribute to {{projectName}}, please read our [Contributing Guide]({{projectUrl}}/blob/main/CONTRIBUTING.md).
+
+We welcome:
+- Bug fixes
+- Feature implementations
+- Documentation improvements
+- Test coverage
+- Community support
+
+---
+
+**Thank you for using {{projectName}}!** We appreciate your patience and engagement with the community.

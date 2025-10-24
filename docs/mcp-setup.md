@@ -4,14 +4,15 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides six main capabilities through MCP (Model Context Protocol):
+The DevOps AI Toolkit provides main capabilities through MCP (Model Context Protocol):
 
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance with enhanced semantic understanding
 2. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
 3. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
 4. **Policy Management** - Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
-5. **Documentation Testing** - Automated validation of documentation accuracy
+5. **Kubernetes Issue Remediation** - AI-powered root cause analysis and automated remediation
 6. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
+7. **REST API Gateway** - HTTP endpoints for all toolkit capabilities
 
 This guide helps you choose the right setup method and get started quickly.
 
@@ -75,6 +76,8 @@ All setup methods need the same core configuration, but handle it differently:
 | **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
 
 **Note**: How you configure these depends on your chosen setup method. See the individual setup guides for specific configuration instructions.
+
+**AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys and will show helpful error messages when accessed without configuration.
 
 ### AI Model Configuration
 

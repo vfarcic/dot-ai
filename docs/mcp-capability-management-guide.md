@@ -358,4 +358,4 @@ Agent: [Shows progress, completion estimates, and any errors during processing]
 Once your cluster capabilities are discovered and managed:
 
 1. **Enhanced Recommendations**: Use deployment recommendations to get intelligent suggestions based on your discovered capabilities
-2. **Explore Other Tools**: See the [Tools and Features Overview](mcp-tools-overview.md) to browse all available tools including pattern management and documentation testing
+2. **Explore Other Tools**: See the [Tools and Features Overview](mcp-tools-overview.md) to browse all available tools including pattern management, policy governance, and issue remediation

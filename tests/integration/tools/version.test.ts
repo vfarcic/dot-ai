@@ -86,12 +86,6 @@ describe.concurrent('Version Tool Integration', () => {
                 version: expect.stringMatching(/^\d+\.\d+\.\d+$/), // Pattern - semantic version
                 webhookReady: true, // Specific - webhook should be ready
                 policyGenerationReady: true // Specific - policy generation should be ready
-              },
-              nushell: {
-                installed: true, // Specific - Nushell should be installed in dev/CI
-                version: expect.stringMatching(/^\d+\.\d+\.\d+$/), // Pattern - semantic version
-                ready: true // Specific - should be ready in dev/CI
-                // error and installationUrl are undefined when ready
               }
             },
             summary: {

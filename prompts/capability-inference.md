@@ -3,11 +3,11 @@
 Analyze this Kubernetes resource and identify its capabilities for semantic matching and AI recommendations.
 
 ## Resource Information
-- **Resource**: {resourceName}
+- **Resource**: {{resourceName}}
 
 ## Resource Definition
 ```yaml
-{resourceDefinition}
+{{resourceDefinition}}
 ```
 
 ## Analysis Instructions

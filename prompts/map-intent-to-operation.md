@@ -4,12 +4,12 @@ You are helping map natural language user intent to available Kubernetes platfor
 
 ## User Intent
 ```text
-{intent}
+{{intent}}
 ```
 
 ## Available Operations
 ```json
-{operations}
+{{operations}}
 ```
 
 ## Your Task

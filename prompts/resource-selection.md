@@ -3,13 +3,13 @@
 You are a Kubernetes expert. Given this user intent, available resources, and organizational patterns, create and rank complete solutions that address the user's needs.
 
 ## User Intent
-{intent}
+{{intent}}
 
 ## Available Resources
-{resources}
+{{{resources}}}
 
 ## Organizational Patterns
-{patterns}
+{{patterns}}
 
 ## Instructions
 

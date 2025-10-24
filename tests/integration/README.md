@@ -7,7 +7,7 @@ Comprehensive integration tests for the DevOps AI Toolkit that validate real sys
 This framework follows the **Zero Unit Tests** philosophy outlined in PRD 111. All tests validate real system behavior using:
 
 - **Real Kubernetes clusters** (Kind test clusters)
-- **Real AI models** (Claude Haiku for speed/cost)
+- **Real AI models** (Claude Haiku for speed)
 - **Real HTTP REST API calls**
 - **Real namespace lifecycle management**
 
@@ -62,7 +62,7 @@ Tests automatically configure the environment for isolation:
 ```typescript
 // tests/integration/setup.ts
 process.env.KUBECONFIG = './kubeconfig-test.yaml';  // Test cluster only
-process.env.MODEL = 'claude-3-haiku-20240307';     // Fast, cheap AI model
+process.env.MODEL = 'claude-haiku-4-5-20251001';    // Fast AI model (Haiku 4.5)
 process.env.DEBUG_DOT_AI = 'true';                 // Detailed logging
 ```
 
@@ -293,14 +293,14 @@ Tests run automatically in GitHub Actions:
 ```
 GitHub Actions → Jest → IntegrationTest → HTTP Client → REST API → dot-ai Tools → Test Cluster
                                                             ↓
-                                                      Claude Haiku
-                                                    (Fast AI Model)
+                                                      Claude Sonnet
+                                                   (High Quality AI)
 ```
 
 ### Key Design Decisions
 
 1. **Real Kubernetes**: No mocking, actual kubectl operations
-2. **Claude Haiku**: 2-3x faster, 12x cheaper than production model
+2. **Claude Sonnet**: High-quality model matching production performance
 3. **Namespace isolation**: Perfect test isolation with simple cleanup
 4. **HTTP REST API**: Standardized tool interface, easy to test
 5. **Behavioral validation**: Test actual system behavior, not just structure

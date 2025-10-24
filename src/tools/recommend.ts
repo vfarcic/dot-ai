@@ -192,7 +192,7 @@ export async function handleRecommendTool(
       // Validate session directory configuration
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true
+        sessionDir = getAndValidateSessionDirectory(true); // requireWrite=true
         logger.debug('Session directory validated', { requestId, sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

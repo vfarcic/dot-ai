@@ -1,19 +1,19 @@
 # Question Generation for Kubernetes Resource Configuration
 
 ## User Intent
-{intent}
+{{intent}}
 
 ## Recommended Solution
-{solution_description}
+{{solution_description}}
 
 ## Resources in Solution
-{resource_details}
+{{resource_details}}
 
 ## Available Cluster Options
-{cluster_options}
+{{cluster_options}}
 
 ## Organizational Policies
-{policy_context}
+{{policy_context}}
 
 ## Instructions
 

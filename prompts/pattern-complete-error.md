@@ -1,1 +1,1 @@
-Error creating pattern: {error}
+Error creating pattern: {{error}}

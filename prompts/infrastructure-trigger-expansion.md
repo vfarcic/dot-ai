@@ -1,6 +1,6 @@
-Expand these infrastructure type triggers: {initialTriggers}
+Expand these infrastructure type triggers: {{initialTriggers}}
 
-Context: {description}
+Context: {{description}}
 
 Generate additional infrastructure type keywords that are:
 1. **Alternative names** for the same infrastructure types (e.g., "storage" → "volumes", "persistent storage")

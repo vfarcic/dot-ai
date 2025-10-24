@@ -183,20 +183,17 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
  * Generate manifests using AI provider
  */
 async function generateManifestsWithAI(
-  solution: any, 
+  solution: any,
   dotAI: DotAI,
   logger: Logger,
   errorContext?: ErrorContext,
   dotAiLabels?: Record<string, string>,
   interaction_id?: string
 ): Promise<string> {
-  
-  // Load prompt template
-  const template = loadPrompt('manifest-generation');
-  
+
   // Retrieve schemas for solution resources
   const resourceSchemas = await retrieveResourceSchemas(solution, dotAI, logger);
-  
+
   // Prepare template variables
   const solutionData = JSON.stringify(solution, null, 2);
   const previousAttempt = errorContext ? `
@@ -211,16 +208,17 @@ ${errorContext.previousManifests}
 **Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
 **Validation Warnings**: ${errorContext.validationResult.warnings.join(', ')}
 ` : 'None - this is the first attempt.';
-  
-  // Replace template variables
+
+  // Prepare template variables
   const schemasData = JSON.stringify(resourceSchemas, null, 2);
   const labelsData = dotAiLabels ? JSON.stringify(dotAiLabels, null, 2) : '{}';
-  const aiPrompt = template
-    .replace('{solution}', solutionData)
-    .replace('{schemas}', schemasData)
-    .replace('{previous_attempt}', previousAttempt)
-    .replace('{error_details}', errorDetails)
-    .replace('{labels}', labelsData);
+  const aiPrompt = loadPrompt('manifest-generation', {
+    solution: solutionData,
+    schemas: schemasData,
+    previous_attempt: previousAttempt,
+    error_details: errorDetails,
+    labels: labelsData
+  });
   
   const isRetry = !!errorContext;
   logger.info('Generating manifests with AI', {
@@ -331,7 +329,7 @@ export async function handleGenerateManifestsTool(
       // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, true); // requireWrite=true for manifest generation
+        sessionDir = getAndValidateSessionDirectory(true); // requireWrite=true for manifest generation
         logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

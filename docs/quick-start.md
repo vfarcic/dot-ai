@@ -1,32 +1,37 @@
 # Quick Start
 
+**Get started with DevOps AI Toolkit in minutes - deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows through MCP.**
+
+## Overview
+
+**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows in your MCP-enabled coding agent.
+
+**Use when**: You want intelligent Kubernetes operations without memorizing commands, need AI-powered troubleshooting, or want to establish governance policies across your cluster.
+
+**📖 Full Guide**: See [MCP Setup Guide](mcp-setup.md) for detailed configuration options and [Tools Overview](mcp-tools-overview.md) for complete feature reference.
+
 ## Prerequisites
 
-**For Kubernetes deployment and documentation testing:**
-- **AI Model API key** (required for AI analysis)
+**Works without AI keys:**
+- ✅ **Shared prompts library** - No API key needed, works with any MCP-enabled coding agent
+
+**For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
+- **AI Model API key** - Required for AI analysis and intelligent recommendations
   - **Multiple AI models supported** - see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for all options and setup
   - **Quick setup**: Claude (default) - `export ANTHROPIC_API_KEY=your_key_here`
-
-**For shared prompts library:**
-- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require AI model API key)
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
   - Verify cluster access with: `kubectl get nodes`
   - Should show your cluster nodes without authentication errors
-<!-- dotai-ignore: kubectl verification command output format - implementation-specific -->
-
-**For documentation testing:**
-- **Documentation files** to test (Markdown, HTML, etc.)
-- **File system access** to the documentation you want to validate
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **OpenAI API key** (required) for semantic pattern matching and vector operations
+- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic pattern matching
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
-- **OpenAI API key** (required) for semantic policy matching and vector operations  
+- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic policy matching
 - **Optional**: Kyverno installed in cluster for active policy enforcement
 
 ## Installation
@@ -92,7 +97,7 @@ claude  # or your preferred MCP-enabled AI tool
 4. **Use conversational workflows:**
 
 **Example: Kubernetes Deployment**
-```
+```text
 User: I want to deploy a web application to my cluster
 
 Agent: I'll help you deploy a web application. Let me get recommendations. First, a few questions to provide better suggestions:
@@ -117,7 +122,7 @@ Agent: ✅ Successfully deployed! Your production API is running with external a
 ```
 
 **Example: Capability Management**
-```
+```text
 User: I want to scan my cluster for resource capabilities to improve recommendations
 
 [Uses manageOrgData with capabilities scanning]
@@ -139,7 +144,7 @@ Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a manage
 ```
 
 **Example: Kubernetes Issue Remediation**
-```
+```text
 User: Something is wrong with my database in postgres-demo namespace
 
 Agent: I'll investigate the database issue using AI-powered analysis.
@@ -159,7 +164,7 @@ Agent: ✅ Issue Resolved! Created postgres-pvc, pod transitioned to Running sta
 ```
 
 **Example: Policy Management**
-```
+```text
 User: I want to create a policy requiring resource limits on all deployments
 
 Agent: I'll help you create a governance policy for resource limits. Let me start the creation workflow.
@@ -180,30 +185,10 @@ User: Apply the Kyverno policy for active enforcement
 Agent: ✅ Policy deployed! Now when users deploy applications, they'll get required questions for CPU/memory limits with your specified ranges, and any non-compliant deployments will be blocked by Kyverno.
 ```
 
-**Example: Documentation Testing**
-```
-User: I want to test my README.md file to make sure all the examples work
-
-Agent: I'll help you test your README.md for accuracy. Let me start a documentation testing session.
-[Uses testDocs tool]
-
-Agent: Found 6 testable sections in your README. Testing installation instructions...
-
-✅ npm install command works correctly
-❌ Configuration example has wrong port number (8080 vs 3000)
-⚠️  Claims "works out of the box" but requires additional setup
-
-Which issues would you like me to help you fix?
-
-User: Fix the port number directly in the doc, and I'll create a GitHub issue for the setup requirements.
-
-Agent: ✅ Documentation testing complete! Fixed 1 issue directly, 1 issue tracked externally.
-```
-
 *Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
 
 **Example: Shared Prompts Library**
-```
+```text
 # Conversational approach
 User: I want to create a new PRD for a feature
 

@@ -82,6 +82,7 @@
   ],
   "devDependencies": {
     "@types/glob": "^9.0.0",
+    "@types/handlebars": "^4.0.40",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -105,6 +106,7 @@
     "@qdrant/js-client-rest": "^1.15.0",
     "ai": "^5.0.60",
     "glob": "^11.0.3",
+    "handlebars": "^4.7.8",
     "openai": "^5.11.0",
     "yaml": "^2.8.0",
     "zod-to-json-schema": "^3.24.6"

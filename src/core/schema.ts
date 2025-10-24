@@ -582,7 +582,7 @@ export class ResourceRecommender {
    * Load and format solution assembly prompt from file
    */
   private async loadSolutionAssemblyPrompt(
-    intent: string, 
+    intent: string,
     resources: Array<{
       kind: string;
       group: string;
@@ -591,8 +591,6 @@ export class ResourceRecommender {
     }>,
     patterns: OrganizationalPattern[]
   ): Promise<string> {
-    const template = loadPrompt('resource-selection');
-    
     // Format resources for the prompt with capability information
     const resourcesText = resources.map((resource, index) => {
       return `${index}: ${resource.kind.toUpperCase()}
@@ -607,8 +605,8 @@ export class ResourceRecommender {
     }).join('\n\n');
 
     // Format organizational patterns for AI context
-    const patternsContext = patterns.length > 0 
-      ? patterns.map(pattern => 
+    const patternsContext = patterns.length > 0
+      ? patterns.map(pattern =>
           `- ID: ${pattern.id}
             Description: ${pattern.description}
             Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
@@ -616,11 +614,12 @@ export class ResourceRecommender {
             Triggers: ${pattern.triggers?.join(', ') || 'None'}`
         ).join('\n')
       : 'No organizational patterns found for this request.';
-    
-    return template
-      .replace('{intent}', intent)
-      .replace('{resources}', resourcesText)
-      .replace('{patterns}', patternsContext);
+
+    return loadPrompt('resource-selection', {
+      intent,
+      resources: resourcesText,
+      patterns: patternsContext
+    });
   }
 
   /**
@@ -988,15 +987,14 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
           ).join('\n')
         : 'No organizational policies found for this request.';
 
-      // Load and format the question generation prompt
-      const template = loadPrompt('question-generation');
-      
-      const questionPrompt = template
-        .replace('{intent}', intent)
-        .replace('{solution_description}', solution.description)
-        .replace('{resource_details}', resourceDetails)
-        .replace('{cluster_options}', clusterOptionsText)
-        .replace('{policy_context}', policyContextText);
+      // Generate question prompt with variables
+      const questionPrompt = loadPrompt('question-generation', {
+        intent,
+        solution_description: solution.description,
+        resource_details: resourceDetails,
+        cluster_options: clusterOptionsText,
+        policy_context: policyContextText
+      });
 
       const response = await this.aiProvider.sendMessage(questionPrompt, 'recommend-question-generation', {
         user_intent: `Generate deployment questions for: ${intent}`,

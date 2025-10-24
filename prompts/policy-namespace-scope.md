@@ -3,7 +3,7 @@
 Your policy can be applied cluster-wide or limited to specific namespaces.
 
 ## Available Namespaces in Your Cluster:
-{namespaces}
+{{namespaces}}
 
 ## Choose the scope for your policy:
 

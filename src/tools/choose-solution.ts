@@ -68,7 +68,7 @@ export async function handleChooseSolutionTool(
       // Get session directory from environment
       let sessionDir: string;
       try {
-        sessionDir = getAndValidateSessionDirectory(args, false); // requireWrite=false
+        sessionDir = getAndValidateSessionDirectory(false); // requireWrite=false
         logger.debug('Session directory resolved and validated', { sessionDir });
       } catch (error) {
         throw ErrorHandler.createError(

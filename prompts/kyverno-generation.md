@@ -1,24 +1,24 @@
 # Kyverno Policy Generation from Policy Intent
 
 ## Policy Intent Description
-{policy_description}
+{{policy_description}}
 
 ## Policy Intent Details
-- **Rationale**: {policy_rationale}
-- **Triggers**: {policy_triggers}
-- **Intent ID**: {policy_id}
+- **Rationale**: {{policy_rationale}}
+- **Triggers**: {{policy_triggers}}
+- **Intent ID**: {{policy_id}}
 
 ## Available Resource Schemas
-{resource_schemas}
+{{resource_schemas}}
 
 ## Namespace Scope Configuration
-{namespace_scope}
+{{namespace_scope}}
 
 ## Previous Attempt Analysis
-{previous_attempt}
+{{previous_attempt}}
 
 ## Error Details from Previous Attempt
-{error_details}
+{{error_details}}
 
 ## Instructions
 
@@ -41,9 +41,9 @@ You are a Kubernetes governance expert specializing in Kyverno policy generation
 **❌ NEVER use these patterns in messages:**
 ```yaml
 # These will cause validation failures:
-message: "Current region: {{ object.spec.forProvider.region || 'not specified' }}"
-message: "Field value: {{ object.spec.field || 'missing' }}"
-message: "Invalid image: {{ object.spec.container.image }}"
+message: "Current region: \{{ object.spec.forProvider.region || 'not specified' }}"
+message: "Field value: \{{ object.spec.field || 'missing' }}"
+message: "Invalid image: \{{ object.spec.container.image }}"
 ```
 
 **✅ ALWAYS use static descriptive messages:**
@@ -103,10 +103,10 @@ expression: object.spec.initProvider.region == 'us-east1'
 
 1. **Metadata Requirements**:
    - **Name**: Generate descriptive slug from policy description (max 63 chars, e.g., `require-container-resource-limits`)
-   - **Labels**: Include `policy-intent/id: {policy_id}` for machine lookup
+   - **Labels**: Include `policy-intent/id: {{policy_id}}` for machine lookup
    - **Annotations**: 
-     - `policy-intent/description: "{policy_description}"`
-     - `policy-intent/rationale: "{policy_rationale}"`
+     - `policy-intent/description: "{{policy_description}}"`
+     - `policy-intent/rationale: "{{policy_rationale}}"`
 
 2. **Name Generation Rules**:
    - Convert policy description to lowercase slug format

@@ -391,7 +391,7 @@ export async function handleCapabilityProgress(
     });
     
     // Get session directory first
-    const sessionDir = getAndValidateSessionDirectory(args, false);
+    const sessionDir = getAndValidateSessionDirectory(false);
     let sessionId = args.sessionId;
     let sessionFilePath: string;
     

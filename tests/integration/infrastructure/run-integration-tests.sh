@@ -7,8 +7,23 @@
 # 3. Start MCP server in background
 # 4. Run integration tests
 # 5. Cleanup server on exit
+#
+# Usage:
+#   ./run-integration-tests.sh [--no-cluster] [test-filter]
+#   --no-cluster: Skip cluster and Qdrant setup (for lightweight tests)
 
 set -e
+
+# Parse command line arguments
+NO_CLUSTER=false
+TEST_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" == "--no-cluster" ]; then
+        NO_CLUSTER=true
+    else
+        TEST_ARGS+=("$arg")
+    fi
+done
 
 # Configuration
 PORT=3456
@@ -80,48 +95,53 @@ npm run build || {
     exit 1
 }
 
-# Step 3: Recreate Kind cluster for guaranteed clean state
-log_info "Deleting existing Kind cluster (if any)..."
-kind delete cluster --name dot-test 2>/dev/null || true
+# Step 3: Setup infrastructure (unless --no-cluster is specified)
+if [ "$NO_CLUSTER" = false ]; then
+    # Recreate Kind cluster for guaranteed clean state
+    log_info "Deleting existing Kind cluster (if any)..."
+    kind delete cluster --name dot-test 2>/dev/null || true
 
-log_info "Creating fresh Kind cluster..."
-kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml || {
-    log_error "Failed to create Kind cluster"
-    exit 1
-}
+    log_info "Creating fresh Kind cluster..."
+    kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml || {
+        log_error "Failed to create Kind cluster"
+        exit 1
+    }
 
-log_info "Exporting kubeconfig for test cluster..."
-kind export kubeconfig --name dot-test --kubeconfig ./kubeconfig-test.yaml || {
-    log_error "Failed to export kubeconfig"
-    exit 1
-}
+    log_info "Exporting kubeconfig for test cluster..."
+    kind export kubeconfig --name dot-test --kubeconfig ./kubeconfig-test.yaml || {
+        log_error "Failed to export kubeconfig"
+        exit 1
+    }
 
-log_info "Installing CloudNativePG operator (async)..."
-export KUBECONFIG=./kubeconfig-test.yaml
-kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
+    log_info "Installing CloudNativePG operator (async)..."
+    export KUBECONFIG=./kubeconfig-test.yaml
+    kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
 
-log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
-helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
-helm repo update
-helm upgrade --install kyverno kyverno/kyverno \
-    --namespace kyverno --create-namespace \
-    --wait --timeout=300s || {
-    log_error "Failed to install Kyverno"
-    exit 1
-}
+    log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
+    helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
+    helm repo update
+    helm upgrade --install kyverno kyverno/kyverno \
+        --namespace kyverno --create-namespace \
+        --wait --timeout=300s || {
+        log_error "Failed to install Kyverno"
+        exit 1
+    }
 
-log_info "Starting fresh Qdrant test container..."
-# Remove existing container if it exists
-docker rm -f qdrant-test 2>/dev/null || true
+    log_info "Starting fresh Qdrant test container..."
+    # Remove existing container if it exists
+    docker rm -f qdrant-test 2>/dev/null || true
 
-# Create fresh container from test image
-docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
-    log_error "Failed to start Qdrant container"
-    exit 1
-}
+    # Create fresh container from test image
+    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
+        log_error "Failed to start Qdrant container"
+        exit 1
+    }
 
-# Wait for Qdrant to be ready
-sleep 3
+    # Wait for Qdrant to be ready
+    sleep 3
+else
+    log_info "Skipping cluster and infrastructure setup (--no-cluster mode)"
+fi
 
 # Step 4: Create tmp directory for logs, PID, and sessions
 log_info "Cleaning up old session files and debug prompts/outputs..."
@@ -132,7 +152,7 @@ mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 
 # Step 5: Start MCP server in background
-# Set provider defaults if not already set (using Haiku for cost efficiency)
+# Set provider defaults if not already set
 AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
 AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 
@@ -191,7 +211,7 @@ fi
 
 # Step 6: Run integration tests
 log_info "Running integration tests..."
-npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "$@"
+npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?
 

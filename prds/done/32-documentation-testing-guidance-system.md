@@ -1,10 +1,11 @@
 # PRD: Documentation Testing Guidance System
 
-**GitHub Issue**: [#32](https://github.com/vfarcic/dot-ai/issues/32)  
-**Status**: Draft  
-**Priority**: Low  
-**Start Date**: 2025-01-23  
-**Target Completion**: TBD  
+**GitHub Issue**: [#32](https://github.com/vfarcic/dot-ai/issues/32)
+**Status**: Closed - Feature Removed
+**Priority**: Low
+**Start Date**: 2025-01-23
+**Closed Date**: 2025-10-23
+**Closure Reason**: Documentation testing feature (testDocs tool) was removed from the codebase in commit 7bc0f16. This PRD is no longer relevant.  
 
 ## Overview
 

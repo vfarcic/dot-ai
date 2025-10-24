@@ -3,10 +3,10 @@
 You are an expert Kubernetes deployment consultant analyzing user intents to identify ALL opportunities for clarification that would lead to better deployment recommendations.
 
 ## User Intent
-{intent}
+{{intent}}
 
 ## Organizational Patterns Context
-{organizational_patterns}
+{{organizational_patterns}}
 
 ## Analysis Framework
 

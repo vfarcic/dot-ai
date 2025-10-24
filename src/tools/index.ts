@@ -55,8 +55,8 @@ export {
 } from './remediate';
 
 export {
-  BUILD_PLATFORM_TOOL_NAME,
-  BUILD_PLATFORM_TOOL_DESCRIPTION,
-  BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
-  handleBuildPlatformTool,
-} from './build-platform';
+  PROJECT_SETUP_TOOL_NAME,
+  PROJECT_SETUP_TOOL_DESCRIPTION,
+  PROJECT_SETUP_TOOL_INPUT_SCHEMA,
+  handleProjectSetupTool,
+} from './project-setup';

@@ -1,21 +1,21 @@
 # Kubernetes Manifest Generation
 
 ## Solution Configuration
-{solution}
+{{solution}}
 
 ## Resource Schemas
 The following schemas are available for the resources selected in the solution:
-{schemas}
+{{schemas}}
 
 ## Required Labels
 Add these labels to the metadata.labels section of EVERY resource you generate:
-{labels}
+{{labels}}
 
 ## Previous Attempt (if retry)
-{previous_attempt}
+{{previous_attempt}}
 
 ## Validation Error Details (if retry)
-{error_details}
+{{error_details}}
 
 ## Instructions
 

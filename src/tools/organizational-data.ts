@@ -297,8 +297,8 @@ interface CapabilityScanSession {
 /**
  * Get session file path following established pattern
  */
-function getCapabilitySessionPath(sessionId: string, args: any): string {
-  const sessionDir = getAndValidateSessionDirectory(args, false);
+function getCapabilitySessionPath(sessionId: string): string {
+  const sessionDir = getAndValidateSessionDirectory(false);
   const sessionSubDir = path.join(sessionDir, 'capability-sessions');
   
   // Ensure capability-sessions subdirectory exists
@@ -312,9 +312,9 @@ function getCapabilitySessionPath(sessionId: string, args: any): string {
 /**
  * Load session from file system following established pattern
  */
-function loadCapabilitySession(sessionId: string, args: any): CapabilityScanSession | null {
+function loadCapabilitySession(sessionId: string): CapabilityScanSession | null {
   try {
-    const sessionPath = getCapabilitySessionPath(sessionId, args);
+    const sessionPath = getCapabilitySessionPath(sessionId);
     if (!fs.existsSync(sessionPath)) {
       return null;
     }
@@ -324,7 +324,7 @@ function loadCapabilitySession(sessionId: string, args: any): CapabilityScanSess
     
     // Update last activity
     session.lastActivity = new Date().toISOString();
-    saveCapabilitySession(session, args);
+    saveCapabilitySession(session);
     
     return session;
   } catch (error) {
@@ -336,9 +336,9 @@ function loadCapabilitySession(sessionId: string, args: any): CapabilityScanSess
 /**
  * Save session to file system following established pattern
  */
-function saveCapabilitySession(session: CapabilityScanSession, args: any): void {
+function saveCapabilitySession(session: CapabilityScanSession): void {
   try {
-    const sessionPath = getCapabilitySessionPath(session.sessionId, args);
+    const sessionPath = getCapabilitySessionPath(session.sessionId);
     fs.writeFileSync(sessionPath, JSON.stringify(session, null, 2), 'utf8');
   } catch (error) {
     // Log error but don't throw - workflow can continue
@@ -351,7 +351,7 @@ function saveCapabilitySession(session: CapabilityScanSession, args: any): void 
  */
 function getOrCreateCapabilitySession(sessionId: string | undefined, args: any, logger: Logger, requestId: string): CapabilityScanSession {
   if (sessionId) {
-    const existing = loadCapabilitySession(sessionId, args);
+    const existing = loadCapabilitySession(sessionId);
     if (existing) {
       logger.info('Loaded existing capability session', { 
         requestId, 
@@ -371,7 +371,7 @@ function getOrCreateCapabilitySession(sessionId: string | undefined, args: any, 
     lastActivity: new Date().toISOString()
   };
   
-  saveCapabilitySession(session, args);
+  saveCapabilitySession(session);
   logger.info('Created new capability session', { 
     requestId, 
     sessionId: newSessionId, 
@@ -405,7 +405,7 @@ function validateCapabilityStep(session: CapabilityScanSession, clientStep?: str
 /**
  * Transition session to next step with proper state updates
  */
-function transitionCapabilitySession(session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: any): void {
+function transitionCapabilitySession(session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>): void {
   session.currentStep = nextStep;
   session.lastActivity = new Date().toISOString();
   
@@ -413,7 +413,7 @@ function transitionCapabilitySession(session: CapabilityScanSession, nextStep: C
     Object.assign(session, updates);
   }
   
-  saveCapabilitySession(session, args);
+  saveCapabilitySession(session);
 }
 
 /**
@@ -421,7 +421,7 @@ function transitionCapabilitySession(session: CapabilityScanSession, nextStep: C
  */
 function cleanupCapabilitySession(session: CapabilityScanSession, args: any, logger: Logger, requestId: string): void {
   try {
-    const sessionPath = getCapabilitySessionPath(session.sessionId, args);
+    const sessionPath = getCapabilitySessionPath(session.sessionId);
     if (fs.existsSync(sessionPath)) {
       fs.unlinkSync(sessionPath);
       logger.info('Capability session cleaned up after completion', { 
