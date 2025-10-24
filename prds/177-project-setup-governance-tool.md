@@ -816,20 +816,19 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 15: Version Control Configuration (2 artifacts)
-**Success Criteria**: Project ignores and editor consistency configured
+### Milestone 15: Version Control Configuration (2 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: .gitignore and .editorconfig require knowing the project's tech stack, languages, frameworks, and team preferences. .gitignore patterns vary significantly by language (node_modules for Node.js, __pycache__ for Python, target/ for Rust/Java), and .editorconfig needs language-specific indentation preferences. These files cannot be standardized without deep project knowledge.
 
 **Artifacts:**
-- [ ] `.gitignore` - Language-specific ignores (node_modules, __pycache__, build artifacts), OS ignores, IDE ignores, secrets patterns
-- [ ] `.editorconfig` - Indentation, line endings, charset consistency across editors
+- [ ] ~~`.gitignore` - Language-specific ignores (node_modules, __pycache__, build artifacts), OS ignores, IDE ignores, secrets patterns~~
+- [ ] ~~`.editorconfig` - Indentation, line endings, charset consistency across editors~~
 
 **Best Practices Research:**
-- [ ] GitHub official .gitignore templates
-- [ ] Secrets detection patterns
-- [ ] EditorConfig specification
-- [ ] Multi-language project ignore patterns
-
-**Validation**: .gitignore prevents committed artifacts, .editorconfig enforced by editors
+- [ ] ~~GitHub official .gitignore templates~~
+- [ ] ~~Secrets detection patterns~~
+- [ ] ~~EditorConfig specification~~
+- [ ] ~~Multi-language project ignore patterns~~
 
 ---
 
