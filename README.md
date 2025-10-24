@@ -30,15 +30,15 @@ DEVELOPER NOTE: This tool is under active development with incomplete functional
 - **DevOps Teams**: Create and manage Kubernetes clusters through natural language interactions
 -->
 
-### Documentation Testing  
-- **Documentation Maintainers**: Automatically validate documentation accuracy and catch outdated content
-- **Technical Writers**: Identify which sections need updates and prioritize work effectively
-- **Open Source Maintainers**: Ensure documentation works correctly for new contributors
-
 ### Shared Prompts Library
 - **Development Teams**: Share proven prompts across projects without file management
 - **Project Managers**: Standardize workflows with consistent prompt usage across teams
 - **Individual Developers**: Access curated prompt library via native slash commands
+
+### Project Setup & Governance
+- **Project Maintainers**: Bootstrap new repositories with governance, legal, and security files
+- **Development Teams**: Standardize repository setup and workflows across projects
+- **Security Teams**: Implement consistent security policies, vulnerability reporting, and compliance standards
 
 ### AI Integration
 - **AI Agents**: Integrate all capabilities with Claude Code, Cursor, or VS Code for conversational workflows
@@ -100,14 +100,6 @@ DEVELOPER NOTE: This tool is under active development with incomplete functional
 📖 [Learn more →](./docs/mcp-build-platform-guide.md)
 -->
 
-### Documentation Testing & Validation
-📖 **Automated Testing**: Validates documentation by executing commands and testing examples  
-🔍 **Two-Phase Validation**: Tests both functionality (does it work?) and semantic accuracy (are descriptions truthful?)  
-🛠️ **Fix Application**: User-driven selection and application of recommended documentation improvements  
-💾 **Session Management**: Resumable testing workflows for large documentation sets
-
-📖 [Learn more →](./docs/mcp-documentation-testing-guide.md)
-
 ### Organizational Pattern Management
 🏛️ **Pattern Creation**: Define organizational deployment patterns that capture institutional knowledge  
 🧠 **AI Enhancement**: Patterns automatically enhance deployment recommendations with organizational context  
@@ -126,16 +118,25 @@ DEVELOPER NOTE: This tool is under active development with incomplete functional
 📖 [Learn more →](./docs/policy-management-guide.md)
 
 ### Shared Prompts Library
-🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent  
-📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management  
-🔄 **Zero Setup**: Connect to MCP server and prompts are immediately available across all projects  
+🎯 **Native Slash Commands**: Prompts appear as `/dot-ai:prompt-name` in your coding agent
+📚 **Curated Library**: Access proven prompts for code review, documentation, architecture, and project management
+🔄 **Zero Setup**: Connect to MCP server and prompts are immediately available across all projects
 🤝 **Team Consistency**: Standardized prompt usage with centralized management
 
 📖 [Learn more →](./docs/mcp-prompts-guide.md)
 
+### Project Setup & Governance
+📦 **Repository Audit**: Scans repositories to identify missing governance, legal, and automation files
+📋 **25+ Templates**: Generates LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, GitHub workflows, and automation
+🔧 **GitHub Automation**: Sets up Renovate for dependency updates, PR labeling, and stale issue management
+🛡️ **Security Workflows**: Includes OpenSSF Scorecard for security posture analysis
+✅ **Standards-Based**: All templates based on authoritative sources (Contributor Covenant, OpenSSF, GitHub)
+
+📖 [Learn more →](./docs/mcp-project-setup-guide.md)
+
 ### AI Integration
 ⚡ **MCP Integration**: Works seamlessly with Claude Code, Cursor, or VS Code through Model Context Protocol
-🤖 **Conversational Interface**: Natural language interaction for deployment, documentation testing, pattern management, and shared prompt workflows
+🤖 **Conversational Interface**: Natural language interaction for deployment, remediation, pattern management, and shared prompt workflows
 🎯 **Multiple AI Providers**: Choose from multiple AI models and providers to optimize for quality, cost, and reliability - see [AI Model Configuration](./docs/mcp-setup.md#ai-model-configuration)
 
 **Setup Required**: See the [MCP Setup Guide](./docs/mcp-setup.md) for complete configuration instructions.

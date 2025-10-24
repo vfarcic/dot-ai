@@ -2,31 +2,26 @@
 
 ## Prerequisites
 
-**For Kubernetes deployment and documentation testing:**
-- **AI Model API key** (required for AI analysis)
+**Works without AI keys:**
+- ✅ **Shared prompts library** - No API key needed, works with any MCP-enabled coding agent
+
+**For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
+- **AI Model API key** - Required for AI analysis and intelligent recommendations
   - **Multiple AI models supported** - see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for all options and setup
   - **Quick setup**: Claude (default) - `export ANTHROPIC_API_KEY=your_key_here`
-
-**For shared prompts library:**
-- **No API key required** - Works with any MCP-enabled coding agent (other features like deployments do require AI model API key)
 
 **For Kubernetes deployment recommendations:**
 - **kubectl** configured with cluster access
   - Verify cluster access with: `kubectl get nodes`
   - Should show your cluster nodes without authentication errors
-<!-- dotai-ignore: kubectl verification command output format - implementation-specific -->
-
-**For documentation testing:**
-- **Documentation files** to test (Markdown, HTML, etc.)
-- **File system access** to the documentation you want to validate
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **OpenAI API key** (required) for semantic pattern matching and vector operations
+- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic pattern matching
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
-- **OpenAI API key** (required) for semantic policy matching and vector operations  
+- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic policy matching
 - **Optional**: Kyverno installed in cluster for active policy enforcement
 
 ## Installation

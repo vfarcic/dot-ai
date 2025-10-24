@@ -40,6 +40,12 @@ AI-powered issue analysis and remediation with intelligent root cause identifica
 - **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
 - **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
 
+### 📦 Project Setup & Governance
+Comprehensive repository setup with governance, legal, security, and automation files.
+- **What it does**: Generates 25+ standardized files including LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY policies, GitHub issue/PR templates, workflows (OpenSSF Scorecard), and automation (Renovate, Labeler, Stale Bot)
+- **Use when**: Setting up new repositories, standardizing team workflows, or implementing governance and security best practices
+- **📖 Full Guide**: [Project Setup & Governance](mcp-project-setup-guide.md)
+
 <!--
 ### 🏗️ Platform Building
 DEVELOPER NOTE: This tool is under active development with incomplete functionality. Not recommended for production use.
@@ -48,12 +54,6 @@ Conversational platform operations through natural language - install tools, cre
 - **Use when**: Installing platform tools (Argo CD, Crossplane, cert-manager), creating Kubernetes clusters, or building platform infrastructure conversationally
 - **📖 Full Guide**: [Platform Building](mcp-build-platform-guide.md)
 -->
-
-### 📋 Documentation Testing
-Automated validation of documentation accuracy through functionality testing and AI analysis.
-- **What it does**: Tests commands, examples, and descriptions in documentation files
-- **Use when**: Maintaining documentation quality or validating guide accuracy
-- **📖 Full Guide**: [Documentation Testing](mcp-documentation-testing-guide.md)
 
 ### 💬 Shared Prompts Library
 Centralized prompt sharing via native slash commands in MCP-enabled coding agents.
@@ -72,14 +72,23 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 1. **Complete Setup**: Follow the [MCP Setup Guide](mcp-setup.md)
 2. **Start with Capability Management** to scan your cluster (required for recommendations)
 3. **Try Deployment Recommendations** with a simple application
-4. **Optional**: Create organizational patterns, policy intents, or test documentation
+4. **Optional**: Create organizational patterns, policy intents, or use issue remediation
 
 ## Prerequisites
 
-- **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)  
-- **API keys**: AI model API key for AI features (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options)
-- **Cluster access**: `KUBECONFIG` for Kubernetes integration
+**Required for all tools:**
+- **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)
+
+**Works without AI keys:**
+- ✅ **Project Setup & Governance**
+- ✅ **Shared Prompts Library**
+- ✅ **REST API Gateway**
+
+**For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
+- **AI Model API key**: See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options
+- **Cluster access**: `KUBECONFIG` for Kubernetes integration (deployment, remediation, capabilities)
 - **Vector database**: Qdrant for capability, pattern, and policy storage
+- **Embedding provider API key**: OpenAI, Google, or Mistral for pattern/policy semantic search
 
 ## Tool Dependencies
 
@@ -88,8 +97,9 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 - **Policy Management** → enhances **Deployment Recommendations**
 - **Kubernetes Issue Remediation** ← independent
 <!-- - **Platform Building** ← independent (requires Nushell runtime) -->
-- **Documentation Testing** ← independent
+- **Project Setup** ← independent
 - **Shared Prompts Library** ← independent
+- **REST API Gateway** ← provides HTTP access to all tools
 
 ## Getting Help
 

@@ -14,6 +14,7 @@ import {
 } from './ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic-provider';
 import { VercelProvider } from './providers/vercel-provider';
+import { NoOpAIProvider } from './providers/noop-provider';
 import { CURRENT_MODELS } from './model-config';
 
 /**
@@ -102,12 +103,14 @@ export class AIProviderFactory {
    * Detects provider from AI_PROVIDER env var (defaults to 'anthropic')
    * and loads corresponding API key from environment.
    *
+   * If no API keys are configured, returns a NoOpAIProvider that allows
+   * the MCP server to start but returns helpful errors when AI is needed.
+   *
    * Supports AI_PROVIDER_SDK env var to override SDK choice:
    * - 'native' (default): Use native provider SDK
    * - 'vercel': Use Vercel AI SDK for the provider
    *
-   * @returns Configured AI provider instance
-   * @throws Error if required environment variables are missing
+   * @returns Configured AI provider instance or NoOpProvider if no keys available
    */
   static createFromEnv(): AIProvider {
     const providerType = process.env.AI_PROVIDER || 'anthropic';
@@ -115,21 +118,33 @@ export class AIProviderFactory {
 
     // Validate provider is implemented
     if (!IMPLEMENTED_PROVIDERS.includes(providerType as ImplementedProvider)) {
-      throw new Error(
-        `Invalid AI_PROVIDER: ${providerType}. ` +
-        `Must be one of: ${IMPLEMENTED_PROVIDERS.join(', ')}`
+      // Write to stderr for logging
+      process.stderr.write(
+        `WARNING: Invalid AI_PROVIDER: ${providerType}. ` +
+        `Must be one of: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
+        `Falling back to NoOpProvider.\n`
       );
+      return new NoOpAIProvider();
     }
 
     // Get API key for the provider
     const apiKeyEnvVar = PROVIDER_ENV_KEYS[providerType];
     if (!apiKeyEnvVar) {
-      throw new Error(`No API key environment variable defined for provider: ${providerType}`);
+      process.stderr.write(
+        `WARNING: No API key environment variable defined for provider: ${providerType}. ` +
+        `Falling back to NoOpProvider.\n`
+      );
+      return new NoOpAIProvider();
     }
 
     const apiKey = process.env[apiKeyEnvVar];
     if (!apiKey) {
-      throw new Error(`${apiKeyEnvVar} environment variable must be set for ${providerType} provider`);
+      process.stderr.write(
+        `INFO: ${apiKeyEnvVar} not configured. ` +
+        `AI features will be unavailable. ` +
+        `Tools that don't require AI (prompts, project-setup) will still work.\n`
+      );
+      return new NoOpAIProvider();
     }
 
     // Get optional model override
