@@ -13,7 +13,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
   const integrationTest = new IntegrationTest();
 
   describe('Project Setup Workflow', () => {
-    test('should complete full project setup workflow with file generation', async () => {
+    test('should complete scope-based workflow - generate all files in scope at once', async () => {
       const testId = Date.now();
 
       // Step 1: Discovery - Get list of files to check
@@ -44,49 +44,24 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(discoveryResponse).toMatchObject(expectedDiscoveryResponse);
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2a: ReportScan without selectedFiles - Get report
-      const reportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+      // Step 2: ReportScan with selectedScopes - get ALL questions for readme scope
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
         existingFiles: [],
+        selectedScopes: ['readme'],
         interaction_id: `report_scan_${testId}`
       });
 
-      const expectedReportResponse = {
+      const expectedReportScanResponse = {
         success: true,
         data: {
           result: {
             success: true,
             sessionId: sessionId,
-            nextStep: 'generateFile',
-            instructions: expect.stringContaining('scope status report')
-          },
-          tool: 'projectSetup',
-          executionTime: expect.any(Number)
-        },
-        meta: expect.objectContaining({
-          version: 'v1'
-        })
-      };
-
-      expect(reportResponse).toMatchObject(expectedReportResponse);
-
-      // Step 2b: ReportScan with selectedScopes - Initialize workflow with BOTH scopes
-      const initWorkflowResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'reportScan',
-        sessionId,
-        selectedScopes: ['readme', 'legal'],
-        interaction_id: `init_workflow_${testId}`
-      });
-
-      const expectedInitResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            sessionId: sessionId,
-            nextStep: 'generateFile',
-            currentFile: 'README.md',
+            nextStep: 'generateScope',
+            scope: 'readme',
+            filesToGenerate: expect.arrayContaining(['README.md']),
             questions: expect.arrayContaining([
               expect.objectContaining({
                 id: 'projectName',
@@ -114,49 +89,35 @@ describe.concurrent('Project Setup Tool Integration', () => {
         })
       };
 
-      expect(initWorkflowResponse).toMatchObject(expectedInitResponse);
+      expect(reportScanResponse).toMatchObject(expectedReportScanResponse);
 
-      // Step 3a: GenerateFile with answers - Generate README.md content
-      const generateReadmeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 3: GenerateScope - Generate README.md (all files in readme scope)
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: 'README.md',
+        scope: 'readme',
         answers: {
           projectName: `Test Project ${testId}`,
           projectDescription: 'Integration test project for validation',
           licenseName: 'MIT'
         },
-        interaction_id: `generate_readme_${testId}`
+        interaction_id: `generate_scope_${testId}`
       });
 
-      // Verify README content and nextFile preview for LICENSE
-      const expectedReadmeResponse = {
+      const expectedGenerateScopeResponse = {
         success: true,
         data: {
           result: {
             success: true,
             sessionId: sessionId,
-            fileName: 'README.md',
-            content: expect.stringContaining(`Test Project ${testId}`),
-            nextFile: expect.objectContaining({
-              fileName: 'LICENSE',
-              scope: 'legal',
-              questions: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 'licenseType',
-                  question: expect.stringContaining('license type')
-                }),
-                expect.objectContaining({
-                  id: 'year',
-                  question: expect.stringContaining('year')
-                }),
-                expect.objectContaining({
-                  id: 'copyrightHolder',
-                  question: expect.stringContaining('copyright holder')
-                })
-              ])
-            }),
-            instructions: expect.stringContaining('completedFileName')
+            scope: 'readme',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                path: 'README.md',
+                content: expect.stringContaining(`Test Project ${testId}`)
+              })
+            ]),
+            instructions: expect.stringContaining('Write these files')
           },
           tool: 'projectSetup',
           executionTime: expect.any(Number)
@@ -166,20 +127,44 @@ describe.concurrent('Project Setup Tool Integration', () => {
         })
       };
 
-      expect(generateReadmeResponse).toMatchObject(expectedReadmeResponse);
+      expect(generateScopeResponse).toMatchObject(expectedGenerateScopeResponse);
 
       // Verify README content
-      const readmeContent = generateReadmeResponse.data.result.content;
-      expect(readmeContent).toContain(`Test Project ${testId}`);
-      expect(readmeContent).toContain('Integration test project for validation');
-      expect(readmeContent).toContain('MIT');
+      const readmeFiles = generateScopeResponse.data.result.files;
+      expect(readmeFiles).toHaveLength(1);
+      const readmeFile = readmeFiles[0];
+      expect(readmeFile.path).toBe('README.md');
+      expect(readmeFile.content).toContain(`Test Project ${testId}`);
+      expect(readmeFile.content).toContain('Integration test project for validation');
+      expect(readmeFile.content).toContain('MIT');
 
-      // Step 3b: Use round-trip optimization - Confirm README + provide LICENSE answers
-      const generateLicenseResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 4: ReportScan with legal scope - get ALL questions for legal scope
+      const reportScanLegalResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
         sessionId,
-        completedFileName: 'README.md',
-        nextFileAnswers: {
+        selectedScopes: ['legal'],
+        interaction_id: `report_scan_legal_${testId}`
+      });
+
+      expect(reportScanLegalResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: sessionId,
+        nextStep: 'generateScope',
+        scope: 'legal',
+        filesToGenerate: expect.arrayContaining(['LICENSE']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'licenseType', required: true }),
+          expect.objectContaining({ id: 'year', required: true }),
+          expect.objectContaining({ id: 'copyrightHolder', required: true })
+        ])
+      });
+
+      // Step 5: GenerateScope - Generate LICENSE and NOTICE (all files in legal scope)
+      const generateLegalResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
+        sessionId,
+        scope: 'legal',
+        answers: {
           licenseType: 'Apache-2.0',
           year: '2025',
           copyrightHolder: 'Test Suite',
@@ -187,158 +172,28 @@ describe.concurrent('Project Setup Tool Integration', () => {
           projectDescription: 'Integration test project',
           projectUrl: 'https://example.com'
         },
-        interaction_id: `generate_license_${testId}`
+        interaction_id: `generate_legal_${testId}`
       });
 
-      // Verify LICENSE content and nextFile preview for NOTICE
-      const expectedLicenseResponse = {
+      expect(generateLegalResponse.data.result).toMatchObject({
         success: true,
-        data: {
-          result: {
-            success: true,
-            sessionId: sessionId,
-            fileName: 'LICENSE',
-            content: expect.stringContaining('Apache License'),
-            nextFile: expect.objectContaining({
-              fileName: 'NOTICE',
-              scope: 'legal',
-              questions: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 'projectName'
-                })
-              ])
-            }),
-            instructions: expect.stringContaining('completedFileName')
-          },
-          tool: 'projectSetup',
-          executionTime: expect.any(Number)
-        },
-        meta: expect.objectContaining({
-          version: 'v1'
-        })
-      };
-
-      expect(generateLicenseResponse).toMatchObject(expectedLicenseResponse);
-
-      // Verify LICENSE content
-      const licenseContent = generateLicenseResponse.data.result.content;
-      expect(licenseContent).toContain('Apache License');
-      expect(licenseContent).toContain('2025');
-      expect(licenseContent).toContain('Test Suite');
-
-      // Step 3c: Use round-trip optimization again - Confirm LICENSE + provide NOTICE answers
-      const generateNoticeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
         sessionId,
-        completedFileName: 'LICENSE',
-        nextFileAnswers: {
-          licenseType: 'Apache-2.0',
-          year: '2025',
-          copyrightHolder: 'Test Suite',
-          projectName: `Test Project ${testId}`,
-          projectUrl: 'https://example.com'
-        },
-        interaction_id: `generate_notice_${testId}`
+        scope: 'legal'
       });
 
-      // Verify NOTICE content and completion
-      const expectedNoticeResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            sessionId: sessionId,
-            fileName: 'NOTICE',
-            content: expect.stringContaining(`Test Project ${testId}`),
-            instructions: expect.stringContaining('Write this content')
-          },
-          tool: 'projectSetup',
-          executionTime: expect.any(Number)
-        },
-        meta: expect.objectContaining({
-          version: 'v1'
-        })
-      };
+      // Verify both LICENSE and NOTICE were generated
+      const legalFiles = generateLegalResponse.data.result.files;
+      expect(legalFiles).toHaveLength(2); // LICENSE + NOTICE (conditional on Apache-2.0)
 
-      expect(generateNoticeResponse).toMatchObject(expectedNoticeResponse);
+      const licenseFile = legalFiles.find((f: any) => f.path === 'LICENSE');
+      expect(licenseFile).toBeDefined();
+      expect(licenseFile.content).toContain('Apache License');
+      expect(licenseFile.content).toContain('2025');
 
-      // Verify NOTICE content
-      const noticeContent = generateNoticeResponse.data.result.content;
-      expect(noticeContent).toContain(`Test Project ${testId}`);
-      expect(noticeContent).toContain('2025');
-      expect(noticeContent).toContain('Test Suite');
-      expect(noticeContent).toContain('https://example.com');
-
-      // Step 3d: Complete workflow by confirming NOTICE
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'NOTICE',
-        interaction_id: `complete_${testId}`
-      });
-
-      const expectedCompleteResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            sessionId: sessionId,
-            fileName: 'NOTICE',
-            content: '',
-            instructions: expect.stringContaining('All files generated successfully')
-          },
-          tool: 'projectSetup',
-          executionTime: expect.any(Number)
-        },
-        meta: expect.objectContaining({
-          version: 'v1'
-        })
-      };
-
-      expect(completeResponse).toMatchObject(expectedCompleteResponse);
-
-      // Verify session file exists with correct structure for all 3 files
-      const fs = await import('fs');
-      const path = await import('path');
-      const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
-      expect(fs.existsSync(sessionPath)).toBe(true);
-
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-      expect(sessionData).toMatchObject({
-        sessionId: sessionId,
-        data: {
-          currentStep: 'complete',
-          selectedScopes: ['readme', 'legal'],
-          files: {
-            'README.md': {
-              status: 'done',
-              scope: 'readme',
-              answers: expect.objectContaining({
-                projectName: `Test Project ${testId}`,
-                projectDescription: 'Integration test project for validation'
-              })
-            },
-            'LICENSE': {
-              status: 'done',
-              scope: 'legal',
-              answers: expect.objectContaining({
-                licenseType: 'Apache-2.0',
-                year: '2025',
-                copyrightHolder: 'Test Suite'
-              })
-            },
-            'NOTICE': {
-              status: 'done',
-              scope: 'legal',
-              answers: expect.objectContaining({
-                projectName: `Test Project ${testId}`,
-                year: '2025',
-                copyrightHolder: 'Test Suite'
-              })
-            }
-          }
-        }
-      });
+      const noticeFile = legalFiles.find((f: any) => f.path === 'NOTICE');
+      expect(noticeFile).toBeDefined();
+      expect(noticeFile.content).toContain(`Test Project ${testId}`);
+      expect(noticeFile.content).toContain('2025');
     }, 300000);
 
     test('should handle optional template fields correctly', async () => {
@@ -356,30 +211,35 @@ describe.concurrent('Project Setup Tool Integration', () => {
         sessionId,
         existingFiles: [],
         selectedScopes: ['readme'],
-        interaction_id: `init_optional_${testId}`
+        interaction_id: `report_scan_optional_${testId}`
       });
 
-      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: 'README.md',
+        scope: 'readme',
         answers: {
           projectName: `Optional Test ${testId}`,
           projectDescription: 'Testing optional fields'
           // licenseName intentionally omitted
         },
-        interaction_id: `generate_optional_${testId}`
+        interaction_id: `generate_scope_optional_${testId}`
       });
 
       // Verify generation succeeded
-      expect(generateResponse.data.result).toMatchObject({
+      expect(generateScopeResponse.data.result).toMatchObject({
         success: true,
-        sessionId: sessionId,
-        fileName: 'README.md',
-        content: expect.stringContaining(`Optional Test ${testId}`)
+        sessionId,
+        scope: 'readme',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: 'README.md' })
+        ])
       });
 
-      const content = generateResponse.data.result.content;
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(1);
+
+      const content = files[0].content;
 
       // Should have required fields
       expect(content).toContain(`Optional Test ${testId}`);
@@ -402,202 +262,120 @@ describe.concurrent('Project Setup Tool Integration', () => {
         success: true,
         sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
         filesToCheck: expect.arrayContaining(['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md', 'docs/MAINTAINERS.md', 'docs/GOVERNANCE.md', 'docs/ROADMAP.md']),
-        availableScopes: expect.arrayContaining(['governance'])
+        availableScopes: expect.arrayContaining(['governance']),
+        nextStep: 'reportScan'
       });
 
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2: ReportScan with governance scope selected
-      await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+      // Step 2: ReportScan with governance scope - get ALL questions at once
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
         existingFiles: [],
+        selectedScopes: ['governance'],
         interaction_id: `report_governance_${testId}`
       });
 
-      const initWorkflowResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'reportScan',
-        sessionId,
-        selectedScopes: ['governance'],
-        interaction_id: `init_governance_${testId}`
-      });
-
-      expect(initWorkflowResponse.data.result).toMatchObject({
+      expect(reportScanResponse.data.result).toMatchObject({
         success: true,
-        nextStep: 'generateFile',
-        currentFile: 'CODE_OF_CONDUCT.md'
-      });
-
-      // Step 3: Generate all 6 governance files with shared answers
-      const sharedAnswers = {
-        projectName: `Governance Test ${testId}`,
-        repositoryUrl: 'https://github.com/test/governance-test',
-        enforcementEmail: 'conduct@test.com',
-        securityEmail: 'security@test.com',
-        maintainerEmail: 'maintainers@test.com',
-        maintainerName: 'Test Maintainer',
-        maintainerGithub: 'testmaintainer',
-        setupCommand: 'npm install',
-        testCommand: 'npm test',
-        lintCommand: 'npm run lint',
-        requiresDco: 'yes',
-        maintainerPeriod: '6 months',
-        inactivityPeriod: '1 year'
-      };
-
-      // 3a: Generate CODE_OF_CONDUCT.md
-      const conductResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
         sessionId,
-        fileName: 'CODE_OF_CONDUCT.md',
-        answers: sharedAnswers,
-        interaction_id: `generate_conduct_${testId}`
+        nextStep: 'generateScope',
+        scope: 'governance',
+        filesToGenerate: expect.arrayContaining(['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md', 'docs/MAINTAINERS.md', 'docs/GOVERNANCE.md', 'docs/ROADMAP.md']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'projectName', required: true }),
+          expect.objectContaining({ id: 'enforcementEmail', required: true }),
+          expect.objectContaining({ id: 'securityEmail', required: true }),
+          expect.objectContaining({ id: 'maintainerName', required: true })
+        ])
       });
 
-      expect(conductResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'CODE_OF_CONDUCT.md',
-        content: expect.stringContaining('conduct@test.com'),
-        nextFile: expect.objectContaining({
-          fileName: 'CONTRIBUTING.md'
-        })
-      });
-
-      const conductContent = conductResponse.data.result.content;
-      expect(conductContent).toContain('Contributor Covenant Code of Conduct');
-      expect(conductContent).toContain('conduct@test.com');
-
-      // 3b: Generate CONTRIBUTING.md
-      const contributingResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 3: GenerateScope - Generate ALL 6 governance files at once
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        completedFileName: 'CODE_OF_CONDUCT.md',
-        nextFileAnswers: sharedAnswers,
-        interaction_id: `generate_contributing_${testId}`
+        scope: 'governance',
+        answers: {
+          projectName: `Governance Test ${testId}`,
+          repositoryUrl: 'https://github.com/test/governance-test',
+          enforcementEmail: 'conduct@test.com',
+          securityEmail: 'security@test.com',
+          maintainerEmail: 'maintainers@test.com',
+          maintainerName: 'Test Maintainer',
+          maintainerGithub: 'testmaintainer',
+          setupCommand: 'npm install',
+          testCommand: 'npm test',
+          lintCommand: 'npm run lint',
+          requiresDco: 'yes',
+          maintainerPeriod: '6 months',
+          inactivityPeriod: '1 year'
+        },
+        interaction_id: `generate_scope_governance_${testId}`
       });
 
-      expect(contributingResponse.data.result).toMatchObject({
+      expect(generateScopeResponse.data.result).toMatchObject({
         success: true,
-        fileName: 'CONTRIBUTING.md',
-        content: expect.stringContaining(`Governance Test ${testId}`)
-      });
-
-      const contributingContent = contributingResponse.data.result.content;
-      expect(contributingContent).toContain(`Contributing to Governance Test ${testId}`);
-      expect(contributingContent).toContain('https://github.com/test/governance-test');
-      expect(contributingContent).toContain('npm install');
-      expect(contributingContent).toContain('npm test');
-      expect(contributingContent).toContain('git commit -s');
-
-      // 3c: Generate SECURITY.md
-      const securityResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
         sessionId,
-        completedFileName: 'CONTRIBUTING.md',
-        nextFileAnswers: sharedAnswers,
-        interaction_id: `generate_security_${testId}`
+        scope: 'governance',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: 'CODE_OF_CONDUCT.md' }),
+          expect.objectContaining({ path: 'CONTRIBUTING.md' }),
+          expect.objectContaining({ path: 'SECURITY.md' }),
+          expect.objectContaining({ path: 'docs/MAINTAINERS.md' }),
+          expect.objectContaining({ path: 'docs/GOVERNANCE.md' }),
+          expect.objectContaining({ path: 'docs/ROADMAP.md' })
+        ]),
+        instructions: expect.stringContaining('Write these files')
       });
 
-      expect(securityResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'SECURITY.md',
-        content: expect.stringContaining('security@test.com')
-      });
+      // Verify all 6 files were generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(6);
 
-      const securityContent = securityResponse.data.result.content;
-      expect(securityContent).toContain('Security Policy');
-      expect(securityContent).toContain('security@test.com');
-      expect(securityContent).toContain(`Governance Test ${testId}`);
+      // Verify CODE_OF_CONDUCT.md content
+      const conductFile = files.find((f: any) => f.path === 'CODE_OF_CONDUCT.md');
+      expect(conductFile).toBeDefined();
+      expect(conductFile.content).toContain('Contributor Covenant Code of Conduct');
+      expect(conductFile.content).toContain('conduct@test.com');
 
-      // 3d: Generate docs/MAINTAINERS.md
-      const maintainersResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'SECURITY.md',
-        nextFileAnswers: sharedAnswers,
-        interaction_id: `generate_maintainers_${testId}`
-      });
+      // Verify CONTRIBUTING.md content
+      const contributingFile = files.find((f: any) => f.path === 'CONTRIBUTING.md');
+      expect(contributingFile).toBeDefined();
+      expect(contributingFile.content).toContain(`Contributing to Governance Test ${testId}`);
+      expect(contributingFile.content).toContain('https://github.com/test/governance-test');
+      expect(contributingFile.content).toContain('npm install');
+      expect(contributingFile.content).toContain('npm test');
+      expect(contributingFile.content).toContain('git commit -s');
 
-      expect(maintainersResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'docs/MAINTAINERS.md',
-        content: expect.stringContaining('Test Maintainer')
-      });
+      // Verify SECURITY.md content
+      const securityFile = files.find((f: any) => f.path === 'SECURITY.md');
+      expect(securityFile).toBeDefined();
+      expect(securityFile.content).toContain('Security Policy');
+      expect(securityFile.content).toContain('security@test.com');
+      expect(securityFile.content).toContain(`Governance Test ${testId}`);
 
-      const maintainersContent = maintainersResponse.data.result.content;
-      expect(maintainersContent).toContain('Test Maintainer');
-      expect(maintainersContent).toContain('maintainers@test.com');
-      expect(maintainersContent).toContain('@testmaintainer');
+      // Verify docs/MAINTAINERS.md content
+      const maintainersFile = files.find((f: any) => f.path === 'docs/MAINTAINERS.md');
+      expect(maintainersFile).toBeDefined();
+      expect(maintainersFile.content).toContain('Test Maintainer');
+      expect(maintainersFile.content).toContain('maintainers@test.com');
+      expect(maintainersFile.content).toContain('@testmaintainer');
 
-      // 3e: Generate docs/GOVERNANCE.md
-      const governanceResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'docs/MAINTAINERS.md',
-        nextFileAnswers: sharedAnswers,
-        interaction_id: `generate_governance_${testId}`
-      });
+      // Verify docs/GOVERNANCE.md content
+      const governanceFile = files.find((f: any) => f.path === 'docs/GOVERNANCE.md');
+      expect(governanceFile).toBeDefined();
+      expect(governanceFile.content).toContain('Project Governance');
+      expect(governanceFile.content).toContain(`Governance Test ${testId}`);
+      expect(governanceFile.content).toContain('6 months');
+      expect(governanceFile.content).toContain('1 year');
 
-      expect(governanceResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'docs/GOVERNANCE.md',
-        content: expect.stringContaining('Project Governance')
-      });
-
-      const governanceContent = governanceResponse.data.result.content;
-      expect(governanceContent).toContain('Project Governance');
-      expect(governanceContent).toContain(`Governance Test ${testId}`);
-      expect(governanceContent).toContain('6 months');
-      expect(governanceContent).toContain('1 year');
-
-      // 3f: Generate docs/ROADMAP.md (final file)
-      const roadmapResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'docs/GOVERNANCE.md',
-        nextFileAnswers: sharedAnswers,
-        interaction_id: `generate_roadmap_${testId}`
-      });
-
-      expect(roadmapResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'docs/ROADMAP.md',
-        content: expect.stringContaining('Roadmap')
-      });
-
-      const roadmapContent = roadmapResponse.data.result.content;
-      expect(roadmapContent).toContain('Roadmap');
-      expect(roadmapContent).toContain(`Governance Test ${testId}`);
-      expect(roadmapContent).toContain('https://github.com/test/governance-test');
-
-      // Step 4: Complete workflow
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'docs/ROADMAP.md',
-        interaction_id: `complete_governance_${testId}`
-      });
-
-      expect(completeResponse.data.result).toMatchObject({
-        success: true,
-        instructions: expect.stringContaining('All files generated successfully')
-      });
-
-      // Verify session contains all 6 files
-      const fs = await import('fs');
-      const path = await import('path');
-      const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
-      expect(fs.existsSync(sessionPath)).toBe(true);
-
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-      expect(sessionData.data.files).toMatchObject({
-        'CODE_OF_CONDUCT.md': { status: 'done', scope: 'governance' },
-        'CONTRIBUTING.md': { status: 'done', scope: 'governance' },
-        'SECURITY.md': { status: 'done', scope: 'governance' },
-        'docs/MAINTAINERS.md': { status: 'done', scope: 'governance' },
-        'docs/GOVERNANCE.md': { status: 'done', scope: 'governance' },
-        'docs/ROADMAP.md': { status: 'done', scope: 'governance' }
-      });
+      // Verify docs/ROADMAP.md content
+      const roadmapFile = files.find((f: any) => f.path === 'docs/ROADMAP.md');
+      expect(roadmapFile).toBeDefined();
+      expect(roadmapFile.content).toContain('Roadmap');
+      expect(roadmapFile.content).toContain(`Governance Test ${testId}`);
+      expect(roadmapFile.content).toContain('https://github.com/test/governance-test');
     }, 300000);
 
     test('should complete full community artifacts workflow (SUPPORT.md + ADOPTERS.md)', async () => {
@@ -613,12 +391,13 @@ describe.concurrent('Project Setup Tool Integration', () => {
         success: true,
         sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
         availableScopes: expect.arrayContaining(['community']),
-        filesToCheck: expect.arrayContaining(['SUPPORT.md', 'ADOPTERS.md'])
+        filesToCheck: expect.arrayContaining(['SUPPORT.md', 'ADOPTERS.md']),
+        nextStep: 'reportScan'
       });
 
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2: ReportScan with community scope selected
+      // Step 2: ReportScan with community scope - get ALL questions at once
       const reportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
@@ -629,15 +408,21 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       expect(reportResponse.data.result).toMatchObject({
         success: true,
-        nextStep: 'generateFile',
-        currentFile: 'SUPPORT.md'
+        sessionId,
+        nextStep: 'generateScope',
+        scope: 'community',
+        filesToGenerate: expect.arrayContaining(['SUPPORT.md', 'ADOPTERS.md']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'projectName', required: true }),
+          expect.objectContaining({ id: 'maintainerEmail', required: true })
+        ])
       });
 
-      // Step 3a: Generate SUPPORT.md
-      const generateSupportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 3: GenerateScope - Generate both SUPPORT.md and ADOPTERS.md at once
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: 'SUPPORT.md',
+        scope: 'community',
         answers: {
           projectName: `Community Test ${testId}`,
           projectDescription: 'A test project for community artifacts',
@@ -654,40 +439,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
           commercialSupportAvailable: 'yes',
           commercialSupportProvider: 'Test Corp',
           commercialSupportEmail: 'support@test.com',
-          securityEmail: 'security@test.com'
-        },
-        interaction_id: `generate_support_${testId}`
-      });
-
-      expect(generateSupportResponse.data.result).toMatchObject({
-        success: true,
-        fileName: 'SUPPORT.md',
-        content: expect.stringContaining('# Support'),
-        nextFile: expect.objectContaining({
-          fileName: 'ADOPTERS.md',
-          scope: 'community'
-        })
-      });
-
-      const supportContent = generateSupportResponse.data.result.content;
-      expect(supportContent).toContain(`Community Test ${testId}`);
-      expect(supportContent).toContain('https://github.com/test/community-test/discussions');
-      expect(supportContent).toContain('community-test');
-      expect(supportContent).toContain('https://slack.example.com');
-      expect(supportContent).toContain('https://discord.gg/test');
-      expect(supportContent).toContain('24 hours');
-      expect(supportContent).toContain('Test Corp');
-      expect(supportContent).toContain('security@test.com');
-
-      // Step 3b: Generate ADOPTERS.md using round-trip optimization
-      const generateAdoptersResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: 'SUPPORT.md',
-        nextFileAnswers: {
-          projectName: `Community Test ${testId}`,
-          projectDescription: 'A test project for community artifacts',
-          projectUrl: 'https://github.com/test/community-test',
+          securityEmail: 'security@test.com',
           includeUseCase: 'yes',
           maintainerOrganization: 'Test Organization',
           maintainerUseCase: 'Using for testing and validation',
@@ -697,48 +449,47 @@ describe.concurrent('Project Setup Tool Integration', () => {
           recognitionProgram: 'yes',
           maintainerEmail: 'maintainer@test.com'
         },
-        interaction_id: `generate_adopters_${testId}`
+        interaction_id: `generate_scope_community_${testId}`
       });
 
-      expect(generateAdoptersResponse.data.result).toMatchObject({
+      expect(generateScopeResponse.data.result).toMatchObject({
         success: true,
-        fileName: 'ADOPTERS.md',
-        content: expect.stringContaining('# Adopters')
-      });
-
-      const adoptersContent = generateAdoptersResponse.data.result.content;
-      expect(adoptersContent).toContain('# Adopters');
-      expect(adoptersContent).toContain(`Community Test ${testId}`);
-      expect(adoptersContent).toContain('Test Organization');
-      expect(adoptersContent).toContain('Using for testing and validation');
-      expect(adoptersContent).toContain('https://test-org.com');
-      expect(adoptersContent).toContain('DCO');
-      expect(adoptersContent).toContain('git commit --signoff');
-
-      // Step 4: Complete workflow
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
         sessionId,
-        completedFileName: 'ADOPTERS.md',
-        interaction_id: `complete_community_${testId}`
+        scope: 'community',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: 'SUPPORT.md' }),
+          expect.objectContaining({ path: 'ADOPTERS.md' })
+        ]),
+        instructions: expect.stringContaining('Write these files')
       });
 
-      expect(completeResponse.data.result).toMatchObject({
-        success: true,
-        instructions: expect.stringContaining('All files generated successfully')
-      });
+      // Verify both files were generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(2);
 
-      // Verify session contains both files
-      const fs = await import('fs');
-      const path = await import('path');
-      const sessionPath = path.join(process.cwd(), 'tmp', 'sessions', 'proj-sessions', `${sessionId}.json`);
-      expect(fs.existsSync(sessionPath)).toBe(true);
+      // Verify SUPPORT.md content
+      const supportFile = files.find((f: any) => f.path === 'SUPPORT.md');
+      expect(supportFile).toBeDefined();
+      expect(supportFile.content).toContain('# Support');
+      expect(supportFile.content).toContain(`Community Test ${testId}`);
+      expect(supportFile.content).toContain('https://github.com/test/community-test/discussions');
+      expect(supportFile.content).toContain('community-test');
+      expect(supportFile.content).toContain('https://slack.example.com');
+      expect(supportFile.content).toContain('https://discord.gg/test');
+      expect(supportFile.content).toContain('24 hours');
+      expect(supportFile.content).toContain('Test Corp');
+      expect(supportFile.content).toContain('security@test.com');
 
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-      expect(sessionData.data.files).toMatchObject({
-        'SUPPORT.md': { status: 'done', scope: 'community' },
-        'ADOPTERS.md': { status: 'done', scope: 'community' }
-      });
+      // Verify ADOPTERS.md content
+      const adoptersFile = files.find((f: any) => f.path === 'ADOPTERS.md');
+      expect(adoptersFile).toBeDefined();
+      expect(adoptersFile.content).toContain('# Adopters');
+      expect(adoptersFile.content).toContain(`Community Test ${testId}`);
+      expect(adoptersFile.content).toContain('Test Organization');
+      expect(adoptersFile.content).toContain('Using for testing and validation');
+      expect(adoptersFile.content).toContain('https://test-org.com');
+      expect(adoptersFile.content).toContain('DCO');
+      expect(adoptersFile.content).toContain('git commit --signoff');
     }, 300000);
   });
 
@@ -825,7 +576,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(errorResponse).toMatchObject(expectedErrorResponse);
     });
 
-    test('should handle missing fileName for generateFile', async () => {
+    test('should handle missing scope for generateScope', async () => {
       const testId = Date.now();
 
       // Create a session first
@@ -836,10 +587,10 @@ describe.concurrent('Project Setup Tool Integration', () => {
       const sessionId = discoveryResponse.data.result.sessionId;
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+        step: 'generateScope',
         sessionId,
         answers: { projectName: 'Test' },
-        interaction_id: `error_missing_filename_${testId}`
+        interaction_id: `error_missing_scope_${testId}`
       });
 
       const expectedErrorResponse = {
@@ -848,7 +599,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
           result: {
             success: false,
             error: {
-              message: expect.stringContaining('fileName')
+              message: expect.stringContaining('scope')
             }
           },
           tool: 'projectSetup'
@@ -858,7 +609,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(errorResponse).toMatchObject(expectedErrorResponse);
     });
 
-    test('should handle missing answers for generateFile', async () => {
+    test('should handle missing answers for generateScope', async () => {
       const testId = Date.now();
 
       const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
@@ -876,9 +627,9 @@ describe.concurrent('Project Setup Tool Integration', () => {
       });
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+        step: 'generateScope',
         sessionId,
-        fileName: 'README.md',
+        scope: 'readme',
         interaction_id: `error_missing_answers_${testId}`
       });
 
@@ -921,7 +672,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2: ReportScan with selectedScopes
+      // Step 2: ReportScan with github-issues scope - get ALL questions at once
       const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
@@ -933,30 +684,26 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(reportScanResponse.data.result).toMatchObject({
         success: true,
         sessionId,
-        nextStep: 'generateFile',
-        currentFile: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        nextStep: 'generateScope',
+        scope: 'github-issues',
+        filesToGenerate: expect.arrayContaining([
+          '.github/ISSUE_TEMPLATE/bug_report.yml',
+          '.github/ISSUE_TEMPLATE/feature_request.yml',
+          '.github/ISSUE_TEMPLATE/config.yml'
+        ]),
         questions: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'projectName',
-            required: true
-          }),
-          expect.objectContaining({
-            id: 'githubOrg',
-            required: true
-          }),
-          expect.objectContaining({
-            id: 'githubRepo',
-            required: true
-          })
+          expect.objectContaining({ id: 'projectName', required: true }),
+          expect.objectContaining({ id: 'githubOrg', required: true }),
+          expect.objectContaining({ id: 'githubRepo', required: true })
         ])
       });
 
-      // Step 3: Generate bug_report.yml
+      // Step 3: GenerateScope - Generate all 3 files at once
       // Mix different truthy values: "yes", "true", boolean true, "no", boolean false
-      const bugReportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        scope: 'github-issues',
         answers: {
           projectName: `Test Project ${testId}`,
           githubOrg: 'test-org',
@@ -974,111 +721,55 @@ describe.concurrent('Project Setup Tool Integration', () => {
           securityFilePath: 'SECURITY.md',
           roadmapPath: 'docs/ROADMAP.md'
         },
-        interaction_id: `generate_bug_report_${testId}`
+        interaction_id: `generate_scope_github_issues_${testId}`
       });
 
-      expect(bugReportResponse.data.result).toMatchObject({
+      expect(generateScopeResponse.data.result).toMatchObject({
         success: true,
         sessionId,
-        fileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
-        content: expect.stringContaining('name: Bug Report'),
-        nextFile: expect.objectContaining({
-          fileName: '.github/ISSUE_TEMPLATE/feature_request.yml'
-        })
+        scope: 'github-issues',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: '.github/ISSUE_TEMPLATE/bug_report.yml' }),
+          expect.objectContaining({ path: '.github/ISSUE_TEMPLATE/feature_request.yml' }),
+          expect.objectContaining({ path: '.github/ISSUE_TEMPLATE/config.yml' })
+        ]),
+        instructions: expect.stringContaining('Write these files')
       });
 
-      const bugReportContent = bugReportResponse.data.result.content;
-      expect(bugReportContent).toContain(`Test Project ${testId}`);
+      // Verify all 3 files were generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(3);
 
-      // Verify conditional sections based on mixed truthy values
-      expect(bugReportContent).toContain('Node.js Version');        // isNodeProject: 'yes'
-      expect(bugReportContent).toContain('Kubernetes Version');     // isKubernetesProject: 'true'
-      expect(bugReportContent).not.toContain('Python Version');     // isPythonProject: 'no'
-      expect(bugReportContent).not.toContain('Go Version');         // isGoProject: false
+      // Verify bug_report.yml content
+      const bugReportFile = files.find((f: any) => f.path === '.github/ISSUE_TEMPLATE/bug_report.yml');
+      expect(bugReportFile).toBeDefined();
+      expect(bugReportFile.content).toContain('name: Bug Report');
+      expect(bugReportFile.content).toContain(`Test Project ${testId}`);
+      expect(bugReportFile.content).toContain('Node.js Version');        // isNodeProject: 'yes'
+      expect(bugReportFile.content).toContain('Kubernetes Version');     // isKubernetesProject: 'true'
+      expect(bugReportFile.content).not.toContain('Python Version');     // isPythonProject: 'no'
+      expect(bugReportFile.content).not.toContain('Go Version');         // isGoProject: false
 
-      // Step 4: Mark bug_report.yml complete and generate feature_request.yml
-      // Use boolean true for hasDiscussions to test different truthy value
-      const featureRequestResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
-        nextFileAnswers: {
-          projectName: `Test Project ${testId}`,
-          githubOrg: 'test-org',
-          githubRepo: 'test-repo',
-          hasDiscussions: true,  // Boolean true (different from bug_report's boolean true)
-          roadmapPath: 'docs/ROADMAP.md'
-        },
-        interaction_id: `generate_feature_request_${testId}`
-      });
+      // Verify feature_request.yml content
+      const featureRequestFile = files.find((f: any) => f.path === '.github/ISSUE_TEMPLATE/feature_request.yml');
+      expect(featureRequestFile).toBeDefined();
+      expect(featureRequestFile.content).toContain('name: Feature Request');
+      expect(featureRequestFile.content).toContain(`Test Project ${testId}`);
+      expect(featureRequestFile.content).toContain('github.com/test-org/test-repo/discussions');
+      expect(featureRequestFile.content).toContain('docs/ROADMAP.md');
 
-      expect(featureRequestResponse.data.result).toMatchObject({
-        success: true,
-        sessionId,
-        fileName: '.github/ISSUE_TEMPLATE/feature_request.yml',
-        content: expect.stringContaining('name: Feature Request'),
-        nextFile: expect.objectContaining({
-          fileName: '.github/ISSUE_TEMPLATE/config.yml'
-        })
-      });
-
-      const featureRequestContent = featureRequestResponse.data.result.content;
-      expect(featureRequestContent).toContain(`Test Project ${testId}`);
-      expect(featureRequestContent).toContain('github.com/test-org/test-repo/discussions');
-      expect(featureRequestContent).toContain('docs/ROADMAP.md');
-
-      // Step 5: Mark feature_request.yml complete and generate config.yml
-      // Use string 'yes' for hasDiscussions to test third variation
-      const configResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: '.github/ISSUE_TEMPLATE/feature_request.yml',
-        nextFileAnswers: {
-          blankIssuesEnabled: 'false',
-          hasDiscussions: 'yes',  // String 'yes' (different from boolean true used earlier)
-          githubOrg: 'test-org',
-          githubRepo: 'test-repo',
-          docsSiteUrl: 'https://docs.example.com',
-          slackInviteUrl: '',
-          discordInviteUrl: '',
-          supportFilePath: 'SUPPORT.md',
-          securityFilePath: 'SECURITY.md'
-        },
-        interaction_id: `generate_config_${testId}`
-      });
-
-      expect(configResponse.data.result).toMatchObject({
-        success: true,
-        sessionId,
-        fileName: '.github/ISSUE_TEMPLATE/config.yml',
-        content: expect.stringContaining('blank_issues_enabled: false')
-      });
-
-      const configContent = configResponse.data.result.content;
-      expect(configContent).toContain('blank_issues_enabled: false');
-      expect(configContent).toContain('GitHub Discussions');
-      expect(configContent).toContain('github.com/test-org/test-repo/discussions');
-      expect(configContent).toContain('Documentation');
-      expect(configContent).toContain('https://docs.example.com');
-      expect(configContent).toContain('SUPPORT.md');
-      expect(configContent).toContain('SECURITY.md');
-      expect(configContent).not.toContain('Slack Community');
-      expect(configContent).not.toContain('Discord');
-
-      // Step 6: Mark config.yml complete - workflow should complete
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: '.github/ISSUE_TEMPLATE/config.yml',
-        interaction_id: `complete_github_issues_${testId}`
-      });
-
-      expect(completeResponse.data.result).toMatchObject({
-        success: true,
-        sessionId,
-        fileName: '.github/ISSUE_TEMPLATE/config.yml',
-        instructions: expect.stringContaining('All files generated successfully')
-      });
+      // Verify config.yml content
+      const configFile = files.find((f: any) => f.path === '.github/ISSUE_TEMPLATE/config.yml');
+      expect(configFile).toBeDefined();
+      expect(configFile.content).toContain('blank_issues_enabled: false');
+      expect(configFile.content).toContain('GitHub Discussions');
+      expect(configFile.content).toContain('github.com/test-org/test-repo/discussions');
+      expect(configFile.content).toContain('Documentation');
+      expect(configFile.content).toContain('https://docs.example.com');
+      expect(configFile.content).toContain('SUPPORT.md');
+      expect(configFile.content).toContain('SECURITY.md');
+      expect(configFile.content).not.toContain('Slack Community');
+      expect(configFile.content).not.toContain('Discord');
     }, 300000);
 
     test('should complete full pr-template workflow (Milestone 7)', async () => {
@@ -1102,7 +793,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2: ReportScan with selectedScopes
+      // Step 2: ReportScan with pr-template scope - get ALL questions at once
       const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
@@ -1114,41 +805,24 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(reportScanResponse.data.result).toMatchObject({
         success: true,
         sessionId,
-        nextStep: 'generateFile',
-        currentFile: '.github/PULL_REQUEST_TEMPLATE.md',
+        nextStep: 'generateScope',
+        scope: 'pr-template',
+        filesToGenerate: expect.arrayContaining(['.github/PULL_REQUEST_TEMPLATE.md']),
         questions: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'projectName',
-            required: true
-          }),
-          expect.objectContaining({
-            id: 'requiresDco',
-            required: false
-          }),
-          expect.objectContaining({
-            id: 'requiresConventionalCommits',
-            required: false
-          }),
-          expect.objectContaining({
-            id: 'includesSecurityChecklist',
-            required: false
-          }),
-          expect.objectContaining({
-            id: 'requiresScreenshots',
-            required: false
-          }),
-          expect.objectContaining({
-            id: 'contributingPath',
-            required: false
-          })
+          expect.objectContaining({ id: 'projectName', required: true }),
+          expect.objectContaining({ id: 'requiresDco', required: false }),
+          expect.objectContaining({ id: 'requiresConventionalCommits', required: false }),
+          expect.objectContaining({ id: 'includesSecurityChecklist', required: false }),
+          expect.objectContaining({ id: 'requiresScreenshots', required: false }),
+          expect.objectContaining({ id: 'contributingPath', required: false })
         ])
       });
 
-      // Step 3: Generate PR template with conditional sections enabled
-      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 3: GenerateScope - Generate PR template with conditional sections enabled
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        scope: 'pr-template',
         answers: {
           projectName: `Test Project ${testId}`,
           requiresDco: 'yes',                    // String "yes"
@@ -1157,17 +831,27 @@ describe.concurrent('Project Setup Tool Integration', () => {
           requiresScreenshots: true,
           contributingPath: 'CONTRIBUTING.md'
         },
-        interaction_id: `generate_pr_template_${testId}`
+        interaction_id: `generate_scope_pr_template_${testId}`
       });
 
-      expect(generateResponse.data.result).toMatchObject({
+      expect(generateScopeResponse.data.result).toMatchObject({
         success: true,
         sessionId,
-        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
-        content: expect.stringContaining('Thank you for contributing')
+        scope: 'pr-template',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: '.github/PULL_REQUEST_TEMPLATE.md' })
+        ]),
+        instructions: expect.stringContaining('Write these files')
       });
 
-      const content = generateResponse.data.result.content;
+      // Verify file was generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(1);
+
+      const prTemplateFile = files[0];
+      expect(prTemplateFile.path).toBe('.github/PULL_REQUEST_TEMPLATE.md');
+
+      const content = prTemplateFile.content;
 
       // Verify core sections (always present)
       expect(content).toContain(`Thank you for contributing to Test Project ${testId}`);
@@ -1195,21 +879,6 @@ describe.concurrent('Project Setup Tool Integration', () => {
       // Verify final checklist includes conditional items
       expect(content).toContain('All commits are signed off (DCO)');
       expect(content).toContain('PR title follows Conventional Commits format');
-
-      // Step 4: Mark file as complete
-      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
-        sessionId,
-        completedFileName: '.github/PULL_REQUEST_TEMPLATE.md',
-        interaction_id: `complete_pr_template_${testId}`
-      });
-
-      expect(completeResponse.data.result).toMatchObject({
-        success: true,
-        sessionId,
-        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
-        instructions: expect.stringContaining('All files generated successfully')
-      });
     }, 300000);
 
     test('should generate PR template without conditional sections', async () => {
@@ -1223,7 +892,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       const sessionId = discoveryResponse.data.result.sessionId;
 
-      // Step 2: ReportScan with selectedScopes
+      // Step 2: ReportScan with pr-template scope
       await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
         step: 'reportScan',
         sessionId,
@@ -1232,11 +901,11 @@ describe.concurrent('Project Setup Tool Integration', () => {
         interaction_id: `report_scan_pr_template_minimal_${testId}`
       });
 
-      // Step 3: Generate PR template with all conditional sections disabled
-      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
-        step: 'generateFile',
+      // Step 3: GenerateScope - Generate PR template with all conditional sections disabled
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
         sessionId,
-        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        scope: 'pr-template',
         answers: {
           projectName: `Minimal Project ${testId}`,
           requiresDco: 'no',
@@ -1245,10 +914,13 @@ describe.concurrent('Project Setup Tool Integration', () => {
           requiresScreenshots: false,
           contributingPath: ''
         },
-        interaction_id: `generate_pr_template_minimal_${testId}`
+        interaction_id: `generate_scope_pr_template_minimal_${testId}`
       });
 
-      const content = generateResponse.data.result.content;
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(1);
+
+      const content = files[0].content;
 
       // Verify core sections are present
       expect(content).toContain(`Thank you for contributing to Minimal Project ${testId}`);
@@ -1263,6 +935,188 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(content).not.toContain('[CONTRIBUTING.md]');
       expect(content).not.toContain('All commits are signed off (DCO)');
       expect(content).not.toContain('PR title follows Conventional Commits format');
+    }, 300000);
+
+    test('should complete full github-community workflow with 3 files (Milestone 8)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_github_community_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        availableScopes: expect.arrayContaining(['github-community']),
+        nextStep: 'reportScan'
+      });
+
+      // Discovery returns ALL files, we select scope in reportScan
+      const allFiles = discoveryResponse.data.result.filesToCheck;
+      expect(allFiles).toContain('.github/CODEOWNERS');
+      expect(allFiles).toContain('.github/release.yml');
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with github-community scope - get ALL questions at once
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['github-community'],
+        interaction_id: `report_scan_github_community_${testId}`
+      });
+
+      expect(reportScanResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        nextStep: 'generateScope',
+        scope: 'github-community',
+        filesToGenerate: expect.arrayContaining(['.github/CODEOWNERS', '.github/release.yml']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'useTeams', required: false }),
+          expect.objectContaining({ id: 'enableFunding', required: false })
+        ])
+      });
+
+      // Step 3: GenerateScope - Generate all github-community files at once (with enableFunding: 'yes')
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
+        sessionId,
+        scope: 'github-community',
+        answers: {
+          useTeams: 'no',
+          githubOrg: '',
+          defaultTeam: '',
+          maintainerUsernames: 'octocat,torvalds,gvanrossum',
+          enableFunding: 'yes',
+          githubSponsors: 'octocat',
+          openCollective: 'webpack',
+          patreon: '',
+          kofi: '',
+          tidelift: '',
+          customFunding: ''
+        },
+        interaction_id: `generate_scope_github_community_${testId}`
+      });
+
+      expect(generateScopeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        scope: 'github-community',
+        instructions: expect.stringContaining('Write these files')
+      });
+
+      // Verify all 3 files were generated (CODEOWNERS, FUNDING.yml, release.yml)
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(3);
+
+      // Verify CODEOWNERS content
+      const codeownersFile = files.find((f: any) => f.path === '.github/CODEOWNERS');
+      expect(codeownersFile).toBeDefined();
+      expect(codeownersFile.content).toContain('# CODEOWNERS');
+      expect(codeownersFile.content).toContain('# Using individual maintainers for code ownership');
+      expect(codeownersFile.content).toContain('* @octocat @torvalds @gvanrossum');
+
+      // Verify FUNDING.yml content (conditionally generated because enableFunding: 'yes')
+      const fundingFile = files.find((f: any) => f.path === '.github/FUNDING.yml');
+      expect(fundingFile).toBeDefined();
+      expect(fundingFile.content).toContain('# Funding links for this project');
+      expect(fundingFile.content).toContain('github: octocat');
+      expect(fundingFile.content).toContain('open_collective: webpack');
+      expect(fundingFile.content).not.toContain('patreon:');  // Empty values should not generate lines
+      expect(fundingFile.content).not.toContain('ko_fi:');
+      expect(fundingFile.content).not.toContain('tidelift:');
+      expect(fundingFile.content).not.toContain('custom:');
+
+      // Verify release.yml content
+      const releaseFile = files.find((f: any) => f.path === '.github/release.yml');
+      expect(releaseFile).toBeDefined();
+      expect(releaseFile.content).toContain('# Release notes configuration');
+      expect(releaseFile.content).toContain('changelog:');
+      expect(releaseFile.content).toContain('exclude:');
+      expect(releaseFile.content).toContain('- dependabot');
+      expect(releaseFile.content).toContain('categories:');
+      expect(releaseFile.content).toContain('- title: Breaking Changes');
+      expect(releaseFile.content).toContain('- title: New Features');
+      expect(releaseFile.content).toContain('- title: Bug Fixes');
+      expect(releaseFile.content).toContain('- title: Documentation');
+      expect(releaseFile.content).toContain('- title: Dependencies');
+      expect(releaseFile.content).toContain('- title: Other Changes');
+    }, 300000);
+
+    test('should skip FUNDING.yml when enableFunding is false (Milestone 8 - conditional file)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_no_funding_${testId}`
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with github-community scope
+      await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['github-community'],
+        interaction_id: `report_scan_no_funding_${testId}`
+      });
+
+      // Step 3: GenerateScope - Generate github-community files with enableFunding: 'no'
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
+        sessionId,
+        scope: 'github-community',
+        answers: {
+          useTeams: true,
+          githubOrg: 'kubernetes',
+          defaultTeam: 'maintainers',
+          maintainerUsernames: '',
+          enableFunding: 'no',  // Funding disabled - FUNDING.yml should be excluded
+          githubSponsors: '',
+          openCollective: '',
+          patreon: '',
+          kofi: '',
+          tidelift: '',
+          customFunding: ''
+        },
+        interaction_id: `generate_scope_no_funding_${testId}`
+      });
+
+      expect(generateScopeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        scope: 'github-community',
+        excludedFiles: expect.arrayContaining(['.github/FUNDING.yml']),
+        instructions: expect.stringContaining('Write these files')
+      });
+
+      // Verify only 2 files were generated (CODEOWNERS and release.yml - NO FUNDING.yml)
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(2);
+
+      // Verify FUNDING.yml was excluded
+      const fundingFile = files.find((f: any) => f.path === '.github/FUNDING.yml');
+      expect(fundingFile).toBeUndefined();
+
+      // Verify CODEOWNERS content
+      const codeownersFile = files.find((f: any) => f.path === '.github/CODEOWNERS');
+      expect(codeownersFile).toBeDefined();
+      expect(codeownersFile.content).toContain('# CODEOWNERS');
+      expect(codeownersFile.content).toContain('# Using GitHub teams for code ownership');
+      expect(codeownersFile.content).toContain('* @kubernetes/maintainers');
+
+      // Verify release.yml content
+      const releaseFile = files.find((f: any) => f.path === '.github/release.yml');
+      expect(releaseFile).toBeDefined();
+      expect(releaseFile.content).toContain('# Release notes configuration');
+      expect(releaseFile.content).toContain('- title: Breaking Changes');
+      expect(releaseFile.content).toContain('- dependabot');
     }, 300000);
   });
 });

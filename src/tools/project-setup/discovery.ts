@@ -65,8 +65,7 @@ export async function handleDiscovery(
       const session = sessionManager.createSession({
         currentStep: 'discover',
         allScopes: allConfig,  // Store all scope configurations
-        filesToCheck: uniqueFiles,
-        files: {}  // Will be populated in reportScan
+        filesToCheck: uniqueFiles
       });
 
       logger.info('Project setup session created', {

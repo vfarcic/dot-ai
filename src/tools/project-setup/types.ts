@@ -8,21 +8,7 @@
 /**
  * Workflow steps for project setup
  */
-export type ProjectSetupStep = 'discover' | 'reportScan' | 'generateFile' | 'complete';
-
-/**
- * File status in the generation workflow
- */
-export type FileStatus = 'excluded' | 'pending' | 'in-progress' | 'done';
-
-/**
- * File information and state
- */
-export interface FileInfo {
-  status: FileStatus;
-  scope?: string;  // Scope this file belongs to (e.g., 'readme', 'legal')
-  answers?: Record<string, string>;
-}
+export type ProjectSetupStep = 'discover' | 'reportScan' | 'generateScope' | 'complete';
 
 /**
  * Scope configuration structure
@@ -42,7 +28,6 @@ export interface ProjectSetupSessionData {
   selectedScopes?: string[];  // Scopes user chose to generate
   filesToCheck?: string[];  // All files from all scopes
   existingFiles?: string[];  // Files that exist in repository (stored after first reportScan)
-  files?: Record<string, FileInfo>;  // Map of fileName -> FileInfo
 }
 
 /**
@@ -59,34 +44,38 @@ export interface DiscoveryResponse {
 
 /**
  * Report scan response - Step 2 of workflow
- * Returns when user selects files to generate
+ * Returns all questions for selected scope(s)
  */
 export interface ReportScanResponse {
   success: true;
   sessionId: string;
-  nextStep: 'generateFile';
+  nextStep: 'generateScope';
   instructions: string;
-  // If scopes were selected, return questions for first file
-  currentFile?: string;
-  questions?: Question[];
+  scope: string;  // The scope being generated
+  questions: Question[];  // ALL questions for this scope
+  filesToGenerate: string[];  // List of files that will be generated in this scope
 }
 
 /**
- * Generate file response - Step 3 of workflow
- * Includes preview of next file's questions to reduce round trips
+ * Generated file content
  */
-export interface GenerateFileResponse {
+export interface GeneratedFile {
+  path: string;  // File path (e.g., '.github/CODEOWNERS')
+  content: string;  // File content
+  reason?: string;  // Why this file is being generated
+}
+
+/**
+ * Generate scope response - Step 3 of workflow
+ * Returns contents of ALL files in the scope at once
+ */
+export interface GenerateScopeResponse {
   success: true;
   sessionId: string;
-  fileName: string;
-  content: string;
+  scope: string;
+  files: GeneratedFile[];  // Array of all generated files
+  excludedFiles?: string[];  // Files that were excluded (e.g., FUNDING.yml when enableFunding=no)
   instructions: string;
-  // Preview of next file (if any) to enable batch processing
-  nextFile?: {
-    fileName: string;
-    scope: string;
-    questions: Question[];
-  };
 }
 
 /**
@@ -118,16 +107,14 @@ export interface ProjectSetupParams {
 
   // reportScan parameters
   existingFiles?: string[];
-  selectedScopes?: string[];  // Scopes user chose to setup (e.g., ['readme', 'legal'])
+  selectedScopes?: string[];  // Scopes user chose to setup (e.g., ['readme', 'legal', 'github-community'])
 
-  // generateFile parameters
-  fileName?: string;
-  answers?: Record<string, string>;
-  completedFileName?: string;  // Confirmation that file was created
-  nextFileAnswers?: Record<string, string>;  // Optional answers for next file (reduces round trips)
+  // generateScope parameters
+  scope?: string;  // The scope to generate (e.g., 'github-community')
+  answers?: Record<string, string>;  // Answers to ALL questions for this scope
 }
 
 /**
  * Tool response type
  */
-export type ProjectSetupResponse = DiscoveryResponse | ReportScanResponse | GenerateFileResponse | ErrorResponse;
+export type ProjectSetupResponse = DiscoveryResponse | ReportScanResponse | GenerateScopeResponse | ErrorResponse;

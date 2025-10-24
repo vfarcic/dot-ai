@@ -450,5 +450,71 @@
         "required": false
       }
     ]
+  },
+  "github-community": {
+    "files": [".github/CODEOWNERS", ".github/release.yml"],
+    "questions": [
+      {
+        "id": "useTeams",
+        "question": "Use GitHub teams for code ownership? (yes/no) - If yes, requires organization; if no, uses individual maintainer usernames",
+        "required": false
+      },
+      {
+        "id": "githubOrg",
+        "question": "GitHub organization name (required if using teams, e.g., 'kubernetes', 'apache')",
+        "required": false
+      },
+      {
+        "id": "defaultTeam",
+        "question": "Default team name for code ownership (required if using teams, e.g., 'maintainers', 'core-team')",
+        "required": false
+      },
+      {
+        "id": "maintainerUsernames",
+        "question": "Maintainer GitHub usernames (comma-separated, without @, required if not using teams, e.g., 'octocat,torvalds')",
+        "required": false
+      },
+      {
+        "id": "enableFunding",
+        "question": "Enable GitHub sponsor button with funding links? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "githubSponsors",
+        "question": "GitHub Sponsors username (optional, leave blank if not using GitHub Sponsors)",
+        "required": false
+      },
+      {
+        "id": "openCollective",
+        "question": "Open Collective project slug (optional, e.g., 'webpack', 'babel')",
+        "required": false
+      },
+      {
+        "id": "patreon",
+        "question": "Patreon username (optional, leave blank if not using Patreon)",
+        "required": false
+      },
+      {
+        "id": "kofi",
+        "question": "Ko-fi username (optional, leave blank if not using Ko-fi)",
+        "required": false
+      },
+      {
+        "id": "tidelift",
+        "question": "Tidelift package name (optional, format: npm/package-name or pypi/package-name)",
+        "required": false
+      },
+      {
+        "id": "customFunding",
+        "question": "Custom funding URL (optional, leave blank if not using custom funding link)",
+        "required": false
+      }
+    ],
+    "conditionalFiles": {
+      ".github/FUNDING.yml": {
+        "condition": "enableFunding === 'yes' || enableFunding === 'true' || enableFunding === true",
+        "reason": "FUNDING.yml is only generated when funding/sponsorship is enabled"
+      }
+    }
   }
 }

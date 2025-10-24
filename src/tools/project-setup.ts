@@ -8,7 +8,7 @@ import { Logger } from '../core/error-handling';
 import { ProjectSetupParams, ErrorResponse } from './project-setup/types';
 import { handleDiscovery } from './project-setup/discovery';
 import { handleReportScan } from './project-setup/report-scan';
-import { handleGenerateFile } from './project-setup/generate-file';
+import { handleGenerateScope } from './project-setup/generate-scope';
 import { randomUUID } from 'crypto';
 
 // Tool metadata for MCP registration
@@ -17,14 +17,12 @@ export const PROJECT_SETUP_TOOL_DESCRIPTION = 'Setup project, audit repository, 
 
 // Zod schema for MCP registration
 export const PROJECT_SETUP_TOOL_INPUT_SCHEMA = {
-  step: z.enum(['discover', 'reportScan', 'generateFile']).optional().describe('Workflow step: "discover" (default) starts new session and returns file list, "reportScan" analyzes scan results, "generateFile" generates specific file. Defaults to "discover" if omitted.'),
-  sessionId: z.string().optional().describe('Session ID from previous step (required for reportScan and generateFile steps)'),
+  step: z.enum(['discover', 'reportScan', 'generateScope']).optional().describe('Workflow step: "discover" (default) starts new session and returns file list, "reportScan" analyzes scan results, "generateScope" generates all files in a scope. Defaults to "discover" if omitted.'),
+  sessionId: z.string().optional().describe('Session ID from previous step (required for reportScan and generateScope steps)'),
   existingFiles: z.array(z.string()).optional().describe('List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)'),
-  selectedScopes: z.array(z.string()).optional().describe('Scopes user chose to setup (e.g., ["readme", "legal"]) (required for reportScan step after initial scan)'),
-  fileName: z.string().optional().describe('Name of file to generate (required for generateFile step)'),
-  answers: z.record(z.string()).optional().describe('Answers to questions for file generation (required for generateFile step with fileName)'),
-  completedFileName: z.string().optional().describe('Confirmation that file was created (for generateFile step)'),
-  nextFileAnswers: z.record(z.string()).optional().describe('Answers for next file (optional, can be provided with completedFileName)')
+  selectedScopes: z.array(z.string()).optional().describe('Scopes user chose to setup (e.g., ["readme", "legal", "github-community"]) (required for reportScan step after initial scan)'),
+  scope: z.string().optional().describe('Scope to generate (e.g., "github-community") (required for generateScope step)'),
+  answers: z.record(z.any()).optional().describe('Answers to ALL questions for the scope (required for generateScope step)')
 };
 
 /**
@@ -54,15 +52,15 @@ export async function handleProjectSetupTool(
       case 'reportScan':
         return await handleReportScanStep(args, logger, requestId);
 
-      case 'generateFile':
-        return await handleGenerateFileStep(args, logger, requestId);
+      case 'generateScope':
+        return await handleGenerateScopeStep(args, logger, requestId);
 
       default:
         return createErrorResponse({
           success: false,
           error: {
             message: `Unknown step: ${step}`,
-            details: 'Valid steps are: discover, reportScan, generateFile'
+            details: 'Valid steps are: discover, reportScan, generateScope'
           }
         });
     }
@@ -131,9 +129,9 @@ async function handleReportScanStep(
 }
 
 /**
- * Handle generateFile step - Generate specific file content
+ * Handle generateScope step - Generate all files in a scope
  */
-async function handleGenerateFileStep(
+async function handleGenerateScopeStep(
   args: ProjectSetupParams,
   logger: Logger,
   requestId: string
@@ -143,18 +141,16 @@ async function handleGenerateFileStep(
     return createErrorResponse({
       success: false,
       error: {
-        message: 'sessionId is required for generateFile step',
+        message: 'sessionId is required for generateScope step',
         details: 'Please provide the sessionId from previous steps'
       }
     });
   }
 
-  const response = await handleGenerateFile(
+  const response = await handleGenerateScope(
     args.sessionId,
-    args.fileName,
+    args.scope,
     args.answers,
-    args.completedFileName,
-    args.nextFileAnswers,
     logger,
     requestId
   );

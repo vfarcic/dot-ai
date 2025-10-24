@@ -1,8 +1,8 @@
 /**
  * Report Scan Handler - Project Setup Tool
- * PRD #177 - Milestone 2: Scope-based workflow
+ * PRD #177 - Scope-based workflow refactoring
  *
- * Step 2 of workflow: Analyze which scopes are complete/incomplete
+ * Step 2 of workflow: Return ALL questions for selected scope
  */
 
 import { ErrorHandler, Logger } from '../../core/error-handling';
@@ -12,8 +12,7 @@ import { ReportScanResponse, ProjectSetupSessionData, ErrorResponse } from './ty
 /**
  * Handle reportScan stage - Step 2 of project setup workflow
  *
- * Analyzes which scopes are complete vs incomplete
- * If selectedScopes provided, initializes files map and returns questions for first file
+ * Returns all questions for the selected scope and list of files to generate
  */
 export async function handleReportScan(
   sessionId: string,
@@ -54,21 +53,17 @@ export async function handleReportScan(
 
       const allScopes = session.data.allScopes;
 
-      // Determine which existingFiles to use
+      // Store or retrieve existingFiles
       let filesToUse: string[];
-
       if (existingFiles !== undefined) {
-        // First call - store existingFiles in session
         filesToUse = existingFiles;
         session.data.existingFiles = existingFiles;
         sessionManager.updateSession(sessionId, session.data);
         logger.debug('Stored existingFiles in session', { requestId, sessionId, count: existingFiles.length });
       } else if (session.data.existingFiles !== undefined) {
-        // Second call - reuse stored existingFiles
         filesToUse = session.data.existingFiles;
         logger.debug('Reusing existingFiles from session', { requestId, sessionId, count: filesToUse.length });
       } else {
-        // No existingFiles provided and none in session
         return {
           success: false,
           error: {
@@ -78,170 +73,86 @@ export async function handleReportScan(
         } as ErrorResponse;
       }
 
-      // Analyze scope completeness
-      const scopeStatus: Record<string, { complete: boolean; missingFiles: string[] }> = {};
+      // If no scopes selected, return analysis report
+      if (!selectedScopes || selectedScopes.length === 0) {
+        // Analyze scope completeness
+        const scopeStatus: Record<string, { complete: boolean; missingFiles: string[] }> = {};
 
-      for (const [scopeName, scopeConfig] of Object.entries(allScopes)) {
-        const missingFiles = scopeConfig.files.filter(file => !filesToUse.includes(file));
-        scopeStatus[scopeName] = {
-          complete: missingFiles.length === 0,
-          missingFiles
-        };
-      }
-
-      // Calculate incomplete scopes
-      const incompleteScopes = Object.entries(scopeStatus)
-        .filter(([_, status]) => !status.complete)
-        .map(([scopeName, _]) => scopeName);
-
-      logger.info('Scope analysis complete', {
-        requestId,
-        sessionId,
-        totalScopes: Object.keys(allScopes).length,
-        completeScopes: Object.keys(scopeStatus).length - incompleteScopes.length,
-        incompleteScopes: incompleteScopes.length
-      });
-
-      // If user hasn't selected scopes yet, return the scope status report
-      if (!selectedScopes) {
-        if (incompleteScopes.length === 0) {
-          return {
-            success: true,
-            sessionId: session.sessionId,
-            nextStep: 'generateFile',
-            instructions: 'All scopes are complete! No files need to be generated.'
+        for (const [scopeName, scopeConfig] of Object.entries(allScopes)) {
+          const missingFiles = scopeConfig.files.filter(file => !filesToUse.includes(file));
+          scopeStatus[scopeName] = {
+            complete: missingFiles.length === 0,
+            missingFiles
           };
         }
 
-        // Build scope status report
-        const scopeReport = Object.entries(scopeStatus)
-          .map(([scopeName, status]) => {
-            if (status.complete) {
-              return `✓ ${scopeName} (complete)`;
-            } else {
-              return `✗ ${scopeName} (missing: ${status.missingFiles.join(', ')})`;
-            }
-          })
-          .join('\n');
+        const incompleteScopes = Object.entries(scopeStatus)
+          .filter(([_, status]) => !status.complete)
+          .map(([scopeName, _]) => scopeName);
+
+        // Generate report for user to review
+        const report = generateReport(scopeStatus, allScopes);
+
+        logger.info('Generated scope analysis report', {
+          requestId,
+          sessionId,
+          totalScopes: Object.keys(allScopes).length,
+          incompleteScopes: incompleteScopes.length
+        });
+
+        const incompleteScopeNames = incompleteScopes.join('", "');
 
         return {
           success: true,
-          sessionId: session.sessionId,
-          nextStep: 'generateFile',
-          instructions: `Present this scope status report to the user:\n\n${scopeReport}\n\nAsk the user which incomplete scopes they would like to setup. Then call projectSetup tool again with step: "reportScan", sessionId: "${sessionId}", and selectedScopes: ["scope1", "scope2", ...] with the scopes user chose.`
-        };
+          sessionId,
+          nextStep: 'generateScope',
+          scope: '',
+          questions: [],
+          filesToGenerate: [],
+          instructions: `${report}\n\nIncomplete scopes: ${incompleteScopes.join(', ')}\n\n**IMPORTANT**: Present each scope individually to the user. Do NOT combine or group scopes. Use exact scope names.\n\nTo proceed, call projectSetup tool again with:\n- step: "reportScan"\n- sessionId: "${sessionId}"\n- selectedScopes: ["${incompleteScopeNames}"]  (Use exact scope names from the list above)`
+        } as ReportScanResponse;
       }
 
-      // User has selected scopes - validate them
-      for (const scopeName of selectedScopes) {
-        if (!allScopes[scopeName]) {
-          return {
-            success: false,
-            error: {
-              message: `Unknown scope: ${scopeName}`,
-              details: `Available scopes: ${Object.keys(allScopes).join(', ')}`
-            }
-          } as ErrorResponse;
-        }
-      }
+      // User selected scope(s) - take first scope to generate
+      const selectedScope = selectedScopes[0];
+      const scopeConfig = allScopes[selectedScope];
 
-      // Initialize files map for all selected scopes
-      const filesMap: Record<string, { status: 'excluded' | 'pending' | 'in-progress' | 'done', answers?: Record<string, string>, scope?: string }> = {};
-
-      // Mark all files from all scopes
-      for (const [scopeName, scopeConfig] of Object.entries(allScopes)) {
-        // Add regular files
-        for (const file of scopeConfig.files) {
-          if (filesToUse.includes(file)) {
-            filesMap[file] = { status: 'excluded', scope: scopeName }; // Already exists
-          } else if (selectedScopes.includes(scopeName)) {
-            filesMap[file] = { status: 'pending', scope: scopeName };   // User wants to generate
-          } else {
-            filesMap[file] = { status: 'excluded', scope: scopeName }; // User doesn't want this scope
-          }
-        }
-
-        // Add conditional files (will be evaluated later in generate-file.ts)
-        const conditionalFiles = scopeConfig.conditionalFiles || {};
-        for (const conditionalFile of Object.keys(conditionalFiles)) {
-          // Don't add if already in map (from regular files)
-          if (filesMap[conditionalFile]) {
-            continue;
-          }
-
-          if (selectedScopes.includes(scopeName)) {
-            filesMap[conditionalFile] = { status: 'pending', scope: scopeName };
-          } else {
-            filesMap[conditionalFile] = { status: 'excluded', scope: scopeName };
-          }
-        }
-      }
-
-      // Find first pending file (from first selected scope)
-      let firstPendingFile: string | undefined;
-      let firstPendingScope: string | undefined;
-
-      for (const scopeName of selectedScopes) {
-        const scopeConfig = allScopes[scopeName];
-        const pendingFile = scopeConfig.files.find(f => filesMap[f]?.status === 'pending');
-        if (pendingFile) {
-          firstPendingFile = pendingFile;
-          firstPendingScope = scopeName;
-          break;
-        }
-      }
-
-      if (!firstPendingFile || !firstPendingScope) {
+      if (!scopeConfig) {
         return {
           success: false,
           error: {
-            message: 'No valid files to generate',
-            details: 'Selected scopes have no missing files'
+            message: `Invalid scope: ${selectedScope}`,
+            details: `Available scopes: ${Object.keys(allScopes).join(', ')}`
           }
         } as ErrorResponse;
       }
 
-      // Mark first file as in-progress
-      filesMap[firstPendingFile].status = 'in-progress';
+      // Calculate which files need to be generated
+      const filesToGenerate = scopeConfig.files.filter(file => !filesToUse.includes(file));
 
-      // Get questions for the first file's scope
-      const firstScopeConfig = allScopes[firstPendingScope];
+      // Store selected scopes in session
+      session.data.selectedScopes = selectedScopes;
+      session.data.currentStep = 'generateScope';
+      sessionManager.updateSession(sessionId, session.data);
 
-      // Update session with selected scopes
-      sessionManager.updateSession(sessionId, {
-        currentStep: 'generateFile',
-        allScopes,
-        selectedScopes,
-        filesToCheck: session.data.filesToCheck,
-        files: filesMap
-      });
-
-      logger.info('Scope selection processed, starting with first file', {
+      logger.info('Ready to generate scope', {
         requestId,
         sessionId,
-        selectedScopes,
-        firstScope: firstPendingScope,
-        firstFile: firstPendingFile
+        scope: selectedScope,
+        filesToGenerate: filesToGenerate.length,
+        questions: scopeConfig.questions.length
       });
 
-      // Return questions for first file
-      const response: ReportScanResponse = {
+      // Return ALL questions for this scope
+      return {
         success: true,
-        sessionId: session.sessionId,
-        nextStep: 'generateFile',
-        currentFile: firstPendingFile,
-        questions: firstScopeConfig.questions,
-        instructions: `Analyze the repository to determine answers for these questions about ${firstPendingFile} (${firstPendingScope} scope):\n${firstScopeConfig.questions.map((q, idx) => `${idx + 1}. ${q.question} (ID: ${q.id})`).join('\n')}\n\nPresent your suggested answers as a numbered list to match the questions above. Allow the user to review and respond with the number if they want to change any answer (e.g., "2. New description here"). Once answers are finalized, call projectSetup tool with step: "generateFile", sessionId: "${sessionId}", fileName: "${firstPendingFile}", and answers using the question IDs as keys (e.g., {"${firstScopeConfig.questions[0]?.id}": "value1", "${firstScopeConfig.questions[1]?.id}": "value2", ...})`
-      };
-
-      logger.debug('Report scan response prepared', {
-        requestId,
         sessionId,
-        currentFile: firstPendingFile,
-        currentScope: firstPendingScope
-      });
-
-      return response;
+        nextStep: 'generateScope',
+        scope: selectedScope,
+        questions: scopeConfig.questions,
+        filesToGenerate,
+        instructions: `Scope: ${selectedScope}\n\nFiles to generate (${filesToGenerate.length}):\n${filesToGenerate.map(f => `- ${f}`).join('\n')}\n\nQuestions (${scopeConfig.questions.length}):\n${scopeConfig.questions.map((q, i) => `${i + 1}. ${q.question} (ID: ${q.id}${q.required ? ', required' : ''})`).join('\n')}\n\nAnalyze the repository to determine answers for these questions. Present your suggested answers as a numbered list. Once finalized, call projectSetup tool with:\n- step: "generateScope"\n- sessionId: "${sessionId}"\n- scope: "${selectedScope}"\n- answers: {${scopeConfig.questions.slice(0, 2).map(q => `"${q.id}": "value"`).join(', ')}, ...}`
+      };
     },
     {
       operation: 'project_setup_report_scan',
@@ -249,4 +160,30 @@ export async function handleReportScan(
       requestId
     }
   );
+}
+
+/**
+ * Generate human-readable report of scope analysis
+ */
+function generateReport(
+  scopeStatus: Record<string, { complete: boolean; missingFiles: string[] }>,
+  allScopes: Record<string, any>
+): string {
+  const lines: string[] = ['Repository Analysis:', ''];
+
+  for (const [scopeName, status] of Object.entries(scopeStatus)) {
+    const scopeConfig = allScopes[scopeName];
+    const totalFiles = scopeConfig.files.length;
+    const missingCount = status.missingFiles.length;
+    const existingCount = totalFiles - missingCount;
+
+    const statusIcon = status.complete ? '✓' : '○';
+    lines.push(`${statusIcon} ${scopeName}: ${existingCount}/${totalFiles} files exist`);
+
+    if (!status.complete) {
+      lines.push(`  Missing: ${status.missingFiles.join(', ')}`);
+    }
+  }
+
+  return lines.join('\n');
 }
