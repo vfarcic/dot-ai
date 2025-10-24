@@ -763,18 +763,18 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 12: GitHub Workflows - Security (1 artifact)
+### Milestone 12: GitHub Workflows - Security (1 artifact) ✅
 **Success Criteria**: OpenSSF Scorecard for security posture
 
 **Artifacts:**
-- [ ] `.github/workflows/scorecard.yml` - OpenSSF Scorecard analysis, security best practices validation
+- [x] `.github/workflows/scorecard.yml` - OpenSSF Scorecard analysis, security best practices validation
 
 **Best Practices Research:**
-- [ ] OpenSSF Scorecard checks and scoring
-- [ ] Security best practices for GitHub repositories
-- [ ] SLSA provenance generation
+- [x] OpenSSF Scorecard checks and scoring
+- [x] Security best practices for GitHub repositories
+- [x] SLSA provenance generation
 
-**Validation**: Scorecard runs successfully, score reported, security recommendations provided
+**Validation**: ✅ Complete - Template created with conditional permissions for private repos, badge instructions via additionalInstructions, integration tests passing (15/15)
 
 ---
 
@@ -1696,6 +1696,45 @@ Original code in `generate-scope.ts` only processed files from `scopeConfig.file
 - GitHub Actions workflows (.github/workflows/)
 - CI/CD templates for different project types
 - Test, build, and release automation
+
+### 2025-10-24 - Milestone 12 Complete: GitHub Workflows - Security (OpenSSF Scorecard)
+**Duration**: ~2-3 hours
+**Commits**: Pending commit
+**Primary Focus**: OpenSSF Scorecard workflow template with security best practices
+
+**Completed PRD Items (Milestone 12)**:
+- [x] `.github/workflows/scorecard.yml` template (62 lines) with official OpenSSF best practices
+- [x] Best practices research: OpenSSF Scorecard checks, security hardening, SLSA provenance
+- [x] `github-security` scope in discovery-config.json with 7 questions
+- [x] Integration test for scorecard workflow generation (15/15 tests passing)
+
+**Implementation Details**:
+- Template based on official ossf/scorecard workflow with security hardening
+- Conditional permissions for private repos (actions:read, issues:read, pull-requests:read, checks:read)
+- Pinned action versions using commit hashes for security
+- Supports weekly/daily/monthly schedules via cron expressions
+- publish_results enables Scorecard badge and REST API access
+- workflow_dispatch trigger for manual security analysis
+
+**Architectural Enhancement - additionalInstructions Feature**:
+- Added `additionalInstructions` field to ScopeConfig type
+- Template variable replacement in generate-scope.ts (replaceTemplateVariables function)
+- Enables scope-specific post-generation instructions (e.g., badge markdown, next steps)
+- github-security scope provides OpenSSF Scorecard badge markdown with user's org/repo values
+
+**Files Created/Modified**:
+- `src/tools/project-setup/templates/.github/workflows/scorecard.yml.hbs` (created)
+- `src/tools/project-setup/discovery-config.json` (added github-security scope with 7 questions)
+- `src/tools/project-setup/types.ts` (added additionalInstructions to ScopeConfig and GenerateScopeResponse)
+- `src/tools/project-setup/generate-scope.ts` (added replaceTemplateVariables function, integrated additionalInstructions)
+- `tests/integration/tools/project-setup.test.ts` (added comprehensive github-security workflow test)
+- `prds/177-project-setup-governance-tool.md` (marked Milestones 9-11 out of scope, updated Milestone 12 complete)
+
+**Next Session Priorities (Milestone 13)**:
+- `.github/dependabot.yml` - Automated dependency updates
+- `.github/labeler.yml` - Auto-label PRs based on file changes
+- `.github/stale.yml` - Auto-close stale issues/PRs
+- GitHub automation scope in discovery-config.json
 
 ---
 

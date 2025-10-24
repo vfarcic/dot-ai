@@ -154,6 +154,12 @@ export async function handleGenerateScope(
         excludedCount: excludedFiles.length
       });
 
+      // Process additionalInstructions template if present
+      let additionalInstructions: string | undefined;
+      if (scopeConfig.additionalInstructions) {
+        additionalInstructions = replaceTemplateVariables(scopeConfig.additionalInstructions, answers);
+      }
+
       return {
         success: true,
         sessionId,
@@ -163,7 +169,8 @@ export async function handleGenerateScope(
         instructions: `Generated ${generatedFiles.length} file(s) for scope "${scope}".\n\n` +
           `Files:\n${generatedFiles.map(f => `- ${f.path}`).join('\n')}\n\n` +
           (excludedFiles.length > 0 ? `Excluded ${excludedFiles.length} file(s):\n${excludedFiles.map(f => `- ${f}`).join('\n')}\n\n` : '') +
-          `Write these files to your repository using the Write tool.`
+          `Write these files to your repository using the Write tool.`,
+        additionalInstructions
       };
     },
     {
@@ -259,4 +266,20 @@ function preprocessAnswers(answers: Record<string, any>): Record<string, any> {
   }
 
   return processed;
+}
+
+/**
+ * Replace template variables in additionalInstructions
+ * Simple replacement for {{variableName}} patterns
+ */
+function replaceTemplateVariables(template: string, answers: Record<string, any>): string {
+  let result = template;
+
+  // Replace all {{variableName}} with actual values
+  for (const [key, value] of Object.entries(answers)) {
+    const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    result = result.replace(pattern, String(value || ''));
+  }
+
+  return result;
 }

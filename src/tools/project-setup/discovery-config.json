@@ -516,5 +516,46 @@
         "reason": "FUNDING.yml is only generated when funding/sponsorship is enabled"
       }
     }
+  },
+  "github-security": {
+    "files": [".github/workflows/scorecard.yml"],
+    "questions": [
+      {
+        "id": "githubOrg",
+        "question": "GitHub organization or username (e.g., 'kubernetes', 'octocat')",
+        "required": true
+      },
+      {
+        "id": "githubRepo",
+        "question": "GitHub repository name (e.g., 'kubernetes', 'hello-world')",
+        "required": true
+      },
+      {
+        "id": "defaultBranch",
+        "question": "What is your default branch name? (e.g., main, master)",
+        "required": true
+      },
+      {
+        "id": "scheduleCron",
+        "question": "Cron expression for when to run security analysis (standard 5-field cron syntax). Examples: '30 1 * * 6' (weekly on Saturdays at 1:30 AM UTC), '30 1 * * *' (daily at 1:30 AM UTC), '30 1 1 * *' (monthly on 1st at 1:30 AM UTC). Recommended: weekly",
+        "required": true
+      },
+      {
+        "id": "scheduleDescription",
+        "question": "Human-readable description of the schedule (e.g., 'Weekly on Saturdays at 1:30 AM UTC', 'Daily at 1:30 AM UTC')",
+        "required": true
+      },
+      {
+        "id": "publishResults",
+        "question": "Publish results to enable Scorecard badge and REST API access? (true/false - recommended: true for public repos)",
+        "required": true
+      },
+      {
+        "id": "isPrivateRepo",
+        "question": "Is this a private repository? (yes/no) - Private repos need additional permissions to detect SAST tools and query commits",
+        "required": true
+      }
+    ],
+    "additionalInstructions": "If you enabled publish_results: true, you can add an OpenSSF Scorecard badge to your README.md to display your security score:\n\n[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/{{githubOrg}}/{{githubRepo}}/badge)](https://scorecard.dev/viewer/?uri=github.com/{{githubOrg}}/{{githubRepo}})\n\nThe badge will display your repository's security score and link to detailed results at https://scorecard.dev/viewer/?uri=github.com/{{githubOrg}}/{{githubRepo}}"
   }
 }

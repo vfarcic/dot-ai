@@ -1118,5 +1118,123 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(releaseFile.content).toContain('- title: Breaking Changes');
       expect(releaseFile.content).toContain('- dependabot');
     }, 300000);
+
+    test('should complete full github-security workflow with OpenSSF Scorecard (Milestone 12)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_github_security_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        availableScopes: expect.arrayContaining(['github-security']),
+        nextStep: 'reportScan'
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with github-security scope
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['github-security'],
+        interaction_id: `report_scan_github_security_${testId}`
+      });
+
+      expect(reportScanResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        nextStep: 'generateScope',
+        scope: 'github-security',
+        filesToGenerate: expect.arrayContaining(['.github/workflows/scorecard.yml']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'githubOrg', required: true }),
+          expect.objectContaining({ id: 'githubRepo', required: true }),
+          expect.objectContaining({ id: 'defaultBranch', required: true }),
+          expect.objectContaining({ id: 'scheduleCron', required: true }),
+          expect.objectContaining({ id: 'scheduleDescription', required: true }),
+          expect.objectContaining({ id: 'publishResults', required: true }),
+          expect.objectContaining({ id: 'isPrivateRepo', required: true })
+        ])
+      });
+
+      // Step 3: GenerateScope - Generate OpenSSF Scorecard workflow for public repo
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
+        sessionId,
+        scope: 'github-security',
+        answers: {
+          githubOrg: 'kubernetes',
+          githubRepo: 'kubernetes',
+          defaultBranch: 'main',
+          scheduleCron: '30 1 * * 6',
+          scheduleDescription: 'Weekly on Saturdays at 1:30 AM UTC',
+          publishResults: 'true',
+          isPrivateRepo: 'no'
+        },
+        interaction_id: `generate_scope_github_security_${testId}`
+      });
+
+      expect(generateScopeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        scope: 'github-security',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: '.github/workflows/scorecard.yml' })
+        ]),
+        instructions: expect.stringContaining('Write these files'),
+        additionalInstructions: expect.stringContaining('OpenSSF Scorecard badge')
+      });
+
+      // Verify file was generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(1);
+
+      const scorecardFile = files[0];
+      expect(scorecardFile.path).toBe('.github/workflows/scorecard.yml');
+
+      const content = scorecardFile.content;
+
+      // Verify workflow structure
+      expect(content).toContain('name: OpenSSF Scorecard');
+      expect(content).toContain('branches:');
+      expect(content).toContain('- main');
+      expect(content).toContain('schedule:');
+      expect(content).toContain("cron: '30 1 * * 6'");
+      expect(content).toContain('Weekly on Saturdays at 1:30 AM UTC');
+      expect(content).toContain('workflow_dispatch:');
+
+      // Verify permissions
+      expect(content).toContain('permissions: read-all');
+      expect(content).toContain('security-events: write');
+      expect(content).toContain('id-token: write');
+      expect(content).toContain('contents: read');
+
+      // Verify it's NOT a private repo (no extra permissions)
+      expect(content).not.toContain('actions: read');
+      expect(content).not.toContain('issues: read');
+      expect(content).not.toContain('pull-requests: read');
+
+      // Verify steps
+      expect(content).toContain('uses: actions/checkout@');
+      expect(content).toContain('persist-credentials: false');
+      expect(content).toContain('uses: ossf/scorecard-action@');
+      expect(content).toContain('results_file: results.sarif');
+      expect(content).toContain('results_format: sarif');
+      expect(content).toContain('publish_results: true');
+      expect(content).toContain('uses: actions/upload-artifact@');
+      expect(content).toContain('retention-days: 5');
+      expect(content).toContain('uses: github/codeql-action/upload-sarif@');
+
+      // Verify additionalInstructions includes badge markdown with correct org/repo
+      const additionalInstructions = generateScopeResponse.data.result.additionalInstructions;
+      expect(additionalInstructions).toContain('[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kubernetes/kubernetes/badge)]');
+      expect(additionalInstructions).toContain('https://scorecard.dev/viewer/?uri=github.com/kubernetes/kubernetes');
+    }, 300000);
   });
 });

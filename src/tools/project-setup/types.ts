@@ -17,6 +17,7 @@ export interface ScopeConfig {
   files: string[];
   questions: Question[];
   conditionalFiles?: Record<string, { condition: string; reason: string }>;
+  additionalInstructions?: string;  // Optional instructions to show user after file generation (e.g., badge markdown, next steps)
 }
 
 /**
@@ -76,6 +77,7 @@ export interface GenerateScopeResponse {
   files: GeneratedFile[];  // Array of all generated files
   excludedFiles?: string[];  // Files that were excluded (e.g., FUNDING.yml when enableFunding=no)
   instructions: string;
+  additionalInstructions?: string;  // Optional context-specific instructions (e.g., badge markdown, next steps)
 }
 
 /**
