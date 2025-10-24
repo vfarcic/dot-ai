@@ -46,12 +46,6 @@ import {
   PROJECT_SETUP_TOOL_INPUT_SCHEMA,
   handleProjectSetupTool,
 } from '../tools/project-setup';
-// import {
-//   BUILD_PLATFORM_TOOL_NAME,
-//   BUILD_PLATFORM_TOOL_DESCRIPTION,
-//   BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
-//   handleBuildPlatformTool,
-// } from '../tools/build-platform';
 
 import {
   handlePromptsListRequest,
@@ -244,23 +238,6 @@ export class MCPServer {
       ['governance', 'infrastructure', 'configuration', 'files']
     );
 
-    // Register buildPlatform tool
-    // this.registerTool(
-    //   BUILD_PLATFORM_TOOL_NAME,
-    //   BUILD_PLATFORM_TOOL_DESCRIPTION,
-    //   BUILD_PLATFORM_TOOL_INPUT_SCHEMA,
-    //   async (args: any) => {
-    //     const requestId = this.generateRequestId();
-    //     this.logger.info(
-    //       `Processing ${BUILD_PLATFORM_TOOL_NAME} tool request`,
-    //       { requestId }
-    //     );
-    //     return await handleBuildPlatformTool(args, this.dotAI, this.logger, requestId);
-    //   },
-    //   'Platform',
-    //   ['platform', 'kubernetes', 'installation', 'infrastructure']
-    // );
-
     this.logger.info('Registered all tools with McpServer', {
       tools: [
         RECOMMEND_TOOL_NAME,
@@ -268,7 +245,6 @@ export class MCPServer {
         ORGANIZATIONAL_DATA_TOOL_NAME,
         REMEDIATE_TOOL_NAME,
         PROJECT_SETUP_TOOL_NAME
-        // BUILD_PLATFORM_TOOL_NAME,
       ],
       totalTools: 5,
     });

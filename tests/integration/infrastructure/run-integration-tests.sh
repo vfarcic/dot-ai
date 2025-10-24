@@ -152,7 +152,7 @@ mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 
 # Step 5: Start MCP server in background
-# Set provider defaults if not already set (using Haiku for cost efficiency)
+# Set provider defaults if not already set
 AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
 AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 

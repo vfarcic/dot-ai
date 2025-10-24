@@ -1,1 +1,1 @@
-Error creating policy intent: {error}
+Error creating policy intent: {{error}}

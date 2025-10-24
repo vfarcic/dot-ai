@@ -46,14 +46,6 @@ Comprehensive repository setup with governance, legal, security, and automation 
 - **Use when**: Setting up new repositories, standardizing team workflows, or implementing governance and security best practices
 - **📖 Full Guide**: [Project Setup & Governance](mcp-project-setup-guide.md)
 
-<!--
-### 🏗️ Platform Building
-DEVELOPER NOTE: This tool is under active development with incomplete functionality. Not recommended for production use.
-Conversational platform operations through natural language - install tools, create clusters, and manage infrastructure without memorizing commands.
-- **What it does**: Dynamically discovers available platform operations, maps natural language intent to infrastructure scripts, and executes operations through conversational parameter collection
-- **Use when**: Installing platform tools (Argo CD, Crossplane, cert-manager), creating Kubernetes clusters, or building platform infrastructure conversationally
-- **📖 Full Guide**: [Platform Building](mcp-build-platform-guide.md)
--->
 
 ### 💬 Shared Prompts Library
 Centralized prompt sharing via native slash commands in MCP-enabled coding agents.

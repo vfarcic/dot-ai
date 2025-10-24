@@ -374,24 +374,23 @@ async function analyzeResourceNeeds(
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
 ): Promise<any> {
-  const template = loadPrompt('resource-analysis');
-  
   // Get available resources from solution or use defaults
   const availableResources = currentSolution.availableResources || {
     resources: [],
     custom: []
   };
-  
+
   // Extract resource types for analysis
   const availableResourceTypes = [
     ...(availableResources.resources || []),
     ...(availableResources.custom || [])
   ].map((r: any) => r.kind || r);
-  
-  const analysisPrompt = template
-    .replace('{current_solution}', JSON.stringify(currentSolution, null, 2))
-    .replace('{user_request}', openResponse)
-    .replace('{available_resource_types}', JSON.stringify(availableResourceTypes, null, 2));
+
+  const analysisPrompt = loadPrompt('resource-analysis', {
+    current_solution: JSON.stringify(currentSolution, null, 2),
+    user_request: openResponse,
+    available_resource_types: JSON.stringify(availableResourceTypes, null, 2)
+  });
 
   // Get AI provider from context
   const aiProvider = context.dotAI.ai;
@@ -481,13 +480,12 @@ async function autoPopulateQuestions(
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
 ): Promise<any> {
-  const template = loadPrompt('solution-enhancement');
-
-  const enhancementPrompt = template
-    .replace('{current_solution}', JSON.stringify(solution, null, 2))
-    .replace('{detailed_schemas}', JSON.stringify(solution.schemas || {}, null, 2))
-    .replace('{analysis_result}', JSON.stringify(analysisResult, null, 2))
-    .replace('{open_response}', openResponse);
+  const enhancementPrompt = loadPrompt('solution-enhancement', {
+    current_solution: JSON.stringify(solution, null, 2),
+    detailed_schemas: JSON.stringify(solution.schemas || {}, null, 2),
+    analysis_result: JSON.stringify(analysisResult, null, 2),
+    open_response: openResponse
+  });
 
   // Get AI provider from context
   const aiProvider = context.dotAI.ai;
