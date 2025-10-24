@@ -796,22 +796,23 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 14: Container Configuration (3 artifacts)
-**Success Criteria**: Production-ready container images with best practices
+### Milestone 14: Container Configuration (3 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Container configuration is highly project-specific and varies significantly by language, framework, and dependencies. Dockerfiles, docker-compose.yml, and build processes require deep understanding of project architecture. Projects should create custom container configs based on their specific needs.
 
 **Artifacts:**
-- [ ] `Dockerfile` - Multi-stage build, non-root user, minimal base image (distroless/alpine), security scanning
-- [ ] `.dockerignore` - Exclude build artifacts, dependencies, secrets from Docker context
-- [ ] `docker-compose.yml` - Local development environment with dependencies (databases, caches, etc.)
+- [ ] ~~`Dockerfile` - Multi-stage build, non-root user, minimal base image (distroless/alpine), security scanning~~
+- [ ] ~~`.dockerignore` - Exclude build artifacts, dependencies, secrets from Docker context~~
+- [ ] ~~`docker-compose.yml` - Local development environment with dependencies (databases, caches, etc.)~~
 
 **Best Practices Research:**
-- [ ] Multi-stage Docker builds for size optimization
-- [ ] Distroless vs Alpine vs Ubuntu base images
-- [ ] Non-root user execution for security
-- [ ] Layer caching strategies
-- [ ] Docker security scanning (Trivy, Snyk)
+- [ ] ~~Multi-stage Docker builds for size optimization~~
+- [ ] ~~Distroless vs Alpine vs Ubuntu base images~~
+- [ ] ~~Non-root user execution for security~~
+- [ ] ~~Layer caching strategies~~
+- [ ] ~~Docker security scanning (Trivy, Snyk)~~
 
-**Validation**: Dockerfile builds successfully, image size optimized, security scan passes, container runs as non-root
+**Note**: Container configuration requires understanding of the specific language runtime, dependencies, build process, and deployment target. Unlike standardized governance files, there's no one-size-fits-all approach for containers.
 
 ---
 
@@ -832,147 +833,141 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 16: Version Management Files (4 artifacts)
-**Success Criteria**: Language runtime versions locked for consistency
+### Milestone 16: Version Management Files (4 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Version files require knowing which language runtime the project uses and which specific version. This is project-specific and cannot be generically templated without deep project context.
 
 **Artifacts:**
-- [ ] `.nvmrc` or `.node-version` - Node.js version specification for nvm/volta/fnm
-- [ ] `.python-version` - Python version for pyenv
-- [ ] `.ruby-version` - Ruby version for rbenv/rvm
-- [ ] `.go-version` - Go version for gvm/goenv
+- [ ] ~~`.nvmrc` or `.node-version` - Node.js version specification for nvm/volta/fnm~~
+- [ ] ~~`.python-version` - Python version for pyenv~~
+- [ ] ~~`.ruby-version` - Ruby version for rbenv/rvm~~
+- [ ] ~~`.go-version` - Go version for gvm/goenv~~
 
 **Best Practices Research:**
-- [ ] Version pinning vs range specifications
-- [ ] LTS vs latest versions
-- [ ] Version manager compatibility
-
-**Validation**: Version files specify supported runtime versions, CI uses pinned versions
+- [ ] ~~Version pinning vs range specifications~~
+- [ ] ~~LTS vs latest versions~~
+- [ ] ~~Version manager compatibility~~
 
 ---
 
-### Milestone 17: Node.js/TypeScript Configuration (7 artifacts)
-**Success Criteria**: Complete TypeScript project setup with quality tooling
+### Milestone 17: Node.js/TypeScript Configuration (7 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Node.js/TypeScript configuration is highly project-specific, requiring knowledge of target Node version, module system (ESM/CommonJS), testing framework preferences, linting rules, and build tooling. Each project has unique requirements.
 
 **Artifacts:**
-- [ ] `package.json` - Enhancement/validation (scripts, engines, dependencies structure)
-- [ ] `tsconfig.json` - Strict mode, module resolution, target based on Node version
-- [ ] `.npmignore` - Files to exclude from npm package
-- [ ] `.npmrc` - npm configuration (registry, save-exact, etc.)
-- [ ] `jest.config.js` or `vitest.config.ts` - Test configuration with coverage
-- [ ] `.eslintrc` or `eslint.config.js` - Linting rules (Airbnb, Standard, etc.)
-- [ ] `.prettierrc` - Code formatting configuration
+- [ ] ~~`package.json` - Enhancement/validation (scripts, engines, dependencies structure)~~
+- [ ] ~~`tsconfig.json` - Strict mode, module resolution, target based on Node version~~
+- [ ] ~~`.npmignore` - Files to exclude from npm package~~
+- [ ] ~~`.npmrc` - npm configuration (registry, save-exact, etc.)~~
+- [ ] ~~`jest.config.js` or `vitest.config.ts` - Test configuration with coverage~~
+- [ ] ~~`.eslintrc` or `eslint.config.js` - Linting rules (Airbnb, Standard, etc.)~~
+- [ ] ~~`.prettierrc` - Code formatting configuration~~
 
 **Best Practices Research:**
-- [ ] TypeScript strict mode benefits and migration
-- [ ] ESLint flat config (eslint.config.js) vs legacy
-- [ ] Prettier integration with ESLint
-- [ ] Jest vs Vitest for modern TypeScript
-- [ ] Package.json best practices (engines, type: module)
-
-**Validation**: TypeScript compiles, tests run, linting passes, formatting consistent
+- [ ] ~~TypeScript strict mode benefits and migration~~
+- [ ] ~~ESLint flat config (eslint.config.js) vs legacy~~
+- [ ] ~~Prettier integration with ESLint~~
+- [ ] ~~Jest vs Vitest for modern TypeScript~~
+- [ ] ~~Package.json best practices (engines, type: module)~~
 
 ---
 
-### Milestone 18: Python Configuration (6 artifacts)
-**Success Criteria**: Modern Python project setup with tooling
+### Milestone 18: Python Configuration (6 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Python configuration is project-specific, requiring knowledge of Python version, dependency management tool (pip/poetry/pipenv), testing framework, linting preferences, and project structure. Cannot be generically templated.
 
 **Artifacts:**
-- [ ] `pyproject.toml` - PEP 518/621 project metadata, tool configurations (Black, mypy, ruff)
-- [ ] `requirements.txt` - Production dependencies
-- [ ] `requirements-dev.txt` - Development dependencies
-- [ ] `Pipfile` - Alternative dependency management (Pipenv)
-- [ ] `pytest.ini` - pytest configuration
-- [ ] `.pylintrc` - Pylint linting rules
+- [ ] ~~`pyproject.toml` - PEP 518/621 project metadata, tool configurations (Black, mypy, ruff)~~
+- [ ] ~~`requirements.txt` - Production dependencies~~
+- [ ] ~~`requirements-dev.txt` - Development dependencies~~
+- [ ] ~~`Pipfile` - Alternative dependency management (Pipenv)~~
+- [ ] ~~`pytest.ini` - pytest configuration~~
+- [ ] ~~`.pylintrc` - Pylint linting rules~~
 
 **Best Practices Research:**
-- [ ] pyproject.toml vs setup.py migration
-- [ ] Poetry vs pip-tools vs Pipenv
-- [ ] Black, Ruff, mypy configuration
-- [ ] pytest best practices and plugins
-- [ ] Type hints and mypy strict mode
-
-**Validation**: Python project installs cleanly, tests run, type checking passes, linting passes
+- [ ] ~~pyproject.toml vs setup.py migration~~
+- [ ] ~~Poetry vs pip-tools vs Pipenv~~
+- [ ] ~~Black, Ruff, mypy configuration~~
+- [ ] ~~pytest best practices and plugins~~
+- [ ] ~~Type hints and mypy strict mode~~
 
 ---
 
-### Milestone 19: Go Configuration (4 artifacts)
-**Success Criteria**: Go project with standard layout and tooling
+### Milestone 19: Go Configuration (4 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Go configuration requires knowledge of Go version, module dependencies, build process, and linting preferences. Project-specific and cannot be templated generically.
 
 **Artifacts:**
-- [ ] `go.mod` - Enhancement/validation (Go version, dependencies)
-- [ ] `go.sum` - Enhancement/validation (dependency checksums)
-- [ ] `Makefile` - Build automation (build, test, lint, install)
-- [ ] `.golangci.yml` - golangci-lint configuration with recommended linters
+- [ ] ~~`go.mod` - Enhancement/validation (Go version, dependencies)~~
+- [ ] ~~`go.sum` - Enhancement/validation (dependency checksums)~~
+- [ ] ~~`Makefile` - Build automation (build, test, lint, install)~~
+- [ ] ~~`.golangci.yml` - golangci-lint configuration with recommended linters~~
 
 **Best Practices Research:**
-- [ ] Go project layout standard
-- [ ] go.mod minimum Go version selection
-- [ ] Makefile patterns for Go projects
-- [ ] golangci-lint recommended linters
-- [ ] Go module best practices
-
-**Validation**: Go project builds, tests pass, linting passes, make targets functional
+- [ ] ~~Go project layout standard~~
+- [ ] ~~go.mod minimum Go version selection~~
+- [ ] ~~Makefile patterns for Go projects~~
+- [ ] ~~golangci-lint recommended linters~~
+- [ ] ~~Go module best practices~~
 
 ---
 
-### Milestone 20: Rust Configuration (2 artifacts)
-**Success Criteria**: Rust project with Cargo configuration
+### Milestone 20: Rust Configuration (2 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Rust configuration requires knowledge of Rust edition, dependencies, workspace structure, and project metadata. Project-specific and cannot be templated generically.
 
 **Artifacts:**
-- [ ] `Cargo.toml` - Package manifest with metadata, dependencies
-- [ ] `Cargo.lock` - Dependency lock file
+- [ ] ~~`Cargo.toml` - Package manifest with metadata, dependencies~~
+- [ ] ~~`Cargo.lock` - Dependency lock file~~
 
 **Best Practices Research:**
-- [ ] Cargo.toml best practices
-- [ ] Workspace configuration for monorepos
-- [ ] Rust edition selection
-- [ ] Clippy linting configuration
-
-**Validation**: Cargo build succeeds, tests pass, clippy linting passes
+- [ ] ~~Cargo.toml best practices~~
+- [ ] ~~Workspace configuration for monorepos~~
+- [ ] ~~Rust edition selection~~
+- [ ] ~~Clippy linting configuration~~
 
 ---
 
-### Milestone 21: Code Quality & Git Hooks (3 artifacts)
-**Success Criteria**: Automated pre-commit validation
+### Milestone 21: Code Quality & Git Hooks (3 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Git hooks and pre-commit configurations are project-specific, requiring knowledge of which linters, formatters, and test runners to use. Each project has unique quality requirements and tooling choices.
 
 **Artifacts:**
-- [ ] `.husky/` - Git hooks setup (pre-commit, commit-msg, pre-push)
-- [ ] `.pre-commit-config.yaml` - Pre-commit framework configuration
-- [ ] `.coveragerc` - Code coverage configuration and thresholds
+- [ ] ~~`.husky/` - Git hooks setup (pre-commit, commit-msg, pre-push)~~
+- [ ] ~~`.pre-commit-config.yaml` - Pre-commit framework configuration~~
+- [ ] ~~`.coveragerc` - Code coverage configuration and thresholds~~
 
 **Best Practices Research:**
-- [ ] Husky vs pre-commit framework
-- [ ] Pre-commit hook best practices (speed, skip options)
-- [ ] Conventional commits validation
-- [ ] Code coverage thresholds (80%? 90%?)
-
-**Validation**: Git hooks install automatically, pre-commit runs linting/tests, coverage tracked
+- [ ] ~~Husky vs pre-commit framework~~
+- [ ] ~~Pre-commit hook best practices (speed, skip options)~~
+- [ ] ~~Conventional commits validation~~
+- [ ] ~~Code coverage thresholds (80%? 90%?)~~
 
 ---
 
-### Milestone 22: Kubernetes Manifests (5 artifacts)
-**Success Criteria**: Production-ready Kubernetes deployment configuration
+### Milestone 22: Kubernetes Manifests (5 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Kubernetes manifests are highly application-specific, requiring deep knowledge of resource requirements, health check endpoints, configuration needs, networking, and deployment strategy. Cannot be templated without application context.
 
 **Artifacts:**
-- [ ] `k8s/deployment.yaml` - Deployment with resource limits, health checks, security context
-- [ ] `k8s/service.yaml` - Service (ClusterIP, LoadBalancer, or NodePort)
-- [ ] `k8s/ingress.yaml` - Ingress with TLS configuration
-- [ ] `k8s/configmap.yaml` - ConfigMap template for application configuration
-- [ ] `kustomization.yaml` - Kustomize overlay structure (base, overlays for dev/staging/prod)
+- [ ] ~~`k8s/deployment.yaml` - Deployment with resource limits, health checks, security context~~
+- [ ] ~~`k8s/service.yaml` - Service (ClusterIP, LoadBalancer, or NodePort)~~
+- [ ] ~~`k8s/ingress.yaml` - Ingress with TLS configuration~~
+- [ ] ~~`k8s/configmap.yaml` - ConfigMap template for application configuration~~
+- [ ] ~~`kustomization.yaml` - Kustomize overlay structure (base, overlays for dev/staging/prod)~~
 
 **Best Practices Research:**
-- [ ] Kubernetes production readiness checklist
-- [ ] Resource requests and limits sizing
-- [ ] Liveness, readiness, startup probes
-- [ ] Pod security standards (restricted profile)
-- [ ] Kustomize vs Helm decision matrix
-
-**Validation**: Manifests pass kubectl validation, security context enforced, health checks configured
+- [ ] ~~Kubernetes production readiness checklist~~
+- [ ] ~~Resource requests and limits sizing~~
+- [ ] ~~Liveness, readiness, startup probes~~
+- [ ] ~~Pod security standards (restricted profile)~~
+- [ ] ~~Kustomize vs Helm decision matrix~~
 
 ---
 
-### Milestone 23: Helm Charts (3 artifacts)
-**Success Criteria**: Helm chart for flexible Kubernetes deployments
+### Milestone 23: Helm Charts (3 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Helm charts are application-specific and require knowledge of deployment architecture, configuration values, dependencies, and templating needs. Cannot be generically templated.
 
 **Artifacts:**
 - [ ] `helm/Chart.yaml` - Chart metadata (version, appVersion, dependencies)
@@ -989,8 +984,9 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 24: GitOps - Argo CD (2 artifacts)
-**Success Criteria**: Argo CD application configuration
+### Milestone 24: GitOps - Argo CD (2 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: ArgoCD application configuration is deployment-specific and requires knowledge of repository structure, sync policies, health checks, and application dependencies. Cannot be generically templated.
 
 **Artifacts:**
 - [ ] `argocd/application.yaml` - Argo CD Application resource with sync policies
@@ -1006,98 +1002,95 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 25: GitOps - Flux (2 artifacts)
-**Success Criteria**: Flux kustomization configuration
+### Milestone 25: GitOps - Flux (2 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Flux configuration is deployment-specific and requires knowledge of repository structure, reconciliation intervals, kustomizations, and cluster management strategy. Cannot be generically templated.
 
 **Artifacts:**
-- [ ] `flux/kustomization.yaml` - Flux Kustomization resource with interval, prune, health checks
-- [ ] `flux/` - Directory structure for Flux resources (GitRepository, Kustomization, HelmRelease)
+- [ ] ~~`flux/kustomization.yaml` - Flux Kustomization resource with interval, prune, health checks~~
+- [ ] ~~`flux/` - Directory structure for Flux resources (GitRepository, Kustomization, HelmRelease)~~
 
 **Best Practices Research:**
-- [ ] Flux bootstrap patterns
-- [ ] Kustomization vs HelmRelease
-- [ ] Notification and alerting configuration
-- [ ] Multi-cluster management
-
-**Validation**: Flux reconciles successfully, resources deployed, notifications configured
+- [ ] ~~Flux bootstrap patterns~~
+- [ ] ~~Kustomization vs HelmRelease~~
+- [ ] ~~Notification and alerting configuration~~
+- [ ] ~~Multi-cluster management~~
 
 ---
 
-### Milestone 26: Terraform Configuration (5 artifacts)
-**Success Criteria**: Terraform module structure with best practices
+### Milestone 26: Terraform Configuration (5 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Terraform configuration is infrastructure-specific and requires deep knowledge of cloud provider resources, variable structures, state management, and organizational patterns. Cannot be generically templated.
 
 **Artifacts:**
-- [ ] `main.tf` - Main infrastructure definitions
-- [ ] `variables.tf` - Input variables with descriptions and validation
-- [ ] `outputs.tf` - Output values for integration
-- [ ] `terraform.tfvars.example` - Example variable values (do not commit actual tfvars)
-- [ ] `.terraform-docs.yml` - terraform-docs configuration for documentation generation
+- [ ] ~~`main.tf` - Main infrastructure definitions~~
+- [ ] ~~`variables.tf` - Input variables with descriptions and validation~~
+- [ ] ~~`outputs.tf` - Output values for integration~~
+- [ ] ~~`terraform.tfvars.example` - Example variable values (do not commit actual tfvars)~~
+- [ ] ~~`.terraform-docs.yml` - terraform-docs configuration for documentation generation~~
 
 **Best Practices Research:**
-- [ ] Terraform module structure standards
-- [ ] Variable naming conventions
-- [ ] State management (remote backend configuration)
-- [ ] terraform-docs for automated documentation
-- [ ] Terraform linting (tflint)
-
-**Validation**: terraform validate passes, terraform plan succeeds, documentation generates
+- [ ] ~~Terraform module structure standards~~
+- [ ] ~~Variable naming conventions~~
+- [ ] ~~State management (remote backend configuration)~~
+- [ ] ~~terraform-docs for automated documentation~~
+- [ ] ~~Terraform linting (tflint)~~
 
 ---
 
-### Milestone 27: Crossplane Configuration (2 artifacts)
-**Success Criteria**: Crossplane composition and XRD
+### Milestone 27: Crossplane Configuration (2 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Crossplane configuration is infrastructure-specific and requires knowledge of provider resources, composition patterns, XRD schemas, and patching strategies. Cannot be generically templated.
 
 **Artifacts:**
-- [ ] `crossplane/composition.yaml` - Crossplane Composition for infrastructure provisioning
-- [ ] `crossplane/xrd.yaml` - Composite Resource Definition (XRD) schema
+- [ ] ~~`crossplane/composition.yaml` - Crossplane Composition for infrastructure provisioning~~
+- [ ] ~~`crossplane/xrd.yaml` - Composite Resource Definition (XRD) schema~~
 
 **Best Practices Research:**
-- [ ] Crossplane composition patterns
-- [ ] XRD schema design and versioning
-- [ ] Provider configuration references
-- [ ] Patch and transform functions
-
-**Validation**: XRD installs successfully, composition creates resources, patching functions correctly
+- [ ] ~~Crossplane composition patterns~~
+- [ ] ~~XRD schema design and versioning~~
+- [ ] ~~Provider configuration references~~
+- [ ] ~~Patch and transform functions~~
 
 ---
 
-### Milestone 28: Security & Compliance (4 artifacts)
-**Success Criteria**: Security scanning and compliance tooling configured
+### Milestone 28: Security & Compliance (4 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Security tool configurations are project-specific and require knowledge of which scanners to use, scan targets, exclusion patterns, and compliance requirements. Each tool has unique configuration needs.
 
 **Artifacts:**
-- [ ] `.snyk` - Snyk configuration for vulnerability scanning
-- [ ] `trivy.yaml` - Trivy configuration for container/IaC scanning
-- [ ] `.gitleaks.toml` - Gitleaks configuration for secrets detection
-- [ ] `SBOM.json` or `SBOM.spdx` - Software Bill of Materials generation configuration
+- [ ] ~~`.snyk` - Snyk configuration for vulnerability scanning~~
+- [ ] ~~`trivy.yaml` - Trivy configuration for container/IaC scanning~~
+- [ ] ~~`.gitleaks.toml` - Gitleaks configuration for secrets detection~~
+- [ ] ~~`SBOM.json` or `SBOM.spdx` - Software Bill of Materials generation configuration~~
 
 **Best Practices Research:**
-- [ ] OWASP dependency scanning best practices
-- [ ] Container image security scanning (Trivy, Grype)
-- [ ] Secrets detection (Gitleaks, TruffleHog)
-- [ ] SBOM formats (SPDX, CycloneDX)
+- [ ] ~~OWASP dependency scanning best practices~~
+- [ ] ~~Container image security scanning (Trivy, Grype)~~
+- [ ] ~~Secrets detection (Gitleaks, TruffleHog)~~
+- [ ] ~~SBOM formats (SPDX, CycloneDX)~~
 - [ ] OpenSSF Scorecard integration
 
 **Validation**: Security scans run successfully, no critical vulnerabilities, secrets detection functional
 
 ---
 
-### Milestone 29: Documentation Directories (5 artifacts)
-**Success Criteria**: Structured documentation directory hierarchy
+### Milestone 29: Documentation Directories (5 artifacts) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: Creating empty directory structures provides minimal value - users can easily create directories as needed. The tool should focus on generating file content, not empty folders.
 
 **Artifacts:**
-- [ ] `docs/` - Main documentation directory with README
-- [ ] `docs/architecture/` - Architecture diagrams, ADRs, design documents
-- [ ] `docs/api/` - API documentation (OpenAPI, GraphQL schemas)
-- [ ] `docs/guides/` - User guides, tutorials, how-tos
-- [ ] `docs/examples/` - Example code, usage patterns, sample configurations
+- [ ] ~~`docs/` - Main documentation directory with README~~
+- [ ] ~~`docs/architecture/` - Architecture diagrams, ADRs, design documents~~
+- [ ] ~~`docs/api/` - API documentation (OpenAPI, GraphQL schemas)~~
+- [ ] ~~`docs/guides/` - User guides, tutorials, how-tos~~
+- [ ] ~~`docs/examples/` - Example code, usage patterns, sample configurations~~
 
 **Best Practices Research:**
-- [ ] Documentation structure patterns (Diátaxis framework)
-- [ ] Architecture Decision Records (ADR) format
-- [ ] API documentation generation tools
-- [ ] Documentation site generators (MkDocs, Docusaurus, Hugo)
-
-**Validation**: Directory structure created, README files explain organization, documentation navigable
+- [ ] ~~Documentation structure patterns (Diátaxis framework)~~
+- [ ] ~~Architecture Decision Records (ADR) format~~
+- [ ] ~~API documentation generation tools~~
+- [ ] ~~Documentation site generators (MkDocs, Docusaurus, Hugo)~~
 
 ---
 
