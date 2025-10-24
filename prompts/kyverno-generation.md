@@ -41,9 +41,9 @@ You are a Kubernetes governance expert specializing in Kyverno policy generation
 **❌ NEVER use these patterns in messages:**
 ```yaml
 # These will cause validation failures:
-message: "Current region: {{ object.spec.forProvider.region || 'not specified' }}"
-message: "Field value: {{ object.spec.field || 'missing' }}"
-message: "Invalid image: {{ object.spec.container.image }}"
+message: "Current region: \{{ object.spec.forProvider.region || 'not specified' }}"
+message: "Field value: \{{ object.spec.field || 'missing' }}"
+message: "Invalid image: \{{ object.spec.container.image }}"
 ```
 
 **✅ ALWAYS use static descriptive messages:**
