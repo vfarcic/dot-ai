@@ -897,5 +897,188 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       expect(errorResponse).toMatchObject(expectedErrorResponse);
     });
+
+    test('should complete full github-issues workflow with 3 files (Milestone 6)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_github_issues_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        filesToCheck: expect.arrayContaining([
+          '.github/ISSUE_TEMPLATE/bug_report.yml',
+          '.github/ISSUE_TEMPLATE/feature_request.yml',
+          '.github/ISSUE_TEMPLATE/config.yml'
+        ]),
+        availableScopes: expect.arrayContaining(['github-issues']),
+        nextStep: 'reportScan'
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with selectedScopes
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['github-issues'],
+        interaction_id: `report_scan_github_issues_${testId}`
+      });
+
+      expect(reportScanResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        nextStep: 'generateFile',
+        currentFile: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        questions: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'projectName',
+            required: true
+          }),
+          expect.objectContaining({
+            id: 'githubOrg',
+            required: true
+          }),
+          expect.objectContaining({
+            id: 'githubRepo',
+            required: true
+          })
+        ])
+      });
+
+      // Step 3: Generate bug_report.yml
+      // Mix different truthy values: "yes", "true", boolean true, "no", boolean false
+      const bugReportResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        fileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        answers: {
+          projectName: `Test Project ${testId}`,
+          githubOrg: 'test-org',
+          githubRepo: 'test-repo',
+          isNodeProject: 'yes',        // String "yes"
+          isPythonProject: 'no',       // String "no"
+          isGoProject: false,          // Boolean false
+          isKubernetesProject: 'true', // String "true"
+          hasDiscussions: true,        // Boolean true
+          blankIssuesEnabled: 'false',
+          docsSiteUrl: 'https://docs.example.com',
+          slackInviteUrl: '',
+          discordInviteUrl: '',
+          supportFilePath: 'SUPPORT.md',
+          securityFilePath: 'SECURITY.md',
+          roadmapPath: 'docs/ROADMAP.md'
+        },
+        interaction_id: `generate_bug_report_${testId}`
+      });
+
+      expect(bugReportResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        content: expect.stringContaining('name: Bug Report'),
+        nextFile: expect.objectContaining({
+          fileName: '.github/ISSUE_TEMPLATE/feature_request.yml'
+        })
+      });
+
+      const bugReportContent = bugReportResponse.data.result.content;
+      expect(bugReportContent).toContain(`Test Project ${testId}`);
+
+      // Verify conditional sections based on mixed truthy values
+      expect(bugReportContent).toContain('Node.js Version');        // isNodeProject: 'yes'
+      expect(bugReportContent).toContain('Kubernetes Version');     // isKubernetesProject: 'true'
+      expect(bugReportContent).not.toContain('Python Version');     // isPythonProject: 'no'
+      expect(bugReportContent).not.toContain('Go Version');         // isGoProject: false
+
+      // Step 4: Mark bug_report.yml complete and generate feature_request.yml
+      // Use boolean true for hasDiscussions to test different truthy value
+      const featureRequestResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: '.github/ISSUE_TEMPLATE/bug_report.yml',
+        nextFileAnswers: {
+          projectName: `Test Project ${testId}`,
+          githubOrg: 'test-org',
+          githubRepo: 'test-repo',
+          hasDiscussions: true,  // Boolean true (different from bug_report's boolean true)
+          roadmapPath: 'docs/ROADMAP.md'
+        },
+        interaction_id: `generate_feature_request_${testId}`
+      });
+
+      expect(featureRequestResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/ISSUE_TEMPLATE/feature_request.yml',
+        content: expect.stringContaining('name: Feature Request'),
+        nextFile: expect.objectContaining({
+          fileName: '.github/ISSUE_TEMPLATE/config.yml'
+        })
+      });
+
+      const featureRequestContent = featureRequestResponse.data.result.content;
+      expect(featureRequestContent).toContain(`Test Project ${testId}`);
+      expect(featureRequestContent).toContain('github.com/test-org/test-repo/discussions');
+      expect(featureRequestContent).toContain('docs/ROADMAP.md');
+
+      // Step 5: Mark feature_request.yml complete and generate config.yml
+      // Use string 'yes' for hasDiscussions to test third variation
+      const configResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: '.github/ISSUE_TEMPLATE/feature_request.yml',
+        nextFileAnswers: {
+          blankIssuesEnabled: 'false',
+          hasDiscussions: 'yes',  // String 'yes' (different from boolean true used earlier)
+          githubOrg: 'test-org',
+          githubRepo: 'test-repo',
+          docsSiteUrl: 'https://docs.example.com',
+          slackInviteUrl: '',
+          discordInviteUrl: '',
+          supportFilePath: 'SUPPORT.md',
+          securityFilePath: 'SECURITY.md'
+        },
+        interaction_id: `generate_config_${testId}`
+      });
+
+      expect(configResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/ISSUE_TEMPLATE/config.yml',
+        content: expect.stringContaining('blank_issues_enabled: false')
+      });
+
+      const configContent = configResponse.data.result.content;
+      expect(configContent).toContain('blank_issues_enabled: false');
+      expect(configContent).toContain('GitHub Discussions');
+      expect(configContent).toContain('github.com/test-org/test-repo/discussions');
+      expect(configContent).toContain('Documentation');
+      expect(configContent).toContain('https://docs.example.com');
+      expect(configContent).toContain('SUPPORT.md');
+      expect(configContent).toContain('SECURITY.md');
+      expect(configContent).not.toContain('Slack Community');
+      expect(configContent).not.toContain('Discord');
+
+      // Step 6: Mark config.yml complete - workflow should complete
+      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: '.github/ISSUE_TEMPLATE/config.yml',
+        interaction_id: `complete_github_issues_${testId}`
+      });
+
+      expect(completeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/ISSUE_TEMPLATE/config.yml',
+        instructions: expect.stringContaining('All files generated successfully')
+      });
+    }, 300000);
   });
 });

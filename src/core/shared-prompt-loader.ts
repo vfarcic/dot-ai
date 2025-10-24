@@ -22,6 +22,16 @@ Handlebars.registerHelper('eq', function(this: any, a: any, b: any, options: any
   }
 });
 
+// Block helper for truthy check: {{#isTrue value}}...{{/isTrue}}
+// Treats "yes", "true", and true as truthy
+Handlebars.registerHelper('isTrue', function(this: any, value: any, options: any) {
+  if (value === 'yes' || value === 'true' || value === true) {
+    return options.fn(this);
+  } else {
+    return options.inverse(this);
+  }
+});
+
 /**
  * Load template from file and replace variables using Handlebars
  *

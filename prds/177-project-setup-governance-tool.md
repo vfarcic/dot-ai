@@ -602,21 +602,28 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 6: GitHub Issue Templates (3 artifacts)
+### Milestone 6: GitHub Issue Templates (3 artifacts) ✅
 **Success Criteria**: Structured issue reporting with proper templates
 
 **Artifacts:**
-- [ ] `.github/ISSUE_TEMPLATE/bug_report.md` - Bug description, reproduction steps, environment, logs
-- [ ] `.github/ISSUE_TEMPLATE/feature_request.md` - Problem statement, proposed solution, alternatives
-- [ ] `.github/ISSUE_TEMPLATE/config.yml` - Template chooser configuration, external links
+- [x] `.github/ISSUE_TEMPLATE/bug_report.yml` - Bug description, reproduction steps, environment, logs (GitHub Forms format with conditional sections)
+- [x] `.github/ISSUE_TEMPLATE/feature_request.yml` - Problem statement, proposed solution, alternatives (with priority and contribution dropdowns)
+- [x] `.github/ISSUE_TEMPLATE/config.yml` - Template chooser configuration, external links (conditional contact links)
 
 **Best Practices Research:**
-- [ ] GitHub issue template YAML schema
-- [ ] Required vs optional fields
-- [ ] Template emoji and visual design
-- [ ] Linking to external resources (discussions, docs)
+- [x] GitHub issue template YAML schema - Implemented GitHub Forms (.yml) instead of markdown
+- [x] Required vs optional fields - Proper validation rules on all templates
+- [x] Template emoji and visual design - Emoji in config.yml contact links
+- [x] Linking to external resources (discussions, docs) - Conditional linking based on project configuration
 
-**Validation**: Templates render correctly in GitHub UI, required fields enforced
+**Validation**:
+- [x] Integration test validates 3-file generation workflow (tests/integration/tools/project-setup.test.ts:901-1076)
+- Actual GitHub UI rendering will be validated when tool is used on this repository for CNCF submission (PRD #173)
+
+**Implementation Notes:**
+- Used GitHub Forms (.yml) instead of markdown templates for better UX and validation
+- Added `isTrue` Handlebars helper to support "yes", "true", and boolean true values
+- Templates include conditional sections based on project type (Node.js, Python, Go, Kubernetes)
 
 ---
 
@@ -1514,9 +1521,44 @@ Every milestone MUST include integration tests that validate the implemented fun
 - `tests/integration/tools/project-setup.test.ts` (added comprehensive 2-file community workflow test)
 
 **Next Session Priorities (Milestone 5)**:
-- Implement documentation artifacts (README.md enhancement, ARCHITECTURE.md, DEVELOPMENT.md, RELEASE.md, TROUBLESHOOTING.md)
-- Add `documentation` scope to discovery-config.json
-- Extend integration tests for documentation workflow
+- ~~Implement documentation artifacts~~ **SKIPPED** - Decision 4: Documentation artifacts don't fit tool's standardization model
+- Move directly to Milestone 6 (GitHub Issue Templates)
+
+### 2025-10-24 - Milestone 6 Complete: GitHub Issue Templates ✅
+**Duration**: ~3 hours (implementation + testing + validation)
+**Commits**: Pending commit
+**Primary Focus**: GitHub issue template infrastructure with bug reports, feature requests, and template chooser configuration
+
+**Completed PRD Items (Milestone 6)**:
+- [x] bug_report.yml template with conditional environment sections (Node.js, Python, Go, Kubernetes)
+- [x] feature_request.yml template with use case focus, priority levels, and contribution options
+- [x] config.yml template with conditional contact links (Discussions, docs, support channels)
+- [x] GitHub Forms (.yml) research and implementation
+- [x] Integration test for 3-file github-issues workflow (10/10 tests passing)
+
+**Technical Enhancements**:
+- Added `isTrue` Handlebars helper to `shared-prompt-loader.ts` for flexible boolean handling
+- Helper supports "yes", "true", and boolean `true` values interchangeably
+- Templates use modern GitHub Forms (.yml) instead of markdown for better UX and validation
+
+**Implementation Details**:
+- 16 questions in github-issues scope (project type detection, optional contact links, file path references)
+- Conditional sections based on project type (isNodeProject, isPythonProject, isGoProject, isKubernetesProject)
+- Flexible path references (supportFilePath, securityFilePath, roadmapPath) for linking to existing governance files
+- Test validates all three truthy value formats ("yes", "true", boolean true) work correctly
+
+**Files Created/Modified**:
+- `src/tools/project-setup/templates/.github/ISSUE_TEMPLATE/bug_report.yml.hbs` (created, 176 lines)
+- `src/tools/project-setup/templates/.github/ISSUE_TEMPLATE/feature_request.yml.hbs` (created, 135 lines)
+- `src/tools/project-setup/templates/.github/ISSUE_TEMPLATE/config.yml.hbs` (created, 28 lines)
+- `src/core/shared-prompt-loader.ts` (added `isTrue` helper for flexible boolean handling)
+- `src/tools/project-setup/discovery-config.json` (added github-issues scope with 16 questions)
+- `tests/integration/tools/project-setup.test.ts` (added comprehensive github-issues workflow test with mixed truthy values)
+
+**Next Session Priorities (Milestone 7)**:
+- Implement Pull Request template (.github/PULL_REQUEST_TEMPLATE.md)
+- Add pr-template scope to discovery-config.json
+- Integration tests for PR template generation
 
 ---
 

@@ -335,5 +335,85 @@
         "required": false
       }
     ]
+  },
+  "github-issues": {
+    "files": [".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/config.yml"],
+    "questions": [
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "githubOrg",
+        "question": "GitHub organization or username (e.g., 'octocat' from github.com/octocat/repo)",
+        "required": true
+      },
+      {
+        "id": "githubRepo",
+        "question": "GitHub repository name (e.g., 'repo' from github.com/octocat/repo)",
+        "required": true
+      },
+      {
+        "id": "isNodeProject",
+        "question": "Is this a Node.js/TypeScript project? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "isPythonProject",
+        "question": "Is this a Python project? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "isGoProject",
+        "question": "Is this a Go project? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "isKubernetesProject",
+        "question": "Is this a Kubernetes-related project? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "hasDiscussions",
+        "question": "Do you have GitHub Discussions enabled? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "blankIssuesEnabled",
+        "question": "Allow blank issues (no template)? Recommended: no (yes/no)",
+        "required": false
+      },
+      {
+        "id": "docsSiteUrl",
+        "question": "Documentation site URL (optional, leave blank if none)",
+        "required": false
+      },
+      {
+        "id": "slackInviteUrl",
+        "question": "Slack workspace invite URL (optional, leave blank if none)",
+        "required": false
+      },
+      {
+        "id": "discordInviteUrl",
+        "question": "Discord server invite URL (optional, leave blank if none)",
+        "required": false
+      },
+      {
+        "id": "supportFilePath",
+        "question": "Path to SUPPORT.md file (if exists, e.g., 'SUPPORT.md' or 'docs/SUPPORT.md', leave blank if none)",
+        "required": false
+      },
+      {
+        "id": "securityFilePath",
+        "question": "Path to SECURITY.md file (if exists, e.g., 'SECURITY.md' or leave blank if none)",
+        "required": false
+      },
+      {
+        "id": "roadmapPath",
+        "question": "Path to ROADMAP.md file (if exists, e.g., 'docs/ROADMAP.md' or leave blank if none)",
+        "required": false
+      }
+    ]
   }
 }

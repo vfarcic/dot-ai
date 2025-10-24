@@ -1,0 +1,32 @@
+blank_issues_enabled: {{blankIssuesEnabled}}
+contact_links:
+{{#isTrue hasDiscussions}}
+  - name: 💬 GitHub Discussions
+    url: https://github.com/{{githubOrg}}/{{githubRepo}}/discussions
+    about: Ask questions, share ideas, and discuss with the community
+{{/isTrue}}
+{{#if docsSiteUrl}}
+  - name: 📚 Documentation
+    url: {{docsSiteUrl}}
+    about: Read the documentation before reporting issues
+{{/if}}
+{{#if supportFilePath}}
+  - name: ❓ Support Resources
+    url: https://github.com/{{githubOrg}}/{{githubRepo}}/blob/main/{{supportFilePath}}
+    about: Learn how to get help and where to ask questions
+{{/if}}
+{{#if slackInviteUrl}}
+  - name: 💙 Slack Community
+    url: {{slackInviteUrl}}
+    about: Join our Slack workspace for real-time support and discussions
+{{/if}}
+{{#if discordInviteUrl}}
+  - name: 🎮 Discord Server
+    url: {{discordInviteUrl}}
+    about: Join our Discord community for support and discussions
+{{/if}}
+{{#if securityFilePath}}
+  - name: 🔒 Security Vulnerabilities
+    url: https://github.com/{{githubOrg}}/{{githubRepo}}/blob/main/{{securityFilePath}}
+    about: Report security vulnerabilities privately following our security policy
+{{/if}}
