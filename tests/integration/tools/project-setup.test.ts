@@ -1080,5 +1080,189 @@ describe.concurrent('Project Setup Tool Integration', () => {
         instructions: expect.stringContaining('All files generated successfully')
       });
     }, 300000);
+
+    test('should complete full pr-template workflow (Milestone 7)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_pr_template_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        filesToCheck: expect.arrayContaining([
+          '.github/PULL_REQUEST_TEMPLATE.md'
+        ]),
+        availableScopes: expect.arrayContaining(['pr-template']),
+        nextStep: 'reportScan'
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with selectedScopes
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['pr-template'],
+        interaction_id: `report_scan_pr_template_${testId}`
+      });
+
+      expect(reportScanResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        nextStep: 'generateFile',
+        currentFile: '.github/PULL_REQUEST_TEMPLATE.md',
+        questions: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'projectName',
+            required: true
+          }),
+          expect.objectContaining({
+            id: 'requiresDco',
+            required: false
+          }),
+          expect.objectContaining({
+            id: 'requiresConventionalCommits',
+            required: false
+          }),
+          expect.objectContaining({
+            id: 'includesSecurityChecklist',
+            required: false
+          }),
+          expect.objectContaining({
+            id: 'requiresScreenshots',
+            required: false
+          }),
+          expect.objectContaining({
+            id: 'contributingPath',
+            required: false
+          })
+        ])
+      });
+
+      // Step 3: Generate PR template with conditional sections enabled
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        answers: {
+          projectName: `Test Project ${testId}`,
+          requiresDco: 'yes',                    // String "yes"
+          requiresConventionalCommits: true,     // Boolean true
+          includesSecurityChecklist: 'yes',
+          requiresScreenshots: true,
+          contributingPath: 'CONTRIBUTING.md'
+        },
+        interaction_id: `generate_pr_template_${testId}`
+      });
+
+      expect(generateResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        content: expect.stringContaining('Thank you for contributing')
+      });
+
+      const content = generateResponse.data.result.content;
+
+      // Verify core sections (always present)
+      expect(content).toContain(`Thank you for contributing to Test Project ${testId}`);
+      expect(content).toContain('## Description');
+      expect(content).toContain('## Related Issues');
+      expect(content).toContain('## Type of Change');
+      expect(content).toContain('## Testing Checklist');
+      expect(content).toContain('## Documentation Checklist');
+      expect(content).toContain('## Breaking Changes');
+      expect(content).toContain('## Checklist');
+      expect(content).toContain('## Additional Context');
+
+      // Verify conditional sections (based on answers)
+      expect(content).toContain('## Conventional Commit Format');
+      expect(content).toContain('feat(auth): add OAuth2 authentication support');
+      expect(content).toContain('## Security Checklist');
+      expect(content).toContain('No secrets or credentials committed');
+      expect(content).toContain('## Screenshots / Recordings');
+      expect(content).toContain('**Before:**');
+      expect(content).toContain('**After:**');
+      expect(content).toContain('## Developer Certificate of Origin');
+      expect(content).toContain('Signed-off-by');
+      expect(content).toContain('[CONTRIBUTING.md](CONTRIBUTING.md)');
+
+      // Verify final checklist includes conditional items
+      expect(content).toContain('All commits are signed off (DCO)');
+      expect(content).toContain('PR title follows Conventional Commits format');
+
+      // Step 4: Mark file as complete
+      const completeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        completedFileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        interaction_id: `complete_pr_template_${testId}`
+      });
+
+      expect(completeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        instructions: expect.stringContaining('All files generated successfully')
+      });
+    }, 300000);
+
+    test('should generate PR template without conditional sections', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_pr_template_minimal_${testId}`
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with selectedScopes
+      await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['pr-template'],
+        interaction_id: `report_scan_pr_template_minimal_${testId}`
+      });
+
+      // Step 3: Generate PR template with all conditional sections disabled
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateFile',
+        sessionId,
+        fileName: '.github/PULL_REQUEST_TEMPLATE.md',
+        answers: {
+          projectName: `Minimal Project ${testId}`,
+          requiresDco: 'no',
+          requiresConventionalCommits: false,
+          includesSecurityChecklist: 'no',
+          requiresScreenshots: false,
+          contributingPath: ''
+        },
+        interaction_id: `generate_pr_template_minimal_${testId}`
+      });
+
+      const content = generateResponse.data.result.content;
+
+      // Verify core sections are present
+      expect(content).toContain(`Thank you for contributing to Minimal Project ${testId}`);
+      expect(content).toContain('## Description');
+      expect(content).toContain('## Testing Checklist');
+
+      // Verify conditional sections are NOT present
+      expect(content).not.toContain('## Conventional Commit Format');
+      expect(content).not.toContain('## Security Checklist');
+      expect(content).not.toContain('## Screenshots / Recordings');
+      expect(content).not.toContain('## Developer Certificate of Origin');
+      expect(content).not.toContain('[CONTRIBUTING.md]');
+      expect(content).not.toContain('All commits are signed off (DCO)');
+      expect(content).not.toContain('PR title follows Conventional Commits format');
+    }, 300000);
   });
 });

@@ -415,5 +415,40 @@
         "required": false
       }
     ]
+  },
+  "pr-template": {
+    "files": [".github/PULL_REQUEST_TEMPLATE.md"],
+    "questions": [
+      {
+        "id": "projectName",
+        "question": "What is the project name?",
+        "required": true
+      },
+      {
+        "id": "requiresDco",
+        "question": "Require DCO (Developer Certificate of Origin) sign-off on all commits? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "requiresConventionalCommits",
+        "question": "Enforce Conventional Commits format for PR titles? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "includesSecurityChecklist",
+        "question": "Include security checklist in PR template? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "requiresScreenshots",
+        "question": "Require screenshots for UI changes? (yes/no)",
+        "required": false
+      },
+      {
+        "id": "contributingPath",
+        "question": "Path to CONTRIBUTING.md file (if exists, e.g., 'CONTRIBUTING.md' or 'docs/CONTRIBUTING.md', leave blank if none)",
+        "required": false
+      }
+    ]
   }
 }
