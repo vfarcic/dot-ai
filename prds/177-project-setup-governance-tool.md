@@ -717,52 +717,49 @@ Every milestone MUST include integration tests that validate the implemented fun
 
 ---
 
-### Milestone 9: GitHub Workflows - Testing (1 artifact)
-**Success Criteria**: Automated testing on every PR
+### Milestone 9: GitHub Workflows - Testing (1 artifact) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: GitHub Actions workflows are highly project-specific and harder to template effectively. Most projects already have CI/CD or need custom configurations. Focusing on governance files provides more immediate value.
 
 **Artifacts:**
-- [ ] `.github/workflows/test.yml` - Run tests on PR, multiple Node.js/Python/Go versions, code coverage reporting
+- [ ] ~~`.github/workflows/test.yml` - Run tests on PR, multiple Node.js/Python/Go versions, code coverage reporting~~
 
 **Best Practices Research:**
-- [ ] GitHub Actions security hardening (pinned versions, minimal permissions)
-- [ ] Matrix testing across language versions
-- [ ] Code coverage integration (Codecov, Coveralls)
-- [ ] Caching strategies for faster CI
-
-**Validation**: Workflow runs successfully, test results reported, coverage tracked
+- [ ] ~~GitHub Actions security hardening (pinned versions, minimal permissions)~~
+- [ ] ~~Matrix testing across language versions~~
+- [ ] ~~Code coverage integration (Codecov, Coveralls)~~
+- [ ] ~~Caching strategies for faster CI~~
 
 ---
 
-### Milestone 10: GitHub Workflows - Build (1 artifact)
-**Success Criteria**: Automated build validation
+### Milestone 10: GitHub Workflows - Build (1 artifact) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: GitHub Actions workflows are highly project-specific and harder to template effectively. Most projects already have CI/CD or need custom configurations. Focusing on governance files provides more immediate value.
 
 **Artifacts:**
-- [ ] `.github/workflows/build.yml` - Build project, create artifacts, validate compilation
+- [ ] ~~`.github/workflows/build.yml` - Build project, create artifacts, validate compilation~~
 
 **Best Practices Research:**
-- [ ] Build artifact storage and retention
-- [ ] Multi-platform builds (Linux, macOS, Windows)
-- [ ] Docker image building in CI
-
-**Validation**: Build succeeds, artifacts available for download
+- [ ] ~~Build artifact storage and retention~~
+- [ ] ~~Multi-platform builds (Linux, macOS, Windows)~~
+- [ ] ~~Docker image building in CI~~
 
 ---
 
-### Milestone 11: GitHub Workflows - Release (1 artifact)
-**Success Criteria**: Automated release process with semantic versioning and enhanced GitHub Releases
+### Milestone 11: GitHub Workflows - Release (1 artifact) ❌ OUT OF SCOPE
+**Status**: Marked out of scope on 2025-10-24
+**Rationale**: GitHub Actions workflows are highly project-specific and harder to template effectively. Most projects already have CI/CD or need custom configurations. Focusing on governance files provides more immediate value.
 
 **Artifacts:**
-- [ ] `.github/workflows/release.yml` - Semantic release, **GitHub Releases with categorized changelog**, artifact publishing, Docker image push
+- [ ] ~~`.github/workflows/release.yml` - Semantic release, GitHub Releases with categorized changelog, artifact publishing, Docker image push~~
 
 **Best Practices Research:**
-- [ ] Semantic versioning automation (semantic-release)
-- [ ] **GitHub Releases generation with categorized release notes** (replaces CHANGELOG.md from Milestone 4)
-- [ ] Multi-platform artifact publishing
-- [ ] Container image signing (Cosign)
+- [ ] ~~Semantic versioning automation (semantic-release)~~
+- [ ] ~~GitHub Releases generation with categorized release notes~~
+- [ ] ~~Multi-platform artifact publishing~~
+- [ ] ~~Container image signing (Cosign)~~
 
-**Validation**: Release workflow creates **GitHub Release with categorized changelog** (Features, Bug Fixes, Docs, Breaking Changes), publishes artifacts
-
-**Note**: This milestone now includes changelog functionality originally planned for Milestone 4. GitHub Releases serve as the primary changelog per modern CNCF standard (Kubernetes, Argo CD, Prometheus, Helm). No separate CHANGELOG.md file will be maintained to avoid duplication and sync issues.
+**Note**: This milestone originally included changelog functionality that replaced Milestone 4's CHANGELOG.md. With this milestone marked out of scope, projects should implement their own release automation or use GitHub Releases manually.
 
 ---
 
