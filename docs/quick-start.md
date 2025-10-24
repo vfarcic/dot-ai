@@ -1,5 +1,15 @@
 # Quick Start
 
+**Get started with DevOps AI Toolkit in minutes - deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows through MCP.**
+
+## Overview
+
+**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows in your MCP-enabled coding agent.
+
+**Use when**: You want intelligent Kubernetes operations without memorizing commands, need AI-powered troubleshooting, or want to establish governance policies across your cluster.
+
+**📖 Full Guide**: See [MCP Setup Guide](mcp-setup.md) for detailed configuration options and [Tools Overview](mcp-tools-overview.md) for complete feature reference.
+
 ## Prerequisites
 
 **Works without AI keys:**
@@ -87,7 +97,7 @@ claude  # or your preferred MCP-enabled AI tool
 4. **Use conversational workflows:**
 
 **Example: Kubernetes Deployment**
-```
+```text
 User: I want to deploy a web application to my cluster
 
 Agent: I'll help you deploy a web application. Let me get recommendations. First, a few questions to provide better suggestions:
@@ -112,7 +122,7 @@ Agent: ✅ Successfully deployed! Your production API is running with external a
 ```
 
 **Example: Capability Management**
-```
+```text
 User: I want to scan my cluster for resource capabilities to improve recommendations
 
 [Uses manageOrgData with capabilities scanning]
@@ -134,7 +144,7 @@ Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a manage
 ```
 
 **Example: Kubernetes Issue Remediation**
-```
+```text
 User: Something is wrong with my database in postgres-demo namespace
 
 Agent: I'll investigate the database issue using AI-powered analysis.
@@ -154,7 +164,7 @@ Agent: ✅ Issue Resolved! Created postgres-pvc, pod transitioned to Running sta
 ```
 
 **Example: Policy Management**
-```
+```text
 User: I want to create a policy requiring resource limits on all deployments
 
 Agent: I'll help you create a governance policy for resource limits. Let me start the creation workflow.
@@ -178,7 +188,7 @@ Agent: ✅ Policy deployed! Now when users deploy applications, they'll get requ
 *Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
 
 **Example: Shared Prompts Library**
-```
+```text
 # Conversational approach
 User: I want to create a new PRD for a feature
 

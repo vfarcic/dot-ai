@@ -1037,7 +1037,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(releaseFile.content).toContain('# Release notes configuration');
       expect(releaseFile.content).toContain('changelog:');
       expect(releaseFile.content).toContain('exclude:');
-      expect(releaseFile.content).toContain('- dependabot');
+      expect(releaseFile.content).toContain('- renovate');
       expect(releaseFile.content).toContain('categories:');
       expect(releaseFile.content).toContain('- title: Breaking Changes');
       expect(releaseFile.content).toContain('- title: New Features');
@@ -1116,7 +1116,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(releaseFile).toBeDefined();
       expect(releaseFile.content).toContain('# Release notes configuration');
       expect(releaseFile.content).toContain('- title: Breaking Changes');
-      expect(releaseFile.content).toContain('- dependabot');
+      expect(releaseFile.content).toContain('- renovate');
     }, 300000);
 
     test('should complete full github-security workflow with OpenSSF Scorecard (Milestone 12)', async () => {

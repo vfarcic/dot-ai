@@ -23,13 +23,28 @@ Handlebars.registerHelper('eq', function(this: any, a: any, b: any, options: any
 });
 
 // Block helper for truthy check: {{#isTrue value}}...{{/isTrue}}
-// Treats "yes", "true", and true as truthy
+// Treats various truthy values as true (case-insensitive for strings)
+// Truthy: true, "yes", "true", "1", "on" (any case)
 Handlebars.registerHelper('isTrue', function(this: any, value: any, options: any) {
-  if (value === 'yes' || value === 'true' || value === true) {
+  // Handle boolean true
+  if (value === true) {
     return options.fn(this);
-  } else {
-    return options.inverse(this);
   }
+
+  // Handle string values (case-insensitive)
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (normalized === 'yes' || normalized === 'true' || normalized === '1' || normalized === 'on') {
+      return options.fn(this);
+    }
+  }
+
+  // Handle numeric 1
+  if (value === 1) {
+    return options.fn(this);
+  }
+
+  return options.inverse(this);
 });
 
 /**
@@ -37,7 +52,7 @@ Handlebars.registerHelper('isTrue', function(this: any, value: any, options: any
  *
  * @param templateName - Name of the template file (without extension)
  * @param variables - Key-value pairs to replace in template
- * @param baseDir - Base directory relative to project root (default: 'prompts')
+ * @param baseDir - Base directory (relative to project root or absolute path; default: 'prompts')
  * @param fileExtension - File extension (default: '.md')
  * @returns Processed template content
  *
@@ -53,10 +68,13 @@ export function loadPrompt(
   fileExtension: string = '.md'
 ): string {
   try {
-    // Use __dirname to resolve paths relative to the module location
-    // This works both locally and when installed as an npm package
-    // From dist/core/ we go up two levels to project root, then into baseDir
-    const templatePath = path.join(__dirname, '..', '..', baseDir, `${templateName}${fileExtension}`);
+    // Support both absolute and relative paths for baseDir
+    // If baseDir is absolute, use it directly; otherwise resolve relative to project root
+    const resolvedBaseDir = path.isAbsolute(baseDir)
+      ? baseDir
+      : path.join(__dirname, '..', '..', baseDir);
+
+    const templatePath = path.join(resolvedBaseDir, `${templateName}${fileExtension}`);
     const templateContent = fs.readFileSync(templatePath, 'utf8');
 
     // Compile and execute Handlebars template
@@ -65,7 +83,12 @@ export function loadPrompt(
 
     return result;
   } catch (error) {
-    console.error(`Failed to load template ${templateName} from ${baseDir}:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const resolvedPath = path.isAbsolute(baseDir)
+      ? path.join(baseDir, `${templateName}${fileExtension}`)
+      : path.join(__dirname, '..', '..', baseDir, `${templateName}${fileExtension}`);
+
+    console.error(`Failed to load template "${templateName}" from "${baseDir}" (resolved: ${resolvedPath}): ${errorMessage}`);
     return `Error loading template: ${templateName}`;
   }
 }
