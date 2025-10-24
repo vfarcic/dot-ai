@@ -557,5 +557,110 @@
       }
     ],
     "additionalInstructions": "If you enabled publish_results: true, you can add an OpenSSF Scorecard badge to your README.md to display your security score:\n\n[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/{{githubOrg}}/{{githubRepo}}/badge)](https://scorecard.dev/viewer/?uri=github.com/{{githubOrg}}/{{githubRepo}})\n\nThe badge will display your repository's security score and link to detailed results at https://scorecard.dev/viewer/?uri=github.com/{{githubOrg}}/{{githubRepo}}"
+  },
+  "github-automation": {
+    "files": ["renovate.json", ".github/labeler.yml", ".github/workflows/labeler.yml", ".github/workflows/stale.yml"],
+    "questions": [
+      {
+        "id": "prConcurrentLimit",
+        "question": "Maximum number of concurrent pull requests for Renovate (recommended: 3-10, leave empty for default: 10)",
+        "required": false
+      },
+      {
+        "id": "prHourlyLimit",
+        "question": "Maximum PRs per hour for Renovate (0 for unlimited, recommended: 2-5, leave empty for default: 0)",
+        "required": false
+      },
+      {
+        "id": "enableDependencyDashboard",
+        "question": "Enable Renovate dependency dashboard issue? (true/false - shows all pending updates in one place, leave empty for default: true)",
+        "required": false
+      },
+      {
+        "id": "enableVulnerabilityAlerts",
+        "question": "Enable Renovate OSV vulnerability alerts? (true/false - checks dependencies for known vulnerabilities, leave empty for default: true)",
+        "required": false
+      },
+      {
+        "id": "schedule",
+        "question": "Schedule for Renovate dependency checks (text format like 'before 5am on monday', 'after 10pm every weekday', 'every weekend', leave empty for default: 'before 5am on monday')",
+        "required": false
+      },
+      {
+        "id": "groupDependencies",
+        "question": "Group non-major dependencies into single PRs in Renovate? (true/false - reduces PR volume, leave empty for default: true)",
+        "required": false
+      },
+      {
+        "id": "automergeMinor",
+        "question": "Auto-merge minor and patch updates in Renovate? (true/false - automatically merges non-breaking updates, leave empty for default: false)",
+        "required": false
+      },
+      {
+        "id": "automergeSecurity",
+        "question": "Auto-merge security updates in Renovate? (true/false - automatically merges security patches, leave empty for default: false)",
+        "required": false
+      },
+      {
+        "id": "sourceDirectory",
+        "question": "Source code directory for labeler (optional, e.g., 'src', 'lib'). Leave empty if no specific source directory",
+        "required": false
+      },
+      {
+        "id": "testDirectory",
+        "question": "Test directory for labeler (optional, e.g., 'tests', 'test', '__tests__'). Leave empty if tests follow common patterns",
+        "required": false
+      },
+      {
+        "id": "infrastructureDirectory",
+        "question": "Infrastructure directory for labeler (optional, e.g., 'infrastructure', 'deploy'). Leave empty if using common patterns (terraform/, k8s/, etc.)",
+        "required": false
+      },
+      {
+        "id": "staleBotSchedule",
+        "question": "Cron schedule for stale bot (e.g., '0 0 * * *' for daily at midnight, leave empty for default: '0 0 * * *')",
+        "required": false
+      },
+      {
+        "id": "daysBeforeIssueStale",
+        "question": "Days before marking issue as stale (recommended: 60-90, leave empty for default: 60)",
+        "required": false
+      },
+      {
+        "id": "daysBeforeIssueClose",
+        "question": "Days before closing stale issue (recommended: 7-14, leave empty for default: 7)",
+        "required": false
+      },
+      {
+        "id": "daysBeforePrStale",
+        "question": "Days before marking PR as stale (recommended: 30-60, leave empty for default: 30)",
+        "required": false
+      },
+      {
+        "id": "daysBeforePrClose",
+        "question": "Days before closing stale PR (recommended: 7-14, leave empty for default: 7)",
+        "required": false
+      },
+      {
+        "id": "exemptIssueLabels",
+        "question": "Issue labels that exempt from stale bot (comma-separated, e.g., 'pinned,security,bug,needs-maintainer-response', leave empty for default: 'pinned,security')",
+        "required": false
+      },
+      {
+        "id": "exemptPrLabels",
+        "question": "PR labels that exempt from stale bot (comma-separated, e.g., 'pinned,security,work-in-progress', leave empty for default: 'pinned,security')",
+        "required": false
+      },
+      {
+        "id": "exemptMilestones",
+        "question": "Exempt issues/PRs in milestones from stale bot? (true/false, leave empty for default: true)",
+        "required": false
+      },
+      {
+        "id": "exemptAssignees",
+        "question": "Exempt assigned issues/PRs from stale bot? (true/false, leave empty for default: true)",
+        "required": false
+      }
+    ]
   }
 }

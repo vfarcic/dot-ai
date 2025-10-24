@@ -1236,5 +1236,149 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(additionalInstructions).toContain('[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kubernetes/kubernetes/badge)]');
       expect(additionalInstructions).toContain('https://scorecard.dev/viewer/?uri=github.com/kubernetes/kubernetes');
     }, 300000);
+
+    test('should complete full github-automation workflow with 4 files (Milestone 13)', async () => {
+      const testId = Date.now();
+
+      // Step 1: Discovery
+      const discoveryResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'discover',
+        interaction_id: `discovery_github_automation_${testId}`
+      });
+
+      expect(discoveryResponse.data.result).toMatchObject({
+        success: true,
+        sessionId: expect.stringMatching(/^proj-\d+-[a-f0-9-]+$/),
+        availableScopes: expect.arrayContaining(['github-automation']),
+        nextStep: 'reportScan'
+      });
+
+      const sessionId = discoveryResponse.data.result.sessionId;
+
+      // Step 2: ReportScan with github-automation scope
+      const reportScanResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'reportScan',
+        sessionId,
+        existingFiles: [],
+        selectedScopes: ['github-automation'],
+        interaction_id: `report_scan_github_automation_${testId}`
+      });
+
+      expect(reportScanResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        nextStep: 'generateScope',
+        scope: 'github-automation',
+        filesToGenerate: expect.arrayContaining(['renovate.json', '.github/labeler.yml', '.github/workflows/labeler.yml', '.github/workflows/stale.yml']),
+        questions: expect.arrayContaining([
+          expect.objectContaining({ id: 'prConcurrentLimit', required: false }),
+          expect.objectContaining({ id: 'schedule', required: false }),
+          expect.objectContaining({ id: 'sourceDirectory', required: false }),
+          expect.objectContaining({ id: 'staleBotSchedule', required: false })
+        ])
+      });
+
+      // Step 3: GenerateScope - Generate all 3 automation files
+      const generateScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/projectSetup', {
+        step: 'generateScope',
+        sessionId,
+        scope: 'github-automation',
+        answers: {
+          prConcurrentLimit: '5',
+          prHourlyLimit: '2',
+          enableDependencyDashboard: 'true',
+          enableVulnerabilityAlerts: 'true',
+          schedule: 'before 5am on monday',
+          groupDependencies: 'true',
+          automergeMinor: 'false',
+          automergeSecurity: 'true',
+          sourceDirectory: 'src',
+          testDirectory: 'tests',
+          infrastructureDirectory: 'infrastructure',
+          staleBotSchedule: '0 0 * * *',
+          daysBeforeIssueStale: '60',
+          daysBeforeIssueClose: '7',
+          daysBeforePrStale: '30',
+          daysBeforePrClose: '7',
+          exemptIssueLabels: 'pinned,security,bug',
+          exemptPrLabels: 'pinned,security,work-in-progress',
+          exemptMilestones: 'true',
+          exemptAssignees: 'true'
+        },
+        interaction_id: `generate_scope_github_automation_${testId}`
+      });
+
+      expect(generateScopeResponse.data.result).toMatchObject({
+        success: true,
+        sessionId,
+        scope: 'github-automation',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: 'renovate.json' }),
+          expect.objectContaining({ path: '.github/labeler.yml' }),
+          expect.objectContaining({ path: '.github/workflows/labeler.yml' }),
+          expect.objectContaining({ path: '.github/workflows/stale.yml' })
+        ]),
+        instructions: expect.stringContaining('Write these files')
+      });
+
+      // Verify all 4 files were generated
+      const files = generateScopeResponse.data.result.files;
+      expect(files).toHaveLength(4);
+
+      // Verify Renovate configuration
+      const renovateFile = files.find((f: any) => f.path === 'renovate.json');
+      expect(renovateFile).toBeDefined();
+      const renovateContent = JSON.parse(renovateFile.content);
+      expect(renovateContent).toMatchObject({
+        extends: expect.arrayContaining(['config:recommended']),
+        labels: expect.arrayContaining(['dependencies']),
+        prConcurrentLimit: 5,
+        prHourlyLimit: 2,
+        dependencyDashboard: true,
+        osvVulnerabilityAlerts: true,
+        schedule: expect.arrayContaining(['before 5am on monday'])
+      });
+      expect(renovateContent.packageRules).toBeDefined();
+      expect(renovateContent.packageRules.length).toBeGreaterThan(0);
+
+      // Verify Labeler configuration
+      const labelerConfigFile = files.find((f: any) => f.path === '.github/labeler.yml');
+      expect(labelerConfigFile).toBeDefined();
+      expect(labelerConfigFile.content).toContain('documentation:');
+      expect(labelerConfigFile.content).toContain('source:');
+      expect(labelerConfigFile.content).toContain('src/**/*');
+      expect(labelerConfigFile.content).toContain('tests:');
+      expect(labelerConfigFile.content).toContain('tests/**/*');
+      expect(labelerConfigFile.content).toContain('infrastructure:');
+      expect(labelerConfigFile.content).toContain('infrastructure/**/*');
+      expect(labelerConfigFile.content).toContain('dependencies:');
+      expect(labelerConfigFile.content).toContain('package.json');
+      expect(labelerConfigFile.content).toContain('go.mod');
+      expect(labelerConfigFile.content).toContain('Cargo.toml');
+
+      // Verify Labeler workflow
+      const labelerWorkflowFile = files.find((f: any) => f.path === '.github/workflows/labeler.yml');
+      expect(labelerWorkflowFile).toBeDefined();
+      expect(labelerWorkflowFile.content).toContain('name: "Pull Request Labeler"');
+      expect(labelerWorkflowFile.content).toContain('pull_request_target');
+      expect(labelerWorkflowFile.content).toContain('uses: actions/labeler@');
+      expect(labelerWorkflowFile.content).toContain('configuration-path: .github/labeler.yml');
+
+      // Verify Stale bot workflow
+      const staleFile = files.find((f: any) => f.path === '.github/workflows/stale.yml');
+      expect(staleFile).toBeDefined();
+      expect(staleFile.content).toContain('name: Close Stale Issues and PRs');
+      expect(staleFile.content).toContain('uses: actions/stale@');
+      expect(staleFile.content).toContain('days-before-issue-stale: 60');
+      expect(staleFile.content).toContain('days-before-issue-close: 7');
+      expect(staleFile.content).toContain('days-before-pr-stale: 30');
+      expect(staleFile.content).toContain('days-before-pr-close: 7');
+      expect(staleFile.content).toContain('exempt-issue-labels:');
+      expect(staleFile.content).toContain('pinned,security,bug');
+      expect(staleFile.content).toContain('exempt-pr-labels:');
+      expect(staleFile.content).toContain('pinned,security,work-in-progress');
+      expect(staleFile.content).toContain('exempt-milestones: true');
+      expect(staleFile.content).toContain('exempt-assignees: true');
+    }, 300000);
   });
 });

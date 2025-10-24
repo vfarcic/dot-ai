@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": {{prConcurrentLimit}},
+  "prHourlyLimit": {{prHourlyLimit}},
+  "dependencyDashboard": {{enableDependencyDashboard}},
+  {{#isTrue enableDependencyDashboard}}
+  "dependencyDashboardTitle": "Dependency Dashboard",
+  {{/isTrue}}
+  "osvVulnerabilityAlerts": {{enableVulnerabilityAlerts}},
+  "schedule": [
+    "{{schedule}}"
+  ],
+  "packageRules": [
+    {{#isTrue groupDependencies}}
+    {
+      "description": "Group all non-major dependencies together",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {{/isTrue}}
+    {
+      "description": "Automerge non-major updates",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": {{automergeMinor}}
+    },
+    {
+      "description": "Security updates",
+      "matchUpdateTypes": ["security"],
+      "labels": ["security"],
+      "automerge": {{automergeSecurity}}
+    }
+  ]
+}
