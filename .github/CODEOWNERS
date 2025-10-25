@@ -1,0 +1,20 @@
+# CODEOWNERS
+#
+# Code owners are automatically requested for review when someone opens a pull request
+# that modifies code that they own. Code owners are not automatically requested to review
+# draft pull requests.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners (default for everything in the repository)
+# Using individual maintainers for code ownership
+* @vfarcic
+
+# Notes:
+# - Code owners are automatically requested for review when PRs modify their files
+# - You can define path-specific owners by adding lines like:
+#   /docs/ @docs-team
+#   /.github/ @devops-team
+#   /src/core/ @architecture-team
+# - Order matters: later matches take precedence over earlier ones
+# - Use teams (@org/team) for easier maintenance in larger projects

@@ -1,0 +1,69 @@
+# This configuration automatically labels pull requests based on file paths.
+# Learn more: https://github.com/actions/labeler
+
+# Documentation changes
+documentation:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'docs/**/*'
+    - '*.md'
+    - 'README*'
+
+# Source code changes
+source:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'src/**/*'
+
+# Test changes
+tests:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'tests/**/*'
+    - '**/*.test.*'
+    - '**/*.spec.*'
+
+# CI/CD changes
+ci-cd:
+- changed-files:
+  - any-glob-to-any-file:
+    - '.github/workflows/**/*'
+    - '.github/actions/**/*'
+    - 'Dockerfile*'
+    - 'docker-compose*.yml'
+
+# Infrastructure changes
+infrastructure:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'k8s/**/*'
+    - 'kubernetes/**/*'
+    - 'manifests/**/*'
+    - 'helm/**/*'
+    - 'charts/**/*'
+    - 'Chart.yaml'
+    - 'values.yaml'
+    - 'kind.yaml'
+
+# Dependencies
+dependencies:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'package.json'
+    - 'package-lock.json'
+    - 'yarn.lock'
+    - 'pnpm-lock.yaml'
+
+# Configuration changes
+config:
+- changed-files:
+  - any-glob-to-any-file:
+    - '*.config.*'
+    - '*.json'
+    - '*.yaml'
+    - '*.yml'
+    - '*.toml'
+    - '.env*'
+    - 'tsconfig.json'
+    - '.eslintrc*'
+    - '.prettierrc*'

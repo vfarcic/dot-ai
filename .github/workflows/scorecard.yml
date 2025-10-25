@@ -1,0 +1,65 @@
+# This workflow uses actions that are not certified by GitHub. They are provided by a
+# third-party and are governed by separate terms of service, privacy policy, and support
+# documentation.
+#
+# OpenSSF Scorecard is a tool that assesses open source projects for security risks.
+# Projects are given a score out of 10 based on security best practices.
+# See: https://github.com/ossf/scorecard
+
+name: OpenSSF Scorecard
+
+on:
+  # Only the default branch is supported for accurate security analysis
+  push:
+    branches:
+      - main
+
+  # Run security analysis on a schedule
+  schedule:
+    # 30 1 * * 6 - Weekly on Saturdays at 1:30 AM UTC
+    - cron: '30 1 * * 6'
+
+  # Allow manual triggering for on-demand security analysis
+  workflow_dispatch:
+
+# Restrict permissions to read-only by default for security
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload results to GitHub's code scanning dashboard
+      security-events: write
+      # Required to publish results and get a Scorecard badge
+      id-token: write
+      # Required for private repos to detect SAST tools and query commits
+      contents: read
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: "Run analysis"
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publish results to enable Scorecard badges and REST API access
+          # See: https://github.com/ossf/scorecard-action#publishing-results
+          publish_results: true
+
+      - name: "Upload artifact"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: "Upload to code-scanning"
+        uses: github/codeql-action/upload-sarif@64d10c13136e1c5bce3e5fbde8d4906eeaafc885 # v3.30.6
+        with:
+          sarif_file: results.sarif

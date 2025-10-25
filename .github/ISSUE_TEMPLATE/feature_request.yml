@@ -1,0 +1,128 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for DevOps AI Toolkit
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a new feature! Please describe the problem you're trying to solve and your proposed solution.
+
+        **Before submitting:**
+        - Search existing issues and feature requests to avoid duplicates
+        - Review the [project roadmap](../docs/ROADMAP.md) to see if this is already planned
+        - Consider starting a [discussion](https://github.com/vfarcic/dot-ai/discussions) first to gather feedback
+
+        **Note:** "Nice to have" is not a strong use case. Please explain the specific problem this feature would solve.
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve? Why is it important?
+      placeholder: |
+        Describe the problem you're experiencing or the gap you've identified.
+        Focus on the problem, not the solution.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: who-is-affected
+    attributes:
+      label: Who is affected by this problem?
+      description: Help us understand the impact and audience
+      options:
+        - label: End users
+        - label: Developers/contributors
+        - label: Platform engineers/operators
+        - label: Documentation users
+        - label: Other (please describe below)
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see
+      placeholder: |
+        How would this feature work? What would the user experience be?
+        Be as specific as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches have you considered or tried?
+      placeholder: |
+        - Current workarounds you're using
+        - Other tools or features that solve similar problems
+        - Why those alternatives don't fully address the need
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Describe 1-3 specific scenarios where this feature would be valuable
+      placeholder: |
+        **Use Case 1:** [Describe a specific scenario]
+        **Use Case 2:** [Describe another scenario]
+      value: |
+        **Use Case 1:**
+
+        **Use Case 2:**
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, mockups, or examples
+      placeholder: |
+        - Links to relevant documentation
+        - Screenshots or mockups
+        - Examples from other projects
+        - Performance or scalability considerations
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - "Nice to have"
+        - "Important (workarounds exist but are painful)"
+        - "Critical (blocking my use of DevOps AI Toolkit)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to contribute this feature?
+      description: Would you be interested in implementing this feature with guidance from maintainers?
+      options:
+        - "Yes, I'd like to implement this"
+        - "Yes, with help from maintainers"
+        - "Maybe, depending on complexity"
+        - "No, but I can help test it"
+        - "No, I'm just suggesting it"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and feature requests
+          required: true
+        - label: I have described the problem, not just the solution
+          required: true
+        - label: I have reviewed the project roadmap (docs/ROADMAP.md)
+          required: false

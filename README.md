@@ -4,8 +4,13 @@
 
 ![DevOps AI Toolkit Logo](assets/images/logo.png)
 
+[![npm version](https://badge.fury.io/js/%40vfarcic%2Fdot-ai.svg)](https://www.npmjs.com/package/@vfarcic/dot-ai)
+[![npm downloads](https://img.shields.io/npm/dm/@vfarcic/dot-ai.svg)](https://www.npmjs.com/package/@vfarcic/dot-ai)
+[![GitHub release](https://img.shields.io/github/release/vfarcic/dot-ai.svg)](https://github.com/vfarcic/dot-ai/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Project Status](https://img.shields.io/badge/status-beta-orange)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vfarcic/dot-ai/badge)](https://scorecard.dev/viewer/?uri=github.com/vfarcic/dot-ai)
+[![GitHub stars](https://img.shields.io/github/stars/vfarcic/dot-ai.svg?style=social&label=Star)](https://github.com/vfarcic/dot-ai)
 
 </div>
 

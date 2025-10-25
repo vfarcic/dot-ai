@@ -1,0 +1,138 @@
+name: Bug Report
+description: Report a bug to help us improve DevOps AI Toolkit
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug! Please fill out the form below to help us diagnose and fix the issue.
+
+        **Before submitting:**
+        - Search existing issues to avoid duplicates
+        - Check the [documentation](https://github.com/vfarcic/dot-ai#readme) for solutions
+        - Review [SUPPORT.md](../SUPPORT.md) for help resources
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Run command '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what you expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "## Environment"
+
+  - type: input
+    id: version
+    attributes:
+      label: "DevOps AI Toolkit Version"
+      description: "What version are you running?"
+      placeholder: "e.g., v1.2.3 or commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: "What OS are you using?"
+      placeholder: "e.g., Ubuntu 22.04, macOS 13.5, Windows 11"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: "Output of `node --version`"
+      placeholder: "e.g., v18.17.0"
+    validations:
+      required: true
+
+  - type: input
+    id: npm-version
+    attributes:
+      label: npm/yarn Version
+      description: "Output of `npm --version` or `yarn --version`"
+      placeholder: "e.g., 9.6.7"
+
+  - type: input
+    id: kubernetes-version
+    attributes:
+      label: Kubernetes Version
+      description: "Output of `kubectl version --short`"
+      placeholder: "e.g., v1.27.3"
+    validations:
+      required: true
+
+  - type: input
+    id: cloud-provider
+    attributes:
+      label: Cloud Provider / Platform
+      description: "Where is Kubernetes running?"
+      placeholder: "e.g., AWS EKS, Google GKE, Azure AKS, self-hosted, minikube, kind"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: "Paste any relevant log output here"
+      placeholder: |
+        Paste logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: "Add any other context about the problem here (screenshots, configuration files, etc.)"
+      placeholder: |
+        Any additional information...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues to ensure this bug hasn't been reported before
+          required: true
+        - label: I have included all relevant information above
+          required: true
