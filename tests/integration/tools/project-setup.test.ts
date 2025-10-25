@@ -299,6 +299,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
         answers: {
           projectName: `Governance Test ${testId}`,
           repositoryUrl: 'https://github.com/test/governance-test',
+          repoName: 'governance-test',
           enforcementEmail: 'conduct@test.com',
           securityEmail: 'security@test.com',
           maintainerEmail: 'maintainers@test.com',
@@ -347,6 +348,10 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(contributingFile.content).toContain('npm install');
       expect(contributingFile.content).toContain('npm test');
       expect(contributingFile.content).toContain('git commit -s');
+      // Verify git clone uses repoName, not projectName
+      expect(contributingFile.content).toContain('git clone https://github.com/YOUR_USERNAME/governance-test.git');
+      expect(contributingFile.content).toContain('cd governance-test');
+      expect(contributingFile.content).not.toContain(`cd Governance Test ${testId}`);
 
       // Verify SECURITY.md content
       const securityFile = files.find((f: any) => f.path === 'SECURITY.md');

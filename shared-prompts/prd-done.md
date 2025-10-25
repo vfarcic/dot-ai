@@ -33,6 +33,7 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **No outstanding blockers**: All dependencies resolved and technical debt addressed
 - [ ] **Update PRD status**: Mark PRD as "Complete" with completion date
 - [ ] **Archive PRD file**: Move completed PRD to `./prds/done/` directory to maintain project organization
+- [ ] **Update ROADMAP.md (if it exists)**: Remove the completed feature from `docs/ROADMAP.md` roadmap if the file exists
 
 **Note**: Tests will run automatically in the CI/CD pipeline when the PR is created. Do not run tests locally during the completion workflow.
 

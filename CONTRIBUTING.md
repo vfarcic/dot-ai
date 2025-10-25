@@ -1,6 +1,6 @@
-# Contributing to {{projectName}}
+# Contributing to DevOps AI Toolkit
 
-Thank you for your interest in contributing to {{projectName}}! We welcome contributions from the community.
+Thank you for your interest in contributing to DevOps AI Toolkit! We welcome contributions from the community.
 
 ## Table of Contents
 
@@ -10,9 +10,7 @@ Thank you for your interest in contributing to {{projectName}}! We welcome contr
 - [Development Workflow](#development-workflow)
 - [Pull Request Process](#pull-request-process)
 - [Coding Standards](#coding-standards)
-{{#if requiresDco}}
 - [Commit Sign-off](#commit-sign-off)
-{{/if}}
 - [Communication](#communication)
 
 ## Code of Conduct
@@ -36,21 +34,17 @@ There are many ways to contribute:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/{{repoName}}.git
-   cd {{repoName}}
+   git clone https://github.com/YOUR_USERNAME/dot-ai.git
+   cd dot-ai
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream {{repositoryUrl}}
+   git remote add upstream https://github.com/vfarcic/dot-ai
    ```
-{{#if setupCommand}}
 4. **Install dependencies**:
    ```bash
-   {{setupCommand}}
+   npm install
    ```
-{{else}}
-4. **Install dependencies** - See [README.md](README.md) for setup instructions
-{{/if}}
 
 ## Development Workflow
 
@@ -61,15 +55,13 @@ There are many ways to contribute:
 
 2. **Make your changes** - Write code, add tests, update docs
 
-3. **Test your changes**{{#if testCommand}} - Run `{{testCommand}}`{{/if}}
+3. **Test your changes** - Run `npm test`
 
 4. **Commit your changes**:
    ```bash
    git commit -m "Description of your changes"
    ```
-{{#if requiresDco}}
    Use `git commit -s` to sign off your commits (required)
-{{/if}}
 
 5. **Push to your fork**:
    ```bash
@@ -83,13 +75,9 @@ There are many ways to contribute:
 ### Before Submitting
 
 - Ensure your code follows the project's coding standards
-{{#if testCommand}}
 - Add or update tests for your changes
-- Verify all tests pass: `{{testCommand}}`
-{{/if}}
-{{#if lintCommand}}
-- Run linters: `{{lintCommand}}`
-{{/if}}
+- Verify all tests pass: `npm test`
+- Run linters: `npm run lint`
 - Update documentation as needed
 - Keep pull requests focused on a single concern
 
@@ -112,16 +100,8 @@ Include in your pull request description:
 
 ## Coding Standards
 
-{{#if lintCommand}}
-Follow the project's coding style enforced by `{{lintCommand}}`.
-{{else}}
-- Write clear, readable code
-- Use meaningful names for variables and functions
-- Add comments for complex logic
-- Follow language-specific best practices
-{{/if}}
+Follow the project's coding style enforced by `npm run lint`.
 
-{{#if requiresDco}}
 ## Commit Sign-off
 
 All commits must be signed off to certify that you have the right to submit the code under the project's license.
@@ -139,21 +119,12 @@ Signed-off-by: Your Name <your.email@example.com>
 ```
 
 Learn more at [https://developercertificate.org/](https://developercertificate.org/)
-{{/if}}
 
 ## Communication
 
-- **Issues** - Report bugs and request features via [GitHub Issues]({{repositoryUrl}}/issues)
-{{#if discussionsUrl}}
-- **Discussions** - Ask questions in [GitHub Discussions]({{discussionsUrl}})
-{{/if}}
-{{#if slackChannel}}
-- **Slack** - Join our community: {{slackChannel}}
-{{/if}}
-{{#if discordUrl}}
-- **Discord** - Chat with the community: {{discordUrl}}
-{{/if}}
+- **Issues** - Report bugs and request features via [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
+- **Discussions** - Ask questions in [GitHub Discussions](https://github.com/vfarcic/dot-ai/discussions)
 
 ---
 
-Thank you for contributing to {{projectName}}!
+Thank you for contributing to DevOps AI Toolkit!

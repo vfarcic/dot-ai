@@ -118,6 +118,17 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.
 
+### Step 5: Update ROADMAP.md (If It Exists)
+
+After creating the PRD, check if `docs/ROADMAP.md` exists. If it does, add the new feature to the appropriate timeframe section based on PRD priority:
+- **High Priority** → Short-term section
+- **Medium Priority** → Medium-term section
+- **Low Priority** → Long-term section
+
+Format: `- [Brief feature description] (PRD #[issue-id])`
+
+The ROADMAP.md update will be included in the commit at the end of the workflow (Option 2).
+
 ## Next Steps After PRD Creation
 
 After completing the PRD, present the user with numbered options:
@@ -150,8 +161,10 @@ This will help identify the first task and set up the development workflow.
 If user chooses option 2:
 
 ```bash
-# Stage the PRD file
+# Stage the PRD file (and ROADMAP.md if it was updated)
 git add prds/[issue-id]-[feature-name].md
+# If docs/ROADMAP.md exists and was updated, include it:
+# git add docs/ROADMAP.md
 
 # Commit with skip CI flag to avoid unnecessary CI runs
 git commit -m "docs(prd-[issue-id]): create PRD #[issue-id] - [feature-name] [skip ci]
@@ -159,6 +172,7 @@ git commit -m "docs(prd-[issue-id]): create PRD #[issue-id] - [feature-name] [sk
 - Created PRD for [brief feature description]
 - Defined [X] major milestones
 - Documented problem, solution, and success criteria
+- Added to ROADMAP.md ([timeframe] section)
 - Ready for implementation"
 
 # Push to main

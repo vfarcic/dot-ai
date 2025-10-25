@@ -75,6 +75,11 @@
         "required": true
       },
       {
+        "id": "repoName",
+        "question": "Repository name (without owner, used in git clone commands - e.g., 'dot-ai' from 'github.com/vfarcic/dot-ai')",
+        "required": true
+      },
+      {
         "id": "enforcementEmail",
         "question": "Email address for Code of Conduct enforcement",
         "required": true

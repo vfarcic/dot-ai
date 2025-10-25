@@ -105,8 +105,21 @@ Get started in 3 steps:
 
 ## Support
 
+- **[Support Guide](SUPPORT.md)** - How to get help and where to ask questions
 - **GitHub Issues**: [Bug reports and feature requests](https://github.com/vfarcic/dot-ai/issues)
+- **GitHub Discussions**: [Community Q&A and discussions](https://github.com/vfarcic/dot-ai/discussions)
 - **Troubleshooting**: See [Troubleshooting Guide](./docs/mcp-setup.md#troubleshooting) for common problems
+
+## Contributing & Governance
+
+We welcome contributions from the community! Please review:
+
+- **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute code, docs, and ideas
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community standards and expectations
+- **[Security Policy](SECURITY.md)** - How to report security vulnerabilities
+- **[Governance](docs/GOVERNANCE.md)** - Project governance and decision-making
+- **[Maintainers](docs/MAINTAINERS.md)** - Current project maintainers
+- **[Roadmap](docs/ROADMAP.md)** - Project direction and priorities
 
 ## License
 
