@@ -10,6 +10,8 @@ category: project-management
 
 You are helping initiate active implementation work on a specific Product Requirements Document (PRD). This command bridges the gap between PRD planning and actual development work by setting up the implementation context and providing clear next steps.
 
+**IMPORTANT**: Do NOT include time estimates or effort estimates in your responses. Focus on task prioritization, dependencies, and clear next steps without speculating on duration.
+
 ## Process Overview
 
 1. **Select Target PRD** - Ask user which PRD they want to implement
@@ -189,8 +191,6 @@ Present the implementation plan:
 **What you'll build**: [Concrete description of what will be implemented]
 
 **Success criteria**: [How you'll know this task is complete]
-
-**Estimated effort**: [Time estimate]
 
 **Next steps after this**: [What becomes possible once this is done]
 

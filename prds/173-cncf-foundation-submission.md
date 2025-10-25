@@ -60,6 +60,11 @@ Submit DevOps AI Toolkit to CNCF Sandbox level, establishing the project as a re
 - [ ] Code of Conduct adopted
 - [ ] Security policy documented
 - [ ] Maintainers file created
+- [ ] Issue templates created (bug report, feature request)
+- [ ] Pull request template created
+- [ ] ADOPTERS.md file created (even if initially empty)
+- [ ] Website URL decision made and documented
+- [ ] Community channel decision made (GitHub Discussions/Slack/Discord)
 - [ ] Application materials prepared for all 30 form fields
 
 ### Post-Acceptance Success
@@ -157,6 +162,45 @@ The application form requires 30 fields across these categories:
 
 ---
 
+## Pre-Implementation Decisions
+
+Before starting Milestone 1, these key decisions need to be made:
+
+### Decision 1: Website URL Strategy
+**Required for**: Application Form Field #6
+**Options**:
+- Use GitHub repository URL as website (simplest, common for Sandbox)
+- Create GitHub Pages site
+- Create dedicated project website
+
+**Decision**: _[To be determined]_
+
+---
+
+### Decision 2: Community Communication Channel
+**Required for**: Milestone 3 deliverable, impacts CONTRIBUTING.md content
+**Options**:
+- GitHub Discussions (lightweight, integrated)
+- CNCF Slack channel (requires acceptance first)
+- Discord server
+- No separate channel initially (GitHub Issues only)
+
+**Decision**: _[To be determined]_
+
+---
+
+### Decision 3: TAG Assignment Strategy
+**Required for**: Application Form Field #27
+**Options**:
+- Request TAG-App-Delivery (best fit for deployment tool)
+- Request TAG-Runtime
+- Request TAG-Contributor-Strategy
+- Let TOC assign automatically
+
+**Decision**: _[To be determined]_
+
+---
+
 ## Milestones
 
 ### 1. Governance Documentation Complete
@@ -177,15 +221,16 @@ The application form requires 30 fields across these categories:
 ### 2. Application Materials Prepared
 **Success Criteria**: All 30 application form fields have complete, accurate responses ready
 
-**Deliverables**:
-- Project descriptions (short and long form)
-- Cloud native positioning document
-- Comparative analysis with similar projects
-- Value proposition for CNCF ecosystem
-- Technical Advisory Group (TAG) identification
-- Contact and signatory information
+**Deliverables** (organized by application form categories):
+- Basic Project Information (7 fields): descriptions, repo URLs, website, contacts
+- Governance & Community (8 fields): links to all governance docs, adopters file
+- Cloud Native Context (7 fields): CNCF fit, complementary projects, competitive analysis
+- Legal & Compliance (4 fields): trademark status, IP policy, license verification
+- Additional Information (4 fields): TAG identification, CNCF contacts, supplementary details
 
 **Validation**: Mock application review identifies no missing or incomplete information
+
+**Note**: All 30 fields are documented in detail in the "CNCF Sandbox Application Requirements" section above (lines 114-157)
 
 ---
 
@@ -195,9 +240,9 @@ The application form requires 30 fields across these categories:
 **Deliverables**:
 - Issue templates for bug reports, feature requests
 - Pull request template
-- Discussion forums or Slack/Discord channel (if applicable)
-- Initial contributor documentation
-- Adopters list template (even if empty initially)
+- Discussion forums or Slack/Discord channel decision made
+- ADOPTERS.md file (even if initially empty)
+- Initial contributor documentation (covered by CONTRIBUTING.md - no additional docs needed initially)
 
 **Validation**: First-time contributors can successfully find and follow contribution process
 
@@ -414,6 +459,12 @@ The application form requires 30 fields across these categories:
 
 ## Progress Log
 
+### 2025-10-25
+- **PRD Enhancement**: Updated Success Criteria to include all Milestone 3 deliverables with explicit checkboxes
+- **Decision Framework**: Added Pre-Implementation Decisions section for key choices (website URL, community channel, TAG strategy)
+- **Tracking Improvements**: Clarified ambiguous items, added category breakdown for 30 application fields
+- **Implementation Ready**: PRD now complete and unambiguous, ready for implementation to begin
+
 ### 2025-10-21
 - **Research Phase Complete**: Investigated CNCF Sandbox requirements and application process
 - **Gap Analysis**: Identified missing governance documents and community infrastructure
@@ -463,4 +514,15 @@ The application form requires 30 fields across these categories:
 
 ---
 
-**Next Steps**: Begin creating governance documents (Milestone 1) and prepare application materials (Milestone 2).
+## Next Steps
+
+**Immediate Actions**:
+1. Make Pre-Implementation Decisions (3 key decisions documented above)
+2. Create feature branch: `feature/prd-173-cncf-foundation-submission`
+3. Begin Milestone 1: Create all 6 governance documents
+4. Commit and mark Milestone 1 checkboxes complete
+
+**Then**:
+- Milestone 2: Prepare all 30 application form fields
+- Milestone 3: Set up community infrastructure
+- Milestone 4: Submit CNCF Sandbox application

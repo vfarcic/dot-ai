@@ -198,8 +198,6 @@ Present findings in this focused format:
 
 **Dependencies**: [What's already complete that makes this ready to work on]
 
-**Effort estimate**: [Realistic time estimate]
-
 **Success criteria**: [How you'll know it's done]
 
 ---
