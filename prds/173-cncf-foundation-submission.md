@@ -173,7 +173,8 @@ Before starting Milestone 1, these key decisions need to be made:
 - Create GitHub Pages site
 - Create dedicated project website
 
-**Decision**: _[To be determined]_
+**Decision**: ✅ **Use GitHub repository URL** (https://github.com/vfarcic/dot-ai)
+**Rationale**: Standard for CNCF Sandbox projects, zero setup time, comprehensive README serves as homepage, can upgrade post-acceptance
 
 ---
 
@@ -185,7 +186,9 @@ Before starting Milestone 1, these key decisions need to be made:
 - Discord server
 - No separate channel initially (GitHub Issues only)
 
-**Decision**: _[To be determined]_
+**Decision**: ✅ **GitHub Discussions**
+**Rationale**: Free, integrated with GitHub, searchable, standard for CNCF Sandbox projects, can add CNCF Slack after acceptance
+**Action Required**: Enable GitHub Discussions in repository settings
 
 ---
 
@@ -197,7 +200,8 @@ Before starting Milestone 1, these key decisions need to be made:
 - Request TAG-Contributor-Strategy
 - Let TOC assign automatically
 
-**Decision**: _[To be determined]_
+**Decision**: ✅ **Let TOC assign automatically**
+**Rationale**: Project scope is broader than single TAG domain (covers app deployment, infrastructure management, remediation, platform engineering). TOC has full context from application and can assign to most appropriate TAG (likely TAG-Runtime or TAG-App-Delivery)
 
 ---
 
