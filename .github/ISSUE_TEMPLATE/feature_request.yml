@@ -10,7 +10,7 @@ body:
 
         **Before submitting:**
         - Search existing issues and feature requests to avoid duplicates
-        - Review the [project roadmap](../docs/ROADMAP.md) to see if this is already planned
+        - Review the [project roadmap](https://github.com/vfarcic/dot-ai/blob/main/docs/ROADMAP.md) to see if this is already planned
         - Consider starting a [discussion](https://github.com/vfarcic/dot-ai/discussions) first to gather feedback
 
         **Note:** "Nice to have" is not a strong use case. Please explain the specific problem this feature would solve.

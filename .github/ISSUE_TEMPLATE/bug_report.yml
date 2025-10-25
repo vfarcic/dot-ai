@@ -11,7 +11,7 @@ body:
         **Before submitting:**
         - Search existing issues to avoid duplicates
         - Check the [documentation](https://github.com/vfarcic/dot-ai#readme) for solutions
-        - Review [SUPPORT.md](../SUPPORT.md) for help resources
+        - Review [SUPPORT.md](https://github.com/vfarcic/dot-ai/blob/main/SUPPORT.md) for help resources
 
   - type: textarea
     id: description
