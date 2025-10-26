@@ -1,8 +1,9 @@
 <!-- PRD-184 -->
 # PRD: Improve OpenSSF Scorecard Score
 
-**Status**: Open
+**Status**: Complete
 **Created**: 2025-01-27
+**Completed**: 2025-01-27
 **Priority**: Medium
 **GitHub Issue**: [#184](https://github.com/vfarcic/dot-ai/issues/184)
 
