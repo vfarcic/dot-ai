@@ -104,15 +104,66 @@ Automatically populate what can be deduced from analysis:
   - Note any dependency updates
 
 #### 3.4. Prompt User for Information That Cannot Be Deduced
-Ask user to provide information that requires human judgment:
+**IMPORTANT: Don't just ask - analyze and propose answers, then let user confirm or correct**
 
-- [ ] **Manual testing results**: Ask user to describe manual testing performed
-- [ ] **Breaking changes**: If detected, ask for migration guidance
-- [ ] **Performance implications**: Ask if performance was impacted
-- [ ] **Security considerations**: For security-sensitive changes, ask for review details
-- [ ] **Reviewer focus areas**: Ask what reviewers should pay special attention to
-- [ ] **Follow-up work**: Ask about any planned follow-up PRs
-- [ ] **Additional context**: Any other relevant information for reviewers
+For each item, use available context to propose an answer, then present it to the user for confirmation:
+
+- [ ] **Manual testing results**:
+  - **Analyze PRD testing strategy section** to understand what testing was planned
+  - **Check git commits** for testing-related messages
+  - **Propose testing approach** based on change type (e.g., "Documentation reviewed for accuracy and clarity, cross-references validated")
+  - Present proposal and ask: "Is this accurate, or would you like to modify?"
+
+- [ ] **Breaking changes**:
+  - **Scan commits and PRD** for breaking change indicators
+  - If detected, **propose migration guidance** based on PRD content
+  - If not detected, **confirm**: "No breaking changes detected. Correct?"
+
+- [ ] **Performance implications**:
+  - **Analyze change type**: Documentation/config changes typically have no performance impact
+  - **Propose answer** based on analysis (e.g., "No performance impact - documentation only")
+  - Ask: "Correct, or are there performance considerations?"
+
+- [ ] **Security considerations**:
+  - **Check if security-sensitive files** were modified (auth, credentials, API keys)
+  - **Scan commits** for security-related keywords
+  - **Propose security status** (e.g., "No security implications - documentation changes only")
+  - Ask: "Accurate, or are there security considerations to document?"
+
+- [ ] **Reviewer focus areas**:
+  - **Analyze PRD objectives** and **git changes** to identify key areas
+  - **Propose specific focus areas** (e.g., "Verify documentation accuracy, check cross-reference links, confirm workflow examples match implementation")
+  - Present list and ask: "Are these the right focus areas, or should I adjust?"
+
+- [ ] **Follow-up work**:
+  - **Check PRD for "Future Enhancements" or "Out of Scope" sections**
+  - **Analyze other PRDs** in `prds/` directory for related work
+  - **Propose follow-up items** if any (e.g., "Future enhancements listed in PRD: template validation, AI-powered descriptions")
+  - Ask: "Should I list these, or is there other follow-up work?"
+
+- [ ] **Additional context**:
+  - **Review PRD for special considerations**
+  - **Check if this is a dogfooding/testing PR**
+  - **Propose any relevant context** (e.g., "This PR itself tests the enhanced workflow it documents")
+  - Ask: "Anything else reviewers should know?"
+
+**Presentation Format:**
+Present all proposed answers together in a summary format:
+```
+📋 **Proposed PR Information** (based on analysis)
+
+**Manual Testing:** [proposed answer]
+**Breaking Changes:** [proposed answer]
+**Performance Impact:** [proposed answer]
+**Security Considerations:** [proposed answer]
+**Reviewer Focus:** [proposed list]
+**Follow-up Work:** [proposed items or "None"]
+**Additional Context:** [proposed context or "None"]
+
+Please review and respond:
+- Type "yes" or "confirm" to accept all
+- Specify corrections for any items that need changes
+```
 
 #### 3.5. Create Pull Request
 - [ ] **Construct PR body**: Combine auto-filled and user-provided information following template structure
