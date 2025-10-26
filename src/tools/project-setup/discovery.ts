@@ -40,9 +40,9 @@ export async function handleDiscovery(
     async () => {
       logger.debug('Starting project setup discovery', { requestId });
 
-      // Load discovery config from source directory
-      // From dist/tools/project-setup/ -> ../../../ gets to project root, then src/tools/project-setup/
-      const configPath = path.join(__dirname, '..', '..', '..', 'src', 'tools', 'project-setup', 'discovery-config.json');
+      // Load discovery config from assets directory
+      // From dist/tools/project-setup/ -> ../../../ gets to project root, then assets/project-setup/
+      const configPath = path.join(__dirname, '..', '..', '..', 'assets', 'project-setup', 'discovery-config.json');
       const configContent = fs.readFileSync(configPath, 'utf8');
       const allConfig: DiscoveryConfig = JSON.parse(configContent);
 

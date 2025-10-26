@@ -191,14 +191,14 @@ function generateFileContent(fileName: string, answers: Record<string, any>, log
     const content = loadPrompt(
       fileName,
       answers,
-      'src/tools/project-setup/templates',
+      'assets/project-setup/templates',
       '.hbs' // Add .hbs extension to template files
     );
 
     return content;
   } catch (error) {
     logger.error('Failed to generate file content', error as Error, { fileName });
-    return `# ${fileName}\n\nError: Could not generate content for this file.\nTemplate may be missing at: src/tools/project-setup/templates/${fileName}.hbs\n`;
+    return `# ${fileName}\n\nError: Could not generate content for this file.\nTemplate may be missing at: assets/project-setup/templates/${fileName}.hbs\n`;
   }
 }
 
