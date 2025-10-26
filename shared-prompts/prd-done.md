@@ -53,10 +53,92 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Push to remote**: `git push -u origin feature/prd-[issue-id]-[feature-name]`
 
 ### 3. Pull Request Creation
-- [ ] **Create PR**: Use `gh pr create` with comprehensive description
-- [ ] **Link to PRD**: Reference the original issue and PRD file
-- [ ] **Review checklist**: Include testing, documentation, and quality confirmations
-- [ ] **Request reviews**: Assign appropriate team members for code review
+
+**IMPORTANT: Always check for and use PR template if available**
+
+#### 3.1. PR Template Detection
+- [ ] **Check for PR template** in common locations:
+  - `.github/PULL_REQUEST_TEMPLATE.md`
+  - `.github/pull_request_template.md`
+  - `.github/PULL_REQUEST_TEMPLATE/` (directory with multiple templates)
+  - `docs/pull_request_template.md`
+- [ ] **Read and parse template**: If found, analyze the template structure to understand required sections, checklists, and format requirements
+
+#### 3.2. Analyze Changes for PR Content
+- [ ] **Review git diff**: Analyze `git diff main...HEAD` to understand scope of changes
+- [ ] **Review commit history**: Use `git log main..HEAD` to understand implementation progression
+- [ ] **Identify change types**: Determine if changes include:
+  - New features, bug fixes, refactoring, documentation, tests, configuration, dependencies
+  - Breaking changes or backward-compatible changes
+  - Performance improvements or security fixes
+- [ ] **Check modified files**: Identify which areas of codebase were affected
+  - Source code files
+  - Test files
+  - Documentation files
+  - Configuration files
+
+#### 3.3. Auto-Fill PR Information
+Automatically populate what can be deduced from analysis:
+
+- [ ] **PR Title**:
+  - Follow template title format if specified (e.g., Conventional Commits: `feat(scope): description`)
+  - Extract from PRD title/description and commit messages
+  - Include issue reference if required by template
+
+- [ ] **Description sections**:
+  - **What/Why**: Extract from PRD objectives and implementation details
+  - **Related issues**: Automatically link using `Closes #[issue-id]` or `Fixes #[issue-id]`
+  - **Type of change**: Check appropriate boxes based on file analysis
+
+- [ ] **Testing checklist**:
+  - Mark "Tests added/updated" if test files were modified
+  - Note: Tests run in CI/CD automatically
+
+- [ ] **Documentation checklist**:
+  - Mark items based on which docs were updated (README, API docs, code comments)
+  - Check if CONTRIBUTING.md guidelines followed
+
+- [ ] **Security checklist**:
+  - Scan commits for potential secrets or credentials
+  - Flag if authentication/authorization code changed
+  - Note any dependency updates
+
+#### 3.4. Prompt User for Information That Cannot Be Deduced
+Ask user to provide information that requires human judgment:
+
+- [ ] **Manual testing results**: Ask user to describe manual testing performed
+- [ ] **Breaking changes**: If detected, ask for migration guidance
+- [ ] **Performance implications**: Ask if performance was impacted
+- [ ] **Security considerations**: For security-sensitive changes, ask for review details
+- [ ] **Reviewer focus areas**: Ask what reviewers should pay special attention to
+- [ ] **Follow-up work**: Ask about any planned follow-up PRs
+- [ ] **Additional context**: Any other relevant information for reviewers
+
+#### 3.5. Create Pull Request
+- [ ] **Construct PR body**: Combine auto-filled and user-provided information following template structure
+- [ ] **Create PR**: Use `gh pr create --title "[title]" --body "[constructed-body]"` or `gh pr create --title "[title]" --body-file [temp-file]`
+- [ ] **Verify PR created**: Confirm PR was created successfully and template was populated correctly
+- [ ] **Request reviews**: Assign appropriate team members for code review if specified
+
+#### 3.6. Fallback for Projects Without Templates
+If no PR template is found, create a sensible default structure:
+
+```markdown
+## Description
+[What this PR does and why]
+
+## Related Issues
+Closes #[issue-id]
+
+## Changes Made
+- [List key changes]
+
+## Testing
+- [Testing approach and results]
+
+## Documentation
+- [Documentation updates made]
+```
 
 ### 4. Review and Merge Process
 - [ ] **Check ongoing processes**: Use `gh pr checks [pr-number]` to check for any ongoing CI/CD, security analysis, or automated reviews (CodeRabbit, CodeQL, etc.)

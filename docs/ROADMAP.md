@@ -27,6 +27,7 @@ This roadmap is a living document and may change based on community feedback and
 - OpenTelemetry tracing for production-grade observability (PRD #137)
 - Remediation observability integration (PRD #150)
 - AI model comparison platform for informed provider selection (PRD #151)
+- Enhanced PR creation with intelligent template detection and auto-fill (PRD #182)
 
 ## Long-term (6-12 Months)
 
