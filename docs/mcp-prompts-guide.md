@@ -44,13 +44,11 @@ This video demonstrates how to use the PRD (Product Requirements Document) promp
 1. Ensure you're connected to the dot-ai MCP server (see [MCP Setup Guide](./mcp-setup.md))
 2. Access prompts using your agent's interface:
    - **Claude Code**: Type `/` and look for `/dot-ai:prompt-name` commands
-   - **VS Code + GitHub Copilot**: Use `/mcp.dot-ai.prompt-name` format
-   - **Cursor**: Ask the agent to use specific prompts by name from available tools
+   - **VS Code + GitHub Copilot**: Type `/` and look for `/mcp.dot-ai.prompt-name` commands
+   - **Other agents**: Check your agent's command menu or ask the agent to use specific prompts by name
 3. Browse available prompts through your agent's discovery interface
 
 ### Executing Shared Prompts
-
-Using shared prompts varies by coding agent:
 
 **Claude Code:**
 ```bash
@@ -70,12 +68,9 @@ Using shared prompts varies by coding agent:
 /mcp.dot-ai.prds-get
 ```
 
-**Cursor:**
-```
-# Ask the agent to use the tool by name
-Use the prd-create prompt to create a new PRD
-Run the prds-get prompt to show current PRD status
-```
+**Other Agents:**
+- May use slash commands with different formats
+- Or ask the agent to use the prompt by name (e.g., "Use the prd-create prompt")
 
 The prompt content executes exactly as if it were a local command file, but without any file management on your part.
 
@@ -225,37 +220,17 @@ Prompts are organized by category:
 
 ### Supported Coding Agents
 
-**Claude Code**: ✅ Full support
-- Native slash command integration
-- Prompt discovery through command menu
-- Prompts appear as `/dot-ai:prompt-name`
+**Agents with Full Slash Command Support**: ✅
+- **Claude Code**: Prompts appear as `/dot-ai:prompt-name`
+- **VS Code + GitHub Copilot**: Prompts appear as `/mcp.dot-ai.prompt-name`
+- Both support native slash command integration and prompt discovery
+- Tools appear in agent configuration menus
+- Full metadata support with descriptions
 
 **Other MCP-Enabled Agents**: 🤔 Expected to work (not validated)
-- Other agents should work since they follow MCP specifications, but this hasn't been validated
-- Cursor and VS Code with MCP extensions are expected to support prompts via different interfaces
+- Other MCP-enabled clients like Cursor should work since they follow MCP specifications
+- Different agents may use different slash command formats (e.g., `/mcp.dot-ai.prompt-name` vs `/dot-ai:prompt-name`)
 - **Help us validate**: Try these prompts in your agent and [report your experience via GitHub issues](https://github.com/vfarcic/dot-ai/issues)
-
-### Agent-Specific Notes
-
-**Claude Code**:
-- Prompts appear as `/dot-ai:prompt-name`
-- Full metadata support (descriptions in command menu)
-- Seamless integration with existing workflow
-
-**VS Code + GitHub Copilot**: *(not yet tested)*
-- Prompts expected to appear as `/mcp.dot-ai.prompt-name`
-- Should work through chat interface slash commands
-- Expected integration with existing Copilot workflow
-
-**Cursor**: *(not yet tested)*
-- Prompts expected to appear as available tools in agent interface
-- Should work by asking agent to use specific prompt by name
-- Expected automatic tool discovery and integration
-
-**Other Agents**: *(not yet tested)*
-- Different agents may use different slash command formats
-- Some agents may have different prompt discovery mechanisms
-- Please test and report your experience via GitHub issues
 
 ## Contributing Prompts
 
