@@ -32,7 +32,7 @@ The tool can generate files across these scopes:
 - **governance**: CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md
 - **community**: SUPPORT.md, GOVERNANCE.md, CODEOWNERS
 - **github-issues**: Bug report, feature request, and question templates (.github/ISSUE_TEMPLATE/)
-- **pr-template**: Pull request template (.github/PULL_REQUEST_TEMPLATE.md)
+- **pr-template**: Pull request template (.github/PULL_REQUEST_TEMPLATE.md) - automatically detected and used by the [`prd-done` workflow](mcp-prompts-guide.md#available-prompts) for intelligent PR creation
 - **github-community**: FUNDING.yml, AUTHORS, CONTRIBUTORS, CHANGELOG, release.yml
 - **github-security**: OpenSSF Scorecard workflow (.github/workflows/scorecard.yml)
 - **github-automation**: Renovate, GitHub Labeler, Stale Bot configurations
