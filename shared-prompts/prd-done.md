@@ -213,13 +213,45 @@ Please review and respond:
   Ready to create PR? (yes/no)
   ```
 
-#### 3.6. Create Pull Request
+#### 3.6. Detect and Apply PR Labels (if release.yml exists)
+
+**IMPORTANT: Only apply labels if `.github/release.yml` exists - fully dynamic based on that file**
+
+- [ ] **Check for `.github/release.yml`**:
+  - If file exists → Proceed with label detection
+  - If file doesn't exist → Skip label detection, proceed to create PR without labels
+
+- [ ] **If release.yml exists, parse it to understand available categories and labels**:
+  - Read the YAML file
+  - Extract all category definitions with their associated labels
+  - Build a mapping of: category → list of labels
+
+- [ ] **Analyze PR characteristics**:
+  - **File changes**: Types of files modified (extensions, paths, purposes)
+  - **Change scope**: Which areas of codebase affected
+  - **Commit messages**: Keywords, patterns, prefixes
+  - **PR title and description**: Keywords indicating change type
+  - **PRD context**: Original problem/solution description
+
+- [ ] **Match PR characteristics to release.yml labels**:
+  - For each category in release.yml, determine if PR characteristics match
+  - Look for keyword alignment between:
+    - Category title/purpose (inferred from name)
+    - Label names (suggest what kind of changes they represent)
+    - Actual PR content and changes
+  - Select label(s) from categories that best match the PR
+
+- [ ] **Apply detected labels**: Add the matched label(s) to the PR creation command
+
+#### 3.7. Create Pull Request
 - [ ] **Construct PR body**: Combine auto-filled and user-provided information following template structure
-- [ ] **Create PR**: Use `gh pr create --title "[title]" --body "[constructed-body]"` or `gh pr create --title "[title]" --body-file [temp-file]`
-- [ ] **Verify PR created**: Confirm PR was created successfully and template was populated correctly
+- [ ] **Create PR**:
+  - If labels detected: `gh pr create --title "[title]" --body "[body]" --label "[label1,label2]"`
+  - If no release.yml: `gh pr create --title "[title]" --body "[body]"`
+- [ ] **Verify PR created**: Confirm PR was created successfully, template populated correctly, and labels applied (if applicable)
 - [ ] **Request reviews**: Assign appropriate team members for code review if specified
 
-#### 3.7. Fallback for Projects Without Templates
+#### 3.8. Fallback for Projects Without Templates
 If no PR template is found, create a sensible default structure:
 
 ```markdown
