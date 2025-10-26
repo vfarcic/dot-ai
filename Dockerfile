@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:22-slim@sha256:d932545dbe5f4ebee80c8027d5e09037c57582e5d1ea6726def3a54b7565cf8e
 
 # Build argument for package version
 ARG PACKAGE_VERSION=latest
