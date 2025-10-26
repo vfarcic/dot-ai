@@ -2,6 +2,7 @@
 #
 # Configures automatic release notes generation when creating GitHub Releases.
 # GitHub will categorize merged PRs based on labels and generate formatted changelog.
+# Each PR should have exactly one primary label to appear in a single category.
 #
 # See: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
 
