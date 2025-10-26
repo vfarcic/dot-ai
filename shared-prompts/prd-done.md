@@ -167,7 +167,7 @@ For each item, use available context to propose an answer, then present it to th
 
 **Presentation Format:**
 Present all proposed answers together in a summary format:
-```
+```markdown
 📋 **Proposed PR Information** (based on analysis)
 
 **Manual Testing:** [proposed answer]
@@ -206,7 +206,7 @@ Please review and respond:
   - Handle failures gracefully and ask user how to proceed
 
 - [ ] **Summary before PR creation**:
-  ```
+  ```markdown
   ✅ Template Requirements Status:
   [List each requirement with status: executed/validated/skipped/failed]
 
