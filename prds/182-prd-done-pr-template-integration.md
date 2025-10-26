@@ -143,11 +143,11 @@ Enhance the `prd-done` shared prompt to:
 **Validation**: User prompts appear at appropriate times and collected info populates PR correctly
 
 ### Milestone 5: Documentation and Integration
-- [ ] Update `shared-prompts/prd-done.md` with new workflow (COMPLETED)
-- [ ] Update `docs/mcp-prompts-guide.md` to document PR template integration
-- [ ] Update `docs/mcp-project-setup-guide.md` to explain connection to prd-done
-- [ ] Add workflow examples showing template detection and auto-fill
-- [ ] Document fallback behavior when no template exists
+- [x] Update `shared-prompts/prd-done.md` with new workflow (COMPLETED)
+- [x] Update `docs/mcp-prompts-guide.md` to document PR template integration
+- [x] Update `docs/mcp-project-setup-guide.md` to explain connection to prd-done
+- [x] Add workflow examples showing template detection and auto-fill
+- [x] Document fallback behavior when no template exists
 
 **Validation**: Documentation clearly explains the workflow and connection between tools
 
@@ -225,3 +225,8 @@ None required - updates to existing documentation are sufficient.
 - Updated `shared-prompts/prd-done.md` with comprehensive PR template workflow
 - Defined 6 major implementation milestones
 - Established success criteria and testing strategy
+- ✅ **Milestone 5 completed**: Documentation and integration
+  - Updated `docs/mcp-prompts-guide.md` with PR template integration details
+  - Updated `docs/mcp-project-setup-guide.md` with connection to prd-done workflow
+  - Added proper cross-references and links between tools
+  - Documented template detection, auto-fill, and fallback behavior

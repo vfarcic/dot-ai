@@ -56,13 +56,31 @@ Complete the PRD implementation workflow including branch management, pull reque
 
 **IMPORTANT: Always check for and use PR template if available**
 
-#### 3.1. PR Template Detection
+#### 3.1. PR Template Detection and Parsing
 - [ ] **Check for PR template** in common locations:
   - `.github/PULL_REQUEST_TEMPLATE.md`
   - `.github/pull_request_template.md`
   - `.github/PULL_REQUEST_TEMPLATE/` (directory with multiple templates)
   - `docs/pull_request_template.md`
-- [ ] **Read and parse template**: If found, analyze the template structure to understand required sections, checklists, and format requirements
+
+- [ ] **Read and parse template comprehensively**: If found, analyze the template to extract:
+  - **Structural elements**: Required sections, checklists, format requirements
+  - **Content requirements**: What information needs to be provided in each section
+  - **Process instructions**: Any workflow enhancements or prerequisites specified in the template
+  - **Validation requirements**: Any checks, sign-offs, or verifications mentioned
+
+- [ ] **Extract actionable instructions from template**:
+  - **Commit requirements**: Look for DCO sign-off, commit message format, commit signing requirements
+  - **Pre-submission actions**: Build commands, test commands, linting, format checks
+  - **Documentation requirements**: Which docs must be updated, links that must be added
+  - **Review requirements**: Required reviewers, approval processes, special considerations
+
+  **Examples of template instructions to identify and execute:**
+  - "All commits must include a `Signed-off-by` line" → Validate commits have DCO sign-off, amend if missing
+  - "Run `npm test` before submitting" → Execute test command
+  - "PR title follows Conventional Commits format" → Validate title format
+  - "Update CHANGELOG.md" → Check if changelog was updated
+  - Any bash commands shown in code blocks → Consider if they should be executed
 
 #### 3.2. Analyze Changes for PR Content
 - [ ] **Review git diff**: Analyze `git diff main...HEAD` to understand scope of changes
@@ -104,23 +122,104 @@ Automatically populate what can be deduced from analysis:
   - Note any dependency updates
 
 #### 3.4. Prompt User for Information That Cannot Be Deduced
-Ask user to provide information that requires human judgment:
+**IMPORTANT: Don't just ask - analyze and propose answers, then let user confirm or correct**
 
-- [ ] **Manual testing results**: Ask user to describe manual testing performed
-- [ ] **Breaking changes**: If detected, ask for migration guidance
-- [ ] **Performance implications**: Ask if performance was impacted
-- [ ] **Security considerations**: For security-sensitive changes, ask for review details
-- [ ] **Reviewer focus areas**: Ask what reviewers should pay special attention to
-- [ ] **Follow-up work**: Ask about any planned follow-up PRs
-- [ ] **Additional context**: Any other relevant information for reviewers
+For each item, use available context to propose an answer, then present it to the user for confirmation:
 
-#### 3.5. Create Pull Request
+- [ ] **Manual testing results**:
+  - **Analyze PRD testing strategy section** to understand what testing was planned
+  - **Check git commits** for testing-related messages
+  - **Propose testing approach** based on change type (e.g., "Documentation reviewed for accuracy and clarity, cross-references validated")
+  - Present proposal and ask: "Is this accurate, or would you like to modify?"
+
+- [ ] **Breaking changes**:
+  - **Scan commits and PRD** for breaking change indicators
+  - If detected, **propose migration guidance** based on PRD content
+  - If not detected, **confirm**: "No breaking changes detected. Correct?"
+
+- [ ] **Performance implications**:
+  - **Analyze change type**: Documentation/config changes typically have no performance impact
+  - **Propose answer** based on analysis (e.g., "No performance impact - documentation only")
+  - Ask: "Correct, or are there performance considerations?"
+
+- [ ] **Security considerations**:
+  - **Check if security-sensitive files** were modified (auth, credentials, API keys)
+  - **Scan commits** for security-related keywords
+  - **Propose security status** (e.g., "No security implications - documentation changes only")
+  - Ask: "Accurate, or are there security considerations to document?"
+
+- [ ] **Reviewer focus areas**:
+  - **Analyze PRD objectives** and **git changes** to identify key areas
+  - **Propose specific focus areas** (e.g., "Verify documentation accuracy, check cross-reference links, confirm workflow examples match implementation")
+  - Present list and ask: "Are these the right focus areas, or should I adjust?"
+
+- [ ] **Follow-up work**:
+  - **Check PRD for "Future Enhancements" or "Out of Scope" sections**
+  - **Analyze other PRDs** in `prds/` directory for related work
+  - **Propose follow-up items** if any (e.g., "Future enhancements listed in PRD: template validation, AI-powered descriptions")
+  - Ask: "Should I list these, or is there other follow-up work?"
+
+- [ ] **Additional context**:
+  - **Review PRD for special considerations**
+  - **Check if this is a dogfooding/testing PR**
+  - **Propose any relevant context** (e.g., "This PR itself tests the enhanced workflow it documents")
+  - Ask: "Anything else reviewers should know?"
+
+**Presentation Format:**
+Present all proposed answers together in a summary format:
+```markdown
+📋 **Proposed PR Information** (based on analysis)
+
+**Manual Testing:** [proposed answer]
+**Breaking Changes:** [proposed answer]
+**Performance Impact:** [proposed answer]
+**Security Considerations:** [proposed answer]
+**Reviewer Focus:** [proposed list]
+**Follow-up Work:** [proposed items or "None"]
+**Additional Context:** [proposed context or "None"]
+
+Please review and respond:
+- Type "yes" or "confirm" to accept all
+- Specify corrections for any items that need changes
+```
+
+#### 3.5. Execute Template Requirements
+**IMPORTANT: Before creating the PR, identify and execute any actionable requirements from the template**
+
+- [ ] **Analyze template for actionable instructions**:
+  - Scan template content for imperative statements, requirements, or commands
+  - Look for patterns like "must", "should", "run", "execute", "ensure", "verify"
+  - Identify bash commands in code blocks that appear to be prerequisites
+  - Extract any validation requirements mentioned in checklists
+
+- [ ] **Categorize identified requirements**:
+  - **Commit-level actions**: Sign-offs, formatting, validation
+  - **Pre-submission commands**: Tests, builds, lints, format checks
+  - **Validation checks**: File existence, format compliance, content requirements
+  - **Documentation actions**: Required updates, links to add
+
+- [ ] **Propose and execute requirements**:
+  - Present identified requirements to user: "Template specifies these actions: [list]"
+  - For each requirement, determine if it can be automated
+  - Propose execution: "Should I execute these now?"
+  - Execute confirmed actions and report results
+  - Handle failures gracefully and ask user how to proceed
+
+- [ ] **Summary before PR creation**:
+  ```markdown
+  ✅ Template Requirements Status:
+  [List each requirement with status: executed/validated/skipped/failed]
+
+  Ready to create PR? (yes/no)
+  ```
+
+#### 3.6. Create Pull Request
 - [ ] **Construct PR body**: Combine auto-filled and user-provided information following template structure
 - [ ] **Create PR**: Use `gh pr create --title "[title]" --body "[constructed-body]"` or `gh pr create --title "[title]" --body-file [temp-file]`
 - [ ] **Verify PR created**: Confirm PR was created successfully and template was populated correctly
 - [ ] **Request reviews**: Assign appropriate team members for code review if specified
 
-#### 3.6. Fallback for Projects Without Templates
+#### 3.7. Fallback for Projects Without Templates
 If no PR template is found, create a sensible default structure:
 
 ```markdown
