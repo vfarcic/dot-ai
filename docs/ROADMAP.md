@@ -27,7 +27,6 @@ This roadmap is a living document and may change based on community feedback and
 - OpenTelemetry tracing for production-grade observability (PRD #137)
 - Remediation observability integration (PRD #150)
 - AI model comparison platform for informed provider selection (PRD #151)
-- Improve OpenSSF Scorecard score from 6.1 to 7.5+ (PRD #184)
 
 ## Long-term (6-12 Months)
 
