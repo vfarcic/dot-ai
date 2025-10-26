@@ -317,26 +317,36 @@ jobs:
     #
     #     echo "Successfully published dot-ai v$VERSION to MCP Registry"
     
-    - name: Generate release notes
+    - name: Create GitHub Release with auto-generated notes
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        echo "# Release v$VERSION" > RELEASE_NOTES.md
-        echo "" >> RELEASE_NOTES.md
-        echo "## Coordinated Release Artifacts" >> RELEASE_NOTES.md
-        echo "- **npm package**: \`@vfarcic/dot-ai@$VERSION\`" >> RELEASE_NOTES.md
-        echo "- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)" >> RELEASE_NOTES.md
-        echo "- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`" >> RELEASE_NOTES.md
-        echo "" >> RELEASE_NOTES.md
-        echo "## Changes" >> RELEASE_NOTES.md
-        git log --oneline $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md 2>/dev/null || echo "Initial release" >> RELEASE_NOTES.md
-    
-    - name: Create GitHub Release
-      uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+
+        # Create release notes header with coordinated artifacts
+        cat > release_header.md << 'EOF'
+        ## Coordinated Release Artifacts
+        - **npm package**: `@vfarcic/dot-ai@$VERSION`
+        - **Docker image**: `ghcr.io/vfarcic/dot-ai:$VERSION` (also available as `latest`)
+        - **Helm chart**: `oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION`
+
+        EOF
+
+        # Replace VERSION placeholder
+        sed -i "s/\$VERSION/$VERSION/g" release_header.md
+
+        # Create release with automatic notes generation and custom header
+        # GitHub will categorize PRs based on .github/release.yml
+        if [ -n "$PREV_TAG" ]; then
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes-file release_header.md \
+            --generate-notes \
+            --notes-start-tag "$PREV_TAG"
+        else
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes-file release_header.md \
+            --generate-notes
+        fi
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ needs.version.outputs.new-version }}
-        release_name: Release v${{ needs.version.outputs.new-version }}
-        body_path: RELEASE_NOTES.md
-        draft: false
-        prerelease: false
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -213,7 +213,7 @@ Please review and respond:
   Ready to create PR? (yes/no)
   ```
 
-#### 3.6. Detect and Apply PR Labels (if release.yml exists)
+#### 3.6. Detect and Apply PR Label (if release.yml exists)
 
 **IMPORTANT: Only apply labels if `.github/release.yml` exists - fully dynamic based on that file**
 
@@ -225,30 +225,39 @@ Please review and respond:
   - Read the YAML file
   - Extract all category definitions with their associated labels
   - Build a mapping of: category → list of labels
+  - Note the category order (categories listed first are typically more important)
 
 - [ ] **Analyze PR characteristics**:
+  - **Primary change type**: What is the MAIN purpose of this PR?
   - **File changes**: Types of files modified (extensions, paths, purposes)
   - **Change scope**: Which areas of codebase affected
   - **Commit messages**: Keywords, patterns, prefixes
   - **PR title and description**: Keywords indicating change type
   - **PRD context**: Original problem/solution description
 
-- [ ] **Match PR characteristics to release.yml labels**:
-  - For each category in release.yml, determine if PR characteristics match
-  - Look for keyword alignment between:
-    - Category title/purpose (inferred from name)
-    - Label names (suggest what kind of changes they represent)
-    - Actual PR content and changes
-  - Select label(s) from categories that best match the PR
+- [ ] **Select the SINGLE best-matching label**:
+  - For each category in release.yml, score how well it matches the PR's PRIMARY purpose
+  - Consider the importance hierarchy from release.yml:
+    - Breaking changes > New features > Bug fixes > Documentation > Dependencies > Other
+  - Select ONE label from the category that BEST represents the main change
+  - **Why single label?**: Prevents PRs from appearing in multiple release note categories
+  - **Selection priority**:
+    1. If any breaking changes → use `breaking-change` or `breaking`
+    2. If primarily new functionality → use `feat`, `feature`, or `enhancement`
+    3. If primarily fixing bugs → use `fix`, `bug`, or `bugfix`
+    4. If primarily documentation → use `documentation` or `docs`
+    5. If primarily dependencies → use `dependencies`, `deps`, or `dependency`
+    6. Otherwise → no specific label needed (will appear in "Other Changes")
 
-- [ ] **Apply detected labels**: Add the matched label(s) to the PR creation command
+- [ ] **Apply detected label**: Add the single best-matching label to the PR creation command
+  - Example: `gh pr create --title "..." --body "..." --label "fix"`
 
 #### 3.7. Create Pull Request
 - [ ] **Construct PR body**: Combine auto-filled and user-provided information following template structure
 - [ ] **Create PR**:
-  - If labels detected: `gh pr create --title "[title]" --body "[body]" --label "[label1,label2]"`
-  - If no release.yml: `gh pr create --title "[title]" --body "[body]"`
-- [ ] **Verify PR created**: Confirm PR was created successfully, template populated correctly, and labels applied (if applicable)
+  - If label detected: `gh pr create --title "[title]" --body "[body]" --label "[single-label]"`
+  - If no release.yml or no matching label: `gh pr create --title "[title]" --body "[body]"`
+- [ ] **Verify PR created**: Confirm PR was created successfully, template populated correctly, and label applied (if applicable)
 - [ ] **Request reviews**: Assign appropriate team members for code review if specified
 
 #### 3.8. Fallback for Projects Without Templates
