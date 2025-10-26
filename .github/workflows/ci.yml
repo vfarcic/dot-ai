@@ -54,7 +54,7 @@ jobs:
   security:
     name: Security Analysis
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     permissions:
       contents: read           # Required to checkout code
       security-events: write   # Required to upload CodeQL results
