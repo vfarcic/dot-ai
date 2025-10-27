@@ -1,6 +1,6 @@
 # Multi-stage build for development - builds from local source
 # Build stage - creates the same package that would be published to npm
-FROM node:22 AS builder
+FROM node:22@sha256:23c24e85395992be118734a39903e08c8f7d1abc73978c46b6bda90060091a49 AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Production stage - mirror of production Dockerfile but install local package
-FROM node:22 AS production
+FROM node:22@sha256:23c24e85395992be118734a39903e08c8f7d1abc73978c46b6bda90060091a49 AS production
 
 # Install kubectl (same as production needs)
 RUN apt-get update && \

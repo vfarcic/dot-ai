@@ -13,6 +13,11 @@
   "pinDigests": true,
   "packageRules": [
     {
+      "matchFiles": ["docker-compose-dot-ai.yaml"],
+      "pinDigests": false,
+      "description": "Keep using :latest tags in docker-compose-dot-ai.yaml"
+    },
+    {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "automerge": true,
