@@ -47,7 +47,7 @@ jobs:
           stale-pr-label: 'stale'
 
           # Exemptions - Never mark these as stale (maintainer responsibility)
-          exempt-issue-labels: 'pinned,security'
+          exempt-issue-labels: 'pinned,security,PRD'
           exempt-pr-labels: 'pinned,security'
           exempt-milestones: true
           exempt-assignees: true
