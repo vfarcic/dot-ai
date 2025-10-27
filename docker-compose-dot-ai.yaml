@@ -4,7 +4,7 @@
 services:
   # DevOps AI Toolkit MCP Server
   dot-ai:
-    image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest@sha256:4ee65e3fda3d8f1c956bb5f67e6bdd9ebf00f6c73a223acf2eb07cae0b5b8240}
+    image: ${DOT_AI_IMAGE:-ghcr.io/vfarcic/dot-ai:latest}
     container_name: dot-ai
     network_mode: "host"
     environment:
@@ -26,7 +26,7 @@ services:
 
   # Qdrant Vector Database
   qdrant:
-    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest@sha256:0fb8897412abc81d1c0430a899b9a81eb8328aa634e7242d1bc804c1fe8fe863}
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
     container_name: ${QDRANT_NAME:-qdrant}
     ports:
       - "${QDRANT_PORT:-6333}:6333"
