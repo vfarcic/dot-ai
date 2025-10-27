@@ -1,4 +1,4 @@
-FROM qdrant/qdrant:latest
+FROM qdrant/qdrant:latest@sha256:0fb8897412abc81d1c0430a899b9a81eb8328aa634e7242d1bc804c1fe8fe863
 
 # Copy pre-loaded qdrant data to the container
 COPY qdrant_storage/ /qdrant/storage/
