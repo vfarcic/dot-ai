@@ -52,13 +52,21 @@ Create your MCP configuration file with this content:
       "args": ["-y", "--package=@vfarcic/dot-ai@latest", "dot-ai-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "sk-ant-api03-your-key-here",
-        "OPENAI_API_KEY": "sk-proj-your-key-here", 
+        "OPENAI_API_KEY": "sk-proj-your-key-here",
         "QDRANT_URL": "http://localhost:6333",
         "KUBECONFIG": "/path/to/your/kubeconfig.yaml"
       }
     }
   }
 }
+```
+
+**Optional: Custom Endpoints** - Add to `env` section for OpenRouter or self-hosted models ([details](../mcp-setup.md#custom-endpoint-configuration)):
+```json
+"CUSTOM_LLM_API_KEY": "sk-or-v1-...",
+"CUSTOM_LLM_BASE_URL": "https://openrouter.ai/api/v1",
+"AI_PROVIDER": "openai",
+"AI_MODEL": "anthropic/claude-3.5-sonnet"
 ```
 
 **What this does:**

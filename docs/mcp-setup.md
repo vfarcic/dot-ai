@@ -83,6 +83,15 @@ All setup methods need the same core configuration, but handle it differently:
 
 The DevOps AI Toolkit supports 10 different AI models from 5 providers. Choose based on your quality, cost, and reliability requirements.
 
+#### Model Requirements
+
+All AI models must meet these minimum requirements:
+- **Context window**: 200K+ tokens (some tools like capability scanning use large context)
+- **Output tokens**: 8K+ tokens (for YAML generation and policy creation)
+- **Function calling**: Required for MCP tool interactions
+
+**Note**: Most recommended models below meet these requirements. Models with limitations are marked with warnings in the recommendation table.
+
 #### Model Recommendations
 
 | Model | Provider | Overall Score | Reliability | Recommendation |
@@ -209,6 +218,39 @@ MISTRAL_API_KEY=your_mistral_api_key_here
   - Anthropic AI models + OpenAI embeddings (premium quality)
   - Anthropic AI models + Google embeddings (cost-optimized)
   - Google AI models + Google embeddings (unified setup)
+
+### Custom Endpoint Configuration
+
+You can configure custom OpenAI-compatible endpoints for AI models. This enables using alternative providers like OpenRouter, self-hosted models, or air-gapped deployments.
+
+#### Configuration Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CUSTOM_LLM_BASE_URL` | Custom AI model endpoint URL |
+| `CUSTOM_LLM_API_KEY` | API key for custom AI endpoint |
+| `CUSTOM_EMBEDDINGS_BASE_URL` | Custom embeddings endpoint URL (OpenAI-compatible) |
+| `CUSTOM_EMBEDDINGS_API_KEY` | API key for custom embeddings endpoint |
+
+#### Example: OpenRouter
+
+OpenRouter provides access to 100+ LLM models from multiple providers:
+
+```bash
+# AI Model configuration via OpenRouter
+export CUSTOM_LLM_API_KEY="sk-or-v1-your-key-here"
+export CUSTOM_LLM_BASE_URL="https://openrouter.ai/api/v1"
+export AI_PROVIDER=openai
+export AI_MODEL="anthropic/claude-3.5-sonnet"
+
+# Embeddings still use OpenAI directly (OpenRouter doesn't support embeddings)
+export OPENAI_API_KEY="sk-proj-your-openai-key"
+export EMBEDDINGS_PROVIDER=openai
+```
+
+**Note**: OpenRouter does not support embedding models. Use OpenAI, Google, or Mistral for embeddings.
+
+Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 
 #### Environment Variable Management
 

@@ -65,6 +65,11 @@ Export your API keys:
 # Required: Set your API keys
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
+
+# Optional: Custom endpoints (OpenRouter, self-hosted)
+# See: https://github.com/vfarcic/dot-ai/blob/main/docs/mcp-setup.md#custom-endpoint-configuration
+export CUSTOM_LLM_API_KEY="sk-or-v1-..."
+export CUSTOM_LLM_BASE_URL="https://openrouter.ai/api/v1"
 ```
 
 ### Step 3: Install the Helm Chart with ToolHive Method

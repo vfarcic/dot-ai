@@ -64,10 +64,11 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --wait
 ```
 
-**Notes**: 
+**Notes**:
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
+- **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 
 ### Step 3: Configure MCP Client
 

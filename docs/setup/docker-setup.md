@@ -56,6 +56,13 @@ export QDRANT_PORT="6333"
 
 # Optional: Custom kubeconfig path (defaults to ~/.kube/config)
 export KUBECONFIG="/path/to/your/kubeconfig.yaml"
+
+# Optional: Custom endpoints (OpenRouter, self-hosted)
+# See: https://github.com/vfarcic/dot-ai/blob/main/docs/mcp-setup.md#custom-endpoint-configuration
+export CUSTOM_LLM_API_KEY="sk-or-v1-..."
+export CUSTOM_LLM_BASE_URL="https://openrouter.ai/api/v1"
+export AI_PROVIDER="openai"
+export AI_MODEL="anthropic/claude-3.5-sonnet"
 ```
 
 ### 3. Create and Save MCP Client Configuration
