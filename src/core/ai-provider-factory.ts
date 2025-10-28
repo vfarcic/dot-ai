@@ -128,6 +128,8 @@ export class AIProviderFactory {
     }
 
     // Get API key for the provider
+    // PRD #194: Support CUSTOM_LLM_API_KEY for custom LLM endpoints
+    // Priority: 1. CUSTOM_LLM_API_KEY, 2. Provider-specific key (e.g., OPENAI_API_KEY)
     const apiKeyEnvVar = PROVIDER_ENV_KEYS[providerType];
     if (!apiKeyEnvVar) {
       process.stderr.write(
@@ -137,7 +139,7 @@ export class AIProviderFactory {
       return new NoOpAIProvider();
     }
 
-    const apiKey = process.env[apiKeyEnvVar];
+    const apiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
     if (!apiKey) {
       process.stderr.write(
         `INFO: ${apiKeyEnvVar} not configured. ` +
@@ -153,21 +155,37 @@ export class AIProviderFactory {
     // Get debug mode setting
     const debugMode = process.env.DEBUG_DOT_AI === 'true';
 
+    // PRD #194: Get custom endpoint URL for OpenAI-compatible LLM APIs
+    // Use CUSTOM_LLM_BASE_URL for LLM endpoints (separate from OPENAI_BASE_URL used for embeddings)
+    const baseURL = process.env.CUSTOM_LLM_BASE_URL;
+
+    // PRD #194: Detect OpenRouter and override provider type
+    // OpenRouter requires dedicated provider for proper tool calling support
+    let effectiveProviderType = providerType;
+    if (baseURL && baseURL.includes('openrouter.ai')) {
+      effectiveProviderType = 'openrouter';
+    } else if (baseURL) {
+      // Generic custom endpoint (Ollama, vLLM, LiteLLM, etc.)
+      effectiveProviderType = 'custom';
+    }
+
     // If SDK override to 'vercel', use VercelProvider for all providers
     if (sdkPreference === 'vercel') {
       return new VercelProvider({
-        provider: providerType,
+        provider: effectiveProviderType,
         apiKey,
         model,
-        debugMode
+        debugMode,
+        baseURL
       });
     }
 
     return this.create({
-      provider: providerType,
+      provider: effectiveProviderType,
       apiKey,
       model,
-      debugMode
+      debugMode,
+      baseURL
     });
   }
 

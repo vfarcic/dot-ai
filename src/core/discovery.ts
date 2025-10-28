@@ -7,10 +7,11 @@
 import * as k8s from '@kubernetes/client-node';
 import * as path from 'path';
 import * as os from 'os';
-import { 
-  executeKubectl, 
-  KubectlConfig, 
-  ErrorClassifier 
+import * as yaml from 'yaml';
+import {
+  executeKubectl,
+  KubectlConfig,
+  ErrorClassifier
 } from './kubernetes-utils';
 
 export interface ClusterInfo {
@@ -560,14 +561,14 @@ export class KubernetesDiscovery {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
     }
-    
+
     try {
       // Use kubectl explain with --recursive to get complete schema information
       const args = ['explain', resource, '--recursive'];
       if (options?.field) {
         args[1] = `${resource}.${options.field}`;
       }
-      
+
       const output = await this.executeKubectl(args, { kubeconfig: this.kubeconfigPath });
       return output;
     } catch (error) {
@@ -575,6 +576,45 @@ export class KubernetesDiscovery {
     }
   }
 
+  /**
+   * Get CRD definition with cleaned-up YAML (removes massive annotations and unnecessary fields)
+   * @param crdName - Name of the CRD (e.g., 'workflows.argoproj.io')
+   * @returns Cleaned YAML string suitable for AI prompts
+   */
+  async getCRDDefinition(crdName: string): Promise<string> {
+    if (!this.connected) {
+      throw new Error('Not connected to cluster');
+    }
+
+    try {
+      const yamlOutput = await this.executeKubectl(['get', 'crd', crdName, '-o', 'yaml'], { kubeconfig: this.kubeconfigPath });
+
+      // Parse YAML
+      const crdObject = yaml.parse(yamlOutput);
+
+      // Remove massive last-applied-configuration annotation
+      if (crdObject.metadata?.annotations) {
+        delete crdObject.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'];
+      }
+
+      // Remove status section (not needed for schema understanding)
+      delete crdObject.status;
+
+      // Remove unnecessary metadata fields
+      if (crdObject.metadata) {
+        delete crdObject.metadata.creationTimestamp;
+        delete crdObject.metadata.resourceVersion;
+        delete crdObject.metadata.uid;
+        delete crdObject.metadata.managedFields;
+        delete crdObject.metadata.generation;
+      }
+
+      // Re-serialize to clean YAML
+      return yaml.stringify(crdObject);
+    } catch (error) {
+      throw new Error(`Failed to get CRD definition for '${crdName}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
   async fingerprintCluster(): Promise<ClusterFingerprint> {
     if (!this.connected) {

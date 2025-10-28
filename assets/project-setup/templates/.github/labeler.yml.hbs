@@ -1,0 +1,123 @@
+# This configuration automatically labels pull requests based on file paths.
+# Learn more: https://github.com/actions/labeler
+
+# Documentation changes
+documentation:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'docs/**/*'
+    - '*.md'
+    - 'README*'
+
+{{#if sourceDirectory}}
+# Source code changes
+source:
+- changed-files:
+  - any-glob-to-any-file:
+    - '{{sourceDirectory}}/**/*'
+
+{{/if}}
+{{#if testDirectory}}
+# Test changes
+tests:
+- changed-files:
+  - any-glob-to-any-file:
+    - '{{testDirectory}}/**/*'
+    - '**/*.test.*'
+    - '**/*.spec.*'
+
+{{/if}}
+# CI/CD changes
+ci-cd:
+- changed-files:
+  - any-glob-to-any-file:
+    - '.github/workflows/**/*'
+    - '.github/actions/**/*'
+    - 'Dockerfile*'
+    - 'docker-compose*.yml'
+
+# Infrastructure changes
+infrastructure:
+- changed-files:
+  - any-glob-to-any-file:
+    {{#if infrastructureDirectory}}
+    - '{{infrastructureDirectory}}/**/*'
+    {{/if}}
+    # Terraform
+    - '*.tf'
+    - 'terraform/**/*'
+    - 'tf/**/*'
+    # Kubernetes
+    - 'k8s/**/*'
+    - 'kubernetes/**/*'
+    - 'manifests/**/*'
+    # Helm
+    - 'helm/**/*'
+    - 'Chart.yaml'
+    - 'values.yaml'
+    # Ansible
+    - 'ansible/**/*'
+    - '*.ansible.yml'
+    - 'playbook*.yml'
+    # CloudFormation
+    - '*.template'
+    - '*.cfn.yml'
+    - 'cloudformation/**/*'
+    # Crossplane
+    - 'crossplane/**/*'
+    # Pulumi
+    - 'Pulumi*.yaml'
+    - 'pulumi/**/*'
+
+# Dependencies
+dependencies:
+- changed-files:
+  - any-glob-to-any-file:
+    # JavaScript/Node.js
+    - 'package.json'
+    - 'package-lock.json'
+    - 'yarn.lock'
+    - 'pnpm-lock.yaml'
+    # Python
+    - 'requirements.txt'
+    - 'Pipfile*'
+    - 'poetry.lock'
+    - 'pyproject.toml'
+    # Go
+    - 'go.mod'
+    - 'go.sum'
+    # Rust
+    - 'Cargo.toml'
+    - 'Cargo.lock'
+    # Java
+    - 'pom.xml'
+    - 'build.gradle*'
+    - 'settings.gradle*'
+    # Ruby
+    - 'Gemfile'
+    - 'Gemfile.lock'
+    # PHP
+    - 'composer.json'
+    - 'composer.lock'
+    # .NET
+    - '*.csproj'
+    - '*.fsproj'
+    - '*.vbproj'
+    - 'packages.config'
+    # Swift
+    - 'Package.swift'
+    - 'Package.resolved'
+    # Elixir
+    - 'mix.exs'
+    - 'mix.lock'
+
+# Configuration changes
+config:
+- changed-files:
+  - any-glob-to-any-file:
+    - '*.config.*'
+    - '*.json'
+    - '*.yaml'
+    - '*.yml'
+    - '*.toml'
+    - '.env*'

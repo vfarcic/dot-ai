@@ -618,9 +618,8 @@ export async function handleScanning(
       
       // Get complete CRD definition if it's a custom resource
       if (resourceName.includes('.')) {
-        const crdOutput = await discovery.executeKubectl(['get', 'crd', resourceName, '-o', 'yaml']);
-        resourceDefinition = crdOutput;
-        
+        resourceDefinition = await discovery.getCRDDefinition(resourceName);
+
         logger.info('Found complete CRD definition for capability analysis', {
           requestId,
           sessionId: session.sessionId,

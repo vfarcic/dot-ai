@@ -33,17 +33,53 @@ spec:
           value: "0.0.0.0"
         - name: SESSION_MODE
           value: "stateless"
-        # Future: Add AI_PROVIDER environment variable here for multi-provider support
+        # AI Provider configuration
+        - name: AI_PROVIDER
+          value: {{ .Values.ai.provider | default "anthropic" | quote }}
+{{- if .Values.ai.model }}
+        - name: AI_MODEL
+          value: {{ .Values.ai.model | quote }}
+{{- end }}
+{{- if .Values.ai.customEndpoint.enabled }}
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.ai.customEndpoint.baseURL | quote }}
+{{- end }}
+        # AI Provider API Keys
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.anthropic.keyName }}
+              optional: true
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.openai.keyName }}
+              optional: true
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.google.keyName }}
+              optional: true
+        - name: XAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.xai.keyName }}
+              optional: true
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.mistral.keyName }}
+              optional: true
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.deepseek.keyName }}
               optional: true
         - name: QDRANT_URL
           value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}

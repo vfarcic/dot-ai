@@ -63,20 +63,54 @@ spec:
           value: "stateless"
         - name: DOT_AI_SESSION_DIR
           value: "/tmp/sessions"
-        {{- if .Values.secrets.anthropic.apiKey }}
+        # AI Provider configuration
+        - name: AI_PROVIDER
+          value: {{ .Values.ai.provider | default "anthropic" | quote }}
+        {{- if .Values.ai.model }}
+        - name: AI_MODEL
+          value: {{ .Values.ai.model | quote }}
+        {{- end }}
+        {{- if .Values.ai.customEndpoint.enabled }}
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.ai.customEndpoint.baseURL | quote }}
+        {{- end }}
+        # AI Provider API Keys
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.anthropic.keyName }}
-        {{- end }}
-        {{- if .Values.secrets.openai.apiKey }}
+              optional: true
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.openai.keyName }}
-        {{- end }}
+              optional: true
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.google.keyName }}
+              optional: true
+        - name: XAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.xai.keyName }}
+              optional: true
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.mistral.keyName }}
+              optional: true
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.deepseek.keyName }}
+              optional: true
         {{- if .Values.qdrant.enabled }}
         - name: QDRANT_URL
           value: "http://{{ include "dot-ai.fullname" . }}-qdrant:6333"

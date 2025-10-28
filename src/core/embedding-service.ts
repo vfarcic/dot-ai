@@ -36,14 +36,21 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   private available: boolean;
 
   constructor(config: EmbeddingConfig = {}) {
-    const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+    // PRD #194: Support separate API key for embeddings
+    // Priority: 1. config.apiKey, 2. CUSTOM_EMBEDDINGS_API_KEY, 3. OPENAI_API_KEY
+    const apiKey = config.apiKey || process.env.CUSTOM_EMBEDDINGS_API_KEY || process.env.OPENAI_API_KEY;
     this.model = config.model || 'text-embedding-3-small';
     this.dimensions = config.dimensions || 1536; // text-embedding-3-small default
     this.available = false;
-    
+
     if (apiKey) {
       try {
-        this.client = new OpenAI({ apiKey: apiKey });
+        // PRD #194: Support custom endpoint URL for OpenAI-compatible embedding APIs
+        const baseURL = process.env.CUSTOM_EMBEDDINGS_BASE_URL;
+        this.client = new OpenAI({
+          apiKey: apiKey,
+          ...(baseURL && { baseURL })
+        });
         this.available = true;
       } catch (error) {
         // Client creation failed, remain unavailable

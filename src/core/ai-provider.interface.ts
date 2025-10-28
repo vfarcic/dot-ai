@@ -83,6 +83,23 @@ export interface AIProviderConfig {
 
   /** Enable debug mode for logging AI interactions */
   debugMode?: boolean;
+
+  /** Custom endpoint URL for OpenAI-compatible APIs (PRD #194)
+   *
+   * Enables connection to:
+   * - Self-hosted LLMs (Ollama, vLLM, LocalAI)
+   * - Alternative SaaS providers (Azure OpenAI, LiteLLM, OpenRouter)
+   * - Internal inference services
+   *
+   * Example values:
+   * - Ollama: "http://ollama-service:11434/v1"
+   * - vLLM: "http://vllm-service:8000/v1"
+   * - Azure OpenAI: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+   *
+   * Note: Models must support 8K+ output tokens. Custom endpoint will receive
+   * maxOutputTokens=8192 in API requests.
+   */
+  baseURL?: string;
 }
 
 /**

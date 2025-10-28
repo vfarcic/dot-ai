@@ -50,8 +50,8 @@ Add support for custom OpenAI-compatible API endpoints through configurable `bas
 **So that** I can use AI-powered Kubernetes tooling without accessing public APIs
 
 **Acceptance Criteria**:
-- [ ] Can configure Helm chart with custom endpoint URL
-- [ ] System connects to internal LLM instead of public API
+- [x] Can configure Helm chart with custom endpoint URL
+- [x] System connects to internal LLM instead of public API
 - [ ] Clear warnings appear if model capabilities are insufficient
 - [ ] Documentation explains supported models and requirements
 - [ ] User from issue #193 successfully validates with real self-hosted LLM
@@ -357,12 +357,12 @@ npm run test:integration:haiku
 **Goal**: Enable users to configure and use custom endpoints
 
 **Success Criteria**:
-- [ ] AIProviderConfig interface updated with `baseURL` and `maxOutputTokens`
-- [ ] VercelProvider supports custom `baseURL` for OpenAI provider
-- [ ] AIProviderFactory loads configuration from environment variables
+- [x] AIProviderConfig interface updated with `baseURL` and `maxOutputTokens`
+- [x] VercelProvider supports custom `baseURL` for OpenAI provider
+- [x] AIProviderFactory loads configuration from environment variables
 - [ ] Warning system displays when token limits are low
-- [ ] Helm chart values.yaml updated with custom endpoint configuration
-- [ ] Deployment template passes new environment variables to pods
+- [x] Helm chart values.yaml updated with custom endpoint configuration
+- [x] Deployment template passes new environment variables to pods
 
 **Validation**:
 ```bash
@@ -491,8 +491,8 @@ ai:
 ## Success Criteria
 
 ### Functional Success
-- [ ] Users can configure custom endpoints via Helm chart
-- [ ] Users can configure custom endpoints via environment variables
+- [x] Users can configure custom endpoints via Helm chart
+- [x] Users can configure custom endpoints via environment variables
 - [ ] System validates endpoint configuration at startup
 - [ ] Clear warnings appear when model capabilities may cause issues
 - [ ] Azure OpenAI works as alternative SaaS provider
@@ -733,6 +733,48 @@ ai:
 ---
 
 ## Progress Log
+
+### 2025-10-28: Core Implementation Complete - OpenRouter Validation
+**Duration**: ~6 hours (estimated from commit timestamps and conversation)
+**Commits**: 17 files modified (src/ and charts/)
+**Primary Focus**: Custom LLM endpoint support implementation + OpenRouter integration testing
+
+**Completed PRD Items** (Milestone 1 - 5 of 6):
+- [x] AIProviderConfig interface updated - Added `baseURL` and `maxOutputTokens` fields (`src/core/ai-provider.interface.ts`)
+- [x] VercelProvider custom endpoint support - Pass `baseURL` to createOpenAI() (`src/core/providers/vercel-provider.ts`)
+- [x] AIProviderFactory environment variable loading - Load `CUSTOM_LLM_BASE_URL`, `CUSTOM_LLM_API_KEY` (`src/core/ai-provider-factory.ts`)
+- [x] Helm chart configuration - Added custom endpoint values (`charts/values.yaml`)
+- [x] Deployment template updates - Pass env vars to pods (`charts/templates/deployment.yaml`)
+
+**Completed Primary User Story Items** (2 of 5):
+- [x] Can configure Helm chart with custom endpoint URL
+- [x] System connects to custom LLM endpoints (validated with OpenRouter)
+
+**Additional Work Done**:
+- OpenRouter provider detection logic - Auto-detect OpenRouter baseURL and switch to 'openrouter' provider type
+- Provider selection enhancements - Distinguish between generic custom endpoints and OpenRouter
+- Integration test validation - All remediate tests passing with OpenRouter (manual + automatic modes)
+- Investigation and debugging - Confirmed Vercel SDK (text+JSON) and Native SDK (JSON) response formats both work correctly
+
+**Technical Discoveries**:
+- Response format differences between Vercel SDK and Native Anthropic SDK don't cause issues
+- Existing `parseAIFinalAnalysis()` function already handles both text+JSON and pure JSON formats
+- Environment variable inheritance can cause provider confusion in tests - requires careful env management
+- OpenRouter serves as excellent validation for custom endpoint functionality (multi-model aggregator via custom URL)
+
+**Files Modified**:
+- Core: `ai-provider-factory.ts`, `ai-provider.interface.ts`, `vercel-provider.ts`, `model-config.ts`
+- Supporting: `capability-scan-workflow.ts`, `discovery.ts`, `embedding-service.ts`, `unified-creation-session.ts`
+- Tools: `remediate.ts` (investigation only - debug logging added and reverted)
+- Charts: `values.yaml`, `deployment.yaml`, `mcpserver.yaml`, `secret.yaml`
+- Config: `.teller.yml`, `package.json`, `package-lock.json`
+
+**Next Session Priorities**:
+1. **Warning system validation** (Milestone 1 item 4) - Verify token limit warnings display correctly
+2. **Full integration test suite** (Milestone 2) - Run ALL tests with Vercel SDK, not just remediate
+3. **Azure OpenAI testing** (Milestone 3) - Validate custom endpoint with production SaaS provider
+4. **Documentation creation** (Milestone 4) - Write setup guides and examples for 7 documentation files
+5. **User validation** (Milestone 5) - Engage with issue #193 user for real-world testing
 
 ### 2025-01-27: PRD Created
 - Created comprehensive PRD based on issue #193 user request
