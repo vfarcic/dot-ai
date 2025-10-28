@@ -106,26 +106,6 @@ See MIGRATION.md for upgrade guide.
 
 **If yes, describe the breaking changes and migration path:**
 
-## Developer Certificate of Origin
-<!-- This project requires DCO sign-off for all commits -->
-
-By submitting this pull request, I certify that:
-
-- The contribution was created in whole or in part by me and I have the right to submit it under the project's open source license.
-- I understand and agree that this project and my contribution are public and that a record of the contribution (including all personal information I submit with it) is maintained indefinitely.
-
-**DCO Sign-off:**
-All commits must include a `Signed-off-by` line:
-```bash
-git commit -s -m "Your commit message"
-```
-
-If you forgot to sign off your commits, you can amend them:
-```bash
-git commit --amend --signoff
-git push --force-with-lease
-```
-
 ## Checklist
 <!-- Final pre-submission checklist -->
 
@@ -136,7 +116,6 @@ git push --force-with-lease
 - [ ] I have added tests that prove my fix is effective or my feature works
 - [ ] New and existing tests pass locally with my changes
 - [ ] Any dependent changes have been merged and published
-- [ ] All commits are signed off (DCO)
 - [ ] PR title follows Conventional Commits format
 
 ## Additional Context
