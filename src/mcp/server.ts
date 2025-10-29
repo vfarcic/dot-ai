@@ -9,20 +9,29 @@
 
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
+import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 
 async function main() {
   try {
+    // Initialize OpenTelemetry tracing (must happen before HTTP server starts)
+    const tracer = getTracer();
+    if (tracer.isEnabled()) {
+      process.stderr.write('OpenTelemetry tracing enabled\n');
+      // Force initialization now to enable auto-instrumentation
+      tracer.initialize();
+    }
+
     // Validate required environment variables
     process.stderr.write('Validating MCP server configuration...\n');
     
     // Check session directory configuration
-    const sessionDir = process.env.DOT_AI_SESSION_DIR || '/app/sessions';
+    const sessionDir = process.env.DOT_AI_SESSION_DIR || './tmp/sessions';
     process.stderr.write(`Using session directory: ${sessionDir}\n`);
-    
+
     if (!process.env.DOT_AI_SESSION_DIR) {
-      process.stderr.write('INFO: DOT_AI_SESSION_DIR not set, using default: /app/sessions\n');
+      process.stderr.write('INFO: DOT_AI_SESSION_DIR not set, using default: ./tmp/sessions\n');
       process.stderr.write('For custom session directory, set DOT_AI_SESSION_DIR environment variable\n');
     }
     
@@ -98,12 +107,14 @@ async function main() {
     process.on('SIGINT', async () => {
       process.stderr.write('Shutting down DevOps AI Toolkit MCP server...\n');
       await mcpServer.stop();
+      await shutdownTracer();
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
       process.stderr.write('Shutting down DevOps AI Toolkit MCP server...\n');
       await mcpServer.stop();
+      await shutdownTracer();
       process.exit(0);
     });
 
