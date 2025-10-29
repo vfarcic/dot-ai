@@ -9,3 +9,4 @@ export * from './config';
 export { getTracer, shutdownTracer, withSpan } from './tracer';
 export { createHttpServerSpan, withHttpServerTracing } from './http-tracing';
 export { withToolTracing } from './tool-tracing';
+export { withAITracing } from './ai-tracing';

@@ -22,6 +22,7 @@ import {
 } from '../ai-provider.interface';
 import { generateDebugId, debugLogInteraction, debugLogPromptOnly, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
 import { CURRENT_MODELS } from '../model-config';
+import { withAITracing } from '../tracing/ai-tracing';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
 
@@ -161,7 +162,7 @@ export class VercelProvider implements AIProvider {
   }
 
   async sendMessage(
-    message: string, 
+    message: string,
     operation: string = 'generic',
     evaluationContext?: {
       user_intent?: string;
@@ -172,104 +173,119 @@ export class VercelProvider implements AIProvider {
       throw new Error(`${this.providerType} provider not initialized`);
     }
 
-    const startTime = Date.now();
+    return await withAITracing(
+      {
+        provider: this.providerType,
+        model: this.model,
+        operation: 'chat',
+      },
+      async () => {
+        const startTime = Date.now();
 
-    try {
-      // Use Vercel AI SDK generateText
-      // Note: maxOutputTokens not specified - provider will use model's natural maximum
-      const result = await generateText({
-        model: this.modelInstance,
-        prompt: message,
-      });
+        try {
+          // Use Vercel AI SDK generateText
+          // Note: maxOutputTokens not specified - provider will use model's natural maximum
+          const result = await generateText({
+            model: this.modelInstance,
+            prompt: message,
+          });
 
-      const response: AIResponse = {
-        content: result.text,
-        usage: {
-          input_tokens: (result.totalUsage || result.usage).inputTokens || 0,
-          output_tokens: (result.totalUsage || result.usage).outputTokens || 0
-        }
-      };
+          const response: AIResponse = {
+            content: result.text,
+            usage: {
+              input_tokens: (result.totalUsage || result.usage).inputTokens || 0,
+              output_tokens: (result.totalUsage || result.usage).outputTokens || 0
+            }
+          };
 
-      const durationMs = Date.now() - startTime;
+          const durationMs = Date.now() - startTime;
 
-      // Debug log the interaction if enabled
-      if (this.debugMode) {
-        const debugId = generateDebugId(operation);
-        debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
-        
-        // PRD #154: Always use new evaluation dataset system
-        const evaluationMetrics: EvaluationMetrics = {
-          // Core execution data
-          operation,
-          sdk: this.getProviderType(),
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          durationMs,
-          
-          // Required fields
-          iterationCount: 1,
-          toolCallCount: 0,
-          status: 'completed',
-          completionReason: 'stop',
-          modelVersion: this.model,
-          
-          // Required evaluation context - NO DEFAULTS, must be provided
-          test_scenario: operation,
-          ai_response_summary: response.content,
-          user_intent: evaluationContext?.user_intent || '',
-          interaction_id: evaluationContext?.interaction_id || '',
-          
-          // Optional performance data
-          ...(response.usage.cache_creation_input_tokens && { cacheCreationTokens: response.usage.cache_creation_input_tokens }),
-          ...(response.usage.cache_read_input_tokens && { cacheReadTokens: response.usage.cache_read_input_tokens })
-        };
-        
-        // Calculate cache hit rate if applicable
-        if (response.usage.cache_read_input_tokens && response.usage.input_tokens > 0) {
-          evaluationMetrics.cacheHitRate = Math.round((response.usage.cache_read_input_tokens / response.usage.input_tokens) * 100);
-        }
-        
-        logEvaluationDataset(evaluationMetrics, this.debugMode);
-      }
+          // Debug log the interaction if enabled
+          if (this.debugMode) {
+            const debugId = generateDebugId(operation);
+            debugLogInteraction(debugId, message, response, operation, this.getProviderType(), this.model, this.debugMode);
 
-      return response;
+            // PRD #154: Always use new evaluation dataset system
+            const evaluationMetrics: EvaluationMetrics = {
+              // Core execution data
+              operation,
+              sdk: this.getProviderType(),
+              inputTokens: response.usage.input_tokens,
+              outputTokens: response.usage.output_tokens,
+              durationMs,
 
-    } catch (error) {
-      // Log the prompt that caused the error for debugging
-      if (this.debugMode) {
-        const debugId = generateDebugId(operation);
-        debugLogPromptOnly(debugId, message, operation, this.getProviderType(), this.model, this.debugMode);
-      }
+              // Required fields
+              iterationCount: 1,
+              toolCallCount: 0,
+              status: 'completed',
+              completionReason: 'stop',
+              modelVersion: this.model,
 
-      // Generate dataset for failed AI interaction
-      if (this.debugMode && evaluationContext) {
-        const failureMetrics: EvaluationMetrics = {
-          operation,
-          user_intent: evaluationContext.user_intent || '',
-          ai_response_summary: `Error: ${error instanceof Error ? error.message : String(error)}`,
-          durationMs: Date.now() - startTime,
-          inputTokens: 0,
-          outputTokens: 0,
-          iterationCount: 0,
-          toolCallCount: 0,
-          status: 'failed',
-          completionReason: 'error',
-          sdk: this.getProviderType(),
-          modelVersion: this.model,
-          test_scenario: operation,
-          interaction_id: evaluationContext.interaction_id || generateDebugId(operation),
-          failure_analysis: {
-            failure_type: "error",
-            failure_reason: `${this.providerType} API error: ${error instanceof Error ? error.message : String(error)}`,
-            time_to_failure: Date.now() - startTime
+              // Required evaluation context - NO DEFAULTS, must be provided
+              test_scenario: operation,
+              ai_response_summary: response.content,
+              user_intent: evaluationContext?.user_intent || '',
+              interaction_id: evaluationContext?.interaction_id || '',
+
+              // Optional performance data
+              ...(response.usage.cache_creation_input_tokens && { cacheCreationTokens: response.usage.cache_creation_input_tokens }),
+              ...(response.usage.cache_read_input_tokens && { cacheReadTokens: response.usage.cache_read_input_tokens })
+            };
+
+            // Calculate cache hit rate if applicable
+            if (response.usage.cache_read_input_tokens && response.usage.input_tokens > 0) {
+              evaluationMetrics.cacheHitRate = Math.round((response.usage.cache_read_input_tokens / response.usage.input_tokens) * 100);
+            }
+
+            logEvaluationDataset(evaluationMetrics, this.debugMode);
           }
-        };
 
-        logEvaluationDataset(failureMetrics, this.debugMode);
-      }
+          return response;
 
-      throw new Error(`${this.providerType} API error: ${error}`);
-    }
+        } catch (error) {
+          // Log the prompt that caused the error for debugging
+          if (this.debugMode) {
+            const debugId = generateDebugId(operation);
+            debugLogPromptOnly(debugId, message, operation, this.getProviderType(), this.model, this.debugMode);
+          }
+
+          // Generate dataset for failed AI interaction
+          if (this.debugMode && evaluationContext) {
+            const failureMetrics: EvaluationMetrics = {
+              operation,
+              user_intent: evaluationContext.user_intent || '',
+              ai_response_summary: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              durationMs: Date.now() - startTime,
+              inputTokens: 0,
+              outputTokens: 0,
+              iterationCount: 0,
+              toolCallCount: 0,
+              status: 'failed',
+              completionReason: 'error',
+              sdk: this.getProviderType(),
+              modelVersion: this.model,
+              test_scenario: operation,
+              interaction_id: evaluationContext.interaction_id || generateDebugId(operation),
+              failure_analysis: {
+                failure_type: "error",
+                failure_reason: `${this.providerType} API error: ${error instanceof Error ? error.message : String(error)}`,
+                time_to_failure: Date.now() - startTime
+              }
+            };
+
+            logEvaluationDataset(failureMetrics, this.debugMode);
+          }
+
+          throw new Error(`${this.providerType} API error: ${error}`);
+        }
+      },
+      (response: AIResponse) => ({
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        cacheReadTokens: response.usage.cache_read_input_tokens,
+        cacheCreationTokens: response.usage.cache_creation_input_tokens,
+      })
+    );
   }
 
   /**

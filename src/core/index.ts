@@ -146,7 +146,7 @@ export { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-v
 export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
 export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './policy-vector-service';
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
-export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, OpenAIEmbeddingProvider } from './embedding-service';
+export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
 
 // Default export
 export default DotAI; 

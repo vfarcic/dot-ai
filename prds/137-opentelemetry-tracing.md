@@ -161,7 +161,7 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [x] Add OTLP exporter support (Phase 3 work completed early)
 - [x] Add OpenTelemetry status to version tool (shows tracing config and health)
 
-### Phase 2: Deep Instrumentation [Status: ⏳ PENDING]
+### Phase 2: Deep Instrumentation [Status: 🔄 IN PROGRESS - 30%]
 **Target**: AI provider calls and Kubernetes operations fully traced
 
 **Documentation Changes:**
@@ -170,7 +170,20 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [ ] **`docs/observability-guide.md`**: Document trace analysis workflows for common debugging scenarios
 
 **Implementation Tasks:**
-- [ ] Instrument Claude/OpenAI API calls in `src/core/claude.ts` with latency, token count, model attributes
+- [x] **AI Provider Chat Tracing** - Complete generic wrapper instrumentation ✅
+  - [x] Created `src/core/tracing/ai-tracing.ts` with `withAITracing()` wrapper supporting `chat`, `tool_loop`, `embeddings` operations
+  - [x] Integrated with `AnthropicProvider.sendMessage()` for chat operations
+  - [x] Integrated with `VercelProvider.sendMessage()` for chat operations (supports all Vercel providers: OpenAI, Google, Anthropic, xAI, Mistral, DeepSeek, OpenRouter, custom endpoints)
+  - [x] Official GenAI semantic conventions: `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.usage.*`
+  - [x] Token usage tracking (input tokens, output tokens, cache read tokens, cache creation tokens)
+  - [x] Tested with Jaeger - spans showing descriptive names like `chat claude-sonnet-4-5-20250929` with full GenAI attributes
+  - [x] Context propagation working - AI spans properly nested under tool execution spans
+- [ ] **AI Provider ToolLoop Tracing** - Generic wrapper ready, needs integration
+  - [ ] Wrap `AnthropicProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
+  - [ ] Wrap `VercelProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
+- [ ] **AI Provider Embeddings Tracing** - Generic wrapper ready, needs integration
+  - [ ] Wrap `VercelEmbeddingProvider.generateEmbedding()` with `withAITracing(operation: 'embeddings')`
+  - [ ] Wrap `VercelEmbeddingProvider.generateEmbeddings()` with `withAITracing(operation: 'embeddings')`
 - [ ] Add Kubernetes client instrumentation in `src/core/cluster-utils.ts` for API calls
 - [ ] Trace cluster discovery operations in `src/core/discovery.ts` with resource counts
 - [ ] Instrument deployment operations in `src/tools/deploy-manifests.ts`
@@ -585,6 +598,60 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - Begin Phase 2: Deep Instrumentation (AI provider call spans, Kubernetes operation spans)
 - Make child spans more distinguishable in Jaeger with descriptive operation names
 - Consider Phase 4 comprehensive integration testing strategy
+
+### 2025-10-29: Phase 2 AI Provider Chat Tracing Implementation
+**Duration**: ~4 hours
+**Primary Focus**: Implement AI provider tracing with official GenAI semantic conventions
+
+**Completed PRD Items**:
+- [x] **AI Provider Chat Tracing** - Complete generic wrapper instrumentation
+  - Created `src/core/tracing/ai-tracing.ts` with unified `withAITracing()` wrapper
+  - Integrated with `AnthropicProvider.sendMessage()`
+  - Integrated with `VercelProvider.sendMessage()`
+  - Implemented official OpenTelemetry GenAI semantic conventions
+  - Token usage tracking (input, output, cache metrics)
+  - Verified with Jaeger showing `chat claude-sonnet-4-5-20250929` spans
+
+**Key Implementation Details**:
+- **Unified tracing wrapper**: Single `withAITracing()` function supports 3 operation types (`chat`, `tool_loop`, `embeddings`)
+- **GenAI semantic conventions**: Using official `gen_ai.*` attributes per OpenTelemetry spec
+- **Dynamic provider support**: Works with all Vercel AI SDK providers (OpenAI, Google, Anthropic, xAI, Mistral, DeepSeek, OpenRouter, custom)
+- **Context propagation**: AI CLIENT spans properly nested under tool INTERNAL spans
+- **HTTP auto-instrumentation**: Nested POST spans visible but kept for now as discovery tool
+
+**Bonus Refactoring Work**:
+- **Unified embedding providers**: Consolidated `OpenAIEmbeddingProvider`, `GoogleEmbeddingProvider`, `MistralEmbeddingProvider` into single `VercelEmbeddingProvider`
+  - Reduced code by 159 lines (32% reduction, 494→335 lines)
+  - All three providers now use Vercel AI SDK `embed()` function
+  - Dynamic provider selection with `getProviderType()` method
+  - Maintains backward compatibility through factory pattern
+
+**Test Results**:
+- ✅ Jaeger traces showing proper span hierarchy: SERVER → INTERNAL → CLIENT
+- ✅ GenAI attributes complete: operation, provider, model, tokens, duration
+- ✅ Build successful with zero TypeScript errors
+- ✅ Context propagation working correctly
+
+**Files Created**:
+- `src/core/tracing/ai-tracing.ts` - Unified AI tracing wrapper (~150 lines)
+
+**Files Modified**:
+- `src/core/providers/anthropic-provider.ts` - Wrapped `sendMessage()` with AI tracing
+- `src/core/providers/vercel-provider.ts` - Wrapped `sendMessage()` with AI tracing
+- `src/core/embedding-service.ts` - Unified three provider classes into one (major refactor)
+- `src/core/tracing/index.ts` - Exported `withAITracing` function
+- `src/core/index.ts` - Updated to export `VercelEmbeddingProvider`
+
+**Architecture Decisions**:
+- **Keep HTTP auto-instrumentation for now**: Nested POST spans provide discovery value showing what still needs manual instrumentation
+- **Embedding provider unification**: Cleaner architecture with single class handling all providers via Vercel AI SDK
+- **Generic wrapper pattern proven**: Same pattern will be used for `toolLoop()` and embeddings tracing
+
+**Next Session Priorities**:
+- Add tracing to `toolLoop()` operations (AnthropicProvider and VercelProvider)
+- Add tracing to embeddings operations (`VercelEmbeddingProvider`)
+- Begin Kubernetes client instrumentation
+- Consider disabling HTTP auto-instrumentation once all operations are manually traced
 
 ---
 

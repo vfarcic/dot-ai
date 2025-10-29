@@ -15,6 +15,7 @@ import {
 } from '../ai-provider.interface';
 import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
 import { getCurrentModel } from '../model-config';
+import { withAITracing } from '../tracing/ai-tracing';
 
 export class AnthropicProvider implements AIProvider {
   private client: Anthropic;
@@ -87,7 +88,7 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async sendMessage(
-    message: string, 
+    message: string,
     operation: string = 'generic',
     evaluationContext?: {
       user_intent?: string;
@@ -98,78 +99,93 @@ export class AnthropicProvider implements AIProvider {
       throw new Error('Anthropic client not initialized');
     }
 
-    const startTime = Date.now();
-
-    try {
-      // Make real API call to Anthropic with streaming
-      const stream = await this.client.messages.create({
+    return await withAITracing(
+      {
+        provider: 'anthropic',
         model: this.model,
-        max_tokens: 64000,
-        messages: [{ role: 'user', content: message }],
-        stream: true // Enable streaming by default to support long operations (>10 minutes)
-      });
+        operation: 'chat',
+      },
+      async () => {
+        const startTime = Date.now();
 
-      let content = '';
-      let input_tokens = 0;
-      let output_tokens = 0;
+        try {
+          // Make real API call to Anthropic with streaming
+          const stream = await this.client.messages.create({
+            model: this.model,
+            max_tokens: 64000,
+            messages: [{ role: 'user', content: message }],
+            stream: true // Enable streaming by default to support long operations (>10 minutes)
+          });
 
-      for await (const chunk of stream) {
-        if (chunk.type === 'message_start') {
-          input_tokens = chunk.message.usage.input_tokens;
-        } else if (chunk.type === 'content_block_delta') {
-          if (chunk.delta.type === 'text_delta') {
-            content += chunk.delta.text;
+          let content = '';
+          let input_tokens = 0;
+          let output_tokens = 0;
+
+          for await (const chunk of stream) {
+            if (chunk.type === 'message_start') {
+              input_tokens = chunk.message.usage.input_tokens;
+            } else if (chunk.type === 'content_block_delta') {
+              if (chunk.delta.type === 'text_delta') {
+                content += chunk.delta.text;
+              }
+            } else if (chunk.type === 'message_delta') {
+              output_tokens = chunk.usage.output_tokens;
+            }
           }
-        } else if (chunk.type === 'message_delta') {
-          output_tokens = chunk.usage.output_tokens;
+
+          const response: AIResponse = {
+            content,
+            usage: {
+              input_tokens,
+              output_tokens
+            }
+          };
+
+          // Debug log the interaction if enabled
+          this.logDebugIfEnabled(operation, message, response);
+
+          // PRD #154: Log evaluation dataset if evaluation context is provided
+          if (this.debugMode && evaluationContext?.interaction_id) {
+            const durationMs = Date.now() - startTime;
+            const evaluationMetrics: EvaluationMetrics = {
+              // Core execution data
+              operation,
+              sdk: this.getProviderType(),
+              inputTokens: input_tokens,
+              outputTokens: output_tokens,
+              durationMs,
+
+              // Required fields
+              iterationCount: 1,
+              toolCallCount: 0,
+              status: 'completed',
+              completionReason: 'stop',
+              modelVersion: this.model,
+
+              // Required evaluation context - NO DEFAULTS, must be provided
+              test_scenario: operation,
+              ai_response_summary: content,
+              user_intent: evaluationContext?.user_intent || '',
+              interaction_id: evaluationContext?.interaction_id || '',
+
+            };
+
+            logEvaluationDataset(evaluationMetrics, this.debugMode);
+          }
+
+          return response;
+
+        } catch (error) {
+          throw new Error(`Anthropic API error: ${error}`);
         }
-      }
-
-      const response: AIResponse = {
-        content,
-        usage: {
-          input_tokens,
-          output_tokens
-        }
-      };
-
-      // Debug log the interaction if enabled
-      this.logDebugIfEnabled(operation, message, response);
-
-      // PRD #154: Log evaluation dataset if evaluation context is provided
-      if (this.debugMode && evaluationContext?.interaction_id) {
-        const durationMs = Date.now() - startTime;
-        const evaluationMetrics: EvaluationMetrics = {
-          // Core execution data
-          operation,
-          sdk: this.getProviderType(),
-          inputTokens: input_tokens,
-          outputTokens: output_tokens,
-          durationMs,
-          
-          // Required fields
-          iterationCount: 1,
-          toolCallCount: 0,
-          status: 'completed',
-          completionReason: 'stop',
-          modelVersion: this.model,
-          
-          // Required evaluation context - NO DEFAULTS, must be provided
-          test_scenario: operation,
-          ai_response_summary: content,
-          user_intent: evaluationContext?.user_intent || '',
-          interaction_id: evaluationContext?.interaction_id || '',
-          
-        };
-
-        logEvaluationDataset(evaluationMetrics, this.debugMode);
-      }
-
-      return response;
-
-    } catch (error) {
-      throw new Error(`Anthropic API error: ${error}`);
-    }
+      },
+      (response: AIResponse) => ({
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        cacheReadTokens: response.usage.cache_read_input_tokens,
+        cacheCreationTokens: response.usage.cache_creation_input_tokens,
+      })
+    );
   }
 
   /**
