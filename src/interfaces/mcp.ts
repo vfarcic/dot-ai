@@ -53,7 +53,7 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import { createHttpServerSpan } from '../core/tracing';
+import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
 
 export interface MCPServerConfig {
@@ -128,15 +128,20 @@ export class MCPServer {
     category?: string,
     tags?: string[]
   ): void {
-    // Register with MCP server
-    this.server.tool(name, description, inputSchema, handler);
-    
-    // Register with REST registry
+    // Wrap handler with tracing for both STDIO (MCP) and HTTP (REST) transports
+    const tracedHandler = async (args: any) => {
+      return await withToolTracing(name, args, handler);
+    };
+
+    // Register traced handler with MCP server
+    this.server.tool(name, description, inputSchema, tracedHandler);
+
+    // Register traced handler with REST registry
     this.restRegistry.registerTool({
       name,
       description,
       inputSchema,
-      handler,
+      handler: tracedHandler,
       category,
       tags
     });

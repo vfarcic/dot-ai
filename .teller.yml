@@ -18,4 +18,4 @@ providers:
           mistral-api-key: MISTRAL_API_KEY
           deepseek-api-key: DEEPSEEK_API_KEY
           slack-webhook-url: SLACK_WEBHOOK_URL
-          open-router-key: CUSTOM_LLM_API_KEY
+          # open-router-key: CUSTOM_LLM_API_KEY
