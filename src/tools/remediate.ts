@@ -611,7 +611,7 @@ async function executeRemediationCommands(
           // Recursive call to main function for validation
           const validationResponse = await handleRemediateTool(validationInput);
           const validationData = JSON.parse(validationResponse.content[0].text);
-          
+
           // If validation discovered new issues, enhance with execution context
           if (validationData.status === 'awaiting_user_approval') {
             logger.info('Validation discovered new issues, enhancing response with execution context', {

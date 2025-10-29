@@ -24,8 +24,19 @@ secrets:
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   openai:
     keyName: openai-api-key         # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret - used for embeddings)
-  # Future: Add additional AI provider keys here (google, etc.)
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  google:
+    keyName: google-api-key         # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  xai:
+    keyName: xai-api-key            # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  mistral:
+    keyName: mistral-api-key        # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  deepseek:
+    keyName: deepseek-api-key       # Key name within the secret
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
 
 # ServiceAccount configuration
 serviceAccount:
@@ -50,6 +61,45 @@ ingress:
   tls:
     enabled: false                  # Enable TLS/HTTPS
     secretName: ""                  # TLS secret name (generated if empty when enabled)
+
+# AI Provider configuration
+ai:
+  provider: anthropic               # AI provider type (anthropic, openai, google, xai, mistral, deepseek)
+  model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
+
+  # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
+  customEndpoint:
+    enabled: false                  # Enable custom endpoint
+    baseURL: ""                     # Custom LLM endpoint URL (e.g., "http://ollama-service:11434/v1")
+    embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint)
+
+  # Examples (commented out):
+  # Example 1: Ollama (self-hosted)
+  # ai:
+  #   provider: openai
+  #   model: "llama3.1:70b"
+  #   customEndpoint:
+  #     enabled: true
+  #     baseURL: "http://ollama-service:11434/v1"
+  #
+  # Example 2: Azure OpenAI (SaaS)
+  # ai:
+  #   provider: openai
+  #   model: "gpt-4o"
+  #   customEndpoint:
+  #     enabled: true
+  #     baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+  #
+  # Example 3: vLLM (self-hosted)
+  # ai:
+  #   provider: openai
+  #   model: "meta-llama/Llama-3.1-70B-Instruct"
+  #   customEndpoint:
+  #     enabled: true
+  #     baseURL: "http://vllm-service:8000/v1"
+  #
+  # Note: Custom endpoints must support OpenAI-compatible API and models must
+  # support 8K+ output tokens for reliable YAML generation.
 
 # Qdrant Vector Database
 qdrant:

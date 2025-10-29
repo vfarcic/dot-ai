@@ -920,8 +920,8 @@ Please try again or modify your policy description.`,
     const capabilityService = new CapabilityVectorService(collection);
     
     // Use existing searchCapabilities function - no fallback, let it throw if it fails
-    const searchResults = await capabilityService.searchCapabilities(searchQuery, { 
-      limit: 50 // Higher limit to get more relevant resources - aligns with recommendation tool
+    const searchResults = await capabilityService.searchCapabilities(searchQuery, {
+      limit: 30 // Reduced from 50 to stay within 200K token context limit (testing shows 35 still exceeds)
     });
     
     if (searchResults.length === 0) {

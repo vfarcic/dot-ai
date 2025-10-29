@@ -12,6 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createMistral } from '@ai-sdk/mistral';
 import { createDeepSeek } from '@ai-sdk/deepseek';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import {
   AIProvider,
   AIResponse,
@@ -19,7 +20,7 @@ import {
   ToolLoopConfig,
   AgenticResult
 } from '../ai-provider.interface';
-import { generateDebugId, debugLogInteraction, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
+import { generateDebugId, debugLogInteraction, debugLogPromptOnly, createAndLogAgenticResult, logEvaluationDataset, EvaluationMetrics } from './provider-debug-utils';
 import { CURRENT_MODELS } from '../model-config';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
@@ -32,6 +33,7 @@ export class VercelProvider implements AIProvider {
   private model: string;
   private apiKey: string;
   private debugMode: boolean;
+  private baseURL?: string; // PRD #194: Custom endpoint URL for OpenAI-compatible APIs
   private modelInstance: any; // Vercel AI SDK model instance
 
   constructor(config: AIProviderConfig) {
@@ -39,6 +41,7 @@ export class VercelProvider implements AIProvider {
     this.providerType = config.provider as SupportedProvider;
     this.model = config.model || this.getDefaultModel();
     this.debugMode = config.debugMode ?? (process.env.DEBUG_DOT_AI === 'true');
+    this.baseURL = config.baseURL; // PRD #194: Store custom endpoint URL
 
     this.validateConfiguration();
     this.initializeModel();
@@ -57,11 +60,13 @@ export class VercelProvider implements AIProvider {
   private initializeModel(): void {
     try {
       let provider: any;
-      
+
       switch (this.providerType) {
         case 'openai':
         case 'openai_pro':
-          provider = createOpenAI({ apiKey: this.apiKey });
+          provider = createOpenAI({
+            apiKey: this.apiKey
+          });
           break;
         case 'google':
         case 'google_fast':
@@ -69,7 +74,7 @@ export class VercelProvider implements AIProvider {
           break;
         case 'anthropic':
         case 'anthropic_haiku':
-          provider = createAnthropic({ 
+          provider = createAnthropic({
             apiKey: this.apiKey,
             // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
             // Required for models like claude-sonnet-4-5-20250929
@@ -86,12 +91,32 @@ export class VercelProvider implements AIProvider {
           provider = createMistral({ apiKey: this.apiKey });
           break;
         case 'deepseek':
-          provider = createDeepSeek({ apiKey: this.apiKey });
+          provider = createDeepSeek({
+            apiKey: this.apiKey
+          });
+          break;
+        case 'openrouter':
+          // PRD #194: OpenRouter custom endpoint support
+          // Use dedicated OpenRouter provider for proper format conversion
+          provider = createOpenRouter({
+            apiKey: this.apiKey
+          });
+          break;
+        case 'custom':
+          // PRD #194: Generic custom endpoint support for OpenAI-compatible APIs
+          // For non-OpenRouter custom endpoints (Ollama, vLLM, LiteLLM, etc.)
+          if (!this.baseURL) {
+            throw new Error('Custom endpoint requires CUSTOM_LLM_BASE_URL to be set');
+          }
+          provider = createOpenAI({
+            apiKey: this.apiKey,
+            baseURL: this.baseURL
+          });
           break;
         default:
           throw new Error(`Cannot initialize model for provider: ${this.providerType}`);
       }
-      
+
       this.modelInstance = provider(this.model);
     } catch (error) {
       throw new Error(`Failed to initialize ${this.providerType} model: ${error}`);
@@ -151,11 +176,10 @@ export class VercelProvider implements AIProvider {
 
     try {
       // Use Vercel AI SDK generateText
-      // Set maxOutputTokens to 8192 for better support of comprehensive responses
+      // Note: maxOutputTokens not specified - provider will use model's natural maximum
       const result = await generateText({
         model: this.modelInstance,
         prompt: message,
-        maxOutputTokens: 8192, // Increased from default 4096 to support longer responses
       });
 
       const response: AIResponse = {
@@ -211,6 +235,12 @@ export class VercelProvider implements AIProvider {
       return response;
 
     } catch (error) {
+      // Log the prompt that caused the error for debugging
+      if (this.debugMode) {
+        const debugId = generateDebugId(operation);
+        debugLogPromptOnly(debugId, message, operation, this.getProviderType(), this.model, this.debugMode);
+      }
+
       // Generate dataset for failed AI interaction
       if (this.debugMode && evaluationContext) {
         const failureMetrics: EvaluationMetrics = {
@@ -234,10 +264,10 @@ export class VercelProvider implements AIProvider {
             time_to_failure: Date.now() - startTime
           }
         };
-        
+
         logEvaluationDataset(failureMetrics, this.debugMode);
       }
-      
+
       throw new Error(`${this.providerType} API error: ${error}`);
     }
   }
@@ -343,12 +373,12 @@ export class VercelProvider implements AIProvider {
     try {
       // Use Vercel AI SDK's generateText with stopWhen for automatic loop
       // Default is stepCountIs(1) - we need to increase for multi-step investigation
+      // Note: maxOutputTokens not specified - provider will use model's natural maximum
       const generateConfig: any = {
         model: this.modelInstance,
         messages,
         tools,
-        stopWhen: stepCountIs(maxIterations),
-        maxOutputTokens: 8192 // Increased from default 4096 to support longer responses
+        stopWhen: stepCountIs(maxIterations)
       };
 
       // Add system parameter for non-Anthropic providers

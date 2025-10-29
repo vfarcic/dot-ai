@@ -1,5 +1,5 @@
 <!--
-Thank you for contributing to DevOps AI Toolkit! Please fill out this template to help us review your changes.
+Thank you for contributing to {{projectName}}! Please fill out this template to help us review your changes.
 -->
 
 ## Description
@@ -30,6 +30,7 @@ Thank you for contributing to DevOps AI Toolkit! Please fill out this template t
 - [ ] 📦 Dependency updates
 - [ ] 🔨 CI/CD changes
 
+{{#isTrue requiresConventionalCommits}}
 ## Conventional Commit Format
 <!-- This project uses Conventional Commits for automated changelog generation -->
 
@@ -61,6 +62,7 @@ BREAKING CHANGE: v1 API endpoints have been removed.
 See MIGRATION.md for upgrade guide.
 ```
 
+{{/isTrue}}
 ## Testing Checklist
 <!-- Ensure all relevant tests have been completed -->
 
@@ -85,8 +87,11 @@ See MIGRATION.md for upgrade guide.
 - [ ] Documentation updated (if applicable)
 - [ ] Code comments added for complex logic
 - [ ] API documentation updated (if API changes)
-- [ ] [CONTRIBUTING.md](CONTRIBUTING.md) guidelines followed
+{{#if contributingPath}}
+- [ ] [CONTRIBUTING.md]({{contributingPath}}) guidelines followed
+{{/if}}
 
+{{#isTrue includesSecurityChecklist}}
 ## Security Checklist
 <!-- Complete if your changes affect security -->
 
@@ -97,6 +102,18 @@ See MIGRATION.md for upgrade guide.
 - [ ] Authentication/authorization logic reviewed
 - [ ] Error messages don't leak sensitive information
 
+{{/isTrue}}
+{{#isTrue requiresScreenshots}}
+## Screenshots / Recordings
+<!-- For UI changes, provide before/after screenshots or recordings -->
+
+**Before:**
+<!-- Add screenshots or recordings showing the current behavior -->
+
+**After:**
+<!-- Add screenshots or recordings showing your changes -->
+
+{{/isTrue}}
 ## Breaking Changes
 <!-- If this is a breaking change, describe the impact and provide migration guidance -->
 
@@ -106,6 +123,28 @@ See MIGRATION.md for upgrade guide.
 
 **If yes, describe the breaking changes and migration path:**
 
+{{#isTrue requiresDco}}
+## Developer Certificate of Origin
+<!-- This project requires DCO sign-off for all commits -->
+
+By submitting this pull request, I certify that:
+
+- The contribution was created in whole or in part by me and I have the right to submit it under the project's open source license.
+- I understand and agree that this project and my contribution are public and that a record of the contribution (including all personal information I submit with it) is maintained indefinitely.
+
+**DCO Sign-off:**
+All commits must include a `Signed-off-by` line:
+```bash
+git commit -s -m "Your commit message"
+```
+
+If you forgot to sign off your commits, you can amend them:
+```bash
+git commit --amend --signoff
+git push --force-with-lease
+```
+
+{{/isTrue}}
 ## Checklist
 <!-- Final pre-submission checklist -->
 
@@ -116,7 +155,12 @@ See MIGRATION.md for upgrade guide.
 - [ ] I have added tests that prove my fix is effective or my feature works
 - [ ] New and existing tests pass locally with my changes
 - [ ] Any dependent changes have been merged and published
+{{#isTrue requiresDco}}
+- [ ] All commits are signed off (DCO)
+{{/isTrue}}
+{{#isTrue requiresConventionalCommits}}
 - [ ] PR title follows Conventional Commits format
+{{/isTrue}}
 
 ## Additional Context
 <!-- Add any other context, considerations, or notes for reviewers -->

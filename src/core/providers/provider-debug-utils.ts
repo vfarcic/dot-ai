@@ -261,6 +261,46 @@ export function createAndLogAgenticResult(config: {
 }
 
 /**
+ * Helper to write prompt file
+ */
+function writePromptFile(
+  debugDir: string,
+  debugId: string,
+  prompt: string,
+  operation: string,
+  provider: string,
+  model: string
+): void {
+  const promptFile = path.join(debugDir, `${debugId}_prompt.md`);
+  fs.writeFileSync(
+    promptFile,
+    `# AI Prompt - ${operation}\n\nTimestamp: ${new Date().toISOString()}\nProvider: ${provider}\nModel: ${model}\nOperation: ${operation}\n\n---\n\n${prompt}`
+  );
+}
+
+/**
+ * Save just the AI prompt for debugging (useful when AI call fails)
+ */
+export function debugLogPromptOnly(
+  debugId: string,
+  prompt: string,
+  operation: string,
+  provider: string,
+  model: string,
+  debugMode: boolean
+): void {
+  if (!debugMode) return;
+
+  try {
+    const debugDir = ensureDebugDirectory();
+    writePromptFile(debugDir, debugId, prompt, operation, provider, model);
+    console.log(`🐛 DEBUG: AI prompt logged to tmp/debug-ai/${debugId}_prompt.md (call failed before response)`);
+  } catch (error) {
+    console.warn('Failed to log AI debug prompt:', error);
+  }
+}
+
+/**
  * Save AI interaction for debugging when DEBUG_DOT_AI=true
  */
 export function debugLogInteraction(
@@ -277,12 +317,8 @@ export function debugLogInteraction(
   try {
     const debugDir = ensureDebugDirectory();
 
-    // Save prompt with descriptive naming
-    const promptFile = path.join(debugDir, `${debugId}_prompt.md`);
-    fs.writeFileSync(
-      promptFile,
-      `# AI Prompt - ${operation}\n\nTimestamp: ${new Date().toISOString()}\nProvider: ${provider}\nModel: ${model}\nOperation: ${operation}\n\n---\n\n${prompt}`
-    );
+    // Save prompt using shared helper
+    writePromptFile(debugDir, debugId, prompt, operation, provider, model);
 
     // Save response with matching naming
     const responseFile = path.join(debugDir, `${debugId}_response.md`);

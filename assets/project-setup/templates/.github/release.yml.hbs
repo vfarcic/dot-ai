@@ -1,0 +1,51 @@
+# Release notes configuration
+#
+# Configures automatic release notes generation when creating GitHub Releases.
+# GitHub will categorize merged PRs based on labels and generate formatted changelog.
+#
+# See: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - duplicate
+      - invalid
+      - wontfix
+    authors:
+      - renovate
+      - renovate[bot]
+      - github-actions[bot]
+
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - breaking
+
+    - title: New Features
+      labels:
+        - feature
+        - enhancement
+        - feat
+
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+        - bugfix
+
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+
+    - title: Dependencies
+      labels:
+        - dependencies
+        - deps
+        - dependency
+
+    - title: Other Changes
+      labels:
+        - "*"
