@@ -41,8 +41,12 @@ spec:
           value: {{ .Values.ai.model | quote }}
 {{- end }}
 {{- if .Values.ai.customEndpoint.enabled }}
-        - name: OPENAI_BASE_URL
+        - name: CUSTOM_LLM_BASE_URL
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}
+{{- end }}
+{{- if .Values.ai.customEndpoint.embeddingsBaseURL }}
+        - name: CUSTOM_EMBEDDINGS_BASE_URL
+          value: {{ .Values.ai.customEndpoint.embeddingsBaseURL | quote }}
 {{- end }}
         # AI Provider API Keys
         - name: ANTHROPIC_API_KEY
@@ -74,6 +78,18 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.mistral.keyName }}
+              optional: true
+        - name: CUSTOM_LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.customLlm.keyName | default "custom-llm-api-key" }}
+              optional: true
+        - name: CUSTOM_EMBEDDINGS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.customEmbeddings.keyName | default "custom-embeddings-api-key" }}
               optional: true
         - name: DEEPSEEK_API_KEY
           valueFrom:

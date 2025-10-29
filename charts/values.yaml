@@ -70,7 +70,8 @@ ai:
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
   customEndpoint:
     enabled: false                  # Enable custom endpoint
-    baseURL: ""                     # Custom endpoint URL (e.g., "http://ollama-service:11434/v1")
+    baseURL: ""                     # Custom LLM endpoint URL (e.g., "http://ollama-service:11434/v1")
+    embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint)
 
   # Examples (commented out):
   # Example 1: Ollama (self-hosted)

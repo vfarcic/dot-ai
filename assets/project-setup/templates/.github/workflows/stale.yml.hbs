@@ -20,7 +20,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           # Issues configuration
           days-before-issue-stale: {{daysBeforeIssueStale}}
@@ -49,8 +49,8 @@ jobs:
           # Exemptions - Never mark these as stale (maintainer responsibility)
           exempt-issue-labels: '{{exemptIssueLabels}}'
           exempt-pr-labels: '{{exemptPrLabels}}'
-          exempt-milestones: {{exemptMilestones}}
-          exempt-assignees: {{exemptAssignees}}
+          exempt-milestones: '{{exemptMilestones}}'
+          exempt-assignees: '{{exemptAssignees}}'
 
           # Behavior
           remove-stale-when-updated: true

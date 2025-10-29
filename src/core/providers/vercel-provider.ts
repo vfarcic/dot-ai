@@ -176,11 +176,10 @@ export class VercelProvider implements AIProvider {
 
     try {
       // Use Vercel AI SDK generateText
-      // Set maxOutputTokens to 8192 for better support of comprehensive responses
+      // Note: maxOutputTokens not specified - provider will use model's natural maximum
       const result = await generateText({
         model: this.modelInstance,
         prompt: message,
-        maxOutputTokens: 8192, // Increased from default 4096 to support longer responses
       });
 
       const response: AIResponse = {
@@ -374,12 +373,12 @@ export class VercelProvider implements AIProvider {
     try {
       // Use Vercel AI SDK's generateText with stopWhen for automatic loop
       // Default is stepCountIs(1) - we need to increase for multi-step investigation
+      // Note: maxOutputTokens not specified - provider will use model's natural maximum
       const generateConfig: any = {
         model: this.modelInstance,
         messages,
         tools,
-        stopWhen: stepCountIs(maxIterations),
-        maxOutputTokens: 8192 // Increased from default 4096 to support longer responses
+        stopWhen: stepCountIs(maxIterations)
       };
 
       // Add system parameter for non-Anthropic providers
