@@ -13,7 +13,6 @@
  */
 
 import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
-import { getTracer } from './tracer';
 
 /**
  * Configuration for AI operation tracing
@@ -95,14 +94,7 @@ export async function withAITracing<T>(
   handler: () => Promise<T>,
   extractMetrics: (result: T) => AITracingResult
 ): Promise<T> {
-  const tracerService = getTracer();
-
-  // Check if tracing is enabled
-  if (!tracerService.isEnabled()) {
-    // If tracing is disabled, just execute the handler
-    return await handler();
-  }
-
+  // Get tracer (returns no-op if tracing disabled)
   const tracer = trace.getTracer('dot-ai-mcp');
 
   // Span name format: "{operation} {model}"

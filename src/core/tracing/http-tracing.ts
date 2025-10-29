@@ -14,7 +14,6 @@ import {
   Span,
 } from '@opentelemetry/api';
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { getTracer } from './tracer';
 
 /**
  * HTTP semantic convention attributes
@@ -87,17 +86,6 @@ function buildSpanAttributes(req: IncomingMessage): Partial<HttpServerSpanAttrib
 export function createHttpServerSpan(
   req: IncomingMessage
 ): { span: Span; endSpan: (statusCode: number) => void } {
-  const tracerService = getTracer();
-
-  if (!tracerService.isEnabled()) {
-    // Return no-op if tracing is disabled
-    const noopSpan = trace.getTracer('noop').startSpan('noop');
-    return {
-      span: noopSpan,
-      endSpan: () => noopSpan.end(),
-    };
-  }
-
   // Extract parent trace context from headers
   const parentContext = extractTraceContext(req);
 
@@ -105,7 +93,7 @@ export function createHttpServerSpan(
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const spanName = `${req.method} ${url.pathname}`;
 
-  // Get tracer instance
+  // Get tracer instance (returns no-op if tracing disabled)
   const tracer = trace.getTracer('dot-ai-mcp');
 
   // Create SERVER span with parent context

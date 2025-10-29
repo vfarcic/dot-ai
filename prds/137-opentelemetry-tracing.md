@@ -161,7 +161,7 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [x] Add OTLP exporter support (Phase 3 work completed early)
 - [x] Add OpenTelemetry status to version tool (shows tracing config and health)
 
-### Phase 2: Deep Instrumentation [Status: 🔄 IN PROGRESS - 30%]
+### Phase 2: Deep Instrumentation [Status: 🔄 IN PROGRESS - 42%]
 **Target**: AI provider calls and Kubernetes operations fully traced
 
 **Documentation Changes:**
@@ -178,9 +178,12 @@ Implement OpenTelemetry instrumentation following industry best practices and of
   - [x] Token usage tracking (input tokens, output tokens, cache read tokens, cache creation tokens)
   - [x] Tested with Jaeger - spans showing descriptive names like `chat claude-sonnet-4-5-20250929` with full GenAI attributes
   - [x] Context propagation working - AI spans properly nested under tool execution spans
-- [ ] **AI Provider ToolLoop Tracing** - Generic wrapper ready, needs integration
-  - [ ] Wrap `AnthropicProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
-  - [ ] Wrap `VercelProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
+- [x] **AI Provider ToolLoop Tracing** - Complete generic wrapper instrumentation with iteration visibility ✅
+  - [x] Wrap `AnthropicProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
+  - [x] Wrap `VercelProvider.toolLoop()` with `withAITracing(operation: 'tool_loop')`
+  - [x] Add `tool_loop_iteration` spans to `AnthropicProvider.toolLoop()` for per-iteration visibility
+  - [x] Removed `isEnabled()` checks from tracing wrappers - trust OpenTelemetry no-op tracer (simpler code, zero overhead when disabled)
+  - [x] Tested with Jaeger - iteration spans properly nested under `tool_loop` span, showing clear workflow progression
 - [ ] **AI Provider Embeddings Tracing** - Generic wrapper ready, needs integration
   - [ ] Wrap `VercelEmbeddingProvider.generateEmbedding()` with `withAITracing(operation: 'embeddings')`
   - [ ] Wrap `VercelEmbeddingProvider.generateEmbeddings()` with `withAITracing(operation: 'embeddings')`
@@ -652,6 +655,41 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - Add tracing to embeddings operations (`VercelEmbeddingProvider`)
 - Begin Kubernetes client instrumentation
 - Consider disabling HTTP auto-instrumentation once all operations are manually traced
+
+### 2025-10-29: ToolLoop Iteration Tracing & Tracing Simplification
+**Duration**: ~2 hours
+**Primary Focus**: Add per-iteration visibility to toolLoop operations and simplify tracing code
+
+**Completed PRD Items**:
+- [x] **ToolLoop Iteration Spans** - Added `tool_loop_iteration` spans to `AnthropicProvider.toolLoop()`
+  - Evidence: Each iteration wrapped in INTERNAL span, tested with remediate tool (4 iterations traced)
+  - Proper span lifecycle with error handling and early return support
+  - Jaeger shows clear iteration progression within `tool_loop` span
+- [x] **Tracing Code Simplification** - Removed `isEnabled()` checks from all tracing wrappers
+  - Evidence: Updated `ai-tracing.ts`, `http-tracing.ts` to trust OpenTelemetry no-op tracer
+  - Simpler code, zero overhead when tracing disabled
+  - Kept `isEnabled()` only for status reporting and initialization
+
+**Files Modified**:
+- `src/core/providers/anthropic-provider.ts` - Added iteration span wrapping with proper early-return handling
+- `src/core/tracing/ai-tracing.ts` - Removed `isEnabled()` check, trust no-op tracer
+- `src/core/tracing/http-tracing.ts` - Removed `isEnabled()` check, removed unused `getTracer` import
+
+**Architecture Decisions**:
+- **Iteration spans only for Anthropic provider**: VercelProvider uses SDK's internal loop, no per-iteration hooks available
+- **Trust OpenTelemetry no-op tracer**: Eliminates redundant checks, cleaner code
+- **Clear span naming**: Use `tool_loop_iteration` to show clear parent-child relationship with `tool_loop` span
+
+**Test Results**:
+- ✅ Tested with remediate tool - 4 iterations traced successfully
+- ✅ Proper span hierarchy: `execute_tool remediate` → `tool_loop claude-sonnet-4-5-20250929` → `tool_loop_iteration` (×4)
+- ✅ Token metrics captured correctly across all iterations
+- ✅ Build passes with zero errors
+
+**Next Session Priorities**:
+- Add embeddings tracing (`VercelEmbeddingProvider`)
+- Begin Kubernetes client instrumentation
+- Plan HTTP auto-instrumentation removal (Phase 3)
 
 ---
 
