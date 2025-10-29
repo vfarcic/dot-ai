@@ -53,6 +53,8 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
+import { createHttpServerSpan } from '../core/tracing';
+import { context, trace } from '@opentelemetry/api';
 
 export interface MCPServerConfig {
   name: string;
@@ -339,55 +341,78 @@ export class MCPServer {
 
     // Create HTTP server
     this.httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-      this.logger.debug('HTTP request received', { 
-        method: req.method, 
-        url: req.url,
-        headers: req.headers 
-      });
+      // Create HTTP SERVER span for distributed tracing
+      const { span, endSpan } = createHttpServerSpan(req);
 
-      // Handle CORS for browser-based clients
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id');
-      
-      if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
-
-      // Parse request body for POST requests
-      let body: any = undefined;
-      if (req.method === 'POST') {
-        body = await this.parseRequestBody(req);
-      }
-
-      // Check if this is a REST API request
-      if (this.restApiRouter.isApiRequest(req.url || '')) {
-        this.logger.debug('Routing to REST API handler', { url: req.url });
+      // Execute entire request within the span's context for proper propagation
+      await context.with(trace.setSpan(context.active(), span), async () => {
         try {
-          await this.restApiRouter.handleRequest(req, res, body);
+          this.logger.debug('HTTP request received', {
+            method: req.method,
+            url: req.url,
+            headers: req.headers
+          });
+
+        // Handle CORS for browser-based clients
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204);
+          res.end();
+          endSpan(204);
           return;
+        }
+
+        // Parse request body for POST requests
+        let body: any = undefined;
+        if (req.method === 'POST') {
+          body = await this.parseRequestBody(req);
+        }
+
+        // Check if this is a REST API request
+        if (this.restApiRouter.isApiRequest(req.url || '')) {
+          this.logger.debug('Routing to REST API handler', { url: req.url });
+          try {
+            await this.restApiRouter.handleRequest(req, res, body);
+            endSpan(res.statusCode || 200);
+            return;
+          } catch (error) {
+            this.logger.error('REST API request failed', error as Error);
+            if (!res.headersSent) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'REST API internal server error' }));
+            }
+            endSpan(500);
+            return;
+          }
+        }
+
+        // Handle MCP protocol requests using the transport
+        try {
+          await this.httpTransport!.handleRequest(req, res, body);
+          endSpan(res.statusCode || 200);
         } catch (error) {
-          this.logger.error('REST API request failed', error as Error);
+          this.logger.error('Error handling MCP HTTP request', error as Error);
           if (!res.headersSent) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'REST API internal server error' }));
+            res.end(JSON.stringify({ error: 'MCP internal server error' }));
           }
-          return;
+          endSpan(500);
         }
-      }
+        } catch (error) {
+          // Handle any unexpected errors in span creation or request handling
+          this.logger.error('Unexpected error in HTTP request handler', error as Error);
+          span.recordException(error as Error);
+          endSpan(500);
 
-      // Handle MCP protocol requests using the transport
-      try {
-        await this.httpTransport!.handleRequest(req, res, body);
-      } catch (error) {
-        this.logger.error('Error handling MCP HTTP request', error as Error);
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'MCP internal server error' }));
+          if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Internal server error' }));
+          }
         }
-      }
+      }); // Close context.with()
     });
 
     // Start listening

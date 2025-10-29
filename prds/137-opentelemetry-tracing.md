@@ -136,7 +136,7 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 
 ## Implementation Progress
 
-### Phase 1: Core Tracing Foundation [Status: 🔄 IN PROGRESS - 70%]
+### Phase 1: Core Tracing Foundation [Status: 🔄 IN PROGRESS - 90%]
 **Target**: Basic distributed tracing working for HTTP requests and tool execution
 
 **Documentation Changes:**
@@ -149,11 +149,15 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [x] Create `src/core/tracing/tracer.ts` with initialization and configuration logic
 - [x] Create `src/core/tracing/config.ts` with environment-based configuration
 - [x] Create `src/core/tracing/types.ts` with TypeScript type definitions
-- [ ] Implement HTTP middleware tracing for both STDIO and HTTP/SSE transports (partially working - CLIENT spans only)
-- [ ] Add tool execution span wrapper for all 6 MCP tools
+- [x] Create `src/core/tracing/http-tracing.ts` with HTTP SERVER span creation
+- [x] Implement HTTP middleware tracing for HTTP/SSE transport (SERVER spans working with proper context propagation)
+- [x] Fix trace context propagation (CLIENT spans now children of SERVER span)
+- [ ] Add tool execution span wrapper for all 5 MCP tools
+- [ ] Implement STDIO transport SERVER spans
 - [x] Integrate tracer with MCP server startup and graceful shutdown
 - [x] Configure console exporter for local development
 - [x] Add environment variable configuration (OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_TRACING_ENABLED, OTEL_DEBUG)
+- [x] Add OTLP exporter support (Phase 3 work completed early)
 
 ### Phase 2: Deep Instrumentation [Status: ⏳ PENDING]
 **Target**: AI provider calls and Kubernetes operations fully traced
@@ -181,7 +185,8 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [ ] **Cross-file validation**: Ensure observability integrates seamlessly with deployment and development workflows
 
 **Implementation Tasks:**
-- [ ] Add OTLP, Jaeger, and Zipkin exporter support with auto-detection
+- [x] Add OTLP exporter support (HTTP exporter complete, tested with Jaeger)
+- [ ] Add native Jaeger and Zipkin exporters with auto-detection
 - [ ] Implement configurable sampling strategies (always-on, probability-based, rate-limiting)
 - [ ] Add OpenTelemetry Metrics API for request counts, durations, error rates
 - [ ] Create custom metrics for AI token usage, K8s API call counts, tool execution frequency
@@ -462,6 +467,53 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - Add HTTP SERVER span creation for REST API endpoints
 - Write `docs/observability-guide.md` comprehensive user guide
 - Update `README.md` to mention observability capabilities
+
+### 2025-10-29: HTTP SERVER Spans, OTLP Exporter & Context Propagation
+**Duration**: ~3 hours
+**Primary Focus**: Complete HTTP tracing infrastructure with proper span hierarchy
+
+**Completed PRD Items**:
+- [x] HTTP SERVER span creation - Evidence: `src/core/tracing/http-tracing.ts` (170 lines) with W3C Trace Context extraction, OpenTelemetry HTTP semantic conventions
+- [x] HTTP transport integration - Evidence: `src/interfaces/mcp.ts` updated with `createHttpServerSpan()` at entry point
+- [x] Context propagation - Evidence: Wrapped request handler in `context.with(trace.setSpan(context.active(), span), async () => {...})`
+- [x] OTLP exporter - Evidence: `src/core/tracing/tracer.ts` with `OTLPTraceExporter` for Jaeger integration
+- [x] Jaeger testing - Evidence: Traces showing 1 trace with 20 spans, depth 2 (proper parent-child hierarchy)
+
+**Key Implementation Details**:
+- **Manual HTTP SERVER span creation**: Resolved auto-instrumentation timing issues by creating explicit SERVER spans with `createHttpServerSpan()` function
+- **W3C Trace Context support**: Extract parent trace context from HTTP headers using `propagation.extract()` for distributed tracing compatibility
+- **OpenTelemetry semantic conventions**: Full `http.*` attributes (request.method, url.path, response.status_code, client.address, user_agent.original)
+- **Context propagation fix**: Wrapped entire HTTP request handler in `context.with(trace.setSpan(context.active(), span), async () => {...})` so CLIENT spans inherit SERVER as parent
+- **OTLP exporter**: Implemented with default endpoint `http://localhost:4318/v1/traces`, configurable via `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable
+- **Span hierarchy**: Proper SpanKind usage - SERVER (1) for HTTP requests, CLIENT (2) for outbound calls
+
+**Test Results**:
+- ✅ SERVER spans appearing in Jaeger with correct span kind (1) and operation name format: `{METHOD} {path}`
+- ✅ CLIENT spans (Qdrant, OpenAI, Anthropic) automatically traced by auto-instrumentation
+- ✅ **Context propagation working**: Single trace with 20 spans, depth 2 (CLIENT spans are children of SERVER span)
+- ✅ Visual waterfall in Jaeger showing timing relationships and request flow
+- ✅ Error tracking working (401 from Anthropic API correctly captured with error attributes)
+- ✅ Request duration tracking (554-609ms for version tool with all dependency calls)
+
+**Files Created**:
+- `src/core/tracing/http-tracing.ts` - HTTP SERVER span creation module with W3C Trace Context extraction
+
+**Files Modified**:
+- `src/core/tracing/tracer.ts` - Added OTLP exporter implementation with `OTLPTraceExporter`
+- `src/core/tracing/index.ts` - Exported `createHttpServerSpan` and `withHttpServerTracing` functions
+- `src/interfaces/mcp.ts` - Integrated HTTP span creation at request entry point, wrapped handler in active context
+
+**Known Limitations**:
+- STDIO transport not instrumented (only HTTP has SERVER spans)
+- No INTERNAL spans for MCP tool execution yet (Layer 2 pending)
+- Only OTLP exporter implemented (Jaeger/Zipkin native exporters pending)
+- Documentation not written yet
+
+**Next Session Priorities**:
+- Implement Layer 2: INTERNAL spans for MCP tool execution (5 tools: recommend, version, manageOrgData, remediate, projectSetup)
+- Add STDIO transport SERVER spans
+- Begin Phase 2: AI provider and Kubernetes deep instrumentation
+- Write `docs/observability-guide.md` comprehensive user guide
 
 ---
 

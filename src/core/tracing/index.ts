@@ -7,3 +7,4 @@
 export * from './types';
 export * from './config';
 export { getTracer, shutdownTracer, withSpan } from './tracer';
+export { createHttpServerSpan, withHttpServerTracing } from './http-tracing';

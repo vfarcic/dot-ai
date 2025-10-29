@@ -13,6 +13,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
 import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import {
   trace,
   context,
@@ -115,8 +116,14 @@ class OpenTelemetryTracer implements TracerService {
         return new ConsoleSpanExporter();
 
       case 'otlp':
-        // OTLP exporter will be added in Phase 3
-        throw new Error('OTLP exporter not yet implemented - coming in Phase 3');
+        if (this.config.debug) {
+          console.log('[Tracing] Using OTLP exporter', {
+            endpoint: this.config.otlpEndpoint || 'http://localhost:4318/v1/traces'
+          });
+        }
+        return new OTLPTraceExporter({
+          url: this.config.otlpEndpoint || 'http://localhost:4318/v1/traces',
+        });
 
       case 'jaeger':
         // Jaeger exporter will be added in Phase 3
