@@ -6,7 +6,6 @@
  */
 
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { defaultResource, resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
@@ -71,20 +70,12 @@ class OpenTelemetryTracer implements TracerService {
       // Create exporter based on configuration
       const traceExporter = this.createExporter();
 
-      // Initialize Node SDK with auto-instrumentation
+      // Initialize Node SDK without auto-instrumentation
+      // All operations are manually instrumented with descriptive spans
       this.sdk = new NodeSDK({
         resource,
         traceExporter,
-        instrumentations: [
-          getNodeAutoInstrumentations({
-            // Disable instrumentations we don't need
-            '@opentelemetry/instrumentation-fs': { enabled: false },
-            '@opentelemetry/instrumentation-dns': { enabled: false },
-            // Enable HTTP/Express instrumentation for MCP server
-            '@opentelemetry/instrumentation-http': { enabled: true },
-            '@opentelemetry/instrumentation-express': { enabled: true },
-          }),
-        ],
+        instrumentations: [], // No auto-instrumentation needed
       });
 
       // Start the SDK
