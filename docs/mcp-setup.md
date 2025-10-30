@@ -74,6 +74,7 @@ All setup methods need the same core configuration, but handle it differently:
 | `QDRANT_API_KEY` | Qdrant API key (for cloud instances) | `your-qdrant-api-key` |
 | **AI Model API Keys** | **Corresponding API key for your chosen provider** | [See AI Model Configuration](#ai-model-configuration) |
 | **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
+| **Tracing (Optional)** | OpenTelemetry distributed tracing | [See Observability Guide](observability-guide.md) |
 
 **Note**: How you configure these depends on your chosen setup method. See the individual setup guides for specific configuration instructions.
 
@@ -388,7 +389,10 @@ Once your MCP server is running:
 ### 1. Explore Available Tools and Features
 - **[Tools and Features Overview](mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
 
-### 2. Production Considerations
+### 2. Enable Observability (Optional)
+- **[Observability Guide](observability-guide.md)** - Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
+
+### 3. Production Considerations
 - For production workloads, plan for Docker deployment with external orchestration
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
 
