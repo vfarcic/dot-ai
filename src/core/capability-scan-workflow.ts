@@ -473,12 +473,24 @@ export async function handleScanning(
         
         if (discovery) {
           try {
-            if (currentResource.includes('.')) {
-              // Get complete CRD definition
-              currentResourceDefinition = await discovery.executeKubectl(['get', 'crd', currentResource, '-o', 'yaml']);
-            } else {
-              // Get core resource explanation
+            // Try kubectl explain with full name first (works for CRDs and core resources)
+            try {
               currentResourceDefinition = await discovery.explainResource(currentResource);
+            } catch (explainError) {
+              // If explain fails and resource has a dot (like Deployment.apps), try with just the Kind
+              if (currentResource.includes('.')) {
+                const resourceKind = currentResource.split('.')[0];
+                logger.info(`kubectl explain failed for ${currentResource}, attempting with Kind only: ${resourceKind}`, {
+                  requestId,
+                  sessionId: session.sessionId,
+                  resource: currentResource,
+                  resourceKind
+                });
+                currentResourceDefinition = await discovery.explainResource(resourceKind);
+              } else {
+                // Re-throw explain error for resources without dots
+                throw explainError;
+              }
             }
           } catch (error) {
             logger.error(`Failed to get resource definition for ${currentResource}`, error as Error, {
@@ -486,14 +498,14 @@ export async function handleScanning(
               sessionId: session.sessionId,
               resource: currentResource
             });
-            
+
             // Add to errors array and skip processing this resource
             errors.push({
               resource: currentResource,
               error: createResourceDefinitionErrorMessage(currentResource, error),
               timestamp: new Date().toISOString()
             });
-            
+
             // Skip processing this resource
             continue;
           }
