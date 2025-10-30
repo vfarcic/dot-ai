@@ -20,7 +20,7 @@ import { EmbeddingService } from '../core/embedding-service';
 import { handlePolicyOperation as handlePolicyOperationCore } from '../core/policy-operations';
 import { handlePatternOperation as handlePatternOperationCore } from '../core/pattern-operations';
 import { handleCapabilityProgress, handleCapabilityCRUD } from '../core/capability-operations';
-import { handleResourceSelection as handleResourceSelectionCore, handleResourceSpecification as handleResourceSpecificationCore, handleProcessingMode as handleProcessingModeCore, handleScanning as handleScanningCore } from '../core/capability-scan-workflow';
+import { handleResourceSelection as handleResourceSelectionCore, handleResourceSpecification as handleResourceSpecificationCore, handleScanning as handleScanningCore } from '../core/capability-scan-workflow';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -284,10 +284,9 @@ interface ProgressData {
 
 interface CapabilityScanSession {
   sessionId: string;
-  currentStep: 'resource-selection' | 'resource-specification' | 'processing-mode' | 'scanning' | 'complete';
+  currentStep: 'resource-selection' | 'resource-specification' | 'scanning' | 'complete';
   selectedResources?: string[] | 'all';
   resourceList?: string;
-  processingMode?: 'auto' | 'manual';
   currentResourceIndex?: number; // Track which resource we're currently processing (for multi-resource workflows)
   progress?: ProgressData; // Progress tracking for long-running operations
   startedAt: string;
@@ -582,17 +581,45 @@ async function handleCapabilityScan(
   // Handle workflow based on current step
   switch (session.currentStep) {
     case 'resource-selection':
-      return await handleResourceSelectionCore(session, args, logger, requestId, parseNumericResponse, transitionCapabilitySession);
-    
+      return await handleResourceSelectionCore(
+        session,
+        args,
+        logger,
+        requestId,
+        capabilityService,
+        parseNumericResponse,
+        transitionCapabilitySession,
+        cleanupCapabilitySession,
+        createCapabilityScanCompletionResponse,
+        handleScanningCore
+      );
+
     case 'resource-specification':
-      return await handleResourceSpecificationCore(session, args, logger, requestId, transitionCapabilitySession);
-    
-    case 'processing-mode':
-      return await handleProcessingModeCore(session, args, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse, (session, args, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse) => 
-        handleScanningCore(session, args, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse));
-    
+      return await handleResourceSpecificationCore(
+        session,
+        args,
+        logger,
+        requestId,
+        capabilityService,
+        parseNumericResponse,
+        transitionCapabilitySession,
+        cleanupCapabilitySession,
+        createCapabilityScanCompletionResponse,
+        handleScanningCore
+      );
+
     case 'scanning':
-      return await handleScanningCore(session, args, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
+      return await handleScanningCore(
+        session,
+        args,
+        logger,
+        requestId,
+        capabilityService,
+        parseNumericResponse,
+        transitionCapabilitySession,
+        cleanupCapabilitySession,
+        createCapabilityScanCompletionResponse
+      );
     
     case 'complete':
       return {

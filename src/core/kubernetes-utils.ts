@@ -1,11 +1,12 @@
 /**
  * Shared Kubernetes Utilities
- * 
+ *
  * Common functions for interacting with Kubernetes clusters
  */
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { withKubectlTracing } from './tracing';
 
 const execAsync = promisify(exec);
 
@@ -20,62 +21,66 @@ export interface KubectlConfig {
 
 /**
  * Execute kubectl command with proper configuration
+ * Automatically traced with OpenTelemetry
  */
 export async function executeKubectl(args: string[], config?: KubectlConfig): Promise<string> {
-  const command = buildKubectlCommand(args, config);
-  const timeout = config?.timeout || 30000;
+  // Wrap entire execution with tracing
+  return withKubectlTracing(args, config, async () => {
+    const command = buildKubectlCommand(args, config);
+    const timeout = config?.timeout || 30000;
 
-  try {
-    // If stdin is provided, use spawn for proper stdin piping
-    if (config?.stdin) {
-      const { spawn } = require('child_process');
-      return new Promise((resolve, reject) => {
-        let stdout = '';
-        let stderr = '';
+    try {
+      // If stdin is provided, use spawn for proper stdin piping
+      if (config?.stdin) {
+        const { spawn } = require('child_process');
+        return new Promise((resolve, reject) => {
+          let stdout = '';
+          let stderr = '';
 
-        const proc = spawn('sh', ['-c', command], {
-          timeout,
-          maxBuffer: 100 * 1024 * 1024
+          const proc = spawn('sh', ['-c', command], {
+            timeout,
+            maxBuffer: 100 * 1024 * 1024
+          });
+
+          proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+          proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+          proc.on('error', (error: Error) => reject(error));
+          proc.on('close', (code: number) => {
+            if (code !== 0) {
+              reject(new Error(`kubectl command failed: ${stderr || stdout}`));
+            } else if (stderr && !stderr.includes('Warning')) {
+              reject(new Error(`kubectl command failed: ${stderr}`));
+            } else {
+              resolve(stdout.trim());
+            }
+          });
+
+          // Write stdin and close
+          proc.stdin.write(config.stdin);
+          proc.stdin.end();
         });
+      }
 
-        proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-        proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
-
-        proc.on('error', (error: Error) => reject(error));
-        proc.on('close', (code: number) => {
-          if (code !== 0) {
-            reject(new Error(`kubectl command failed: ${stderr || stdout}`));
-          } else if (stderr && !stderr.includes('Warning')) {
-            reject(new Error(`kubectl command failed: ${stderr}`));
-          } else {
-            resolve(stdout.trim());
-          }
-        });
-
-        // Write stdin and close
-        proc.stdin.write(config.stdin);
-        proc.stdin.end();
+      // No stdin - use regular execAsync
+      const { stdout, stderr } = await execAsync(command, {
+        timeout,
+        maxBuffer: 100 * 1024 * 1024  // 100MB buffer for large clusters with 1000+ CRDs
       });
-    }
+      if (stderr && !stderr.includes('Warning')) {
+        throw new Error(`kubectl command failed: ${stderr}`);
+      }
+      return stdout.trim();
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error('kubectl binary not found. Please install kubectl and ensure it\'s in your PATH.');
+      }
 
-    // No stdin - use regular execAsync
-    const { stdout, stderr } = await execAsync(command, {
-      timeout,
-      maxBuffer: 100 * 1024 * 1024  // 100MB buffer for large clusters with 1000+ CRDs
-    });
-    if (stderr && !stderr.includes('Warning')) {
-      throw new Error(`kubectl command failed: ${stderr}`);
+      // Use error classification for better error messages
+      const classified = ErrorClassifier.classifyError(error);
+      throw new Error(classified.enhancedMessage);
     }
-    return stdout.trim();
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      throw new Error('kubectl binary not found. Please install kubectl and ensure it\'s in your PATH.');
-    }
-
-    // Use error classification for better error messages
-    const classified = ErrorClassifier.classifyError(error);
-    throw new Error(classified.enhancedMessage);
-  }
+  });
 }
 
 /**

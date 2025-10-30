@@ -1,14 +1,15 @@
 /**
  * Embedding Service
- * 
+ *
  * Optional semantic search enhancement for pattern matching.
  * Gracefully falls back to keyword-only search when embedding providers are not available.
  */
 
-import OpenAI from 'openai';
 import { google } from '@ai-sdk/google';
 import { createMistral } from '@ai-sdk/mistral';
+import { createOpenAI } from '@ai-sdk/openai';
 import { embed } from 'ai';
+import { withAITracing } from './tracing';
 
 export interface EmbeddingConfig {
   provider?: 'openai' | 'google' | 'mistral';
@@ -26,270 +27,126 @@ export interface EmbeddingProvider {
 }
 
 /**
- * OpenAI Embedding Provider
- * Optional provider for semantic search enhancement
+ * Unified Vercel AI SDK Embedding Provider
+ * Supports OpenAI, Google, and Mistral through Vercel AI SDK
  */
-export class OpenAIEmbeddingProvider implements EmbeddingProvider {
-  private client: OpenAI | null = null;
+export class VercelEmbeddingProvider implements EmbeddingProvider {
+  private providerType: 'openai' | 'google' | 'mistral';
+  private apiKey: string;
   private model: string;
   private dimensions: number;
   private available: boolean;
+  private modelInstance: any;
 
-  constructor(config: EmbeddingConfig = {}) {
-    // PRD #194: Support separate API key for embeddings
-    // Priority: 1. config.apiKey, 2. CUSTOM_EMBEDDINGS_API_KEY, 3. OPENAI_API_KEY
-    const apiKey = config.apiKey || process.env.CUSTOM_EMBEDDINGS_API_KEY || process.env.OPENAI_API_KEY;
-    this.model = config.model || 'text-embedding-3-small';
-    this.dimensions = config.dimensions || 1536; // text-embedding-3-small default
+  constructor(config: EmbeddingConfig & { provider: 'openai' | 'google' | 'mistral' }) {
+    this.providerType = config.provider;
     this.available = false;
 
-    if (apiKey) {
-      try {
-        // PRD #194: Support custom endpoint URL for OpenAI-compatible embedding APIs
-        const baseURL = process.env.CUSTOM_EMBEDDINGS_BASE_URL;
-        this.client = new OpenAI({
-          apiKey: apiKey,
-          ...(baseURL && { baseURL })
-        });
-        this.available = true;
-      } catch (error) {
-        // Client creation failed, remain unavailable
-        this.available = false;
-        this.client = null;
-      }
-    }
-  }
-
-  async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.isAvailable()) {
-      throw new Error('OpenAI embedding provider not available');
+    // Get API key based on provider
+    switch (this.providerType) {
+      case 'openai':
+        this.apiKey = config.apiKey || process.env.CUSTOM_EMBEDDINGS_API_KEY || process.env.OPENAI_API_KEY || '';
+        this.model = config.model || 'text-embedding-3-small';
+        this.dimensions = config.dimensions || 1536;
+        break;
+      case 'google':
+        this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
+        this.model = config.model || 'text-embedding-004';
+        this.dimensions = config.dimensions || 768;
+        break;
+      case 'mistral':
+        this.apiKey = config.apiKey || process.env.MISTRAL_API_KEY || '';
+        this.model = config.model || 'mistral-embed';
+        this.dimensions = config.dimensions || 1024;
+        break;
     }
 
-    if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty for embedding generation');
+    if (!this.apiKey) {
+      this.available = false;
+      return;
     }
 
     try {
-      const response = await this.client!.embeddings.create({
-        model: this.model,
-        input: text.trim(),
-        encoding_format: 'float'
-      });
-
-      if (!response.data || response.data.length === 0) {
-        throw new Error('No embedding data returned from OpenAI API');
-      }
-
-      return response.data[0].embedding;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`OpenAI embedding failed: ${error.message}`);
-      }
-      throw new Error(`OpenAI embedding failed: ${String(error)}`);
-    }
-  }
-
-  async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    if (!this.isAvailable()) {
-      throw new Error('OpenAI embedding provider not available');
-    }
-
-    if (!texts || texts.length === 0) {
-      return [];
-    }
-
-    const validTexts = texts
-      .map(t => t?.trim())
-      .filter(t => t && t.length > 0);
-
-    if (validTexts.length === 0) {
-      return [];
-    }
-
-    try {
-      const response = await this.client!.embeddings.create({
-        model: this.model,
-        input: validTexts,
-        encoding_format: 'float'
-      });
-
-      return response.data.map(item => item.embedding);
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`OpenAI batch embedding failed: ${error.message}`);
-      }
-      throw new Error(`OpenAI batch embedding failed: ${String(error)}`);
-    }
-  }
-
-  isAvailable(): boolean {
-    return this.available && this.client !== null;
-  }
-
-  getDimensions(): number {
-    return this.dimensions;
-  }
-
-  getModel(): string {
-    return this.model;
-  }
-}
-
-/**
- * Google Embedding Provider
- * Optional provider using Google's text-embedding-004 model
- */
-export class GoogleEmbeddingProvider implements EmbeddingProvider {
-  private apiKey: string | null = null;
-  private model: string;
-  private dimensions: number;
-  private available: boolean;
-
-  constructor(config: EmbeddingConfig = {}) {
-    this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || null;
-    this.model = config.model || 'text-embedding-004';
-    this.dimensions = config.dimensions || 768; // text-embedding-004 default
-    this.available = !!this.apiKey;
-    
-    // Set the environment variable that Google SDK expects
-    if (this.apiKey) {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.apiKey;
-    }
-  }
-
-  async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.isAvailable()) {
-      throw new Error('Google embedding provider not available');
-    }
-
-    if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty for embedding generation');
-    }
-
-    try {
-      const model = google.textEmbedding(this.model);
-      const result = await embed({
-        model,
-        value: text.trim(),
-        providerOptions: {
-          google: {
-            outputDimensionality: this.dimensions,
-            taskType: 'SEMANTIC_SIMILARITY'
-          }
+      // Initialize model instance based on provider
+      switch (this.providerType) {
+        case 'openai': {
+          const baseURL = process.env.CUSTOM_EMBEDDINGS_BASE_URL;
+          const openai = createOpenAI({
+            apiKey: this.apiKey,
+            ...(baseURL && { baseURL })
+          });
+          this.modelInstance = openai.textEmbedding(this.model);
+          break;
         }
-      });
-
-      return result.embedding;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Google embedding failed: ${error.message}`);
+        case 'google':
+          // Set environment variable that Google SDK expects
+          process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.apiKey;
+          this.modelInstance = google.textEmbedding(this.model);
+          break;
+        case 'mistral': {
+          const mistral = createMistral({ apiKey: this.apiKey });
+          this.modelInstance = mistral.textEmbedding(this.model);
+          break;
+        }
       }
-      throw new Error(`Google embedding failed: ${String(error)}`);
+      this.available = true;
+    } catch (error) {
+      this.available = false;
     }
   }
 
-  async generateEmbeddings(texts: string[]): Promise<number[][]> {
+  async generateEmbedding(text: string): Promise<number[]> {
     if (!this.isAvailable()) {
-      throw new Error('Google embedding provider not available');
+      throw new Error(`${this.providerType} embedding provider not available`);
     }
 
-    if (!texts || texts.length === 0) {
-      return [];
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text cannot be empty for embedding generation');
     }
 
-    const validTexts = texts
-      .map(t => t?.trim())
-      .filter(t => t && t.length > 0);
+    // Wrap embed() call with OpenTelemetry tracing
+    return await withAITracing(
+      {
+        provider: this.providerType,
+        model: this.model,
+        operation: 'embeddings'
+      },
+      async () => {
+        try {
+          const embedOptions: any = {
+            model: this.modelInstance,
+            value: text.trim()
+          };
 
-    if (validTexts.length === 0) {
-      return [];
-    }
-
-    try {
-      const model = google.textEmbedding(this.model);
-      const results = await Promise.all(
-        validTexts.map(text => 
-          embed({
-            model,
-            value: text,
-            providerOptions: {
+          // Add Google-specific options
+          if (this.providerType === 'google') {
+            embedOptions.providerOptions = {
               google: {
                 outputDimensionality: this.dimensions,
                 taskType: 'SEMANTIC_SIMILARITY'
               }
-            }
-          })
-        )
-      );
+            };
+          }
 
-      return results.map(result => result.embedding);
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Google batch embedding failed: ${error.message}`);
-      }
-      throw new Error(`Google batch embedding failed: ${String(error)}`);
-    }
-  }
-
-  isAvailable(): boolean {
-    return this.available;
-  }
-
-  getDimensions(): number {
-    return this.dimensions;
-  }
-
-  getModel(): string {
-    return this.model;
-  }
-}
-
-/**
- * Mistral Embedding Provider
- * Optional provider using Mistral's text-embedding-v1 model
- */
-export class MistralEmbeddingProvider implements EmbeddingProvider {
-  private apiKey: string | null = null;
-  private model: string;
-  private dimensions: number;
-  private available: boolean;
-
-  constructor(config: EmbeddingConfig = {}) {
-    this.apiKey = config.apiKey || process.env.MISTRAL_API_KEY || null;
-    this.model = config.model || 'mistral-embed';
-    this.dimensions = config.dimensions || 1024; // mistral-embed default
-    this.available = !!this.apiKey;
-  }
-
-  async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.isAvailable()) {
-      throw new Error('Mistral embedding provider not available');
-    }
-
-    if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty for embedding generation');
-    }
-
-    try {
-      const mistral = createMistral({ apiKey: this.apiKey! });
-      const model = mistral.textEmbedding(this.model);
-      const result = await embed({
-        model,
-        value: text.trim()
-      });
-
-      return result.embedding;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Mistral embedding failed: ${error.message}`);
-      }
-      throw new Error(`Mistral embedding failed: ${String(error)}`);
-    }
+          const result = await embed(embedOptions);
+          return result.embedding;
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`${this.providerType} embedding failed: ${error.message}`);
+          }
+          throw new Error(`${this.providerType} embedding failed: ${String(error)}`);
+        }
+      },
+      (embedding) => ({
+        embeddingCount: 1,
+        embeddingDimensions: embedding.length
+      })
+    );
   }
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     if (!this.isAvailable()) {
-      throw new Error('Mistral embedding provider not available');
+      throw new Error(`${this.providerType} embedding provider not available`);
     }
 
     if (!texts || texts.length === 0) {
@@ -304,25 +161,49 @@ export class MistralEmbeddingProvider implements EmbeddingProvider {
       return [];
     }
 
-    try {
-      const mistral = createMistral({ apiKey: this.apiKey! });
-      const model = mistral.textEmbedding(this.model);
-      const results = await Promise.all(
-        validTexts.map(text => 
-          embed({
-            model,
-            value: text
-          })
-        )
-      );
+    // Wrap batch embed calls with OpenTelemetry tracing
+    return await withAITracing(
+      {
+        provider: this.providerType,
+        model: this.model,
+        operation: 'embeddings'
+      },
+      async () => {
+        try {
+          const results = await Promise.all(
+            validTexts.map(text => {
+              const embedOptions: any = {
+                model: this.modelInstance,
+                value: text
+              };
 
-      return results.map(result => result.embedding);
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Mistral batch embedding failed: ${error.message}`);
-      }
-      throw new Error(`Mistral batch embedding failed: ${String(error)}`);
-    }
+              // Add Google-specific options
+              if (this.providerType === 'google') {
+                embedOptions.providerOptions = {
+                  google: {
+                    outputDimensionality: this.dimensions,
+                    taskType: 'SEMANTIC_SIMILARITY'
+                  }
+                };
+              }
+
+              return embed(embedOptions);
+            })
+          );
+
+          return results.map(result => result.embedding);
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`${this.providerType} batch embedding failed: ${error.message}`);
+          }
+          throw new Error(`${this.providerType} batch embedding failed: ${String(error)}`);
+        }
+      },
+      (embeddings) => ({
+        embeddingCount: embeddings.length,
+        embeddingDimensions: embeddings[0]?.length || this.dimensions
+      })
+    );
   }
 
   isAvailable(): boolean {
@@ -335,6 +216,10 @@ export class MistralEmbeddingProvider implements EmbeddingProvider {
 
   getModel(): string {
     return this.model;
+  }
+
+  getProviderType(): string {
+    return this.providerType;
   }
 }
 
@@ -342,27 +227,22 @@ export class MistralEmbeddingProvider implements EmbeddingProvider {
  * Factory function to create embedding provider based on configuration
  */
 function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvider | null {
-  const provider = config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai';
-  
+  const providerType = (config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai').toLowerCase();
+
+  // Validate provider type
+  if (providerType !== 'openai' && providerType !== 'google' && providerType !== 'mistral') {
+    console.warn(`Unknown embedding provider: ${providerType}, falling back to openai`);
+    return createEmbeddingProvider({ ...config, provider: 'openai' });
+  }
+
   try {
-    switch (provider.toLowerCase()) {
-      case 'google': {
-        const googleProvider = new GoogleEmbeddingProvider(config);
-        return googleProvider.isAvailable() ? googleProvider : null;
-      }
-      
-      case 'mistral': {
-        const mistralProvider = new MistralEmbeddingProvider(config);
-        return mistralProvider.isAvailable() ? mistralProvider : null;
-      }
-      
-      case 'openai':
-      default: {
-        const openaiProvider = new OpenAIEmbeddingProvider(config);
-        return openaiProvider.isAvailable() ? openaiProvider : null;
-      }
-    }
+    const provider = new VercelEmbeddingProvider({
+      ...config,
+      provider: providerType as 'openai' | 'google' | 'mistral'
+    });
+    return provider.isAvailable() ? provider : null;
   } catch (error) {
+    console.error(`Failed to create ${providerType} embedding provider:`, error);
     return null;
   }
 }
@@ -439,17 +319,8 @@ export class EmbeddingService {
     reason?: string;
   } {
     if (this.isAvailable()) {
-      // Determine provider type based on instance
-      let providerName: string;
-      if (this.provider instanceof GoogleEmbeddingProvider) {
-        providerName = 'google';
-      } else if (this.provider instanceof MistralEmbeddingProvider) {
-        providerName = 'mistral';
-      } else if (this.provider instanceof OpenAIEmbeddingProvider) {
-        providerName = 'openai';
-      } else {
-        providerName = 'unknown';
-      }
+      // Get provider type from VercelEmbeddingProvider
+      const providerName = (this.provider as VercelEmbeddingProvider).getProviderType?.() || 'unknown';
 
       return {
         available: true,

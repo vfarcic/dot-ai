@@ -63,6 +63,11 @@ export CUSTOM_LLM_API_KEY="sk-or-v1-..."
 export CUSTOM_LLM_BASE_URL="https://openrouter.ai/api/v1"
 export AI_PROVIDER="openai"
 export AI_MODEL="anthropic/claude-3.5-sonnet"
+
+# Optional: Observability/Tracing (OpenTelemetry)
+# See: https://github.com/vfarcic/dot-ai/blob/main/docs/observability-guide.md for complete tracing configuration
+export OTEL_TRACING_ENABLED="true"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
 ```
 
 ### 3. Create and Save MCP Client Configuration

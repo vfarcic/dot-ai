@@ -24,7 +24,7 @@ This roadmap is a living document and may change based on community feedback and
 - Resource schema question generation fixes (PRD #58)
 - Remediation playbooks system for knowledge capture (PRD #107)
 - Recommendation pattern learning system (PRD #108)
-- OpenTelemetry tracing for production-grade observability (PRD #137)
+- Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - AI model comparison platform for informed provider selection (PRD #151)
 

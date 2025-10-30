@@ -13,9 +13,11 @@ import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
+import { getTracer, createTracedK8sClient } from '../core/tracing';
+import { loadTracingConfig } from '../core/tracing/config';
 
 export const VERSION_TOOL_NAME = 'version';
-export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system status including version information, Vector DB connection status, embedding service capabilities, AI provider connectivity, Kubernetes cluster connectivity, Kyverno policy engine status, and pattern management health check';
+export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
 export const VERSION_TOOL_INPUT_SCHEMA = {
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
@@ -92,6 +94,13 @@ export interface SystemStatus {
     policyGenerationReady: boolean;
     error?: string;
     reason?: string;
+  };
+  tracing: {
+    enabled: boolean;
+    exporterType: string;
+    endpoint?: string;
+    serviceName: string;
+    initialized: boolean;
   };
 }
 
@@ -365,7 +374,10 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
     try {
       // Get client and check deployment status
       const client = discovery.getClient();
-      const appsV1Api = client.makeApiClient(k8s.AppsV1Api);
+      const appsV1Api = createTracedK8sClient(
+        client.makeApiClient(k8s.AppsV1Api),
+        'AppsV1Api'
+      );
       
       const deploymentResponse = await appsV1Api.listNamespacedDeployment({
         namespace: 'kyverno'
@@ -400,7 +412,10 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
     // Check admission controller webhook
     try {
       const client = discovery.getClient();
-      const admissionApi = client.makeApiClient(k8s.AdmissionregistrationV1Api);
+      const admissionApi = createTracedK8sClient(
+        client.makeApiClient(k8s.AdmissionregistrationV1Api),
+        'AdmissionregistrationV1Api'
+      );
       
       const webhookResponse = await admissionApi.listValidatingWebhookConfiguration();
       webhookReady = webhookResponse.items.some((webhook: any) => 
@@ -576,6 +591,22 @@ export function getVersionInfo(): VersionInfo {
 }
 
 /**
+ * Get OpenTelemetry tracing status
+ */
+export function getTracingStatus(): SystemStatus['tracing'] {
+  const config = loadTracingConfig();
+  const tracer = getTracer();
+
+  return {
+    enabled: config.enabled,
+    exporterType: config.exporterType,
+    endpoint: config.otlpEndpoint,
+    serviceName: config.serviceName,
+    initialized: tracer.isEnabled()
+  };
+}
+
+/**
  * Handle version tool request with comprehensive system diagnostics
  */
 export async function handleVersionTool(
@@ -603,6 +634,9 @@ export async function handleVersionTool(
       getKyvernoStatus()
     ]);
 
+    // Get tracing status synchronously (no async operations)
+    const tracingStatus = getTracingStatus();
+
     const systemStatus: SystemStatus = {
       version,
       vectorDB: vectorDBStatus,
@@ -610,7 +644,8 @@ export async function handleVersionTool(
       aiProvider: aiProviderStatus,
       kubernetes: kubernetesStatus,
       capabilities: capabilityStatus,
-      kyverno: kyvernoStatus
+      kyverno: kyvernoStatus,
+      tracing: tracingStatus
     };
     
     // Log summary of system health

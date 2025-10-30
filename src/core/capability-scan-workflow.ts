@@ -37,10 +37,9 @@ interface ProgressData {
 // Session interface (should be imported from shared types, but defining here for now)
 interface CapabilityScanSession {
   sessionId: string;
-  currentStep: 'resource-selection' | 'resource-specification' | 'processing-mode' | 'scanning' | 'complete';
+  currentStep: 'resource-selection' | 'resource-specification' | 'scanning' | 'complete';
   selectedResources?: string[] | 'all';
   resourceList?: string;
-  processingMode?: 'auto' | 'manual';
   currentResourceIndex?: number;
   progress?: any; // Progress tracking for long-running operations
   startedAt: string;
@@ -73,10 +72,14 @@ function createResourceDefinitionErrorMessage(resourceName: string, error: unkno
 export async function handleResourceSelection(
   session: CapabilityScanSession,
   args: any,
-  _logger: Logger,
-  _requestId: string,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService,
   parseNumericResponse: ParseNumericResponseFn,
-  transitionCapabilitySession: TransitionCapabilitySessionFn
+  transitionCapabilitySession: TransitionCapabilitySessionFn,
+  cleanupCapabilitySession: CleanupCapabilitySessionFn,
+  createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
+  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
 ): Promise<any> {
   if (!args.response) {
     // Show initial resource selection prompt
@@ -128,52 +131,14 @@ export async function handleResourceSelection(
   const normalizedResponse = parseNumericResponse(args.response, ['all', 'specific']);
   
   if (normalizedResponse === 'all') {
-    // Transition to processing mode for all resources
-    transitionCapabilitySession(session, 'processing-mode', { selectedResources: 'all' }, args);
-    
-    return {
-      success: true,
-      operation: 'scan',
-      dataType: 'capabilities',
-      
-      // CRITICAL: Put required parameters at top level for maximum visibility
-      REQUIRED_NEXT_CALL: {
-        tool: 'dot-ai:manageOrgData',
-        parameters: {
-          dataType: 'capabilities',
-          operation: 'scan',
-          sessionId: session.sessionId,
-          step: 'processing-mode',  // MANDATORY PARAMETER
-          response: 'user_choice_here'  // Replace with actual user choice
-        },
-        note: 'The step parameter is MANDATORY when sessionId is provided'
-      },
-      
-      workflow: {
-        step: 'processing-mode',
-        question: 'Processing mode: auto (batch process) or manual (review each)?',
-        options: [
-          { number: 1, value: 'auto', display: '1. auto - Batch process automatically' },
-          { number: 2, value: 'manual', display: '2. manual - Review each step' }
-        ],
-        sessionId: session.sessionId,
-        selectedResources: 'all',
-        instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select a processing mode.',
-        userPrompt: 'How would you like to process the resources?',
-        clientInstructions: {
-          behavior: 'interactive',
-          requirement: 'Ask user to choose processing mode',
-          prohibit: 'Do not auto-select processing mode',
-          nextStep: `Call with step='processing-mode', sessionId='${session.sessionId}', and response parameter containing the semantic value (auto or manual)`,
-          responseFormat: 'Convert user input to semantic values: 1→auto, 2→manual, or pass through semantic words directly',
-          requiredParameters: {
-            step: 'processing-mode', 
-            sessionId: session.sessionId,
-            response: 'user choice (auto or manual)'
-          }
-        }
-      }
-    };
+    // Transition directly to scanning (auto mode only - manual mode removed)
+    transitionCapabilitySession(session, 'scanning', {
+      selectedResources: 'all',
+      currentResourceIndex: 0  // Start with first resource
+    }, args);
+
+    // Begin actual capability scanning and return completion summary
+    return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
   }
   
   if (normalizedResponse === 'specific') {
@@ -247,9 +212,14 @@ export async function handleResourceSelection(
 export async function handleResourceSpecification(
   session: CapabilityScanSession,
   args: any,
-  _logger: Logger,
-  _requestId: string,
-  transitionCapabilitySession: TransitionCapabilitySessionFn
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService,
+  parseNumericResponse: ParseNumericResponseFn,
+  transitionCapabilitySession: TransitionCapabilitySessionFn,
+  cleanupCapabilitySession: CleanupCapabilitySessionFn,
+  createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
+  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
 ): Promise<any> {
   if (!args.resourceList) {
     return {
@@ -280,115 +250,19 @@ export async function handleResourceSpecification(
     };
   }
   
-  // Transition to processing mode for specific resources
-  transitionCapabilitySession(session, 'processing-mode', { 
+  // Transition directly to scanning (auto mode only - manual mode removed)
+  transitionCapabilitySession(session, 'scanning', {
     selectedResources: resources,
-    resourceList: args.resourceList 
-  }, args);
-  
-  return {
-    success: true,
-    operation: 'scan',
-    dataType: 'capabilities',
-    
-    // CRITICAL: Put required parameters at top level for maximum visibility
-    REQUIRED_NEXT_CALL: {
-      tool: 'dot-ai:manageOrgData',
-      parameters: {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId: session.sessionId,
-        step: 'processing-mode',  // MANDATORY PARAMETER
-        response: 'user_choice_here'  // Replace with actual user choice
-      },
-      note: 'The step parameter is MANDATORY when sessionId is provided'
-    },
-    
-    workflow: {
-      step: 'processing-mode',
-      question: `Processing mode for ${resources.length} selected resources: auto (batch process) or manual (review each)?`,
-      options: [
-        { number: 1, value: 'auto', display: '1. auto - Batch process automatically' },
-        { number: 2, value: 'manual', display: '2. manual - Review each step' }
-      ],
-      sessionId: session.sessionId,
-      selectedResources: resources,
-      instruction: 'IMPORTANT: You MUST ask the user to choose processing mode for the specified resources.',
-      userPrompt: `How would you like to process these ${resources.length} resources?`,
-      clientInstructions: {
-        behavior: 'interactive',
-        requirement: 'Ask user to choose processing mode for specific resources',
-        context: `Processing ${resources.length} user-specified resources: ${resources.join(', ')}`,
-        prohibit: 'Do not auto-select processing mode',
-        nextStep: `Call with step='processing-mode', sessionId='${session.sessionId}', and response parameter containing the semantic value (auto or manual)`,
-        responseFormat: 'Convert user input to semantic values: 1→auto, 2→manual, or pass through semantic words directly',
-        requiredParameters: {
-          step: 'processing-mode',
-          sessionId: session.sessionId,
-          response: 'user choice (auto or manual)'
-        }
-      }
-    }
-  };
-}
-
-/**
- * Handle processing mode step
- */
-export async function handleProcessingMode(
-  session: CapabilityScanSession,
-  args: any,
-  logger: Logger,
-  requestId: string,
-  capabilityService: CapabilityVectorService,
-  parseNumericResponse: ParseNumericResponseFn,
-  transitionCapabilitySession: TransitionCapabilitySessionFn,
-  cleanupCapabilitySession: CleanupCapabilitySessionFn,
-  createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
-): Promise<any> {
-  if (!args.response) {
-    return {
-      success: false,
-      operation: 'scan',
-      dataType: 'capabilities',
-      error: {
-        message: 'Missing processing mode response',
-        details: 'Expected response parameter with processing mode choice',
-        currentStep: session.currentStep,
-        expectedCall: `Call with step='processing-mode' and response parameter (auto or manual)`
-      }
-    };
-  }
-  
-  // Process user response
-  const processingModeResponse = parseNumericResponse(args.response, ['auto', 'manual']);
-  
-  if (processingModeResponse !== 'auto' && processingModeResponse !== 'manual') {
-    return {
-      success: false,
-      operation: 'scan',
-      dataType: 'capabilities',
-      error: {
-        message: 'Invalid processing mode response',
-        details: `Expected 'auto' or 'manual', got: ${args.response}`,
-        currentStep: session.currentStep
-      }
-    };
-  }
-  
-  // Transition to scanning with processing mode and initialize resource tracking
-  transitionCapabilitySession(session, 'scanning', { 
-    processingMode: processingModeResponse,
+    resourceList: args.resourceList,
     currentResourceIndex: 0  // Start with first resource
   }, args);
-  
-  // Begin actual capability scanning - clear response from previous step
+
+  // Begin actual capability scanning and return completion summary
   return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
 }
 
 /**
- * Handle scanning step (actual capability analysis)
+ * Handle scanning step (actual capability analysis - auto mode only)
  */
 export async function handleScanning(
   session: CapabilityScanSession,
@@ -402,100 +276,36 @@ export async function handleScanning(
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn
 ): Promise<any> {
   try {
-    // If this is a response to a manual mode preview, handle it first
-    if (session.processingMode === 'manual' && args.response) {
-      const userResponse = parseNumericResponse(args.response, ['yes', 'no', 'stop']);
-      
-      if (userResponse === 'stop') {
-        // User wants to stop scanning
-        transitionCapabilitySession(session, 'complete', {}, args);
-        cleanupCapabilitySession(session, args, logger, requestId);
-        
-        const currentIndex = session.currentResourceIndex || 0;
-        const totalResources = Array.isArray(session.selectedResources) ? session.selectedResources.length : 1;
-        
-        return createCapabilityScanCompletionResponse(
-          session.sessionId,
-          totalResources,
-          currentIndex, // Resources processed so far
-          0,
-          'stopped interactively',
-          'manual',
-          true // stopped = true
-        );
-      }
-      
-      if (userResponse === 'yes' || userResponse === 'no') {
-        // TODO: If 'yes', store the capability in Vector DB (Milestone 2)
-        // For now, just log the decision
-        logger.info(`User ${userResponse === 'yes' ? 'accepted' : 'skipped'} capability for resource`, {
-          requestId,
-          sessionId: session.sessionId,
-          resourceIndex: session.currentResourceIndex,
-          decision: userResponse
-        });
-        
-        // Move to the next resource
-        const nextIndex = (session.currentResourceIndex || 0) + 1;
-        transitionCapabilitySession(session, 'scanning', { currentResourceIndex: nextIndex }, args);
-        
-        // Continue processing (will handle the next resource or complete if done)
-        return await handleScanning(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
-      }
-      
-      // Invalid response
-      return {
-        success: false,
-        operation: 'scan',
-        dataType: 'capabilities',
-        error: {
-          message: 'Invalid response to capability preview',
-          details: `Expected 'yes', 'no', or 'stop', got: ${args.response}`,
-          currentStep: session.currentStep
-        }
-      };
-    }
-    // Import capability engine
-    // Already imported at top of file
-    
-    // Validate AI provider - skip in test environment
-    const isTestEnvironment = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
-    if (!isTestEnvironment) {
-      try {
-        const aiProvider = createAIProvider();
-        if (!aiProvider.isInitialized()) {
-          return {
-            success: false,
-            operation: 'scan',
-            dataType: 'capabilities',
-            error: {
-              message: 'AI provider API key required for capability inference',
-              details: 'Configure AI provider credentials to enable AI-powered capability analysis'
-            }
-          };
-        }
-      } catch (error) {
+    // Validate and initialize AI provider
+    let aiProvider;
+    try {
+      aiProvider = createAIProvider();
+      if (!aiProvider.isInitialized()) {
         return {
           success: false,
           operation: 'scan',
           dataType: 'capabilities',
           error: {
-            message: 'AI provider initialization failed',
-            details: error instanceof Error ? error.message : 'Unknown error'
+            message: 'AI provider API key required for capability inference',
+            details: 'Configure AI provider credentials to enable AI-powered capability analysis'
           }
         };
       }
+    } catch (error) {
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'AI provider initialization failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }
+      };
     }
-    
+
     // Initialize capability engine
-    const aiProvider = createAIProvider();
     const engine = new CapabilityInferenceEngine(aiProvider, logger);
-    
-    // Get the resource to analyze
-    let resourceName: string;
-    let currentIndex: number;
-    let totalResources: number;
-    
+
     if (session.selectedResources === 'all') {
       // For 'all' mode, discover actual cluster resources first
       try {
@@ -549,14 +359,10 @@ export async function handleScanning(
         // Update session with discovered resources and start batch processing
         transitionCapabilitySession(session, 'scanning', {
           selectedResources: discoveredResourceNames,
-          processingMode: session.processingMode,
           currentResourceIndex: 0
         }, args);
-        
-        // Continue to batch processing with discovered resources
-        resourceName = discoveredResourceNames[0]; // First resource for manual mode
-        currentIndex = 0;
-        totalResources = discoveredResourceNames.length;
+
+        // Fall through to batch processing with discovered resources
         
       } catch (error) {
         logger.error('Failed to discover cluster resources', error as Error, {
@@ -580,120 +386,13 @@ export async function handleScanning(
           }
         };
       }
-    } else if (Array.isArray(session.selectedResources)) {
-      // Get the current resource based on currentResourceIndex
-      currentIndex = session.currentResourceIndex || 0;
-      totalResources = session.selectedResources.length;
-      
-      if (currentIndex >= totalResources) {
-        // All resources processed - mark as complete
-        transitionCapabilitySession(session, 'complete', {}, args);
-        cleanupCapabilitySession(session, args, logger, requestId);
-        
-        return createCapabilityScanCompletionResponse(
-          session.sessionId,
-          totalResources,
-          totalResources, // Assume all successful for manual mode
-          0,
-          'completed interactively',
-          'manual'
-        );
-      }
-      
-      resourceName = session.selectedResources[currentIndex];
-      if (!resourceName) {
-        throw new Error(`No resource found at index ${currentIndex}`);
-      }
-    } else {
-      throw new Error('Invalid selectedResources in session state');
     }
-    
-    // Get complete resource definition for comprehensive analysis
-    let resourceDefinition: string | undefined;
-    
-    try {
-      // Import and connect to discovery engine for kubectl access
-      const discovery = new KubernetesDiscovery();
-      await discovery.connect();
-      
-      // Get complete CRD definition if it's a custom resource
-      if (resourceName.includes('.')) {
-        resourceDefinition = await discovery.getCRDDefinition(resourceName);
 
-        logger.info('Found complete CRD definition for capability analysis', {
-          requestId,
-          sessionId: session.sessionId,
-          resource: resourceName,
-          hasDefinition: !!resourceDefinition,
-          definitionSize: resourceDefinition?.length || 0
-        });
-      } else {
-        // For core resources, use kubectl explain to get schema information
-        const explainOutput = await discovery.explainResource(resourceName);
-        resourceDefinition = explainOutput;
-        
-        logger.info('Found core resource explanation for capability analysis', {
-          requestId,
-          sessionId: session.sessionId,
-          resource: resourceName,
-          hasDefinition: !!resourceDefinition
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to retrieve resource definition for capability analysis', error as Error, {
-        requestId,
-        sessionId: session.sessionId,
-        resource: resourceName
-      });
-      
-      throw new Error(createResourceDefinitionErrorMessage(resourceName, error));
+    // Auto mode: Process ALL resources in batch without user interaction
+    // At this point, selectedResources should always be an array (either discovered or specified)
+    if (!Array.isArray(session.selectedResources)) {
+      throw new Error(`Invalid selectedResources state: expected array, got ${typeof session.selectedResources}. This indicates a bug in resource discovery.`);
     }
-    
-    logger.info('Analyzing resource for capability inference', { 
-      requestId, 
-      sessionId: session.sessionId,
-      resource: resourceName,
-      mode: session.processingMode
-    });
-    
-    if (session.processingMode === 'manual') {
-      // Manual mode: Show capability data for user review
-      const capability = await engine.inferCapabilities(resourceName, resourceDefinition, args.interaction_id);
-      const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
-      
-      return {
-        success: true,
-        operation: 'scan',
-        dataType: 'capabilities',
-        mode: 'manual',
-        step: 'scanning',
-        sessionId: session.sessionId,
-        preview: {
-          resource: resourceName,
-          resourceIndex: `${currentIndex + 1}/${totalResources}`,
-          id: capabilityId,
-          data: capability,
-          question: 'Continue storing this capability?',
-          options: [
-            { number: 1, value: 'yes', display: '1. yes - Store this capability' },
-            { number: 2, value: 'no', display: '2. no - Skip this resource' },
-            { number: 3, value: 'stop', display: '3. stop - End scanning process' }
-          ],
-          instruction: 'Review the capability analysis results before storing',
-          clientInstructions: {
-            behavior: 'interactive',
-            requirement: 'Ask user to review capability data and decide on storage',
-            nextStep: `Call with step='scanning' and response parameter containing their choice (yes/no/stop)`,
-            responseFormat: 'Convert user input to semantic values: 1→yes, 2→no, 3→stop'
-          }
-        }
-      };
-    } else {
-      // Auto mode: Process ALL resources in batch without user interaction
-      // At this point, selectedResources should always be an array (either discovered or specified)
-      if (!Array.isArray(session.selectedResources)) {
-        throw new Error(`Invalid selectedResources state: expected array, got ${typeof session.selectedResources}. This indicates a bug in resource discovery.`);
-      }
       
       const resources = session.selectedResources;
       const totalResources = resources.length;
@@ -740,8 +439,7 @@ export async function handleScanning(
         };
         
         // Update session file with progress
-        transitionCapabilitySession(session, 'scanning', { 
-          processingMode: session.processingMode,
+        transitionCapabilitySession(session, 'scanning', {
           selectedResources: session.selectedResources,
           currentResourceIndex: current - 1,
           progress: progressData
@@ -775,12 +473,24 @@ export async function handleScanning(
         
         if (discovery) {
           try {
-            if (currentResource.includes('.')) {
-              // Get complete CRD definition
-              currentResourceDefinition = await discovery.executeKubectl(['get', 'crd', currentResource, '-o', 'yaml']);
-            } else {
-              // Get core resource explanation
+            // Try kubectl explain with full name first (works for CRDs and core resources)
+            try {
               currentResourceDefinition = await discovery.explainResource(currentResource);
+            } catch (explainError) {
+              // If explain fails and resource has a dot (like Deployment.apps), try with just the Kind
+              if (currentResource.includes('.')) {
+                const resourceKind = currentResource.split('.')[0];
+                logger.info(`kubectl explain failed for ${currentResource}, attempting with Kind only: ${resourceKind}`, {
+                  requestId,
+                  sessionId: session.sessionId,
+                  resource: currentResource,
+                  resourceKind
+                });
+                currentResourceDefinition = await discovery.explainResource(resourceKind);
+              } else {
+                // Re-throw explain error for resources without dots
+                throw explainError;
+              }
             }
           } catch (error) {
             logger.error(`Failed to get resource definition for ${currentResource}`, error as Error, {
@@ -788,14 +498,14 @@ export async function handleScanning(
               sessionId: session.sessionId,
               resource: currentResource
             });
-            
+
             // Add to errors array and skip processing this resource
             errors.push({
               resource: currentResource,
               error: createResourceDefinitionErrorMessage(currentResource, error),
               timestamp: new Date().toISOString()
             });
-            
+
             // Skip processing this resource
             continue;
           }
@@ -903,7 +613,6 @@ export async function handleScanning(
         completionData.totalProcessingTime || 'completed',
         'auto'
       );
-    }
   } catch (error) {
     logger.error('Capability scanning failed', error as Error, {
       requestId,

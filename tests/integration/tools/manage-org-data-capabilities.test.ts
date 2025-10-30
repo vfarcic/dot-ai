@@ -102,66 +102,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'resource_selection'
       });
 
-      // Validate resource selection response
-      const expectedResourceResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'scan',
-            dataType: 'capabilities',
-            REQUIRED_NEXT_CALL: {
-              tool: 'dot-ai:manageOrgData',
-              parameters: {
-                dataType: 'capabilities',
-                operation: 'scan',
-                sessionId: sessionId,
-                step: 'processing-mode',
-                response: 'user_choice_here'
-              }
-            },
-            workflow: {
-              step: 'processing-mode',
-              question: 'Processing mode: auto (batch process) or manual (review each)?',
-              options: [
-                {
-                  number: 1,
-                  value: 'auto',
-                  display: '1. auto - Batch process automatically'
-                },
-                {
-                  number: 2,
-                  value: 'manual',
-                  display: '2. manual - Review each step'
-                }
-              ],
-              sessionId: sessionId,
-              selectedResources: 'all',
-              instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select a processing mode.'
-            }
-          },
-          tool: 'manageOrgData',
-          executionTime: expect.any(Number)
-        },
-        meta: expect.objectContaining({
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-          version: 'v1'
-        })
-      };
-
-      expect(resourceSelectionResponse).toMatchObject(expectedResourceResponse);
-
-      // Step 3: Select 'auto' processing mode (this will take significant time)
-      const autoScanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'processing-mode',
-        response: 'auto',
-        interaction_id: 'auto_scan'
-      });
-
-      // Validate final scan completion response (based on createCapabilityScanCompletionResponse)
+      // Step 2 should trigger automatic scanning (no processing-mode step)
+      // Validate scan completion response directly after resource selection
       const expectedFinalResponse = {
         success: true,
         data: {
@@ -195,16 +137,16 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         })
       };
 
-      expect(autoScanResponse).toMatchObject(expectedFinalResponse);
+      expect(resourceSelectionResponse).toMatchObject(expectedFinalResponse);
 
       // Validate scan completion - the exact response structure may vary based on implementation
       // Key requirement is that scan completes successfully
-      expect(autoScanResponse.data.result.sessionId).toBeDefined();
-      expect(autoScanResponse.data.result.summary).toBeDefined();
+      expect(resourceSelectionResponse.data.result.sessionId).toBeDefined();
+      expect(resourceSelectionResponse.data.result.summary).toBeDefined();
 
       // If operators are found, they should be in summary
-      if (autoScanResponse.data.result.summary.operatorsFound) {
-        expect(Array.isArray(autoScanResponse.data.result.summary.operatorsFound)).toBe(true);
+      if (resourceSelectionResponse.data.result.summary.operatorsFound) {
+        expect(Array.isArray(resourceSelectionResponse.data.result.summary.operatorsFound)).toBe(true);
       }
 
       // NOTE: This test does NOT clean up capabilities data
@@ -244,64 +186,18 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         step: 'resource-specification',
         resourceList: 'Deployment.apps,Service',
         interaction_id: 'resource_specification'
-      });
+      }, { timeout: 300000 }); // 5 minutes for scan completion
 
-      // Should proceed to processing mode
+      // Should proceed directly to scanning and complete (no processing-mode step)
       expect(resourceSpecResponse.data.result.success).toBe(true);
-      expect(resourceSpecResponse.data.result.workflow.step).toBe('processing-mode');
-      expect(resourceSpecResponse.data.result.workflow.selectedResources).toContain('Deployment.apps');
-      expect(resourceSpecResponse.data.result.workflow.selectedResources).toContain('Service');
+      expect(resourceSpecResponse.data.result.step).toBe('complete');
+      expect(resourceSpecResponse.data.result.mode).toBe('auto');
+      expect(resourceSpecResponse.data.result.summary).toBeDefined();
+      expect(resourceSpecResponse.data.result.summary.totalScanned).toBeGreaterThanOrEqual(2);
 
       // Note: No cleanup to avoid race conditions with parallel tests
-    });
+    }, 300000); // 5 minute timeout for specific resource scan
 
-    test('should handle manual processing mode workflow', async () => {
-      // Start scan and get to processing mode
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        interaction_id: 'manual_scan_workflow'
-      });
-      const sessionId = startResponse.data.result.workflow.sessionId;
-
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-selection',
-        response: 'specific',
-        interaction_id: 'manual_resource_selection'
-      });
-
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-specification',
-        response: 'Deployment.apps',
-        interaction_id: 'manual_resource_spec'
-      });
-
-      // Select manual processing mode
-      const manualResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'processing-mode',
-        response: 'manual',
-        interaction_id: 'manual_processing'
-      });
-
-      // Should provide manual review workflow or completion - manual mode may return success: false with error info
-      expect(manualResponse.data.result.success).toBeDefined();
-      expect(manualResponse.data.result.operation).toBe('scan');
-      // Manual mode may complete immediately or provide review workflow
-      if (manualResponse.data.result.workflow) {
-        expect(manualResponse.data.result.workflow).toHaveProperty('question');
-      }
-
-      // Note: No cleanup to avoid race conditions with parallel tests
-    });
   });
 
   describe('Capabilities Management Operations', () => {
@@ -323,22 +219,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'crud_resource_selection'
       });
 
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
         sessionId,
         step: 'resource-specification',
         resourceList: 'Service,ConfigMap',
         interaction_id: 'crud_resource_spec'
-      });
-
-      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'processing-mode',
-        response: 'auto',
-        interaction_id: 'crud_auto_scan'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
       // Ensure scan completed successfully
@@ -413,22 +300,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'list_resource_selection'
       });
 
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
         sessionId,
         step: 'resource-specification',
         resourceList: 'Service',
         interaction_id: 'list_resource_spec'
-      });
-
-      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'processing-mode',
-        response: 'auto',
-        interaction_id: 'list_auto_scan'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
       // Ensure scan completed successfully
@@ -542,17 +420,11 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'search_resource_selection'
       });
 
+      integrationTest.httpClient.setTimeout(300000); // 5 minutes for specific resource scan with AI
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities', operation: 'scan', sessionId,
-        step: 'resource-specification', resourceList: 'Service,Deployment',
+        step: 'resource-specification', resourceList: 'Service,Deployment.apps',
         interaction_id: 'search_resource_spec'
-      });
-
-      integrationTest.httpClient.setTimeout(180000); // 3 minutes for specific resource scan with AI
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities', operation: 'scan', sessionId,
-        step: 'processing-mode', response: 'auto',
-        interaction_id: 'search_auto_scan'
       });
 
       // Reset timeout to default for search (semantic search can take time with embeddings)
