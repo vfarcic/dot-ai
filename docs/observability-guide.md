@@ -101,7 +101,7 @@ docker run -d --name jaeger \
 
 Configure the MCP server to send traces to Jaeger:
 
-```
+```bash
 OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 ```

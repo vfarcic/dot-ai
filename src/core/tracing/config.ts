@@ -138,13 +138,6 @@ export function validateTracingConfig(config: TracingConfig): void {
     );
   }
 
-  // Validate sampling probability
-  if (config.samplingProbability < 0 || config.samplingProbability > 1) {
-    throw new Error(
-      `Invalid sampling probability: ${config.samplingProbability} (must be between 0.0 and 1.0)`
-    );
-  }
-
   // Warn about production configurations
   if (config.exporterType === 'console' && process.env.NODE_ENV === 'production') {
     console.warn(

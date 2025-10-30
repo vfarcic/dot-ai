@@ -106,12 +106,6 @@ export function createHttpServerSpan(
     parentContext
   );
 
-  // Make this span active for downstream operations
-  const activeContext = trace.setSpan(parentContext, span);
-  context.with(activeContext, () => {
-    // Context is now active for any operations that happen within this request
-  });
-
   // Return span and cleanup function
   return {
     span,
