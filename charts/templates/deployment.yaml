@@ -100,6 +100,10 @@ spec:
         - name: QDRANT_URL
           value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}
         # Note: KUBERNETES_SERVICE_HOST is automatically set by k8s and triggers in-cluster config
+{{- with .Values.extraEnv }}
+        # Additional environment variables
+        {{- toYaml . | nindent 8 }}
+{{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         # Health checks will be added once /health endpoint is implemented

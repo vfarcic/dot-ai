@@ -134,7 +134,11 @@ spec:
         - name: QDRANT_URL
           value: {{ .Values.qdrant.external.url }}
         {{- end }}
-        
+{{- with .Values.extraEnv }}
+        # Additional environment variables
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+
         # Volume mounts for sessions directory
         volumeMounts:
         - name: sessions

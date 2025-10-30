@@ -142,7 +142,9 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 
 **Documentation Changes:**
 - [x] **`docs/observability-guide.md`**: Create comprehensive user guide with tracing concepts, setup, and usage
-- [ ] **`docs/deployment-guide.md`**: Add tracing configuration section for production deployments
+- [x] **`docs/setup/docker-setup.md`**: Add tracing environment variables with link to observability guide
+- [x] **`docs/setup/kubernetes-setup.md`**: Add tracing note with link to observability guide
+- [x] **`docs/setup/kubernetes-toolhive-setup.md`**: Add tracing note with link to observability guide
 - [x] **`docs/mcp-setup.md`**: Add links to observability guide in Configuration Components and Next Steps
 
 **Implementation Tasks:**
@@ -885,6 +887,37 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - Add tracing configuration section to `docs/deployment-guide.md` to complete Phase 1
 - Consider creating `docs/development-guide.md` for developer instrumentation patterns (Phase 2 doc requirement)
 - Complete remaining Phase 2 implementation items (deployment operations, session lifecycle, multi-step workflows)
+
+### 2025-10-30: Helm Chart Enhancement & Deployment Documentation
+**Duration**: ~2 hours
+**Primary Focus**: Enable tracing configuration for Kubernetes/Docker deployments
+
+**Completed PRD Items**:
+- [x] Added `extraEnv` support to Helm chart:
+  - `charts/values.yaml`: Added extraEnv field with commented tracing examples (OTEL_TRACING_ENABLED, OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME)
+  - `charts/templates/deployment.yaml`: Render extraEnv entries via toYaml template with proper indentation
+  - `charts/templates/mcpserver.yaml`: Render extraEnv entries for ToolHive deployment method
+  - Added customLlm/customEmbeddings secret key definitions to fix template evaluation error
+  - Tested with `helm template` - extraEnv renders correctly in both standard and ToolHive modes
+- [x] Updated deployment documentation:
+  - `docs/setup/docker-setup.md`: Added optional tracing environment variables section with link to observability guide
+  - `docs/setup/kubernetes-setup.md`: Added tracing note in installation notes with link to observability guide
+  - `docs/setup/kubernetes-toolhive-setup.md`: Added tracing note in installation notes with link to observability guide
+
+**Implementation Approach**:
+- **Generic extraEnv pattern**: Follows Helm best practices by allowing any environment variables, not just tracing-specific fields
+- **Minimal documentation**: Simple note with link to observability guide rather than duplicating configuration details
+- **Consistent across deployment methods**: Docker, standard Kubernetes, and ToolHive all support tracing configuration
+- **User-friendly examples**: Commented examples in values.yaml show exact syntax for tracing configuration
+
+**Phase 1 Status**:
+- **Complete**: 100% (all implementation + all documentation) ✅
+- **PRD divergence**: Referenced "deployment-guide.md" doesn't exist - actual files are `docs/setup/docker-setup.md`, `docs/setup/kubernetes-setup.md`, `docs/setup/kubernetes-toolhive-setup.md`
+
+**Next Session Priorities**:
+- Complete Phase 2 remaining items: deployment operations instrumentation, session lifecycle tracing, multi-step workflow trace propagation
+- Consider Phase 3 advanced features (sampling strategies, metrics, native exporters)
+- Consider Phase 4 testing and integration tests for tracing functionality
 
 ---
 

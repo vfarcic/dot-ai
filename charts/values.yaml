@@ -37,6 +37,12 @@ secrets:
   deepseek:
     keyName: deepseek-api-key       # Key name within the secret
     apiKey: ""                      # API key value (only needed if chart should create the secret)
+  customLlm:
+    keyName: custom-llm-api-key     # Key name within the secret for custom LLM endpoint
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
+  customEmbeddings:
+    keyName: custom-embeddings-api-key  # Key name within the secret for custom embeddings endpoint
+    apiKey: ""                      # API key value (only needed if chart should create the secret)
 
 # ServiceAccount configuration
 serviceAccount:
@@ -100,6 +106,17 @@ ai:
   #
   # Note: Custom endpoints must support OpenAI-compatible API and models must
   # support 8K+ output tokens for reliable YAML generation.
+
+# Additional environment variables (optional)
+# Use this to add any custom environment variables to the MCP server
+# Example use cases: tracing configuration, custom integrations, feature flags
+extraEnv: []
+  # - name: OTEL_TRACING_ENABLED
+  #   value: "true"
+  # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+  #   value: "http://jaeger-collector:4318/v1/traces"
+  # - name: OTEL_SERVICE_NAME
+  #   value: "dot-ai-mcp-production"
 
 # Qdrant Vector Database
 qdrant:
