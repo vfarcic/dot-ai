@@ -1,6 +1,6 @@
 /**
  * Embedding Service
- * 
+ *
  * Optional semantic search enhancement for pattern matching.
  * Gracefully falls back to keyword-only search when embedding providers are not available.
  */
@@ -9,6 +9,7 @@ import { google } from '@ai-sdk/google';
 import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed } from 'ai';
+import { withAITracing } from './tracing';
 
 export interface EmbeddingConfig {
   provider?: 'openai' | 'google' | 'mistral';
@@ -103,30 +104,44 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       throw new Error('Text cannot be empty for embedding generation');
     }
 
-    try {
-      const embedOptions: any = {
-        model: this.modelInstance,
-        value: text.trim()
-      };
+    // Wrap embed() call with OpenTelemetry tracing
+    return await withAITracing(
+      {
+        provider: this.providerType,
+        model: this.model,
+        operation: 'embeddings'
+      },
+      async () => {
+        try {
+          const embedOptions: any = {
+            model: this.modelInstance,
+            value: text.trim()
+          };
 
-      // Add Google-specific options
-      if (this.providerType === 'google') {
-        embedOptions.providerOptions = {
-          google: {
-            outputDimensionality: this.dimensions,
-            taskType: 'SEMANTIC_SIMILARITY'
+          // Add Google-specific options
+          if (this.providerType === 'google') {
+            embedOptions.providerOptions = {
+              google: {
+                outputDimensionality: this.dimensions,
+                taskType: 'SEMANTIC_SIMILARITY'
+              }
+            };
           }
-        };
-      }
 
-      const result = await embed(embedOptions);
-      return result.embedding;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`${this.providerType} embedding failed: ${error.message}`);
-      }
-      throw new Error(`${this.providerType} embedding failed: ${String(error)}`);
-    }
+          const result = await embed(embedOptions);
+          return result.embedding;
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`${this.providerType} embedding failed: ${error.message}`);
+          }
+          throw new Error(`${this.providerType} embedding failed: ${String(error)}`);
+        }
+      },
+      (embedding) => ({
+        embeddingCount: 1,
+        embeddingDimensions: embedding.length
+      })
+    );
   }
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
@@ -146,35 +161,49 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       return [];
     }
 
-    try {
-      const results = await Promise.all(
-        validTexts.map(text => {
-          const embedOptions: any = {
-            model: this.modelInstance,
-            value: text
-          };
+    // Wrap batch embed calls with OpenTelemetry tracing
+    return await withAITracing(
+      {
+        provider: this.providerType,
+        model: this.model,
+        operation: 'embeddings'
+      },
+      async () => {
+        try {
+          const results = await Promise.all(
+            validTexts.map(text => {
+              const embedOptions: any = {
+                model: this.modelInstance,
+                value: text
+              };
 
-          // Add Google-specific options
-          if (this.providerType === 'google') {
-            embedOptions.providerOptions = {
-              google: {
-                outputDimensionality: this.dimensions,
-                taskType: 'SEMANTIC_SIMILARITY'
+              // Add Google-specific options
+              if (this.providerType === 'google') {
+                embedOptions.providerOptions = {
+                  google: {
+                    outputDimensionality: this.dimensions,
+                    taskType: 'SEMANTIC_SIMILARITY'
+                  }
+                };
               }
-            };
+
+              return embed(embedOptions);
+            })
+          );
+
+          return results.map(result => result.embedding);
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`${this.providerType} batch embedding failed: ${error.message}`);
           }
-
-          return embed(embedOptions);
-        })
-      );
-
-      return results.map(result => result.embedding);
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`${this.providerType} batch embedding failed: ${error.message}`);
-      }
-      throw new Error(`${this.providerType} batch embedding failed: ${String(error)}`);
-    }
+          throw new Error(`${this.providerType} batch embedding failed: ${String(error)}`);
+        }
+      },
+      (embeddings) => ({
+        embeddingCount: embeddings.length,
+        embeddingDimensions: embeddings[0]?.length || this.dimensions
+      })
+    );
   }
 
   isAvailable(): boolean {

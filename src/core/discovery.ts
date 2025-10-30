@@ -13,6 +13,7 @@ import {
   KubectlConfig,
   ErrorClassifier
 } from './kubernetes-utils';
+import { createTracedK8sClient } from './tracing';
 
 export interface ClusterInfo {
   type: string;
@@ -226,7 +227,10 @@ export class KubernetesDiscovery {
       // Try to get server version
       let version: string | undefined;
       try {
-        const versionClient = this.kc!.makeApiClient(k8s.VersionApi);
+        const versionClient = createTracedK8sClient(
+          this.kc!.makeApiClient(k8s.VersionApi),
+          'VersionApi'
+        );
         const versionResponse = await versionClient.getCode();
         version = versionResponse.gitVersion;
       } catch (error) {
@@ -274,8 +278,11 @@ export class KubernetesDiscovery {
         this.kc.loadFromDefault();
       }
 
-      // Create API clients
-      this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
+      // Create API clients with tracing
+      this.k8sApi = createTracedK8sClient(
+        this.kc.makeApiClient(k8s.CoreV1Api),
+        'CoreV1Api'
+      );
       
       // Test the connection by making a simple API call
       try {

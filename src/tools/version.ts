@@ -13,7 +13,7 @@ import { Logger } from '../core/error-handling';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
-import { getTracer } from '../core/tracing';
+import { getTracer, createTracedK8sClient } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 
 export const VERSION_TOOL_NAME = 'version';
@@ -374,7 +374,10 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
     try {
       // Get client and check deployment status
       const client = discovery.getClient();
-      const appsV1Api = client.makeApiClient(k8s.AppsV1Api);
+      const appsV1Api = createTracedK8sClient(
+        client.makeApiClient(k8s.AppsV1Api),
+        'AppsV1Api'
+      );
       
       const deploymentResponse = await appsV1Api.listNamespacedDeployment({
         namespace: 'kyverno'
@@ -409,7 +412,10 @@ export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
     // Check admission controller webhook
     try {
       const client = discovery.getClient();
-      const admissionApi = client.makeApiClient(k8s.AdmissionregistrationV1Api);
+      const admissionApi = createTracedK8sClient(
+        client.makeApiClient(k8s.AdmissionregistrationV1Api),
+        'AdmissionregistrationV1Api'
+      );
       
       const webhookResponse = await admissionApi.listValidatingWebhookConfiguration();
       webhookReady = webhookResponse.items.some((webhook: any) => 

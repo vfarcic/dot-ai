@@ -161,7 +161,7 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - [x] Add OTLP exporter support (Phase 3 work completed early)
 - [x] Add OpenTelemetry status to version tool (shows tracing config and health)
 
-### Phase 2: Deep Instrumentation [Status: 🔄 IN PROGRESS - 42%]
+### Phase 2: Deep Instrumentation [Status: 🔄 IN PROGRESS - 67%]
 **Target**: AI provider calls and Kubernetes operations fully traced
 
 **Documentation Changes:**
@@ -184,11 +184,24 @@ Implement OpenTelemetry instrumentation following industry best practices and of
   - [x] Add `tool_loop_iteration` spans to `AnthropicProvider.toolLoop()` for per-iteration visibility
   - [x] Removed `isEnabled()` checks from tracing wrappers - trust OpenTelemetry no-op tracer (simpler code, zero overhead when disabled)
   - [x] Tested with Jaeger - iteration spans properly nested under `tool_loop` span, showing clear workflow progression
-- [ ] **AI Provider Embeddings Tracing** - Generic wrapper ready, needs integration
-  - [ ] Wrap `VercelEmbeddingProvider.generateEmbedding()` with `withAITracing(operation: 'embeddings')`
-  - [ ] Wrap `VercelEmbeddingProvider.generateEmbeddings()` with `withAITracing(operation: 'embeddings')`
-- [ ] Add Kubernetes client instrumentation in `src/core/cluster-utils.ts` for API calls
-- [ ] Trace cluster discovery operations in `src/core/discovery.ts` with resource counts
+- [x] **AI Provider Embeddings Tracing** - Complete generic wrapper instrumentation ✅
+  - [x] Wrapped `VercelEmbeddingProvider.generateEmbedding()` with `withAITracing(operation: 'embeddings')`
+  - [x] Wrapped `VercelEmbeddingProvider.generateEmbeddings()` with `withAITracing(operation: 'embeddings')`
+  - [x] Official GenAI semantic conventions: `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`
+  - [x] Embedding metrics tracking (count, dimensions via `gen_ai.embeddings.count`, `gen_ai.embeddings.dimensions`)
+  - [x] Tested with capability scan - spans showing `embeddings text-embedding-3-small` with proper nesting
+  - [x] Context propagation working - embedding spans properly nested under tool execution spans
+- [x] **Kubernetes Client Library Tracing** - Complete generic proxy wrapper instrumentation ✅
+  - [x] Created `src/core/tracing/k8s-tracing.ts` with `createTracedK8sClient()` proxy wrapper for transparent instrumentation
+  - [x] Integrated in `src/core/discovery.ts` - Wrapped CoreV1Api and VersionApi clients
+  - [x] Integrated in `src/tools/version.ts` - Wrapped AppsV1Api and AdmissionregistrationV1Api clients
+  - [x] JavaScript Proxy pattern creates CLIENT spans with `k8s.api`, `k8s.method` attributes
+  - [x] Zero code changes required in existing K8s operations - automatic tracing via proxy
+- [x] **Kubectl CLI Tracing** - Complete wrapper instrumentation for CLI commands ✅
+  - [x] Created `withKubectlTracing()` wrapper function in `src/core/tracing/k8s-tracing.ts`
+  - [x] Integrated in `src/core/kubernetes-utils.ts` - Wrapped `executeKubectl()` function
+  - [x] Creates CLIENT spans with `k8s.client: 'kubectl'`, `k8s.operation`, `k8s.resource` attributes
+  - [x] Tested with capability scanning kubectl commands - spans showing proper operation details
 - [ ] Instrument deployment operations in `src/tools/deploy-manifests.ts`
 - [ ] Add session lifecycle tracing with session ID propagation
 - [ ] Implement trace context propagation across multi-step workflows (buildPlatform, remediate)
@@ -690,6 +703,93 @@ Implement OpenTelemetry instrumentation following industry best practices and of
 - Add embeddings tracing (`VercelEmbeddingProvider`)
 - Begin Kubernetes client instrumentation
 - Plan HTTP auto-instrumentation removal (Phase 3)
+
+### 2025-10-30: Phase 2 Completion - Embeddings & Kubernetes Tracing + Capability Scan Refactoring
+**Duration**: ~6 hours
+**Primary Focus**: Complete Phase 2 AI provider and Kubernetes instrumentation, remove manual mode from capability scanning
+
+**Completed PRD Items**:
+- [x] **AI Provider Embeddings Tracing** - Complete generic wrapper instrumentation
+  - Wrapped `VercelEmbeddingProvider.generateEmbedding()` and `generateEmbeddings()` with `withAITracing(operation: 'embeddings')`
+  - Official GenAI semantic conventions: `gen_ai.operation.name: 'embeddings'`, `gen_ai.provider.name`, `gen_ai.request.model`
+  - Embedding metrics tracking: `gen_ai.embeddings.count`, `gen_ai.embeddings.dimensions`
+  - Tested with capability scan - spans showing `embeddings text-embedding-3-small` with proper context propagation
+- [x] **Kubernetes Client Library Tracing** - Complete generic proxy wrapper instrumentation
+  - Created `src/core/tracing/k8s-tracing.ts` (~150 lines) with `createTracedK8sClient()` proxy wrapper
+  - JavaScript Proxy pattern for transparent method interception - zero code changes to existing operations
+  - Integrated in `src/core/discovery.ts` (CoreV1Api, VersionApi) and `src/tools/version.ts` (AppsV1Api, AdmissionregistrationV1Api)
+  - Creates CLIENT spans with `k8s.api`, `k8s.method` attributes
+- [x] **Kubectl CLI Tracing** - Complete wrapper instrumentation for CLI commands
+  - Created `withKubectlTracing()` wrapper function in `src/core/tracing/k8s-tracing.ts`
+  - Integrated in `src/core/kubernetes-utils.ts` - wrapped `executeKubectl()` function
+  - Creates CLIENT spans with `k8s.client: 'kubectl'`, `k8s.operation`, `k8s.resource` attributes
+  - Tested with capability scanning kubectl commands
+
+**Additional Work Done (Out of PRD Scope)**:
+- **Capability Scan Workflow Simplification** - Removed manual processing mode for cleaner UX
+  - Removed `processingMode` field from session interface (removed `'processing-mode'` step)
+  - Deleted `handleProcessingMode` function entirely (~50 lines removed)
+  - Updated workflow routing in `src/tools/organizational-data.ts` to skip processing-mode step
+  - Modified `handleResourceSelection` and `handleResourceSpecification` to transition directly to scanning
+  - Fixed duplicate CRD fetching bug discovered during testing - moved CRD fetch into manual mode block only
+  - Updated integration tests in `tests/integration/tools/manage-org-data-capabilities.test.ts`
+    - Removed processing-mode expectations from all test workflows
+    - Updated resource lists to use actual cluster resources (Deployment.apps, Service, Pod, ConfigMap)
+    - All 11 integration tests passing (406.59s duration)
+  - Verified end-to-end with manual MCP testing - workflow now: resource-selection → [resource-specification] → scanning → complete
+  - Database verification: 64 capabilities stored in qdrant-test container (capabilities-policies collection)
+
+**Key Implementation Details**:
+- **Dual K8s tracing strategy**: Client library tracing (Proxy wrapper) + kubectl CLI tracing (function wrapper)
+- **Generic instrumentation pattern**: Both K8s wrappers follow same pattern as AI tracing - instrument at boundaries
+- **Zero overhead when disabled**: Trust OpenTelemetry no-op tracer, no manual isEnabled() checks
+- **Context propagation verified**: K8s CLIENT spans properly nested under tool INTERNAL spans
+
+**Files Created**:
+- `src/core/tracing/k8s-tracing.ts` - Dual K8s tracing module (~150 lines)
+
+**Files Modified**:
+- `src/core/embedding-service.ts` - Added embeddings tracing wrappers
+- `src/core/discovery.ts` - Wrapped K8s API clients with traced proxies
+- `src/core/kubernetes-utils.ts` - Wrapped kubectl execution with tracing
+- `src/tools/version.ts` - Wrapped K8s API clients with traced proxies
+- `src/core/tracing/index.ts` - Exported K8s tracing functions
+- `src/core/capability-scan-workflow.ts` - Removed manual mode logic, fixed duplicate CRD bug
+- `src/tools/organizational-data.ts` - Updated routing to skip processing-mode
+- `tests/integration/tools/manage-org-data-capabilities.test.ts` - Updated all tests for simplified workflow
+
+**Phase 2 Progress**:
+- **Before**: 33% complete (3/9 items - AI providers only)
+- **After**: 67% complete (6/9 items - AI providers + K8s client/kubectl complete)
+- **Remaining**: Deployment operations instrumentation, session lifecycle, multi-step workflow propagation
+
+**Architecture Decisions**:
+- **K8s Proxy Pattern**: JavaScript Proxy wrapper provides transparent instrumentation without modifying business logic
+- **Kubectl wrapper approach**: Function wrapper intercepts CLI execution, parses args for operation/resource metadata
+- **Simplified capability scan**: Removed manual mode based on user feedback - auto mode covers all use cases
+
+**Test Results**:
+- ✅ Embeddings tracing working - spans visible in Jaeger during capability scan
+- ✅ K8s client tracing working - CoreV1Api methods traced (listNamespace, etc.)
+- ✅ Kubectl tracing working - CLI commands traced (kubectl get crd, etc.)
+- ✅ Context propagation verified - K8s spans nested under tool spans
+- ✅ All 11 capability scan integration tests passing
+- ✅ Database storage verified - 64 capabilities in test Qdrant
+- ✅ Build successful with zero TypeScript errors
+
+**Bugs Fixed**:
+- **Duplicate CRD fetching**: Discovered during Jaeger trace analysis - manual mode was prefetching CRD that auto mode didn't use, causing 2x kubectl get crd calls. Fixed by moving CRD fetch inside manual mode block. (Note: Manual mode subsequently removed entirely)
+
+**Known Discoveries**:
+- Manual mode incomplete: Didn't store capabilities to database, only showed preview
+- User decision: Remove manual mode entirely - auto mode with resource selection covers all use cases
+- Duplicate operations visible in traces helped identify inefficient code paths
+
+**Next Session Priorities**:
+- Complete remaining Phase 2 items: deployment operations, session lifecycle, multi-step workflows
+- Begin Phase 3: Advanced features (sampling strategies, native exporters, metrics)
+- Begin Phase 4: Documentation (`docs/observability-guide.md`, `docs/development-guide.md`)
+- Consider Phase 4 comprehensive integration testing for tracing features
 
 ---
 
