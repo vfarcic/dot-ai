@@ -37,6 +37,7 @@ This roadmap is a living document and may change based on community feedback and
 - Application lifecycle management and operations (PRD #4)
 - Infrastructure deployment documentation and user experience (PRD #45)
 - Web UI for MCP server interaction (PRD #109)
+- Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 
 
 ## How to Contribute
