@@ -106,3 +106,89 @@ Show dot-ai status
 ```
 
 You should see comprehensive system status including Kubernetes connectivity, vector database, and all available features.
+
+## Custom LLM Endpoint Configuration
+
+For self-hosted LLMs (Ollama, vLLM), air-gapped environments, or alternative SaaS providers, you can configure custom OpenAI-compatible endpoints.
+
+### In-Cluster Ollama Example
+
+Deploy with a self-hosted Ollama service running in the same Kubernetes cluster:
+
+**Create a `values.yaml` file:**
+```yaml
+ai:
+  provider: openai
+  model: "llama3.3:70b"  # Your self-hosted model
+  customEndpoint:
+    enabled: true
+    baseURL: "http://ollama-service.default.svc.cluster.local:11434/v1"
+
+secrets:
+  customLlm:
+    apiKey: "ollama"  # Ollama doesn't require authentication
+  openai:
+    apiKey: "your-openai-key"  # Still needed for vector embeddings
+```
+
+**Install with custom values:**
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --values values.yaml \
+  --create-namespace \
+  --namespace dot-ai \
+  --wait
+```
+
+### Other Self-Hosted Options
+
+**vLLM (Self-Hosted):**
+```yaml
+ai:
+  provider: openai
+  model: "meta-llama/Llama-3.1-70B-Instruct"
+  customEndpoint:
+    enabled: true
+    baseURL: "http://vllm-service:8000/v1"
+
+secrets:
+  customLlm:
+    apiKey: "dummy"  # vLLM may not require authentication
+  openai:
+    apiKey: "your-openai-key"
+```
+
+**LocalAI (Self-Hosted):**
+```yaml
+ai:
+  provider: openai
+  model: "your-model-name"
+  customEndpoint:
+    enabled: true
+    baseURL: "http://localai-service:8080/v1"
+
+secrets:
+  customLlm:
+    apiKey: "dummy"
+  openai:
+    apiKey: "your-openai-key"
+```
+
+### Important Notes
+
+⚠️ **Model Requirements (Untested):**
+- **Context window**: 200K+ tokens recommended
+- **Output tokens**: 8K+ tokens minimum
+- **Function calling**: Must support OpenAI-compatible function calling
+
+**Testing Status:**
+- ✅ Validated with OpenRouter (alternative SaaS provider)
+- ❌ Not yet tested with self-hosted Ollama, vLLM, or LocalAI
+- 🙏 We need your help testing! Report results in [issue #193](https://github.com/vfarcic/dot-ai/issues/193)
+
+**Notes:**
+- OpenAI API key is still required for vector embeddings (Qdrant operations)
+- If model requirements are too high for your setup, please open an issue
+- Configuration examples are based on common patterns but not yet validated
+
+→ See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variable alternatives and more details.
