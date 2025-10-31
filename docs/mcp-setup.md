@@ -313,6 +313,10 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 **VS Code (with MCP Extension)**
 - Add configuration to `settings.json` under `mcp.servers`
 
+**kagent (Kubernetes AI Agent Framework)**
+- Requires Kubernetes-deployed MCP server (HTTP transport)
+- See [kagent Setup Guide](setup/kagent-setup.md) for agent integration
+
 **Other MCP Clients**
 - Any client supporting the Model Context Protocol standard
 - Use the configuration pattern from your chosen setup method

@@ -192,3 +192,7 @@ secrets:
 - Configuration examples are based on common patterns but not yet validated
 
 → See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variable alternatives and more details.
+
+## Integration with kagent
+
+To connect [kagent](https://kagent.dev) agents to this MCP server, see [kagent Setup Guide](kagent-setup.md).
