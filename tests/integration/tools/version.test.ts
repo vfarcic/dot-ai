@@ -93,13 +93,15 @@ describe.concurrent('Version Tool Integration', () => {
               patternSearch: expect.stringMatching(/^(semantic\+keyword|keyword|semantic)$/), // Pattern - search capabilities
               capabilityScanning: 'ready', // Specific - capability scanning should be ready
               kubernetesAccess: 'connected', // Specific - should match kubernetes.connected
-              policyGeneration: 'ready', // Specific - policy generation should be ready
+              policyIntentManagement: 'ready', // Specific - policy intent management should be ready (available without Kyverno)
+              kyvernoPolicyGeneration: 'ready', // Specific - Kyverno policy generation should be ready (requires Kyverno)
               capabilities: expect.arrayContaining([
+                'policy-intent-management', // Available with Vector DB and embedding service
                 'capability-scanning',
                 'semantic-search',
                 'ai-recommendations',
                 'kubernetes-integration',
-                'policy-generation'
+                'kyverno-policy-generation' // Available only when Kyverno is installed
               ]) // Pattern - should contain all expected capabilities
             },
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/) // Pattern - ISO timestamp

@@ -671,15 +671,18 @@ export async function handleVersionTool(
             patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
             capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
             kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
-            policyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
+            policyIntentManagement: vectorDBStatus.connected && embeddingStatus.available ? 'ready' : 'not-ready',
+            kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
             capabilities: [
               vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
-              vectorDBStatus.connected && vectorDBStatus.collections.policies.exists ? 'policy-management' : null,
+              // Policy intent management is available if Vector DB and embedding service are ready
+              vectorDBStatus.connected && embeddingStatus.available ? 'policy-intent-management' : null,
               capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
               embeddingStatus.available ? 'semantic-search' : null,
               aiProviderStatus.connected ? 'ai-recommendations' : null,
               kubernetesStatus.connected ? 'kubernetes-integration' : null,
-              kyvernoStatus.policyGenerationReady ? 'policy-generation' : null
+              // Kyverno policy generation is only available when Kyverno is installed
+              kyvernoStatus.policyGenerationReady ? 'kyverno-policy-generation' : null
             ].filter(Boolean)
           },
           timestamp: new Date().toISOString()
