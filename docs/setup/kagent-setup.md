@@ -100,39 +100,6 @@ kubectl get agent devops-agent -n kagent
 
 Status should show `READY: True`.
 
-## Available Tools
-
-Once connected, your kagent agent has access to:
-
-- **recommend**: AI-powered Kubernetes resource recommendations and deployments
-- **version**: System health and diagnostics
-- **manageOrgData**: Manage organizational patterns, policies, and cluster capabilities
-- **remediate**: AI-powered troubleshooting and issue resolution
-- **projectSetup**: Repository governance file generation
-
-## Initial Capability Scan
-
-Before using the `recommend` tool, scan your cluster capabilities:
-
-```bash
-# Via kubectl with agent service
-kubectl port-forward -n kagent svc/devops-agent 8080:8080
-
-# Then call the agent
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {
-        "role": "user",
-        "content": "Scan the cluster capabilities using manageOrgData"
-      }
-    ]
-  }'
-```
-
-This is required once before making deployment recommendations.
-
 ## Troubleshooting
 
 **Agent pod not starting:**
@@ -149,14 +116,3 @@ This is required once before making deployment recommendations.
 - Ensure capability scan completed successfully
 - Check MCP server logs: `kubectl logs -n dot-ai deployment/dot-ai-mcp`
 - Verify network connectivity between kagent and dot-ai namespaces
-
-## Example: Deploy Application with kagent Agent
-
-Once configured, interact with your kagent agent to deploy applications:
-
-```
-User: Deploy a scalable web application with PostgreSQL database
-Agent: [Uses recommend tool to analyze cluster capabilities and provide deployment solutions]
-```
-
-The agent will leverage the DevOps AI Toolkit's AI-powered recommendation engine to provide optimal Kubernetes resource configurations based on your cluster's capabilities.
