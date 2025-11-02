@@ -6,7 +6,8 @@
     "teller@2.0.7",
     "kubernetes-helm@3.19.0",
     "nushell@0.106.1",
-    "kubectl@1.33.4"
+    "kubectl@1.33.4",
+    "awscli2@2.31.11"
   ],
   "shell": {
     "init_hook": [

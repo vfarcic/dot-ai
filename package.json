@@ -28,6 +28,7 @@
     "test:integration:grok-fast": "AI_PROVIDER=xai_fast AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:mistral": "AI_PROVIDER=mistral AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:deepseek": "AI_PROVIDER=deepseek AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:bedrock": "AI_PROVIDER=amazon_bedrock AI_MODEL=global.anthropic.claude-sonnet-4-20250514-v1:0 AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:custom-endpoint": "AI_PROVIDER=openai AI_PROVIDER_SDK=vercel DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "eval:comparative": "DEBUG_DOT_AI=true npx tsx src/evaluation/eval-runner.ts",
     "eval:platform-synthesis": "DEBUG_DOT_AI=true npx tsx src/evaluation/run-platform-synthesis.ts",
@@ -96,6 +97,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^3.0.50",
     "@ai-sdk/anthropic": "^2.0.23",
     "@ai-sdk/deepseek": "^1.0.23",
     "@ai-sdk/google": "^2.0.17",

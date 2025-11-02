@@ -17,7 +17,8 @@ export const CURRENT_MODELS = {
   mistral: 'mistral-large-latest',
   deepseek: 'deepseek-reasoner',
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
-  custom: 'gpt-5' // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
+  custom: 'gpt-5', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
+  amazon_bedrock: 'global.anthropic.claude-sonnet-4-20250514-v1:0' // PRD #175: Amazon Bedrock default model (overridden by AI_MODEL env var)
 } as const;
 
 /**

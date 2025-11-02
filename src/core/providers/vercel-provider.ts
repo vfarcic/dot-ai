@@ -12,6 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createMistral } from '@ai-sdk/mistral';
 import { createDeepSeek } from '@ai-sdk/deepseek';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import {
   AIProvider,
@@ -103,6 +104,16 @@ export class VercelProvider implements AIProvider {
         case 'deepseek':
           provider = createDeepSeek({
             apiKey: this.apiKey,
+          });
+          break;
+        case 'amazon_bedrock':
+          // PRD #175: Amazon Bedrock provider
+          // AWS SDK automatically uses credential chain:
+          // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+          // 2. ~/.aws/credentials file
+          // 3. IAM roles (EC2 instance profiles, ECS roles, EKS service accounts)
+          provider = createAmazonBedrock({
+            region: process.env.AWS_REGION || 'us-east-1',
           });
           break;
         case 'openrouter':
