@@ -133,6 +133,7 @@ Choose your AI model by setting the provider:
 | **Grok-4-Fast-Reasoning** | `xai_fast` | `XAI_API_KEY` |
 | **Mistral Large Latest** | `mistral` | `MISTRAL_API_KEY` |
 | **DeepSeek Reasoner** | `deepseek` | `DEEPSEEK_API_KEY` |
+| **Amazon Bedrock** | `amazon_bedrock` | AWS credentials ([see AWS credential setup](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)) |
 
 **Configuration Steps:**
 
@@ -162,6 +163,13 @@ MISTRAL_API_KEY=your_mistral_api_key_here
 
 # For DeepSeek model (DeepSeek Reasoner)
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# For Amazon Bedrock (uses AWS credential chain)
+# Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+AI_MODEL=anthropic.claude-sonnet-4-5-20250929-v1:0  # Bedrock model ID
 ```
 
 ### Embedding Provider Configuration
@@ -175,11 +183,13 @@ The DevOps AI Toolkit supports multiple embedding providers for enhanced semanti
 | **OpenAI** | `text-embedding-3-small` | 1536 | ✅ High quality, mature API | Higher cost | Production deployments |
 | **Google** | `text-embedding-004` | 768 | ✅ Cost-effective, good performance | Smaller dimensions | Development, cost-conscious setups |
 | **Mistral** | `mistral-embed` | 1024 | ✅ Balanced dimensions, cost-effective | Newer option | Alternative to OpenAI/Google |
+| **Amazon Bedrock** | `amazon.titan-embed-text-v2:0` | 1024 | ✅ AWS-native, uses AWS credits | Requires AWS account | AWS-centric deployments |
 
 **Usage Guidelines:**
 - **Production**: Use OpenAI for maximum semantic search quality
-- **Development**: Use Google for cost-effective development and testing  
+- **Development**: Use Google for cost-effective development and testing
 - **Alternative**: Use Mistral for balanced performance and dimensions
+- **AWS Users**: Use Amazon Bedrock to leverage AWS credits and stay within AWS ecosystem
 
 #### Provider Selection
 
@@ -190,6 +200,7 @@ Choose your embedding provider by setting the provider:
 | **OpenAI** | `openai` (default) | `OPENAI_API_KEY` | `text-embedding-3-small` |
 | **Google** | `google` | `GOOGLE_API_KEY` | `text-embedding-004` |
 | **Mistral** | `mistral` | `MISTRAL_API_KEY` | `mistral-embed` |
+| **Amazon Bedrock** | `amazon_bedrock` | AWS credentials | `amazon.titan-embed-text-v2:0` |
 
 **Configuration Steps:**
 
@@ -210,6 +221,13 @@ GOOGLE_API_KEY=your_google_api_key_here
 
 # For Mistral embeddings (alternative option)
 MISTRAL_API_KEY=your_mistral_api_key_here
+
+# For Amazon Bedrock embeddings (uses AWS credential chain)
+# Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+EMBEDDINGS_MODEL=amazon.titan-embed-text-v2:0  # Optional: defaults to Titan v2
 ```
 
 **Important Notes:**

@@ -102,7 +102,7 @@ if [ "$NO_CLUSTER" = false ]; then
     kind delete cluster --name dot-test 2>/dev/null || true
 
     log_info "Creating fresh Kind cluster..."
-    kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml || {
+    kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml --kubeconfig ./kubeconfig-test.yaml || {
         log_error "Failed to create Kind cluster"
         exit 1
     }

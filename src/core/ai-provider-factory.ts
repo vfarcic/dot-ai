@@ -130,23 +130,34 @@ export class AIProviderFactory {
     // Get API key for the provider
     // PRD #194: Support CUSTOM_LLM_API_KEY for custom LLM endpoints
     // Priority: 1. CUSTOM_LLM_API_KEY, 2. Provider-specific key (e.g., OPENAI_API_KEY)
-    const apiKeyEnvVar = PROVIDER_ENV_KEYS[providerType];
-    if (!apiKeyEnvVar) {
-      process.stderr.write(
-        `WARNING: No API key environment variable defined for provider: ${providerType}. ` +
-        `Falling back to NoOpProvider.\n`
-      );
-      return new NoOpAIProvider();
-    }
+    // PRD #175: Amazon Bedrock uses AWS SDK credential chain, not API keys
+    let apiKey: string;
 
-    const apiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
-    if (!apiKey) {
-      process.stderr.write(
-        `INFO: ${apiKeyEnvVar} not configured. ` +
-        `AI features will be unavailable. ` +
-        `Tools that don't require AI (prompts, project-setup) will still work.\n`
-      );
-      return new NoOpAIProvider();
+    // Special handling for Amazon Bedrock - AWS SDK handles credentials automatically
+    if (providerType === 'amazon_bedrock') {
+      // Use dummy API key for Bedrock - AWS SDK will handle actual authentication
+      // AWS credentials checked at runtime by AWS SDK (env vars, ~/.aws/credentials, IAM roles)
+      apiKey = 'bedrock-uses-aws-credentials';
+    } else {
+      const apiKeyEnvVar = PROVIDER_ENV_KEYS[providerType];
+      if (!apiKeyEnvVar) {
+        process.stderr.write(
+          `WARNING: No API key environment variable defined for provider: ${providerType}. ` +
+          `Falling back to NoOpProvider.\n`
+        );
+        return new NoOpAIProvider();
+      }
+
+      const resolvedApiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
+      if (!resolvedApiKey) {
+        process.stderr.write(
+          `INFO: ${apiKeyEnvVar} not configured. ` +
+          `AI features will be unavailable. ` +
+          `Tools that don't require AI (prompts, project-setup) will still work.\n`
+        );
+        return new NoOpAIProvider();
+      }
+      apiKey = resolvedApiKey;
     }
 
     // Get optional model override
@@ -159,9 +170,11 @@ export class AIProviderFactory {
     // Use CUSTOM_LLM_BASE_URL for LLM endpoints (separate from OPENAI_BASE_URL used for embeddings)
     const baseURL = process.env.CUSTOM_LLM_BASE_URL;
 
+    // Determine effective provider type based on endpoint configuration
+    let effectiveProviderType = providerType;
+
     // PRD #194: Detect OpenRouter and override provider type
     // OpenRouter requires dedicated provider for proper tool calling support
-    let effectiveProviderType = providerType;
     if (baseURL && baseURL.includes('openrouter.ai')) {
       effectiveProviderType = 'openrouter';
     } else if (baseURL) {
