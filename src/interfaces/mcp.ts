@@ -379,6 +379,8 @@ export class MCPServer {
         // Check if this is a REST API request
         if (this.restApiRouter.isApiRequest(req.url || '')) {
           this.logger.debug('Routing to REST API handler', { url: req.url });
+          // Mark span as REST API request
+          span.setAttribute('request.type', 'rest-api');
           try {
             await this.restApiRouter.handleRequest(req, res, body);
             endSpan(res.statusCode || 200);
@@ -395,6 +397,9 @@ export class MCPServer {
         }
 
         // Handle MCP protocol requests using the transport
+        // Mark span as MCP protocol request
+        span.setAttribute('request.type', 'mcp-protocol');
+        span.updateName('MCP ' + (req.url || '/'));
         try {
           await this.httpTransport!.handleRequest(req, res, body);
           endSpan(res.statusCode || 200);

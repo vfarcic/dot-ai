@@ -6,9 +6,12 @@ source scripts/crossplane.nu
 source scripts/ingress.nu
 source scripts/mcp.nu
 source scripts/anthropic.nu
+source scripts/openai.nu
 source scripts/kyverno.nu
 source scripts/atlas.nu
 source scripts/toolhive.nu
+source scripts/jaeger.nu
+source scripts/dot-ai.nu
 
 def main [] {}
 
@@ -19,10 +22,11 @@ def "main setup" [
     --dot-ai-kubernetes-enabled = false,
     --kyverno-enabled = true,
     --atlas-enabled = true,
-    --toolhive-enabled = true,
+    --toolhive-enabled = false,
     --crossplane-enabled = true,
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
-    --crossplane-db-config = false   # Whether to apply DOT SQL Crossplane Configuration
+    --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
+    --jaeger-enabled = false,
 ] {
     
     rm --force .env
@@ -30,19 +34,11 @@ def "main setup" [
     # let provider = main get provider --providers ["azure" "google"]
 
     let anthropic_data = main get anthropic
-
-    mut openai_key = ""
-    if "OPENAI_API_KEY" in $env {
-        $openai_key = $env.OPENAI_API_KEY
-    } else {
-        let value = input $"(ansi green_bold)Enter OpenAI API key:(ansi reset) "
-        $openai_key = $value
-    }
+    let openai_data = main get openai
 
     let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
     let dot_ai_image = $"ghcr.io/vfarcic/dot-ai:($dot_ai_tag)"
 
-    $"export OPENAI_API_KEY=($openai_key)\n" | save --append .env
     $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
     $"export DOT_AI_IMAGE=($dot_ai_image)\n" | save --append .env
 
@@ -88,7 +84,7 @@ def "main setup" [
             helm install dot-ai-mcp
                 $"oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:($dot_ai_tag)"
                 --set $"secrets.anthropic.apiKey=($anthropic_data.token)"
-                --set $"secrets.openai.apiKey=($openai_key)"
+                --set $"secrets.openai.apiKey=($openai_data.token)"
                 --set ingress.enabled=true
                 --set ingress.host="dot-ai.127.0.0.1.nip.io"
                 --create-namespace
@@ -104,6 +100,18 @@ def "main setup" [
                 --wait
         )
     }
+
+    if $jaeger_enabled {
+        main apply jaeger "nginx" "jaeger.127.0.0.1.nip.io"
+    }
+
+    if $dot_ai_kubernetes_enabled {(
+        main apply dot-ai
+            --anthropic-api-key $anthropic_data.token
+            --openai-api-key $openai_data.token
+            --enable-tracing true
+            --version $dot_ai_tag
+    )}
 
     main print source
 
