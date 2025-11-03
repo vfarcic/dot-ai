@@ -49,7 +49,7 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
           proc.on('close', (code: number) => {
             if (code !== 0) {
               reject(new Error(`kubectl command failed: ${stderr || stdout}`));
-            } else if (stderr && !stderr.includes('Warning')) {
+            } else if (stderr && !stderr.includes('Warning') && !stderr.includes('No resources found')) {
               reject(new Error(`kubectl command failed: ${stderr}`));
             } else {
               resolve(stdout.trim());
@@ -67,7 +67,7 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
         timeout,
         maxBuffer: 100 * 1024 * 1024  // 100MB buffer for large clusters with 1000+ CRDs
       });
-      if (stderr && !stderr.includes('Warning')) {
+      if (stderr && !stderr.includes('Warning') && !stderr.includes('No resources found')) {
         throw new Error(`kubectl command failed: ${stderr}`);
       }
       return stdout.trim();
