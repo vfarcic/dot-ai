@@ -6,6 +6,12 @@ Generated: 2024-01-09
 
 This report analyzes 10 AI models across 5 types of AI agent interactions to provide comprehensive platform-wide insights and recommendations. The evaluation reveals clear performance tiers, with Anthropic's Claude models dominating across nearly all categories, while budget options like Grok-4-Fast-Reasoning and Gemini-2.5-Flash offer compelling value propositions. Critical reliability issues were identified in GPT-5-Pro and Mistral-Large-Latest, making them unsuitable for production use.
 
+## AI Model Comparison Video
+
+[![AI Model Comparison for DevOps AI Toolkit](https://img.youtube.com/vi/r84kQ5IMIQM/maxresdefault.jpg)](https://youtu.be/r84kQ5IMIQM)
+
+This video demonstrates the performance comparison of different AI models when used with the DevOps AI Toolkit. See real-world examples of how various models handle Kubernetes deployment recommendations, issue remediation, and capability analysis workflows.
+
 ## Evaluation Scenarios
 
 ### Tool Summaries
