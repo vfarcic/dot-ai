@@ -76,17 +76,17 @@ ai:
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
   customEndpoint:
     enabled: false                  # Enable custom endpoint
-    baseURL: ""                     # Custom LLM endpoint URL (e.g., "http://ollama-service:11434/v1")
-    embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint)
+    baseURL: ""                     # Custom LLM endpoint URL - MUST include /v1 suffix for OpenAI-compatible APIs (e.g., "http://ollama-service:11434/v1")
+    embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint, also requires /v1 suffix)
 
   # Examples (commented out):
-  # Example 1: Ollama (self-hosted)
+  # Example 1: Ollama (self-hosted) - IMPORTANT: Include /v1 suffix
   # ai:
   #   provider: openai
   #   model: "llama3.1:70b"
   #   customEndpoint:
   #     enabled: true
-  #     baseURL: "http://ollama-service:11434/v1"
+  #     baseURL: "http://ollama-service:11434/v1"  # /v1 suffix is REQUIRED
   #
   # Example 2: Azure OpenAI (SaaS)
   # ai:
@@ -96,15 +96,17 @@ ai:
   #     enabled: true
   #     baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
   #
-  # Example 3: vLLM (self-hosted)
+  # Example 3: vLLM (self-hosted) - IMPORTANT: Include /v1 suffix
   # ai:
   #   provider: openai
   #   model: "meta-llama/Llama-3.1-70B-Instruct"
   #   customEndpoint:
   #     enabled: true
-  #     baseURL: "http://vllm-service:8000/v1"
+  #     baseURL: "http://vllm-service:8000/v1"  # /v1 suffix is REQUIRED
   #
-  # Note: Custom endpoints must support OpenAI-compatible API and models must
+  # Note: OpenAI-compatible endpoints (Ollama, vLLM, LocalAI) REQUIRE the /v1 suffix.
+  # Without it, API calls will fail with 404 Not Found errors.
+  # Custom endpoints must support OpenAI-compatible API and models must
   # support 8K+ output tokens for reliable YAML generation.
 
 # Additional environment variables (optional)

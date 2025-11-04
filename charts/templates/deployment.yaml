@@ -43,10 +43,8 @@ spec:
 {{- if .Values.ai.customEndpoint.enabled }}
         - name: CUSTOM_LLM_BASE_URL
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}
-{{- end }}
-{{- if .Values.ai.customEndpoint.embeddingsBaseURL }}
         - name: CUSTOM_EMBEDDINGS_BASE_URL
-          value: {{ .Values.ai.customEndpoint.embeddingsBaseURL | quote }}
+          value: {{ .Values.ai.customEndpoint.embeddingsBaseURL | default .Values.ai.customEndpoint.baseURL | quote }}
 {{- end }}
         # AI Provider API Keys
         - name: ANTHROPIC_API_KEY
