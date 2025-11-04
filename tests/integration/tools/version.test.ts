@@ -10,9 +10,26 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import packageJson from '../../../package.json';
+import { CURRENT_MODELS } from '../../../dist/core/model-config.js';
 
 describe.concurrent('Version Tool Integration', () => {
   const integrationTest = new IntegrationTest();
+
+  // Get expected provider and model based on test environment configuration
+  const aiProvider = process.env.AI_PROVIDER || 'anthropic';
+  const aiProviderSdk = process.env.AI_PROVIDER_SDK || 'native';
+  const expectedModelName = CURRENT_MODELS[aiProvider as keyof typeof CURRENT_MODELS];
+
+  // When using Vercel SDK, providerType is 'vercel', otherwise it's the base provider type
+  const expectedProviderType = aiProviderSdk === 'vercel' ? 'vercel'
+    : aiProvider.startsWith('anthropic') ? 'anthropic'
+    : aiProvider.startsWith('openai') ? 'openai'
+    : aiProvider.startsWith('google') ? 'google'
+    : aiProvider.startsWith('xai') ? 'xai'
+    : aiProvider === 'mistral' ? 'mistral'
+    : aiProvider === 'deepseek' ? 'deepseek'
+    : aiProvider === 'amazon_bedrock' ? 'amazon_bedrock'
+    : aiProvider;
 
   beforeAll(() => {
     // Verify we're using the test cluster
@@ -62,8 +79,8 @@ describe.concurrent('Version Tool Integration', () => {
               aiProvider: {
                 connected: true, // Specific - should be connected with API key
                 keyConfigured: true, // Specific - API key should be configured
-                providerType: expect.any(String), // Generic - accepts any configured provider
-                modelName: expect.any(String) // Generic - accepts any configured model
+                providerType: expectedProviderType, // Specific - validates against AI_PROVIDER env var
+                modelName: expectedModelName // Specific - validates against AI_PROVIDER env var
               },
               kubernetes: {
                 connected: true, // Specific - should be connected to our test cluster

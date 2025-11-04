@@ -27,11 +27,13 @@ import { trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 export class AnthropicProvider implements AIProvider {
   private client: Anthropic;
   private apiKey: string;
+  private providerType: string;
   private model: string;
   private debugMode: boolean;
 
   constructor(config: AIProviderConfig) {
     this.apiKey = config.apiKey;
+    this.providerType = config.provider; // Store 'anthropic' or 'anthropic_haiku'
     this.model = config.model || this.getDefaultModel();
     this.debugMode = config.debugMode ?? process.env.DEBUG_DOT_AI === 'true';
 
@@ -59,7 +61,7 @@ export class AnthropicProvider implements AIProvider {
   }
 
   getDefaultModel(): string {
-    return getCurrentModel('anthropic');
+    return getCurrentModel(this.providerType as keyof typeof import('../model-config').CURRENT_MODELS);
   }
 
   getModelName(): string {
