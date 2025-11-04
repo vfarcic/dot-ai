@@ -204,13 +204,39 @@ async function testCollectionStatus(
 
 /**
  * Test embedding service status
+ * Performs actual embedding generation test to verify service works
  */
 async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
   const embeddingService = new EmbeddingService();
   const status = embeddingService.getStatus();
-  
+
+  // If service reports available, actually test it to verify embeddings work
+  if (status.available) {
+    try {
+      // Test embedding generation with a simple query
+      await embeddingService.generateEmbedding('test');
+
+      return {
+        available: true,
+        provider: status.provider,
+        model: status.model,
+        dimensions: status.dimensions
+      };
+    } catch (error) {
+      // Embedding service initialized but doesn't actually work
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        available: false,
+        provider: status.provider,
+        model: status.model,
+        dimensions: status.dimensions,
+        reason: `Embedding generation test failed: ${errorMessage}`
+      };
+    }
+  }
+
   return {
-    available: status.available,
+    available: false,
     provider: status.provider,
     model: status.model,
     dimensions: status.dimensions,
@@ -554,12 +580,56 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
       modelName = undefined;
     }
 
+    // Capture detailed error information for debugging
+    let errorMessage: string;
+    if (error instanceof Error) {
+      errorMessage = error.message;
+
+      // If there are additional properties on the error object, include them
+      const errorObj = error as any;
+      const details: string[] = [];
+
+      if (errorObj.cause) {
+        details.push(`cause: ${String(errorObj.cause)}`);
+      }
+      if (errorObj.url) {
+        details.push(`url: ${errorObj.url}`);
+      }
+      if (errorObj.statusCode || errorObj.status) {
+        details.push(`status: ${errorObj.statusCode || errorObj.status}`);
+      }
+      if (errorObj.statusText) {
+        details.push(`statusText: ${errorObj.statusText}`);
+      }
+      if (errorObj.responseBody) {
+        try {
+          details.push(`response: ${JSON.stringify(errorObj.responseBody)}`);
+        } catch {
+          details.push(`response: ${String(errorObj.responseBody)}`);
+        }
+      }
+
+      // Add stack trace first line for context (shows where error originated)
+      if (error.stack) {
+        const stackLines = error.stack.split('\n');
+        if (stackLines.length > 1) {
+          details.push(`at: ${stackLines[1].trim()}`);
+        }
+      }
+
+      if (details.length > 0) {
+        errorMessage += ` (${details.join(', ')})`;
+      }
+    } else {
+      errorMessage = String(error);
+    }
+
     return {
       connected: false,
       keyConfigured: false,
       providerType,
       modelName,
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage
     };
   }
 }
