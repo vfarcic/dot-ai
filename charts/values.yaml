@@ -78,6 +78,8 @@ ai:
     enabled: false                  # Enable custom endpoint
     baseURL: ""                     # Custom LLM endpoint URL - MUST include /v1 suffix for OpenAI-compatible APIs (e.g., "http://ollama-service:11434/v1")
     embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint, also requires /v1 suffix)
+    embeddingsModel: ""             # Optional: custom embeddings model name (e.g., "nomic-embed-text" for Ollama, defaults to "text-embedding-3-small" for OpenAI)
+    embeddingsDimensions: ""        # Optional: custom embeddings dimensions (e.g., "768" for nomic-embed-text, defaults to "1536" for OpenAI)
 
   # Examples (commented out):
   # Example 1: Ollama (self-hosted) - IMPORTANT: Include /v1 suffix

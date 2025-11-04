@@ -45,6 +45,14 @@ spec:
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}
         - name: CUSTOM_EMBEDDINGS_BASE_URL
           value: {{ .Values.ai.customEndpoint.embeddingsBaseURL | default .Values.ai.customEndpoint.baseURL | quote }}
+{{- if .Values.ai.customEndpoint.embeddingsModel }}
+        - name: EMBEDDINGS_MODEL
+          value: {{ .Values.ai.customEndpoint.embeddingsModel | quote }}
+{{- end }}
+{{- if .Values.ai.customEndpoint.embeddingsDimensions }}
+        - name: EMBEDDINGS_DIMENSIONS
+          value: {{ .Values.ai.customEndpoint.embeddingsDimensions | quote }}
+{{- end }}
 {{- end }}
         # AI Provider API Keys
         - name: ANTHROPIC_API_KEY

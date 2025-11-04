@@ -47,8 +47,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
     switch (this.providerType) {
       case 'openai':
         this.apiKey = config.apiKey || process.env.CUSTOM_EMBEDDINGS_API_KEY || process.env.OPENAI_API_KEY || '';
-        this.model = config.model || 'text-embedding-3-small';
-        this.dimensions = config.dimensions || 1536;
+        this.model = config.model || process.env.EMBEDDINGS_MODEL || 'text-embedding-3-small';
+        this.dimensions = config.dimensions || (process.env.EMBEDDINGS_DIMENSIONS ? parseInt(process.env.EMBEDDINGS_DIMENSIONS, 10) : 1536);
         break;
       case 'google':
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';

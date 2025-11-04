@@ -250,6 +250,8 @@ You can configure custom OpenAI-compatible endpoints for AI models. This enables
 | `CUSTOM_LLM_API_KEY` | API key for custom AI endpoint |
 | `CUSTOM_EMBEDDINGS_BASE_URL` | Custom embeddings endpoint URL (OpenAI-compatible) |
 | `CUSTOM_EMBEDDINGS_API_KEY` | API key for custom embeddings endpoint |
+| `EMBEDDINGS_MODEL` | Custom embeddings model name (defaults to `text-embedding-3-small`) |
+| `EMBEDDINGS_DIMENSIONS` | Custom embeddings dimensions (defaults to `1536`) |
 
 #### Example: OpenRouter
 
