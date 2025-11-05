@@ -60,7 +60,6 @@ def "main setup" [
     if $crossplane_enabled {(
         main apply crossplane --app-config true --db-config true
             --provider $crossplane_provider
-            --db-config $crossplane_db_config
     )}
 
     kubectl create namespace a-team

@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
       - name: stress
-        image: polinux/stress
+        image: polinux/stress:1.0.4
         command: ["stress"]
         args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
         resources:
@@ -292,7 +292,7 @@ metadata:
 spec:
   containers:
   - name: stress
-    image: polinux/stress
+    image: polinux/stress:1.0.4
     command: ["stress"]
     args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
     resources:
@@ -385,7 +385,7 @@ EOF`);
       // Should have at least one running stress workload pod
       const runningPods = afterPodsData.items.filter((pod: any) => 
         pod.status.phase === 'Running' &&
-        pod.spec.containers.some((container: any) => container.image === 'polinux/stress')
+        pod.spec.containers.some((container: any) => container.image === 'polinux/stress:1.0.4')
       );
       expect(runningPods.length).toBeGreaterThan(0);
 
