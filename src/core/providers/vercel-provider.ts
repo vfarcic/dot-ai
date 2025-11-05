@@ -135,7 +135,9 @@ export class VercelProvider implements AIProvider {
             apiKey: this.apiKey,
             baseURL: this.baseURL,
           });
-          break;
+          // Use .chat() explicitly for custom endpoints to use /chat/completions instead of /responses
+          this.modelInstance = provider.chat(this.model);
+          return; // Early return - model instance already set
         default:
           throw new Error(
             `Cannot initialize model for provider: ${this.providerType}`
