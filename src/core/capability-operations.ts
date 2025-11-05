@@ -67,6 +67,9 @@ export async function handleCapabilityList(
           return {
             id: (cap as any).id ?? CapabilityInferenceEngine.generateCapabilityId(cap.resourceName),
             resourceName: cap.resourceName,
+            apiVersion: cap.apiVersion,
+            version: cap.version,
+            group: cap.group,
             capabilities: cap.capabilities,
             description: desc.length > 100 ? desc.slice(0, 100) + '...' : desc,
             complexity: cap.complexity,

@@ -131,8 +131,8 @@ if [ "$NO_CLUSTER" = false ]; then
     # Remove existing container if it exists
     docker rm -f qdrant-test 2>/dev/null || true
 
-    # Create fresh container from test image
-    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
+    # Create fresh container from latest image with apiVersion fix
+    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:latest || {
         log_error "Failed to start Qdrant container"
         exit 1
     }

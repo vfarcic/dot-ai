@@ -18,20 +18,23 @@ import { loadPrompt } from './shared-prompt-loader';
 export interface ResourceCapability {
   // Resource identification
   resourceName: string;      // "resourcegroups.azure.upbound.io"
-  
+  apiVersion?: string;       // "azure.upbound.io/v1beta1" - full apiVersion from kubectl
+  version?: string;          // "v1beta1" - just the version part
+  group?: string;            // "azure.upbound.io" - API group
+
   // Capability information (AI-inferred)
   capabilities: string[];    // ["postgresql", "mysql", "database", "multi-cloud"]
-  providers: string[];       // ["azure", "gcp", "aws"] 
+  providers: string[];       // ["azure", "gcp", "aws"]
   abstractions: string[];    // ["high-availability", "persistent-storage", "backup"]
   complexity: 'low' | 'medium' | 'high';  // User experience complexity
-  
+
   // Metadata for AI understanding
   description: string;       // "Managed database solution supporting multiple engines"
   useCase: string;          // "Simple database deployment without infrastructure complexity"
-  
+
   // Vector embedding for semantic search (generated separately)
   embedding?: number[];      // Generated from capability description
-  
+
   // Analysis metadata
   analyzedAt: string;        // ISO timestamp
   confidence: number;        // 0-1 AI confidence score
@@ -54,28 +57,39 @@ export class CapabilityInferenceEngine {
 
   /**
    * Main entry point: analyze resource to infer complete capabilities
-   * 
+   *
    * @param resourceName - Full resource name (e.g., "resourcegroups.azure.upbound.io")
+   * @param resourceDefinition - kubectl explain output for the resource
+   * @param interaction_id - Optional interaction ID for tracing
+   * @param apiVersion - Full apiVersion from kubectl (e.g., "apps/v1", "azure.upbound.io/v1beta1")
+   * @param version - Just the version part (e.g., "v1beta1")
+   * @param group - API group (e.g., "azure.upbound.io")
    * @throws Error if capability inference fails for any reason
    */
   async inferCapabilities(
     resourceName: string,
     resourceDefinition?: string,
-    interaction_id?: string
+    interaction_id?: string,
+    apiVersion?: string,
+    version?: string,
+    group?: string
   ): Promise<ResourceCapability> {
     const requestId = `capability-inference-${Date.now()}`;
-    
+
     this.logger.info('Starting capability inference', {
       requestId,
       resource: resourceName,
-      hasDefinition: !!resourceDefinition
+      hasDefinition: !!resourceDefinition,
+      apiVersion,
+      version,
+      group
     });
 
     // Use AI to analyze all available information
     const aiResult = await this.inferWithAI(resourceName, resourceDefinition, requestId, interaction_id);
 
     // Convert AI result to final capability structure
-    const finalCapability = this.buildResourceCapability(resourceName, aiResult);
+    const finalCapability = this.buildResourceCapability(resourceName, aiResult, apiVersion, version, group);
 
     this.logger.info('Capability inference completed', {
       requestId,
@@ -83,7 +97,9 @@ export class CapabilityInferenceEngine {
       capabilitiesFound: finalCapability.capabilities.length,
       providersFound: finalCapability.providers.length,
       complexity: finalCapability.complexity,
-      confidence: finalCapability.confidence
+      confidence: finalCapability.confidence,
+      apiVersion,
+      version
     });
 
     return finalCapability;
@@ -216,10 +232,16 @@ export class CapabilityInferenceEngine {
       description: string;
       useCase: string;
       confidence: number;
-    }
+    },
+    apiVersion?: string,
+    version?: string,
+    group?: string
   ): ResourceCapability {
     return {
       resourceName,
+      apiVersion,
+      version,
+      group,
       capabilities: aiResult.capabilities,
       providers: aiResult.providers,
       abstractions: aiResult.abstractions,

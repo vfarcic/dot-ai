@@ -8,19 +8,10 @@
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
-import { CapabilityInferenceEngine } from './capabilities';
+import { CapabilityInferenceEngine, ResourceCapability } from './capabilities';
 
-export interface ResourceCapability {
-  resourceName: string;
-  capabilities: string[];
-  providers: string[];
-  abstractions: string[];
-  complexity: 'low' | 'medium' | 'high';
-  description: string;
-  useCase: string;
-  confidence: number;
-  analyzedAt: string;
-}
+// Re-export for backward compatibility
+export type { ResourceCapability };
 
 export interface CapabilitySearchOptions extends BaseSearchOptions {
   complexityFilter?: 'low' | 'medium' | 'high';
@@ -64,6 +55,9 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   protected createPayload(capability: ResourceCapability): Record<string, any> {
     return {
       resourceName: capability.resourceName,
+      apiVersion: capability.apiVersion,
+      version: capability.version,
+      group: capability.group,
       capabilities: capability.capabilities,
       providers: capability.providers,
       abstractions: capability.abstractions,
@@ -81,6 +75,9 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   protected payloadToData(payload: Record<string, any>): ResourceCapability {
     return {
       resourceName: payload.resourceName,
+      apiVersion: payload.apiVersion,
+      version: payload.version,
+      group: payload.group,
       capabilities: payload.capabilities || [],
       providers: payload.providers || [],
       abstractions: payload.abstractions || [],

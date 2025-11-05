@@ -44,6 +44,7 @@ interface CapabilityScanSession {
   progress?: any; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
+  resourceMetadata?: Record<string, { apiVersion: string; version: string; group: string }>; // Store apiVersion info
 }
 
 /**
@@ -318,31 +319,64 @@ export async function handleScanning(
         // Discover all available resources
         const resourceMap = await discovery.discoverResources();
         const allResources = [...resourceMap.resources, ...resourceMap.custom];
-        
-        // Extract resource names for capability analysis
-        const discoveredResourceNames = allResources.map(resource => {
+
+        // Extract resource names AND preserve metadata for capability analysis
+        const discoveredResourceNames: string[] = [];
+        const resourceMetadata: Record<string, { apiVersion: string; version: string; group: string }> = {};
+
+        for (const resource of allResources) {
+          let resourceName = 'unknown-resource';
+
           // For CRDs (custom resources), prioritize full name format
           if (resource.name && resource.name.includes('.')) {
-            return resource.name;
+            resourceName = resource.name;
           }
           // For standard resources, use kind
-          if (resource.kind) {
-            return resource.kind;
+          else if (resource.kind) {
+            resourceName = resource.kind;
           }
           // Fallback to name if no kind
-          if (resource.name) {
-            return resource.name;
+          else if (resource.name) {
+            resourceName = resource.name;
           }
-          return 'unknown-resource';
-        }).filter(name => name !== 'unknown-resource');
-        
+
+          if (resourceName !== 'unknown-resource') {
+            discoveredResourceNames.push(resourceName);
+
+            // Store apiVersion metadata for later use
+            // Handle both EnhancedResource (has apiVersion) and EnhancedCRD (has group+version)
+            let apiVersion = '';
+            let version = '';
+            let group = '';
+
+            if ('apiVersion' in resource) {
+              // EnhancedResource type
+              apiVersion = resource.apiVersion || '';
+              version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
+              group = resource.group || '';
+            } else {
+              // EnhancedCRD type - construct apiVersion from group and version
+              group = resource.group || '';
+              version = resource.version || '';
+              apiVersion = group ? `${group}/${version}` : version;
+            }
+
+            resourceMetadata[resourceName] = {
+              apiVersion,
+              version,
+              group
+            };
+          }
+        }
+
         logger.info('Discovered cluster resources for capability scanning', {
           requestId,
           sessionId: session.sessionId,
           totalDiscovered: discoveredResourceNames.length,
-          sampleResources: discoveredResourceNames.slice(0, 5)
+          sampleResources: discoveredResourceNames.slice(0, 5),
+          metadataPreserved: Object.keys(resourceMetadata).length
         });
-        
+
         if (discoveredResourceNames.length === 0) {
           return {
             success: false,
@@ -355,10 +389,11 @@ export async function handleScanning(
             }
           };
         }
-        
-        // Update session with discovered resources and start batch processing
+
+        // Update session with discovered resources AND metadata
         transitionCapabilitySession(session, 'scanning', {
           selectedResources: discoveredResourceNames,
+          resourceMetadata: resourceMetadata,
           currentResourceIndex: 0
         }, args);
 
@@ -513,7 +548,7 @@ export async function handleScanning(
         
         // Update progress before processing
         updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
-        
+
         try {
           logger.info(`Processing resource ${i + 1}/${totalResources}`, {
             requestId,
@@ -521,8 +556,33 @@ export async function handleScanning(
             resource: currentResource,
             percentage: Math.round(((i + 1) / totalResources) * 100)
           });
-          
-          const capability = await engine.inferCapabilities(currentResource, currentResourceDefinition, args.interaction_id);
+
+          // Get metadata for this resource - first try session metadata, then parse from kubectl explain
+          let metadata = session.resourceMetadata?.[currentResource];
+
+          // If no session metadata and we have resource definition, parse from kubectl explain output
+          if (!metadata && currentResourceDefinition) {
+            const lines = currentResourceDefinition.split('\n');
+            const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
+            const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
+
+            if (groupLine && versionLine) {
+              const group = groupLine.replace('GROUP:', '').trim();
+              const version = versionLine.replace('VERSION:', '').trim();
+              const apiVersion = group ? `${group}/${version}` : version;
+
+              metadata = { apiVersion, version, group };
+            }
+          }
+
+          const capability = await engine.inferCapabilities(
+            currentResource,
+            currentResourceDefinition,
+            args.interaction_id,
+            metadata?.apiVersion,
+            metadata?.version,
+            metadata?.group
+          );
           const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
           
           // Store capability in Vector DB

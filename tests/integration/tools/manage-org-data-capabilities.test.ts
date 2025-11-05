@@ -178,13 +178,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(specificResponse.data.result.workflow.step).toBe('resource-specification');
       expect(specificResponse.data.result.workflow.question).toContain('resource');
 
-      // Continue with specific resources (Deployment, Service) - use resourceList parameter
+      // Continue with specific resources (Deployment, Service, SQL) - use resourceList parameter
       const resourceSpecResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
         sessionId,
         step: 'resource-specification',
-        resourceList: 'Deployment.apps,Service',
+        resourceList: 'Deployment.apps,Service,SQL.devopstoolkit.live',
         interaction_id: 'resource_specification'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
@@ -193,7 +193,41 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(resourceSpecResponse.data.result.step).toBe('complete');
       expect(resourceSpecResponse.data.result.mode).toBe('auto');
       expect(resourceSpecResponse.data.result.summary).toBeDefined();
-      expect(resourceSpecResponse.data.result.summary.totalScanned).toBeGreaterThanOrEqual(2);
+      expect(resourceSpecResponse.data.result.summary.totalScanned).toBeGreaterThanOrEqual(3);
+
+      // Verify scanned capabilities have correct apiVersion
+      const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 20,
+        interaction_id: 'verify_scanned_resources'
+      });
+
+      const capabilities = listResponse.data.result.data.capabilities;
+      const deployment = capabilities.find((c: any) => c.resourceName === 'Deployment');
+      const service = capabilities.find((c: any) => c.resourceName === 'Service');
+      const sql = capabilities.find((c: any) => c.resourceName === 'sqls.devopstoolkit.live');
+
+      // Validate Deployment has correct apiVersion (apps/v1)
+      if (deployment) {
+        expect(deployment.apiVersion).toBe('apps/v1');
+        expect(deployment.version).toBe('v1');
+        expect(deployment.group).toBe('apps');
+      }
+
+      // Validate Service has correct apiVersion (v1 - core resource)
+      if (service) {
+        expect(service.apiVersion).toBe('v1');
+        expect(service.version).toBe('v1');
+        expect(service.group).toBe('');
+      }
+
+      // Validate SQL CRD has correct apiVersion (devopstoolkit.live/v1beta1)
+      if (sql) {
+        expect(sql.apiVersion).toBe('devopstoolkit.live/v1beta1');
+        expect(sql.version).toBe('v1beta1');
+        expect(sql.group).toBe('devopstoolkit.live');
+      }
 
       // Note: No cleanup to avoid race conditions with parallel tests
     }, 300000); // 5 minute timeout for specific resource scan
@@ -333,7 +367,10 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
                 expect.objectContaining({
                   id: expect.any(String),
                   resourceName: expect.any(String),
-                  description: expect.any(String)
+                  description: expect.any(String),
+                  apiVersion: expect.any(String),
+                  version: expect.any(String),
+                  group: expect.any(String)
                 })
               ]),
               totalCount: expect.any(Number),
@@ -350,6 +387,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       expect(listResponse).toMatchObject(expectedListResponse);
       expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
+
+      // Validate that all capabilities have version information
+      for (const capability of listResponse.data.result.data.capabilities) {
+        expect(capability.apiVersion).toBeDefined();
+        expect(capability.version).toBeDefined();
+        expect(capability.group).toBeDefined();
+      }
     });
 
     test('should get specific capability by ID', async () => {
@@ -382,13 +426,21 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
                 id: capabilityId,
                 resourceName: expect.any(String),
                 description: expect.any(String),
-                capabilities: expect.any(Array)
+                capabilities: expect.any(Array),
+                apiVersion: expect.any(String),
+                version: expect.any(String),
+                group: expect.any(String)
               })
             }
           }
         };
 
         expect(getResponse).toMatchObject(expectedGetResponse);
+
+        // Validate version information is present
+        expect(getResponse.data.result.data.apiVersion).toBeDefined();
+        expect(getResponse.data.result.data.version).toBeDefined();
+        expect(getResponse.data.result.data.group).toBeDefined();
       }
     });
 

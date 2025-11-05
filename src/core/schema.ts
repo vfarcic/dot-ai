@@ -484,7 +484,9 @@ export class ResourceRecommender {
       // Create normalized resource objects from capability matches
       const capabilityFilteredResources = relevantCapabilities.map(cap => ({
         kind: this.extractKindFromResourceName(cap.data.resourceName),
-        group: this.extractGroupFromResourceName(cap.data.resourceName),
+        group: cap.data.group || this.extractGroupFromResourceName(cap.data.resourceName),
+        apiVersion: cap.data.apiVersion, // Use stored apiVersion from capability scan
+        version: cap.data.version, // Just the version part (e.g., "v1beta1")
         resourceName: cap.data.resourceName,
         capabilities: cap.data // Include capability data for AI decision-making (includes namespaced, etc.)
       }));
@@ -510,10 +512,12 @@ export class ResourceRecommender {
    * Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking)
    */
   private async assembleAndRankSolutions(
-    intent: string, 
+    intent: string,
     availableResources: Array<{
       kind: string;
       group: string;
+      apiVersion?: string;
+      version?: string;
       resourceName: string;
       capabilities: any;
     }>,
@@ -586,6 +590,8 @@ export class ResourceRecommender {
     resources: Array<{
       kind: string;
       group: string;
+      apiVersion?: string;
+      version?: string;
       resourceName: string;
       capabilities: any;
     }>,
@@ -595,6 +601,7 @@ export class ResourceRecommender {
     const resourcesText = resources.map((resource, index) => {
       return `${index}: ${resource.kind.toUpperCase()}
    Group: ${resource.group || 'core'}
+   API Version: ${resource.apiVersion || 'unknown'}
    Resource Name: ${resource.resourceName}
    Capabilities: ${Array.isArray(resource.capabilities.capabilities) ? resource.capabilities.capabilities.join(', ') : 'Not specified'}
    Providers: ${Array.isArray(resource.capabilities.providers) ? resource.capabilities.providers.join(', ') : resource.capabilities.providers || 'kubernetes'}
