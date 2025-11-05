@@ -18,6 +18,11 @@
       "description": "Keep using :latest tags in docker-compose-dot-ai.yaml"
     },
     {
+      "matchFiles": ["Dockerfile", "Dockerfile-qdrant"],
+      "pinDigests": false,
+      "description": "Disable digest pinning for multi-architecture base images. SHA256 digests pin to a single architecture and break ARM/ARM64 support."
+    },
+    {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "automerge": true,
