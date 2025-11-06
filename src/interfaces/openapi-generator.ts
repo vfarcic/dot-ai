@@ -162,6 +162,104 @@ export class OpenApiGenerator {
     const paths: Record<string, any> = {};
     const basePath = `${this.config.basePath}/${this.config.apiVersion}`;
 
+    // MCP Protocol Endpoints
+    paths['/'] = {
+      get: {
+        summary: 'Open MCP SSE stream',
+        description: 'Opens a Server-Sent Events (SSE) stream for Model Context Protocol communication. This endpoint allows the server to push messages to the client without the client first sending data.',
+        tags: ['MCP Protocol'],
+        parameters: [],
+        responses: {
+          200: {
+            description: 'SSE stream opened successfully',
+            content: {
+              'text/event-stream': {
+                schema: {
+                  type: 'string',
+                  description: 'Server-Sent Events stream'
+                }
+              }
+            }
+          },
+          405: {
+            description: 'Method not allowed - server does not support SSE',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        summary: 'Send MCP JSON-RPC message',
+        description: 'Send a JSON-RPC message using Model Context Protocol. Used for tool calls, initialization, and other MCP operations. The server may respond with either a JSON object or open an SSE stream.',
+        tags: ['MCP Protocol'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/McpJsonRpcRequest' },
+              examples: {
+                initialize: {
+                  summary: 'Initialize MCP session',
+                  value: {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: {
+                      protocolVersion: '2024-11-05',
+                      capabilities: {},
+                      clientInfo: {
+                        name: 'example-client',
+                        version: '1.0.0'
+                      }
+                    }
+                  }
+                },
+                toolCall: {
+                  summary: 'Call a tool',
+                  value: {
+                    jsonrpc: '2.0',
+                    id: 2,
+                    method: 'tools/call',
+                    params: {
+                      name: 'version',
+                      arguments: {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'JSON-RPC response or SSE stream',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/McpJsonRpcResponse' }
+              },
+              'text/event-stream': {
+                schema: {
+                  type: 'string',
+                  description: 'Server-Sent Events stream with JSON-RPC messages'
+                }
+              }
+            }
+          },
+          400: {
+            description: 'Bad request - invalid JSON-RPC message',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/McpJsonRpcError' }
+              }
+            }
+          }
+        }
+      }
+    };
+
     // Tool discovery endpoint
     paths[`${basePath}/tools`] = {
       get: {
@@ -403,6 +501,57 @@ export class OpenApiGenerator {
       ]
     };
 
+    // MCP JSON-RPC schemas
+    schemas.McpJsonRpcRequest = {
+      type: 'object',
+      description: 'JSON-RPC 2.0 request message for MCP protocol',
+      properties: {
+        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
+        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
+        method: { type: 'string', description: 'Method name (e.g., initialize, tools/call, tools/list)' },
+        params: { type: 'object', description: 'Method parameters' }
+      },
+      required: ['jsonrpc', 'method']
+    };
+
+    schemas.McpJsonRpcResponse = {
+      type: 'object',
+      description: 'JSON-RPC 2.0 response message',
+      properties: {
+        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
+        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
+        result: { type: 'object', description: 'Method result' },
+        error: {
+          type: 'object',
+          properties: {
+            code: { type: 'number', description: 'Error code' },
+            message: { type: 'string', description: 'Error message' },
+            data: { type: 'object', description: 'Additional error data' }
+          }
+        }
+      },
+      required: ['jsonrpc', 'id']
+    };
+
+    schemas.McpJsonRpcError = {
+      type: 'object',
+      description: 'JSON-RPC 2.0 error response',
+      properties: {
+        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
+        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
+        error: {
+          type: 'object',
+          properties: {
+            code: { type: 'number', description: 'Error code' },
+            message: { type: 'string', description: 'Error message' },
+            data: { type: 'object', description: 'Additional error data' }
+          },
+          required: ['code', 'message']
+        }
+      },
+      required: ['jsonrpc', 'id', 'error']
+    };
+
     // Individual tool request schemas
     for (const tool of tools) {
       schemas[`${tool.name}Request`] = tool.schema;
@@ -418,6 +567,10 @@ export class OpenApiGenerator {
    */
   private generateTags(categories: string[]): OpenApiSpec['tags'] {
     const tags: OpenApiSpec['tags'] = [
+      {
+        name: 'MCP Protocol',
+        description: 'Model Context Protocol endpoints for AI assistant integration via JSON-RPC and Server-Sent Events'
+      },
       {
         name: 'Tool Discovery',
         description: 'Endpoints for discovering available tools and their capabilities'
