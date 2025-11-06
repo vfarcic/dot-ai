@@ -27,6 +27,7 @@ def "main setup" [
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
     --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
     --jaeger-enabled = false,
+    --kubernetes-provider = "kind"
 ] {
     
     rm --force .env
@@ -36,22 +37,25 @@ def "main setup" [
     let anthropic_data = main get anthropic
     let openai_data = main get openai
 
-    let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
     let dot_ai_image = $"ghcr.io/vfarcic/dot-ai:($dot_ai_tag)"
 
-    $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
     $"export DOT_AI_IMAGE=($dot_ai_image)\n" | save --append .env
-
-    docker image pull $qdrant_image
 
     docker image pull $dot_ai_image
 
-    if $qdrant_run {(
-        docker container run --detach --name qdrant
-            --publish 6333:6333 $qdrant_image
-    )}
+    if $qdrant_run {
 
-    main create kubernetes kind
+        let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
+
+        $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
+
+        docker image pull $qdrant_image
+
+        docker container run --detach --name qdrant --publish 6333:6333 $qdrant_image
+
+    }
+
+    main create kubernetes $kubernetes_provider
 
     cp kubeconfig-dot.yaml kubeconfig.yaml
 
