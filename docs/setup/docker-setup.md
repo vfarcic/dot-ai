@@ -42,6 +42,10 @@ curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot
 
 ### 2. Set Environment Variables
 
+**All environment variables from the [Configuration Overview](../mcp-setup.md#configuration-overview) can be used with Docker setup.** Variables must be added to the `docker-compose-dot-ai.yaml` file's `environment:` section to be passed to the container.
+
+**Quick start example:**
+
 ```bash
 # Required: Anthropic API key
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
@@ -51,7 +55,7 @@ export OPENAI_API_KEY="sk-proj-..."
 
 # Optional: Custom Docker images and ports (defaults shown)
 export DOT_AI_IMAGE="ghcr.io/vfarcic/dot-ai:0.68.0"  # See available versions: https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai
-export QDRANT_IMAGE="qdrant/qdrant:v1.7.4"  
+export QDRANT_IMAGE="qdrant/qdrant:v1.7.4"
 export QDRANT_PORT="6333"
 
 # Optional: Custom kubeconfig path (defaults to ~/.kube/config)
