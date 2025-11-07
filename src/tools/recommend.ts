@@ -22,7 +22,7 @@ import { extractJsonFromAIResponse } from '../core/platform-utils';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
-export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy, create, setup, install, or run applications, infrastructure, and services on Kubernetes with AI recommendations. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.';
+export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy applications, infrastructure, and services using Kubernetes resources with AI recommendations. Supports cloud resources via operators like Crossplane, cluster management via CAPI, and traditional Kubernetes workloads. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.';
 
 // Zod schema for MCP registration (unified tool with stage routing)
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
