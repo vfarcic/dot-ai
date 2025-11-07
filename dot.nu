@@ -81,29 +81,6 @@ def "main setup" [
         main apply atlas
     }
 
-    if $dot_ai_kubernetes_enabled {
-
-        (
-            helm install dot-ai-mcp
-                $"oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:($dot_ai_tag)"
-                --set $"secrets.anthropic.apiKey=($anthropic_data.token)"
-                --set $"secrets.openai.apiKey=($openai_data.token)"
-                --set ingress.enabled=true
-                --set ingress.host="dot-ai.127.0.0.1.nip.io"
-                --create-namespace
-                --namespace dot-ai
-                --wait
-        )
-
-        (
-            helm install dot-ai-controller
-                oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller
-                --version 0.11.0
-                --namespace dot-ai
-                --wait
-        )
-    }
-
     if $jaeger_enabled {
         main apply jaeger "nginx" "jaeger.127.0.0.1.nip.io"
     }
