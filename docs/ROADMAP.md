@@ -27,6 +27,7 @@ This roadmap is a living document and may change based on community feedback and
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - AI model comparison platform for informed provider selection (PRD #151)
+- AI model portfolio management for comparative testing (PRD #209)
 - GitOps integration for Argo CD and Flux deployment workflows (PRD #202)
 
 ## Long-term (6-12 Months)
