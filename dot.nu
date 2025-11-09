@@ -43,13 +43,13 @@ def "main setup" [
 
     docker image pull $dot_ai_image
 
+    let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
+
+    $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
+
+    docker image pull $qdrant_image
+
     if $qdrant_run {
-
-        let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
-
-        $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
-
-        docker image pull $qdrant_image
 
         docker container run --detach --name qdrant --publish 6333:6333 $qdrant_image
 
