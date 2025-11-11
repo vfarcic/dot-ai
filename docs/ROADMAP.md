@@ -15,6 +15,7 @@ This roadmap is a living document and may change based on community feedback and
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)
 - Project website with documentation portal (PRD #179)
 - Dynamic credential management for multi-user MCP deployments (PRD #180)
+- Controller-based autonomous capability scanning with event-driven updates (PRD #216)
 
 ## Medium-term (3-6 Months)
 
