@@ -6,9 +6,8 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import * as fs from 'fs';
-import * as path from 'path';
-import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { GenericSessionManager } from '../core/generic-session-manager';
+import type { SolutionData } from './recommend';
 
 // Tool metadata for direct MCP registration
 export const CHOOSESOLUTION_TOOL_NAME = 'chooseSolution';
@@ -16,38 +15,10 @@ export const CHOOSESOLUTION_TOOL_DESCRIPTION = 'Select a solution by ID and retu
 
 // Zod schema for MCP registration
 export const CHOOSESOLUTION_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to choose (e.g., sol_2025-07-01T154349_1e1e242592ff)')
+  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to choose (e.g., sol-1762983784617-9ddae2b8)')
 };
 
-
-
-/**
- * Load solution file by ID
- */
-function loadSolutionFile(solutionId: string, sessionDir: string): any {
-  const solutionPath = path.join(sessionDir, `${solutionId}.json`);
-  
-  if (!fs.existsSync(solutionPath)) {
-    throw new Error(`Solution file not found: ${solutionPath}. Available files: ${fs.readdirSync(sessionDir).filter(f => f.endsWith('.json')).join(', ')}`);
-  }
-  
-  try {
-    const content = fs.readFileSync(solutionPath, 'utf8');
-    const solution = JSON.parse(content);
-    
-    // Validate solution structure
-    if (!solution.solutionId || !solution.questions) {
-      throw new Error(`Invalid solution file structure: ${solutionId}. Missing required fields: solutionId or questions`);
-    }
-    
-    return solution;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in solution file: ${solutionId}. ${error.message}`);
-    }
-    throw error;
-  }
-}
+// Session management now handled by GenericSessionManager
 
 /**
  * Direct MCP tool handler for chooseSolution functionality
@@ -64,35 +35,36 @@ export async function handleChooseSolutionTool(
 
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
-      
-      // Get session directory from environment
-      let sessionDir: string;
-      try {
-        sessionDir = getAndValidateSessionDirectory(false); // requireWrite=false
-        logger.debug('Session directory resolved and validated', { sessionDir });
-      } catch (error) {
+
+      // Initialize session manager
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
+      // Load solution session
+      const session = sessionManager.getSession(args.solutionId);
+
+      if (!session) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Session directory validation failed',
+          `Solution not found: ${args.solutionId}`,
           {
-            operation: 'session_directory_validation',
+            operation: 'solution_loading',
             component: 'ChooseSolutionTool',
             requestId,
+            input: { solutionId: args.solutionId },
             suggestedActions: [
-              'Ensure session directory exists and is readable',
-              'Check directory permissions',
-              'Verify the directory path is correct',
-              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+              'Verify the solution ID is correct',
+              'Ensure the solution was created by the recommend tool',
+              'Check that the session has not expired'
             ]
           }
         );
       }
-      
-      // Load solution file
-      let solution: any;
+
+      const solution = session.data;
+
       try {
-        solution = loadSolutionFile(args.solutionId, sessionDir);
         logger.debug('Solution file loaded successfully', { 
           solutionId: args.solutionId,
           hasQuestions: !!solution.questions,
@@ -107,26 +79,25 @@ export async function handleChooseSolutionTool(
         throw ErrorHandler.createError(
           ErrorCategory.STORAGE,
           ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Failed to load solution file',
+          error instanceof Error ? error.message : 'Failed to load solution session',
           {
-            operation: 'solution_file_load',
+            operation: 'solution_session_load',
             component: 'ChooseSolutionTool',
             requestId,
-            input: { solutionId: args.solutionId, sessionDir },
+            input: { solutionId: args.solutionId },
             suggestedActions: [
               'Check that the solution ID is correct',
-              'Verify the solution file exists in the session directory',
-              'Ensure the solution was created by a recent recommend tool call',
-              'List available solution files in the session directory'
+              'Verify the solution session exists',
+              'Ensure the solution was created by a recent recommend tool call'
             ]
           }
         );
       }
-      
+
       // Prepare response with solution details and questions
       const response = {
         status: 'stage_questions',
-        solutionId: solution.solutionId,
+        solutionId: args.solutionId,
         currentStage: 'required',
         questions: solution.questions.required || [],
         nextStage: 'basic',
@@ -138,7 +109,6 @@ export async function handleChooseSolutionTool(
       
       logger.info('Choose solution completed successfully', {
         solutionId: args.solutionId,
-        sessionDir,
         questionCategories: {
           required: solution.questions.required?.length || 0,
           basic: solution.questions.basic?.length || 0,

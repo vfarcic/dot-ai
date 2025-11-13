@@ -3,16 +3,13 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import { ErrorHandler } from '../core/error-handling';
 import { ResourceRecommender } from '../core/schema';
 import { AIProvider, IntentAnalysisResult } from '../core/ai-provider.interface';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { GenericSessionManager } from '../core/generic-session-manager';
 import { handleChooseSolutionTool } from './choose-solution';
 import { handleAnswerQuestionTool } from './answer-question';
 import { handleGenerateManifestsTool } from './generate-manifests';
@@ -38,6 +35,29 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
+// Solution data stored by GenericSessionManager
+export interface SolutionData {
+  intent: string;
+  type: string;
+  score: number;
+  description: string;
+  reasons: string[];
+  analysis: string;
+  resources: Array<{
+    kind: string;
+    apiVersion: string;
+    group: string;
+    description: string;
+  }>;
+  questions: {
+    required?: any[];
+    basic?: any[];
+    advanced?: any[];
+    open?: any;
+  };
+  answers: Record<string, any>;
+  timestamp: string;
+}
 
 /**
  * Analyze intent for clarification opportunities using AI
@@ -106,43 +126,7 @@ async function analyzeIntentForClarification(
 }
 
 
-/**
- * Generate unique solution ID with timestamp and random component
- */
-function generateSolutionId(): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '').split('T');
-  const dateTime = timestamp[0] + 'T' + timestamp[1].substring(0, 6);
-  const randomHex = crypto.randomBytes(6).toString('hex');
-  return `sol_${dateTime}_${randomHex}`;
-}
-
-/**
- * Write solution data to file atomically (temp file + rename)
- */
-function writeSolutionFile(sessionDir: string, solutionId: string, solutionData: any): void {
-  const fileName = `${solutionId}.json`;
-  const filePath = path.join(sessionDir, fileName);
-  const tempPath = filePath + '.tmp';
-  
-  try {
-    // Write to temporary file first
-    fs.writeFileSync(tempPath, JSON.stringify(solutionData, null, 2));
-    
-    // Atomically rename to final location
-    fs.renameSync(tempPath, filePath);
-  } catch (error) {
-    // Clean up temp file if it exists
-    try {
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
-    } catch (cleanupError) {
-      // Ignore cleanup errors
-    }
-    
-    throw new Error(`Failed to write solution file ${fileName}: ${error}`);
-  }
-}
+// Session management now handled by GenericSessionManager
 
 /**
  * Direct MCP tool handler for recommend functionality (unified with stage routing)
@@ -189,29 +173,10 @@ export async function handleRecommendTool(
       // args are already validated and typed when we reach this point
       // AI provider is already initialized and validated in dotAI.ai
 
-      // Validate session directory configuration
-      let sessionDir: string;
-      try {
-        sessionDir = getAndValidateSessionDirectory(true); // requireWrite=true
-        logger.debug('Session directory validated', { requestId, sessionDir });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.HIGH,
-          `Session directory validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          {
-            operation: 'session_directory_validation',
-            component: 'RecommendTool',
-            requestId,
-            suggestedActions: [
-              'Ensure session directory exists and is writable',
-              'Set --session-dir parameter or DOT_AI_SESSION_DIR environment variable',
-              'Check directory permissions'
-            ]
-          },
-          error instanceof Error ? error : new Error(String(error))
-        );
-      }
+      // Initialize session manager
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
 
       logger.info('Starting resource recommendation process', {
         requestId,
@@ -320,11 +285,8 @@ export async function handleRecommendTool(
       const topSolutions = solutions.slice(0, 5);
 
       for (const solution of topSolutions) {
-        const solutionId = generateSolutionId();
-        
-        // Create complete solution file with all data
-        const solutionFileData = {
-          solutionId,
+        // Create complete solution data
+        const solutionData: SolutionData = {
           intent: args.intent,
           type: solution.type,
           score: solution.score,
@@ -342,29 +304,10 @@ export async function handleRecommendTool(
           timestamp
         };
 
-        // Write solution to file
-        try {
-          writeSolutionFile(sessionDir, solutionId, solutionFileData);
-          logger.debug('Solution file created', { requestId, solutionId, fileName: `${solutionId}.json` });
-        } catch (error) {
-          throw ErrorHandler.createError(
-            ErrorCategory.STORAGE,
-            ErrorSeverity.HIGH,
-            `Failed to store solution file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            {
-              operation: 'solution_file_creation',
-              component: 'RecommendTool',
-              requestId,
-              input: { solutionId },
-              suggestedActions: [
-                'Check session directory write permissions',
-                'Ensure sufficient disk space',
-                'Verify session directory is accessible'
-              ]
-            },
-            error instanceof Error ? error : new Error(String(error))
-          );
-        }
+        // Create solution session
+        const session = sessionManager.createSession(solutionData);
+        const solutionId = session.sessionId;
+        logger.debug('Solution session created', { requestId, solutionId, fileName: `${solutionId}.json` });
 
         // Add to response summary (decision-making data only)
         solutionSummaries.push({
@@ -405,10 +348,9 @@ export async function handleRecommendTool(
         timestamp
       };
 
-      logger.info('Solution files created and response prepared', {
+      logger.info('Solution sessions created and response prepared', {
         requestId,
-        solutionCount: solutionSummaries.length,
-        sessionDir
+        solutionCount: solutionSummaries.length
       });
 
 

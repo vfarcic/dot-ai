@@ -333,18 +333,20 @@ export async function operate(args: OperateArgs): Promise<OperateResult> {
 
 #### 2. Context Embedding System
 
+**DECISION (2025-11-12)**: Use upfront embedding instead of search tools. Context is embedded into the prompt before AI analysis begins, guaranteeing AI sees organizational governance and cluster state. This prevents AI from skipping searches for "obvious" operations (e.g., using HPA when KEDA is available). Token overhead (~1500 tokens) is acceptable for quality improvement.
+
 ```typescript
 async function embedContext(intent: string): Promise<EmbeddedContext> {
   // Extract keywords from intent
   const keywords = extractKeywords(intent);
 
-  // Vector search patterns (reuse existing pattern search)
+  // Vector search patterns (reuse existing pattern search from organizational-data.ts)
   const relevantPatterns = await searchPatterns(keywords, { limit: 5 });
 
-  // Search policies (reuse existing policy search)
+  // Search policies (reuse existing policy search from organizational-data.ts)
   const relevantPolicies = await searchPolicies(keywords);
 
-  // Load cluster capabilities (reuse existing discovery)
+  // Load cluster capabilities (reuse existing discovery from discovery.ts)
   const capabilities = await getClusterCapabilities();
 
   return {
@@ -357,82 +359,55 @@ async function embedContext(intent: string): Promise<EmbeddedContext> {
 
 #### 3. AI Tool Registration
 
+**DECISION (2025-11-12)**: Reuse existing `KUBECTL_INVESTIGATION_TOOLS` from `src/core/kubectl-tools.ts`. All required tools already exist:
+- ✅ `kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events` (inspection)
+- ✅ `kubectl_patch_dryrun`, `kubectl_apply_dryrun`, `kubectl_delete_dryrun` (validation)
+- ✅ `kubectl_get_crd_schema` (schema retrieval for CRDs)
+- ✅ `kubectl_api_resources` (cluster capabilities discovery)
+
+No new tools needed - import and use existing tools directly.
+
 ```typescript
-// Tools available to AI during analysis
-const operateAnalysisTools = [
-  // Resource inspection (read-only)
-  {
-    name: "kubectl_get",
-    description: "Get Kubernetes resources (list or specific resource)",
-    schema: {
-      resource: "string (e.g., 'deployment', 'statefulset', 'hpa')",
-      namespace: "string (optional)",
-      name: "string (optional)"
-    },
-    handler: async (args) => {
-      // Reuse existing kubectl wrapper
-      return await kubernetesClient.get(args.resource, args.namespace, args.name);
-    }
-  },
+// Import existing kubectl tools from remediate
+import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 
-  {
-    name: "kubectl_describe",
-    description: "Get detailed information about a Kubernetes resource",
-    schema: {
-      resource: "string",
-      namespace: "string",
-      name: "string"
-    },
-    handler: async (args) => {
-      // Reuse existing kubectl wrapper
-      return await kubernetesClient.describe(args.resource, args.namespace, args.name);
-    }
-  },
-
-  // Schema retrieval (read-only) ✨ NEW
-  {
-    name: "get_resource_schema",
-    description: "Get OpenAPI schema for a resource type. REQUIRED before creating or updating resources to ensure correct API version and required fields.",
-    schema: {
-      kind: "string (e.g., 'HorizontalPodAutoscaler', 'ScaledObject')",
-      apiVersion: "string (e.g., 'autoscaling/v2', 'keda.sh/v1alpha1')"
-    },
-    handler: async (args) => {
-      // New function to retrieve CRD schema
-      return await getResourceSchema(args.kind, args.apiVersion);
-    }
-  },
-
-  // Validation (safe write - dry-run only)
-  {
-    name: "kubectl_dry_run",
-    description: "Validate resource changes without applying them. REQUIRED before proposing changes to user.",
-    schema: {
-      manifest: "string (YAML manifest)",
-      operation: "string (create|update|delete)"
-    },
-    handler: async (args) => {
-      // Reuse existing kubectl wrapper with --dry-run=server
-      return await kubernetesClient.dryRun(args.manifest, args.operation);
-    }
-  }
-];
+// Use tools directly in analysis workflow
+const result = await aiProvider.toolLoop({
+  systemPrompt,
+  tools: KUBECTL_INVESTIGATION_TOOLS,  // All tools already available
+  toolExecutor: executeKubectlTools,    // Reuse existing executor
+  maxIterations: 30
+});
 ```
 
 #### 4. Analysis Workflow
 
+**DECISION (2025-11-12)**:
+1. Use strong prompt instructions for dry-run validation instead of code enforcement
+2. **Separate static system prompt from dynamic user message** for prompt caching efficiency
+
+AI needs iterative refinement to fix validation errors - code enforcement would break the natural tool-loop pattern. System prompt should be purely static (workflow instructions) while dynamic content (intent, patterns, policies, capabilities) goes in user message for optimal caching.
+
 ```typescript
 async function analyzeIntent(intent: string, sessionId?: string): Promise<OperateAnalysisResult> {
-  // 1. Embed context
+  // 1. Embed context upfront (patterns, policies, capabilities)
   const context = await embedContext(intent);
 
-  // 2. Build AI prompt with embedded context
-  const systemPrompt = `
-You are analyzing an operational intent for a Kubernetes application.
+  // 2. Load STATIC system prompt from file (cacheable across all operate calls)
+  const systemPromptPath = path.join(__dirname, '..', '..', 'prompts', 'operate-system.md');
+  const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8');
+  // Contents of operate-system.md:
+  // - Role definition
+  // - Workflow requirements (tool usage, dry-run validation)
+  // - Validation rationale
+  // - Output format requirements
+  // NO dynamic content - purely instructions
 
-User intent: "${intent}"
+  // 3. Build DYNAMIC user message with intent and embedded context
+  const userMessage = `
+User Intent: "${intent}"
 
-EMBEDDED CONTEXT:
+ORGANIZATIONAL CONTEXT:
 
 Relevant Patterns:
 ${formatPatterns(context.patterns)}
@@ -443,27 +418,25 @@ ${formatPolicies(context.policies)}
 Available Cluster Capabilities:
 ${formatCapabilities(context.capabilities)}
 
-INSTRUCTIONS:
-1. Use kubectl_get/kubectl_describe to inspect current state
-2. Apply pattern recommendations based on intent
-3. Check policy compliance requirements
-4. For ANY resource you create or update:
-   - First call get_resource_schema() to retrieve correct schema
-   - Generate manifest matching the schema exactly
-5. REQUIRED: Call kubectl_dry_run() for EVERY change before proposing
-6. Return comprehensive solution with commands to execute
-
-Your goal: Propose a safe, validated, pattern-driven solution that leverages available cluster capabilities.
+Analyze this intent and propose an operational solution following the workflow requirements.
 `;
 
-  // 3. AI tool loop
+  // 4. AI tool loop with 30 iteration limit
   const result = await aiProvider.toolLoop({
-    systemPrompt,
-    tools: operateAnalysisTools,
-    maxIterations: 20
+    systemPrompt,      // Static, cached by AI provider
+    userMessage,       // Dynamic per intent
+    tools: KUBECTL_INVESTIGATION_TOOLS,
+    toolExecutor: executeKubectlTools,
+    maxIterations: 30,
+    operation: 'operate-analysis'
   });
 
-  // 4. Parse AI response and create session
+  // Handle iteration limit exceeded
+  if (!result.completed) {
+    throw new Error('Failed to assemble solution within iteration limit. AI could not converge to a validated solution after 30 iterations.');
+  }
+
+  // 5. Parse AI response and create session (reuse session management from core)
   const session = {
     sessionId: sessionId || generateSessionId(),
     intent,
@@ -496,18 +469,22 @@ Your goal: Propose a safe, validated, pattern-driven solution that leverages ava
 
 #### 5. Execution Workflow
 
+**DECISION (2025-11-12)**: Use continue-on-error execution pattern (like remediate). Execute all commands sequentially regardless of individual failures, providing complete diagnostic information to the user. AI naturally handles command ordering - no explicit dependency management system needed.
+
 ```typescript
 async function executeOperations(sessionId: string): Promise<OperateExecutionResult> {
-  // 1. Load session with approved commands
+  // 1. Load session with approved commands (reuse session management from core)
   const session = await loadSession(sessionId);
 
-  // 2. MCP code executes EXACT commands (not agent)
+  // 2. MCP code executes EXACT commands sequentially (not agent interpretation)
+  // CONTINUE ON ERROR: Execute all commands regardless of failures
   const executionResults = [];
   for (const command of session.commands) {
     try {
       const result = await executeCommand(command);
       executionResults.push({ command, success: true, output: result });
     } catch (error) {
+      // Continue to next command even if this one fails
       executionResults.push({ command, success: false, error: error.message });
     }
   }
@@ -524,18 +501,14 @@ Use kubectl_get to check resource status. If resources are in transitional state
 Return final validation status.
 `;
 
-  const validationTools = [
-    { name: "kubectl_get", ... },
-    { name: "kubectl_describe", ... }
-  ];
-
   const validation = await aiProvider.toolLoop({
     systemPrompt: validationPrompt,
-    tools: validationTools,
+    tools: KUBECTL_INVESTIGATION_TOOLS,  // Reuse existing inspection tools
+    toolExecutor: executeKubectlTools,
     maxIterations: 10 // Allow retries for async operations
   });
 
-  // 4. Update session and return result
+  // 4. Update session and return result (reuse session management from core)
   await updateSession(sessionId, {
     executed: true,
     executionResults,
@@ -544,7 +517,7 @@ Return final validation status.
 
   return {
     success: validation.success,
-    executionResults,
+    executionResults,  // Includes both successes and failures
     validation: validation.result,
     sessionId
   };
@@ -568,34 +541,16 @@ Return final validation status.
 
 ### Schema Retrieval Implementation
 
-```typescript
-// New function to retrieve resource schemas from cluster
-async function getResourceSchema(kind: string, apiVersion: string): Promise<ResourceSchema> {
-  // Use Kubernetes OpenAPI endpoint
-  const openApiSpec = await kubernetesClient.getOpenAPISpec();
-
-  // Find definition for this resource
-  const resourcePath = `${apiVersion}/${kind}`;
-  const definition = openApiSpec.definitions[resourcePath];
-
-  if (!definition) {
-    throw new Error(`Schema not found for ${kind} (${apiVersion})`);
-  }
-
-  // Extract key information
-  return {
-    apiVersion,
-    kind,
-    requiredFields: definition.required || [],
-    properties: definition.properties,
-    description: definition.description
-  };
-}
-```
+**DECISION (2025-11-12)**: No new implementation needed. Use existing `kubectl_get_crd_schema` tool from `src/core/kubectl-tools.ts` (lines 208-224). This tool already retrieves CRD schemas from the cluster using `kubectl get crd <name> -o json`.
 
 ### Session Management
 
+**DECISION (2025-11-12)**: Refactor session management utilities from `remediate.ts` and `recommend.ts` into shared `src/core/session-management.ts` module. Functions like `generateSessionId()`, `writeSessionFile()`, `readSessionFile()`, and `updateSessionFile()` are generic and should be reused across all tools.
+
 ```typescript
+// Import shared session management utilities (to be created in Phase 0)
+import { generateSessionId, writeSessionFile, readSessionFile, updateSessionFile } from '../core/session-management';
+
 interface OperateSession {
   sessionId: string;
   intent: string;
@@ -628,6 +583,41 @@ const SESSION_DIR = './sessions/operate';
 
 ## Implementation Milestones
 
+### Phase 0: Code Refactoring [Status: ⏳ IN PROGRESS - 57% Complete]
+**Target**: Extract reusable utilities from remediate/recommend before implementing operate tool
+
+**DECISION (2025-11-12)**: Refactor shared code before implementing `operate` to ensure consistency, reduce duplication, and make implementation cleaner.
+
+**Completion Criteria:**
+- [x] ~~Create `src/core/session-management.ts`~~ - **Not needed**: GenericSessionManager already exists and provides all required functionality
+- [x] ~~Create `src/core/command-executor.ts`~~ - **Not needed**: Continue-on-error pattern sufficient (no explicit dependency management required)
+- [x] Update `remediate.ts` to use GenericSessionManager
+  - Removed 4 duplicate functions: `generateSessionId()`, `writeSessionFile()`, `readSessionFile()`, `updateSessionFile()`
+  - Updated session data structure to work with GenericSession wrapper
+  - Session ID format: `rem-{timestamp}-{uuid8}` (changed from `rem_{ISO}_{hex16}`)
+- [x] Update `recommend.ts` to use GenericSessionManager
+  - Removed `generateSolutionId()` and `writeSolutionFile()`
+  - Solutions created as sessions via `sessionManager.createSession()`
+  - Session ID format: `sol-{timestamp}-{uuid8}` (changed from `sol_{ISO}_{hex12}`)
+- [x] Update `choose-solution.ts` to use GenericSessionManager
+  - Removed duplicate `loadSolutionFile()` function
+  - Uses `sessionManager.getSession()` to load solutions
+  - Updated Zod schema regex for new session ID format
+- [ ] Update `answer-question.ts` to use GenericSessionManager - **IN PROGRESS**
+- [ ] Update `generate-manifests.ts` to use GenericSessionManager
+- [ ] Check `deploy-manifests.ts` for session file usage
+- [ ] Run integration tests for recommend workflow to verify refactoring
+
+**Success Validation:**
+- [x] All existing remediate integration tests pass (2/2 tests: manual + automatic mode)
+- [ ] All existing recommend integration tests pass - **PENDING**
+- [x] No behavioral changes - pure refactoring
+- [x] Shared utilities properly typed and documented (GenericSessionManager)
+
+**Estimated Effort**: 1-2 days
+
+---
+
 ### Milestone 1: Core Tool Infrastructure [Status: ⏳ PENDING]
 **Target**: Basic operate tool with single operation type working end-to-end
 
@@ -654,42 +644,47 @@ const SESSION_DIR = './sessions/operate';
 ### Milestone 2: Schema Retrieval & Resource Creation [Status: ⏳ PENDING]
 **Target**: Tool can create new resources with correct schemas
 
+**DECISION (2025-11-12)**: `kubectl_get_crd_schema` tool already exists - no new implementation needed.
+
 **Completion Criteria:**
-- [ ] Implement get_resource_schema() function
-- [ ] AI retrieves schemas before generating manifests
+- [ ] ~~Implement get_resource_schema() function~~ (Already exists in kubectl-tools.ts)
+- [ ] AI retrieves schemas using `kubectl_get_crd_schema` before generating manifests
 - [ ] Support resource creation operations
 - [ ] Integration test: create HPA for existing deployment
 - [ ] Integration test: create KEDA ScaledObject (if KEDA available)
 
 **Success Validation:**
 - Can execute: `operate(intent="enable auto-scaling for my-api")`
-- AI checks if HPA/KEDA needed, retrieves schema, generates correct manifest
+- AI checks if HPA/KEDA needed, retrieves schema using existing tool, generates correct manifest
 - Dry-run validates manifest
 - User confirms, MCP creates resource
 - Validation confirms HPA/ScaledObject created and functional
 
-**Estimated Effort**: 1-2 days
+**Estimated Effort**: 1 day (reduced from 1-2 days - no schema tool implementation needed)
 
 ---
 
 ### Milestone 3: Multi-Resource Operations [Status: ⏳ PENDING]
 **Target**: Tool can create, update, and delete multiple resources in one operation
 
+**DECISION (2025-11-12)**: AI handles command ordering naturally - no explicit dependency management needed. Continue-on-error execution provides complete diagnostics even if some commands fail.
+
 **Completion Criteria:**
 - [ ] Support complex intents requiring multiple resource changes
-- [ ] Atomic execution of multi-resource operations
-- [ ] Proper ordering of resource creation/updates
+- [ ] Sequential execution with continue-on-error pattern (reuse from remediate)
+- [ ] ~~Dependency ordering system~~ (AI handles ordering via command sequence)
 - [ ] Integration test: make database HA (scale StatefulSet + create PDB + add anti-affinity)
 - [ ] Integration test: add monitoring (create ServiceMonitor + update Service annotations)
 
 **Success Validation:**
 - Can execute: `operate(intent="make postgres highly available")`
-- AI proposes scaling StatefulSet + creating PDB + updating anti-affinity
+- AI proposes scaling StatefulSet + creating PDB + updating anti-affinity in correct order
 - All changes validated with dry-run
-- User confirms, MCP executes all changes in correct order
-- Validation confirms all resources updated/created
+- User confirms, MCP executes all changes sequentially
+- If any command fails, execution continues and reports all results
+- Validation confirms which resources updated/created successfully
 
-**Estimated Effort**: 2-3 days
+**Estimated Effort**: 2 days (reduced from 2-3 days - no dependency system needed)
 
 ---
 
@@ -777,6 +772,153 @@ const SESSION_DIR = './sessions/operate';
 
 ---
 
+## Design Decisions
+
+This section documents key architectural and implementation decisions made during the design process, with rationale and impact assessment.
+
+### Decision 1: Context Embedding Strategy
+**Date**: 2025-11-12
+**Decision**: Use upfront embedding of patterns/policies/capabilities into the prompt instead of providing search tools to AI.
+
+**Rationale**:
+- Guarantees AI sees organizational governance and cluster state before making decisions
+- Prevents AI from skipping searches for "obvious" operations (e.g., using HPA when KEDA is available due to built-in knowledge)
+- AI might not invoke search tools due to confidence in built-in knowledge
+- Token overhead (~1500 tokens) is acceptable for quality improvement
+- Ensures consistent governance across all operations
+
+**Impact**:
+- Requirements: No search tools needed in v1 (can add in v2 if context proves insufficient)
+- Architecture: Simpler implementation without tool-based search
+- Code: Import existing `searchPatterns()`, `searchPolicies()`, `getClusterCapabilities()` functions
+- Quality: Higher quality recommendations due to guaranteed context visibility
+
+**Alternatives Considered**:
+- Tool-based search: Rejected due to risk of AI not invoking tools
+- Hybrid (table of contents + tools): Deferred to v2 if needed
+
+---
+
+### Decision 2: Tool Reusability
+**Date**: 2025-11-12
+**Decision**: Reuse existing `KUBECTL_INVESTIGATION_TOOLS` from `src/core/kubectl-tools.ts` - no new tools required.
+
+**Rationale**:
+- All required tools already exist:
+  - `kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events` (inspection)
+  - `kubectl_patch_dryrun`, `kubectl_apply_dryrun`, `kubectl_delete_dryrun` (validation)
+  - `kubectl_get_crd_schema` (schema retrieval)
+  - `kubectl_api_resources` (capabilities discovery)
+- Reduces implementation effort
+- Ensures consistency across tools
+- Leverages battle-tested code from remediate tool
+
+**Impact**:
+- Milestone 2: Remove "implement get_resource_schema()" task (already exists)
+- Implementation: Import and use existing tools directly
+- Effort: Reduced from 1-2 days to 1 day for Milestone 2
+- Code: `import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools'`
+
+**Alternatives Considered**:
+- Create new tools: Rejected as unnecessary duplication
+- Create wrapper tools: Rejected as added complexity without benefit
+
+---
+
+### Decision 3: Dry-Run Validation Enforcement
+**Date**: 2025-11-12
+**Decision**: Use strong prompt instructions for dry-run validation instead of code-level enforcement.
+
+**Rationale**:
+- AI needs iterative refinement to fix validation errors (schema issues, field names, etc.)
+- Code enforcement would break the natural tool-loop iteration pattern
+- AI may need multiple dry-run attempts per change to get manifest correct
+- Tool-loop architecture is designed for iterative workflows
+- Prompt-based guidance allows flexibility while maintaining requirements
+
+**Impact**:
+- Implementation: No validation enforcement code needed in MCP layer
+- Prompt: Clear "REQUIRED" language for dry-run validation with rationale
+- Workflow: AI can iterate on dry-run failures and retry until success
+- Success Criteria: Rely on prompt compliance and integration test validation
+
+**Alternatives Considered**:
+- Code enforcement after analysis: Rejected - too late, prevents iteration
+- MCP-level dry-run: Rejected - duplicates AI work, loses validation context
+
+---
+
+### Decision 4: Multi-Resource Dependency Handling
+**Date**: 2025-11-12
+**Decision**: Trust AI to handle command ordering naturally - no explicit dependency management system.
+
+**Rationale**:
+- AI understands resource dependencies (e.g., scale StatefulSet before creating PDB)
+- Simpler implementation without dependency graph system
+- 30 iteration limit prevents endless loops with clear error message
+- Continue-on-error execution provides better diagnostics than fail-fast
+- Reduces implementation complexity significantly
+
+**Impact**:
+- Milestone 3: Remove dependency ordering system requirement
+- Execution: Sequential command execution with continue-on-error pattern
+- Error Handling: All commands attempted, complete results returned to user
+- Effort: Reduced from 2-3 days to 2 days for Milestone 3
+
+**Alternatives Considered**:
+- Explicit dependency graph: Rejected as premature optimization, added complexity
+- Fail-fast execution: Rejected - less diagnostic value for users
+
+---
+
+### Decision 5: Code Refactoring Before Implementation
+**Date**: 2025-11-12
+**Decision**: Extract reusable utilities from remediate/recommend into shared modules before implementing operate tool.
+
+**Rationale**:
+- Session management functions (`generateSessionId`, `writeSessionFile`, etc.) are generic and duplicated
+- Command execution pattern (sequential with continue-on-error) is reused across tools
+- Reduces code duplication and improves maintainability
+- Makes operate implementation cleaner and faster
+- Benefits all three tools immediately (recommend, remediate, operate)
+
+**Impact**:
+- Implementation Plan: Add Phase 0 "Refactoring" before Milestone 1
+- New Modules: `src/core/session-management.ts` and `src/core/command-executor.ts`
+- Testing: Run remediate/recommend integration tests after refactoring to verify no regressions
+- Timeline: Add 1-2 days for refactoring phase
+- Code Quality: Improved consistency and reduced duplication
+
+**Alternatives Considered**:
+- Implement operate with inline code first, refactor later: Rejected - introduces more duplication
+- Partial refactoring: Rejected - better to do complete refactoring once
+
+---
+
+### Decision 6: Static System Prompt vs Dynamic User Message
+**Date**: 2025-11-12
+**Decision**: Separate static workflow instructions (system prompt) from dynamic content (user message with intent/context).
+
+**Rationale**:
+- **Prompt caching efficiency**: Static system prompt can be cached across all operate calls
+- Different intents produce different patterns/policies/capabilities (different "system" prompts)
+- Current approach defeats caching by embedding dynamic content in system prompt
+- Clear semantic separation: instructions vs. data
+- Reduces cost (cached tokens) and latency (cached retrieval)
+
+**Impact**:
+- Architecture: System prompt loaded from `prompts/operate-system.md` (static)
+- User message: Contains intent + embedded context (dynamic)
+- Performance: Reduced token costs and improved latency via caching
+- Code: `aiProvider.toolLoop({ systemPrompt, userMessage, ... })`
+- Maintainability: Static instructions in separate file, easier to update
+
+**Alternatives Considered**:
+- All-in-one system prompt: Rejected - defeats caching, mixes concerns
+- Hybrid context parameter: Deferred - depends on provider support
+
+---
+
 ## Risk Management
 
 ### Identified Risks
@@ -789,9 +931,10 @@ const SESSION_DIR = './sessions/operate';
 
 **Risk: Complex multi-resource operations fail partially**
 - **Likelihood**: Medium
-- **Impact**: High (inconsistent cluster state)
-- **Mitigation**: Transaction-like execution with rollback on failure, dependency ordering
+- **Impact**: Medium (some resources not created/updated)
+- **Mitigation**: Continue-on-error execution provides complete diagnostic information, AI naturally orders commands correctly, iterative validation confirms actual state
 - **Owner**: Developer
+- **DECISION (2025-11-12)**: Accept partial failures as acceptable - users can see which commands succeeded/failed and take corrective action
 
 **Risk: Schema retrieval fails for custom CRDs**
 - **Likelihood**: Low
@@ -994,6 +1137,148 @@ operate(intent="make postgres highly available")
 - **Supersedes PRD #4**: New architecture aligns with current patterns
 
 **Next Steps**: Ready for implementation starting with Milestone 1
+
+---
+
+### 2025-11-12: Architecture Refinement & Design Decisions
+**Duration**: ~3 hours
+**Primary Focus**: Critical analysis of implementation approach, code reusability, and performance optimization
+
+**Completed Work**:
+- Conducted detailed comparison between `remediate` and `operate` architectures
+- Audited existing codebase for reusable utilities and tools
+- Analyzed prompt caching opportunities for cost/latency optimization
+- Documented 6 major design decisions with rationale and alternatives
+- Updated PRD with implementation-ready architecture details
+- Added Phase 0 (refactoring) to implementation plan
+
+**Key Decisions Documented**:
+
+1. **Context Embedding Strategy**: Upfront embedding vs tool-based search
+   - Decided: Upfront embedding guarantees governance visibility
+   - Rationale: Prevents AI from skipping searches due to built-in knowledge
+   - Impact: ~1500 token overhead acceptable for quality improvement
+
+2. **Tool Reusability**: Discovered all required tools already exist
+   - Decided: Reuse `KUBECTL_INVESTIGATION_TOOLS` from kubectl-tools.ts
+   - Rationale: No duplication, battle-tested code
+   - Impact: Reduced Milestone 2 effort from 1-2 days to 1 day
+
+3. **Dry-Run Validation Enforcement**: Prompt-based vs code-based
+   - Decided: Strong prompt instructions, no code enforcement
+   - Rationale: AI needs iterative refinement for validation errors
+   - Impact: Simpler implementation, maintains tool-loop pattern
+
+4. **Multi-Resource Dependency Handling**: Explicit system vs AI ordering
+   - Decided: Trust AI to order commands naturally
+   - Rationale: Simpler, 30-iteration limit prevents loops
+   - Impact: Reduced Milestone 3 effort from 2-3 days to 2 days
+
+5. **Code Refactoring Strategy**: Refactor first vs implement first
+   - Decided: Extract shared utilities before implementing operate
+   - Rationale: Reduces duplication, benefits all tools
+   - Impact: Added Phase 0 (1-2 days), cleaner operate implementation
+
+6. **Prompt Architecture**: Static system vs dynamic content
+   - Decided: Separate static instructions from dynamic context
+   - Rationale: Enables prompt caching, reduces cost/latency
+   - Impact: System prompt cached across all calls, better performance
+
+**Architecture Updates**:
+- Separated system prompt (static, `prompts/operate-system.md`) from user message (dynamic)
+- Identified session management and command execution as shared utilities
+- Confirmed continue-on-error execution pattern from remediate
+- Established 30-iteration limit with clear error handling
+
+**Implementation Plan Changes**:
+- Added Phase 0: Code Refactoring (1-2 days)
+  - Extract session management to `src/core/session-management.ts`
+  - Extract command executor to `src/core/command-executor.ts`
+  - Update remediate/recommend to use shared code
+  - Verify with integration tests
+- Updated Milestones 2-3 with reduced effort estimates
+- Clarified tool reuse approach throughout
+
+**Code Examples Updated**:
+- Context embedding with explicit reuse comments
+- Tool registration showing import from kubectl-tools
+- Analysis workflow with static/dynamic prompt separation
+- Execution workflow with continue-on-error pattern
+- Session management with shared utilities
+
+**Risk Assessment Updated**:
+- Reduced multi-resource failure impact (Medium → Medium with better mitigation)
+- Clarified that partial failures are acceptable with complete diagnostics
+
+**Next Steps**:
+- Ready for Phase 0 (refactoring)
+- Create `src/core/session-management.ts` and `src/core/command-executor.ts`
+- Update remediate/recommend to use shared utilities
+- Run integration tests to verify refactoring
+- Proceed to Milestone 1 implementation
+
+---
+
+### 2025-11-13: Phase 0 Refactoring Progress - Session Management Consolidation
+**Duration**: ~4 hours
+**Primary Focus**: Extract session management utilities and refactor tools to use shared code
+
+**Completed PRD Items**:
+- [x] **Refactored remediate.ts to use GenericSessionManager** - Evidence: `src/tools/remediate.ts`
+  - Removed 4 duplicate functions: `generateSessionId()`, `writeSessionFile()`, `readSessionFile()`, `updateSessionFile()`
+  - Updated `RemediateSession` type to work with `GenericSession<RemediateSessionData>` wrapper
+  - Updated all session access to use `.data` property (e.g., `session.data.issue`, `session.data.mode`)
+  - Session ID format changed: `rem_{ISO}_{hex16}` → `rem-{timestamp}-{uuid8}`
+  - Updated integration test regex pattern to match new format
+  - **Validation**: All remediate integration tests passing (2/2 tests: manual + automatic mode workflows)
+
+- [x] **Refactored recommend.ts to use GenericSessionManager** - Evidence: `src/tools/recommend.ts`
+  - Removed `generateSolutionId()` and `writeSolutionFile()` functions
+  - Solutions now created via `sessionManager.createSession(solutionData)`
+  - Created `SolutionData` interface for type safety
+  - Session ID format changed: `sol_{ISO}_{hex12}` → `sol-{timestamp}-{uuid8}`
+  - Removed unused `crypto` import and `getAndValidateSessionDirectory` import
+  - Cleaned up empty try-catch blocks after refactoring
+
+- [x] **Refactored choose-solution.ts to use GenericSessionManager** - Evidence: `src/tools/choose-solution.ts`
+  - Removed duplicate `loadSolutionFile()` function
+  - Now uses `sessionManager.getSession(solutionId)` to load solutions
+  - Updated Zod schema regex from `/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/` to `/^sol-\d+-[a-f0-9]{8}$/`
+  - Accesses solution data via `session.data` property
+  - Removed unused `fs`, `path`, and `getAndValidateSessionDirectory` imports
+
+**Technical Decisions**:
+- **Decision**: Use existing GenericSessionManager instead of creating new utilities
+  - **Rationale**: GenericSessionManager (from `src/core/generic-session-manager.ts`) already provides all required session management functionality
+  - **Impact**: Zero new code needed for session management, immediate consistency with pattern/policy tools
+
+- **Decision**: Accept session ID format change (ephemeral session files)
+  - **Old formats**: `rem_{ISO}_{hex}`, `sol_{ISO}_{hex}`
+  - **New formats**: `rem-{timestamp}-{uuid8}`, `sol-{timestamp}-{uuid8}`
+  - **Rationale**: Session files are temporary (single operation lifecycle), no compatibility concerns
+  - **Impact**: Integration test regex patterns updated, existing sessions naturally expire
+
+- **Decision**: Wrap session data instead of flattening
+  - **Pattern**: `GenericSession<T>` has `{ sessionId, createdAt, updatedAt, data: T }`
+  - **Impact**: All session access updated to use `.data` property (e.g., `session.data.issue` instead of `session.issue`)
+
+**Additional Work Done**:
+- Updated `tests/integration/tools/remediate.test.ts` regex pattern for new session ID format
+- Removed empty try-catch blocks in recommend.ts after refactoring
+- Cleaned up unused imports across all refactored files
+
+**Work In Progress**:
+- **answer-question.ts refactoring** (50% complete):
+  - Imports updated (`GenericSessionManager`, `SolutionData` type)
+  - Zod schema regex updated for new session ID format
+  - Still need to replace `loadSolutionFile()` and `saveSolutionFile()` calls with `sessionManager.getSession()` and `sessionManager.updateSession()`
+
+**Next Session Priorities**:
+1. Complete answer-question.ts refactoring (replace load/save functions with sessionManager calls)
+2. Refactor generate-manifests.ts (same pattern as choose-solution.ts - only reads)
+3. Check deploy-manifests.ts for session file usage
+4. Run full recommend workflow integration tests to verify refactoring
+5. Begin Milestone 1 (Core Tool Infrastructure) once Phase 0 complete
 
 ---
 

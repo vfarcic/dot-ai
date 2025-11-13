@@ -12,7 +12,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import * as yaml from 'js-yaml';
-import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { GenericSessionManager } from '../core/generic-session-manager';
+import type { SolutionData } from './recommend';
 import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
 import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
 
@@ -22,7 +23,7 @@ export const GENERATEMANIFESTS_TOOL_DESCRIPTION = 'Generate final Kubernetes man
 
 // Zod schema for MCP registration
 export const GENERATEMANIFESTS_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to generate manifests for (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
+  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to generate manifests for (e.g., sol-1762983784617-9ddae2b8)'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
@@ -34,36 +35,6 @@ interface ErrorContext {
   previousManifests: string;
   validationResult: ValidationResult;
 }
-
-
-
-/**
- * Load solution file and validate structure
- */
-function loadSolutionFile(solutionId: string, sessionDir: string): any {
-  const solutionPath = path.join(sessionDir, `${solutionId}.json`);
-  
-  if (!fs.existsSync(solutionPath)) {
-    throw new Error(`Solution file not found: ${solutionPath}. Available files: ${fs.readdirSync(sessionDir).filter(f => f.endsWith('.json')).join(', ')}`);
-  }
-  
-  try {
-    const content = fs.readFileSync(solutionPath, 'utf8');
-    const solution = JSON.parse(content);
-    
-    if (!solution.solutionId || !solution.questions) {
-      throw new Error(`Invalid solution file structure: ${solutionId}. Missing required fields: solutionId or questions`);
-    }
-    
-    return solution;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in solution file: ${solutionId}`);
-    }
-    throw error;
-  }
-}
-
 
 /**
  * Retrieve schemas for resources specified in the solution
@@ -184,6 +155,7 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
  */
 async function generateManifestsWithAI(
   solution: any,
+  solutionId: string,
   dotAI: DotAI,
   logger: Logger,
   errorContext?: ErrorContext,
@@ -202,7 +174,7 @@ async function generateManifestsWithAI(
 ${errorContext.previousManifests}
 \`\`\`
 ` : 'None - this is the first attempt.';
-  
+
   const errorDetails = errorContext ? `
 **Attempt**: ${errorContext.attempt}
 **Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
@@ -219,13 +191,13 @@ ${errorContext.previousManifests}
     error_details: errorDetails,
     labels: labelsData
   });
-  
+
   const isRetry = !!errorContext;
   logger.info('Generating manifests with AI', {
     isRetry,
     attempt: errorContext?.attempt,
     hasErrorContext: !!errorContext,
-    solutionId: solution.solutionId
+    solutionId
   });
 
   // Get AI provider from dotAI
@@ -244,7 +216,7 @@ ${errorContext.previousManifests}
   logger.info('AI manifest generation completed', {
     manifestLength: manifestContent.length,
     isRetry,
-    solutionId: solution.solutionId
+    solutionId
   });
 
   return manifestContent;
@@ -253,10 +225,9 @@ ${errorContext.previousManifests}
 /**
  * Generate dot-ai application metadata ConfigMap
  */
-function generateMetadataConfigMap(solution: any, userAnswers: Record<string, any>, logger: Logger): string {
+function generateMetadataConfigMap(solution: any, solutionId: string, userAnswers: Record<string, any>, logger: Logger): string {
   const appName = userAnswers.name;
   const namespace = userAnswers.namespace || 'default';
-  const solutionId = solution.solutionId;
   const originalIntent = solution.intent;
   
   // Validate required fields (will throw if missing)
@@ -325,65 +296,50 @@ export async function handleGenerateManifestsTool(
 
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
-      
-      // Get session directory from environment
-      let sessionDir: string;
-      try {
-        sessionDir = getAndValidateSessionDirectory(true); // requireWrite=true for manifest generation
-        logger.debug('Session directory resolved and validated', { sessionDir });
-      } catch (error) {
+
+      // Initialize session manager
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
+      // Ensure cluster connectivity before proceeding
+      await ensureClusterConnection(dotAI, logger, requestId, 'GenerateManifestsTool');
+
+      // Load solution session
+      const session = sessionManager.getSession(args.solutionId);
+
+      if (!session) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Session directory validation failed',
+          `Solution not found: ${args.solutionId}`,
           {
-            operation: 'session_directory_validation',
+            operation: 'solution_loading',
             component: 'GenerateManifestsTool',
             requestId,
+            input: { solutionId: args.solutionId },
             suggestedActions: [
-              'Ensure session directory exists and is writable',
-              'Check directory permissions',
-              'Verify the directory path is correct',
-              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+              'Verify the solution ID is correct',
+              'Ensure the solution was created by the recommend tool',
+              'Ensure all configuration stages were completed',
+              'Check that the session has not expired'
             ]
           }
         );
       }
-      
-      // Ensure cluster connectivity before proceeding
-      await ensureClusterConnection(dotAI, logger, requestId, 'GenerateManifestsTool');
-      
-      // Load solution file
-      let solution: any;
-      try {
-        solution = loadSolutionFile(args.solutionId, sessionDir);
-        logger.debug('Solution file loaded successfully', { 
-          solutionId: args.solutionId,
-          hasQuestions: !!solution.questions,
-          primaryResources: solution.resources
-        });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.STORAGE,
-          ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Failed to load solution file',
-          {
-            operation: 'solution_file_load',
-            component: 'GenerateManifestsTool',
-            requestId,
-            input: { solutionId: args.solutionId, sessionDir },
-            suggestedActions: [
-              'Check that the solution ID is correct',
-              'Verify the solution file exists in the session directory',
-              'Ensure the solution was fully configured with all stages complete',
-              'List available solution files in the session directory'
-            ]
-          }
-        );
+
+      const solution = session.data;
+      logger.debug('Solution loaded successfully', {
+        solutionId: args.solutionId,
+        hasQuestions: !!solution.questions,
+        primaryResources: solution.resources
+      });
+
+      // Prepare file path for manifests (store in tmp directory)
+      const tmpDir = path.join(process.cwd(), 'tmp');
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
       }
-      
-      // Prepare file path for manifests
-      const yamlPath = path.join(sessionDir, `${args.solutionId}.yaml`);
+      const yamlPath = path.join(tmpDir, `${args.solutionId}.yaml`);
       
       // AI generation and validation loop
       let lastError: ErrorContext | undefined;
@@ -400,19 +356,20 @@ export async function handleGenerateManifestsTool(
           // Extract user answers and generate required labels
           const userAnswers = extractUserAnswers(solution);
           const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
-          
+
           // Generate manifests with AI (including labels)
           const aiManifests = await generateManifestsWithAI(
-            solution, 
+            solution,
+            args.solutionId,
             dotAI,
             logger,
             lastError,
             dotAiLabels,
             args.interaction_id
           );
-          
+
           // Generate metadata ConfigMap
-          const metadataConfigMap = generateMetadataConfigMap(solution, userAnswers, logger);
+          const metadataConfigMap = generateMetadataConfigMap(solution, args.solutionId, userAnswers, logger);
           
           // Combine ConfigMap with AI-generated manifests
           const manifests = metadataConfigMap + '---\n' + aiManifests;
