@@ -583,7 +583,7 @@ const SESSION_DIR = './sessions/operate';
 
 ## Implementation Milestones
 
-### Phase 0: Code Refactoring [Status: ⏳ IN PROGRESS - 57% Complete]
+### Phase 0: Code Refactoring [Status: ✅ COMPLETE - 100%]
 **Target**: Extract reusable utilities from remediate/recommend before implementing operate tool
 
 **DECISION (2025-11-12)**: Refactor shared code before implementing `operate` to ensure consistency, reduce duplication, and make implementation cleaner.
@@ -603,14 +603,24 @@ const SESSION_DIR = './sessions/operate';
   - Removed duplicate `loadSolutionFile()` function
   - Uses `sessionManager.getSession()` to load solutions
   - Updated Zod schema regex for new session ID format
-- [ ] Update `answer-question.ts` to use GenericSessionManager - **IN PROGRESS**
-- [ ] Update `generate-manifests.ts` to use GenericSessionManager
-- [ ] Check `deploy-manifests.ts` for session file usage
-- [ ] Run integration tests for recommend workflow to verify refactoring
+- [x] Update `answer-question.ts` to use GenericSessionManager
+  - Removed `loadSolutionFile()` and `saveSolutionFile()` functions
+  - Uses `sessionManager.getSession()` and `sessionManager.replaceSession()`
+  - Fixed TypeScript errors (changed `const solution` to `let solution` for reassignment)
+- [x] Update `generate-manifests.ts` to use GenericSessionManager
+  - Removed `loadSolutionFile()` function
+  - Updated to pass `solutionId` as parameter instead of accessing `solution.solutionId`
+  - Changed manifest storage from session directory to `./tmp` directory
+- [x] Check `deploy-manifests.ts` for session file usage
+  - Updated Zod schema regex for new session ID format
+  - Updated `deploy-operation.ts` to use `./tmp` directory for manifest files (matching generate-manifests)
+- [x] Run integration tests for recommend workflow to verify refactoring
+  - Fixed test infrastructure: Reverted Qdrant image from `:latest` to `:tests-latest` (commit dd02b10)
+  - Root cause: `:latest` image lacks pre-populated `capabilities-policies` collection required for tests
 
 **Success Validation:**
 - [x] All existing remediate integration tests pass (2/2 tests: manual + automatic mode)
-- [ ] All existing recommend integration tests pass - **PENDING**
+- [x] All existing recommend integration tests pass (1/1 test: complete clarification → solutions → choose → answer → generate → deploy workflow)
 - [x] No behavioral changes - pure refactoring
 - [x] Shared utilities properly typed and documented (GenericSessionManager)
 
@@ -1279,6 +1289,44 @@ operate(intent="make postgres highly available")
 3. Check deploy-manifests.ts for session file usage
 4. Run full recommend workflow integration tests to verify refactoring
 5. Begin Milestone 1 (Core Tool Infrastructure) once Phase 0 complete
+
+---
+
+### 2025-11-13: Phase 0 Complete - GenericSessionManager Migration
+**Duration**: ~4-5 hours (based on conversation timeline)
+**Commits**: 2 commits (44a0f39, dd02b10)
+**Primary Focus**: Code refactoring and test infrastructure fixes
+
+**Completed PRD Items**:
+- [x] Extract reusable utilities - Migrated 6 tools to GenericSessionManager (remediate, recommend, choose-solution, answer-question, generate-manifests, deploy-manifests)
+- [x] Create shared session management - Confirmed GenericSessionManager provides all needed functionality
+- [x] Update all tools to use shared utilities - All tools successfully refactored, session ID format unified
+- [x] Run full test suite - All TypeScript builds pass, linting passes, integration tests pass
+
+**Technical Changes**:
+- Removed duplicate functions: `loadSolutionFile()`, `saveSolutionFile()`, `generateSolutionId()`
+- Unified session ID format: `sol_2025-07-01T154349_xxx` → `sol-1762983784617-9ddae2b8`
+- Updated `SolutionData` interface with proper question structure: changed `questions: any[]` to properly structured object with `required`/`basic`/`advanced`/`open` properties
+- Changed manifest storage from session directory to `./tmp` directory for consistency
+- Updated all Zod schemas for new session ID format across all tools
+- Fixed TypeScript errors in answer-question.ts (changed `const solution` to `let solution` for reassignment)
+
+**Test Infrastructure Fix**:
+- Root cause: Qdrant image changed from `:tests-latest` to `:latest` in commit a6b9cbd (Nov 5)
+- Solution: Reverted to `:tests-latest` (contains pre-populated `capabilities-policies` data)
+- Result: recommend test now passing (was failing on main branch too - pre-existing issue)
+- Commit: dd02b10
+
+**Test Results**:
+- ✅ remediate integration tests: 2/2 passing (manual + automatic mode workflows)
+- ✅ recommend integration tests: 1/1 passing (complete clarification → solutions → choose → answer → generate → deploy workflow)
+- ✅ All TypeScript compilation passes
+- ✅ All linting passes
+
+**Next Session Priorities**:
+1. Begin Milestone 1 (Core Tool Infrastructure)
+2. Implement operate tool with basic operations: start, stop, restart
+3. Add session management for operate tool
 
 ---
 
