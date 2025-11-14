@@ -55,42 +55,52 @@ export KUBECONFIG="${KUBECONFIG_PATH}"
 echo "⏳ Waiting for cluster to be ready..."
 kubectl wait --for=condition=Ready nodes --all --timeout=120s
 
-echo "📦 Installing CloudNativePG operator..."
+# Optional: Install CloudNativePG operator (skip with SKIP_CNPG=true)
+if [[ "${SKIP_CNPG}" != "true" ]]; then
+    echo "📦 Installing CloudNativePG operator..."
 
-# Install CloudNativePG operator
-kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
+    # Install CloudNativePG operator
+    kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
 
-# Wait for CNPG operator to be ready
-echo "⏳ Waiting for CNPG operator to be ready..."
-kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
-    --namespace=cnpg-system --timeout=120s
-
-echo "📦 Installing Kyverno Policy Engine..."
-
-# Check if Helm is installed
-if ! command -v helm &> /dev/null; then
-    echo "❌ Helm is not installed. Please install Helm first"
-    exit 1
+    # Wait for CNPG operator to be ready
+    echo "⏳ Waiting for CNPG operator to be ready..."
+    kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
+        --namespace=cnpg-system --timeout=120s
+else
+    echo "⏭️  Skipping CloudNativePG operator installation (SKIP_CNPG=true)"
 fi
 
-# Add Kyverno Helm repository
-helm repo add kyverno https://kyverno.github.io/kyverno
-helm repo update
+# Optional: Install Kyverno Policy Engine (skip with SKIP_KYVERNO=true)
+if [[ "${SKIP_KYVERNO}" != "true" ]]; then
+    echo "📦 Installing Kyverno Policy Engine..."
 
-# Install Kyverno using Helm
-helm upgrade --install kyverno kyverno/kyverno \
-    --namespace kyverno --create-namespace \
-    --wait --timeout=300s
+    # Check if Helm is installed
+    if ! command -v helm &> /dev/null; then
+        echo "❌ Helm is not installed. Please install Helm first"
+        exit 1
+    fi
 
-echo "⏳ Waiting for Kyverno to be ready..."
-kubectl wait --for=condition=Available deployment/kyverno-admission-controller \
-    --namespace=kyverno --timeout=180s
-kubectl wait --for=condition=Available deployment/kyverno-background-controller \
-    --namespace=kyverno --timeout=180s
-kubectl wait --for=condition=Available deployment/kyverno-cleanup-controller \
-    --namespace=kyverno --timeout=180s
-kubectl wait --for=condition=Available deployment/kyverno-reports-controller \
-    --namespace=kyverno --timeout=180s
+    # Add Kyverno Helm repository
+    helm repo add kyverno https://kyverno.github.io/kyverno
+    helm repo update
+
+    # Install Kyverno using Helm
+    helm upgrade --install kyverno kyverno/kyverno \
+        --namespace kyverno --create-namespace \
+        --wait --timeout=300s
+
+    echo "⏳ Waiting for Kyverno to be ready..."
+    kubectl wait --for=condition=Available deployment/kyverno-admission-controller \
+        --namespace=kyverno --timeout=180s
+    kubectl wait --for=condition=Available deployment/kyverno-background-controller \
+        --namespace=kyverno --timeout=180s
+    kubectl wait --for=condition=Available deployment/kyverno-cleanup-controller \
+        --namespace=kyverno --timeout=180s
+    kubectl wait --for=condition=Available deployment/kyverno-reports-controller \
+        --namespace=kyverno --timeout=180s
+else
+    echo "⏭️  Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
+fi
 
 echo "📦 Starting Qdrant Vector Database (Docker)..."
 
@@ -154,4 +164,7 @@ echo "   Test Command: KUBECONFIG=${KUBECONFIG_PATH} kubectl get nodes"
 echo ""
 echo "🧪 Ready to run integration tests with:"
 echo "   npm run test:integration"
+echo ""
+echo "💡 Optional: Skip operators for faster setup (useful on slow networks):"
+echo "   SKIP_CNPG=true SKIP_KYVERNO=true npm run test:integration operate"
 echo ""

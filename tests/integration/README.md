@@ -71,8 +71,30 @@ process.env.DEBUG_DOT_AI = 'true';                 // Detailed logging
 - **Cluster Name**: `dot-test` (Kind cluster)
 - **Kubeconfig**: `./kubeconfig-test.yaml`
 - **Context**: `kind-dot-test`
-- **Operators**: CloudNativePG pre-installed
+- **Operators**: CloudNativePG, Kyverno (optional)
 - **Port Forwarding**: 3456 → REST API server
+
+### Optional: Skip Operators for Faster Setup
+
+For faster test setup (especially useful on slow networks like airport WiFi), you can skip installing operators that aren't needed for your tests:
+
+```bash
+# Skip CloudNativePG operator (not needed for most tests)
+SKIP_CNPG=true npm run test:integration operate
+
+# Skip Kyverno Policy Engine (not needed for most tests)
+SKIP_KYVERNO=true npm run test:integration operate
+
+# Skip both for fastest setup
+SKIP_CNPG=true SKIP_KYVERNO=true npm run test:integration operate
+```
+
+**Note**: Only skip operators if your tests don't require them. For example:
+- `operate` tool tests: Can skip both (only needs Kubernetes + Qdrant)
+- `recommend` tool tests: Can skip both
+- `remediate` tool tests: Can skip both
+- Tests using PostgreSQL: Need CNPG
+- Tests using policy validation: Need Kyverno
 
 ## Writing Integration Tests
 

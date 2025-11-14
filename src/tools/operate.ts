@@ -8,8 +8,7 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import { PatternVectorService } from '../core/pattern-vector-service';
 import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
-import { OrganizationalPattern } from '../core/pattern-types';
-import { PolicyIntent } from '../core/policy-types';
+import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
 
 // Tool metadata for direct MCP registration
@@ -127,7 +126,7 @@ export interface OperateOutput {
 const sessionManager = new GenericSessionManager<OperateSessionData>('opr');
 
 // Initialize logger
-const logger = new ConsoleLogger();
+const logger = new ConsoleLogger('OperateTool');
 
 /**
  * Embed context (patterns, policies, capabilities) for AI analysis
@@ -164,7 +163,11 @@ export async function embedContext(intent: string, logger: Logger): Promise<Embe
 
   // Search for relevant cluster capabilities (MANDATORY)
   try {
-    const capabilityService = new CapabilityVectorService();
+    // Use QDRANT_CAPABILITIES_COLLECTION env var for collection name
+    // Integration tests set this to 'capabilities-policies' (pre-populated test data)
+    // Production uses default 'capabilities' collection
+    const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
+    const capabilityService = new CapabilityVectorService(collectionName);
     const capabilityResults = await capabilityService.searchCapabilities(intent, { limit: 50 });
 
     if (capabilityResults.length === 0) {
@@ -228,7 +231,6 @@ export function formatPolicies(policies: PolicyIntent[]): string {
   let formatted = '';
   policies.forEach((policy, index) => {
     formatted += `### Policy ${index + 1}: ${policy.description}\n\n`;
-    formatted += `**Enforcement:** ${policy.enforcement}\n\n`;
     if (policy.triggers && policy.triggers.length > 0) {
       formatted += `**Applies to:** ${policy.triggers.join(', ')}\n\n`;
     }
@@ -243,35 +245,20 @@ export function formatPolicies(policies: PolicyIntent[]): string {
 
 /**
  * Format capabilities for template placeholder
+ * Capabilities are already ordered by relevance from vector search
  */
 export function formatCapabilities(capabilities: ResourceCapability[]): string {
   if (capabilities.length === 0) {
     return 'No custom capabilities detected. Only standard Kubernetes resources available.';
   }
 
-  // Group capabilities by category for better readability
-  const grouped = new Map<string, ResourceCapability[]>();
-  capabilities.forEach(cap => {
-    const category = cap.category || 'Other';
-    if (!grouped.has(category)) {
-      grouped.set(category, []);
-    }
-    grouped.get(category)!.push(cap);
-  });
-
+  // List capabilities in order received (most relevant first from vector search)
   let formatted = '';
-  const categories = Array.from(grouped.keys()).sort();
-
-  categories.forEach((category, catIndex) => {
-    const caps = grouped.get(category)!;
-    formatted += `### ${category}\n\n`;
-
-    caps.forEach(cap => {
-      formatted += `- **${cap.kind}** (${cap.apiVersion}): ${cap.description || 'Custom resource'}\n`;
-    });
-
-    if (catIndex < categories.length - 1) {
-      formatted += '\n';
+  capabilities.forEach(cap => {
+    const apiInfo = cap.apiVersion || cap.group || 'core';
+    formatted += `- **${cap.resourceName}** (${apiInfo}): ${cap.description || 'Custom resource'}\n`;
+    if (cap.capabilities && cap.capabilities.length > 0) {
+      formatted += `  Capabilities: ${cap.capabilities.join(', ')}\n`;
     }
   });
 
@@ -282,8 +269,6 @@ export function formatCapabilities(capabilities: ResourceCapability[]): string {
  * Main operate tool entry point
  */
 export async function operate(args: OperateInput): Promise<OperateOutput> {
-  const errorHandler = new ErrorHandler(logger);
-
   try {
     // Route 1: Execute approved operation
     if (args.sessionId && args.executeChoice) {
@@ -307,20 +292,38 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
     }
 
     // Invalid input
-    throw errorHandler.createError(
-      'Invalid input: must provide either intent (for new operation) or sessionId + executeChoice (for execution)',
-      ErrorCategory.VALIDATION_ERROR,
+    throw ErrorHandler.createError(
+      ErrorCategory.VALIDATION,
       ErrorSeverity.HIGH,
-      { args },
-      'INVALID_OPERATE_INPUT'
+      'Invalid input: must provide either intent (for new operation) or sessionId + executeChoice (for execution)',
+      {
+        operation: 'operate',
+        component: 'OperateTool'
+      }
     );
   } catch (error) {
-    logger.error('Operate tool error', { error, args });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`Operate tool error: ${errorMsg}`);
 
     return {
       status: 'failed',
       sessionId: args.sessionId || 'unknown',
-      message: `Operation failed: ${error instanceof Error ? error.message : String(error)}`
+      message: `Operation failed: ${errorMsg}`
     };
   }
+}
+
+/**
+ * MCP handler for operate tool
+ * Wraps the main operate function with consistent return format
+ */
+export async function handleOperateTool(args: any): Promise<any> {
+  const result = await operate(args);
+
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify(result, null, 2)
+    }]
+  };
 }

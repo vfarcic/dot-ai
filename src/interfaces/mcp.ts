@@ -41,6 +41,12 @@ import {
   handleRemediateTool,
 } from '../tools/remediate';
 import {
+  OPERATE_TOOL_NAME,
+  OPERATE_TOOL_DESCRIPTION,
+  OPERATE_TOOL_INPUT_SCHEMA,
+  handleOperateTool,
+} from '../tools/operate';
+import {
   PROJECT_SETUP_TOOL_NAME,
   PROJECT_SETUP_TOOL_DESCRIPTION,
   PROJECT_SETUP_TOOL_INPUT_SCHEMA,
@@ -228,6 +234,23 @@ export class MCPServer {
       ['remediation', 'troubleshooting', 'kubernetes', 'analysis']
     );
 
+    // Register operate tool
+    this.registerTool(
+      OPERATE_TOOL_NAME,
+      OPERATE_TOOL_DESCRIPTION,
+      OPERATE_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(
+          `Processing ${OPERATE_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleOperateTool(args);
+      },
+      'Operations',
+      ['operate', 'operations', 'kubernetes', 'day2', 'update', 'scale']
+    );
+
     // Register projectSetup tool
     this.registerTool(
       PROJECT_SETUP_TOOL_NAME,
@@ -251,9 +274,10 @@ export class MCPServer {
         VERSION_TOOL_NAME,
         ORGANIZATIONAL_DATA_TOOL_NAME,
         REMEDIATE_TOOL_NAME,
+        OPERATE_TOOL_NAME,
         PROJECT_SETUP_TOOL_NAME
       ],
-      totalTools: 5,
+      totalTools: 6,
     });
   }
 

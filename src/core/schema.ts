@@ -410,7 +410,7 @@ export class ResourceRecommender {
     // Initialize pattern service only if Vector DB is available
     try {
       const vectorDB = new VectorDBService({ collectionName: 'patterns' });
-      this.patternService = new PatternVectorService(vectorDB);
+      this.patternService = new PatternVectorService('patterns', vectorDB);
       console.log('✅ Pattern service initialized with Vector DB');
     } catch (error) {
       console.warn('⚠️ Vector DB not available, patterns disabled:', error);

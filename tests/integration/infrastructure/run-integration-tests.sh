@@ -113,19 +113,30 @@ if [ "$NO_CLUSTER" = false ]; then
         exit 1
     }
 
-    log_info "Installing CloudNativePG operator (async)..."
     export KUBECONFIG=./kubeconfig-test.yaml
-    kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
 
-    log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
-    helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
-    helm repo update
-    helm upgrade --install kyverno kyverno/kyverno \
-        --namespace kyverno --create-namespace \
-        --wait --timeout=300s || {
-        log_error "Failed to install Kyverno"
-        exit 1
-    }
+    # Optional: Install CloudNativePG operator (skip with SKIP_CNPG=true)
+    if [[ "${SKIP_CNPG}" != "true" ]]; then
+        log_info "Installing CloudNativePG operator (async)..."
+        kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
+    else
+        log_warn "Skipping CloudNativePG operator installation (SKIP_CNPG=true)"
+    fi
+
+    # Optional: Install Kyverno Policy Engine (skip with SKIP_KYVERNO=true)
+    if [[ "${SKIP_KYVERNO}" != "true" ]]; then
+        log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
+        helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
+        helm repo update
+        helm upgrade --install kyverno kyverno/kyverno \
+            --namespace kyverno --create-namespace \
+            --wait --timeout=300s || {
+            log_error "Failed to install Kyverno"
+            exit 1
+        }
+    else
+        log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
+    fi
 
     log_info "Starting fresh Qdrant test container..."
     # Remove existing container if it exists
