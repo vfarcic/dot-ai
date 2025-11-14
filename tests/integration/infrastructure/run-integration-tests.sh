@@ -148,8 +148,25 @@ if [ "$NO_CLUSTER" = false ]; then
         exit 1
     }
 
-    # Wait for Qdrant to be ready
-    sleep 3
+    # Wait for Qdrant to be ready (poll health endpoint)
+    log_info "Waiting for Qdrant to be ready..."
+    MAX_QDRANT_WAIT=30
+    QDRANT_WAITED=0
+    while [ $QDRANT_WAITED -lt $MAX_QDRANT_WAIT ]; do
+        if curl -s http://localhost:6335/healthz | grep -q "healthz check passed"; then
+            log_info "Qdrant is healthy!"
+            # Additional wait to ensure collections are fully initialized
+            sleep 2
+            break
+        fi
+        sleep 1
+        QDRANT_WAITED=$((QDRANT_WAITED + 1))
+    done
+
+    if [ $QDRANT_WAITED -eq $MAX_QDRANT_WAIT ]; then
+        log_error "Qdrant failed to become healthy within ${MAX_QDRANT_WAIT} seconds"
+        exit 1
+    fi
 else
     log_info "Skipping cluster and infrastructure setup (--no-cluster mode)"
 fi

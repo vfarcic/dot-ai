@@ -22,7 +22,7 @@ describe.concurrent('Operate Tool Integration', () => {
   });
 
   describe('Analysis Workflow', () => {
-    test('should complete full workflow: create deployment → analyze update intent → verify AI proposal with dry-run validation', async () => {
+    test('should complete full workflow: create deployment → analyze update intent → execute approved changes → validate deployment updated', async () => {
       const testId = Date.now();
 
       // SETUP: Create namespace
@@ -179,7 +179,53 @@ EOF`);
       const unchangedDeployment = JSON.parse(unchangedDeploymentJson);
       expect(unchangedDeployment.spec.template.spec.containers[0].image).toBe('nginx:1.19'); // Still old version
 
-    }, 300000); // 5 minute timeout for AI analysis
+      // PHASE 3: Execute approved changes
+      const executionResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/operate',
+        {
+          sessionId,
+          executeChoice: 1 // Execute via MCP
+        }
+      );
+
+      // Validate execution response structure
+      const expectedExecutionResponse = {
+        success: true,
+        data: {
+          result: {
+            status: 'success', // Should succeed
+            sessionId,
+            execution: {
+              results: expect.arrayContaining([
+                expect.objectContaining({
+                  command: expect.stringContaining('kubectl'),
+                  success: true,
+                  output: expect.any(String),
+                  timestamp: expect.any(String)
+                })
+              ]),
+              validation: expect.stringMatching(/Validation successful|Validation completed/) // Should have real validation result
+            },
+            message: expect.stringContaining('executed successfully')
+          }
+        }
+      };
+
+      expect(executionResponse).toMatchObject(expectedExecutionResponse);
+
+      // Verify validation ran (not the placeholder message)
+      const validation = executionResponse.data.result.execution.validation;
+      expect(validation).not.toContain('coming in future milestone');
+
+      // PHASE 4: Validate deployment actually updated
+      // Wait a moment for k8s to propagate changes
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const updatedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
+      const updatedDeployment = JSON.parse(updatedDeploymentJson);
+      expect(updatedDeployment.spec.template.spec.containers[0].image).toBe('nginx:1.20'); // Should be updated to 1.20
+
+    }, 300000); // 5 minute timeout for full workflow (analysis + execution)
 
     test('should apply organizational patterns: scale with HPA creation', async () => {
       const testId = Date.now();
