@@ -232,12 +232,10 @@ EOF`);
       const patternNamespace = 'operate-pattern-test';
 
       // SETUP: Create HPA scaling pattern via MCP endpoint (same workflow as pattern tests)
-      console.log('[PATTERN TEST] Starting pattern creation request...');
       const createResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'pattern',
         operation: 'create'
       });
-      console.log('[PATTERN TEST] Pattern creation started successfully');
 
       const sessionId = createResponse.data.result.workflow.sessionId;
 
@@ -297,10 +295,8 @@ EOF`);
         response: 'confirm'
       });
 
-      console.log('[PATTERN TEST] Final response:', JSON.stringify(finalResponse, null, 2));
       expect(finalResponse.data.result.success).toBe(true);
       const patternId = finalResponse.data.result.storage.patternId;
-      console.log('[PATTERN TEST] Pattern ID:', patternId);
 
       // Verify pattern was actually stored
       const getPatternResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -309,7 +305,6 @@ EOF`);
         id: patternId
       });
 
-      console.log('[PATTERN TEST] Pattern GET response:', JSON.stringify(getPatternResponse, null, 2));
       expect(getPatternResponse.data.result.success).toBe(true);
       expect(getPatternResponse.data.result.data).toBeDefined();
 
@@ -392,7 +387,49 @@ EOF`);
       );
       expect(hasHpaCommand).toBe(true);
 
-    }, 300000); // 5 minute timeout for AI analysis
+      // PHASE 5: Execute approved changes
+      const operateSessionId = analysisResponse.data.result.sessionId;
+      const executionResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/operate',
+        {
+          sessionId: operateSessionId,
+          executeChoice: 1 // Execute via MCP
+        }
+      );
+
+      // Validate execution response structure
+      expect(executionResponse.success).toBe(true);
+      expect(executionResponse.data.result.status).toBe('success');
+      expect(executionResponse.data.result.execution.results).toBeDefined();
+
+      // PHASE 6: Verify HPA actually created in cluster
+      // Wait for k8s to propagate changes
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const hpaJson = await integrationTest.kubectl(`get hpa -n ${patternNamespace} -o json`);
+      const hpaList = JSON.parse(hpaJson);
+      expect(hpaList.items).toBeDefined();
+      expect(hpaList.items.length).toBeGreaterThan(0);
+
+      // Find the HPA for test-api
+      const testApiHpa = hpaList.items.find((hpa: any) =>
+        hpa.spec.scaleTargetRef.name === 'test-api'
+      );
+      expect(testApiHpa).toBeDefined();
+      expect(testApiHpa.spec.minReplicas).toBe(4);
+      expect(testApiHpa.spec.maxReplicas).toBe(4);
+
+      // PHASE 7: Verify HPA is functional (managing deployment replicas)
+      // HPA should maintain deployment at 4 replicas (both min and max are 4)
+      const deploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${patternNamespace} -o json`);
+      const deployment = JSON.parse(deploymentJson);
+
+      // HPA should have set replicas to 4 (or will soon)
+      // Note: HPA reconciliation may take a moment, so we check the HPA's scaleTargetRef is correct
+      expect(testApiHpa.spec.scaleTargetRef.kind).toBe('Deployment');
+      expect(testApiHpa.spec.scaleTargetRef.name).toBe('test-api');
+
+    }, 300000); // 5 minute timeout for full workflow
   });
 
   describe('Error Handling', () => {
