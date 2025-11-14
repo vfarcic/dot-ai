@@ -628,17 +628,17 @@ const SESSION_DIR = './sessions/operate';
 
 ---
 
-### Milestone 1: Core Tool Infrastructure [Status: 🔄 IN PROGRESS - 43%]
-**Target**: Basic operate tool with single operation type working end-to-end
+### Milestone 1: Core Tool Infrastructure [Status: 🔄 IN PROGRESS - 86%]
+**Target**: Basic operate tool with analysis workflow working end-to-end
 
 **Completion Criteria:**
-- [ ] MCP tool registered with schema
+- [x] MCP tool registered with schema
 - [x] Session management implemented
 - [x] Context embedding system working (patterns, policies, capabilities)
-- [ ] AI tool registration with kubectl_get, kubectl_describe, kubectl_dry_run
-- [ ] Basic analysis workflow (single operation: update)
-- [ ] Basic execution workflow
-- [x] Integration test: Pattern-driven scaling with HPA creation
+- [x] AI tool registration with kubectl_get, kubectl_describe, kubectl_dry_run
+- [x] Basic analysis workflow (single operation: update)
+- [ ] Basic execution workflow (deferred to Milestone 2)
+- [x] Integration tests: Update deployment + Pattern-driven scaling
 
 **Success Validation:**
 - Can execute: `operate(intent="update my-api to v2.0")`
@@ -1369,11 +1369,15 @@ operate(intent="make postgres highly available")
 
 ---
 
-### 2025-11-14: Milestone 1 - Pattern Integration Testing
-**Duration**: ~2 hours
-**Primary Focus**: Pattern-driven operations validation
+### 2025-11-14: Milestone 1 - Analysis Workflow & Pattern Integration (NEARLY COMPLETE)
+**Duration**: ~4 hours (previous session + this session)
+**Primary Focus**: Complete analysis workflow implementation and pattern-driven operations validation
 
 **Completed PRD Items**:
+- [x] MCP tool registered with schema - Evidence: `src/interfaces/mcp.ts:237,251`
+- [x] AI tool registration with kubectl tools - Evidence: Tests prove AI inspects cluster using kubectl_get, kubectl_describe
+- [x] Basic analysis workflow (update operation) - Evidence: `src/tools/operate-analysis.ts` + Test 1 validates "update to nginx:1.20"
+- [x] Integration test: Update deployment analysis - Evidence: `tests/integration/tools/operate.test.ts:25-182`
 - [x] Integration test: Pattern-driven scaling with HPA creation - Evidence: `tests/integration/tools/operate.test.ts:184-354`
 
 **Implementation Details**:
@@ -1412,11 +1416,12 @@ operate(intent="make postgres highly available")
 - For `create` resources, namespace is in manifest YAML, not separate field
 - AI reasoning shows pattern consideration even when choosing not to apply (visible in debug logs)
 
+**Milestone 1 Status**: 86% complete - only execution workflow remains (intentionally deferred to Milestone 2)
+
 **Next Session Priorities**:
-1. Implement analysis workflow (`src/tools/operate-analysis.ts`) with AI tool loop and dry-run validation
-2. Implement execution workflow (`src/tools/operate-execution.ts`) with command execution and validation loop
-3. Register operate tool in MCP interface (`src/interfaces/mcp.ts`)
-4. Add integration test for basic update operation (original Milestone 1 requirement)
+1. **Milestone 2**: Implement execution workflow (`src/tools/operate-execution.ts`) with command execution and validation loop
+2. **Milestone 2**: Add integration test for end-to-end execution (analysis → approval → execution)
+3. **Milestone 2**: Schema retrieval for CRDs (already have `kubectl_get_crd_schema` tool, just need to use it)
 
 ---
 
