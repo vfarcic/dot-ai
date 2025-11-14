@@ -628,13 +628,13 @@ const SESSION_DIR = './sessions/operate';
 
 ---
 
-### Milestone 1: Core Tool Infrastructure [Status: ⏳ PENDING]
+### Milestone 1: Core Tool Infrastructure [Status: 🔄 IN PROGRESS - 29%]
 **Target**: Basic operate tool with single operation type working end-to-end
 
 **Completion Criteria:**
 - [ ] MCP tool registered with schema
-- [ ] Session management implemented
-- [ ] Context embedding system working (patterns, policies, capabilities)
+- [x] Session management implemented
+- [x] Context embedding system working (patterns, policies, capabilities)
 - [ ] AI tool registration with kubectl_get, kubectl_describe, kubectl_dry_run
 - [ ] Basic analysis workflow (single operation: update)
 - [ ] Basic execution workflow
@@ -1327,6 +1327,45 @@ operate(intent="make postgres highly available")
 1. Begin Milestone 1 (Core Tool Infrastructure)
 2. Implement operate tool with basic operations: start, stop, restart
 3. Add session management for operate tool
+
+---
+
+### 2025-01-14: Milestone 1 - Core Infrastructure Foundations
+**Duration**: ~3 hours
+**Primary Focus**: Type definitions, context embedding, prompt system
+
+**Completed PRD Items**:
+- [x] Session management implemented - Uses GenericSessionManager with 'opr' prefix, proper session data types (OperateSessionData, OperateSession)
+- [x] Context embedding system working - Implements vector search for patterns/policies/capabilities with mandatory validation for capabilities, optional patterns/policies
+
+**Implementation Details**:
+- **System Prompt**: Created `prompts/operate-system.md` with AI role definition, operational strategy, dry-run validation requirements, pattern/policy integration guidelines
+  - Removed prescriptive operation types to allow fully general operations
+  - Fixed terminology consistency ("provided in user message")
+  - Removed operator examples to prevent false assumptions
+
+- **User Prompt Template**: Created `prompts/operate-user.md` with separate placeholders for intent, patterns, policies, capabilities
+  - Follows existing prompt template patterns (like intent-analysis.md, resource-selection.md)
+
+- **Core Tool Implementation**: Created `src/tools/operate.ts` with:
+  - Complete type definitions (OperateInput, OperateSessionData, OperateSession, EmbeddedContext, ProposedChanges, ResourceChange, ExecutionResult, OperateOutput)
+  - Context embedding function using `searchCapabilities()` (not `getAllCapabilities()`) for intent-based filtering
+  - Mandatory capabilities validation - throws error if Vector DB unavailable or no capabilities found
+  - Optional patterns/policies - warns and continues if unavailable
+  - Separate formatting functions (formatPatterns, formatPolicies, formatCapabilities) for template placeholders
+  - Main routing logic for analysis/execution/refinement workflows
+
+**Design Decisions**:
+- **Capabilities are mandatory**: Throws clear error message directing users to scan cluster if capabilities unavailable
+- **Patterns/Policies are optional**: Logs warnings but continues operation if unavailable
+- **Intent-based capability search**: Uses vector search with user intent to find relevant capabilities (not just first 50)
+- **Template-based prompts**: Separate system prompt (static, cacheable) and user prompt template with placeholders
+
+**Next Session Priorities**:
+1. Implement analysis workflow (`src/tools/operate-analysis.ts`) with AI tool loop and dry-run validation
+2. Implement execution workflow (`src/tools/operate-execution.ts`) with command execution and validation
+3. Register tool in MCP (`src/interfaces/mcp.ts`)
+4. Write integration tests (`tests/integration/tools/operate.test.ts`)
 
 ---
 
