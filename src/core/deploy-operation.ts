@@ -72,8 +72,8 @@ export class DeployOperation {
    * Get the manifest file path for the solution
    */
   private getManifestPath(options: DeployOptions): string {
-    // Use tmp directory for manifest files (matching generate-manifests behavior)
-    const tmpDir = join(process.cwd(), 'tmp');
+    // Use sessionDir if provided, otherwise use tmp directory (for recommend tool compatibility)
+    const tmpDir = options.sessionDir || join(process.cwd(), 'tmp');
     return join(tmpDir, `${options.solutionId}.yaml`);
   }
 
