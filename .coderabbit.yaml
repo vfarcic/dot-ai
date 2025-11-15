@@ -1,0 +1,50 @@
+# CodeRabbit Configuration
+# Documentation: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+# Reduce review noise by focusing on actionable issues
+reviews:
+  # Request changes only for critical/major issues
+  request_changes_workflow: true
+
+  # Reduce comment verbosity
+  high_level_summary: true
+  poem: false
+  review_status: false
+
+  # Collapse less important sections
+  collapse_walkthrough: true
+
+  # Only review specific file types
+  path_filters:
+    - "!**/package-lock.json"  # Skip lock files
+    - "!**/dist/**"  # Skip build output
+    - "!**/tmp/**"  # Skip temporary files
+
+  # Focus on important checks
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Reduce nitpick comments
+  tone_instructions: "Focus only on critical bugs, security issues, and architectural concerns. Skip style nitpicks and minor improvements unless they significantly impact code quality."
+
+# Limit review scope
+language: "en-US"
+early_access: false
+
+# Reduce noise from tests
+path_instructions:
+  - path: "tests/**"
+    instructions: "Only flag critical test bugs or missing test coverage for new features. Skip minor test improvements."
+
+  - path: "**/*.test.ts"
+    instructions: "Focus on test correctness and coverage gaps only. Skip style suggestions."
+
+  - path: "prompts/**"
+    instructions: "Only review for clarity and correctness. Skip style suggestions for AI prompts."
+
+# Custom review instructions
+chat:
+  auto_reply: false

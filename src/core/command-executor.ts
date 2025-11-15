@@ -67,11 +67,8 @@ export async function executeCommands(
       // Clean up escape sequences that AI models sometimes add
       const cleanCommand = command.replace(/\\"/g, '"');
 
-      // Execute command using child_process
-      const { exec } = require('child_process');
-      const { promisify } = require('util');
-      const execAsync = promisify(exec);
-
+      // Execute command using shared utility
+      const { execAsync } = await import('./platform-utils.js');
       const { stdout } = await execAsync(cleanCommand);
 
       results.push({

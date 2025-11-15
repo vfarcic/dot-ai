@@ -153,7 +153,7 @@ if [ "$NO_CLUSTER" = false ]; then
     MAX_QDRANT_WAIT=30
     QDRANT_WAITED=0
     while [ $QDRANT_WAITED -lt $MAX_QDRANT_WAIT ]; do
-        if curl -s http://localhost:6335/healthz | grep -q "healthz check passed"; then
+        if curl -sf http://localhost:6335/healthz > /dev/null; then
             log_info "Qdrant is healthy!"
             # Additional wait to ensure collections are fully initialized
             sleep 2
