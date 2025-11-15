@@ -450,6 +450,6 @@ EOF`);
       };
 
       expect(errorResponse).toMatchObject(expectedErrorResponse);
-    });
+    }, 300000); // 5 minute timeout (may involve AI processing even for error cases)
   });
 });
