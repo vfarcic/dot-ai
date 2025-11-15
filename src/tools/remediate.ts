@@ -6,11 +6,10 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } from '../core/error-handling';
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
-import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
 // PRD #143 Milestone 1: Hybrid approach - AI can use kubectl_api_resources tool OR continue with JSON dataRequests
 
@@ -43,17 +42,23 @@ export interface RemediateInput {
   interaction_id?: string;  // INTERNAL ONLY - Used for evaluation dataset generation
 }
 
-export interface RemediateSession {
-  sessionId: string;
+// Session data stored by GenericSessionManager
+export interface RemediateSessionData {
   issue: string;
   mode: 'manual' | 'automatic';
   interaction_id?: string;
   finalAnalysis?: RemediateOutput;
-  created: Date;
-  updated: Date;
   status: 'investigating' | 'analysis_complete' | 'failed' | 'executed_successfully' | 'executed_with_errors' | 'cancelled';
   executionResults?: ExecutionResult[];
 }
+
+// Full session type (GenericSession wraps the data)
+export type RemediateSession = {
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+  data: RemediateSessionData;
+};
 
 export interface RemediationAction {
   description: string;
@@ -109,57 +114,14 @@ export interface RemediateOutput {
   mode?: 'manual' | 'automatic'; // execution mode used for this call
 }
 
-/**
- * Generate unique session ID for investigation tracking
- */
-function generateSessionId(): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
-  const random = crypto.randomBytes(8).toString('hex');
-  return `rem_${timestamp}_${random}`;
-}
-
-/**
- * Write session file to session directory
- */
-function writeSessionFile(sessionDir: string, sessionId: string, sessionData: RemediateSession): void {
-  const sessionPath = path.join(sessionDir, `${sessionId}.json`);
-  const sessionJson = JSON.stringify(sessionData, null, 2);
-  fs.writeFileSync(sessionPath, sessionJson, 'utf8');
-}
-
-/**
- * Read session file from session directory
- */
-function readSessionFile(sessionDir: string, sessionId: string): RemediateSession {
-  const sessionPath = path.join(sessionDir, `${sessionId}.json`);
-  
-  if (!fs.existsSync(sessionPath)) {
-    throw new Error(`Session file not found: ${sessionId}`);
-  }
-  
-  const sessionJson = fs.readFileSync(sessionPath, 'utf8');
-  return JSON.parse(sessionJson) as RemediateSession;
-}
-
-/**
- * Update existing session file
- */
-function updateSessionFile(sessionDir: string, sessionId: string, updates: Partial<RemediateSession>): void {
-  const session = readSessionFile(sessionDir, sessionId);
-  const updatedSession = {
-    ...session,
-    ...updates,
-    updated: new Date()
-  };
-  writeSessionFile(sessionDir, sessionId, updatedSession);
-}
+// Session management now handled by GenericSessionManager
 
 /**
  * AI-driven investigation - uses toolLoop for single-phase investigation and analysis
  */
 async function conductInvestigation(
   session: RemediateSession,
-  sessionDir: string,
+  sessionManager: GenericSessionManager<RemediateSessionData>,
   aiProvider: AIProvider,
   logger: Logger,
   requestId: string,
@@ -171,7 +133,7 @@ async function conductInvestigation(
   logger.info('Starting AI investigation with toolLoop', {
     requestId,
     sessionId: session.sessionId,
-    issue: session.issue
+    issue: session.data.issue
   });
 
   try {
@@ -190,13 +152,13 @@ async function conductInvestigation(
     const operationName = isValidation ? 'remediate-validation' : 'remediate-investigation';
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
-      userMessage: `Investigate this Kubernetes issue: ${session.issue}`,
+      userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`,
       tools: KUBECTL_INVESTIGATION_TOOLS,
       toolExecutor: executeKubectlTools,
       maxIterations: maxIterations,
       operation: operationName,
       evaluationContext: {
-        user_intent: session.issue
+        user_intent: session.data.issue
       },
       interaction_id: interactionId
     });
@@ -229,7 +191,7 @@ async function conductInvestigation(
       remediation: finalAnalysis.remediation,
       validationIntent: finalAnalysis.validationIntent,
       executed: false,
-      mode: session.mode
+      mode: session.data.mode
     };
 
     // Add guidance based on issue status
@@ -256,13 +218,13 @@ async function conductInvestigation(
       ].join('. ');
 
       output.guidance = `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`;
-      output.agentInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.mode}"\n6. DO NOT automatically execute any commands until user makes their choice`;
+      output.agentInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.data.mode}"\n6. DO NOT automatically execute any commands until user makes their choice`;
       output.nextAction = 'remediate';
       output.message = `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`;
     }
 
     // Update session with final analysis
-    updateSessionFile(sessionDir, session.sessionId, {
+    sessionManager.updateSession(session.sessionId, {
       finalAnalysis: output,
       status: 'analysis_complete'
     });
@@ -283,7 +245,7 @@ async function conductInvestigation(
     });
 
     // Mark session as failed
-    updateSessionFile(sessionDir, session.sessionId, { status: 'failed' });
+    sessionManager.updateSession(session.sessionId, { status: 'failed' });
 
     throw ErrorHandler.createError(
       ErrorCategory.AI_SERVICE,
@@ -424,7 +386,7 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
  * Execute user choice from previous session
  */
 async function executeUserChoice(
-  sessionDir: string,
+  sessionManager: GenericSessionManager<RemediateSessionData>,
   sessionId: string,
   choice: number,
   logger: Logger,
@@ -433,9 +395,13 @@ async function executeUserChoice(
 ): Promise<any> {
   try {
     // Load previous session
-    const session = readSessionFile(sessionDir, sessionId);
-    
-    if (!session.finalAnalysis) {
+    const session = sessionManager.getSession(sessionId);
+
+    if (!session) {
+      throw new Error(`Session file not found: ${sessionId}`);
+    }
+
+    if (!session.data.finalAnalysis) {
       throw ErrorHandler.createError(
         ErrorCategory.VALIDATION,
         ErrorSeverity.HIGH,
@@ -444,21 +410,21 @@ async function executeUserChoice(
       );
     }
 
-    logger.info('Loaded session for choice execution', { 
-      requestId, 
-      sessionId, 
+    logger.info('Loaded session for choice execution', {
+      requestId,
+      sessionId,
       choice,
-      actionCount: session.finalAnalysis.remediation.actions.length 
+      actionCount: session.data.finalAnalysis.remediation.actions.length
     });
 
     // Handle different choices
     switch (choice) {
       case 1: // Execute automatically via MCP
-        return await executeRemediationCommands(session, sessionDir, logger, requestId, currentInteractionId);
-        
+        return await executeRemediationCommands(session, sessionManager, logger, requestId, currentInteractionId);
+
       case 2: { // Execute via agent
         // Use validation intent directly from final analysis
-        const validationIntent = session.finalAnalysis.validationIntent || 'Check the status of the affected resources to verify the issue has been resolved';
+        const validationIntent = session.data.finalAnalysis.validationIntent || 'Check the status of the affected resources to verify the issue has been resolved';
 
         return {
           content: [
@@ -468,7 +434,7 @@ async function executeUserChoice(
                 status: 'success',
                 sessionId: sessionId,
                 message: 'Ready for agent execution',
-                remediation: session.finalAnalysis.remediation,
+                remediation: session.data.finalAnalysis.remediation,
                 instructions: {
                   nextSteps: [
                     'STEP 1: Execute the kubectl commands shown in the remediation section using your Bash tool',
@@ -514,13 +480,13 @@ async function executeUserChoice(
  */
 async function executeRemediationCommands(
   session: RemediateSession,
-  sessionDir: string,
+  sessionManager: GenericSessionManager<RemediateSessionData>,
   logger: Logger,
   requestId: string,
   currentInteractionId?: string
 ): Promise<any> {
   const results: ExecutionResult[] = [];
-  const finalAnalysis = session.finalAnalysis!;
+  const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
 
   logger.info('Starting remediation command execution', { 
@@ -603,9 +569,8 @@ async function executeRemediationCommands(
           const executedCommands = results.map(r => r.action);
           const validationInput = {
             issue: validationIntent,
-            sessionDir: sessionDir,
             executedCommands: executedCommands,
-            interaction_id: currentInteractionId || session.interaction_id // Use current interaction_id for validation
+            interaction_id: currentInteractionId || session.data.interaction_id // Use current interaction_id for validation
           };
       
           // Recursive call to main function for validation
@@ -695,7 +660,7 @@ async function executeRemediationCommands(
     }
 
   // Update session with execution results
-  updateSessionFile(sessionDir, session.sessionId, { 
+  sessionManager.updateSession(session.sessionId, {
     status: overallSuccess ? 'executed_successfully' : 'executed_with_errors',
     executionResults: results
   });
@@ -772,9 +737,9 @@ export async function handleRemediateTool(args: any): Promise<any> {
   const logger = new ConsoleLogger('RemediateTool');
 
   try {
-    // Validate and get session directory
-    const sessionDir = getAndValidateSessionDirectory(true);
-    logger.debug('Session directory validated', { requestId, sessionDir });
+    // Initialize session manager
+    const sessionManager = new GenericSessionManager<RemediateSessionData>('rem');
+    logger.debug('Session manager initialized', { requestId });
 
     // Validate input
     const validatedInput = validateRemediateInput(args);
@@ -788,7 +753,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
       });
       
       return await executeUserChoice(
-        sessionDir,
+        sessionManager,
         validatedInput.sessionId,
         validatedInput.executeChoice,
         logger,
@@ -807,21 +772,14 @@ export async function handleRemediateTool(args: any): Promise<any> {
       );
     }
     
-    // Generate session ID and create initial session
-    const sessionId = generateSessionId();
-    const session: RemediateSession = {
-      sessionId,
+    // Create initial session using session manager
+    const session = sessionManager.createSession({
       issue: validatedInput.issue,
       mode: validatedInput.mode || 'manual',
       interaction_id: validatedInput.interaction_id,
-      created: new Date(),
-      updated: new Date(),
       status: 'investigating'
-    };
-
-    // Write initial session file
-    writeSessionFile(sessionDir, sessionId, session);
-    logger.info('Investigation session created', { requestId, sessionId });
+    });
+    logger.info('Investigation session created', { requestId, sessionId: session.sessionId });
 
     // Initialize AI provider (will validate API key automatically)
     const aiProvider = createAIProvider();
@@ -830,7 +788,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
     const isValidation = validatedInput.executedCommands && validatedInput.executedCommands.length > 0;
     const finalAnalysis = await conductInvestigation(
       session,
-      sessionDir,
+      sessionManager,
       aiProvider,
       logger,
       requestId,
@@ -840,7 +798,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
     logger.info('Remediation analysis completed', {
       requestId,
-      sessionId,
+      sessionId: session.sessionId,
       rootCause: finalAnalysis.analysis.rootCause,
       actionCount: finalAnalysis.remediation.actions.length,
       riskLevel: finalAnalysis.remediation.risk
@@ -850,7 +808,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
     if (finalAnalysis.status === 'success') {
       logger.info('Issue resolved/non-existent - returning success without execution decision', {
         requestId,
-        sessionId,
+        sessionId: session.sessionId,
         status: finalAnalysis.status
       });
       
@@ -876,7 +834,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
     logger.info('Execution decision made', {
       requestId,
-      sessionId,
+      sessionId: session.sessionId,
       mode: validatedInput.mode,
       shouldExecute: executionDecision.shouldExecute,
       reason: executionDecision.reason,
@@ -912,12 +870,12 @@ export async function handleRemediateTool(args: any): Promise<any> {
     // Execute remediation actions if automatic mode approves it
     if (executionDecision.shouldExecute) {
       // Update session object with final analysis for execution
-      session.finalAnalysis = finalAnalysis;
-      
+      session.data.finalAnalysis = finalAnalysis;
+
       // Execute commands and return the complete result (includes post-execution validation)
       return await executeRemediationCommands(
         session,
-        sessionDir,
+        sessionManager,
         logger,
         requestId,
         validatedInput.interaction_id

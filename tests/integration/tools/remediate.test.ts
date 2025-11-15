@@ -105,7 +105,7 @@ EOF`);
         data: {
           result: {
             status: 'awaiting_user_approval',
-            sessionId: expect.stringMatching(/^rem_\d{4}-\d{2}-\d{2}T\d{4}_[a-f0-9]{16}$/),
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
               dataGathered: expect.arrayContaining([

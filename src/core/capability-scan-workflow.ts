@@ -566,8 +566,9 @@ export async function handleScanning(
             const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
             const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
 
-            if (groupLine && versionLine) {
-              const group = groupLine.replace('GROUP:', '').trim();
+            // Extract metadata if version is found (group is optional for core resources)
+            if (versionLine) {
+              const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
               const version = versionLine.replace('VERSION:', '').trim();
               const apiVersion = group ? `${group}/${version}` : version;
 

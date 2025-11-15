@@ -14,8 +14,8 @@ export interface PatternSearchOptions extends BaseSearchOptions {}
 export interface PatternSearchResult extends BaseSearchResult<OrganizationalPattern> {}
 
 export class PatternVectorService extends BaseVectorService<OrganizationalPattern> {
-  constructor(vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super('patterns', vectorDB, embeddingService);
+  constructor(collectionName: string = 'patterns', vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
+    super(collectionName, vectorDB, embeddingService);
   }
 
   // Implement abstract methods from BaseVectorService

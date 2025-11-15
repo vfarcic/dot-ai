@@ -113,32 +113,60 @@ if [ "$NO_CLUSTER" = false ]; then
         exit 1
     }
 
-    log_info "Installing CloudNativePG operator (async)..."
     export KUBECONFIG=./kubeconfig-test.yaml
-    kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
 
-    log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
-    helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
-    helm repo update
-    helm upgrade --install kyverno kyverno/kyverno \
-        --namespace kyverno --create-namespace \
-        --wait --timeout=300s || {
-        log_error "Failed to install Kyverno"
-        exit 1
-    }
+    # Optional: Install CloudNativePG operator (skip with SKIP_CNPG=true)
+    if [[ "${SKIP_CNPG}" != "true" ]]; then
+        log_info "Installing CloudNativePG operator (async)..."
+        kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
+    else
+        log_warn "Skipping CloudNativePG operator installation (SKIP_CNPG=true)"
+    fi
+
+    # Optional: Install Kyverno Policy Engine (skip with SKIP_KYVERNO=true)
+    if [[ "${SKIP_KYVERNO}" != "true" ]]; then
+        log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
+        helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
+        helm repo update
+        helm upgrade --install kyverno kyverno/kyverno \
+            --namespace kyverno --create-namespace \
+            --wait --timeout=300s || {
+            log_error "Failed to install Kyverno"
+            exit 1
+        }
+    else
+        log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
+    fi
 
     log_info "Starting fresh Qdrant test container..."
     # Remove existing container if it exists
     docker rm -f qdrant-test 2>/dev/null || true
 
-    # Create fresh container from latest image with apiVersion fix
-    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:latest || {
+    # Create fresh container from test image (auto-pulls if not present)
+    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
         log_error "Failed to start Qdrant container"
         exit 1
     }
 
-    # Wait for Qdrant to be ready
-    sleep 3
+    # Wait for Qdrant to be ready (poll health endpoint)
+    log_info "Waiting for Qdrant to be ready..."
+    MAX_QDRANT_WAIT=30
+    QDRANT_WAITED=0
+    while [ $QDRANT_WAITED -lt $MAX_QDRANT_WAIT ]; do
+        if curl -sf http://localhost:6335/healthz > /dev/null; then
+            log_info "Qdrant is healthy!"
+            # Additional wait to ensure collections are fully initialized
+            sleep 2
+            break
+        fi
+        sleep 1
+        QDRANT_WAITED=$((QDRANT_WAITED + 1))
+    done
+
+    if [ $QDRANT_WAITED -eq $MAX_QDRANT_WAIT ]; then
+        log_error "Qdrant failed to become healthy within ${MAX_QDRANT_WAIT} seconds"
+        exit 1
+    fi
 else
     log_info "Skipping cluster and infrastructure setup (--no-cluster mode)"
 fi

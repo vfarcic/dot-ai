@@ -72,12 +72,9 @@ export class DeployOperation {
    * Get the manifest file path for the solution
    */
   private getManifestPath(options: DeployOptions): string {
-    const sessionDir = options.sessionDir || process.env.DOT_AI_SESSION_DIR;
-    if (!sessionDir) {
-      throw new Error('Session directory not configured. Set DOT_AI_SESSION_DIR environment variable or provide sessionDir parameter.');
-    }
-    
-    return join(sessionDir, `${options.solutionId}.yaml`);
+    // Use sessionDir if provided, otherwise use tmp directory (for recommend tool compatibility)
+    const tmpDir = options.sessionDir || join(process.cwd(), 'tmp');
+    return join(tmpDir, `${options.solutionId}.yaml`);
   }
 
   /**

@@ -6,10 +6,9 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import * as fs from 'fs';
-import * as path from 'path';
 import { loadPrompt } from '../core/shared-prompt-loader';
-import { getAndValidateSessionDirectory } from '../core/session-utils';
+import { GenericSessionManager } from '../core/generic-session-manager';
+import type { SolutionData } from './recommend';
 import { extractUserAnswers } from '../core/solution-utils';
 
 // Tool metadata for direct MCP registration
@@ -18,68 +17,13 @@ export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return 
 
 // Zod schema for MCP registration
 export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('The solution ID to update (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
+  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to update (e.g., sol-1762983784617-9ddae2b8)'),
   stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
   answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
-
-
-
-/**
- * Load solution file by ID
- */
-function loadSolutionFile(solutionId: string, sessionDir: string): any {
-  const solutionPath = path.join(sessionDir, `${solutionId}.json`);
-  
-  if (!fs.existsSync(solutionPath)) {
-    throw new Error(`Solution file not found: ${solutionPath}. Available files: ${fs.readdirSync(sessionDir).filter(f => f.endsWith('.json')).join(', ')}`);
-  }
-  
-  try {
-    const content = fs.readFileSync(solutionPath, 'utf8');
-    const solution = JSON.parse(content);
-    
-    // Validate solution structure
-    if (!solution.solutionId || !solution.questions) {
-      throw new Error(`Invalid solution file structure: ${solutionId}. Missing required fields: solutionId or questions`);
-    }
-    
-    return solution;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in solution file: ${solutionId}`);
-    }
-    throw error;
-  }
-}
-
-/**
- * Save solution file with atomic operations
- */
-function saveSolutionFile(solution: any, solutionId: string, sessionDir: string): void {
-  const solutionPath = path.join(sessionDir, `${solutionId}.json`);
-  const tempPath = solutionPath + '.tmp';
-  
-  try {
-    // Write to temporary file first
-    fs.writeFileSync(tempPath, JSON.stringify(solution, null, 2), 'utf8');
-    
-    // Atomically rename to final path
-    fs.renameSync(tempPath, solutionPath);
-  } catch (error) {
-    // Clean up temporary file if it exists
-    if (fs.existsSync(tempPath)) {
-      try {
-        fs.unlinkSync(tempPath);
-      } catch (cleanupError) {
-        // Ignore cleanup errors
-      }
-    }
-    throw error;
-  }
-}
+// Session management now handled by GenericSessionManager
 
 /**
  * Validate answer against question schema
@@ -594,57 +538,38 @@ export async function handleAnswerQuestionTool(
 
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
-      
-      // Get session directory from environment
-      let sessionDir: string;
-      try {
-        sessionDir = getAndValidateSessionDirectory(false); // requireWrite=false for reading
-        logger.debug('Session directory resolved and validated', { sessionDir });
-      } catch (error) {
+
+      // Initialize session manager
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
+      // Load solution session
+      const session = sessionManager.getSession(args.solutionId);
+
+      if (!session) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Session directory validation failed',
+          `Solution not found: ${args.solutionId}`,
           {
-            operation: 'session_directory_validation',
+            operation: 'solution_loading',
             component: 'AnswerQuestionTool',
             requestId,
+            input: { solutionId: args.solutionId },
             suggestedActions: [
-              'Ensure session directory exists and is writable',
-              'Check directory permissions',
-              'Verify the directory path is correct',
-              'Verify DOT_AI_SESSION_DIR environment variable is correctly set'
+              'Verify the solution ID is correct',
+              'Ensure the solution was created by the recommend tool',
+              'Check that the session has not expired'
             ]
           }
         );
       }
-      
-      // Load solution file
-      let solution: any;
-      try {
-        solution = loadSolutionFile(args.solutionId, sessionDir);
-        logger.debug('Solution file loaded successfully', { 
-          solutionId: args.solutionId,
-          hasQuestions: !!solution.questions
-        });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.VALIDATION,
-          ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Failed to load solution file',
-          {
-            operation: 'solution_file_loading',
-            component: 'AnswerQuestionTool',
-            requestId,
-            suggestedActions: [
-              'Verify the solution ID exists in the session directory',
-              'Check that the solution file is valid JSON',
-              'Ensure the solution was selected by chooseSolution tool',
-              'List available solution files in the session directory'
-            ]
-          }
-        );
-      }
+
+      let solution = session.data;
+      logger.debug('Solution loaded successfully', {
+        solutionId: args.solutionId,
+        hasQuestions: !!solution.questions
+      });
       
       // Stage-based validation and workflow
       const stageState = getCurrentStage(solution);
@@ -749,30 +674,12 @@ export async function handleAnswerQuestionTool(
       }
       
       // Save solution with answers
-      try {
-        saveSolutionFile(solution, args.solutionId, sessionDir);
-        logger.info('Solution updated with stage answers', { 
-          solutionId: args.solutionId,
-          stage: args.stage,
-          answerCount: Object.keys(args.answers).length
-        });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.STORAGE,
-          ErrorSeverity.HIGH,
-          'Failed to save solution file',
-          {
-            operation: 'solution_file_saving',
-            component: 'AnswerQuestionTool',
-            requestId,
-            suggestedActions: [
-              'Check session directory write permissions',
-              'Ensure adequate disk space',
-              'Verify solution JSON is valid'
-            ]
-          }
-        );
-      }
+      sessionManager.replaceSession(args.solutionId, solution);
+      logger.info('Solution updated with stage answers', {
+        solutionId: args.solutionId,
+        stage: args.stage,
+        answerCount: Object.keys(args.answers).length
+      });
 
       // Handle open stage completion (triggers manifest generation)
       if (args.stage === 'open') {
@@ -787,10 +694,10 @@ export async function handleAnswerQuestionTool(
             });
             
             solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, { requestId, logger, dotAI }, args.interaction_id);
-            
+
             // Save enhanced solution
-            saveSolutionFile(solution, args.solutionId, sessionDir);
-            logger.info('Enhanced solution saved', { 
+            sessionManager.replaceSession(args.solutionId, solution);
+            logger.info('Enhanced solution saved', {
               solutionId: args.solutionId,
               hasOpenAnswer: !!openAnswer
             });

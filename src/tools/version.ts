@@ -134,7 +134,7 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     // Test patterns collection
     const patternsStatus = await testCollectionStatus('patterns', () => {
       const patternVectorDB = new VectorDBService({ collectionName: 'patterns' });
-      const patternService = new PatternVectorService(patternVectorDB, embeddingService);
+      const patternService = new PatternVectorService('patterns', patternVectorDB, embeddingService);
       return patternService.getPatternsCount();
     });
 

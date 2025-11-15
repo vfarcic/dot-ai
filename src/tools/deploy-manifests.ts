@@ -15,7 +15,7 @@ export const DEPLOYMANIFESTS_TOOL_DESCRIPTION = 'Deploy Kubernetes manifests fro
 
 // Zod schema for MCP registration
 export const DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol_[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}_[a-f0-9]+$/).describe('Solution ID to deploy (e.g., sol_2025-07-01T154349_1e1e242592ff)'),
+  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('Solution ID to deploy (e.g., sol-1762983784617-9ddae2b8)'),
   timeout: z.number().min(1).max(600).optional().describe('Deployment timeout in seconds (default: 30)')
 };
 

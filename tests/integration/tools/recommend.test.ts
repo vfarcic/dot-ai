@@ -122,7 +122,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         data: {
           result: {
             status: 'stage_questions',
-            solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
             currentStage: 'required',
             questions: expect.any(Array),
             nextStage: expect.stringMatching(/^(basic|advanced|open)$/),
@@ -176,7 +176,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         data: {
           result: {
             status: 'stage_questions',
-            solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
             currentStage: 'basic',
             questions: expect.any(Array),
             nextAction: 'Call recommend tool with stage: answerQuestion:basic'
@@ -261,7 +261,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         data: {
           result: {
             status: 'ready_for_manifest_generation',
-            solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
             nextAction: 'Call recommend tool with stage: generateManifests',
             message: expect.stringContaining('Configuration complete'),
             solutionData: expect.any(Object)
@@ -292,7 +292,7 @@ describe.concurrent('Recommend Tool Integration', () => {
           result: {
             success: true,
             status: 'manifests_generated',
-            solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
             manifests: expect.stringContaining('apiVersion:'), // Should contain YAML
             yamlPath: expect.stringContaining('.yaml'),
             validationAttempts: expect.any(Number),
@@ -329,7 +329,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         data: {
           result: {
             success: true,
-            solutionId: expect.stringMatching(/^sol_\d{4}-\d{2}-\d{2}T\d{6}_[a-f0-9]+$/),
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
             manifestPath: expect.stringContaining('.yaml'),
             message: expect.stringContaining('Deployment'),
             kubectlOutput: expect.any(String),
