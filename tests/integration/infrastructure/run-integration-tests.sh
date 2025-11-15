@@ -142,6 +142,13 @@ if [ "$NO_CLUSTER" = false ]; then
     # Remove existing container if it exists
     docker rm -f qdrant-test 2>/dev/null || true
 
+    # Pull latest test image to avoid using stale cached version
+    log_info "Pulling latest Qdrant test image..."
+    docker pull ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
+        log_error "Failed to pull Qdrant test image"
+        exit 1
+    }
+
     # Create fresh container from test image
     docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
         log_error "Failed to start Qdrant container"
