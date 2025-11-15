@@ -40,6 +40,12 @@ AI-powered issue analysis and remediation with intelligent root cause identifica
 - **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
 - **📖 Full Guide**: [Kubernetes Issue Remediation](mcp-remediate-guide.md)
 
+### ⚙️ Kubernetes Operations
+AI-powered Day 2 operations for any Kubernetes resources through natural language intents.
+- **What it does**: Handles updates, scaling, enhancements, rollbacks, and any operational changes to workloads, databases, infrastructure, or cloud resources with pattern-driven recommendations and dry-run validation
+- **Use when**: Performing operational changes on deployed resources - applications, databases, storage, AWS/Azure/GCP resources via operators, networking, or any Kubernetes-managed infrastructure
+- **📖 Full Guide**: [Kubernetes Operations](mcp-operate-guide.md)
+
 ### 📦 Project Setup & Governance
 Comprehensive repository setup with governance, legal, security, and automation files.
 - **What it does**: Generates 25+ standardized files including LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY policies, GitHub issue/PR templates, workflows (OpenSSF Scorecard), and automation (Renovate, Labeler, Stale Bot)
@@ -62,9 +68,10 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Quick Start
 
 1. **Complete Setup**: Follow the [MCP Setup Guide](mcp-setup.md)
-2. **Start with Capability Management** to scan your cluster (required for recommendations)
+2. **Start with Capability Management** to scan your cluster (required for recommendations and operations)
 3. **Try Deployment Recommendations** with a simple application
-4. **Optional**: Create organizational patterns, policy intents, or use issue remediation
+4. **Use Kubernetes Operations** for Day 2 changes (updates, scaling, enhancements)
+5. **Optional**: Create organizational patterns, policy intents, or use issue remediation
 
 ## Prerequisites
 
@@ -85,8 +92,9 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Tool Dependencies
 
 - **Deployment Recommendations** ← requires **Capability Management**
-- **Pattern Management** → enhances **Deployment Recommendations**
-- **Policy Management** → enhances **Deployment Recommendations**
+- **Kubernetes Operations** ← requires **Capability Management**
+- **Pattern Management** → enhances **Deployment Recommendations** and **Kubernetes Operations**
+- **Policy Management** → enhances **Deployment Recommendations** and **Kubernetes Operations**
 - **Kubernetes Issue Remediation** ← independent
 <!-- - **Platform Building** ← independent (requires Nushell runtime) -->
 - **Project Setup** ← independent
