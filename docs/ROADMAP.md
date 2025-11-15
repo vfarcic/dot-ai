@@ -37,7 +37,6 @@ This roadmap is a living document and may change based on community feedback and
 - CRD-based solution tracking beyond session storage (PRD #25)
 - Advanced AI memory system with pattern learning (PRD #5)
 - Advanced memory learning algorithms (PRD #7)
-- AI-powered application operations tool (PRD #201)
 - Infrastructure deployment documentation and user experience (PRD #45)
 - Web UI for MCP server interaction (PRD #109)
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
