@@ -102,12 +102,12 @@ function buildUserMessage(intent: string, context: EmbeddedContext): string {
   const policiesText = formatPolicies(context.policies);
   const capabilitiesText = formatCapabilities(context.capabilities);
 
-  // Replace template placeholders
+  // Replace template placeholders (use double braces to match template syntax)
   return template
-    .replace('{intent}', intent)
-    .replace('{patterns}', patternsText)
-    .replace('{policies}', policiesText)
-    .replace('{capabilities}', capabilitiesText);
+    .replace('{{intent}}', intent)
+    .replace('{{patterns}}', patternsText)
+    .replace('{{policies}}', policiesText)
+    .replace('{{capabilities}}', capabilitiesText);
 }
 
 /**
