@@ -30,13 +30,12 @@ This roadmap is a living document and may change based on community feedback and
 - AI model comparison platform for informed provider selection (PRD #151)
 - AI model portfolio management for comparative testing (PRD #209)
 - GitOps integration for Argo CD and Flux deployment workflows (PRD #202)
+- Pattern & policy learning system with AI-driven suggestions (PRD #218)
 
 ## Long-term (6-12 Months)
 
 - Code analysis engine for automated deployment recommendations (PRD #22)
 - CRD-based solution tracking beyond session storage (PRD #25)
-- Advanced AI memory system with pattern learning (PRD #5)
-- Advanced memory learning algorithms (PRD #7)
 - Infrastructure deployment documentation and user experience (PRD #45)
 - Web UI for MCP server interaction (PRD #109)
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)

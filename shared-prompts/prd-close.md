@@ -119,7 +119,7 @@ Update the PRD metadata and add completion work log:
 
 ### Step 4: Move PRD to Archive
 
-Move the PRD file to the done directory:
+Move the PRD file to the done directory and update roadmap:
 
 ```bash
 # Create done directory if it doesn't exist
@@ -128,6 +128,12 @@ mkdir -p prds/done
 # Move PRD file
 git mv prds/[number]-[name].md prds/done/
 ```
+
+**Update ROADMAP.md (if it exists):**
+- [ ] Check if `docs/ROADMAP.md` exists
+- [ ] Remove the closed PRD from the roadmap (search for "PRD #[number]")
+- [ ] Remove the entire line that references this PRD
+- [ ] Closed PRDs should not appear in future roadmap as they're no longer being worked on
 
 ### Step 5: Update GitHub Issue
 

@@ -1,9 +1,10 @@
 # PRD: Advanced AI Memory System for Learning and Pattern Storage
 
 **Created**: 2025-07-28
-**Status**: Draft
+**Status**: Closed
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-01-28
+**Last Updated**: 2025-11-16
+**Closed**: 2025-11-16
 
 ## Executive Summary
 Implement an intelligent AI-powered memory system that learns from deployment patterns, stores lessons learned, and provides sophisticated pattern matching to improve dot-ai's deployment recommendations over time.
@@ -247,11 +248,62 @@ Implement an intelligent AI-powered memory system that learns from deployment pa
 
 ## Work Log
 
+### 2025-11-16: PRD Closure - Superseded by Simpler Approach
+**Duration**: N/A (administrative closure)
+**Status**: Closed
+
+**Closure Summary**:
+This PRD proposed a complex AI-powered memory system with separate event tracking, ML algorithms, and custom pattern recognition. After architectural review, we determined a simpler approach is more practical and maintainable.
+
+**Why Closed**:
+The original approach (July 2025) was over-engineered:
+- Complex AI-powered pattern recognition with vector embeddings
+- Separate deployment event tracking collection
+- ML-inspired matching algorithms
+- Custom cluster fingerprinting with AI enhancement
+- Pattern pruning and merging algorithms
+
+**New Approach** (November 2025):
+- Simple usage metrics embedded directly in patterns/policies
+- No separate event collection - metrics live with the data
+- AI-driven suggestion generation at workflow completion
+- Leverage existing AI models for analysis instead of custom algorithms
+
+**Valuable Ideas Preserved**:
+✅ Pattern confidence scoring - now based on simple usage counters
+✅ Learning from deployment outcomes - AI analyzes what worked
+✅ Suggesting new patterns based on gaps - AI detects recurring patterns
+✅ Pattern evolution - AI suggests updates based on usage
+✅ Cluster-specific performance tracking - can be added to counters later
+
+**Why the Simpler Approach is Better**:
+1. **Simpler architecture**: No separate collections, counters embedded in patterns
+2. **Leverage existing AI**: Use Claude/GPT for analysis instead of building custom ML
+3. **User control**: AI suggests improvements, users approve via MCP tools
+4. **Faster to implement**: Weeks instead of months
+5. **More maintainable**: Less code, fewer moving parts
+
+**Related Work**:
+- **PRD #7** (Advanced Memory Learning Algorithms) - also being closed for same reasons
+- **PRD #108** (Recommendation Pattern Learning System) - being updated to incorporate simplified approach
+- **New PRD** (to be created) - will document the simplified learning system with embedded metrics and AI-driven suggestions
+
+**Decision Context**:
+This decision came from realizing that we already have the infrastructure needed:
+- Qdrant vector DB for semantic search ✓
+- AI models (Claude/GPT) for pattern analysis ✓
+- Existing RAG architecture for pattern matching ✓
+- MCP tools for pattern/policy CRUD operations ✓
+
+The core goal remains the same: **improve recommendations through learning**. We're just taking a simpler, more pragmatic path.
+
+---
+
 ### 2025-07-28: PRD Refactoring to Documentation-First Format
 **Duration**: ~1 hour
 **Primary Focus**: Refactor existing PRD #5 to follow new shared-prompts/prd-create.md guidelines
 
-**Completed Work**: 
+**Completed Work**:
 - Updated GitHub issue #5 to follow new short, stable format
 - Refactored PRD to documentation-first approach with user journey focus
 - Added comprehensive documentation change mapping
