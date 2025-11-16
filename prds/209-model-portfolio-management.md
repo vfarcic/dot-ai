@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Created**: 2025-11-08
-**Last Updated**: 2025-11-08
+**Last Updated**: 2025-11-16
 **GitHub Issue**: [#209](https://github.com/vfarcic/dot-ai/issues/209)
 **Priority**: Medium
 
@@ -25,7 +25,7 @@ This PRD serves as a living document tracking which AI models are currently bein
 | 1 | Anthropic | Claude Sonnet 4.5 | Active |
 | 2 | Anthropic | Claude Haiku 4.5 | Active |
 | 3 | OpenAI | GPT-5 | Active |
-| 4 | OpenAI | GPT-5 Pro | Active |
+| 4 | OpenAI | GPT-5-Codex | Active |
 | 5 | Google | Gemini 2.5 Pro | Active |
 | 6 | Google | Gemini 2.5 Flash | Active |
 | 7 | xAI | Grok 4 | Active |
@@ -50,6 +50,13 @@ This PRD serves as a living document tracking which AI models are currently bein
 
 ## Implementation Milestones
 
+### Milestone 0: Model Version Verification
+- [ ] Research and verify current API model identifiers for all 10 models
+- [ ] Update model-config.ts with latest model versions
+- [ ] Verify API access for all models (especially GPT-5-Codex and Kimi K2)
+- [ ] Update integration tests with new model identifiers
+- [ ] Document any model version changes
+
 ### Milestone 1: Kimi K2 Thinking Integration
 - [ ] Replace Mistral with Kimi K2 Thinking in codebase
 - [ ] Run integration tests with new model
@@ -62,6 +69,14 @@ This PRD serves as a living document tracking which AI models are currently bein
 - [ ] Changes committed and pushed
 
 ## Change History
+
+### 2025-11-16: GPT-5 Pro → GPT-5-Codex Replacement
+- **Rationale**: GPT-5-Codex is better suited for infrastructure-as-code tasks
+  - Optimized for code generation, refactoring, and review
+  - Larger context window (400K tokens) at lower cost
+  - Trained on real-world engineering tasks including complex refactoring
+  - Better fit for Kubernetes manifests, operators, and CRD generation
+- **Trade-off**: Specialized coding capability vs general reasoning (acceptable for our use case)
 
 ### 2025-11-08: Portfolio Established
 - **Initial Portfolio**: 10 models across 6 providers documented

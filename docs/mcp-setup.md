@@ -106,14 +106,15 @@ All AI models must meet these minimum requirements:
 | **Gemini 2.5 Flash** | Google | 0.733 | 0.859 | ⚠️ **Limited use** - Weak pattern & remediation tasks |
 | **DeepSeek Reasoner** | DeepSeek | 0.640 | 0.645 | ❌ **Avoid** - Reliability concerns, lacks function calling |
 | **Mistral Large Latest** | Mistral | 0.589 | 0.542 | ❌ **Avoid** - Complete remediation failures, inconsistent |
-| **GPT-5-Pro** | OpenAI | 0.311 | 0.332 | ❌ **Avoid** - Catastrophic failures across all tools |
+| **GPT-5-Codex** | OpenAI | *Pending* | *Pending* | 🔄 **Evaluation pending** - Optimized for code/infrastructure tasks |
 
 **Usage Guidelines:**
 - **Production (max reliability)**: Use Claude Sonnet 4.5
 - **Production (best balanced)**: Use Claude Haiku 4.5 (98.8% of Sonnet at 33% cost)
 - **Development & testing**: Use Grok-4-Fast-Reasoning for best value
 - **Budget-constrained**: Use Grok-4-Fast-Reasoning (25x more operations than Sonnet)
-- **Avoid**: Mistral Large Latest, DeepSeek Reasoner, and GPT-5-Pro due to reliability issues
+- **Avoid**: Mistral Large Latest, DeepSeek Reasoner due to reliability issues
+- **GPT-5-Codex**: Evaluation pending - designed for infrastructure-as-code tasks
 
 📖 **[Complete Model Analysis Report](../eval/analysis/platform/synthesis-report.md)** - Detailed performance analysis, technical evaluation methodology, and comprehensive testing results across all MCP tools.
 
@@ -126,7 +127,7 @@ Choose your AI model by setting the provider:
 | **Claude Sonnet 4.5** | `anthropic` | `ANTHROPIC_API_KEY` |
 | **Claude Haiku 4.5** | `anthropic_haiku` | `ANTHROPIC_API_KEY` |
 | **GPT-5** | `openai` | `OPENAI_API_KEY` |
-| **GPT-5-Pro** | `openai_pro` | `OPENAI_API_KEY` |
+| **GPT-5-Codex** | `openai_codex` | `OPENAI_API_KEY` |
 | **Gemini 2.5 Pro** | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` |
 | **Gemini 2.5 Flash** | `google_fast` | `GOOGLE_GENERATIVE_AI_API_KEY` |
 | **Grok-4** | `xai` | `XAI_API_KEY` |
