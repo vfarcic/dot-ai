@@ -64,7 +64,7 @@ jobs:
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@5d5cd550d3e189c569da8f16ea8de2d821c9bf7a # v3
+      uses: github/codeql-action/init@f94c9befffa4412c356fb5463a959ab7821dd57e # v3
       with:
         languages: typescript
         
@@ -84,7 +84,7 @@ jobs:
       run: npm audit --audit-level moderate
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@5d5cd550d3e189c569da8f16ea8de2d821c9bf7a # v3
+      uses: github/codeql-action/analyze@f94c9befffa4412c356fb5463a959ab7821dd57e # v3
 
   version:
     runs-on: ubuntu-latest
