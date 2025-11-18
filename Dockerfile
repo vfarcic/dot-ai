@@ -16,21 +16,6 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Nushell (required for platform operations)
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        NU_ARCH="x86_64-unknown-linux-gnu"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        NU_ARCH="aarch64-unknown-linux-gnu"; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi && \
-    NU_VERSION=$(curl -s https://api.github.com/repos/nushell/nushell/releases/latest | grep '"tag_name"' | cut -d'"' -f4) && \
-    curl -LO "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-${NU_ARCH}.tar.gz" && \
-    tar xzf "nu-${NU_VERSION}-${NU_ARCH}.tar.gz" && \
-    mv "nu-${NU_VERSION}-${NU_ARCH}/nu" /usr/local/bin/ && \
-    rm -rf "nu-${NU_VERSION}-${NU_ARCH}" "nu-${NU_VERSION}-${NU_ARCH}.tar.gz"
-
 # Install dot-ai globally
 RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
 

@@ -27,7 +27,7 @@ def --env "main apply crossplane" [
     (
         helm upgrade --install crossplane "crossplane/crossplane"
             --namespace crossplane-system --create-namespace
-            --set provider.defaultActivations={"*.m.upbound.io", "*.m.crossplane.io"}
+            --set provider.defaultActivations={"*.m.upbound.io","*.m.crossplane.io"}
             --wait
     )
 

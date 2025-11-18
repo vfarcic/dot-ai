@@ -1,0 +1,280 @@
+# PRD: Dockerfile Generation System
+
+**Created**: 2025-11-18
+**Status**: Draft
+**Owner**: Viktor Farcic
+**Last Updated**: 2025-11-18
+
+## Executive Summary
+Create an MCP prompt that generates production-ready, optimized Dockerfiles by analyzing local project directories. The prompt guides Claude Code to create language-agnostic Dockerfiles with multi-stage builds, security best practices, and build context optimization. This enables developers to containerize any application without deep Docker expertise.
+
+## Problem Statement
+
+Developers need to containerize applications for Kubernetes deployment but face significant challenges:
+
+### Current Pain Points
+- **Expertise gap**: Creating production-ready Dockerfiles requires deep knowledge of Docker best practices
+- **Framework diversity**: Each language/framework has specific optimization patterns that must be learned
+- **Security concerns**: Many Dockerfiles run as root, use bloated base images, expose vulnerabilities
+- **Build efficiency**: Poor .dockerignore configuration leads to slow, large builds
+- **Inconsistency**: Different developers create different Dockerfiles for similar projects
+
+### Impact
+- Slow deployment adoption (manual Docker setup is a barrier)
+- Security vulnerabilities in production containers
+- Large image sizes increase deployment time and storage costs
+- Inconsistent environments across team members
+
+## Solution Overview
+
+Create `shared-prompts/generate-dockerfile.md` that instructs Claude Code to:
+
+1. **Analyze project structure** - Detect language, framework, dependencies, application type
+2. **Select base images** - Choose appropriate, minimal base images
+3. **Generate multi-stage Dockerfile** - Build stage + production stage for minimal final image
+4. **Apply security hardening** - Non-root user, minimal packages, security best practices
+5. **Optimize build context** - Generate .dockerignore to exclude unnecessary files
+
+### Key Principles
+
+#### Language-Agnostic Design
+The prompt should provide **guidance patterns** that work across languages, not hardcoded templates:
+- Pattern: Separate dependency installation from source code copy (for caching)
+- Pattern: Multi-stage builds (build tools vs runtime)
+- Pattern: Minimal base images (alpine, slim, distroless where appropriate)
+- Pattern: Security hardening (non-root, pinned versions)
+
+The AI should figure out the specifics for any language/framework.
+
+#### Testing Strategy
+**Primary test projects:**
+- This project (Node.js/TypeScript)
+- A Go project
+
+**Goal**: If it works for these two different languages, the pattern should generalize to others.
+
+## User Workflows
+
+### Primary Workflow: Generate Dockerfile for Project
+
+**Steps**:
+1. User is in project directory with source code
+2. User invokes Dockerfile generation prompt
+3. Claude Code analyzes project structure:
+   - Identifies language/framework from files (package.json, go.mod, requirements.txt, etc.)
+   - Determines application type (web server, API, CLI, worker)
+   - Identifies dependencies and build requirements
+4. Claude Code generates:
+   - `Dockerfile` (multi-stage, optimized, secure)
+   - `.dockerignore` (build context optimization)
+5. User tests locally: `docker build -t myapp .`
+6. User verifies: `docker run myapp`
+7. Dockerfile ready for CI/CD pipeline (PRD #220)
+
+**Success Criteria**:
+- ✅ Dockerfile builds successfully without errors
+- ✅ Final image is minimal (appropriate for language)
+- ✅ Container runs as non-root user
+- ✅ Build context excludes unnecessary files
+- ✅ Multi-stage build separates build dependencies from runtime
+
+## Technical Design
+
+### Prompt Template Structure
+
+**File**: `shared-prompts/generate-dockerfile.md`
+
+**Input Requirements**:
+- User is in project directory
+- Project contains source code and dependency manifests
+
+**Output Specifications**:
+- `Dockerfile`: Production-ready multi-stage build
+- `.dockerignore`: Build context optimization
+
+**Prompt Guidance Areas**:
+
+#### 1. Project Analysis
+Guide the AI to:
+- Identify language from manifest files (package.json, go.mod, requirements.txt, pom.xml, etc.)
+- Determine framework from dependencies
+- Identify application type from project structure
+- Detect port requirements
+- Identify build tools needed
+
+#### 2. Base Image Selection Pattern
+Guide the AI to select appropriate base images:
+- Prefer minimal variants (alpine, slim) where possible
+- Use official images from trusted sources
+- Pin specific versions (not :latest)
+- Consider compiled vs interpreted languages
+- Use distroless or scratch for static binaries
+
+#### 3. Multi-Stage Build Pattern
+Guide the AI to structure:
+
+**Stage 1 (builder)**:
+- Start from image with build tools
+- Copy dependency manifests first (cache optimization)
+- Install dependencies
+- Copy source code
+- Build/compile application
+
+**Stage 2 (runtime)**:
+- Start from minimal runtime image
+- Copy only runtime artifacts from builder
+- Set non-root user
+- Configure port exposure
+- Set entrypoint/command
+
+#### 4. Security Hardening Pattern
+Guide the AI to apply:
+- Use specific image versions (not :latest)
+- Run as non-root user (USER 1000 or named user)
+- Minimize installed packages
+- Remove build tools from runtime image
+- Consider distroless/scratch for compiled languages
+
+#### 5. Build Context Optimization
+Guide the AI to generate .dockerignore with:
+- Version control directories (.git)
+- Build artifacts (language-specific)
+- Development files (.env.local, *.log)
+- Documentation (README.md, docs/)
+- Test files
+- IDE configurations
+
+## Implementation Milestones
+
+### Milestone 1: Core Prompt Template Created
+- [ ] `shared-prompts/generate-dockerfile.md` created with language-agnostic guidance
+- [ ] Project analysis guidance documented
+- [ ] Base image selection patterns defined
+- [ ] Multi-stage build pattern documented
+- [ ] Security hardening guidance included
+
+### Milestone 2: Tested with Node.js/TypeScript Project
+- [ ] Tested with this project (dot-ai)
+- [ ] Generated Dockerfile builds successfully
+- [ ] Generated image runs as non-root
+- [ ] Image size is reasonable
+- [ ] .dockerignore appropriately excludes files
+
+### Milestone 3: Tested with Go Project
+- [ ] Tested with external Go project
+- [ ] Generated Dockerfile builds successfully
+- [ ] Generated image is minimal (distroless/scratch)
+- [ ] Multi-stage build properly separates build from runtime
+- [ ] Verifies pattern generalizes across languages
+
+### Milestone 4: Documentation Complete
+- [ ] `docs/mcp-guide.md` updated with Dockerfile generation guide
+- [ ] Usage instructions documented
+- [ ] README.md updated with containerization capabilities
+- [ ] Troubleshooting guidance provided
+
+## Success Criteria
+
+### Functional Requirements
+- ✅ Generated Dockerfiles build successfully without errors
+- ✅ Generated images are minimal (appropriate for language)
+- ✅ Containers run as non-root user
+- ✅ Multi-stage builds separate build dependencies from runtime
+- ✅ .dockerignore excludes unnecessary files (reduces build context)
+
+### Quality Requirements
+- ✅ Dockerfiles follow industry best practices
+- ✅ Generated files are human-readable and maintainable
+- ✅ Prompt works consistently across different languages (validated via Node.js and Go testing)
+
+### Integration Requirements
+- ✅ Outputs ready for CI/CD integration (PRD #220)
+- ✅ Images work in local development (PRD #226)
+- ✅ Works seamlessly in Claude Code workflow
+
+### Performance Requirements
+- ✅ Dockerfile generation completes in < 30 seconds
+- ✅ Generated images build in reasonable time
+- ✅ Multi-stage builds leverage caching effectively
+
+## Risks & Mitigation
+
+### Risk: Language-Specific Edge Cases
+**Impact**: Medium - Some projects may have unusual configurations
+**Probability**: Medium
+**Mitigation**:
+- Start with mainstream patterns
+- Allow users to provide additional context
+- Iterate based on real-world usage feedback
+- Document known edge cases
+
+### Risk: Generated Dockerfiles Don't Build
+**Impact**: High - Breaks user workflow completely
+**Probability**: Low (if tested properly)
+**Mitigation**:
+- Test prompt with real projects (Node.js + Go)
+- Include validation guidance in prompt
+- Provide troubleshooting guidance in documentation
+- Iterate based on build failures
+
+### Risk: Security Vulnerabilities in Generated Files
+**Impact**: High - Defeats security goals
+**Probability**: Low (with proper guidance)
+**Mitigation**:
+- Emphasize security patterns in prompt
+- Document security best practices
+- Consider adding vulnerability scanning recommendations
+
+### Risk: Image Sizes Too Large
+**Impact**: Medium - Increases deployment time and costs
+**Probability**: Medium (depends on base image selection)
+**Mitigation**:
+- Emphasize multi-stage builds in prompt
+- Guide toward minimal base images
+- Test and validate image sizes in milestones
+
+## Dependencies
+
+### Prerequisites
+- User has Docker installed locally (for testing)
+- User is in project directory with source code
+
+### External Dependencies
+- Docker/container runtime for local testing
+- Base images from Docker Hub or other registries
+- Language-specific package managers (npm, pip, go mod, maven, etc.)
+
+### Integration Dependencies
+- PRD #220 (GitHub Actions) consumes generated Dockerfile
+- PRD #226 (Local K8s) uses generated images for local development
+
+## Future Enhancements
+
+### Potential Phase 2 Features
+- Dockerfile optimization for existing files
+- Platform-specific builds (ARM64, multi-arch)
+- Advanced BuildKit features (cache mounts, secrets)
+- Custom base image support (private registries)
+- Integrated vulnerability scanning recommendations
+
+## Work Log
+
+### 2025-11-18: PRD Creation
+**Completed Work**:
+- Created PRD #225 for Dockerfile Generation System
+- Defined language-agnostic approach (no hardcoded frameworks)
+- Focused on core Dockerfile + .dockerignore generation
+- Removed docker-compose (replaced by PRD #226 local K8s approach)
+- Simplified to 4 major milestones
+- Testing scope: Node.js/TypeScript (this project) + Go project
+
+**Design Decisions**:
+- Standalone prompt (no PRD #22 dependency)
+- Language-agnostic patterns (not framework-specific templates)
+- Local K8s development moved to separate PRD #226
+- Examples and framework lists marked as TBD (to be determined during implementation)
+
+**Next Steps**:
+- Create PRD #220 (GitHub Actions CI/CD)
+- Create PRD #226 (Local Kubernetes Development)
+- Update PRD #22 to reflect focused analysis scope
