@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Created**: 2025-11-08
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-11-19
 **GitHub Issue**: [#209](https://github.com/vfarcic/dot-ai/issues/209)
 **Priority**: Medium
 
@@ -20,18 +20,18 @@ This PRD serves as a living document tracking which AI models are currently bein
 
 ### Active Models (10)
 
-| # | Provider | Model Name | Status |
-|---|----------|------------|--------|
-| 1 | Anthropic | Claude Sonnet 4.5 | Active |
-| 2 | Anthropic | Claude Haiku 4.5 | Active |
-| 3 | OpenAI | GPT-5 | Active |
-| 4 | OpenAI | GPT-5-Codex | Active |
-| 5 | Google | Gemini 2.5 Pro | Active |
-| 6 | Google | Gemini 2.5 Flash | Active |
-| 7 | xAI | Grok 4 | Active |
-| 8 | xAI | Grok 4 Fast Reasoning | Active |
-| 9 | Mistral | Mistral Large | **Pending Removal** |
-| 10 | DeepSeek | DeepSeek Reasoner | Active |
+| # | Provider | Model Name | API Model ID | Status |
+|---|----------|------------|--------------|--------|
+| 1 | Anthropic | Claude Sonnet 4.5 | claude-sonnet-4-5-20250929 | Active |
+| 2 | Anthropic | Claude Haiku 4.5 | claude-haiku-4-5-20251001 | Active |
+| 3 | OpenAI | GPT-5 | gpt-5 | Active |
+| 4 | OpenAI | GPT-5 Pro | gpt-5-pro | Active |
+| 5 | Google | Gemini 3 Pro | gemini-3-pro-preview (thinkingLevel: high) | Active |
+| 6 | Google | Gemini 3 Pro (Fast) | gemini-3-pro-preview (thinkingLevel: low) | Active |
+| 7 | xAI | Grok 4 | grok-4 | Active |
+| 8 | xAI | Grok 4 Fast Reasoning | grok-4-fast-reasoning | Active |
+| 9 | Mistral | Mistral Large | mistral-large-latest | **Pending Removal** |
+| 10 | DeepSeek | DeepSeek Reasoner | deepseek-reasoner | Active |
 
 ### Pending Changes
 
@@ -70,6 +70,22 @@ This PRD serves as a living document tracking which AI models are currently bein
 
 ## Change History
 
+### 2025-11-19: Gemini 2.5 → Gemini 3 Upgrade
+- **Rationale**: Gemini 3 released with state-of-the-art reasoning and multimodal capabilities
+  - Just released (November 18, 2025) - Google's most intelligent model
+  - State-of-the-art reasoning across all major AI benchmarks
+  - Advanced agentic capabilities and improved multimodal understanding
+  - Single model (`gemini-3-pro-preview`) with configurable thinking depth
+- **Implementation Strategy**: Test both thinking configurations
+  - **Gemini 3 Pro** (thinkingLevel: "high") - Maximum reasoning depth (replaces Gemini 2.5 Pro)
+  - **Gemini 3 Pro (Fast)** (thinkingLevel: "low") - Optimized for speed/cost (replaces Gemini 2.5 Flash)
+- **Trade-off**: No separate "Flash" model yet, but thinking levels provide similar speed/cost optimization
+- **API Details**:
+  - Model: `gemini-3-pro-preview`
+  - Parameter: `thinkingLevel` ("low" | "high")
+  - Pricing: $2/million input tokens, $12/million output tokens (≤200K context)
+  - Note: Cannot fully disable thinking; only adjust intensity
+
 ### 2025-11-16: GPT-5 Pro → GPT-5-Codex Replacement
 - **Rationale**: GPT-5-Codex is better suited for infrastructure-as-code tasks
   - Optimized for code generation, refactoring, and review
@@ -77,6 +93,7 @@ This PRD serves as a living document tracking which AI models are currently bein
   - Trained on real-world engineering tasks including complex refactoring
   - Better fit for Kubernetes manifests, operators, and CRD generation
 - **Trade-off**: Specialized coding capability vs general reasoning (acceptable for our use case)
+- **Status**: Documented but not yet implemented in model-config.ts
 
 ### 2025-11-08: Portfolio Established
 - **Initial Portfolio**: 10 models across 6 providers documented
