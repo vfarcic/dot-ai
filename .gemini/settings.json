@@ -3,21 +3,26 @@
     "dot-ai": {
       "command": "node",
       "args": [
-        "./dist/mcp/server.js"
+        "${PWD}/dist/mcp/server.js"
       ],
       "env": {
-        "KUBECONFIG": "./kubeconfig.yaml",
-        "DOT_AI_SESSION_DIR": "./tmp/sessions",
+        "KUBECONFIG": "${PWD}/kubeconfig.yaml",
+        "DOT_AI_SESSION_DIR": "${PWD}/tmp/sessions",
         "QDRANT_URL": "http://localhost:6333",
         "AI_PROVIDER": "anthropic_haiku"
       }
     },
     "coderabbitai": {
       "command": "npx",
-      "args": ["coderabbitai-mcp@latest"],
+      "args": [
+        "coderabbitai-mcp@latest"
+      ],
       "env": {
         "GITHUB_PAT": "${GITHUB_TOKEN}"
       }
     }
+  },
+  "general": {
+    "previewFeatures": true
   }
 }
