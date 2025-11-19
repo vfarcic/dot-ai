@@ -1,9 +1,32 @@
 # PRD #58: Resource Schema Question Generation Fix and System Analysis
 
 **GitHub Issue**: [#58](https://github.com/vfarcic/dot-ai/issues/58)  
-**Status**: Draft  
+**Status**: Complete
+**Closed**: 2025-11-19
 **Priority**: High  
 **Owner**: TBD  
+
+## Work Log
+
+### 2025-11-19: PRD Closure - Already Implemented
+**Status**: Complete
+
+**Closure Summary**:
+This PRD is being closed because the requested fixes for resource schema parsing and question generation have been implemented in the codebase.
+
+**Implementation Evidence**:
+1.  **Schema Parsing (`src/core/schema.ts`)**: The `SchemaParser` class now robustly parses `kubectl explain` output, including:
+    *   Extraction of `required` fields.
+    *   Parsing of field constraints (enums, min/max, defaults) from description text.
+    *   Handling of nested fields.
+2.  **AI Context (`src/core/schema.ts` - `generateQuestionsWithAI`)**: The system now explicitly includes the `rawExplanation` (full kubectl explain output) in the prompt context sent to the AI (`{{resource_details}}`).
+3.  **Prompt Engineering (`prompts/question-generation.md`)**: The prompt has been updated with:
+    *   Explicit instructions to use the provided schema.
+    *   A "CRITICAL" constraint to only ask about properties existing in the schema.
+    *   Directives to generate comprehensive questions covering meaningful configuration options.
+4.  **Policy Integration**: The system now also checks for relevant organizational policies to inject required questions.
+
+The combination of these implementations addresses the root causes identified in this PRD (broken schema pipeline, missing AI context).
 
 ## Problem Statement
 
