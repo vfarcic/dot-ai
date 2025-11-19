@@ -1,10 +1,22 @@
 # PRD: Recommendation Pattern Learning System
 
-**Issue**: #108  
-**Created**: 2025-01-15  
-**Status**: Planning  
-**Priority**: Medium  
-**Owner**: TBD  
+**Status**: Superseded
+**Created**: 2025-09-15
+**Closed**: 2025-11-19
+**GitHub Issue**: [#108](https://github.com/vfarcic/dot-ai/issues/108)
+**Priority**: Medium
+
+## Work Log
+
+### 2025-11-19: PRD Closure - Superseded
+**Status**: Superseded by [PRD #218](./218-pattern-policy-learning-system.md)
+
+**Closure Summary**:
+This PRD proposed a system to learn patterns from successful deployments. This goal has been subsumed by the more comprehensive **PRD #218: Pattern & Policy Learning System**, which defines a unified architecture for learning both patterns and policies from usage metrics and AI analysis.
+
+**Reasoning**:
+- **Unified Architecture**: PRD #218 covers the same "learning from usage" goal but within a broader, more mature architectural context.
+- **Effort Conservation**: Implementing #108 separately would duplicate work defined in #218.
 
 ## Executive Summary
 

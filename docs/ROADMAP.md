@@ -21,7 +21,6 @@ This roadmap is a living document and may change based on community feedback and
 
 - Vector database infrastructure with Qdrant integration (PRD #38)
 - Remediation playbooks system for knowledge capture (PRD #107)
-- Recommendation pattern learning system (PRD #108)
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - AI model comparison platform for informed provider selection (PRD #151)
