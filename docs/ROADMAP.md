@@ -36,7 +36,6 @@ This roadmap is a living document and may change based on community feedback and
 
 - Code analysis engine for automated deployment recommendations (PRD #22)
 - CRD-based solution tracking beyond session storage (PRD #25)
-- Infrastructure deployment documentation and user experience (PRD #45)
 - Web UI for MCP server interaction (PRD #109)
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 
