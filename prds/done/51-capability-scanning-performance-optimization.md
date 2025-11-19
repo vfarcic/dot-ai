@@ -1,9 +1,25 @@
 # PRD-51: Capability Scanning Performance Optimization
 
 **GitHub Issue**: [#51](https://github.com/vfarcic/dot-ai/issues/51)  
-**Status**: Planning  
+**Status**: Superseded
 **Created**: 2025-01-08  
+**Closed**: 2025-11-19
 **Owner**: TBD  
+
+## Work Log
+
+### 2025-11-19: PRD Closure - Superseded
+**Status**: Superseded by [PRD #216](./216-controller-based-autonomous-capability-scanning.md)
+
+**Closure Summary**:
+This PRD focused on optimizing the performance of the synchronous, client-side capability scanning process. However, the project direction has shifted towards an autonomous, event-driven architecture defined in **PRD #216: Controller-Based Autonomous Capability Scanning**.
+
+**Reasoning**:
+1.  **Architectural Shift**: Moving scanning to a background controller eliminates the user-facing latency issue entirely. Users will no longer wait for scans to complete interactively; the data will be pre-populated and kept fresh by the controller.
+2.  **Better Optimization**: Event-driven scanning (processing only changed resources) is inherently more efficient and scalable than optimizing a full-cluster polling mechanism.
+3.  **Effort Conservation**: optimizing the legacy synchronous scanning capability would be wasted effort given the move to the controller-based model.
+
+All performance and user experience goals from this PRD are better served by the implementation of PRD #216.
 
 ## Executive Summary
 

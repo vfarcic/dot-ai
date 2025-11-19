@@ -20,7 +20,6 @@ This roadmap is a living document and may change based on community feedback and
 ## Medium-term (3-6 Months)
 
 - Vector database infrastructure with Qdrant integration (PRD #38)
-- Capability scanning performance optimization (PRD #51)
 - Two-pass AI recommendation system with pattern enhancement (PRD #53)
 - Resource schema question generation fixes (PRD #58)
 - Remediation playbooks system for knowledge capture (PRD #107)
