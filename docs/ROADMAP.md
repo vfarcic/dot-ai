@@ -22,6 +22,7 @@ This roadmap is a living document and may change based on community feedback and
 - Vector database infrastructure with Qdrant integration (PRD #38)
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
+- Integrate patterns & policies into remediation tool (PRD #227)
 - AI model comparison platform for informed provider selection (PRD #151)
 - AI model portfolio management for comparative testing (PRD #209)
 - GitOps integration for Argo CD and Flux deployment workflows (PRD #202)
