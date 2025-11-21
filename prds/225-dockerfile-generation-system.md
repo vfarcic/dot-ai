@@ -310,3 +310,33 @@ Guide the AI to generate .dockerignore with:
 - Test prompt with external Go project to validate language-agnostic approach
 - Move `.claude/commands/generate-dockerfile.md` to `shared-prompts/generate-dockerfile.md`
 - Update documentation (docs/mcp-guide.md, README.md)
+
+### 2025-11-21: Design Decision - Add Validation & Testing Phase
+**Decision**: Add comprehensive validation and testing instructions to the prompt
+
+**Rationale**:
+- Current prompt generates Dockerfile/dockerignore but doesn't validate they actually work
+- Violates the "verify everything" principle - we generate but don't test
+- Users might receive broken Dockerfiles without Claude catching errors first
+- Manual testing in separate instance showed multiple iteration cycles needed to get it right
+- Automated validation would catch errors before presenting to user
+
+**Impact**:
+- **Requirements**: Add new validation phase after generation
+- **Prompt Enhancement**: Add Step 6: Build, Test, Fix, and Clean Up
+- **Success Criteria**: Dockerfile must successfully build and run, not just be generated
+- **User Experience**: Higher confidence - presented Dockerfiles are known to work
+
+**Implementation Approach**:
+After generating Dockerfile and .dockerignore, Claude should:
+1. **Build the image**: `docker build -t [project-name]-test .`
+2. **If build fails**: Analyze error, fix Dockerfile, retry (iterative)
+3. **Run the container**: `docker run -d --name [project-name]-test [project-name]-test`
+4. **Basic validation**: Check container is running, verify process started
+5. **Clean up**: Remove container and image after validation
+6. **Only then present to user**: With confidence it works
+
+**Code Impact**: None yet - decision documented for next implementation session
+
+**Owner**: Viktor Farcic
+**Status**: Approved, pending implementation
