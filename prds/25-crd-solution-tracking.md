@@ -3,10 +3,14 @@
 **Created**: 2025-07-28
 **Status**: Draft
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-07-28
+**Last Updated**: 2025-11-21
+**Issue**: #25
+**Priority**: High
 
 ## Executive Summary
 Implement Kubernetes CRDs for solution storage with state management, GitOps integration, and cluster-native solution tracking beyond session-based storage.
+
+**⚠️ IMPORTANT**: This PRD is a blocking prerequisite for PRD #228 (Deployment Documentation & Example-Based Learning), which requires the CRD infrastructure and controller for tracking deployment documentation references.
 
 ## Documentation Changes
 
@@ -81,7 +85,29 @@ Implement Kubernetes CRDs for solution storage with state management, GitOps int
 - [ ] Create solution templates and policy integration
 - [ ] Build monitoring and alerting for solution state changes
 
+## Dependencies
+
+### Dependent PRDs (Blocked by This PRD)
+- **PRD #228**: Deployment Documentation & Example-Based Learning
+  - Requires CRD infrastructure for tracking documentation references
+  - Needs controller for syncing documentation from Git to Qdrant
+  - Cannot begin implementation until this PRD is complete
+
 ## Work Log
+
+### 2025-11-21: Updated for PRD #228 Dependency
+**Duration**: 10 minutes
+**Status**: Draft
+
+**Completed Work**:
+- Added metadata (issue number, priority)
+- Documented that PRD #228 depends on this PRD as blocker
+- Updated last modified date
+- Added Dependencies section for tracking dependent PRDs
+
+**Next Steps**:
+- Begin Phase 1: Core CRD Implementation
+- Design CRD schema to support both solution tracking and documentation references
 
 ### 2025-07-28: PRD Refactoring to Documentation-First Format
 **Completed Work**: Refactored PRD #25 to follow new documentation-first guidelines with comprehensive CRD-based solution tracking features.
