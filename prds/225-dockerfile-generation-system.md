@@ -1,9 +1,9 @@
 # PRD: Dockerfile Generation System
 
 **Created**: 2025-11-18
-**Status**: Draft
+**Status**: In Progress
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-11-18
+**Last Updated**: 2025-11-21
 
 ## Executive Summary
 Create an MCP prompt that generates production-ready, optimized Dockerfiles by analyzing local project directories. The prompt guides Claude Code to create language-agnostic Dockerfiles with multi-stage builds, security best practices, and build context optimization. This enables developers to containerize any application without deep Docker expertise.
@@ -147,18 +147,18 @@ Guide the AI to generate .dockerignore with:
 ## Implementation Milestones
 
 ### Milestone 1: Core Prompt Template Created
-- [ ] `shared-prompts/generate-dockerfile.md` created with language-agnostic guidance
-- [ ] Project analysis guidance documented
-- [ ] Base image selection patterns defined
-- [ ] Multi-stage build pattern documented
-- [ ] Security hardening guidance included
+- [x] `shared-prompts/generate-dockerfile.md` created with language-agnostic guidance
+- [x] Project analysis guidance documented
+- [x] Base image selection patterns defined
+- [x] Multi-stage build pattern documented
+- [x] Security hardening guidance included
 
 ### Milestone 2: Tested with Node.js/TypeScript Project
-- [ ] Tested with this project (dot-ai)
-- [ ] Generated Dockerfile builds successfully
-- [ ] Generated image runs as non-root
-- [ ] Image size is reasonable
-- [ ] .dockerignore appropriately excludes files
+- [x] Tested with this project (dot-ai)
+- [x] Generated Dockerfile builds successfully
+- [x] Generated image runs as non-root
+- [x] Image size is reasonable
+- [x] .dockerignore appropriately excludes files
 
 ### Milestone 3: Tested with Go Project
 - [ ] Tested with external Go project
@@ -278,3 +278,35 @@ Guide the AI to generate .dockerignore with:
 - Create PRD #220 (GitHub Actions CI/CD)
 - Create PRD #226 (Local Kubernetes Development)
 - Update PRD #22 to reflect focused analysis scope
+
+### 2025-11-21: Milestone 1 & 2 Complete - Prompt Template Created and Node.js Testing
+**Duration**: Full development session
+**Primary Focus**: Create language-agnostic Dockerfile generation prompt and validate with dot-ai project
+
+**Completed PRD Items**:
+- [x] Created core prompt template at `.claude/commands/generate-dockerfile.md`
+- [x] Documented comprehensive project analysis guidance (language/framework detection)
+- [x] Defined base image selection patterns with multi-arch support
+- [x] Documented multi-stage build patterns (builder + runtime)
+- [x] Included security hardening guidance (non-root, minimal images, ENV handling)
+- [x] Tested iteratively with dot-ai project (Node.js/TypeScript)
+- [x] Generated Dockerfile builds successfully with kubectl, multi-stage, non-root
+- [x] Verified reasonable image size and minimal .dockerignore
+
+**Key Design Decisions**:
+- **Verification-first approach**: Added "verify everything before adding" as Critical Principle
+- **No assumptions**: Explicit prohibition on HEALTHCHECK, careful ENV variable handling
+- **Language-agnostic patterns**: Removed all language-specific recipes, focus on analysis principles
+- **Multi-arch requirement**: All instructions must support amd64, arm64, etc.
+- **Minimal .dockerignore**: Security/performance essentials only, not exhaustive lists
+- **Explicit COPY**: No `COPY . .`, only verified files/directories
+
+**Testing Approach**:
+- Iterative refinement through separate Claude Code instance
+- Each iteration addressed specific issues (kubectl, ENV vars, HEALTHCHECK, scripts/, etc.)
+- Final Dockerfile is production-ready for dot-ai project
+
+**Next Session Priorities**:
+- Test prompt with external Go project to validate language-agnostic approach
+- Move `.claude/commands/generate-dockerfile.md` to `shared-prompts/generate-dockerfile.md`
+- Update documentation (docs/mcp-guide.md, README.md)

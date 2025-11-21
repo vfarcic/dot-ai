@@ -1,38 +1,83 @@
-# Node.js
-node_modules/
-npm-debug.log*
+# =============================================================================
+# Docker Build Context Exclusions
+#
+# The Dockerfile uses explicit COPY instructions, so this file focuses on:
+# 1. Security - Exclude secrets and sensitive files
+# 2. Performance - Exclude large directories that slow build context transfer
+# 3. Dependencies - Exclude directories reinstalled in the container
+# =============================================================================
 
-# Build outputs
-dist/
-*.tsbuildinfo
-
-# Environment files
-.env
-.env.local
-
-# Temporary and storage directories
-tmp/
-temp/
-kind-storage/
-
-# Git
-.git/
+# -----------------------------------------------------------------------------
+# Version Control (large, not needed in container)
+# -----------------------------------------------------------------------------
+.git
 .gitignore
+.gitattributes
 
-# Docker files
-Dockerfile*
-docker-compose*.yml
+# -----------------------------------------------------------------------------
+# Dependencies (reinstalled in container)
+# -----------------------------------------------------------------------------
+node_modules/
 
-# MCP configs
-.mcp*.json
-
-# Tests
-tests/
+# -----------------------------------------------------------------------------
+# Build Outputs (rebuilt in container)
+# -----------------------------------------------------------------------------
+dist/
 coverage/
 
-# Documentation
+# -----------------------------------------------------------------------------
+# Secrets & Sensitive Files (security - never include)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.key
+*.pem
+kubeconfig*
+**/secrets/
+credentials.json
+
+# -----------------------------------------------------------------------------
+# Temporary Files (can be large)
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+*.log
+*.pid
+
+# -----------------------------------------------------------------------------
+# Development Files (not needed in production)
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# Documentation (not needed at runtime)
+# -----------------------------------------------------------------------------
 *.md
+!README.md
 docs/
 
-# Examples
-examples/
+# -----------------------------------------------------------------------------
+# Test Files (not needed in production)
+# -----------------------------------------------------------------------------
+tests/
+**/*.test.ts
+**/*.spec.ts
+coverage/
+
+# -----------------------------------------------------------------------------
+# CI/CD (not needed in container)
+# -----------------------------------------------------------------------------
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# -----------------------------------------------------------------------------
+# Docker Files (prevent recursive copying)
+# -----------------------------------------------------------------------------
+Dockerfile
+.dockerignore
+docker-compose*.yml
