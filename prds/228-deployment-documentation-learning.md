@@ -1,7 +1,7 @@
 # PRD: Deployment Documentation & Example-Based Learning
 
 **Created**: 2025-11-21
-**Status**: Planning - Blocked by PRD #25
+**Status**: Planning - Blocked by dot-ai-controller PRD #4
 **Owner**: TBD
 **Last Updated**: 2025-11-21
 **Issue**: #228
@@ -11,7 +11,7 @@
 
 Enhance the recommendation system by generating deployment documentation alongside Kubernetes manifests, storing them in Git, and using past deployment examples as few-shot learning context for future recommendations. This creates an organizational memory of deployment decisions and improves AI accuracy over time.
 
-**⚠️ PREREQUISITE**: This PRD is blocked by PRD #25 (CRD-Based Solution Tracking). Work cannot begin until #25 is complete, as this feature requires the CRD infrastructure for tracking documentation references.
+**⚠️ PREREQUISITE**: This PRD is blocked by dot-ai-controller PRD #4 (Solution CRD for Deployment Tracking). Work cannot begin until dot-ai-controller #4 is complete, as this feature requires the CRD infrastructure for tracking documentation references.
 
 ## Problem Statement
 
@@ -105,12 +105,12 @@ Enhance the recommendation system by generating deployment documentation alongsi
    - User provides Git location to system
    - Details TBD during implementation
 
-3. **CRD-Based Tracking** (PRD #25 - PREREQUISITE)
+3. **CRD-Based Tracking** (dot-ai-controller PRD #4 - PREREQUISITE)
    - Custom Resource tracks deployment documentation
    - Stores reference to Git location (URL, path, branch)
    - Controller periodically checks for changes
    - Updates Qdrant embeddings when docs change
-   - **Design entirely in PRD #25**
+   - **Design entirely in dot-ai-controller PRD #4**
 
 4. **Vector DB Storage** (Qdrant collection)
    - New collection: `deployment-examples`
@@ -166,10 +166,11 @@ Enhance the recommendation system by generating deployment documentation alongsi
 ## Dependencies
 
 ### Prerequisites (BLOCKING)
-- **PRD #25**: CRD-Based Solution Tracking - **MUST BE COMPLETE BEFORE STARTING THIS PRD**
+- **dot-ai-controller PRD #4**: Solution CRD for Deployment Tracking - **MUST BE COMPLETE BEFORE STARTING THIS PRD**
   - Provides CRD infrastructure for tracking documentation references
   - Implements controller for syncing docs from Git to Qdrant
-  - This PRD cannot begin until #25 is fully implemented
+  - This PRD cannot begin until dot-ai-controller #4 is fully implemented
+  - See: https://github.com/vfarcic/dot-ai-controller/issues/4
 
 ### Integration Points
 - **PRD #218**: Learning system for tracking example effectiveness
@@ -184,7 +185,7 @@ Enhance the recommendation system by generating deployment documentation alongsi
 
 ## Implementation Milestones
 
-**⚠️ NOTE**: These milestones can only begin after PRD #25 is complete.
+**⚠️ NOTE**: These milestones can only begin after dot-ai-controller PRD #4 is complete.
 
 ### Milestone 1: Documentation Generation ⬜
 **Goal**: Generate useful documentation alongside manifests
@@ -243,12 +244,12 @@ Enhance the recommendation system by generating deployment documentation alongsi
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| PRD #25 delayed or blocked | High | Medium | Monitor #25 progress, prepare documentation generation work in parallel |
+| dot-ai-controller PRD #4 delayed or blocked | High | Medium | Monitor dot-ai-controller #4 progress, prepare documentation generation work in parallel |
 | Documentation quality varies | Medium | Medium | Define clear template and generation guidelines |
 | Users don't commit docs to Git | High | Medium | Make workflow seamless, demonstrate value with metrics |
 | Example retrieval adds latency | Medium | Low | Optimize vector search, cache frequent queries |
 | Sensitive data in docs | High | Low | Clear guidelines on what to include, sanitization checks |
-| Examples become stale | Medium | Medium | CRD controller (PRD #25) detects changes, users can refresh |
+| Examples become stale | Medium | Medium | CRD controller (dot-ai-controller PRD #4) detects changes, users can refresh |
 
 ## Open Questions
 
@@ -257,7 +258,7 @@ Enhance the recommendation system by generating deployment documentation alongsi
 3. **Number of Examples**: How many past deployments to retrieve for context? (3? 5? Configurable?)
 4. **Prioritization**: Should recent examples be weighted higher than older ones?
 5. **Filtering**: Should examples be filtered by success indicators (still deployed, no failures)?
-6. **Git Credentials**: How to securely manage Git access for private repositories? (May be handled by PRD #25)
+6. **Git Credentials**: How to securely manage Git access for private repositories? (May be handled by dot-ai-controller PRD #4)
 7. **Packaging PRD**: Should packaging (Helm/Kustomize) PRD be created and completed first?
 
 ## Future Enhancements
@@ -273,27 +274,27 @@ Enhance the recommendation system by generating deployment documentation alongsi
 
 ### 2025-11-21: PRD Creation
 **Duration**: ~1 hour
-**Status**: Planning - Blocked by PRD #25
+**Status**: Planning - Blocked by dot-ai-controller PRD #4
 
 **Completed Work**:
 - Created PRD based on user discussion
 - Defined four-phase implementation approach
-- Established hard dependency on PRD #25 (blocking)
+- Established hard dependency on dot-ai-controller PRD #4 (blocking)
 - Documented high-level workflow and components
-- Kept CRD/controller design scoped to PRD #25
+- Kept CRD/controller design scoped to dot-ai-controller PRD #4
 
 **Key Decisions**:
 - Enhance existing `generateManifests` tool rather than separate system
-- Rely on PRD #25 for CRD and controller implementation
+- Rely on dot-ai-controller PRD #4 for CRD and controller implementation
 - Store examples in Qdrant vector DB for semantic retrieval
 - Integrate with PRD #218 for usage metrics
 - Keep implementation details flexible for discussion during development
-- Make PRD #25 a hard blocker - cannot start this until #25 is complete
+- Make dot-ai-controller PRD #4 a hard blocker - cannot start this until it is complete
 
 **Next Steps**:
-- Monitor PRD #25 progress
+- Monitor dot-ai-controller PRD #4 progress
 - Can begin planning documentation format in parallel
-- Begin Milestone 1 only after PRD #25 is complete
+- Begin Milestone 1 only after dot-ai-controller PRD #4 is complete
 
 ---
 
@@ -343,13 +344,14 @@ and Deployment for Redis. Exposed via ClusterIP services internally.
 - Solution ID: sol-1762983784617-9ddae2b8
 ```
 
-### Relationship to PRD #25
+### Relationship to dot-ai-controller PRD #4
 
-**What PRD #25 Provides** (PREREQUISITE):
+**What dot-ai-controller PRD #4 Provides** (PREREQUISITE):
 - Custom Resource Definition for deployment tracking
 - Controller for syncing documentation from Git
 - Qdrant embedding management
 - Change detection and update mechanisms
+- See: https://github.com/vfarcic/dot-ai-controller/issues/4
 
 **What This PRD Adds**:
 - Documentation generation from solution data
