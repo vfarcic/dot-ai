@@ -162,13 +162,22 @@ return {
    - Clean up imports and dependencies
    - No backward compatibility needed
 
-3. **Manifest Output**
-   - Return Solution CR as part of manifest array
+3. **CRD Availability Detection**
+   - Check if Solution CRD is available in cluster
+   - Cache check result globally (check once, reuse result)
+   - Skip Solution CR generation if CRD not available
+   - Modify AI prompts based on CRD availability:
+     - Remove Solution CR instructions from prompts if CRD unavailable
+     - Include Solution CR instructions if CRD available
+   - Graceful degradation (tool works without controller)
+
+4. **Manifest Output**
+   - Return Solution CR as part of manifest array (if CRD available)
    - Maintain YAML formatting consistency
    - Support both local save and MCP apply workflows
-   - Solution CR included in all manifest outputs
+   - Solution CR conditionally included based on CRD availability
 
-4. **Integration Testing**
+5. **Integration Testing**
    - Test Solution CR is generated correctly
    - Test CR includes all required fields
    - Test resource references are accurate
@@ -248,16 +257,29 @@ return {
 **Goal**: Generate valid Solution CR manifests in recommend tool
 
 **Success Criteria:**
-- Solution CR generated from solution data
+- CRD availability check implemented with global caching
+- Solution CR generated from solution data (when CRD available)
 - All required fields populated (intent, resources, context)
 - Resource references extracted from manifests accurately
-- CR included in manifest output array
+- CR included in manifest output array (when CRD available)
 - YAML formatting is correct and valid
+- Graceful degradation when CRD unavailable
+- AI prompts dynamically adjusted based on CRD availability
 
 **Implementation Tasks:**
+- Implement CRD availability check utility:
+  - Check for `solutions.dot-ai.io` CRD in cluster
+  - Cache result in global variable (e.g., singleton or module-level cache)
+  - Return cached result on subsequent calls
 - Create Solution CR generation utility function
 - Implement resource reference extraction logic
-- Add Solution CR to manifest generation pipeline
+- Add conditional Solution CR to manifest generation pipeline:
+  - Check CRD availability before generating
+  - Skip Solution CR generation if CRD unavailable
+- Implement dynamic AI prompt modification:
+  - Load base prompt template
+  - Conditionally include/exclude Solution CR instructions
+  - Pass modified prompt to AI based on CRD availability
 - Validate CR schema against CRD definition
 - Handle namespace scoping correctly
 
@@ -286,18 +308,28 @@ return {
 **Goal**: Comprehensive test coverage for Solution CR integration
 
 **Success Criteria:**
-- Integration tests verify Solution CR generation
+- Integration tests verify Solution CR generation (when CRD available)
+- Integration tests verify graceful degradation (when CRD unavailable)
 - Tests validate CR structure and content
 - Tests confirm controller picks up CR
 - Health status validation working
+- CRD availability check caching validated
+- AI prompt modification tested for both scenarios
 - All integration tests passing
 
 **Implementation Tasks:**
-- Write integration test for Solution CR generation
+- Write integration test for CRD availability check and caching:
+  - Test first check queries cluster
+  - Test subsequent checks use cached result
+  - Test behavior with CRD present
+  - Test behavior with CRD absent
+- Write integration test for Solution CR generation (CRD available)
+- Write integration test for workflow without CRD (graceful degradation)
 - Test resource reference extraction accuracy
 - Test controller integration (CR → resource tracking)
 - Test health status updates
-- Test deployment workflow end-to-end
+- Test AI prompt includes/excludes Solution CR instructions correctly
+- Test deployment workflow end-to-end (both scenarios)
 
 **Estimated Duration**: TBD during planning
 
@@ -366,7 +398,8 @@ return {
 2. **Namespace Strategy**: Default namespace or require user specification?
 3. **Error Handling**: What happens if Solution CR generation fails? Fail entire operation or skip?
 4. **Validation**: Should we validate Solution CR against CRD schema before returning?
-5. **Controller Availability**: Should we check if controller is running before generating CR?
+5. **Cache Invalidation**: Should CRD availability cache have TTL, or is one-time check sufficient for session lifetime?
+6. **CRD Check Timing**: Check availability at MCP server startup, or on-demand during first recommend call?
 
 ## Future Enhancements
 
@@ -379,16 +412,21 @@ return {
 
 ## Work Log
 
-### 2025-11-23: PRD Creation
-**Duration**: ~1 hour
+### 2025-11-23: PRD Creation & Updates
+**Duration**: ~1.5 hours
 **Status**: Planning - Blocked by dot-ai-controller PR #5
 
 **Completed Work**:
 - Created PRD for ConfigMap → Solution CR migration
-- Defined 5 major milestones with clear success criteria
+- Defined 6 major milestones with clear success criteria
 - Established hard dependency on dot-ai-controller PR #5
 - Documented Solution CR schema understanding
 - Outlined integration testing requirements
+- Added Milestone 1: Helm chart integration (dogfooding Solution CR for dot-ai deployment)
+- Added CRD availability detection requirement
+- Added graceful degradation strategy
+- Added dynamic AI prompt modification based on CRD availability
+- Added global caching for CRD availability check
 
 **Key Decisions**:
 - Complete ConfigMap removal (no migration path)
@@ -396,6 +434,11 @@ return {
 - Maintain current user workflow (save locally or apply via MCP)
 - Solution CR timing flexible (before/after resources)
 - High priority to unblock PRD #228
+- Helm chart includes controller as dependency
+- dot-ai deployment tracked by Solution CR (dogfooding)
+- CRD availability checked once and cached globally
+- AI prompts modified dynamically based on CRD availability
+- Graceful degradation when controller not installed
 
 **Next Steps**:
 - Monitor dot-ai-controller PR #5 for merge
@@ -452,6 +495,131 @@ spec:
       - resource-limits-required
 
   documentationURL: ""  # Populated by PRD #228 in future
+```
+
+### CRD Availability Check with Caching
+
+```typescript
+/**
+ * Singleton cache for CRD availability check
+ * Checks once per MCP server lifecycle, caches result globally
+ */
+class CRDAvailabilityCache {
+  private static instance: CRDAvailabilityCache;
+  private crdAvailable: boolean | null = null;
+
+  private constructor() {}
+
+  static getInstance(): CRDAvailabilityCache {
+    if (!CRDAvailabilityCache.instance) {
+      CRDAvailabilityCache.instance = new CRDAvailabilityCache();
+    }
+    return CRDAvailabilityCache.instance;
+  }
+
+  async isSolutionCRDAvailable(): Promise<boolean> {
+    // Return cached result if available
+    if (this.crdAvailable !== null) {
+      return this.crdAvailable;
+    }
+
+    // Check cluster for Solution CRD
+    try {
+      const k8sApi = kubernetesClient.getApiExtensionsV1Api();
+      const crdName = 'solutions.dot-ai.io';
+
+      await k8sApi.readCustomResourceDefinition(crdName);
+
+      // CRD exists, cache result
+      this.crdAvailable = true;
+      return true;
+    } catch (error: any) {
+      if (error.statusCode === 404) {
+        // CRD not found, cache result
+        this.crdAvailable = false;
+        return false;
+      }
+      // Other errors (cluster unreachable, etc.) - don't cache
+      throw error;
+    }
+  }
+
+  // Optional: Reset cache (for testing or manual refresh)
+  reset(): void {
+    this.crdAvailable = null;
+  }
+}
+
+/**
+ * Helper function for checking CRD availability
+ */
+export async function isSolutionCRDAvailable(): Promise<boolean> {
+  const cache = CRDAvailabilityCache.getInstance();
+  return cache.isSolutionCRDAvailable();
+}
+```
+
+### Dynamic AI Prompt Modification
+
+```typescript
+/**
+ * Load and modify AI prompt based on CRD availability
+ */
+async function getRecommendationPrompt(
+  basePromptPath: string,
+  userIntent: string,
+  clusterCapabilities: any
+): Promise<string> {
+  // Check if Solution CRD is available
+  const solutionCRDAvailable = await isSolutionCRDAvailable();
+
+  // Load base prompt template
+  const fs = await import('fs');
+  const template = fs.readFileSync(basePromptPath, 'utf8');
+
+  // Conditionally include/exclude Solution CR instructions
+  let finalPrompt = template
+    .replace('{userIntent}', userIntent)
+    .replace('{clusterCapabilities}', JSON.stringify(clusterCapabilities));
+
+  if (solutionCRDAvailable) {
+    // Include Solution CR generation instructions
+    const solutionCRInstructions = `
+## Solution Custom Resource
+
+IMPORTANT: Generate a Solution CR alongside application manifests to enable tracking and lifecycle management.
+
+The Solution CR should include:
+- spec.intent: The user's original intent
+- spec.resources: List of all deployed resources (apiVersion, kind, name, namespace)
+- spec.context: Metadata including rationale, patterns, and policies
+
+Example:
+\`\`\`yaml
+apiVersion: dot-ai.io/v1alpha1
+kind: Solution
+metadata:
+  name: solution-{timestamp}-{id}
+  namespace: {namespace}
+spec:
+  intent: "{userIntent}"
+  resources:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: my-app
+      namespace: production
+  context:
+    createdBy: dot-ai-mcp
+    rationale: "..."
+    patterns: []
+    policies: []
+\`\`\`
+`;
+    finalPrompt += solutionCRInstructions;
+  }
+
+  return finalPrompt;
+}
 ```
 
 ### Resource Reference Extraction Logic
