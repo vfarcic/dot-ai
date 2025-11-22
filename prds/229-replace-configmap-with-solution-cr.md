@@ -1,0 +1,554 @@
+# PRD: Replace ConfigMap with Solution CR in Recommend Tool
+
+**Created**: 2025-11-23
+**Status**: Planning - Blocked by dot-ai-controller PR #5
+**Owner**: TBD
+**Last Updated**: 2025-11-23
+**Issue**: #229
+**Priority**: High
+
+## Executive Summary
+
+Replace ConfigMap-based solution storage in the `recommend` tool with Solution Custom Resource (CR) generation, enabling persistent tracking, health monitoring, and lifecycle management through the Solution controller from dot-ai-controller.
+
+**⚠️ PREREQUISITE**: This PRD is blocked by dot-ai-controller PR #5 (Solution CRD implementation). Work cannot begin until PR #5 is merged and the Solution CRD is available in the cluster.
+
+## Problem Statement
+
+### Current Challenges
+- **Ephemeral Storage**: ConfigMaps provide temporary, session-based solution storage
+- **No Lifecycle Management**: ConfigMaps don't track resource health or deployment state
+- **Limited Metadata**: ConfigMaps can't capture rich context (rationale, patterns, policies)
+- **No Controller Integration**: ConfigMaps aren't managed by controllers for automated operations
+- **Blocks Future Features**: PRD #228 (documentation & learning) requires CRD infrastructure
+
+### User Impact
+- **Lost Context**: Solution information disappears when sessions end
+- **No Health Tracking**: Users can't see if deployed solutions are healthy
+- **Manual Cleanup**: No automatic garbage collection when solutions are deleted
+- **Inconsistent State**: No single source of truth for deployment state
+
+## Goals
+
+### Primary Goals
+
+1. **Replace ConfigMap with Solution CR Generation**
+   - Generate Solution CR manifest alongside application manifests
+   - Include all required metadata (intent, resources, context)
+   - Maintain current user workflow (save locally or apply via MCP)
+
+2. **Remove ConfigMap Storage Completely**
+   - Clean removal of all ConfigMap-related code
+   - No migration path needed (clean break)
+   - Simplify codebase by removing legacy storage
+
+3. **Enable Persistent Tracking**
+   - Solution CRs persist beyond session lifecycle
+   - Controller tracks resource health automatically
+   - Users can query solution state at any time
+
+4. **Maintain Workflow Consistency**
+   - User experience remains the same
+   - Generate all manifests together (including Solution CR)
+   - User chooses to save locally or apply via MCP
+   - Solution CR works whether created before or after application resources
+
+5. **Comprehensive Testing**
+   - Integration tests verify Solution CR generation
+   - Tests validate controller picks up and tracks resources
+   - Health status validation in test suite
+
+## Solution Overview
+
+### High-Level Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. User Completes Recommendation Workflow                   │
+│    - Provides intent                                        │
+│    - Answers configuration questions                       │
+│    - Chooses solution                                       │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│ 2. Generate Manifests (INCLUDING Solution CR)               │
+│    - Application manifests (Deployments, Services, etc.)    │
+│    - Solution CR manifest with:                             │
+│      * spec.intent: User's original intent                  │
+│      * spec.resources[]: List of deployed resources         │
+│      * spec.context: Rationale, patterns, policies          │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│ 3. User Chooses Deployment Method                           │
+│    Option A: Save manifests to local filesystem             │
+│    Option B: Let MCP apply manifests to cluster             │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│ 4. Solution Controller Takes Over                           │
+│    - Discovers resources listed in Solution CR              │
+│    - Adds ownerReferences for garbage collection            │
+│    - Monitors resource health                               │
+│    - Updates Solution status continuously                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Changes
+
+**Before (ConfigMap Approach)**:
+```typescript
+// Generate manifests
+const manifests = generateKubernetesManifests(solution);
+
+// Store in ConfigMap
+await createConfigMap({
+  name: `solution-${solutionId}`,
+  data: {
+    intent: solution.intent,
+    manifests: JSON.stringify(manifests)
+  }
+});
+
+return { manifests, solutionId };
+```
+
+**After (Solution CR Approach)**:
+```typescript
+// Generate application manifests
+const manifests = generateKubernetesManifests(solution);
+
+// Generate Solution CR manifest
+const solutionCR = {
+  apiVersion: 'dot-ai.io/v1alpha1',
+  kind: 'Solution',
+  metadata: {
+    name: `solution-${solutionId}`,
+    namespace: solution.namespace
+  },
+  spec: {
+    intent: solution.intent,
+    resources: extractResourceReferences(manifests),
+    context: {
+      createdBy: 'dot-ai-mcp',
+      rationale: solution.rationale,
+      patterns: solution.patterns,
+      policies: solution.policies
+    }
+  }
+};
+
+// Return all manifests together
+return {
+  manifests: [...manifests, solutionCR],
+  solutionId
+};
+```
+
+## Requirements
+
+### Functional Requirements
+
+1. **Solution CR Generation**
+   - Generate valid Solution CR manifest from solution data
+   - Extract resource references (apiVersion, kind, name, namespace) from manifests
+   - Populate spec.intent with user's original intent
+   - Populate spec.context with rationale, patterns, policies
+   - Generate unique solution name/ID
+
+2. **ConfigMap Removal**
+   - Remove all ConfigMap creation code from recommend tool
+   - Remove ConfigMap storage utilities
+   - Clean up imports and dependencies
+   - No backward compatibility needed
+
+3. **Manifest Output**
+   - Return Solution CR as part of manifest array
+   - Maintain YAML formatting consistency
+   - Support both local save and MCP apply workflows
+   - Solution CR included in all manifest outputs
+
+4. **Integration Testing**
+   - Test Solution CR is generated correctly
+   - Test CR includes all required fields
+   - Test resource references are accurate
+   - Test controller picks up and tracks resources
+   - Test health status is properly reflected
+
+### Non-Functional Requirements
+
+- **Compatibility**: Works with dot-ai-controller Solution CRD v1alpha1
+- **Performance**: No performance degradation from ConfigMap approach
+- **Reliability**: Manifest generation never fails due to CR creation
+- **Maintainability**: Clean code without ConfigMap legacy
+- **Documentation**: Clear examples of Solution CR structure
+
+## Dependencies
+
+### Prerequisites (BLOCKING)
+- **dot-ai-controller PR #5**: Solution CRD implementation - **MUST BE MERGED BEFORE STARTING THIS PRD**
+  - Provides Solution CRD schema
+  - Implements Solution controller
+  - Available at: https://github.com/vfarcic/dot-ai-controller/pull/5
+
+### Integration Points
+- **Recommend tool**: Core manifest generation logic
+- **MCP server**: Manifest deployment functionality
+- **Integration tests**: Test framework for validation
+- **Documentation**: User-facing guides and examples
+
+### Dependent PRDs (UNBLOCKED BY THIS PRD)
+- **PRD #228**: Deployment Documentation & Example-Based Learning
+  - Requires Solution CR infrastructure to be in place
+  - Builds on Solution CR with documentation references
+  - Cannot begin until this PRD is complete
+
+## Implementation Milestones
+
+**⚠️ NOTE**: These milestones can only begin after dot-ai-controller PR #5 is merged.
+
+### Milestone 1: Helm Chart Integration & Controller Deployment ⬜
+**Goal**: Ensure dot-ai-controller is operational and dot-ai deployment tracked by Solution CR
+
+**Success Criteria:**
+- dot-ai Helm chart includes dot-ai-controller as dependency
+- Controller CRD and deployment available in test clusters
+- Solution CR created by dot-ai chart that tracks all chart resources
+- Solution CR lists all resources deployed by dot-ai chart (MCP server, services, etc.)
+- Controller establishes Solution CR as parent of all dot-ai resources
+- Controller operational and ready for testing
+- Integration test setup includes controller
+
+**Implementation Tasks:**
+- Add dot-ai-controller chart as Helm dependency in charts/dot-ai/Chart.yaml
+- Configure dependency version and repository location
+- Create Solution CR template in charts/dot-ai/templates/solution.yaml
+- Populate Solution CR spec.resources with all chart-deployed resources:
+  - MCP server Deployment
+  - Services
+  - ConfigMaps
+  - Any other resources deployed by the chart
+- Configure Solution CR spec.intent describing dot-ai MCP deployment
+- Configure Solution CR spec.context with deployment metadata
+- Update integration test setup to deploy controller
+- Verify controller establishes parent-child relationships
+- Verify Solution CR status reflects dot-ai deployment health
+- Test CRD is available and accessible
+
+**Estimated Duration**: TBD during planning
+
+**Rationale**:
+1. Controller must be operational before we can test Solution CR generation
+2. Dogfooding: dot-ai's own deployment should be tracked by Solution CR
+3. Provides real production example of Solution CR usage
+4. Demonstrates parent-child resource relationships in practice
+5. Ensures infrastructure is in place for subsequent milestones
+
+### Milestone 2: Solution CR Generation ⬜
+**Goal**: Generate valid Solution CR manifests in recommend tool
+
+**Success Criteria:**
+- Solution CR generated from solution data
+- All required fields populated (intent, resources, context)
+- Resource references extracted from manifests accurately
+- CR included in manifest output array
+- YAML formatting is correct and valid
+
+**Implementation Tasks:**
+- Create Solution CR generation utility function
+- Implement resource reference extraction logic
+- Add Solution CR to manifest generation pipeline
+- Validate CR schema against CRD definition
+- Handle namespace scoping correctly
+
+**Estimated Duration**: TBD during planning
+
+### Milestone 3: ConfigMap Removal ⬜
+**Goal**: Complete removal of ConfigMap storage code
+
+**Success Criteria:**
+- All ConfigMap creation code removed
+- No references to ConfigMap storage utilities
+- Build passes without ConfigMap dependencies
+- No ConfigMap-related code in recommend tool
+- Codebase simplified and cleaner
+
+**Implementation Tasks:**
+- Remove ConfigMap creation functions
+- Remove ConfigMap storage utilities
+- Clean up imports and dependencies
+- Remove ConfigMap-related constants/types
+- Update any affected code paths
+
+**Estimated Duration**: TBD during planning
+
+### Milestone 4: Integration Testing ⬜
+**Goal**: Comprehensive test coverage for Solution CR integration
+
+**Success Criteria:**
+- Integration tests verify Solution CR generation
+- Tests validate CR structure and content
+- Tests confirm controller picks up CR
+- Health status validation working
+- All integration tests passing
+
+**Implementation Tasks:**
+- Write integration test for Solution CR generation
+- Test resource reference extraction accuracy
+- Test controller integration (CR → resource tracking)
+- Test health status updates
+- Test deployment workflow end-to-end
+
+**Estimated Duration**: TBD during planning
+
+### Milestone 5: Documentation Updates ⬜
+**Goal**: User-facing documentation reflects Solution CR approach
+
+**Success Criteria:**
+- docs/mcp-guide.md updated with Solution CR examples
+- README.md updated to mention persistent tracking
+- Example manifests include Solution CR
+- User workflow documentation is accurate
+- Migration notes explain changes (if needed)
+
+**Implementation Tasks:**
+- Update MCP tool documentation
+- Add Solution CR examples to guides
+- Update README with new capabilities
+- Create example Solution CR manifests
+- Document user-facing changes
+
+**Estimated Duration**: TBD during planning
+
+### Milestone 6: Feature Complete and Validated ⬜
+**Goal**: Solution CR integration production-ready
+
+**Success Criteria:**
+- All tests passing (unit + integration)
+- Documentation complete and reviewed
+- Code reviewed and approved
+- Feature tested with real deployments
+- Ready for production use
+
+**Implementation Tasks:**
+- Run full test suite
+- Perform end-to-end testing with real cluster
+- Code review and approval
+- Documentation review
+- Performance validation
+
+**Estimated Duration**: TBD during planning
+
+## Success Criteria
+
+- [ ] **Solution CR Generation**: Valid Solution CRs generated for all deployments
+- [ ] **ConfigMap Removed**: No ConfigMap code remains in recommend tool
+- [ ] **Persistent Tracking**: Solutions persist and are tracked by controller
+- [ ] **Health Monitoring**: Solution status reflects resource health
+- [ ] **Tests Passing**: All integration tests validate Solution CR functionality
+- [ ] **Documentation Complete**: Users understand Solution CR approach
+- [ ] **Workflow Maintained**: User experience remains consistent
+- [ ] **PRD #228 Unblocked**: Documentation & learning PRD can begin implementation
+
+## Risks & Mitigations
+
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| dot-ai-controller PR #5 delayed | High | Medium | Monitor PR progress, prepare implementation in parallel |
+| Solution CRD schema changes | Medium | Low | Follow PR #5 closely, coordinate with controller team |
+| Integration issues with controller | Medium | Low | Comprehensive integration testing, early validation |
+| User workflow confusion | Low | Low | Clear documentation, examples, and migration notes |
+| Test coverage gaps | Medium | Low | Thorough integration test suite, real cluster testing |
+
+## Open Questions
+
+1. **Solution CR Naming**: Use session ID, timestamp, or user-provided name? (Discuss during implementation)
+2. **Namespace Strategy**: Default namespace or require user specification?
+3. **Error Handling**: What happens if Solution CR generation fails? Fail entire operation or skip?
+4. **Validation**: Should we validate Solution CR against CRD schema before returning?
+5. **Controller Availability**: Should we check if controller is running before generating CR?
+
+## Future Enhancements
+
+- **PRD #228 Integration**: Add documentation URL field to Solution CR
+- **Solution Querying**: MCP tools to list and inspect existing Solution CRs
+- **Solution Management**: MCP tools to update or delete Solution CRs
+- **Health Notifications**: Alert users when solution health degrades
+- **Solution Templates**: Pre-defined Solution patterns for common deployments
+- **Cross-Cluster Tracking**: Track solutions across multiple clusters
+
+## Work Log
+
+### 2025-11-23: PRD Creation
+**Duration**: ~1 hour
+**Status**: Planning - Blocked by dot-ai-controller PR #5
+
+**Completed Work**:
+- Created PRD for ConfigMap → Solution CR migration
+- Defined 5 major milestones with clear success criteria
+- Established hard dependency on dot-ai-controller PR #5
+- Documented Solution CR schema understanding
+- Outlined integration testing requirements
+
+**Key Decisions**:
+- Complete ConfigMap removal (no migration path)
+- Generate Solution CR alongside application manifests
+- Maintain current user workflow (save locally or apply via MCP)
+- Solution CR timing flexible (before/after resources)
+- High priority to unblock PRD #228
+
+**Next Steps**:
+- Monitor dot-ai-controller PR #5 for merge
+- Begin Milestone 1 when PR #5 is merged
+- Coordinate with controller team on any schema questions
+
+---
+
+## Appendix
+
+### Solution CR Example
+
+**Example: Web Application with Database**
+
+```yaml
+apiVersion: dot-ai.io/v1alpha1
+kind: Solution
+metadata:
+  name: solution-1732389847123-a4f3b2c1
+  namespace: production
+spec:
+  intent: "Deploy Node.js web application with PostgreSQL database"
+
+  resources:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: web-app
+      namespace: production
+    - apiVersion: v1
+      kind: Service
+      name: web-app-svc
+      namespace: production
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: postgresql
+      namespace: production
+    - apiVersion: v1
+      kind: Service
+      name: postgresql-svc
+      namespace: production
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      name: postgresql-pvc
+      namespace: production
+
+  context:
+    createdBy: dot-ai-mcp
+    rationale: "StatefulSet for PostgreSQL ensures data persistence. Deployment for stateless web app with 3 replicas for high availability."
+    patterns:
+      - high-availability
+      - stateful-storage
+    policies:
+      - minimum-3-replicas
+      - resource-limits-required
+
+  documentationURL: ""  # Populated by PRD #228 in future
+```
+
+### Resource Reference Extraction Logic
+
+```typescript
+/**
+ * Extract resource references from Kubernetes manifests
+ * for inclusion in Solution CR spec.resources
+ */
+function extractResourceReferences(manifests: any[]): ResourceReference[] {
+  return manifests
+    .filter(manifest => manifest.kind && manifest.metadata?.name)
+    .map(manifest => ({
+      apiVersion: manifest.apiVersion,
+      kind: manifest.kind,
+      name: manifest.metadata.name,
+      namespace: manifest.metadata.namespace || undefined
+    }));
+}
+
+interface ResourceReference {
+  apiVersion: string;
+  kind: string;
+  name: string;
+  namespace?: string;
+}
+```
+
+### Integration Test Example
+
+```typescript
+describe('Solution CR Integration', () => {
+  test('should generate Solution CR during recommend workflow', async () => {
+    // Complete recommendation workflow
+    const response = await recommendTool.execute({
+      intent: 'Deploy Go API with Redis cache',
+      // ... configuration answers
+    });
+
+    // Verify Solution CR is included in manifests
+    const solutionCR = response.manifests.find(m => m.kind === 'Solution');
+    expect(solutionCR).toBeDefined();
+
+    // Verify Solution CR structure
+    expect(solutionCR).toMatchObject({
+      apiVersion: 'dot-ai.io/v1alpha1',
+      kind: 'Solution',
+      spec: {
+        intent: 'Deploy Go API with Redis cache',
+        resources: expect.arrayContaining([
+          expect.objectContaining({ kind: 'Deployment' }),
+          expect.objectContaining({ kind: 'Service' })
+        ]),
+        context: expect.objectContaining({
+          createdBy: 'dot-ai-mcp'
+        })
+      }
+    });
+  });
+
+  test('should allow controller to track Solution CR resources', async () => {
+    // Deploy manifests including Solution CR
+    await deployManifests(manifests);
+
+    // Wait for controller to reconcile
+    await waitForReconciliation();
+
+    // Verify controller added ownerReferences
+    const deployment = await k8s.apps.v1.deployments.get('api-deployment');
+    expect(deployment.metadata.ownerReferences).toContainEqual(
+      expect.objectContaining({
+        kind: 'Solution',
+        name: solutionCR.metadata.name
+      })
+    );
+
+    // Verify Solution status is updated
+    const solution = await k8s.getCustomResource(solutionCR);
+    expect(solution.status.state).toBe('deployed');
+    expect(solution.status.resources.ready).toBeGreaterThan(0);
+  });
+});
+```
+
+### Relationship to dot-ai-controller PR #5
+
+**What dot-ai-controller PR #5 Provides** (PREREQUISITE):
+- Solution CRD definition (v1alpha1)
+- Solution controller implementation
+- Resource tracking and health monitoring
+- OwnerReference management
+- Status updates and garbage collection
+- See: https://github.com/vfarcic/dot-ai-controller/pull/5
+
+**What This PRD Adds**:
+- Solution CR generation in recommend tool
+- ConfigMap removal and code cleanup
+- Integration with recommend workflow
+- Integration testing for CR generation
+- User documentation and examples
