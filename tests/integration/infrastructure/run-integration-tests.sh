@@ -115,9 +115,12 @@ if [ "$NO_CLUSTER" = false ]; then
 
     export KUBECONFIG=./kubeconfig-test.yaml
 
+    # Start all operator installations in parallel
+    log_info "Starting all operator installations in parallel..."
+
     # Optional: Install CloudNativePG operator (skip with SKIP_CNPG=true)
     if [[ "${SKIP_CNPG}" != "true" ]]; then
-        log_info "Installing CloudNativePG operator (async)..."
+        log_info "Starting CloudNativePG installation..."
         kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml
     else
         log_warn "Skipping CloudNativePG operator installation (SKIP_CNPG=true)"
@@ -125,12 +128,12 @@ if [ "$NO_CLUSTER" = false ]; then
 
     # Optional: Install Kyverno Policy Engine (skip with SKIP_KYVERNO=true)
     if [[ "${SKIP_KYVERNO}" != "true" ]]; then
-        log_info "Installing Kyverno Policy Engine (synchronous - webhooks need time)..."
+        log_info "Starting Kyverno installation..."
         helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
         helm repo update
         helm upgrade --install kyverno kyverno/kyverno \
             --namespace kyverno --create-namespace \
-            --wait --timeout=300s || {
+            --timeout=300s || {
             log_error "Failed to install Kyverno"
             exit 1
         }
@@ -138,40 +141,89 @@ if [ "$NO_CLUSTER" = false ]; then
         log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
     fi
 
-    log_info "Starting fresh Qdrant test container..."
-    # Remove existing container if it exists
-    docker rm -f qdrant-test 2>/dev/null || true
-
-    # Create fresh container from test image (auto-pulls if not present)
-    docker run -d -p 6335:6333 --name qdrant-test ghcr.io/vfarcic/dot-ai-demo/qdrant:tests-latest || {
-        log_error "Failed to start Qdrant container"
+    # Install nginx ingress controller
+    log_info "Starting nginx ingress installation..."
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml || {
+        log_error "Failed to install nginx ingress controller"
         exit 1
     }
 
-    # Wait for Qdrant to be ready (poll health endpoint)
-    log_info "Waiting for Qdrant to be ready..."
-    MAX_QDRANT_WAIT=30
-    QDRANT_WAITED=0
-    while [ $QDRANT_WAITED -lt $MAX_QDRANT_WAIT ]; do
-        if curl -sf http://localhost:6335/healthz > /dev/null; then
-            log_info "Qdrant is healthy!"
-            # Additional wait to ensure collections are fully initialized
-            sleep 2
-            break
-        fi
-        sleep 1
-        QDRANT_WAITED=$((QDRANT_WAITED + 1))
-    done
-
-    if [ $QDRANT_WAITED -eq $MAX_QDRANT_WAIT ]; then
-        log_error "Qdrant failed to become healthy within ${MAX_QDRANT_WAIT} seconds"
+    # Build Docker image while operators install
+    log_info "Creating npm package tarball..."
+    npm pack || {
+        log_error "Failed to create npm package"
         exit 1
+    }
+
+    log_info "Building local dot-ai Docker image..."
+    docker build -t dot-ai:test . || {
+        log_error "Failed to build dot-ai image"
+        exit 1
+    }
+
+    # Clean up package tarball
+    rm -f vfarcic-dot-ai-*.tgz
+
+    log_info "Loading dot-ai image into Kind cluster..."
+    kind load docker-image dot-ai:test --name dot-test || {
+        log_error "Failed to load dot-ai image into Kind"
+        exit 1
+    }
+
+    log_info "Qdrant image will be pulled by Kubernetes from GHCR when needed"
+
+    # Wait for all operators to be ready
+    log_info "Waiting for all operators to be ready..."
+
+    if [[ "${SKIP_CNPG}" != "true" ]]; then
+        log_info "Waiting for CloudNativePG operator..."
+        kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
+            --namespace=cnpg-system --timeout=180s || {
+            log_error "CloudNativePG operator failed to become ready"
+            exit 1
+        }
     fi
+
+    if [[ "${SKIP_KYVERNO}" != "true" ]]; then
+        log_info "Waiting for Kyverno deployments..."
+        kubectl wait --for=condition=Available deployment/kyverno-admission-controller \
+            --namespace=kyverno --timeout=180s || {
+            log_error "Kyverno admission controller failed to become ready"
+            exit 1
+        }
+        kubectl wait --for=condition=Available deployment/kyverno-background-controller \
+            --namespace=kyverno --timeout=180s || {
+            log_error "Kyverno background controller failed to become ready"
+            exit 1
+        }
+        kubectl wait --for=condition=Available deployment/kyverno-cleanup-controller \
+            --namespace=kyverno --timeout=180s || {
+            log_error "Kyverno cleanup controller failed to become ready"
+            exit 1
+        }
+        kubectl wait --for=condition=Available deployment/kyverno-reports-controller \
+            --namespace=kyverno --timeout=180s || {
+            log_error "Kyverno reports controller failed to become ready"
+            exit 1
+        }
+    fi
+
+    log_info "Waiting for nginx ingress controller..."
+    kubectl wait --namespace ingress-nginx \
+        --for=condition=ready pod \
+        --selector=app.kubernetes.io/component=controller \
+        --timeout=300s || {
+        log_error "Ingress controller failed to become ready"
+        exit 1
+    }
+
+    log_info "Waiting for ingress admission webhook to be ready..."
+    sleep 10  # Give webhook time to register and become available
 else
     log_info "Skipping cluster and infrastructure setup (--no-cluster mode)"
 fi
 
-# Step 4: Create tmp directory for logs, PID, and sessions
+# Step 4: Create tmp directory for test artifacts
 log_info "Cleaning up old session files and debug prompts/outputs..."
 rm -rf ./tmp/sessions/*
 # Clean debug prompts/outputs but keep evaluation datasets (cumulative)
@@ -179,66 +231,152 @@ find ./tmp/debug-ai -type f ! -name '*.jsonl' -delete 2>/dev/null || true
 mkdir -p ./tmp/sessions
 mkdir -p ./tmp/debug-ai
 
-# Step 5: Start MCP server in background
-# Set provider defaults if not already set
-AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
-AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
+# Step 5: Deploy dot-ai via Helm (skip in --no-cluster mode)
+if [ "$NO_CLUSTER" = false ]; then
+    # Set provider defaults if not already set
+    AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
+    AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 
-log_info "Starting MCP server on port ${PORT}..."
-log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
+    log_info "Deploying dot-ai via Helm chart..."
+    log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
 
-KUBECONFIG=./kubeconfig-test.yaml \
-PORT=${PORT} \
-DOT_AI_SESSION_DIR=./tmp/sessions \
-DEBUG_DOT_AI=true \
-TRANSPORT_TYPE=http \
-QDRANT_URL=http://localhost:6335 \
-QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
-ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-OPENAI_API_KEY=$OPENAI_API_KEY \
-GOOGLE_API_KEY=$GOOGLE_API_KEY \
-XAI_API_KEY=$XAI_API_KEY \
-MISTRAL_API_KEY=$MISTRAL_API_KEY \
-DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
-node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
+    # Create namespace for dot-ai
+    kubectl create namespace dot-ai || true
 
-SERVER_PID=$!
-echo $SERVER_PID > "$SERVER_PID_FILE"
+    # Create secret with API keys
+    kubectl create secret generic dot-ai-secrets \
+        --namespace dot-ai \
+        --from-literal=anthropic-api-key="${ANTHROPIC_API_KEY}" \
+        --from-literal=openai-api-key="${OPENAI_API_KEY}" \
+        --from-literal=google-api-key="${GOOGLE_API_KEY}" \
+        --from-literal=xai-api-key="${XAI_API_KEY}" \
+        --from-literal=mistral-api-key="${MISTRAL_API_KEY}" \
+        --from-literal=deepseek-api-key="${DEEPSEEK_API_KEY}" \
+        --dry-run=client -o yaml | kubectl apply -f -
 
-log_info "Server started with PID ${SERVER_PID}"
-log_info "Server logs: ${LOG_FILE}"
+    # Deploy via Helm with local images
+    helm upgrade --install dot-ai ./charts \
+        --namespace dot-ai \
+        --set image.repository=dot-ai \
+        --set image.tag=test \
+        --set image.pullPolicy=Never \
+        --set ai.provider="${AI_PROVIDER}" \
+        --set ai.sdk="${AI_PROVIDER_SDK}" \
+        --set ingress.enabled=true \
+        --set ingress.className=nginx \
+        --set ingress.host=dot-ai.127.0.0.1.nip.io \
+        --set qdrant.enabled=true \
+        --set qdrant.image.repository=ghcr.io/vfarcic/dot-ai-demo/qdrant \
+        --set qdrant.image.tag=v1.15.5-test-01 \
+        --set qdrant.image.pullPolicy=IfNotPresent \
+        --wait --timeout=300s || {
+        log_error "Failed to deploy dot-ai via Helm"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+        exit 1
+    }
 
-# Step 5: Wait for server to be ready
-log_info "Waiting for server to be ready..."
-MAX_WAIT=30
-WAITED=0
-while [ $WAITED -lt $MAX_WAIT ]; do
-    if curl -s http://localhost:${PORT}/health > /dev/null 2>&1; then
-        log_info "Server is ready!"
-        break
+    log_info "Waiting for dot-ai deployment to be ready..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment \
+        --selector=app.kubernetes.io/name=dot-ai \
+        --timeout=120s || {
+        log_error "dot-ai deployment failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+        exit 1
+    }
+
+    # Wait for ingress to be accessible
+    log_info "Waiting for ingress to be accessible..."
+    MAX_WAIT=60
+    WAITED=0
+    MCP_URL="http://dot-ai.127.0.0.1.nip.io"
+    while [ $WAITED -lt $MAX_WAIT ]; do
+        if curl -sf "${MCP_URL}/api/v1/tools/version" -X POST -H "Content-Type: application/json" -d '{}' > /dev/null 2>&1; then
+            log_info "dot-ai MCP server is accessible at ${MCP_URL}"
+            break
+        fi
+        sleep 2
+        WAITED=$((WAITED + 2))
+    done
+
+    if [ $WAITED -ge $MAX_WAIT ]; then
+        log_error "Ingress failed to become accessible within ${MAX_WAIT} seconds"
+        kubectl get ingress -n dot-ai
+        kubectl describe ingress -n dot-ai
+        kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+        exit 1
     fi
 
-    # Check if server process died
-    if ! ps -p $SERVER_PID > /dev/null 2>&1; then
-        log_error "Server process died during startup"
+    # Override PORT to use ingress URL
+    export MCP_BASE_URL="${MCP_URL}"
+else
+    # --no-cluster mode: Start MCP server on host
+    AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
+    AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
+
+    log_info "Starting MCP server on port ${PORT} (no-cluster mode)..."
+    log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
+
+    KUBECONFIG=./kubeconfig-test.yaml \
+    PORT=${PORT} \
+    DOT_AI_SESSION_DIR=./tmp/sessions \
+    DEBUG_DOT_AI=true \
+    TRANSPORT_TYPE=http \
+    QDRANT_URL=http://localhost:6335 \
+    QDRANT_CAPABILITIES_COLLECTION=capabilities-policies \
+    ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+    OPENAI_API_KEY=$OPENAI_API_KEY \
+    GOOGLE_API_KEY=$GOOGLE_API_KEY \
+    XAI_API_KEY=$XAI_API_KEY \
+    MISTRAL_API_KEY=$MISTRAL_API_KEY \
+    DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
+    node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
+
+    SERVER_PID=$!
+    echo $SERVER_PID > "$SERVER_PID_FILE"
+
+    log_info "Server started with PID ${SERVER_PID}"
+    log_info "Server logs: ${LOG_FILE}"
+
+    # Wait for server to be ready
+    log_info "Waiting for server to be ready..."
+    MAX_WAIT=30
+    WAITED=0
+    while [ $WAITED -lt $MAX_WAIT ]; do
+        if curl -sf http://localhost:${PORT}/api/v1/tools/version -X POST -H "Content-Type: application/json" -d '{}' > /dev/null 2>&1; then
+            log_info "Server is ready!"
+            break
+        fi
+
+        # Check if server process died
+        if ! ps -p $SERVER_PID > /dev/null 2>&1; then
+            log_error "Server process died during startup"
+            log_error "Last 20 lines of server log:"
+            tail -20 "$LOG_FILE"
+            exit 1
+        fi
+
+        sleep 1
+        WAITED=$((WAITED + 1))
+    done
+
+    if [ $WAITED -eq $MAX_WAIT ]; then
+        log_error "Server failed to start within ${MAX_WAIT} seconds"
         log_error "Last 20 lines of server log:"
         tail -20 "$LOG_FILE"
         exit 1
     fi
 
-    sleep 1
-    WAITED=$((WAITED + 1))
-done
-
-if [ $WAITED -eq $MAX_WAIT ]; then
-    log_error "Server failed to start within ${MAX_WAIT} seconds"
-    log_error "Last 20 lines of server log:"
-    tail -20 "$LOG_FILE"
-    exit 1
+    export MCP_BASE_URL="http://localhost:${PORT}"
 fi
 
 # Step 6: Run integration tests
 log_info "Running integration tests..."
+# Export AI provider configuration so tests can validate server is using correct settings
+export AI_PROVIDER
+export AI_PROVIDER_SDK
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?

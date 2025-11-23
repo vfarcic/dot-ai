@@ -37,7 +37,8 @@ export class HttpRestApiClient {
   private defaultHeaders: Record<string, string>;
 
   constructor(options: HttpClientOptions = {}) {
-    this.baseUrl = options.baseUrl || 'http://localhost:3456';
+    // Use MCP_BASE_URL from environment if set (for in-cluster testing), otherwise default to localhost
+    this.baseUrl = options.baseUrl || process.env.MCP_BASE_URL || 'http://localhost:3456';
     this.timeout = options.timeout || 1800000; // Default to 30 minutes for integration tests (slower AI providers)
     this.defaultHeaders = {
       'Content-Type': 'application/json',

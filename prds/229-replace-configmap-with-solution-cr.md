@@ -445,6 +445,41 @@ return {
 - Begin Milestone 1 when PR #5 is merged
 - Coordinate with controller team on any schema questions
 
+### 2025-11-23: In-Cluster Test Infrastructure Implementation
+**Duration**: ~2-3 hours
+**Status**: Infrastructure foundation complete, ready for Milestone 1
+
+**Completed Work**:
+- Implemented in-cluster deployment for integration tests
+- Created multi-stage Dockerfile using npm pack workflow
+- Added parallel operator installation to test script (30-60s speedup)
+- Configured ingress-based testing with nip.io domains
+- Updated version tests to support both host and in-cluster modes
+- Added ai.sdk configuration to Helm chart
+- Created v1.15.5-test-01 Qdrant test image tag
+- Removed unused setup-cluster.sh script
+
+**Key Technical Decisions**:
+- Local dot-ai image: Built from npm pack, loaded into Kind (single-arch)
+- Qdrant test image: Pulled from GHCR (multi-arch can't be pre-loaded)
+- Test mode: Deploy via Helm with ingress instead of host-based server
+- Parallel installations: CNPG, Kyverno, nginx install simultaneously
+
+**Infrastructure Validated**:
+- ✅ Dockerfile builds correctly with local package
+- ✅ Helm deployment to Kind cluster works
+- ✅ Ingress with nip.io domain accessible
+- ✅ All version tests passing (4/4)
+- ✅ MCP server responding correctly in-cluster
+
+**Rationale**:
+This infrastructure work enables testing the actual Helm chart deployment (exactly as users will deploy it) rather than testing host-based processes. Critical for Milestone 1's goal of dogfooding: dot-ai's deployment will be tracked by a Solution CR, which requires the chart to be deployed in-cluster.
+
+**Next Steps**:
+- Begin Milestone 1: Add dot-ai-controller as Helm dependency
+- Create Solution CR template for dot-ai deployment
+- Write integration tests for controller functionality
+
 ---
 
 ## Appendix

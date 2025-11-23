@@ -71,6 +71,7 @@ ingress:
 # AI Provider configuration
 ai:
   provider: anthropic               # AI provider type (anthropic, openai, google, xai, mistral, deepseek)
+  sdk: native                       # AI provider SDK (native, vercel)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
