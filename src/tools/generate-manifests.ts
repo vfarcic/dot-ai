@@ -16,6 +16,8 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
 import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
 import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
+import { isSolutionCRDAvailable } from '../core/crd-availability';
+import { generateSolutionCR } from '../core/solution-cr';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -370,9 +372,37 @@ export async function handleGenerateManifestsTool(
 
           // Generate metadata ConfigMap
           const metadataConfigMap = generateMetadataConfigMap(solution, args.solutionId, userAnswers, logger);
-          
-          // Combine ConfigMap with AI-generated manifests
-          const manifests = metadataConfigMap + '---\n' + aiManifests;
+
+          // Check if Solution CRD is available and generate Solution CR if present
+          let solutionCR = '';
+          try {
+            const crdAvailable = await isSolutionCRDAvailable();
+            if (crdAvailable) {
+              solutionCR = generateSolutionCR({
+                solutionId: args.solutionId,
+                namespace: userAnswers.namespace || 'default',
+                solution: solution,
+                generatedManifestsYaml: aiManifests
+              });
+              logger.info('Solution CR generated successfully', { solutionId: args.solutionId });
+            } else {
+              logger.info('Solution CRD not available, skipping Solution CR generation (graceful degradation)', { solutionId: args.solutionId });
+            }
+          } catch (error) {
+            logger.warn('Failed to check CRD availability or generate Solution CR, skipping', {
+              solutionId: args.solutionId,
+              error: error instanceof Error ? error.message : String(error)
+            });
+            // Graceful degradation - continue without Solution CR
+          }
+
+          // Combine all manifests (ConfigMap + Solution CR + AI manifests)
+          const manifestParts = [metadataConfigMap];
+          if (solutionCR) {
+            manifestParts.push(solutionCR);
+          }
+          manifestParts.push(aiManifests);
+          const manifests = manifestParts.join('---\n');
           
           // Save manifests to file
           fs.writeFileSync(yamlPath, manifests, 'utf8');

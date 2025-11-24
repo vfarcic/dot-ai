@@ -82,19 +82,17 @@ Respond with ONLY a JSON object containing an array of complete solutions. Each 
       "score": 95,
       "description": "Complete web application deployment with networking",
       "reasons": ["High capability match for web applications", "Includes essential networking"],
-      "patternInfluences": [
-        {
-          "patternId": "web-app-pattern-123",
-          "description": "Web application deployment pattern",
-          "influence": "high",
-          "matchedTriggers": ["web application", "frontend"]
-        }
-      ],
-      "usedPatterns": true
+      "appliedPatterns": ["High availability web application pattern", "Ingress with TLS termination"]
     }
   ]
 }
 ```
+
+**CRITICAL - Applied Patterns Field:**
+- Include `appliedPatterns` array with the **descriptions** of organizational patterns you applied to this solution
+- Use the pattern `description` field from the Organizational Patterns section provided above
+- Only include patterns that directly influenced this solution's resource selection or configuration
+- Use empty array `[]` if no organizational patterns were applied
 
 IMPORTANT: Your response must be ONLY the JSON object, nothing else.
 

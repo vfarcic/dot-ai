@@ -104,16 +104,9 @@ export interface QuestionGroup {
     placeholder: string;
     answer?: string;
   };
+  relevantPolicies?: string[];  // Policy IDs that influenced question generation
 }
 
-
-export interface PatternInfluence {
-  patternId: string;
-  description: string;
-  influence: 'high' | 'medium' | 'low';
-  matchedTriggers: string[];
-  matchedConcept?: string; // NEW: Which concept led to this pattern match
-}
 
 export interface ResourceSolution {
   type: 'single' | 'combination';
@@ -123,8 +116,7 @@ export interface ResourceSolution {
   reasons: string[];
   analysis: string;
   questions: QuestionGroup;
-  patternInfluences?: PatternInfluence[]; // NEW: Which patterns influenced this recommendation
-  usedPatterns?: boolean; // NEW: Quick indicator if any patterns were used
+  appliedPatterns?: string[]; // Pattern descriptions that influenced this solution
 }
 
 // Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
@@ -566,8 +558,7 @@ export class ResourceRecommender {
           reasons: solution.reasons || [],
           analysis: solution.analysis || '',
           questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } },
-          patternInfluences: solution.patternInfluences || [],
-          usedPatterns: solution.usedPatterns || false
+          appliedPatterns: solution.appliedPatterns || []
         };
       });
 

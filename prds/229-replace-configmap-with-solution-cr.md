@@ -1,9 +1,9 @@
 # PRD: Replace ConfigMap with Solution CR in Recommend Tool
 
 **Created**: 2025-11-23
-**Status**: In Progress (Milestone 1 Complete)
+**Status**: In Progress (Milestone 2 Complete - 33%)
 **Owner**: TBD
-**Last Updated**: 2025-11-24
+**Last Updated**: 2025-11-25
 **Issue**: #229
 **Priority**: High
 
@@ -253,37 +253,37 @@ return {
 4. Demonstrates parent-child resource relationships in practice
 5. Ensures infrastructure is in place for subsequent milestones
 
-### Milestone 2: Solution CR Generation ⬜
+### Milestone 2: Solution CR Generation ✅
 **Goal**: Generate valid Solution CR manifests in recommend tool
 
 **Success Criteria:**
-- CRD availability check implemented with global caching
-- Solution CR generated from solution data (when CRD available)
-- All required fields populated (intent, resources, context)
-- Resource references extracted from manifests accurately
-- CR included in manifest output array (when CRD available)
-- YAML formatting is correct and valid
-- Graceful degradation when CRD unavailable
-- AI prompts dynamically adjusted based on CRD availability
+- ✅ CRD availability check implemented with global caching
+- ✅ Solution CR generated from solution data (when CRD available)
+- ✅ All required fields populated (intent, resources, context)
+- ✅ Resource references extracted from manifests accurately
+- ✅ CR included in manifest output array (when CRD available)
+- ✅ YAML formatting is correct and valid
+- ✅ Graceful degradation when CRD unavailable
+- ✅ Organizational patterns and policies captured in Solution CR
 
 **Implementation Tasks:**
-- Implement CRD availability check utility:
-  - Check for `solutions.dot-ai.io` CRD in cluster
-  - Cache result in global variable (e.g., singleton or module-level cache)
-  - Return cached result on subsequent calls
-- Create Solution CR generation utility function
-- Implement resource reference extraction logic
-- Add conditional Solution CR to manifest generation pipeline:
-  - Check CRD availability before generating
-  - Skip Solution CR generation if CRD unavailable
-- Implement dynamic AI prompt modification:
-  - Load base prompt template
-  - Conditionally include/exclude Solution CR instructions
-  - Pass modified prompt to AI based on CRD availability
-- Validate CR schema against CRD definition
-- Handle namespace scoping correctly
+- ✅ Implement CRD availability check utility:
+  - ✅ Check for `solutions.dot-ai.devopstoolkit.live` CRD in cluster
+  - ✅ Cache result in singleton pattern (check once per server lifecycle)
+  - ✅ Return cached result on subsequent calls
+- ✅ Create Solution CR generation utility function
+- ✅ Implement resource reference extraction logic
+- ✅ Add conditional Solution CR to manifest generation pipeline:
+  - ✅ Check CRD availability before generating
+  - ✅ Skip Solution CR generation if CRD unavailable
+- ✅ Update AI prompts to capture organizational context:
+  - ✅ Modified resource-selection.md to return applied pattern descriptions
+  - ✅ Modified question-generation.md to return relevant policy descriptions
+  - ✅ Patterns and policies stored in session without duplication
+- ✅ Validate CR schema matches CRD definition
+- ✅ Handle namespace scoping correctly
 
-**Estimated Duration**: TBD during planning
+**Duration**: ~2 hours
 
 ### Milestone 3: ConfigMap Removal ⬜
 **Goal**: Complete removal of ConfigMap storage code
@@ -496,9 +496,7 @@ return {
 This infrastructure work enables testing the actual Helm chart deployment (exactly as users will deploy it) rather than testing host-based processes. Critical for Milestone 1's goal of dogfooding: dot-ai's deployment will be tracked by a Solution CR, which requires the chart to be deployed in-cluster.
 
 **Next Steps**:
-- Begin Milestone 1: Add dot-ai-controller as Helm dependency
-- Create Solution CR template for dot-ai deployment
-- Write integration tests for controller functionality
+- ✅ Complete - Moved to Milestone 2
 
 ### 2025-11-24: Milestone 1 Complete - Helm Chart Integration & Controller Deployment
 **Duration**: ~3 hours
@@ -569,13 +567,77 @@ $ kubectl get deployment dot-ai -n dot-ai -o jsonpath='{.metadata.ownerReference
 - `examples/solution-dot-ai.yaml` - Created example Solution CR
 
 **Next Steps**:
-- **Milestone 2**: Implement Solution CR generation in recommend tool
-  - CRD availability checking with caching
-  - Solution CR generation utility
-  - Resource reference extraction
-  - Dynamic AI prompt modification
 - **Milestone 3**: Remove ConfigMap storage code
 - **Milestone 4**: Integration testing for recommend tool
+- **Milestone 5**: Documentation updates
+- **Milestone 6**: Feature validation and completion
+
+### 2025-11-25: Milestone 2 Complete - Solution CR Generation
+**Duration**: ~2 hours
+**Status**: ✅ Complete - Milestone 2 of 6
+
+**Completed Work**:
+- **Type System Updates**:
+  - Added `appliedPatterns?: string[]` to SolutionData and ResourceSolution interfaces
+  - Added `relevantPolicies?: string[]` to QuestionGroup interface
+  - Removed redundant `appliedPolicies` field to avoid data duplication
+  - Patterns stored at solution level, policies stored in questions object
+
+- **AI Prompt Enhancements**:
+  - Modified `prompts/resource-selection.md` to instruct AI to return pattern descriptions
+  - Modified `prompts/question-generation.md` to instruct AI to return policy descriptions
+  - AI now explicitly tracks which organizational patterns and policies influenced its decisions
+
+- **CRD Availability Check**:
+  - Created `src/core/crd-availability.ts` with singleton cache pattern
+  - Checks once per MCP server lifecycle if Solution CRD exists in cluster
+  - Returns cached result on subsequent calls to avoid repeated cluster queries
+  - Graceful degradation when CRD unavailable
+
+- **Solution CR Generation Utility**:
+  - Created `src/core/solution-cr.ts` with `generateSolutionCR()` function
+  - Parses AI-generated manifests to extract accurate resource references
+  - Builds Solution CR with spec.intent, spec.resources, and spec.context
+  - Context includes patterns and policies from session data
+  - Properly formats YAML output
+
+- **Pipeline Integration**:
+  - Modified `src/tools/generate-manifests.ts` to conditionally generate Solution CR
+  - Checks CRD availability before attempting generation
+  - Combines ConfigMap + Solution CR (if available) + application manifests
+  - Full graceful degradation support - continues without Solution CR if CRD missing
+  - Error handling ensures manifest generation never fails due to Solution CR
+
+- **Session Storage**:
+  - Updated `src/tools/recommend.ts` to store patterns from solution assembly
+  - Policies captured during question generation stored in `questions.relevantPolicies`
+  - No data duplication - each AI stage owns its captured organizational context
+  - All organizational context properly persisted to session files
+
+**Key Design Decisions**:
+- **No data duplication**: Patterns stored at solution level (from solution assembly AI), policies stored in questions object (from question generation AI)
+- **Parse manifests for accuracy**: Resource names extracted from AI-generated manifests rather than guessed
+- **Singleton caching**: CRD availability checked once and cached globally for performance
+- **Graceful degradation**: Tool works perfectly without dot-ai-controller installed
+- **Pattern/policy descriptions**: Store human-readable descriptions instead of UUIDs for Solution CR readability
+
+**Files Modified**:
+- `src/tools/recommend.ts` - Updated SolutionData interface and session storage
+- `src/core/schema.ts` - Updated ResourceSolution and QuestionGroup interfaces
+- `src/tools/generate-manifests.ts` - Integrated Solution CR generation
+- `prompts/resource-selection.md` - Added appliedPatterns field to AI response
+- `prompts/question-generation.md` - Added relevantPolicies field to AI response
+
+**Files Created**:
+- `src/core/crd-availability.ts` - CRD availability check with singleton cache
+- `src/core/solution-cr.ts` - Solution CR generation utility
+
+**Build Status**: ✅ All TypeScript compilation successful
+
+**Next Steps**:
+- Milestone 3: Remove ConfigMap storage code (now redundant with Solution CR)
+- Milestone 4: Integration testing for Solution CR workflow
+- Milestone 5: Documentation updates with Solution CR examples
 
 ---
 
