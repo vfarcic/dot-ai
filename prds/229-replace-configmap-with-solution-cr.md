@@ -1,9 +1,9 @@
 # PRD: Replace ConfigMap with Solution CR in Recommend Tool
 
 **Created**: 2025-11-23
-**Status**: Planning - Blocked by dot-ai-controller PR #5
+**Status**: In Progress (Milestone 1 Complete)
 **Owner**: TBD
-**Last Updated**: 2025-11-23
+**Last Updated**: 2025-11-24
 **Issue**: #229
 **Priority**: High
 
@@ -11,7 +11,7 @@
 
 Replace ConfigMap-based solution storage in the `recommend` tool with Solution Custom Resource (CR) generation, enabling persistent tracking, health monitoring, and lifecycle management through the Solution controller from dot-ai-controller.
 
-**⚠️ PREREQUISITE**: This PRD is blocked by dot-ai-controller PR #5 (Solution CRD implementation). Work cannot begin until PR #5 is merged and the Solution CRD is available in the cluster.
+**✅ PREREQUISITE COMPLETE**: dot-ai-controller Solution CRD implementation is complete. Ready to begin implementation.
 
 ## Problem Statement
 
@@ -194,11 +194,11 @@ return {
 
 ## Dependencies
 
-### Prerequisites (BLOCKING)
-- **dot-ai-controller PR #5**: Solution CRD implementation - **MUST BE MERGED BEFORE STARTING THIS PRD**
+### Prerequisites (COMPLETE)
+- **dot-ai-controller Solution CRD**: ✅ **COMPLETE**
   - Provides Solution CRD schema
   - Implements Solution controller
-  - Available at: https://github.com/vfarcic/dot-ai-controller/pull/5
+  - Available in dot-ai-controller repository
 
 ### Integration Points
 - **Recommend tool**: Core manifest generation logic
@@ -214,9 +214,9 @@ return {
 
 ## Implementation Milestones
 
-**⚠️ NOTE**: These milestones can only begin after dot-ai-controller PR #5 is merged.
+**✅ READY TO START**: dot-ai-controller is complete. All milestones are now unblocked.
 
-### Milestone 1: Helm Chart Integration & Controller Deployment ⬜
+### Milestone 1: Helm Chart Integration & Controller Deployment ✅
 **Goal**: Ensure dot-ai-controller is operational and dot-ai deployment tracked by Solution CR
 
 **Success Criteria:**
@@ -441,9 +441,29 @@ return {
 - Graceful degradation when controller not installed
 
 **Next Steps**:
-- Monitor dot-ai-controller PR #5 for merge
-- Begin Milestone 1 when PR #5 is merged
-- Coordinate with controller team on any schema questions
+- ✅ dot-ai-controller Solution CRD complete
+- Ready to begin Milestone 1: Helm Chart Integration & Controller Deployment
+- All prerequisites resolved, implementation can begin
+
+### 2025-11-24: dot-ai-controller Solution CRD Complete
+**Duration**: N/A (external dependency)
+**Status**: ✅ **COMPLETE** - Blocking prerequisite resolved
+
+**Completed Work**:
+- dot-ai-controller Solution CRD implementation complete
+- Solution controller operational and available
+- CRD schema finalized and stable
+- PRD #229 unblocked and ready to start
+
+**Key Impact**:
+- **Status Updated**: PRD moved from "Blocked" to "Ready to Start"
+- **All Milestones Unblocked**: Can now begin Milestone 1 implementation
+- **Integration Ready**: Solution CRD available for integration testing
+
+**Next Steps**:
+- Begin Milestone 1: Helm Chart Integration & Controller Deployment
+- Implement CRD availability checking
+- Create Solution CR template for dot-ai deployment
 
 ### 2025-11-23: In-Cluster Test Infrastructure Implementation
 **Duration**: ~2-3 hours
@@ -479,6 +499,83 @@ This infrastructure work enables testing the actual Helm chart deployment (exact
 - Begin Milestone 1: Add dot-ai-controller as Helm dependency
 - Create Solution CR template for dot-ai deployment
 - Write integration tests for controller functionality
+
+### 2025-11-24: Milestone 1 Complete - Helm Chart Integration & Controller Deployment
+**Duration**: ~3 hours
+**Status**: ✅ **COMPLETE** - Milestone 1 finished and validated
+
+**Completed Work**:
+- **Helm Chart Configuration**:
+  - Removed dot-ai-controller as chart dependency (two-step install approach)
+  - Set `controller.enabled: false` as default in `values.yaml` (backwards compatible)
+  - Created Solution CR template in `charts/templates/solution.yaml`
+  - Solution CR conditionally deployed when `controller.enabled=true`
+  - Updated Helm dependencies (removed controller from `Chart.yaml`)
+
+- **CI/CD Pipeline Updates**:
+  - Added `helm dependency build` step to `.github/workflows/ci.yml`
+  - Ensures dependencies bundled in published charts
+
+- **Documentation**:
+  - Updated `docs/setup/kubernetes-setup.md` with two-step installation
+  - Added optional Step 2 for controller installation (v0.16.0+)
+  - Documented `controller.enabled` flag usage
+  - Created example Solution CR in `examples/solution-dot-ai.yaml`
+
+- **Testing & Validation**:
+  - Tested two-step installation: controller v0.16.0 + dot-ai
+  - Verified Solution CR creation (6 resources tracked: ServiceAccount, ClusterRole, ClusterRoleBinding, Secret, Deployment, Service)
+  - Verified controller reconciliation (state: deployed, all resources ready)
+  - Verified ownerReferences added to all child resources
+  - Verified garbage collection setup (blockOwnerDeletion: true)
+  - Validated health monitoring in controller logs
+
+**Key Technical Decisions**:
+- **Two-step installation**: Removed controller as Helm dependency; users install separately when needed
+- **Backwards compatible**: `controller.enabled: false` by default, existing users unaffected
+- **Opt-in Solution CR**: Users must explicitly enable `controller.enabled=true` to get Solution CR tracking
+- **Conditional rendering**: Solution CR template only renders when controller is enabled
+
+**Architecture Evolution**:
+- **Original plan**: Controller as Helm dependency with hooks to avoid CRD chicken-egg problem
+- **Final implementation**: Separate controller installation, simpler chart templates, no hooks needed
+- **Rationale**: Industry standard pattern (cert-manager, ArgoCD, etc.), cleaner templates, avoids Helm validation issues
+
+**Validation Results**:
+```bash
+# Controller operational
+$ kubectl get pods -n dot-ai
+NAME                                        READY   STATUS    RESTARTS   AGE
+dot-ai-controller-manager-cd4d58845-ppt58   1/1     Running   0          79s
+dot-ai-6dc4dcfdf7-ps7t8                     1/1     Running   0          17s
+dot-ai-qdrant-0                             1/1     Running   0          17s
+
+# Solution CR tracking dot-ai deployment
+$ kubectl get solution dot-ai -n dot-ai
+NAME     INTENT                                                          STATE      RESOURCES   AGE
+dot-ai   Deploy dot-ai MCP server for AI-powered Kubernetes operations   deployed   6           85s
+
+# OwnerReferences established
+$ kubectl get deployment dot-ai -n dot-ai -o jsonpath='{.metadata.ownerReferences}'
+[{"apiVersion":"dot-ai.devopstoolkit.live/v1alpha1","kind":"Solution","name":"dot-ai",...}]
+```
+
+**Files Changed**:
+- `charts/Chart.yaml` - Removed controller dependency
+- `charts/values.yaml` - Added `controller.enabled: false`
+- `charts/templates/solution.yaml` - Created Solution CR template
+- `.github/workflows/ci.yml` - Added dependency build step
+- `docs/setup/kubernetes-setup.md` - Added controller installation instructions
+- `examples/solution-dot-ai.yaml` - Created example Solution CR
+
+**Next Steps**:
+- **Milestone 2**: Implement Solution CR generation in recommend tool
+  - CRD availability checking with caching
+  - Solution CR generation utility
+  - Resource reference extraction
+  - Dynamic AI prompt modification
+- **Milestone 3**: Remove ConfigMap storage code
+- **Milestone 4**: Integration testing for recommend tool
 
 ---
 

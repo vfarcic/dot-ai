@@ -251,7 +251,11 @@ jobs:
         sed -i "s/tag: \".*\"/tag: \"$VERSION\"/" charts/values.yaml
         
         echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
-    
+
+    - name: Build Helm chart dependencies
+      run: |
+        helm dependency build charts/
+
     - name: Log in to GitHub Container Registry for Helm
       run: |
         helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"

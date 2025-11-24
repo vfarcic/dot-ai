@@ -19,7 +19,7 @@ def "main setup" [
     --dot-ai-tag: string = "latest",
     --qdrant-run = true,
     --qdrant-tag: string = "latest",
-    --dot-ai-kubernetes-enabled = false,
+    --dot-ai-kubernetes-enabled = true,
     --kyverno-enabled = true,
     --atlas-enabled = true,
     --toolhive-enabled = false,
