@@ -14,7 +14,7 @@ import { loadPrompt } from '../core/shared-prompt-loader';
 import * as yaml from 'js-yaml';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
-import { extractUserAnswers, addDotAiLabels, sanitizeKubernetesName } from '../core/solution-utils';
+import { extractUserAnswers, addDotAiLabels } from '../core/solution-utils';
 import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
 import { isSolutionCRDAvailable } from '../core/crd-availability';
 import { generateSolutionCR } from '../core/solution-cr';
@@ -224,59 +224,6 @@ ${errorContext.previousManifests}
   return manifestContent;
 }
 
-/**
- * Generate dot-ai application metadata ConfigMap
- */
-function generateMetadataConfigMap(solution: any, solutionId: string, userAnswers: Record<string, any>, logger: Logger): string {
-  const appName = userAnswers.name;
-  const namespace = userAnswers.namespace || 'default';
-  const originalIntent = solution.intent;
-  
-  // Validate required fields (will throw if missing)
-  const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
-  
-  // Extract resource references from solution
-  const resources = (solution.resources || []).map((resource: any) => ({
-    apiVersion: resource.apiVersion,
-    kind: resource.kind,
-    name: resource.name || appName, // Use app name as fallback
-    namespace: resource.namespace || namespace
-  }));
-  
-  // Create ConfigMap object
-  const configMap = {
-    apiVersion: 'v1',
-    kind: 'ConfigMap',
-    metadata: {
-      name: sanitizeKubernetesName(`dot-ai-app-${appName}-${solutionId}`),
-      namespace: namespace,
-      labels: dotAiLabels,
-      annotations: {
-        'dot-ai.io/original-intent': originalIntent
-      }
-    },
-    data: {
-      'deployment-info.yaml': yaml.dump({
-        appName,
-        deployedAt: new Date().toISOString(),
-        originalIntent,
-        resources
-      })
-    }
-  };
-  
-  try {
-    return yaml.dump(configMap);
-  } catch (error) {
-    logger.error('Failed to generate YAML for ConfigMap', error as Error, {
-      configMap,
-      appName,
-      solutionId,
-      namespace
-    });
-    throw new Error(`ConfigMap YAML generation failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
 
 /**
  * Direct MCP tool handler for generateManifests functionality
@@ -370,9 +317,6 @@ export async function handleGenerateManifestsTool(
             args.interaction_id
           );
 
-          // Generate metadata ConfigMap
-          const metadataConfigMap = generateMetadataConfigMap(solution, args.solutionId, userAnswers, logger);
-
           // Check if Solution CRD is available and generate Solution CR if present
           let solutionCR = '';
           try {
@@ -396,13 +340,13 @@ export async function handleGenerateManifestsTool(
             // Graceful degradation - continue without Solution CR
           }
 
-          // Combine all manifests (ConfigMap + Solution CR + AI manifests)
-          const manifestParts = [metadataConfigMap];
+          // Combine all manifests (Solution CR + AI manifests)
+          const manifestParts: string[] = [];
           if (solutionCR) {
             manifestParts.push(solutionCR);
           }
           manifestParts.push(aiManifests);
-          const manifests = manifestParts.join('---\n');
+          const manifests = manifestParts.length > 1 ? manifestParts.join('---\n') : manifestParts[0];
           
           // Save manifests to file
           fs.writeFileSync(yamlPath, manifests, 'utf8');
@@ -447,7 +391,7 @@ export async function handleGenerateManifestsTool(
           }
           
           // Validation failed, prepare error context for next attempt
-          // Only pass AI-generated manifests (not ConfigMap) to avoid duplicate ConfigMaps on retry
+          // Only pass AI-generated manifests to avoid duplicates on retry
           lastError = {
             attempt,
             previousManifests: aiManifests,

@@ -111,9 +111,9 @@ export class DeployOperation {
       });
       waitOutput = `\n\nWait output:\n${waitResult}`;
     } catch (waitError: any) {
-      // If no deployments found or wait fails, that's OK for ConfigMaps, Services, etc.
+      // If no deployments found or wait fails, that's OK for other resource types (Services, etc.)
       if (waitError.message && waitError.message.includes('no matching resources found')) {
-        waitOutput = '\n\nWait output: No deployments found to wait for (likely ConfigMaps, Services, etc.)';
+        waitOutput = '\n\nWait output: No deployments found to wait for (likely Services, CRs, etc.)';
       } else {
         waitOutput = `\n\nWait output: Warning - ${waitError.message}`;
       }

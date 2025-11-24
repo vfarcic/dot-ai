@@ -1,7 +1,7 @@
 # PRD: Replace ConfigMap with Solution CR in Recommend Tool
 
 **Created**: 2025-11-23
-**Status**: In Progress (Milestone 2 Complete - 33%)
+**Status**: In Progress (Milestone 3 Complete - 50%)
 **Owner**: TBD
 **Last Updated**: 2025-11-25
 **Issue**: #229
@@ -285,24 +285,24 @@ return {
 
 **Duration**: ~2 hours
 
-### Milestone 3: ConfigMap Removal ⬜
+### Milestone 3: ConfigMap Removal ✅
 **Goal**: Complete removal of ConfigMap storage code
 
 **Success Criteria:**
-- All ConfigMap creation code removed
-- No references to ConfigMap storage utilities
-- Build passes without ConfigMap dependencies
-- No ConfigMap-related code in recommend tool
-- Codebase simplified and cleaner
+- ✅ All ConfigMap creation code removed
+- ✅ No references to ConfigMap storage utilities
+- ✅ Build passes without ConfigMap dependencies
+- ✅ No ConfigMap-related code in recommend tool
+- ✅ Codebase simplified and cleaner
 
 **Implementation Tasks:**
-- Remove ConfigMap creation functions
-- Remove ConfigMap storage utilities
-- Clean up imports and dependencies
-- Remove ConfigMap-related constants/types
-- Update any affected code paths
+- ✅ Remove ConfigMap creation functions
+- ✅ Remove ConfigMap storage utilities
+- ✅ Clean up imports and dependencies
+- ✅ Remove ConfigMap-related constants/types
+- ✅ Update any affected code paths
 
-**Estimated Duration**: TBD during planning
+**Duration**: ~1 hour
 
 ### Milestone 4: Integration Testing ⬜
 **Goal**: Comprehensive test coverage for Solution CR integration
@@ -638,6 +638,47 @@ $ kubectl get deployment dot-ai -n dot-ai -o jsonpath='{.metadata.ownerReference
 - Milestone 3: Remove ConfigMap storage code (now redundant with Solution CR)
 - Milestone 4: Integration testing for Solution CR workflow
 - Milestone 5: Documentation updates with Solution CR examples
+
+### 2025-11-25: Milestone 3 Complete - ConfigMap Removal
+**Duration**: ~1 hour
+**Status**: ✅ Complete - Milestone 3 of 6
+
+**Completed Work**:
+- **ConfigMap Generation Removed**: Deleted `generateMetadataConfigMap()` function (52 lines)
+- **Dead Code Cleanup**: Removed unused `sanitizeKubernetesName()` utility function (24 lines)
+- **Pipeline Simplification**: Updated manifest combination logic to only include Solution CR + AI manifests
+- **Comment Updates**: Updated 2 comments that referenced ConfigMaps
+- **Import Cleanup**: Removed unused `sanitizeKubernetesName` import
+- **Build Validation**: Confirmed all TypeScript compilation successful, no lint errors
+
+**Files Modified**:
+- `src/tools/generate-manifests.ts` - Core ConfigMap removal and pipeline simplification
+- `src/core/deploy-operation.ts` - Comment updates
+- `src/core/solution-utils.ts` - Dead code removal
+
+**Code Impact**:
+- Total lines removed: ~80 lines
+- Codebase simplified and cleaner
+- Single source of truth: Solution CR only (when available)
+- No ConfigMap dependencies remain
+
+**Validation**:
+- ✅ Build passes without errors
+- ✅ No ConfigMap dependencies remain
+- ✅ Lint passes cleanly
+- ⏳ Integration tests pending (Milestone 4)
+
+**Key Changes**:
+- Removed `generateMetadataConfigMap()` - no longer needed with Solution CR
+- Removed `sanitizeKubernetesName()` - only used by removed ConfigMap function
+- Simplified manifest combination: `manifestParts = [solutionCR?, aiManifests]`
+- ConfigMap stored deployment metadata (name, intent, resources) - all now in Solution CR
+
+**Next Steps**:
+- **Milestone 4**: Write integration tests for Solution CR workflow
+- Test both CRD available and unavailable scenarios
+- Validate end-to-end manifest generation and deployment
+- Verify graceful degradation works correctly
 
 ---
 
