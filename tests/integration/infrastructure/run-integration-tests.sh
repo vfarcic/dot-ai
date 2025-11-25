@@ -148,6 +148,63 @@ if [ "$NO_CLUSTER" = false ]; then
         exit 1
     }
 
+    # Install dot-ai-controller (v0.16.0+) for Solution CR tracking
+    log_info "Starting dot-ai-controller installation..."
+    helm upgrade --install dot-ai-controller \
+        oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.16.0 \
+        --namespace dot-ai \
+        --create-namespace || {
+        log_error "Failed to install dot-ai-controller"
+        exit 1
+    }
+
+    # Deploy Qdrant separately (without PVC) to preserve pre-populated data
+    log_info "Starting Qdrant deployment with pre-populated data..."
+    cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  namespace: dot-ai
+  labels:
+    app: qdrant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+      - name: qdrant
+        image: ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-01
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 6333
+          name: http
+        - containerPort: 6334
+          name: grpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: dot-ai
+spec:
+  selector:
+    app: qdrant
+  ports:
+  - name: http
+    port: 6333
+    targetPort: 6333
+  - name: grpc
+    port: 6334
+    targetPort: 6334
+EOF
+
     # Build Docker image while operators install
     log_info "Creating npm package tarball..."
     npm pack || {
@@ -219,6 +276,26 @@ if [ "$NO_CLUSTER" = false ]; then
 
     log_info "Waiting for ingress admission webhook to be ready..."
     sleep 10  # Give webhook time to register and become available
+
+    log_info "Waiting for dot-ai-controller..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment/dot-ai-controller-manager \
+        --timeout=180s || {
+        log_error "dot-ai-controller failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l control-plane=controller-manager --tail=50
+        exit 1
+    }
+
+    log_info "Waiting for Qdrant..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment/qdrant \
+        --timeout=120s || {
+        log_error "Qdrant deployment failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app=qdrant --tail=50
+        exit 1
+    }
 else
     log_info "Skipping cluster and infrastructure setup (--no-cluster mode)"
 fi
@@ -262,13 +339,13 @@ if [ "$NO_CLUSTER" = false ]; then
         --set image.pullPolicy=Never \
         --set ai.provider="${AI_PROVIDER}" \
         --set ai.sdk="${AI_PROVIDER_SDK}" \
+        --set controller.enabled=true \
         --set ingress.enabled=true \
         --set ingress.className=nginx \
         --set ingress.host=dot-ai.127.0.0.1.nip.io \
-        --set qdrant.enabled=true \
-        --set qdrant.image.repository=ghcr.io/vfarcic/dot-ai-demo/qdrant \
-        --set qdrant.image.tag=v1.15.5-test-01 \
-        --set qdrant.image.pullPolicy=IfNotPresent \
+        --set qdrant.enabled=false \
+        --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
+        --set-json 'extraEnv=[{"name":"QDRANT_CAPABILITIES_COLLECTION","value":"capabilities-policies"}]' \
         --wait --timeout=300s || {
         log_error "Failed to deploy dot-ai via Helm"
         kubectl get pods -n dot-ai

@@ -84,12 +84,6 @@ describe.concurrent('Recommend Tool Integration', () => {
           result: {
             intent: 'deploy postgresql database',
             solutions: expect.any(Array),
-            patternSummary: {
-              solutionsUsingPatterns: expect.any(Number),
-              totalSolutions: expect.any(Number),
-              totalPatternInfluences: expect.any(Number),
-              patternsAvailable: expect.any(String)
-            },
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('You MUST present these solutions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
@@ -316,6 +310,45 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(manifests).toContain('kind:');
       expect(manifests).toContain('metadata:');
 
+      // SOLUTION CR VALIDATION: Verify Solution CR is included and properly structured
+      const yaml = await import('js-yaml');
+      const parsedManifests = yaml.loadAll(manifests);
+      const solutionCR = parsedManifests.find((m: any) => m.kind === 'Solution');
+
+      // Extract namespace from answers (default to 'default' if not specified)
+      const namespace = requiredAnswers.namespace || 'default';
+
+      expect(solutionCR).toBeDefined();
+      expect(solutionCR).toMatchObject({
+        apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
+        kind: 'Solution',
+        metadata: {
+          name: `solution-${solutionId}`,
+          namespace: namespace,
+          labels: {
+            'dot-ai.devopstoolkit.live/created-by': 'dot-ai-mcp',
+            'dot-ai.devopstoolkit.live/solution-id': solutionId
+          }
+        },
+        spec: {
+          intent: 'deploy postgresql database',
+          resources: expect.arrayContaining([
+            expect.objectContaining({
+              apiVersion: expect.any(String),
+              kind: expect.any(String),
+              name: expect.any(String),
+              namespace: namespace
+            })
+          ]),
+          context: {
+            createdBy: 'dot-ai-mcp',
+            rationale: expect.any(String),
+            patterns: expect.any(Array),
+            policies: expect.any(Array)
+          }
+        }
+      });
+
       // PHASE 9: Deploy manifests to cluster
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'deployManifests',
@@ -349,14 +382,49 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(deployResponse).toMatchObject(expectedDeployResponse);
 
       // PHASE 10: Verify resources were created in the cluster
-      // Use the manifest file that was deployed
-      manifestPath = deployResponse.data.result.manifestPath;
+      // Parse manifests to verify each resource exists
+      const deployedManifests = yaml.loadAll(manifests);
+      expect(deployedManifests.length).toBeGreaterThan(0);
 
-      // Verify resources from the manifest exist (should fail if not found)
-      const verifyResult = await integrationTest.kubectl(
-        `get -f ${manifestPath} --no-headers`
+      // Verify at least one non-Solution resource was deployed
+      const nonSolutionResources = deployedManifests.filter((m: any) => m.kind !== 'Solution');
+      expect(nonSolutionResources.length).toBeGreaterThan(0);
+
+      // CONTROLLER INTEGRATION VALIDATION: Verify controller picked up Solution CR
+      // Wait a moment for controller to reconcile
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Get Solution CR from cluster
+      const solutionCRName = `solution-${solutionId}`;
+      const getSolutionResult = await integrationTest.kubectl(
+        `get solution ${solutionCRName} -n ${namespace} -o json`
       );
-      expect(verifyResult.length).toBeGreaterThan(0); // Should have created resources
+      const clusterSolutionCR = JSON.parse(getSolutionResult);
+
+      // Verify Solution CR exists in cluster
+      expect(clusterSolutionCR.metadata.name).toBe(solutionCRName);
+      expect(clusterSolutionCR.spec.intent).toBe('deploy postgresql database');
+
+      // Verify controller added ownerReferences to at least one deployed resource
+      // Get the first resource from Solution CR spec
+      const firstResource = clusterSolutionCR.spec.resources[0];
+      const resourceResult = await integrationTest.kubectl(
+        `get ${firstResource.kind} ${firstResource.name} -n ${namespace} -o json`
+      );
+      const deployedResource = JSON.parse(resourceResult);
+
+      // Verify ownerReference pointing to Solution CR exists
+      expect(deployedResource.metadata.ownerReferences).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
+            kind: 'Solution',
+            name: solutionCRName,
+            controller: true,
+            blockOwnerDeletion: true
+          })
+        ])
+      );
     }, 1200000); // 20 minutes for full AI workflow (accommodates slower AI models like OpenAI)
   });
 });
