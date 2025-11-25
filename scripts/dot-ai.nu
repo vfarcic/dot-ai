@@ -45,7 +45,7 @@ def "main apply dot-ai" [
     }
 
     (
-        helm upgrade --install dot-ai-controller \
+        helm upgrade --install dot-ai-controller
             $"oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:($controller_version)"
             --namespace dot-ai --create-namespace
             --wait
@@ -61,6 +61,7 @@ def "main apply dot-ai" [
             --set $"ingress.enabled=($ingress_enabled)"
             --set $"ingress.className=($ingress_class)"
             --set $"ingress.host=($host)"
+            --set "controller.enabled=true"
             ...$tracing_flags
             --namespace dot-ai --create-namespace
             --wait

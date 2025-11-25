@@ -16,7 +16,7 @@ source scripts/dot-ai.nu
 def main [] {}
 
 def "main setup" [
-    --dot-ai-tag: string = "latest",
+    --dot-ai-tag: string = "0.140.0",
     --qdrant-run = true,
     --qdrant-tag: string = "latest",
     --dot-ai-kubernetes-enabled = true,
