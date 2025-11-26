@@ -117,7 +117,7 @@ Once analysis is complete, respond with ONLY this JSON format:
   },
   "commands": [
     "kubectl set image deployment/my-api my-api=my-api:v2.0 -n default",
-    "kubectl apply -f /tmp/hpa.yaml"
+    "kubectl apply -f - <<EOF\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: my-api-hpa\n  namespace: default\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: my-api\n  minReplicas: 2\n  maxReplicas: 10\nEOF"
   ],
   "dryRunValidation": {
     "status": "success",
@@ -173,7 +173,8 @@ Once analysis is complete, respond with ONLY this JSON format:
 - **Use specific resources**: `deployment/my-api` not `deployments my-api`
 - **Include namespace**: Always specify `-n namespace` for clarity
 - **Imperative when possible**: Use `kubectl set image`, `kubectl scale` for simple updates
-- **Declarative for complex**: Use `kubectl apply` for multi-field updates or new resources
+- **Declarative for complex**: Use `kubectl apply -f -` with inline heredoc YAML for new resources
+- **Never reference files**: Don't use `kubectl apply -f /path/file.yaml` - files don't exist. Always use inline YAML with heredoc: `kubectl apply -f - <<EOF\n...\nEOF`
 - **No shell operators**: Don't chain commands with `&&` or `;` - return array of individual commands
 
 **Command ordering**:
