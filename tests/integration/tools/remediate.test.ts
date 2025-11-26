@@ -358,8 +358,8 @@ EOF`);
         {
           issue: `auto-test-app deployment in ${autoNamespace} namespace is crashing`,
           mode: 'automatic',
-          confidenceThreshold: 0.5, // Lower threshold to account for AI variability
-          maxRiskLevel: 'high', // Allow high risk for auto-execution in test environment (different AI models assess risk differently)
+          confidenceThreshold: 0.1, // Very low threshold ensures auto-execution - we're testing the mechanism, not AI confidence
+          maxRiskLevel: 'high', // Allow any risk level - we're testing auto-execution works when thresholds are met
           interaction_id: 'automatic_analyze_execute'
         }
       );

@@ -290,7 +290,7 @@ Once analysis is complete, respond with ONLY this JSON format:
   },
   "commands": [
     "kubectl patch deployment/my-api -n default --type=json -p='[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/resources\", \"value\": {\"requests\": {\"cpu\": \"100m\", \"memory\": \"128Mi\"}}}]'",
-    "kubectl apply -f /tmp/scaled-object.yaml"
+    "kubectl apply -f - <<EOF\napiVersion: keda.sh/v1alpha1\nkind: ScaledObject\nmetadata:\n  name: my-api-scaler\n  namespace: default\nspec:\n  scaleTargetRef:\n    name: my-api\n  minReplicaCount: 2\n  maxReplicaCount: 10\n  triggers:\n  - type: cpu\n    metricType: Utilization\n    metadata:\n      value: '70'\nEOF"
   ],
   "dryRunValidation": {
     "status": "success",
