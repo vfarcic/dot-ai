@@ -9,6 +9,7 @@ on:
     branches: [ main ]
   release:
     types: [ published ]
+  workflow_dispatch:
 
 # Restrict default permissions to read-only for security
 permissions: read-all
