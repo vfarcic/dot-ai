@@ -89,7 +89,7 @@ jobs:
 
   version:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read  # Required to checkout code and read package.json
     outputs:
@@ -140,7 +140,7 @@ jobs:
   release:
     needs: [version]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.version.outputs.version-changed == 'true'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.version.outputs.version-changed == 'true'
     permissions:
       contents: write
       packages: write
