@@ -29,7 +29,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
   // Parameters for chooseSolution stage
   solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages'),
   // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
-  answers: z.record(z.any()).optional().describe('User answers for answerQuestion stage'),
+  answers: z.record(z.string(), z.any()).optional().describe('User answers for answerQuestion stage'),
   // Parameters for deployManifests stage
   timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
