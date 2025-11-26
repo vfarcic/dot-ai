@@ -164,9 +164,16 @@ Return your response as JSON in this exact format:
   "open": {
     "question": "Is there anything else about your requirements or constraints that would help us provide better recommendations?",
     "placeholder": "e.g., specific security requirements, performance needs, existing infrastructure constraints..."
-  }
+  },
+  "relevantPolicies": ["Minimum 3 replicas for production deployments", "Resource limits required for all containers"]
 }
 ```
+
+**CRITICAL - Relevant Policies Field:**
+- Include `relevantPolicies` array with the **descriptions** of organizational policies that influenced your question generation
+- Use the policy `description` field from the Organizational Policies section provided above
+- Only include policies that were actually applied (e.g., policies that resulted in questions being added or made required)
+- Use empty array `[]` if no organizational policies influenced the questions
 
 ## Important Notes
 

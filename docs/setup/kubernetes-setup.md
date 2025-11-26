@@ -46,7 +46,30 @@ export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
 ```
 
-### Step 2: Install the Helm Chart
+### Step 2: Install the Controller (Optional)
+
+Install the dot-ai-controller to enable Solution CR tracking for deployments:
+
+```bash
+# Set the controller version from https://github.com/vfarcic/dot-ai-controller/pkgs/container/dot-ai-controller%2Fcharts%2Fdot-ai-controller
+export DOT_AI_CONTROLLER_VERSION="..."
+
+# Install controller (includes CRDs for Solution and RemediationPolicy)
+helm install dot-ai-controller \
+  oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:$DOT_AI_CONTROLLER_VERSION \
+  --namespace dot-ai \
+  --create-namespace \
+  --wait
+```
+
+**What the controller provides:**
+- **Solution CRs**: Track lifecycle and health of deployments created via the `recommend` tool
+- **Resource tracking**: Monitor deployed resources and their relationships
+- **Automated remediation**: AI-powered issue analysis and remediation (future)
+
+**Note**: You can skip this step if you don't need Solution CR tracking. The MCP server works without the controller.
+
+### Step 3: Install the MCP Server
 
 Install the MCP server using the published Helm chart:
 
@@ -59,19 +82,20 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set ingress.enabled=true \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \
-  --create-namespace \
+  --set controller.enabled=true \
   --namespace dot-ai \
   --wait
 ```
 
 **Notes**:
+- Remove `--set controller.enabled=true` if you skipped the controller installation in Step 2.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../observability-guide.md) for complete configuration.
 
-### Step 3: Configure MCP Client
+### Step 4: Configure MCP Client
 
 Create an `.mcp.json` file in your project root:
 
@@ -94,11 +118,11 @@ Create an `.mcp.json` file in your project root:
 - Replace the URL with your actual hostname if you changed `ingress.host`.
 - For production deployments, configure TLS certificates and use `https://` URLs for secure connections.
 
-### Step 4: Start Your MCP Client
+### Step 5: Start Your MCP Client
 
 Start your MCP client (e.g., `claude` for Claude Code). The client will automatically connect to your Kubernetes-deployed MCP server.
 
-### Step 5: Verify Everything Works
+### Step 6: Verify Everything Works
 
 In your MCP client, ask:
 ```

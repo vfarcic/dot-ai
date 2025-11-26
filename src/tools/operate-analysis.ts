@@ -1,9 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
+import { loadPrompt } from '../core/shared-prompt-loader';
 import {
   EmbeddedContext,
   OperateSessionData,
@@ -85,8 +84,7 @@ export async function analyzeIntent(
  * This prompt is cacheable across all operate calls
  */
 function loadSystemPrompt(): string {
-  const promptPath = path.join(process.cwd(), 'prompts', 'operate-system.md');
-  return fs.readFileSync(promptPath, 'utf8');
+  return loadPrompt('operate-system');
 }
 
 /**
@@ -94,20 +92,18 @@ function loadSystemPrompt(): string {
  * Uses template from prompts/operate-user.md and formatting functions from operate.ts
  */
 function buildUserMessage(intent: string, context: EmbeddedContext): string {
-  const templatePath = path.join(process.cwd(), 'prompts', 'operate-user.md');
-  const template = fs.readFileSync(templatePath, 'utf8');
-
   // Format context sections using shared formatting functions
   const patternsText = formatPatterns(context.patterns);
   const policiesText = formatPolicies(context.policies);
   const capabilitiesText = formatCapabilities(context.capabilities);
 
-  // Replace template placeholders (use double braces to match template syntax)
-  return template
-    .replace('{{intent}}', intent)
-    .replace('{{patterns}}', patternsText)
-    .replace('{{policies}}', policiesText)
-    .replace('{{capabilities}}', capabilitiesText);
+  // Use loadPrompt with Handlebars template variables
+  return loadPrompt('operate-user', {
+    intent,
+    patterns: patternsText,
+    policies: policiesText,
+    capabilities: capabilitiesText
+  });
 }
 
 /**

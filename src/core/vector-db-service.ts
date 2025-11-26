@@ -353,6 +353,11 @@ export class VectorDBService {
             wait: true,
             points: [id]
           });
+          // Qdrant's wait:true ensures the write operation completes, but there can be
+          // a brief window where subsequent reads may still return stale data due to
+          // internal segment synchronization. This delay ensures consistency for
+          // immediate read-after-delete operations in integration tests and workflows.
+          await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           throw new Error(`Failed to delete document: ${error}`);
         }

@@ -40,6 +40,13 @@ nodes:
         extraArgs:
           quota-backend-bytes: "4294967296" # 4GB
   extraPortMappings:
+  # Expose HTTP and HTTPS for Ingress
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
   # Expose port 3000 for REST API testing
   - containerPort: 3000
     hostPort: 3000

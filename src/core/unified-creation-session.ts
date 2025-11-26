@@ -918,31 +918,50 @@ Please try again or modify your policy description.`,
     });
 
     const capabilityService = new CapabilityVectorService(collection);
-    
+
     // Use existing searchCapabilities function - no fallback, let it throw if it fails
     const searchResults = await capabilityService.searchCapabilities(searchQuery, {
-      limit: 30 // Reduced from 50 to stay within 200K token context limit (testing shows 35 still exceeds)
+      limit: 40 // Reduced to manage token count
     });
-    
+
     if (searchResults.length === 0) {
       throw new Error(`No relevant capabilities found for policy description: "${policyDescription}"`);
     }
+
+    // Filter out Kyverno CRDs - we don't need Kyverno's own CRD schemas to generate policies
+    // Kyverno CRDs are massive (Policy = 52KB) and irrelevant for policy generation
+    const filteredResults = searchResults.filter(result => {
+      const resourceName = result.data.resourceName;
+      const group = result.data.group || '';
+      // Check the API group for kyverno.io (handles all Kyverno CRDs)
+      const isKyvernoCRD = group.includes('kyverno.io') || resourceName.includes('.kyverno.io');
+      if (isKyvernoCRD) {
+        console.debug('Filtering out Kyverno CRD from schema retrieval', { resourceName, group });
+      }
+      return !isKyvernoCRD;
+    });
+
+    console.info('Filtered Kyverno CRDs from results', {
+      originalCount: searchResults.length,
+      filteredCount: filteredResults.length,
+      kyvernoCRDsRemoved: searchResults.length - filteredResults.length
+    });
     
     console.info('Semantic search completed', {
       resultsCount: searchResults.length,
       topScore: searchResults[0]?.score
     });
-    
+
     // Retrieve schemas for relevant resources
     console.info('Retrieving schemas for relevant resources', {
-      resourceCount: searchResults.length,
-      resources: searchResults.map(r => r.data.resourceName)
+      resourceCount: filteredResults.length,
+      resources: filteredResults.map(r => r.data.resourceName)
     });
-    
+
     const schemas: Record<string, any> = {};
-    
+
     // Retrieve schema for each relevant resource using existing pattern from generate-manifests.ts
-    for (const result of searchResults) {
+    for (const result of filteredResults) {
       const resourceName = result.data.resourceName;
       try {
         console.debug('Retrieving schema for resource', { 

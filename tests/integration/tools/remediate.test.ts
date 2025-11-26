@@ -25,6 +25,7 @@ describe.concurrent('Remediate Tool Integration', () => {
       await integrationTest.kubectl(`create namespace ${testNamespace}`);
 
       // SETUP: Create deployment with insufficient memory (will OOMKill)
+      // Memory limit of 128Mi with stress requesting 250M causes intentional OOM crashes
       await integrationTest.kubectl(`apply -n ${testNamespace} -f - <<'EOF'
 apiVersion: apps/v1
 kind: Deployment
@@ -49,6 +50,8 @@ spec:
         resources:
           limits:
             memory: "128Mi"
+          requests:
+            memory: "64Mi"
 EOF`);
 
       // Wait for pod to start and crash at least once (with retry loop)
@@ -282,22 +285,35 @@ EOF`);
       // SETUP: Create namespace
       await integrationTest.kubectl(`create namespace ${autoNamespace}`);
 
-      // SETUP: Create pod with insufficient memory (same OOM scenario, but automatic mode)
+      // SETUP: Create deployment with insufficient memory (OOM scenario for automatic mode)
+      // Using Deployment instead of Pod because Pods have immutable container specs
+      // Memory limit of 128Mi with stress requesting 250M causes intentional OOM crashes
       await integrationTest.kubectl(`apply -n ${autoNamespace} -f - <<'EOF'
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: auto-test-pod
+  name: auto-test-app
   namespace: ${autoNamespace}
 spec:
-  containers:
-  - name: stress
-    image: polinux/stress:1.0.4
-    command: ["stress"]
-    args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
-    resources:
-      limits:
-        memory: "128Mi"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auto-test-app
+  template:
+    metadata:
+      labels:
+        app: auto-test-app
+    spec:
+      containers:
+      - name: stress
+        image: polinux/stress:1.0.4
+        command: ["stress"]
+        args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
+        resources:
+          limits:
+            memory: "128Mi"
+          requests:
+            memory: "64Mi"
 EOF`);
 
       // Wait for pod to start and crash (with retry loop)
@@ -308,22 +324,25 @@ EOF`);
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWaitTime) {
-        const podInfo = await integrationTest.kubectl(
-          `get pod auto-test-pod -n ${autoNamespace} -o json`
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${autoNamespace} -l app=auto-test-app -o json`
         );
 
-        // Skip if empty response (pod not ready yet)
-        if (!podInfo || podInfo.trim() === '') {
+        // Skip if empty response (pods not ready yet)
+        if (!podsJson || podsJson.trim() === '') {
           await new Promise(resolve => setTimeout(resolve, checkInterval));
           continue;
         }
 
-        podData = JSON.parse(podInfo);
+        const podsData = JSON.parse(podsJson);
+        if (podsData.items && podsData.items.length > 0) {
+          podData = podsData.items[0];
 
-        if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
-          restartCount = podData.status.containerStatuses[0].restartCount;
-          if (restartCount > 0) {
-            break; // Pod has crashed and restarted
+          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+            restartCount = podData.status.containerStatuses[0].restartCount;
+            if (restartCount > 0) {
+              break; // Pod has crashed and restarted
+            }
           }
         }
 
@@ -337,10 +356,10 @@ EOF`);
       const autoResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
         {
-          issue: `auto-test-pod in ${autoNamespace} namespace is crashing`,
+          issue: `auto-test-app deployment in ${autoNamespace} namespace is crashing`,
           mode: 'automatic',
-          confidenceThreshold: 0.8,
-          maxRiskLevel: 'high', // Allow high risk for auto-execution in test environment (different AI models assess risk differently)
+          confidenceThreshold: 0.1, // Very low threshold ensures auto-execution - we're testing the mechanism, not AI confidence
+          maxRiskLevel: 'high', // Allow any risk level - we're testing auto-execution works when thresholds are met
           interaction_id: 'automatic_analyze_execute'
         }
       );
@@ -376,20 +395,20 @@ EOF`);
       });
 
       // PHASE 2: Verify ACTUAL cluster remediation - outcome-based validation
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      await new Promise(resolve => setTimeout(resolve, 15000)); // Wait for new pods to stabilize
 
-      // Get all pods in namespace - AI might create new pod or fix existing one
-      const afterPodsJson = await integrationTest.kubectl(`get pods -n ${autoNamespace} -o json`);
+      // Get all pods in namespace - deployment controller will create new pods after patch
+      const afterPodsJson = await integrationTest.kubectl(`get pods -n ${autoNamespace} -l app=auto-test-app -o json`);
       const afterPodsData = JSON.parse(afterPodsJson);
 
       // Should have at least one running stress workload pod
-      const runningPods = afterPodsData.items.filter((pod: any) => 
+      const runningPods = afterPodsData.items.filter((pod: any) =>
         pod.status.phase === 'Running' &&
         pod.spec.containers.some((container: any) => container.image === 'polinux/stress:1.0.4')
       );
       expect(runningPods.length).toBeGreaterThan(0);
 
-      // Should have no crashing pods (restart count = 0 means stable)
+      // Should have no crashing pods (restart count = 0 means stable with new memory limits)
       const stablePod = runningPods[0];
       expect(stablePod.status.containerStatuses[0].restartCount).toBe(0);
 

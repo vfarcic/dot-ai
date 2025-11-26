@@ -1,23 +1,40 @@
 # Note: We use tag-only references (not SHA256 digests) to support multi-architecture builds.
 # Docker Buildx automatically selects the correct architecture-specific image for each platform.
 # Using SHA256 digests would pin to a single architecture and cause "exec format error" on other platforms.
-FROM node:22-slim
 
-# Build argument for package version
-ARG PACKAGE_VERSION=latest
+# Stage 1: Builder - download kubectl and install npm package
+FROM node:22-slim AS builder
 
-# Install kubectl (required for Kubernetes operations)
+# Install curl for downloading kubectl
 RUN apt-get update && \
     apt-get install -y curl && \
-    ARCH=$(dpkg --print-architecture) && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install dot-ai globally
-RUN npm install -g @vfarcic/dot-ai@${PACKAGE_VERSION}
+# Download kubectl
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/kubectl
+
+# Copy and install pre-built dot-ai package
+# Package is built outside Docker (npm run build + npm pack)
+# For local builds: vfarcic-dot-ai-*.tgz is created by build script
+# For CI builds: same .tgz is used for both image and npm publish
+COPY vfarcic-dot-ai-*.tgz /tmp/
+RUN npm install -g /tmp/vfarcic-dot-ai-*.tgz
+
+# Stage 2: Runtime - copy installed binaries and packages
+FROM node:22-slim
+
+# Copy kubectl binary from builder
+COPY --from=builder /usr/local/bin/kubectl /usr/local/bin/kubectl
+
+# Copy entire npm global installation from builder
+COPY --from=builder /usr/local/lib/node_modules/@vfarcic/dot-ai /usr/local/lib/node_modules/@vfarcic/dot-ai
+
+# Recreate the bin symlink (Docker COPY dereferences symlinks)
+RUN ln -s /usr/local/lib/node_modules/@vfarcic/dot-ai/dist/mcp/server.js /usr/local/bin/dot-ai-mcp
 
 # Set working directory
 WORKDIR /app

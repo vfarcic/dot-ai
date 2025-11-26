@@ -19,7 +19,7 @@ export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return 
 export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
   solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to update (e.g., sol-1762983784617-9ddae2b8)'),
   stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
-  answers: z.record(z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'),
+  answers: z.record(z.string(), z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 

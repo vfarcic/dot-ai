@@ -743,7 +743,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
     // Validate input
     const validatedInput = validateRemediateInput(args);
-    
+
     // Handle choice execution if provided
     if (validatedInput.executeChoice && validatedInput.sessionId) {
       logger.info('Executing user choice from previous session', { 

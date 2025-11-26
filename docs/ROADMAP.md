@@ -16,8 +16,7 @@ This roadmap is a living document and may change based on community feedback and
 - Project website with documentation portal (PRD #179)
 - Dynamic credential management for multi-user MCP deployments (PRD #180)
 - Controller-based autonomous capability scanning with event-driven updates (PRD #216)
-- Replace ConfigMap with Solution CR in recommend tool (PRD #229) - Blocked by dot-ai-controller PR #5, Unblocks PRD #228
-- Deployment documentation & example-based learning (PRD #228) - Blocked by PRD #229
+- Deployment documentation & example-based learning (PRD #228)
 
 ## Medium-term (3-6 Months)
 

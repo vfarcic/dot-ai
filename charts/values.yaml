@@ -71,6 +71,7 @@ ingress:
 # AI Provider configuration
 ai:
   provider: anthropic               # AI provider type (anthropic, openai, google, xai, mistral, deepseek)
+  sdk: native                       # AI provider SDK (native, vercel)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
@@ -121,6 +122,12 @@ extraEnv: []
   #   value: "http://jaeger-collector:4318/v1/traces"
   # - name: OTEL_SERVICE_NAME
   #   value: "dot-ai-mcp-production"
+
+# dot-ai Controller Solution CR
+# Note: Controller must be installed separately before enabling this
+# Install: helm install dot-ai-controller oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.14.0 -n dot-ai
+controller:
+  enabled: false                    # Create Solution CR to track this deployment (requires controller installed separately)
 
 # Qdrant Vector Database
 qdrant:

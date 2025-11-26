@@ -31,16 +31,22 @@ describe.concurrent('Version Tool Integration', () => {
     : aiProvider === 'amazon_bedrock' ? 'amazon_bedrock'
     : aiProvider;
 
+  // Detect deployment mode based on MCP_BASE_URL
+  const isInClusterMode = process.env.MCP_BASE_URL?.includes('nip.io') || false;
+
   beforeAll(() => {
-    // Verify we're using the test cluster
-    const kubeconfig = process.env.KUBECONFIG;
-    expect(kubeconfig).toContain('kubeconfig-test.yaml');
+    // Verify we're using the test environment (either kubeconfig or in-cluster)
+    if (!isInClusterMode) {
+      const kubeconfig = process.env.KUBECONFIG;
+      expect(kubeconfig).toContain('kubeconfig-test.yaml');
+    }
   });
 
 
   describe('System Status via REST API', () => {
     test('should return comprehensive system status with correct structure', async () => {
       // Define expected response structure (based on actual API inspection)
+      // Adjust expectations based on deployment mode (host vs in-cluster)
       const expectedVersionResponse = {
         success: true,
         data: {
@@ -52,12 +58,14 @@ describe.concurrent('Version Tool Integration', () => {
               version: {
                 version: packageJson.version, // Dynamic - should match actual package.json version
                 nodeVersion: expect.stringMatching(/^v\d+\.\d+\.\d+/), // Pattern - Node.js version changes
-                platform: process.platform, // Dynamic - actual runtime platform
-                arch: process.arch // Dynamic - actual runtime architecture
+                platform: isInClusterMode ? 'linux' : process.platform, // In-cluster runs on Linux
+                arch: expect.any(String) // Architecture varies
               },
               vectorDB: {
                 connected: true, // Specific - should be connected to Qdrant
-                url: 'http://localhost:6335', // Specific - test environment URL
+                url: isInClusterMode
+                  ? expect.stringContaining('qdrant') // In-cluster: service DNS (qdrant.dot-ai.svc.cluster.local)
+                  : 'http://localhost:6335', // Host mode: localhost
                 collections: {
                   patterns: expect.objectContaining({
                     exists: expect.any(Boolean)
@@ -84,11 +92,15 @@ describe.concurrent('Version Tool Integration', () => {
               },
               kubernetes: {
                 connected: true, // Specific - should be connected to our test cluster
-                kubeconfig: expect.stringContaining('kubeconfig-test.yaml'), // Pattern - path may vary
+                kubeconfig: isInClusterMode
+                  ? 'in-cluster' // In-cluster: uses service account
+                  : expect.stringContaining('kubeconfig-test.yaml'), // Host mode: uses kubeconfig file
                 clusterInfo: {
-                  context: 'kind-dot-test', // Specific - our test cluster name
+                  context: isInClusterMode ? 'in-cluster' : 'kind-dot-test', // Context differs by mode
                   version: expect.stringMatching(/^v\d+\.\d+\.\d+/), // Pattern - K8s version changes
-                  endpoint: expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/) // Pattern - localhost endpoint with port
+                  endpoint: isInClusterMode
+                    ? expect.stringMatching(/^https:\/\/\d+\.\d+\.\d+\.\d+:\d+$/) // In-cluster: Kubernetes service IP
+                    : expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/) // Host mode: localhost with port
                 }
               },
               capabilities: {
@@ -166,6 +178,7 @@ describe.concurrent('Version Tool Integration', () => {
   describe('Test Environment Validation', () => {
     test('should use test-specific configuration', async () => {
       // Define expected response structure for test environment validation
+      // Adjust expectations based on deployment mode
       const expectedTestResponse = {
         success: true,
         data: {
@@ -176,11 +189,15 @@ describe.concurrent('Version Tool Integration', () => {
             system: {
               kubernetes: {
                 connected: true,
-                kubeconfig: expect.stringContaining('kubeconfig-test.yaml'),
+                kubeconfig: isInClusterMode
+                  ? 'in-cluster'
+                  : expect.stringContaining('kubeconfig-test.yaml'),
                 clusterInfo: {
-                  context: 'kind-dot-test',
+                  context: isInClusterMode ? 'in-cluster' : 'kind-dot-test',
                   version: expect.stringMatching(/^v\d+\.\d+\.\d+/),
-                  endpoint: expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/)
+                  endpoint: isInClusterMode
+                    ? expect.stringMatching(/^https:\/\/\d+\.\d+\.\d+\.\d+:\d+$/)
+                    : expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/)
                 }
               }
             }

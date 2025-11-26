@@ -140,7 +140,8 @@ export class RestToolRegistry {
       const zodObjectSchema = z.object(zodSchemas);
       
       // Convert to JSON Schema using OpenAPI3 conventions, inlining all subschemas
-      const jsonSchema = zodToJsonSchema(zodObjectSchema, {
+      // Type cast needed for Zod v4 compatibility with zod-to-json-schema
+      const jsonSchema = zodToJsonSchema(zodObjectSchema as any, {
         name: `${toolName}Request`,
         target: 'openApi3',
         // Place definitions where OpenAPI expects them  

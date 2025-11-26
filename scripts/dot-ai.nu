@@ -15,6 +15,7 @@ def "main apply dot-ai" [
     --ingress-class = "nginx",
     --host = "dot-ai.127.0.0.1.nip.io",
     --version = "0.140.0",
+    --controller-version = "0.16.0",
     --enable-tracing = false
 ] {
 
@@ -44,6 +45,13 @@ def "main apply dot-ai" [
     }
 
     (
+        helm upgrade --install dot-ai-controller
+            $"oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:($controller_version)"
+            --namespace dot-ai --create-namespace
+            --wait
+    )
+
+    (
         helm upgrade --install dot-ai-mcp
             $"oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:($version)"
             --set $"secrets.anthropic.apiKey=($anthropic_key)"
@@ -53,13 +61,14 @@ def "main apply dot-ai" [
             --set $"ingress.enabled=($ingress_enabled)"
             --set $"ingress.className=($ingress_class)"
             --set $"ingress.host=($host)"
+            --set "controller.enabled=true"
             ...$tracing_flags
             --namespace dot-ai --create-namespace
             --wait
     )
 
-    print $"DevOps AI Toolkit is available at (ansi yellow_bold)http://($host)(ansi reset)"
     print $"DevOps AI Controller (ansi yellow_bold)($controller_version)(ansi reset) installed in (ansi yellow_bold)dot-ai(ansi reset) namespace"
+    print $"DevOps AI Toolkit is available at (ansi yellow_bold)http://($host)(ansi reset)"
 
     if $enable_tracing {
         print $"Tracing enabled: Traces will be sent to (ansi yellow_bold)Jaeger in observability namespace(ansi reset)"
