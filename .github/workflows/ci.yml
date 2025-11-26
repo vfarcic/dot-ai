@@ -28,6 +28,7 @@ jobs:
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: '22.x'
+        registry-url: 'https://registry.npmjs.org'
         cache: 'npm'
 
     - name: Install dependencies
@@ -67,11 +68,12 @@ jobs:
       uses: github/codeql-action/init@c3d42c5d08633d8b33635fbd94b000a0e2585b3c # v3
       with:
         languages: typescript
-        
+
     - name: Setup Node.js
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: '22.x'
+        registry-url: 'https://registry.npmjs.org'
         cache: 'npm'
 
     - name: Install dependencies
