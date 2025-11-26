@@ -353,6 +353,8 @@ export class VectorDBService {
             wait: true,
             points: [id]
           });
+          // Brief delay to ensure deletion is fully propagated for subsequent reads
+          await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           throw new Error(`Failed to delete document: ${error}`);
         }
