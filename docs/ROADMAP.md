@@ -22,7 +22,6 @@ This roadmap is a living document and may change based on community feedback and
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)
-- AI model portfolio management for comparative testing (PRD #209)
 - GitOps integration for Argo CD and Flux deployment workflows (PRD #202)
 - Pattern & policy learning system with AI-driven suggestions (PRD #218)
 
