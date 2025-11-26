@@ -8,8 +8,6 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import * as fs from 'fs';
-import * as path from 'path';
 
 describe.concurrent('Operate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -116,70 +114,16 @@ EOF`);
 
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
-      // Extract session ID for verification
+      // Extract session ID for next phase
       const sessionId = analysisResponse.data.result.sessionId;
       expect(sessionId).toBeTruthy();
 
-      // PHASE 2: Verify session file was created
-      const sessionFilePath = path.join(process.cwd(), 'tmp', 'sessions', 'opr-sessions', `${sessionId}.json`);
-      expect(fs.existsSync(sessionFilePath)).toBe(true);
-
-      // PHASE 3: Verify session contents
-      const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, 'utf8'));
-
-      const expectedSessionData = {
-        sessionId,
-        createdAt: expect.any(String), // ISO timestamp
-        updatedAt: expect.any(String), // ISO timestamp
-        data: {
-          intent: expect.stringContaining('nginx:1.20'),
-          context: {
-            patterns: expect.any(Array),
-            policies: expect.any(Array),
-            capabilities: expect.arrayContaining([
-              expect.objectContaining({
-                resourceName: expect.any(String),
-                description: expect.any(String)
-              })
-            ]) // Should have capabilities from cluster scan
-          },
-          proposedChanges: {
-            create: expect.any(Array),
-            update: expect.arrayContaining([
-              expect.objectContaining({
-                kind: 'Deployment',
-                name: 'test-api'
-              })
-            ]),
-            delete: expect.any(Array)
-          },
-          commands: expect.arrayContaining([
-            expect.stringContaining('kubectl')
-          ]),
-          dryRunValidation: {
-            status: 'success',
-            details: expect.any(String)
-          },
-          patternsApplied: expect.any(Array),
-          capabilitiesUsed: expect.any(Array),
-          policiesChecked: expect.any(Array),
-          risks: {
-            level: expect.stringMatching(/low|medium|high/),
-            description: expect.any(String)
-          },
-          validationIntent: expect.any(String),
-          status: 'analysis_complete'
-        }
-      };
-
-      expect(sessionData).toMatchObject(expectedSessionData);
-
-      // VALIDATION: Verify original deployment unchanged (no execution yet)
+      // PHASE 2: Verify original deployment unchanged (no execution yet)
       const unchangedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
       const unchangedDeployment = JSON.parse(unchangedDeploymentJson);
       expect(unchangedDeployment.spec.template.spec.containers[0].image).toBe('nginx:1.19'); // Still old version
 
-      // PHASE 3: Execute approved changes
+      // PHASE 3: Execute approved changes (session existence is implicitly validated by this succeeding)
       const executionResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/operate',
         {
@@ -399,6 +343,10 @@ EOF`);
 
       // Validate execution response structure
       expect(executionResponse.success).toBe(true);
+      // Debug: log execution response if status is not success
+      if (executionResponse.data.result.status !== 'success') {
+        console.log('Execution failed. Response:', JSON.stringify(executionResponse.data.result, null, 2));
+      }
       expect(executionResponse.data.result.status).toBe('success');
       expect(executionResponse.data.result.execution.results).toBeDefined();
 

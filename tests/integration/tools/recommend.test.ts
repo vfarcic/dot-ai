@@ -414,13 +414,15 @@ describe.concurrent('Recommend Tool Integration', () => {
       const deployedResource = JSON.parse(resourceResult);
 
       // Verify ownerReference pointing to Solution CR exists
+      // Note: controller=false because Solution is a tracker, not a lifecycle controller
+      // Actual resource controllers (like CNPG) remain as controller=true
       expect(deployedResource.metadata.ownerReferences).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
             kind: 'Solution',
             name: solutionCRName,
-            controller: true,
+            controller: false, // Solution is a tracker, not the primary controller
             blockOwnerDeletion: true
           })
         ])

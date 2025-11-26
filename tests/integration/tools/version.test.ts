@@ -64,7 +64,7 @@ describe.concurrent('Version Tool Integration', () => {
               vectorDB: {
                 connected: true, // Specific - should be connected to Qdrant
                 url: isInClusterMode
-                  ? expect.stringContaining('dot-ai-qdrant') // In-cluster: service DNS
+                  ? expect.stringContaining('qdrant') // In-cluster: service DNS (qdrant.dot-ai.svc.cluster.local)
                   : 'http://localhost:6335', // Host mode: localhost
                 collections: {
                   patterns: expect.objectContaining({

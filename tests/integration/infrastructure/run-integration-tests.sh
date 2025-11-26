@@ -148,10 +148,10 @@ if [ "$NO_CLUSTER" = false ]; then
         exit 1
     }
 
-    # Install dot-ai-controller (v0.16.0+) for Solution CR tracking
+    # Install dot-ai-controller (v0.17.0+) for Solution CR tracking
     log_info "Starting dot-ai-controller installation..."
     helm upgrade --install dot-ai-controller \
-        oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.16.0 \
+        oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.17.0 \
         --namespace dot-ai \
         --create-namespace || {
         log_error "Failed to install dot-ai-controller"
@@ -345,7 +345,7 @@ if [ "$NO_CLUSTER" = false ]; then
         --set ingress.host=dot-ai.127.0.0.1.nip.io \
         --set qdrant.enabled=false \
         --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
-        --set-json 'extraEnv=[{"name":"QDRANT_CAPABILITIES_COLLECTION","value":"capabilities-policies"}]' \
+        --set-json 'extraEnv=[{"name":"QDRANT_CAPABILITIES_COLLECTION","value":"capabilities-policies"},{"name":"DEBUG_DOT_AI","value":"true"}]' \
         --wait --timeout=300s || {
         log_error "Failed to deploy dot-ai via Helm"
         kubectl get pods -n dot-ai
