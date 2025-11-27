@@ -245,16 +245,20 @@ jobs:
     - name: Update Chart.yaml and values.yaml versions
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        
+
         # Update Chart.yaml versions to match the coordinated release
         sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
         # Update Chart.yaml appVersion to match the Docker image we just built
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
-        
+
         # Update values.yaml image tag to reference the Docker image we just built
         sed -i "s/tag: \".*\"/tag: \"$VERSION\"/" charts/values.yaml
-        
+
+        # Update dot.nu --dot-ai-tag default value to reference the Docker image we just built
+        sed -i "s/--dot-ai-tag: string = \".*\"/--dot-ai-tag: string = \"$VERSION\"/" dot.nu
+
         echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
+        echo "Updated dot.nu to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
     
     - name: Log in to GitHub Container Registry for Helm
       run: |
@@ -277,16 +281,16 @@ jobs:
     - name: Commit all coordinated changes and create Git tag
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        
+
         # Add all version-related changes
-        git add package.json charts/Chart.yaml charts/values.yaml server.json
-        
+        git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
+
         git commit -m "chore: coordinated release v$VERSION
 
         - npm package: v$VERSION
-        - docker image: ghcr.io/vfarcic/dot-ai:$VERSION  
+        - docker image: ghcr.io/vfarcic/dot-ai:$VERSION
         - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
-        
+
         [skip ci]"
         
         # Create release tag

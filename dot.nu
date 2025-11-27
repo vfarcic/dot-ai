@@ -16,8 +16,8 @@ source scripts/dot-ai.nu
 def main [] {}
 
 def "main setup" [
-    --dot-ai-tag: string = "0.140.0",
-    --qdrant-run = true,
+    --dot-ai-tag: string = "0.143.0",
+    --qdrant-run = false,
     --qdrant-tag: string = "latest",
     --dot-ai-kubernetes-enabled = true,
     --kyverno-enabled = true,
@@ -43,13 +43,13 @@ def "main setup" [
 
     docker image pull $dot_ai_image
 
-    let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
-
-    $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
-
-    docker image pull $qdrant_image
-
     if $qdrant_run {
+
+        let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
+
+        $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
+
+        docker image pull $qdrant_image
 
         docker container run --detach --name qdrant --publish 6333:6333 $qdrant_image
 
