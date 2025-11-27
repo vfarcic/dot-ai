@@ -225,13 +225,13 @@ Create new dataset file with this structure:
 ### **Example: Distinguishing Successful AI vs Timeout**
 ```bash
 # Test failed with: "Test timed out in 1200000ms"
-# Found dataset: recommend_generate_manifests_phase_vercel_grok-4-fast-reasoning_2025-10-14_143913606Z.jsonl
+# Found dataset: recommend_generate_manifests_phase_vercel_grok-4_2025-10-14_143913606Z.jsonl
 
 # Check dataset output:
 cat dataset.jsonl | grep -o '"output":"[^"]*"' | head -c 100
 # Result: "output":"```yaml\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: postgres..."
 
-# ANALYSIS: 
+# ANALYSIS:
 # ✅ Dataset shows successful AI response (generated Kubernetes manifests)
 # ✅ Test timeout occurred AFTER this successful AI interaction
 # 🔄 ACTION: Create synthetic dataset for the timeout that occurred later in test workflow
@@ -240,8 +240,8 @@ cat dataset.jsonl | grep -o '"output":"[^"]*"' | head -c 100
 **vs**
 
 ```bash
-# Test failed with: "Request timeout after 1800000ms" 
-# Found dataset: capability_auto_scan_vercel_grok-4-fast-reasoning_2025-10-14_144108999Z.jsonl
+# Test failed with: "Request timeout after 1800000ms"
+# Found dataset: capability_auto_scan_vercel_grok-4_2025-10-14_144108999Z.jsonl
 
 # Check dataset output:
 cat dataset.jsonl | grep -o '"output":"[^"]*"' | head -c 100
@@ -269,10 +269,10 @@ cat dataset.jsonl | grep -o '"output":"[^"]*"' | head -c 100
 ### Example: Rate Limit Error Analysis
 ```bash
 # Find debug files matching test timeframe
-ls ./tmp/debug-ai/*mistral*2025-10-14*.txt
+ls ./tmp/debug-ai/*grok*2025-10-14*.txt
 
 # Review specific debug file for detailed error context
-cat ./tmp/debug-ai/debug-remediate-mistral-2025-10-14-003709.txt
+cat ./tmp/debug-ai/debug-remediate-grok-2025-10-14-003709.txt
 # Contains: actual prompts, API responses, retry attempts, exact error messages
 ```
 

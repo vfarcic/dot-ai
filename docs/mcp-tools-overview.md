@@ -87,7 +87,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 - **AI Model API key**: See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options
 - **Cluster access**: `KUBECONFIG` for Kubernetes integration (deployment, remediation, capabilities)
 - **Vector database**: Qdrant for capability, pattern, and policy storage
-- **Embedding provider API key**: OpenAI, Google, or Mistral for pattern/policy semantic search
+- **Embedding provider API key**: OpenAI, Google, or Amazon Bedrock for pattern/policy semantic search
 
 ## Tool Dependencies
 

@@ -7,17 +7,15 @@
 
 export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-5-20250929',
+  anthropic_opus: 'claude-opus-4-5-20251101',
   anthropic_haiku: 'claude-haiku-4-5-20251001',
-  openai: 'gpt-5',
-  openai_pro: 'gpt-5-pro',
-  google: 'gemini-2.5-pro',
-  google_fast: 'gemini-2.5-flash',
+  openai: 'gpt-5.1-codex',
+  google: 'gemini-3-pro-preview',
+  kimi: 'kimi-k2-0905-preview', // PRD #237: Moonshot AI Kimi K2 - standard model with 256K context
+  kimi_thinking: 'kimi-k2-thinking', // PRD #237: Moonshot AI Kimi K2 - extended thinking variant
   xai: 'grok-4',
-  xai_fast: 'grok-4-fast-reasoning',
-  mistral: 'mistral-large-latest',
-  deepseek: 'deepseek-reasoner',
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
-  custom: 'gpt-5', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
+  custom: 'gpt-5.1-codex', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
   amazon_bedrock: 'global.anthropic.claude-sonnet-4-20250514-v1:0' // PRD #175: Amazon Bedrock default model (overridden by AI_MODEL env var)
 } as const;
 

@@ -27,11 +27,11 @@
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic pattern matching
+- **Embedding provider API key** (OpenAI, Google, or Amazon Bedrock) - Required for semantic pattern matching
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
-- **Embedding provider API key** (OpenAI, Google, or Mistral) - Required for semantic policy matching
+- **Embedding provider API key** (OpenAI, Google, or Amazon Bedrock) - Required for semantic policy matching
 - **Optional**: Kyverno installed in cluster for active policy enforcement
 
 ## Installation
