@@ -124,7 +124,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # For OpenAI models (GPT-5.1 Codex)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# For Google models (Gemini 2.5 Pro, Gemini 2.5 Flash)
+# For Google models (Gemini 3 Pro)
 GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key_here
 
 # For xAI models (Grok-4)

@@ -67,7 +67,7 @@ ingress:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, openai, google, kimi, kimi_thinking, xai)
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
   sdk: native                       # AI provider SDK (native, vercel)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 

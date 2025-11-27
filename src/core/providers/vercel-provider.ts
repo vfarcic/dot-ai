@@ -399,6 +399,7 @@ export class VercelProvider implements AIProvider {
           // This caches the system prompt + all tools together
           if (
             (this.providerType === 'anthropic' ||
+              this.providerType === 'anthropic_opus' ||
               this.providerType === 'anthropic_haiku') &&
             isLastTool
           ) {
@@ -426,6 +427,7 @@ export class VercelProvider implements AIProvider {
 
         if (
           this.providerType === 'anthropic' ||
+          this.providerType === 'anthropic_opus' ||
           this.providerType === 'anthropic_haiku'
         ) {
           // For Anthropic: Put system in messages array with cacheControl

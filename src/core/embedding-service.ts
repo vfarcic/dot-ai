@@ -11,8 +11,14 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { embed } from 'ai';
 import { withAITracing } from './tracing';
 
+/**
+ * Supported embedding providers - single source of truth
+ */
+export const EMBEDDING_PROVIDERS = ['openai', 'google', 'amazon_bedrock'] as const;
+export type EmbeddingProviderType = typeof EMBEDDING_PROVIDERS[number];
+
 export interface EmbeddingConfig {
-  provider?: 'openai' | 'google' | 'amazon_bedrock';
+  provider?: EmbeddingProviderType;
   apiKey?: string;
   model?: string;
   dimensions?: number;
@@ -31,14 +37,14 @@ export interface EmbeddingProvider {
  * Supports OpenAI, Google, and Amazon Bedrock through Vercel AI SDK
  */
 export class VercelEmbeddingProvider implements EmbeddingProvider {
-  private providerType: 'openai' | 'google' | 'amazon_bedrock';
+  private providerType: EmbeddingProviderType;
   private apiKey: string;
   private model: string;
   private dimensions: number;
   private available: boolean;
   private modelInstance: any;
 
-  constructor(config: EmbeddingConfig & { provider: 'openai' | 'google' | 'amazon_bedrock' }) {
+  constructor(config: EmbeddingConfig & { provider: EmbeddingProviderType }) {
     this.providerType = config.provider;
     this.available = false;
 
@@ -236,8 +242,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
 function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvider | null {
   const providerType = (config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai').toLowerCase();
 
-  // Validate provider type
-  if (providerType !== 'openai' && providerType !== 'google' && providerType !== 'amazon_bedrock') {
+  // Validate provider type using centralized list
+  if (!EMBEDDING_PROVIDERS.includes(providerType as EmbeddingProviderType)) {
     console.warn(`Unknown embedding provider: ${providerType}, falling back to openai`);
     return createEmbeddingProvider({ ...config, provider: 'openai' });
   }
@@ -245,7 +251,7 @@ function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvide
   try {
     const provider = new VercelEmbeddingProvider({
       ...config,
-      provider: providerType as 'openai' | 'google' | 'amazon_bedrock'
+      provider: providerType as EmbeddingProviderType
     });
     return provider.isAvailable() ? provider : null;
   } catch (error) {
