@@ -51,7 +51,7 @@ Create `src/evaluation/model-metadata.json` with this structure:
 1. **Read current models** from `src/core/model-config.ts` - get the EXACT model names from `CURRENT_MODELS`
 2. **Search ONLY for official pricing** from provider websites (no third-party sites)
 3. **Search for each EXACT model name** - do not search for similar/related models
-4. **Use official provider pricing pages**: Anthropic, OpenAI, Google AI, xAI, Mistral, DeepSeek
+4. **Use official provider pricing pages**: Anthropic, OpenAI, etc.
 5. **Collect pricing per million tokens** (industry standard format)
 6. **Find context window and function calling support** for each exact model
 7. **Create complete JSON** with today's date as lastUpdated

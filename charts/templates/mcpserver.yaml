@@ -109,17 +109,11 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.xai.keyName }}
               optional: true
-        - name: MISTRAL_API_KEY
+        - name: MOONSHOT_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
-              key: {{ .Values.secrets.mistral.keyName }}
-              optional: true
-        - name: DEEPSEEK_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.secrets.name }}
-              key: {{ .Values.secrets.deepseek.keyName }}
+              key: {{ .Values.secrets.moonshot.keyName }}
               optional: true
         - name: CUSTOM_LLM_API_KEY
           valueFrom:

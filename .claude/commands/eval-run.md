@@ -15,14 +15,10 @@ When this command is invoked, ask the user to specify:
 
 2. **Models** (required): List of models to test, in the order to execute
    - `sonnet` - Claude Sonnet via Vercel AI SDK
-   - `gpt` - GPT-5 via Vercel AI SDK
-   - `gpt-pro` - GPT-5 Pro via Vercel AI SDK
+   - `gpt` - GPT-5.1 Codex via Vercel AI SDK
    - `gemini` - Google Gemini 2.5 Pro via Vercel AI SDK
    - `gemini-flash` - Google Gemini 2.5 Flash via Vercel AI SDK
    - `grok` - xAI Grok-4 via Vercel AI SDK
-   - `grok-fast` - xAI Grok-4-Fast-Reasoning via Vercel AI SDK
-   - `mistral` - Mistral Large via Vercel AI SDK
-   - `deepseek` - DeepSeek-R1 via Vercel AI SDK (Note: Limited function calling support)
 
 ## Test File Mapping
 

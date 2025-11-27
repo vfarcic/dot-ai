@@ -10,8 +10,6 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
-import { createMistral } from '@ai-sdk/mistral';
-import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import {
@@ -74,16 +72,15 @@ export class VercelProvider implements AIProvider {
 
       switch (this.providerType) {
         case 'openai':
-        case 'openai_pro':
           provider = createOpenAI({
             apiKey: this.apiKey,
           });
           break;
         case 'google':
-        case 'google_fast':
           provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
         case 'anthropic':
+        case 'anthropic_opus':
         case 'anthropic_haiku':
           provider = createAnthropic({
             apiKey: this.apiKey,
@@ -95,17 +92,19 @@ export class VercelProvider implements AIProvider {
           });
           break;
         case 'xai':
-        case 'xai_fast':
           provider = createXai({ apiKey: this.apiKey });
           break;
-        case 'mistral':
-          provider = createMistral({ apiKey: this.apiKey });
-          break;
-        case 'deepseek':
-          provider = createDeepSeek({
+        case 'kimi':
+        case 'kimi_thinking':
+          // PRD #237: Moonshot AI Kimi K2 - uses OpenAI-compatible API
+          // Use .chat() explicitly to use /chat/completions instead of /responses
+          // Use global endpoint (api.moonshot.ai) - China endpoint (api.moonshot.cn) requires China-specific API keys
+          provider = createOpenAI({
             apiKey: this.apiKey,
+            baseURL: 'https://api.moonshot.ai/v1',
           });
-          break;
+          this.modelInstance = provider.chat(this.model);
+          return; // Early return - model instance already set
         case 'amazon_bedrock':
           // PRD #175: Amazon Bedrock provider
           // AWS SDK automatically uses credential chain:
@@ -400,6 +399,7 @@ export class VercelProvider implements AIProvider {
           // This caches the system prompt + all tools together
           if (
             (this.providerType === 'anthropic' ||
+              this.providerType === 'anthropic_opus' ||
               this.providerType === 'anthropic_haiku') &&
             isLastTool
           ) {
@@ -427,6 +427,7 @@ export class VercelProvider implements AIProvider {
 
         if (
           this.providerType === 'anthropic' ||
+          this.providerType === 'anthropic_opus' ||
           this.providerType === 'anthropic_haiku'
         ) {
           // For Anthropic: Put system in messages array with cacheControl

@@ -26,8 +26,6 @@ describe.concurrent('Version Tool Integration', () => {
     : aiProvider.startsWith('openai') ? 'openai'
     : aiProvider.startsWith('google') ? 'google'
     : aiProvider.startsWith('xai') ? 'xai'
-    : aiProvider === 'mistral' ? 'mistral'
-    : aiProvider === 'deepseek' ? 'deepseek'
     : aiProvider === 'amazon_bedrock' ? 'amazon_bedrock'
     : aiProvider;
 

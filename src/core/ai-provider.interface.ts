@@ -8,7 +8,7 @@
  * across the codebase, ensuring backward compatibility and minimal migration effort.
  *
  * Phase 1 Implementation (PRD 73): Anthropic, OpenAI, Google
- * Future: AWS Bedrock, Mistral, Groq, Ollama, etc.
+ * Additional: AWS Bedrock, xAI Grok, OpenRouter, Custom endpoints
  */
 
 /**
@@ -261,7 +261,7 @@ export interface AIProvider {
   /**
    * Get the current model name being used
    *
-   * @returns Model name (e.g., 'grok-4-fast-reasoning', 'claude-3-5-sonnet-20241022')
+   * @returns Model name (e.g., 'grok-4', 'claude-sonnet-4-5-20250929')
    */
   getModelName(): string;
 

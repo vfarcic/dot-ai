@@ -69,7 +69,7 @@ The DevOps AI Toolkit automatically traces all operations without requiring code
 - Session IDs for workflow correlation
 
 ### AI Provider Operations
-- **Chat completions**: Claude, OpenAI, Google, xAI, Mistral, DeepSeek, and custom endpoints
+- **Chat completions**: Claude, OpenAI, Google, xAI, and custom endpoints
 - **Tool loop iterations**: Multi-step AI workflows with per-iteration visibility
 - **Embeddings generation**: Vector embeddings for semantic search
 - **Token usage**: Input tokens, output tokens, cache metrics

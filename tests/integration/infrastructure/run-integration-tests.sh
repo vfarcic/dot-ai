@@ -327,8 +327,7 @@ if [ "$NO_CLUSTER" = false ]; then
         --from-literal=openai-api-key="${OPENAI_API_KEY}" \
         --from-literal=google-api-key="${GOOGLE_API_KEY}" \
         --from-literal=xai-api-key="${XAI_API_KEY}" \
-        --from-literal=mistral-api-key="${MISTRAL_API_KEY}" \
-        --from-literal=deepseek-api-key="${DEEPSEEK_API_KEY}" \
+        --from-literal=moonshot-api-key="${MOONSHOT_API_KEY}" \
         --dry-run=client -o yaml | kubectl apply -f -
 
     # Deploy via Helm with local images
@@ -407,8 +406,7 @@ else
     OPENAI_API_KEY=$OPENAI_API_KEY \
     GOOGLE_API_KEY=$GOOGLE_API_KEY \
     XAI_API_KEY=$XAI_API_KEY \
-    MISTRAL_API_KEY=$MISTRAL_API_KEY \
-    DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
+    MOONSHOT_API_KEY=$MOONSHOT_API_KEY \
     node dist/mcp/server.js > "$LOG_FILE" 2>&1 &
 
     SERVER_PID=$!
