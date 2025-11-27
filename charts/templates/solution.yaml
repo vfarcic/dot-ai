@@ -61,6 +61,34 @@ spec:
       namespace: {{ .Release.Namespace }}
     {{- end }}
 
+    # Qdrant Vector Database (if enabled)
+    {{- if .Values.qdrant.enabled }}
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: ConfigMap
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: Service
+      name: {{ .Release.Name }}-qdrant-headless
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: Service
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+    {{- end }}
+
   context:
     createdBy: "dot-ai-helm-chart"
     rationale: "Self-hosted MCP server providing intelligent Kubernetes deployment recommendations, cluster discovery, and AI-powered operations"
