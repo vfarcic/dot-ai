@@ -160,14 +160,19 @@ Guide the AI to generate .dockerignore with:
 - [x] Image size is reasonable
 - [x] .dockerignore appropriately excludes files
 
-### Milestone 3: Tested with Go Project
+### Milestone 3: Best Practices Enhancement
+- [ ] Identify and document Dockerfile best practices to incorporate
+- [ ] Update prompt template to include best practices guidance
+- [ ] Validate best practices with test projects
+
+### Milestone 4: Tested with Go Project
 - [ ] Tested with external Go project
 - [ ] Generated Dockerfile builds successfully
 - [ ] Generated image is minimal (distroless/scratch)
 - [ ] Multi-stage build properly separates build from runtime
 - [ ] Verifies pattern generalizes across languages
 
-### Milestone 4: Documentation Complete
+### Milestone 5: Documentation Complete
 - [ ] `docs/mcp-guide.md` updated with Dockerfile generation guide
 - [ ] Usage instructions documented
 - [ ] README.md updated with containerization capabilities
