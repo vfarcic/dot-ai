@@ -3,7 +3,7 @@
 **Created**: 2025-11-18
 **Status**: In Progress
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-11-30
+**Last Updated**: 2025-11-30 (Milestone 5 complete)
 
 ## Executive Summary
 Create an MCP prompt that generates production-ready, optimized Dockerfiles by analyzing local project directories. The prompt guides Claude Code to create language-agnostic Dockerfiles with multi-stage builds, security best practices, and build context optimization. This enables developers to containerize any application without deep Docker expertise.
@@ -175,11 +175,11 @@ Guide the AI to generate .dockerignore with:
 - [x] Validate improved Dockerfile builds and runs successfully
 
 ### Milestone 5: Tested with Go Project
-- [ ] Tested with external Go project
-- [ ] Generated Dockerfile builds successfully
-- [ ] Generated image is minimal (distroless/scratch)
-- [ ] Multi-stage build properly separates build from runtime
-- [ ] Verifies pattern generalizes across languages
+- [x] Tested with external Go project
+- [x] Generated Dockerfile builds successfully
+- [x] Generated image is minimal (distroless/scratch)
+- [x] Multi-stage build properly separates build from runtime
+- [x] Verifies pattern generalizes across languages
 
 ### Milestone 6: Documentation Complete
 - [ ] `docs/mcp-guide.md` updated with Dockerfile generation guide
@@ -509,4 +509,51 @@ After generating Dockerfile and .dockerignore, Claude should:
 
 **Next Session Priorities**:
 - Test with Go project (Milestone 5) to validate language-agnostic approach
+- Complete documentation (Milestone 6)
+
+### 2025-11-30: Milestone 5 Complete - Go Project Testing & CI Integration
+**Duration**: Development session
+**Primary Focus**: Validate language-agnostic approach with Go project and ensure CI integration
+
+**Completed PRD Items**:
+- [x] Tested with external Go project (silly-demo)
+- [x] Generated Dockerfile builds successfully
+- [x] Generated image is minimal (distroless/scratch)
+- [x] Multi-stage build properly separates build from runtime
+- [x] Verifies pattern generalizes across languages
+
+**Go Project Testing Results** (silly-demo):
+
+| Test | New Generation | Improvement Flow |
+|------|----------------|------------------|
+| Base image | `scratch` | `distroless/static:nonroot` |
+| Non-root user | ✅ UID 10001 | ✅ `nonroot:nonroot` |
+| Multi-arch | ✅ TARGETOS/TARGETARCH | ✅ Auto-detect |
+| Static binary | ✅ CGO_ENABLED=0 | ✅ CGO_ENABLED=0 |
+| CA certificates | ✅ Copied from builder | ✅ Built into distroless |
+| Vendor support | ✅ `-mod=vendor` | ✅ Preserved |
+
+**Key Improvements Over Original silly-demo Dockerfile**:
+- Fixed security: Added non-root user (original ran as root)
+- Fixed portability: Removed hardcoded amd64, now multi-arch
+- Fixed HTTPS: Added CA certificates (original would fail HTTPS calls)
+- Added build optimization: `-ldflags="-s -w"` for smaller binary
+- Cleaned up redundant operations (mkdir, chmod, go mod download with vendor)
+
+**dot-ai Project Testing** (Node.js):
+- Generated new Dockerfile with multi-stage build, non-root user, kubectl
+- Verified version tool reads from package.json correctly
+- Confirmed CI will validate Dockerfile during PR checks
+
+**CI Workflow Updates**:
+- Removed obsolete `npm pack` step (no longer needed - builds from source)
+- Removed unused `PACKAGE_VERSION` build-arg
+- Verified integration tests build Docker image and deploy to Kind cluster
+
+**Key Findings**:
+- Language-agnostic approach works: Same prompt handles Node.js and Go correctly
+- Prompt adapts base image selection: Alpine for Node.js, scratch/distroless for Go
+- Improvement flow preserves intentional customizations while fixing issues
+
+**Next Session Priorities**:
 - Complete documentation (Milestone 6)

@@ -204,9 +204,6 @@ jobs:
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-    - name: Create npm package tarball for Docker build
-      run: npm pack
-
     - name: Set up QEMU
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
@@ -225,8 +222,6 @@ jobs:
       with:
         context: .
         push: true
-        build-args: |
-          PACKAGE_VERSION=${{ needs.version.outputs.new-version }}
         tags: |
           ghcr.io/vfarcic/dot-ai:${{ needs.version.outputs.new-version }}
           ghcr.io/vfarcic/dot-ai:latest
