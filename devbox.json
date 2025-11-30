@@ -8,7 +8,8 @@
     "nushell@0.106.1",
     "kubectl@1.33.4",
     "awscli2@2.31.11",
-    "kubectl-tree@0.4.6"
+    "kubectl-tree@0.4.6",
+    "vals@0.42.5"
   ],
   "shell": {
     "init_hook": [
