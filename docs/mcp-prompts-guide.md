@@ -115,24 +115,17 @@ The prompt content executes exactly as if it were a local command file, but with
 - **Use when**: Finished implementing a PRD and ready to deploy and close out the work
 - **Example**: All PRD tasks completed and ready for final deployment and closure
 
+**`prd-close`**
+- **Purpose**: Close a PRD that is already implemented or no longer needed without creating a PR
+- **Use when**: PRD functionality already exists (implemented elsewhere), PRD is superseded, or requirements changed
+- **Example**: Closing a PRD whose features were already implemented in a separate project
+
 ### Development Prompts
 
-**`tests-reminder`**
-- **Purpose**: Remind about mandatory testing requirements when making code changes
-- **Use when**: Before marking any task as complete to ensure all tests are written, run, and passing
-- **Example**: Before completing implementation work to verify testing standards are met
-
-### Session Management Prompts
-
-**`context-save`**
-- **Purpose**: Save current work context to tmp/context.md for session continuity
-- **Use when**: Ending a work session or at key milestones to preserve state for future sessions
-- **Example**: Before taking a break or switching tasks to preserve current progress
-
-**`context-load`**
-- **Purpose**: Load saved context from tmp/context.md to resume previous work sessions
-- **Use when**: Starting a new session and need to continue where you left off previously
-- **Example**: Beginning a new coding session and want to resume previous work
+**`generate-dockerfile`**
+- **Purpose**: Generate production-ready, secure, multi-stage Dockerfile and .dockerignore for any project
+- **Use when**: Containerizing an application for production deployment, or improving an existing Dockerfile
+- **Example**: Setting up Docker for a new project, or fixing security issues in an existing Dockerfile
 
 ## Example Workflows
 
@@ -174,47 +167,20 @@ The prompt content executes exactly as if it were a local command file, but with
   2. Pull request created and merged
   3. GitHub issue closed with final validation
 
-### Workflow 2: Session Continuity
+### Workflow 2: Containerization
 
-- **End of session**: Use `context-save` prompt to preserve current work state
-  1. Current work context analyzed
-  2. Context saved to tmp/context.md file
+- **Containerize project**: Use `generate-dockerfile` prompt to create production-ready Docker configuration
+  1. Project structure analyzed (language, framework, dependencies)
+  2. Multi-stage Dockerfile generated with security best practices
+  3. Minimal .dockerignore created based on Dockerfile's COPY commands
+  4. Image built and validated automatically
+  5. Container tested to ensure application runs correctly
 
-- **Resume later**: Use `context-load` prompt to restore previous context
-  1. Saved context loaded from tmp/context.md
-  2. Previous work state restored
-
-- **Maintain quality**: Use `tests-reminder` prompt before marking tasks complete
-  1. Testing requirements reviewed
-  2. Quality checklist provided
-
-## Managing Prompts
-
-### Adding New Prompts
-
-> **Note**: This section documents the planned prompt management interface
-
-To add a new prompt to the shared library:
-
-1. **Create prompt content**: Write the prompt following established patterns
-2. **Define metadata**: Set name, description, and category
-3. **Add to library**: Use the prompt management interface
-4. **Test across clients**: Verify prompt works in different coding agents
-5. **Update documentation**: Add prompt to the "Available Prompts" section above
-
-### Prompt Organization
-
-Prompts are organized by category:
-- **`project-management`**: PRD lifecycle and project tracking prompts
-- **`development`**: Code development and quality assurance prompts
-- **`session-management`**: Work session continuity and context management
-
-### Naming Conventions
-
-- Use descriptive, kebab-case names: `prd-create`, `context-save`
-- Include category prefix when helpful: `prd-next`, `context-save`
-- Keep names concise but clear
-- Avoid special characters or spaces
+- **Improve existing Dockerfile**: Use same prompt when Dockerfile already exists
+  1. Existing Dockerfile analyzed against best practices
+  2. Security issues identified (running as root, :latest tags, etc.)
+  3. Optimizations applied while preserving intentional customizations
+  4. Changes explained with rationale
 
 ## Cross-Agent Compatibility
 
@@ -260,7 +226,7 @@ Your prompt instructions go here...
 **Metadata Fields:**
 - **`name`**: Becomes the slash command name (e.g., `name: prd-create` → `/dot-ai:prd-create`)
 - **`description`**: Shows up in coding agent command menus and help text
-- **`category`**: Used for organizing prompts in documentation (must be one of: `project-management`, `development`, `session-management`)
+- **`category`**: Used for organizing prompts in documentation (must be one of: `project-management`, `development`)
 
 **How It Works:**
 1. **MCP Server Processing**: The dot-ai MCP server reads these metadata fields from all prompt files

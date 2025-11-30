@@ -1,9 +1,9 @@
 # PRD: Dockerfile Generation System
 
 **Created**: 2025-11-18
-**Status**: In Progress
+**Status**: Complete
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-11-30 (Milestone 5 complete)
+**Last Updated**: 2025-11-30 (All milestones complete)
 
 ## Executive Summary
 Create an MCP prompt that generates production-ready, optimized Dockerfiles by analyzing local project directories. The prompt guides Claude Code to create language-agnostic Dockerfiles with multi-stage builds, security best practices, and build context optimization. This enables developers to containerize any application without deep Docker expertise.
@@ -182,10 +182,10 @@ Guide the AI to generate .dockerignore with:
 - [x] Verifies pattern generalizes across languages
 
 ### Milestone 6: Documentation Complete
-- [ ] `docs/mcp-guide.md` updated with Dockerfile generation guide
-- [ ] Usage instructions documented
-- [ ] README.md updated with containerization capabilities
-- [ ] Troubleshooting guidance provided
+- [x] `docs/mcp-prompts-guide.md` updated with Dockerfile generation guide
+- [x] Usage instructions documented (in prompt and guide)
+- [x] README.md updated with containerization capabilities
+- [x] Troubleshooting guidance provided (in prompt validation workflow)
 
 ## Success Criteria
 
@@ -555,5 +555,21 @@ After generating Dockerfile and .dockerignore, Claude should:
 - Prompt adapts base image selection: Alpine for Node.js, scratch/distroless for Go
 - Improvement flow preserves intentional customizations while fixing issues
 
-**Next Session Priorities**:
-- Complete documentation (Milestone 6)
+### 2025-11-30: Milestone 6 Complete - Documentation
+**Duration**: Development session
+**Primary Focus**: Move prompt to MCP shared-prompts and complete documentation
+
+**Completed PRD Items**:
+- [x] `docs/mcp-prompts-guide.md` updated with Dockerfile generation guide
+- [x] Usage instructions documented (in prompt and guide)
+- [x] README.md updated with containerization capabilities
+- [x] Troubleshooting guidance provided (in prompt validation workflow)
+
+**Completed Work**:
+- Moved `generate-dockerfile.md` from `.claude/commands/` to `shared-prompts/` with YAML frontmatter
+- Added to `docs/mcp-prompts-guide.md`: Development Prompts entry and Containerization workflow
+- Updated README.md Shared Prompts section with PRD Management and Dockerfile Generation
+- Cleaned up documentation: removed non-existent prompts (context-save, context-load, tests-reminder), added missing prd-close
+- Removed outdated "Managing Prompts" section from mcp-prompts-guide.md
+
+**PRD Status**: All milestones complete. Ready for merge.

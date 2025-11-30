@@ -1,3 +1,9 @@
+---
+name: generate-dockerfile
+description: Generate production-ready, secure, multi-stage Dockerfile and .dockerignore for any project
+category: development
+---
+
 # Generate Production-Ready Dockerfile
 
 Generate an optimized, secure, multi-stage Dockerfile and .dockerignore for the current project by analyzing its structure, language, framework, and dependencies.
