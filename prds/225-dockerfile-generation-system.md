@@ -161,9 +161,9 @@ Guide the AI to generate .dockerignore with:
 - [x] .dockerignore appropriately excludes files
 
 ### Milestone 3: Best Practices Enhancement
-- [ ] Identify and document Dockerfile best practices to incorporate
-- [ ] Update prompt template to include best practices guidance
-- [ ] Validate best practices with test projects
+- [x] Identify and document Dockerfile best practices to incorporate
+- [x] Update prompt template to include best practices guidance
+- [x] Validate best practices with test projects
 
 ### Milestone 4: Existing Dockerfile Improvement
 - [ ] Detect when Dockerfile already exists in project
@@ -394,3 +394,38 @@ After generating Dockerfile and .dockerignore, Claude should:
 3. Preserve intentional customizations (comments, special configurations)
 4. Show diff/comparison with rationale for each change
 5. Apply same validation (build, run, clean up) to improved Dockerfile
+
+### 2025-11-30: Milestone 3 Complete - Best Practices Enhancement
+**Duration**: Full development session
+**Primary Focus**: Research, document, and integrate Dockerfile best practices into prompt
+
+**Completed PRD Items**:
+- [x] Researched best practices from Docker docs, OWASP, Sysdig, Hadolint, and industry sources
+- [x] Created comprehensive research document (`tmp/best-practices.md`)
+- [x] Restructured prompt with consolidated "Best Practices Reference" section
+- [x] Validated with dot-ai project - kubectl detected, non-root user, proper .dockerignore
+
+**Key Design Decisions**:
+- **Consolidated best practices section**: Moved scattered practices into single reference section with 4 categories (Security, Image Selection, Build Optimization, Maintainability)
+- **Table format**: Best practices presented as scannable tables with practice name and description
+- **Contextual application**: Added guidance that practices apply "when relevant" - not rigid rules
+- **Thoroughness over speed**: Added critical principle emphasizing deep analysis over quick generation
+- **Principle-based system dependencies**: Enhanced guidance without prescribing specific patterns
+
+**Prompt Structure Changes**:
+- Reduced from 5 process steps to 3 cleaner steps (Analyze, Generate, .dockerignore)
+- Added checklists for Builder stage, Runtime stage, and Package installation
+- Added tooling recommendations (hadolint, trivy) in output section
+- Enhanced Success Criteria with comprehensive Dockerfile and .dockerignore checklists
+
+**Validation Results**:
+- Generated Dockerfile correctly identified kubectl as runtime dependency
+- Runs as non-root user (appuser, UID 1000)
+- Installs kubectl with proper multi-arch detection
+- .dockerignore reduced to 15 lines (within target of 10-15)
+- Creates session directory with proper permissions
+- Sets appropriate environment variables
+
+**Next Session Priorities**:
+- Implement Milestone 4: Existing Dockerfile Improvement
+- Or proceed to Milestone 5: Go Project Testing

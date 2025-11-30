@@ -1,16 +1,14 @@
-# =============================================================================
-# Stage 1: Builder
-# Install dependencies and compile TypeScript to JavaScript
-# =============================================================================
-FROM node:22-alpine AS builder
+# Build stage
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests first (for Docker layer caching)
+# Copy dependency manifests first for layer caching
 COPY package.json package-lock.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+RUN npm ci && \
+    npm cache clean --force
 
 # Copy TypeScript configuration
 COPY tsconfig.json ./
@@ -18,61 +16,52 @@ COPY tsconfig.json ./
 # Copy source code
 COPY src/ ./src/
 
-# Build the application
+# Build the application (npm run build includes lint + compile)
 RUN npm run build:prod
 
-# =============================================================================
-# Stage 2: Runtime
-# Minimal production image with only what's needed to run
-# =============================================================================
-FROM node:22-alpine
+# Runtime stage
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install kubectl (required runtime dependency for Kubernetes operations)
-# Uses architecture detection for multi-arch support
-RUN apk add --no-cache curl && \
-    ARCH=$(uname -m) && \
-    case "$ARCH" in \
-        x86_64) KUBECTL_ARCH="amd64" ;; \
-        aarch64) KUBECTL_ARCH="arm64" ;; \
-        armv7l) KUBECTL_ARCH="arm" ;; \
-        *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
-    esac && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${KUBECTL_ARCH}/kubectl" && \
+# Install kubectl for Kubernetes operations
+# Use dynamic architecture detection for multi-arch support
+RUN ARCH=$(case $(uname -m) in x86_64) echo amd64;; aarch64) echo arm64;; *) echo $(uname -m);; esac) && \
+    apk add --no-cache curl && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
     apk del curl
 
-# Create non-root user and group
+# Create non-root user
 RUN addgroup -g 1000 appgroup && \
     adduser -u 1000 -G appgroup -s /bin/sh -D appuser
 
-# Copy dependency manifests
-COPY package.json package-lock.json ./
+# Copy production dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
 
-# Install production dependencies only
-RUN npm ci --omit=dev && \
-    npm cache clean --force
+# Copy compiled application
+COPY --from=builder /app/dist ./dist
 
-# Copy compiled application from builder
-COPY --from=builder /app/dist/ ./dist/
-
-# Copy runtime file dependencies (loaded at runtime via fs.readFileSync)
+# Copy runtime assets required by the application
+COPY --from=builder /app/package.json ./
 COPY prompts/ ./prompts/
 COPY shared-prompts/ ./shared-prompts/
 
-# Create session directory (used by default if DOT_AI_SESSION_DIR not set)
-RUN mkdir -p ./tmp/sessions
-
-# Set ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Create session directory with proper permissions
+RUN mkdir -p ./tmp/sessions && \
+    chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
 
-# Expose default port (configurable via PORT env var)
+# Default port for HTTP transport (configurable via PORT env var)
 EXPOSE 3456
 
-# Start the MCP server
+# Environment defaults
+ENV NODE_ENV=production \
+    TRANSPORT_TYPE=http \
+    DOT_AI_SESSION_DIR=./tmp/sessions
+
+# Use exec form for proper signal handling
 CMD ["node", "dist/mcp/server.js"]
