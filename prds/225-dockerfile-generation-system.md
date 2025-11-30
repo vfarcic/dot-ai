@@ -165,14 +165,23 @@ Guide the AI to generate .dockerignore with:
 - [ ] Update prompt template to include best practices guidance
 - [ ] Validate best practices with test projects
 
-### Milestone 4: Tested with Go Project
+### Milestone 4: Existing Dockerfile Improvement
+- [ ] Detect when Dockerfile already exists in project
+- [ ] Read and analyze existing Dockerfile against best practices
+- [ ] Identify improvements (security, multi-stage, non-root, image size, etc.)
+- [ ] Preserve intentional customizations while fixing issues
+- [ ] Present diff/comparison showing proposed changes with rationale
+- [ ] Update .dockerignore if needed based on existing Dockerfile's COPY commands
+- [ ] Validate improved Dockerfile builds and runs successfully
+
+### Milestone 5: Tested with Go Project
 - [ ] Tested with external Go project
 - [ ] Generated Dockerfile builds successfully
 - [ ] Generated image is minimal (distroless/scratch)
 - [ ] Multi-stage build properly separates build from runtime
 - [ ] Verifies pattern generalizes across languages
 
-### Milestone 5: Documentation Complete
+### Milestone 6: Documentation Complete
 - [ ] `docs/mcp-guide.md` updated with Dockerfile generation guide
 - [ ] Usage instructions documented
 - [ ] README.md updated with containerization capabilities
@@ -256,7 +265,6 @@ Guide the AI to generate .dockerignore with:
 ## Future Enhancements
 
 ### Potential Phase 2 Features
-- Dockerfile optimization for existing files
 - Platform-specific builds (ARM64, multi-arch)
 - Advanced BuildKit features (cache mounts, secrets)
 - Custom base image support (private registries)
@@ -364,4 +372,25 @@ After generating Dockerfile and .dockerignore, Claude should:
 
 **Next Session Priorities**:
 - Implement Step 6: Build, Test, Fix, and Clean Up (validation phase)
-- Test with Go project (Milestone 4)
+- Test with Go project (Milestone 5)
+
+### 2025-11-30: Design Decision - Add Existing Dockerfile Improvement Milestone
+**Decision**: Add Milestone 4 for improving existing Dockerfiles
+
+**Rationale**:
+- Current command assumes no Dockerfile exists and generates from scratch
+- Many projects already have Dockerfiles that need improvement, not replacement
+- Same best practices apply whether creating new or improving existing
+- Should be done before testing with other languages (Go) to ensure the improvement flow works
+
+**Impact**:
+- **New Milestone 4**: Existing Dockerfile Improvement
+- **Renumbered**: Go testing → Milestone 5, Documentation → Milestone 6
+- **Removed from Future Enhancements**: "Dockerfile optimization for existing files" now in scope
+
+**Implementation Approach**:
+1. Detect if Dockerfile exists in project directory
+2. If exists: read, analyze against best practices, propose improvements
+3. Preserve intentional customizations (comments, special configurations)
+4. Show diff/comparison with rationale for each change
+5. Apply same validation (build, run, clean up) to improved Dockerfile
