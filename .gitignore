@@ -112,3 +112,6 @@ argocd/
 # Evaluation data - exclude large raw datasets but keep analysis reports
 eval/datasets/*.jsonl
 eval/results/*.jsonl
+
+# Build artifacts
+*.tgz

@@ -1,5 +1,5 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage - compile TypeScript and install dependencies
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -10,58 +10,73 @@ COPY package.json package-lock.json ./
 RUN npm ci && \
     npm cache clean --force
 
-# Copy TypeScript configuration
+# Copy TypeScript configuration and source code
 COPY tsconfig.json ./
-
-# Copy source code
 COPY src/ ./src/
 
-# Build the application (npm run build includes lint + compile)
-RUN npm run build:prod
+# Build the application and prune devDependencies
+RUN npm run build:prod && \
+    npm prune --production
 
-# Runtime stage
-FROM node:20-alpine
+# Runtime stage - minimal image with kubectl for Kubernetes operations
+FROM node:22-alpine
 
-WORKDIR /app
-
-# Install kubectl for Kubernetes operations
-# Use dynamic architecture detection for multi-arch support
-RUN ARCH=$(case $(uname -m) in x86_64) echo amd64;; aarch64) echo arm64;; *) echo $(uname -m);; esac) && \
-    apk add --no-cache curl && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
+# Install kubectl - required for Kubernetes operations at runtime
+# Uses architecture detection for multi-arch support
+RUN apk add --no-cache curl && \
+    ARCH=$(uname -m) && \
+    case ${ARCH} in \
+        x86_64) KUBECTL_ARCH="amd64" ;; \
+        aarch64) KUBECTL_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${KUBECTL_ARCH}/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
     apk del curl
 
-# Create non-root user
-RUN addgroup -g 1000 appgroup && \
-    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+WORKDIR /app
+
+# Create non-root user and session directory
+RUN addgroup -g 10001 -S dotai && \
+    adduser -u 10001 -S -G dotai -h /app dotai && \
+    mkdir -p /app/tmp/sessions && \
+    chown -R dotai:dotai /app
 
 # Copy production dependencies from builder
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copy compiled application
+# Copy compiled JavaScript
 COPY --from=builder /app/dist ./dist
 
-# Copy runtime assets required by the application
+# Copy package.json (needed for version reading at runtime)
 COPY --from=builder /app/package.json ./
+
+# Copy prompt templates (loaded at runtime)
 COPY prompts/ ./prompts/
 COPY shared-prompts/ ./shared-prompts/
 
-# Create session directory with proper permissions
-RUN mkdir -p ./tmp/sessions && \
-    chown -R appuser:appgroup /app
+# Copy assets (templates, configs)
+COPY assets/ ./assets/
+
+# Copy scripts (nushell scripts for platform operations)
+COPY scripts/ ./scripts/
+
+# Set ownership for all copied files
+RUN chown -R dotai:dotai /app
 
 # Switch to non-root user
-USER appuser
+USER dotai
 
-# Default port for HTTP transport (configurable via PORT env var)
+# Default port for HTTP transport
 EXPOSE 3456
 
-# Environment defaults
+# Environment variable defaults
 ENV NODE_ENV=production \
     TRANSPORT_TYPE=http \
-    DOT_AI_SESSION_DIR=./tmp/sessions
+    PORT=3456 \
+    HOST=0.0.0.0 \
+    DOT_AI_SESSION_DIR=/app/tmp/sessions
 
-# Use exec form for proper signal handling
+# Run the MCP server
 CMD ["node", "dist/mcp/server.js"]

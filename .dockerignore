@@ -1,14 +1,15 @@
-# Security - exclude secrets that could exist in copied directories
-**/.env*
-**/credentials*
-**/secrets*
+# Security - exclude secrets that could exist inside copied directories
+**/.env
+**/.env.*
+**/credentials.json
 **/*.pem
 **/*.key
 
 # Performance - large directories that slow context transfer
-node_modules/
-dist/
-.git/
-tests/
-tmp/
-eval/
+node_modules
+dist
+.git
+tmp
+tests
+coverage
+*.tgz
