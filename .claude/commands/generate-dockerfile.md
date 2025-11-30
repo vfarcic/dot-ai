@@ -259,36 +259,33 @@ The runtime stage creates the final, minimal production image.
 
 ### Step 5: Create .dockerignore File
 
-**Generate a MINIMAL .dockerignore file with only critical exclusions:**
+**Generate a MINIMAL .dockerignore file based on the Dockerfile you just created.**
 
-Since the Dockerfile explicitly copies only what's needed, .dockerignore should focus on:
+#### The Key Insight
 
-1. **Security** - Exclude secrets and sensitive files
-2. **Performance** - Exclude large directories that slow down build context
-3. **Dependencies** - Exclude directories that are reinstalled in the container
+Since the Dockerfile uses **explicit COPY commands** (not `COPY . .`), .dockerignore serves a very limited purpose:
 
-**Essential exclusions only:**
+1. **Security** - Exclude secret patterns that could exist INSIDE directories being copied
+2. **Performance** - Exclude large directories that slow down build context transfer
 
-```
-# Version control (large, not needed)
-.git
+#### Process
 
-# Dependencies (reinstalled in container)
-node_modules/
-vendor/
-__pycache__/
+1. **Review your Dockerfile's COPY commands** - What directories/files does it copy?
+2. **Identify security risks inside those directories** - What secret files could accidentally exist inside the copied directories?
+3. **Identify large directories in the project** - What directories >1MB would slow down context transfer?
+4. **Exclude ONLY those items** - Nothing else
 
-# Secrets (security - never include)
-.env
-.env.*
+#### What NOT To Exclude
 
-# Temporary files (can be large)
-tmp/
-temp/
-*.log
-```
+**DO NOT exclude directories that aren't copied by your Dockerfile!**
 
-**DO NOT create exhaustive lists** - the Dockerfile's explicit COPY instructions handle what to include. Only exclude what's critical for security or performance.
+If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is pointless redundancy. The Dockerfile already ignores it.
+
+Ask yourself: "Does my Dockerfile copy this?" If no, don't add it to .dockerignore.
+
+#### Target Size
+
+**~10-15 lines maximum.** If your .dockerignore exceeds 20 lines, you're likely adding unnecessary exclusions. Review each line and ask: "Is this a security risk inside a copied directory, or a large directory slowing context transfer?" If neither, remove it.
 
 ## Output Format
 
@@ -316,11 +313,10 @@ The generated Dockerfile must:
 - ✅ Produce reasonably sized final image
 
 The generated .dockerignore must:
-- ✅ Exclude version control directories
-- ✅ Exclude development dependencies
-- ✅ Exclude build artifacts
-- ✅ Exclude documentation and test files
-- ✅ Exclude sensitive files (.env, secrets)
+- ✅ Be minimal (~10-15 lines) - only exclude what's necessary
+- ✅ Exclude large directories that slow build context transfer
+- ✅ Exclude secret patterns that could exist inside copied directories
+- ✅ NOT exclude directories that aren't copied by the Dockerfile (redundant)
 
 ## Important Notes
 
@@ -339,4 +335,4 @@ When invoked, follow this thought process:
 3. "This is an Express API, likely listens on port 3000 by default"
 4. "I'll use multi-stage: builder (install deps + build) + runtime (minimal production image)"
 5. "Create non-root user, copy only necessary runtime artifacts"
-6. "Generate .dockerignore to exclude node_modules, test files, docs, .git"
+6. "My Dockerfile copies src/, package.json - what secrets could be inside src/? What large directories exist? Generate minimal .dockerignore for those only"

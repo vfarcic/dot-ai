@@ -416,6 +416,54 @@
           "store_path": "/nix/store/4zxrn18g18ks59074vx3mh2zbxdzqswg-teller-2.0.7"
         }
       }
+    },
+    "vals@0.42.5": {
+      "last_modified": "2025-11-23T21:50:36Z",
+      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#vals",
+      "source": "devbox-search",
+      "version": "0.42.5",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/sdd83kbyqp9n3ifbimgbr7b05b8wgs31-vals-0.42.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/sdd83kbyqp9n3ifbimgbr7b05b8wgs31-vals-0.42.5"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6f5x6xagifd4d80ahj015fg37lap1p5l-vals-0.42.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/6f5x6xagifd4d80ahj015fg37lap1p5l-vals-0.42.5"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zvmgfffsfil4shdk0868hahj0wk91k9l-vals-0.42.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/zvmgfffsfil4shdk0868hahj0wk91k9l-vals-0.42.5"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/00ny4pvkj8crkblqbqa8hcffcnwxp182-vals-0.42.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/00ny4pvkj8crkblqbqa8hcffcnwxp182-vals-0.42.5"
+        }
+      }
     }
   }
 }

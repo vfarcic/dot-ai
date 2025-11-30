@@ -3,7 +3,7 @@
 **Created**: 2025-11-18
 **Status**: In Progress
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-11-21
+**Last Updated**: 2025-11-30
 
 ## Executive Summary
 Create an MCP prompt that generates production-ready, optimized Dockerfiles by analyzing local project directories. The prompt guides Claude Code to create language-agnostic Dockerfiles with multi-stage builds, security best practices, and build context optimization. This enables developers to containerize any application without deep Docker expertise.
@@ -345,3 +345,23 @@ After generating Dockerfile and .dockerignore, Claude should:
 
 **Owner**: Viktor Farcic
 **Status**: Approved, pending implementation
+
+### 2025-11-30: .dockerignore Guidance Enhancement
+**Duration**: Review and refinement session
+**Primary Focus**: Improve .dockerignore generation to be principle-based, not template-based
+
+**Completed Work**:
+- Rewrote Step 5 (.dockerignore) from template-based to principle-based guidance
+- Updated Success Criteria to reflect minimal .dockerignore approach (~10-15 lines)
+- Updated Example Workflow to show reasoning process instead of literal template
+- Validated prompt effectiveness: generated .dockerignore is 13 lines vs original 38 lines
+
+**Key Design Decisions**:
+- **.dockerignore derives from Dockerfile**: Only exclude what's relevant to COPY commands
+- **Two categories only**: Security patterns (inside copied dirs) + large directories (performance)
+- **No redundant exclusions**: Don't exclude directories the Dockerfile doesn't copy
+- **Target size**: ~10-15 lines maximum
+
+**Next Session Priorities**:
+- Implement Step 6: Build, Test, Fix, and Clean Up (validation phase)
+- Test with Go project (Milestone 4)
