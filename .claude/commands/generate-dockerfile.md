@@ -73,7 +73,7 @@ Use this section as guidance during generation and a reference for validation.
 
 | Practice | Description |
 |----------|-------------|
-| **Non-root user** | Create and run as a dedicated user (UID 1000+), never run as root |
+| **Non-root user** | Create and run as a dedicated user (UID 10001+), never run as root |
 | **Pin image versions** | Use specific tags like `node:20-alpine`, never `:latest` |
 | **Official images** | Prefer Docker Official Images or Verified Publishers from trusted sources |
 | **No secrets in image** | Never embed credentials, API keys, or passwords in Dockerfile or ENV instructions |
@@ -140,11 +140,13 @@ These are analysis goals, not lookup tables. The examples below are illustrative
    - Read manifest contents to understand the ecosystem
    - **Principle**: Every language has some form of dependency declaration - find it and read it
 
-2. **Version Detection**: Find the required language/runtime version from project configuration.
+2. **Version Detection**: Find the required language/runtime version.
    - Search manifest files for version constraints or engine requirements
    - Look for version files (e.g., `.node-version`, `.python-version`, `.ruby-version`, `.tool-versions`)
    - Check CI configuration files which often specify versions
-   - **Principle**: Projects usually declare their required runtime version somewhere - search for it rather than assuming
+   - **If project specifies a version** → use that exact version
+   - **If no version specified** → search online for the current LTS/stable version of that language/runtime
+   - **Principle**: Use the project's required version if specified, otherwise look up the current recommended version - never guess
 
 3. **Framework Detection**: Identify frameworks from dependencies and project structure.
    - Read the dependency list in manifest files
@@ -177,6 +179,14 @@ These are analysis goals, not lookup tables. The examples below are illustrative
    - For each binary found, verify it's needed at runtime (not just build time)
    - Consider what the application actually does - does it need CLI tools, database clients, image processors?
    - **When uncertain whether something is a runtime dependency, ask the user**
+
+8. **Environment Variable Detection**: Critical step - missing env vars cause runtime failures.
+   - Search the codebase for environment variable access (every language has a way to read env vars)
+   - Look for `.env.example`, `.env.sample`, or similar files that document required variables
+   - Check configuration and startup code for env var usage
+   - Determine which vars are required (no default, app fails without) vs optional (has default)
+   - For required vars, set sensible defaults in the Dockerfile
+   - **Principle**: If the code reads an env var, the container probably needs it configured
 
 ### Step 2: Generate or Improve Dockerfile
 
@@ -267,7 +277,7 @@ CMD ["<executable>", "<args>"]
 
 **Runtime stage checklist**:
 - [ ] Minimal base image (alpine/slim/distroless/scratch as appropriate)
-- [ ] Non-root user created (UID 1000+)
+- [ ] Non-root user created (UID 10001+)
 - [ ] Only runtime artifacts copied from builder
 - [ ] No source code, tests, build tools, or dev dependencies
 - [ ] Proper ownership set
@@ -342,6 +352,120 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 
 **~10-15 lines maximum.** If your .dockerignore exceeds 20 lines, you're likely adding unnecessary exclusions.
 
+### Step 4: Build, Test, and Iterate
+
+**Purpose**: Verify the Dockerfile works before presenting to user. A Dockerfile isn't done until it's validated.
+
+#### 4.1 Build
+
+Build the image to verify the Dockerfile syntax and instructions are correct:
+
+```bash
+docker build -t [project-name]-validation .
+```
+
+- If build succeeds → proceed to run
+- If build fails → analyze the error, fix Dockerfile, retry
+
+#### 4.2 Run
+
+Start a container to verify the application runs:
+
+```bash
+docker run -d --name [project-name]-test [project-name]-validation
+sleep 5  # Allow startup time
+```
+
+Check container state:
+
+```bash
+docker inspect --format='{{.State.Status}}' [project-name]-test
+docker inspect --format='{{.State.ExitCode}}' [project-name]-test
+```
+
+**Expected behavior depends on application type** (determined in Step 1):
+- **Services** (web servers, APIs, workers): Container should still be running
+- **CLI tools / one-shot commands**: Container should have exited with code 0
+
+If container crashed or exited unexpectedly → proceed to log analysis to understand why.
+
+#### 4.3 Log Analysis
+
+Capture and analyze container logs:
+
+```bash
+docker logs [project-name]-test 2>&1
+```
+
+**Analyze logs using your knowledge of the project from Step 1.** You know:
+- What language and framework this is
+- What the application is supposed to do
+- What dependencies it requires
+- What a successful startup looks like for this type of application
+
+Use this context to determine if the logs indicate:
+- The application started correctly, OR
+- Something is wrong (errors, crashes, missing dependencies, permission issues, etc.)
+
+If logs indicate a problem → identify root cause, fix Dockerfile or .dockerignore, retry.
+
+#### 4.4 Linting (if available)
+
+If `hadolint` is installed, run it to catch Dockerfile best practice issues:
+
+```bash
+hadolint Dockerfile
+```
+
+- If hadolint is not installed → skip this check
+- If hadolint reports issues → evaluate each issue, fix if appropriate, retry
+- Some hadolint warnings may be intentional (use judgment based on project context)
+
+#### 4.5 Security Scan (if available)
+
+If `trivy` is installed, scan the built image for vulnerabilities:
+
+```bash
+trivy image --severity HIGH,CRITICAL [project-name]-validation
+```
+
+- If trivy is not installed → skip this check
+- If trivy reports HIGH/CRITICAL vulnerabilities in the base image → consider if a different base image version or variant would help
+- If vulnerabilities are in application dependencies → note them for the user but don't block (dependency updates are outside Dockerfile scope)
+
+#### 4.6 Iterate
+
+If any validation step fails:
+
+1. **Analyze** the specific error message or behavior
+2. **Identify root cause** - common issues include:
+   - Missing file → incorrect COPY command or overly aggressive .dockerignore
+   - Missing dependency → system package not installed
+   - Permission denied → ownership or USER directive issue
+   - Module not found → build step incomplete or wrong files copied
+   - Hadolint warning → Dockerfile best practice issue
+3. **Fix** the appropriate file (Dockerfile or .dockerignore)
+4. **Retry** from step 4.1
+
+**Maximum 5 iterations.** If still failing after 5 attempts:
+- Stop and present current state to user
+- Explain what's failing and what fixes were attempted
+- Ask for guidance
+
+#### 4.7 Cleanup
+
+**Always clean up after validation**, whether successful or not:
+
+```bash
+docker stop [project-name]-test 2>/dev/null || true
+docker rm [project-name]-test 2>/dev/null || true
+docker rmi [project-name]-validation 2>/dev/null || true
+```
+
+Only proceed to present the Dockerfile to user after:
+- All validation steps pass, AND
+- Cleanup is complete
+
 ---
 
 ## Output Format
@@ -373,10 +497,9 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 
 ### For Both Cases
 
-**Recommended next steps:**
-- Test locally with the provided commands
-- Consider running `hadolint Dockerfile` for additional linting
-- Consider scanning with `trivy image [project-name]` for vulnerabilities
+**Recommended next steps** (the Dockerfile has already been validated):
+- Integrate into CI/CD pipeline
+- Commit to version control
 
 ---
 
@@ -386,7 +509,7 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 
 - [ ] Builds successfully without errors
 - [ ] Uses multi-stage build (builder → runtime)
-- [ ] Runs as non-root user (UID 1000)
+- [ ] Runs as non-root user (UID 10001+)
 - [ ] Uses pinned version tags (no `:latest`)
 - [ ] Uses minimal base images (alpine/slim/distroless)
 - [ ] Copies dependency manifests before source (layer caching)
@@ -405,6 +528,17 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 - [ ] Excludes large unnecessary directories
 - [ ] Does NOT exclude directories not copied by Dockerfile
 
+### Validation Checklist (Step 4)
+
+- [ ] Image builds successfully
+- [ ] Container starts without crashing
+- [ ] Logs show no errors indicating application failure
+- [ ] Hadolint passes (if installed)
+- [ ] Trivy shows no critical base image vulnerabilities (if installed)
+- [ ] Test container and image cleaned up
+
+**Do not present Dockerfile to user until all validation checks pass.**
+
 ---
 
 ## Example Workflows
@@ -417,8 +551,10 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 4. **Trace**: "The entry point is `<file>`. Following imports to understand runtime needs."
 5. **Structure**: "Multi-stage build: builder stage needs `<build-tools>`, runtime stage needs only `<runtime-artifacts>`."
 6. **Dependencies**: "Searching for external binary usage... found `<binary>`. This needs to be in the runtime image."
-7. **Generate**: "Create non-root user, copy only `<build-outputs>`, exclude source code and dev dependencies."
-8. **Validate**: "Check against Success Criteria checklists before presenting."
+7. **Generate**: "Create Dockerfile and .dockerignore. Check against best practices checklists."
+8. **Build & Test**: "Building image... Running container... Checking logs..."
+9. **Iterate** (if needed): "Build failed due to missing package. Adding to Dockerfile and retrying..."
+10. **Cleanup & Present**: "Validation passed. Removing test artifacts. Here's your Dockerfile."
 
 ### Improving Existing Dockerfile
 
@@ -431,6 +567,8 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
    - "✅ Dependency manifests copied first"
 4. **Preserve**: "Keeping custom ENV variables and the specific port configuration - these appear intentional."
 5. **Improve**: "Adding non-root user, pinning image version to match project requirements."
-6. **Validate**: "Check improved Dockerfile against checklists before presenting."
+6. **Build & Test**: "Building improved image... Running container... Checking logs..."
+7. **Iterate** (if needed): "Container crashed - logs show permission error. Fixing ownership and retrying..."
+8. **Cleanup & Present**: "Validation passed. Removing test artifacts. Here are the improvements."
 
-**Key mindset**: Investigate the actual project rather than matching against templates. Every project is unique.
+**Key mindset**: Investigate the actual project rather than matching against templates. Every project is unique. Don't present until validated.

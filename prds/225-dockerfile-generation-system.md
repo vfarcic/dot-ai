@@ -349,10 +349,10 @@ After generating Dockerfile and .dockerignore, Claude should:
 5. **Clean up**: Remove container and image after validation
 6. **Only then present to user**: With confidence it works
 
-**Code Impact**: None yet - decision documented for next implementation session
+**Code Impact**: Added Step 4 (Build, Test, and Iterate) to generate-dockerfile.md prompt
 
 **Owner**: Viktor Farcic
-**Status**: Approved, pending implementation
+**Status**: Implemented (2025-11-30)
 
 ### 2025-11-30: .dockerignore Guidance Enhancement
 **Duration**: Review and refinement session
@@ -464,6 +464,48 @@ After generating Dockerfile and .dockerignore, Claude should:
 - **Unified flow**: Same process for new and existing, only Step 2 output differs
 - **Checklists for validation**: Same checklists used for generation and improvement
 - **Conservative preservation**: Keep anything that looks intentional (comments, custom configs)
+
+**Next Session Priorities**:
+- Test with Go project (Milestone 5) to validate language-agnostic approach
+- Complete documentation (Milestone 6)
+
+### 2025-11-30: Validation Phase Implementation
+**Duration**: Development session
+**Primary Focus**: Implement Step 4 (Build, Test, and Iterate) and prompt enhancements
+
+**Completed Work**:
+- Implemented Step 4: Build, Test, and Iterate (validation phase)
+  - 4.1 Build validation
+  - 4.2 Run validation (container state check based on application type)
+  - 4.3 Log analysis (using project knowledge, language-agnostic)
+  - 4.4 Linting with hadolint (if available, skip if not)
+  - 4.5 Security scan with trivy (if available, skip if not)
+  - 4.6 Iteration loop (max 5 attempts before asking user)
+  - 4.7 Cleanup (always runs, success or failure)
+- Added Environment Variable Detection to Step 1 (item 8)
+- Changed UID recommendation from 1000+ to 10001+ (avoids base image user conflicts)
+- Added online version lookup guidance to Version Detection
+- Updated Example Workflows to include validation steps
+- Added Validation Checklist to Success Criteria
+- Moved hadolint/trivy from "recommended next steps" into automated validation
+
+**Key Design Decisions**:
+- **Language-agnostic log analysis**: AI uses project knowledge to interpret logs, no prescriptive error patterns
+- **Optional tooling**: hadolint and trivy run if installed, skip gracefully if not
+- **UID 10001+**: Avoids conflicts with common base image users (e.g., node user is often UID 1000)
+- **Principle-based env var detection**: No language-specific patterns, let AI figure it out
+
+**Validation Results** (tested with dot-ai project):
+
+| Mode | Test | Result |
+|------|------|--------|
+| New generation | UID | ✅ 10001 from start (no validation fix needed) |
+| New generation | ENV vars | ✅ 4 of 5 detected (TRANSPORT_TYPE, HOST, PORT, DOT_AI_SESSION_DIR) |
+| Improvement | Non-root user | ✅ Added (dotai, UID 10001) |
+| Improvement | --no-install-recommends | ✅ Added |
+| Improvement | ca-certificates | ✅ Added |
+| Improvement | Preserved customizations | ✅ All comments, ENV vars, .tgz approach kept |
+| Improvement | .dockerignore | ✅ Reduced from 38 to 12 lines |
 
 **Next Session Priorities**:
 - Test with Go project (Milestone 5) to validate language-agnostic approach
