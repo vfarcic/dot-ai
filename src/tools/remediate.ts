@@ -557,10 +557,22 @@ async function executeRemediationCommands(
   let validationResult = null;
   if (overallSuccess && finalAnalysis.validationIntent) {
     const validationIntent = finalAnalysis.validationIntent;
-    
+
     try {
-          logger.info('Running post-execution validation', { 
-            requestId, 
+          // In automatic mode, wait for Kubernetes to apply changes before validating
+          // This gives time for deployments to roll out new pods, operators to reconcile, etc.
+          // Manual mode skips this delay since the user can verify interactively
+          if (session.data.mode === 'automatic') {
+            logger.info('Waiting for Kubernetes to apply changes before validation', {
+              requestId,
+              sessionId: session.sessionId,
+              delayMs: 15000
+            });
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+
+          logger.info('Running post-execution validation', {
+            requestId,
             sessionId: session.sessionId,
             validationIntent: validationIntent
           });
