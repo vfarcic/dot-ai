@@ -95,6 +95,15 @@ Once investigation is complete, respond with ONLY this JSON format:
 - **Focus on fixes**: Include only actions that change system state to resolve issue
 - **No validation actions**: Describe validation needs in `validationIntent`, not as separate actions
 
+**Kubectl Patch Strategy Selection**:
+- **Use `--type=json` for array updates** (containers, volumes, env vars):
+  - JSON Patch allows precise array element targeting by index
+  - Example: `kubectl patch deployment app -n ns --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/resources/limits/memory","value":"256Mi"}]'`
+- **Use `--type=merge` for simple field updates**:
+  - Simpler syntax for non-array fields
+  - Example: `kubectl patch deployment app -n ns --type=merge -p='{"spec":{"replicas":3}}'`
+- **Avoid `--type=strategic`**: Can cause "invalid character" errors with partial array specifications, especially for containers
+
 **Risk Assessment**:
 - **Low risk**: Restart pods, scale replicas, update labels, increase resource requests
 - **Medium risk**: Change environment variables, update resource limits, modify ConfigMaps/Secrets, patch deployments
@@ -125,7 +134,7 @@ Once investigation is complete, respond with ONLY this JSON format:
     "actions": [
       {
         "description": "Remove bootstrap.recovery configuration to allow fresh cluster initialization",
-        "command": "kubectl patch cluster postgres-db -n test-ns --type=json -p='[{\"op\": \"remove\", \"path\": \"/spec/bootstrap/recovery\"}]'",
+        "command": "kubectl patch cluster postgres-db -n test-ns --type=json -p='[{\"op\":\"remove\",\"path\":\"/spec/bootstrap/recovery\"}]'",
         "risk": "medium",
         "rationale": "Removing invalid backup reference allows operator to create cluster with fresh initialization instead of waiting for non-existent backup"
       }

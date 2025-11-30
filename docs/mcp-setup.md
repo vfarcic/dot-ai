@@ -82,7 +82,7 @@ All setup methods need the same core configuration, but handle it differently:
 
 ### AI Model Configuration
 
-The DevOps AI Toolkit supports 10 different AI models from 5 providers. Choose based on your quality, cost, and reliability requirements.
+The DevOps AI Toolkit supports multiple AI models. Choose your model by setting the `AI_PROVIDER` environment variable.
 
 #### Model Requirements
 
@@ -91,50 +91,21 @@ All AI models must meet these minimum requirements:
 - **Output tokens**: 8K+ tokens (for YAML generation and policy creation)
 - **Function calling**: Required for MCP tool interactions
 
-**Note**: Most recommended models below meet these requirements. Models with limitations are marked with warnings in the recommendation table.
+#### Available Models
 
-#### Model Recommendations
+| Provider | Model | AI_PROVIDER | API Key Required | Recommended |
+|----------|-------|-------------|------------------|-------------|
+| **Anthropic** | Claude Haiku 4.5 | `anthropic_haiku` | `ANTHROPIC_API_KEY` | Yes |
+| **Anthropic** | Claude Opus 4.5 | `anthropic_opus` | `ANTHROPIC_API_KEY` | Yes |
+| **Anthropic** | Claude Sonnet 4.5 | `anthropic` | `ANTHROPIC_API_KEY` | Yes |
+| **AWS** | Amazon Bedrock | `amazon_bedrock` | AWS credentials ([see setup](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)) | Yes |
+| **Google** | Gemini 3 Pro | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (might be slow) |
+| **Moonshot AI** | Kimi K2 | `kimi` | `MOONSHOT_API_KEY` | Yes |
+| **Moonshot AI** | Kimi K2 Thinking | `kimi_thinking` | `MOONSHOT_API_KEY` | Yes (might be slow) |
+| **OpenAI** | GPT-5.1 Codex | `openai` | `OPENAI_API_KEY` | No * |
+| **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 
-| Model | Provider | Overall Score | Reliability | Recommendation |
-|-------|----------|----------------|-------------|----------------|
-| **Claude Sonnet 4.5** | Anthropic | 0.846 | 0.952 | ✅ **Best overall** - Maximum reliability, production-ready |
-| **Claude Haiku 4.5** | Anthropic | 0.836 | 0.916 | ✅ **Best balanced** - Excellent performance at 1/3 cost of Sonnet |
-| **Grok-4-Fast-Reasoning** | xAI | 0.740 | 0.802 | ✅ **Best value** - 87% of Sonnet performance at 3.9% of cost |
-| **Gemini 2.5 Pro** | Google | 0.768 | 0.837 | ⚠️ **Use cautiously** - Good capability analysis, weak remediation |
-| **Grok-4** | xAI | 0.743 | 0.834 | ⚠️ **Use cautiously** - Good remediation, weaker on other tools |
-| **GPT-5** | OpenAI | 0.732 | 0.827 | ⚠️ **Use cautiously** - Weak capability analysis performance |
-| **Gemini 2.5 Flash** | Google | 0.733 | 0.859 | ⚠️ **Limited use** - Weak pattern & remediation tasks |
-| **DeepSeek Reasoner** | DeepSeek | 0.640 | 0.645 | ❌ **Avoid** - Reliability concerns, lacks function calling |
-| **Mistral Large Latest** | Mistral | 0.589 | 0.542 | ❌ **Avoid** - Complete remediation failures, inconsistent |
-| **GPT-5-Codex** | OpenAI | *Pending* | *Pending* | 🔄 **Evaluation pending** - Optimized for code/infrastructure tasks |
-
-**Usage Guidelines:**
-- **Production (max reliability)**: Use Claude Sonnet 4.5
-- **Production (best balanced)**: Use Claude Haiku 4.5 (98.8% of Sonnet at 33% cost)
-- **Development & testing**: Use Grok-4-Fast-Reasoning for best value
-- **Budget-constrained**: Use Grok-4-Fast-Reasoning (25x more operations than Sonnet)
-- **Avoid**: Mistral Large Latest, DeepSeek Reasoner due to reliability issues
-- **GPT-5-Codex**: Evaluation pending - designed for infrastructure-as-code tasks
-
-📖 **[Complete Model Analysis Report](../eval/analysis/platform/synthesis-report.md)** - Detailed performance analysis, technical evaluation methodology, and comprehensive testing results across all MCP tools.
-
-#### Model Selection
-
-Choose your AI model by setting the provider:
-
-| Model | AI_PROVIDER | API Key Required |
-|-------|-------------|------------------|
-| **Claude Sonnet 4.5** | `anthropic` | `ANTHROPIC_API_KEY` |
-| **Claude Haiku 4.5** | `anthropic_haiku` | `ANTHROPIC_API_KEY` |
-| **GPT-5** | `openai` | `OPENAI_API_KEY` |
-| **GPT-5-Codex** | `openai_codex` | `OPENAI_API_KEY` |
-| **Gemini 2.5 Pro** | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` |
-| **Gemini 2.5 Flash** | `google_fast` | `GOOGLE_GENERATIVE_AI_API_KEY` |
-| **Grok-4** | `xai` | `XAI_API_KEY` |
-| **Grok-4-Fast-Reasoning** | `xai_fast` | `XAI_API_KEY` |
-| **Mistral Large Latest** | `mistral` | `MISTRAL_API_KEY` |
-| **DeepSeek Reasoner** | `deepseek` | `DEEPSEEK_API_KEY` |
-| **Amazon Bedrock** | `amazon_bedrock` | AWS credentials ([see AWS credential setup](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)) |
+\* **Note**: These models may not perform as well as other providers for complex DevOps reasoning tasks.
 
 **Configuration Steps:**
 
@@ -147,23 +118,20 @@ AI_PROVIDER=anthropic_haiku  # Example: using Claude Haiku 4.5
 ```bash
 # Choose ONE based on your selected provider:
 
-# For Claude Sonnet 4.5 or Claude Haiku 4.5 (default - recommended)
+# For Claude models (Opus 4.5, Sonnet 4.5, Haiku 4.5)
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
-# For OpenAI models (GPT-5, GPT-5-Pro)
+# For OpenAI models (GPT-5.1 Codex)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# For Google models (Gemini 2.5 Pro, Gemini 2.5 Flash)
+# For Google models (Gemini 3 Pro)
 GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key_here
 
-# For xAI models (Grok-4, Grok-4-Fast-Reasoning)
+# For xAI models (Grok-4)
 XAI_API_KEY=your_xai_api_key_here
 
-# For Mistral model (Mistral Large Latest)
-MISTRAL_API_KEY=your_mistral_api_key_here
-
-# For DeepSeek model (DeepSeek Reasoner)
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# For Moonshot AI models (Kimi K2, Kimi K2 Thinking)
+MOONSHOT_API_KEY=your_moonshot_api_key_here
 
 # For Amazon Bedrock (uses AWS credential chain)
 # Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
@@ -175,33 +143,15 @@ AI_MODEL=anthropic.claude-sonnet-4-5-20250929-v1:0  # Bedrock model ID
 
 ### Embedding Provider Configuration
 
-The DevOps AI Toolkit supports multiple embedding providers for enhanced semantic search capabilities in pattern management, capability discovery, and policy matching.
+The DevOps AI Toolkit supports multiple embedding providers for semantic search capabilities in pattern management, capability discovery, and policy matching.
 
-#### Provider Comparison
+#### Available Embedding Providers
 
-| Provider | Model | Dimensions | Pros | Cons | Best For |
-|----------|-------|------------|------|------|----------|
-| **OpenAI** | `text-embedding-3-small` | 1536 | ✅ High quality, mature API | Higher cost | Production deployments |
-| **Google** | `text-embedding-004` | 768 | ✅ Cost-effective, good performance | Smaller dimensions | Development, cost-conscious setups |
-| **Mistral** | `mistral-embed` | 1024 | ✅ Balanced dimensions, cost-effective | Newer option | Alternative to OpenAI/Google |
-| **Amazon Bedrock** | `amazon.titan-embed-text-v2:0` | 1024 | ✅ AWS-native, uses AWS credits | Requires AWS account | AWS-centric deployments |
-
-**Usage Guidelines:**
-- **Production**: Use OpenAI for maximum semantic search quality
-- **Development**: Use Google for cost-effective development and testing
-- **Alternative**: Use Mistral for balanced performance and dimensions
-- **AWS Users**: Use Amazon Bedrock to leverage AWS credits and stay within AWS ecosystem
-
-#### Provider Selection
-
-Choose your embedding provider by setting the provider:
-
-| Provider | EMBEDDINGS_PROVIDER | API Key Required | Model Used |
-|----------|-------------------|------------------|------------|
-| **OpenAI** | `openai` (default) | `OPENAI_API_KEY` | `text-embedding-3-small` |
-| **Google** | `google` | `GOOGLE_API_KEY` | `text-embedding-004` |
-| **Mistral** | `mistral` | `MISTRAL_API_KEY` | `mistral-embed` |
-| **Amazon Bedrock** | `amazon_bedrock` | AWS credentials | `amazon.titan-embed-text-v2:0` |
+| Provider | EMBEDDINGS_PROVIDER | Model | Dimensions | API Key Required |
+|----------|-------------------|-------|------------|------------------|
+| **Amazon Bedrock** | `amazon_bedrock` | `amazon.titan-embed-text-v2:0` | 1024 | AWS credentials |
+| **Google** | `google` | `text-embedding-004` | 768 | `GOOGLE_API_KEY` |
+| **OpenAI** | `openai` (default) | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY` |
 
 **Configuration Steps:**
 
@@ -214,14 +164,11 @@ EMBEDDINGS_PROVIDER=google  # Example: using Google embeddings
 ```bash
 # Choose ONE based on your selected provider:
 
-# For OpenAI embeddings (default - recommended for production)
+# For OpenAI embeddings (default)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# For Google embeddings (cost-effective alternative)
+# For Google embeddings
 GOOGLE_API_KEY=your_google_api_key_here
-
-# For Mistral embeddings (alternative option)
-MISTRAL_API_KEY=your_mistral_api_key_here
 
 # For Amazon Bedrock embeddings (uses AWS credential chain)
 # Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
@@ -231,13 +178,10 @@ AWS_REGION=us-east-1
 EMBEDDINGS_MODEL=amazon.titan-embed-text-v2:0  # Optional: defaults to Titan v2
 ```
 
-**Important Notes:**
-- **Same Provider Efficiency**: If using the same provider for both AI models and embeddings (e.g., `AI_PROVIDER=google` and `EMBEDDINGS_PROVIDER=google`), you only need to set one API key (`GOOGLE_API_KEY`)
-- **Mixed Providers**: You can mix embedding and AI providers. For example, use Claude for AI (`AI_PROVIDER=anthropic`) with Google embeddings (`EMBEDDINGS_PROVIDER=google`) - embeddings are very cost-effective, so using different providers is economical
-- **Limited Embedding Support**: Not all AI model providers support embeddings. Popular combinations:
-  - Anthropic AI models + OpenAI embeddings (premium quality)
-  - Anthropic AI models + Google embeddings (cost-optimized)
-  - Google AI models + Google embeddings (unified setup)
+**Notes:**
+- **Same Provider**: If using the same provider for both AI models and embeddings (e.g., `AI_PROVIDER=google` and `EMBEDDINGS_PROVIDER=google`), you only need to set one API key
+- **Mixed Providers**: You can use different providers for AI models and embeddings (e.g., `AI_PROVIDER=anthropic` with `EMBEDDINGS_PROVIDER=google`)
+- **Embedding Support**: Not all AI model providers support embeddings. Anthropic does not provide embeddings; use OpenAI, Google, or Amazon Bedrock for embeddings
 
 ### Custom Endpoint Configuration
 
@@ -270,7 +214,7 @@ export OPENAI_API_KEY="sk-proj-your-openai-key"
 export EMBEDDINGS_PROVIDER=openai
 ```
 
-**Note**: OpenRouter does not support embedding models. Use OpenAI, Google, or Mistral for embeddings.
+**Note**: OpenRouter does not support embedding models. Use OpenAI, Google, or Amazon Bedrock for embeddings.
 
 Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 

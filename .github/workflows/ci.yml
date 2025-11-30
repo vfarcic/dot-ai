@@ -8,6 +8,7 @@ on:
     branches: [ main ]
   release:
     types: [ published ]
+  workflow_dispatch:
 
 # Restrict default permissions to read-only for security
 permissions: read-all
@@ -22,7 +23,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
     - name: Setup Node.js
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -61,10 +62,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@f94c9befffa4412c356fb5463a959ab7821dd57e # v3
+      uses: github/codeql-action/init@c3d42c5d08633d8b33635fbd94b000a0e2585b3c # v3
       with:
         languages: typescript
         
@@ -84,11 +85,11 @@ jobs:
       run: npm audit --audit-level moderate
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@f94c9befffa4412c356fb5463a959ab7821dd57e # v3
+      uses: github/codeql-action/analyze@c3d42c5d08633d8b33635fbd94b000a0e2585b3c # v3
 
   version:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read  # Required to checkout code and read package.json
     outputs:
@@ -97,7 +98,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -139,7 +140,7 @@ jobs:
   release:
     needs: [version]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.version.outputs.version-changed == 'true'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.version.outputs.version-changed == 'true'
     permissions:
       contents: write
       packages: write
@@ -147,7 +148,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -202,7 +203,10 @@ jobs:
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    
+
+    - name: Create npm package tarball for Docker build
+      run: npm pack
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
@@ -241,16 +245,20 @@ jobs:
     - name: Update Chart.yaml and values.yaml versions
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        
+
         # Update Chart.yaml versions to match the coordinated release
         sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
         # Update Chart.yaml appVersion to match the Docker image we just built
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
-        
+
         # Update values.yaml image tag to reference the Docker image we just built
         sed -i "s/tag: \".*\"/tag: \"$VERSION\"/" charts/values.yaml
-        
+
+        # Update dot.nu --dot-ai-tag default value to reference the Docker image we just built
+        sed -i "s/--dot-ai-tag: string = \".*\"/--dot-ai-tag: string = \"$VERSION\"/" dot.nu
+
         echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
+        echo "Updated dot.nu to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
     
     - name: Log in to GitHub Container Registry for Helm
       run: |
@@ -273,16 +281,16 @@ jobs:
     - name: Commit all coordinated changes and create Git tag
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        
+
         # Add all version-related changes
-        git add package.json charts/Chart.yaml charts/values.yaml server.json
-        
+        git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
+
         git commit -m "chore: coordinated release v$VERSION
 
         - npm package: v$VERSION
-        - docker image: ghcr.io/vfarcic/dot-ai:$VERSION  
+        - docker image: ghcr.io/vfarcic/dot-ai:$VERSION
         - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
-        
+
         [skip ci]"
         
         # Create release tag

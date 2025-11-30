@@ -1,0 +1,57 @@
+# Example: Solution CR for tracking dot-ai MCP server deployment
+# This demonstrates how the Solution CR tracks all resources deployed by the dot-ai Helm chart
+apiVersion: dot-ai.devopstoolkit.live/v1alpha1
+kind: Solution
+metadata:
+  name: dot-ai
+  namespace: dot-ai
+  labels:
+    app.kubernetes.io/name: dot-ai
+    app.kubernetes.io/instance: dot-ai
+spec:
+  intent: "Deploy dot-ai MCP server for AI-powered Kubernetes operations"
+
+  resources:
+    # ServiceAccount
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: dot-ai
+      namespace: dot-ai
+
+    # ClusterRole
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      name: dot-ai
+
+    # ClusterRoleBinding
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      name: dot-ai
+
+    # Secret
+    - apiVersion: v1
+      kind: Secret
+      name: dot-ai-secrets
+      namespace: dot-ai
+
+    # Deployment (standard mode)
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dot-ai
+      namespace: dot-ai
+
+    # Service (standard mode)
+    - apiVersion: v1
+      kind: Service
+      name: dot-ai
+      namespace: dot-ai
+
+    # Note: Add Ingress if enabled
+    # - apiVersion: networking.k8s.io/v1
+    #   kind: Ingress
+    #   name: dot-ai
+    #   namespace: dot-ai
+
+  context:
+    createdBy: "user"
+    rationale: "Self-hosted MCP server providing intelligent Kubernetes deployment recommendations, cluster discovery, and AI-powered operations"

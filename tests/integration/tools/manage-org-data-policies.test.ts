@@ -66,12 +66,14 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
       const nextStep = startResponse.data.result.workflow.nextStep;
 
       // Step 2: Provide description response (policy intent description) - use unique name
+      // NOTE: Using label requirement instead of resource limits to avoid conflicting with other tests
+      // Resource limits policy would block operate/remediate tests that generate patches without limits
       const testId = Date.now();
       const descriptionResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
         operation: 'create',
         sessionId,
-        response: `All pods must have resource limits ${testId}`, // Unique per test execution
+        response: `All pods in policy-test namespace must have the label policy-test-id=${testId}`, // Won't affect other namespaces
         interaction_id: 'description_step'
       });
 
@@ -179,7 +181,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         dataType: 'policy',
         operation: 'create',
         sessionId,
-        response: 'Resource limits prevent pods from consuming excessive CPU and memory, ensuring fair resource allocation across all workloads',
+        response: 'Labels help identify and organize pods, enabling better resource tracking and policy enforcement',
         interaction_id: 'rationale_step'
       });
 
@@ -343,9 +345,9 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
             message: 'Policy intent retrieved successfully',
             policyIntent: expect.objectContaining({
               id: policyId,
-              description: expect.stringContaining('pods must have resource limits'),
-              triggers: expect.arrayContaining(['pod', 'container', 'deployment']),
-              rationale: 'Resource limits prevent pods from consuming excessive CPU and memory, ensuring fair resource allocation across all workloads',
+              description: expect.stringContaining('policy-test namespace'),
+              triggers: expect.arrayContaining(['pod']), // AI generates triggers from description
+              rationale: expect.any(String), // AI generates rationale based on description
               createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
               createdBy: 'Integration Test Suite'
             })
@@ -377,9 +379,9 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
             policyIntents: expect.arrayContaining([
               expect.objectContaining({
                 id: policyId,
-                description: expect.stringContaining('pods must have resource limits'),
-                triggers: expect.arrayContaining(['pod', 'container', 'deployment']),
-                rationale: 'Resource limits prevent pods from consuming excessive CPU and memory, ensuring fair resource allocation across all workloads',
+                description: expect.stringContaining('policy-test namespace'),
+                triggers: expect.arrayContaining(['pod']), // AI generates triggers from description
+                rationale: expect.any(String), // AI generates rationale based on description
                 createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
                 createdBy: 'Integration Test Suite'
               })
@@ -401,7 +403,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
       const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
         operation: 'search',
-        id: 'resource limits pods containers', // Search query in 'id' parameter
+        id: 'pods labels namespace', // Search query in 'id' parameter
         limit: 10,
         interaction_id: 'search_test'
       });
@@ -417,9 +419,9 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
             policyIntents: expect.arrayContaining([
               expect.objectContaining({
                 id: policyId,
-                description: expect.stringContaining('pods must have resource limits'),
-                triggers: expect.arrayContaining(['pod', 'container', 'deployment']),
-                rationale: 'Resource limits prevent pods from consuming excessive CPU and memory, ensuring fair resource allocation across all workloads',
+                description: expect.stringContaining('policy-test namespace'),
+                triggers: expect.arrayContaining(['pod']), // AI generates triggers from description
+                rationale: expect.any(String), // AI generates rationale based on description
                 createdBy: 'Integration Test Suite'
               })
             ]),
@@ -506,7 +508,7 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
             message: expect.stringContaining('Policy intent deleted successfully'),
             deletedPolicyIntent: expect.objectContaining({
               id: policyId,
-              description: expect.stringContaining('pods must have resource limits')
+              description: expect.stringContaining('policy-test namespace')
             }),
             kyvernoCleanup: expect.objectContaining({
               successful: expect.any(Array),

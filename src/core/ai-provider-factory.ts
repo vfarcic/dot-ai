@@ -20,19 +20,16 @@ import { CURRENT_MODELS } from './model-config';
 /**
  * Provider environment variable mappings
  * Phase 1 (PRD 73): anthropic, openai, google
- * Phase 2 (PRD 154): openai_pro for GPT-5 Pro
  */
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
+  anthropic_opus: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   anthropic_haiku: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   openai: 'OPENAI_API_KEY',
-  openai_pro: 'OPENAI_API_KEY', // Uses same API key as regular OpenAI
   google: 'GOOGLE_API_KEY',
-  google_fast: 'GOOGLE_API_KEY', // Uses same API key as regular Google
+  kimi: 'MOONSHOT_API_KEY', // PRD #237: Moonshot AI Kimi K2
+  kimi_thinking: 'MOONSHOT_API_KEY', // PRD #237: Uses same API key as regular Kimi
   xai: 'XAI_API_KEY',
-  xai_fast: 'XAI_API_KEY', // Uses same API key as regular xAI
-  mistral: 'MISTRAL_API_KEY',
-  deepseek: 'DEEPSEEK_API_KEY',
 };
 
 /**
@@ -87,6 +84,7 @@ export class AIProviderFactory {
     // Create provider based on type
     switch (config.provider) {
       case 'anthropic':
+      case 'anthropic_opus':
       case 'anthropic_haiku':
         return this.createAnthropicProvider(config);
 

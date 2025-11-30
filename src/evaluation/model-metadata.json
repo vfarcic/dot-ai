@@ -65,33 +65,6 @@
       },
       "context_window": 256000,
       "supports_function_calling": true
-    },
-    "grok-4-fast-reasoning": {
-      "provider": "xAI",
-      "pricing": {
-        "input_cost_per_million_tokens": 0.20,
-        "output_cost_per_million_tokens": 0.50
-      },
-      "context_window": 2000000,
-      "supports_function_calling": true
-    },
-    "mistral-large-latest": {
-      "provider": "Mistral",
-      "pricing": {
-        "input_cost_per_million_tokens": 2.0,
-        "output_cost_per_million_tokens": 6.0
-      },
-      "context_window": 128000,
-      "supports_function_calling": true
-    },
-    "deepseek-reasoner": {
-      "provider": "DeepSeek",
-      "pricing": {
-        "input_cost_per_million_tokens": 0.55,
-        "output_cost_per_million_tokens": 2.19
-      },
-      "context_window": 128000,
-      "supports_function_calling": false
     }
   },
   "tools": {

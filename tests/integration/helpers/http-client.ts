@@ -37,7 +37,8 @@ export class HttpRestApiClient {
   private defaultHeaders: Record<string, string>;
 
   constructor(options: HttpClientOptions = {}) {
-    this.baseUrl = options.baseUrl || 'http://localhost:3456';
+    // Use MCP_BASE_URL from environment if set (for in-cluster testing), otherwise default to localhost
+    this.baseUrl = options.baseUrl || process.env.MCP_BASE_URL || 'http://localhost:3456';
     this.timeout = options.timeout || 1800000; // Default to 30 minutes for integration tests (slower AI providers)
     this.defaultHeaders = {
       'Content-Type': 'application/json',
@@ -98,6 +99,18 @@ export class HttpRestApiClient {
 
     return new Promise((resolve, reject) => {
       const client = url.protocol === 'https:' ? https : http;
+      const startTime = Date.now();
+      let socketAssigned = false;
+      let socketTimeoutHandler: (() => void) | null = null;
+      let currentSocket: any = null;
+
+      const cleanup = () => {
+        // Remove socket timeout listener to prevent memory leak on reused sockets
+        if (currentSocket && socketTimeoutHandler) {
+          currentSocket.removeListener('timeout', socketTimeoutHandler);
+          currentSocket.setTimeout(0); // Disable socket timeout
+        }
+      };
 
       const req = client.request(url, options, (res: IncomingMessage) => {
         let data = '';
@@ -107,6 +120,7 @@ export class HttpRestApiClient {
         });
 
         res.on('end', () => {
+          cleanup();
           try {
             const response = this.parseResponse(data, res.statusCode || 500);
             resolve(response);
@@ -116,15 +130,33 @@ export class HttpRestApiClient {
         });
       });
 
+      req.once('socket', (socket) => {
+        socketAssigned = true;
+        currentSocket = socket;
+        // Set timeout on socket directly for more reliable timeout handling
+        socket.setTimeout(this.timeout);
+        socketTimeoutHandler = () => {
+          const elapsed = Date.now() - startTime;
+          cleanup();
+          req.destroy();
+          reject(new Error(`Socket timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: true)`));
+        };
+        socket.once('timeout', socketTimeoutHandler);
+      });
+
       req.setTimeout(this.timeout);
 
       req.on('error', (error) => {
-        reject(new Error(`Request failed: ${error.message}`));
+        const elapsed = Date.now() - startTime;
+        cleanup();
+        reject(new Error(`Request failed after ${elapsed}ms: ${error.message} (socket assigned: ${socketAssigned})`));
       });
 
       req.on('timeout', () => {
+        const elapsed = Date.now() - startTime;
+        cleanup();
         req.destroy();
-        reject(new Error(`Request timeout after ${this.timeout}ms`));
+        reject(new Error(`Request timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: ${socketAssigned})`));
       });
 
       if (requestBody) {

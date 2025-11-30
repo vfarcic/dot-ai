@@ -416,7 +416,7 @@ type RetryConfig struct {
 
 ### Related PRDs
 - **PRD #155: Parallel Capability Analysis** - Future: controller could leverage parallel scanning
-- **PRD #25: CRD-Based Solution Tracking** - Synergy: both use CRDs for configuration
+- **dot-ai-controller PRD #4: Solution CRD for Deployment Tracking** - Synergy: both implemented in dot-ai-controller repo
 - **PRD #180: Dynamic Credential Management** - May inform controller authentication design
 
 ### External Dependencies

@@ -1,6 +1,6 @@
 #!/usr/bin/env nu
 
-# Installs DevOps AI Toolkit with MCP server support
+# Installs DevOps AI Toolkit with MCP server support and controller
 #
 # Examples:
 # > main apply dot-ai --host dot-ai.127.0.0.1.nip.io
@@ -12,8 +12,10 @@ def "main apply dot-ai" [
     --provider = "anthropic",
     --model = "claude-haiku-4-5-20251001",
     --ingress-enabled = true,
+    --ingress-class = "nginx",
     --host = "dot-ai.127.0.0.1.nip.io",
-    --version = "0.128.0",
+    --version = "0.140.0",
+    --controller-version = "0.16.0",
     --enable-tracing = false
 ] {
 
@@ -43,6 +45,13 @@ def "main apply dot-ai" [
     }
 
     (
+        helm upgrade --install dot-ai-controller
+            $"oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:($controller_version)"
+            --namespace dot-ai --create-namespace
+            --wait
+    )
+
+    (
         helm upgrade --install dot-ai-mcp
             $"oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:($version)"
             --set $"secrets.anthropic.apiKey=($anthropic_key)"
@@ -50,12 +59,15 @@ def "main apply dot-ai" [
             --set $"ai.provider=($provider)"
             --set $"ai.model=($model)"
             --set $"ingress.enabled=($ingress_enabled)"
+            --set $"ingress.className=($ingress_class)"
             --set $"ingress.host=($host)"
+            --set "controller.enabled=true"
             ...$tracing_flags
             --namespace dot-ai --create-namespace
             --wait
     )
 
+    print $"DevOps AI Controller (ansi yellow_bold)($controller_version)(ansi reset) installed in (ansi yellow_bold)dot-ai(ansi reset) namespace"
     print $"DevOps AI Toolkit is available at (ansi yellow_bold)http://($host)(ansi reset)"
 
     if $enable_tracing {

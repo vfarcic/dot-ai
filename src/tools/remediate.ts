@@ -128,7 +128,7 @@ async function conductInvestigation(
   isValidation: boolean = false,
   interactionId?: string
 ): Promise<RemediateOutput> {
-  const maxIterations = 30; // Increased for thorough models like Mistral
+  const maxIterations = 30; // Increased for thorough investigation workflows
 
   logger.info('Starting AI investigation with toolLoop', {
     requestId,
@@ -743,7 +743,7 @@ export async function handleRemediateTool(args: any): Promise<any> {
 
     // Validate input
     const validatedInput = validateRemediateInput(args);
-    
+
     // Handle choice execution if provided
     if (validatedInput.executeChoice && validatedInput.sessionId) {
       logger.info('Executing user choice from previous session', { 

@@ -29,7 +29,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
   // Parameters for chooseSolution stage
   solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages'),
   // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
-  answers: z.record(z.any()).optional().describe('User answers for answerQuestion stage'),
+  answers: z.record(z.string(), z.any()).optional().describe('User answers for answerQuestion stage'),
   // Parameters for deployManifests stage
   timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
@@ -54,9 +54,11 @@ export interface SolutionData {
     basic?: any[];
     advanced?: any[];
     open?: any;
+    relevantPolicies?: string[];  // Policy descriptions from question generation
   };
   answers: Record<string, any>;
   timestamp: string;
+  appliedPatterns?: string[];  // Pattern descriptions that influenced this solution
 }
 
 /**
@@ -299,9 +301,10 @@ export async function handleRecommendTool(
             group: r.group,
             description: r.description
           })),
-          questions: solution.questions,
+          questions: solution.questions, // Includes relevantPolicies from question generation
           answers: {}, // Empty initially - will be filled by answerQuestion tool
-          timestamp
+          timestamp,
+          appliedPatterns: solution.appliedPatterns || []
         };
 
         // Create solution session
@@ -324,24 +327,27 @@ export async function handleRecommendTool(
           })),
           reasons: solution.reasons,
           analysis: solution.analysis,
-          usedPatterns: solution.usedPatterns || false,
-          patternInfluences: solution.patternInfluences || []
+          appliedPatterns: solution.appliedPatterns || [],
+          relevantPolicies: solution.questions?.relevantPolicies || []
         });
       }
 
-      // Analyze pattern usage across all solutions
-      const patternsUsedCount = solutionSummaries.filter(s => s.usedPatterns).length;
-      const totalPatternInfluences = solutionSummaries.reduce((count, s) => count + (s.patternInfluences?.length || 0), 0);
+      // Analyze pattern/policy usage across all solutions
+      const patternsUsedCount = solutionSummaries.filter(s => s.appliedPatterns && s.appliedPatterns.length > 0).length;
+      const totalPatterns = solutionSummaries.reduce((count, s) => count + (s.appliedPatterns?.length || 0), 0);
+      const totalPolicies = solutionSummaries.reduce((count, s) => count + (s.relevantPolicies?.length || 0), 0);
 
       // Build new response format
       const response = {
         intent: args.intent,
         solutions: solutionSummaries,
-        patternSummary: {
+        organizationalContext: {
           solutionsUsingPatterns: patternsUsedCount,
           totalSolutions: solutionSummaries.length,
-          totalPatternInfluences: totalPatternInfluences,
-          patternsAvailable: totalPatternInfluences > 0 ? "Yes" : "None found or pattern search failed"
+          totalPatterns: totalPatterns,
+          totalPolicies: totalPolicies,
+          patternsAvailable: totalPatterns > 0 ? "Yes" : "None found or pattern search failed",
+          policiesAvailable: totalPolicies > 0 ? "Yes" : "None found or policy search failed"
         },
         nextAction: "Call recommend tool with stage: chooseSolution and your preferred solutionId",
         guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",

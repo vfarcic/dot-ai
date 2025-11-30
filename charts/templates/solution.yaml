@@ -1,0 +1,95 @@
+{{- if .Values.controller.enabled }}
+apiVersion: dot-ai.devopstoolkit.live/v1alpha1
+kind: Solution
+metadata:
+  name: {{ include "dot-ai.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+spec:
+  intent: "Deploy dot-ai MCP server for AI-powered Kubernetes operations"
+
+  resources:
+    # ServiceAccount
+    {{- if .Values.serviceAccount.create }}
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: {{ include "dot-ai.serviceAccountName" . }}
+      namespace: {{ .Release.Namespace }}
+    {{- end }}
+
+    # ClusterRole
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      name: {{ include "dot-ai.fullname" . }}
+
+    # ClusterRoleBinding
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      name: {{ include "dot-ai.fullname" . }}
+
+    # Secret
+    - apiVersion: v1
+      kind: Secret
+      name: {{ .Values.secrets.name }}
+      namespace: {{ .Release.Namespace }}
+
+    # Deployment or MCPServer (depending on deployment method)
+    {{- if eq .Values.deployment.method "standard" }}
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: {{ include "dot-ai.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+
+    # Service (only for standard deployment)
+    - apiVersion: v1
+      kind: Service
+      name: {{ include "dot-ai.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+    {{- else if eq .Values.deployment.method "toolhive" }}
+    - apiVersion: toolhive.stacklok.dev/v1alpha1
+      kind: MCPServer
+      name: {{ include "dot-ai.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+    {{- end }}
+
+    # Ingress (if enabled)
+    {{- if .Values.ingress.enabled }}
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      name: {{ include "dot-ai.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+    {{- end }}
+
+    # Qdrant Vector Database (if enabled)
+    {{- if .Values.qdrant.enabled }}
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: ConfigMap
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: Service
+      name: {{ .Release.Name }}-qdrant-headless
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: v1
+      kind: Service
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: {{ .Release.Name }}-qdrant
+      namespace: {{ .Release.Namespace }}
+    {{- end }}
+
+  context:
+    createdBy: "dot-ai-helm-chart"
+    rationale: "Self-hosted MCP server providing intelligent Kubernetes deployment recommendations, cluster discovery, and AI-powered operations"
+{{- end }}

@@ -86,7 +86,7 @@ For semantic pattern matching, configure an embedding provider:
 
 #### Embedding Provider Configuration
 
-The toolkit supports multiple embedding providers (OpenAI, Google, Mistral) for enhanced semantic search.
+The toolkit supports multiple embedding providers (OpenAI, Google, Amazon Bedrock) for enhanced semantic search.
 
 📖 **[Complete Embedding Provider Setup Guide](mcp-setup.md#embedding-provider-configuration)** - Choose your provider, set API keys, and configure dimensions.
 

@@ -1,10 +1,27 @@
 # PRD: AI Model Comparison Testing - Model Portfolio Management
 
-**Status**: Draft
+**Status**: Closed - No Longer Needed
 **Created**: 2025-11-08
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-11-27
+**Closed**: 2025-11-27
 **GitHub Issue**: [#209](https://github.com/vfarcic/dot-ai/issues/209)
 **Priority**: Medium
+
+---
+
+### 2025-11-27: PRD Closure - No Longer Needed
+**Duration**: N/A (administrative closure)
+**Status**: Closed
+
+**Closure Summary**:
+Decision made not to pursue formal model portfolio management. Model selection and updates will be handled ad-hoc as needed rather than through a formal tracking PRD.
+
+**Reason for Closure**:
+- Overhead of maintaining a formal portfolio tracking document outweighs benefits
+- Model selection can be managed through existing configuration and documentation
+- No dedicated process needed for tracking model additions/removals
+
+---
 
 ## Problem Statement
 
@@ -24,8 +41,8 @@ This PRD serves as a living document tracking which AI models are currently bein
 |---|----------|------------|--------------|--------|
 | 1 | Anthropic | Claude Sonnet 4.5 | claude-sonnet-4-5-20250929 | Active |
 | 2 | Anthropic | Claude Haiku 4.5 | claude-haiku-4-5-20251001 | Active |
-| 3 | OpenAI | GPT-5 | gpt-5 | Active |
-| 4 | OpenAI | GPT-5 Pro | gpt-5-pro | Active |
+| 3 | OpenAI | GPT-5.1 Codex | gpt-5.1-codex | Active |
+| 4 | OpenAI | GPT-5.1 Codex Max | gpt-5.1-codex-max | Active |
 | 5 | Google | Gemini 3 Pro | gemini-3-pro-preview (thinkingLevel: high) | Active |
 | 6 | Google | Gemini 3 Pro (Fast) | gemini-3-pro-preview (thinkingLevel: low) | Active |
 | 7 | xAI | Grok 4 | grok-4 | Active |
@@ -70,6 +87,17 @@ This PRD serves as a living document tracking which AI models are currently bein
 
 ## Change History
 
+### 2025-11-23: GPT-5 → GPT-5.1 Codex Upgrade
+- **Rationale**: OpenAI released GPT-5.1 Codex series optimized for code-intensive tasks
+  - GPT-5.1 Codex replaces GPT-5 - Enhanced code generation and infrastructure-as-code capabilities
+  - GPT-5.1 Codex Max replaces GPT-5 Pro - Larger context and advanced reasoning for complex codebases
+  - Both models specifically optimized for Kubernetes manifests, operators, and CRD generation
+  - Better suited for DevOps AI Toolkit's infrastructure automation workflows
+- **Trade-off**: Specialized coding models vs general-purpose reasoning (aligned with project needs)
+- **API Model IDs**:
+  - `gpt-5.1-codex` (replaces `gpt-5`)
+  - `gpt-5.1-codex-max` (replaces `gpt-5-pro`)
+
 ### 2025-11-19: Gemini 2.5 → Gemini 3 Upgrade
 - **Rationale**: Gemini 3 released with state-of-the-art reasoning and multimodal capabilities
   - Just released (November 18, 2025) - Google's most intelligent model
@@ -86,14 +114,10 @@ This PRD serves as a living document tracking which AI models are currently bein
   - Pricing: $2/million input tokens, $12/million output tokens (≤200K context)
   - Note: Cannot fully disable thinking; only adjust intensity
 
-### 2025-11-16: GPT-5 Pro → GPT-5-Codex Replacement
-- **Rationale**: GPT-5-Codex is better suited for infrastructure-as-code tasks
-  - Optimized for code generation, refactoring, and review
-  - Larger context window (400K tokens) at lower cost
-  - Trained on real-world engineering tasks including complex refactoring
-  - Better fit for Kubernetes manifests, operators, and CRD generation
-- **Trade-off**: Specialized coding capability vs general reasoning (acceptable for our use case)
-- **Status**: Documented but not yet implemented in model-config.ts
+### 2025-11-16: GPT-5 Pro → GPT-5-Codex Replacement (Superseded)
+- **Note**: This change was documented but superseded by GPT-5.1 Codex series on 2025-11-23
+- **Original Rationale**: Move to specialized coding models for infrastructure-as-code tasks
+- **Final Implementation**: GPT-5.1 Codex and GPT-5.1 Codex Max (see 2025-11-23 entry above)
 
 ### 2025-11-08: Portfolio Established
 - **Initial Portfolio**: 10 models across 6 providers documented

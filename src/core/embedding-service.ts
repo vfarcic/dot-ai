@@ -7,13 +7,18 @@
 
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
-import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed } from 'ai';
 import { withAITracing } from './tracing';
 
+/**
+ * Supported embedding providers - single source of truth
+ */
+export const EMBEDDING_PROVIDERS = ['openai', 'google', 'amazon_bedrock'] as const;
+export type EmbeddingProviderType = typeof EMBEDDING_PROVIDERS[number];
+
 export interface EmbeddingConfig {
-  provider?: 'openai' | 'google' | 'mistral' | 'amazon_bedrock';
+  provider?: EmbeddingProviderType;
   apiKey?: string;
   model?: string;
   dimensions?: number;
@@ -29,17 +34,17 @@ export interface EmbeddingProvider {
 
 /**
  * Unified Vercel AI SDK Embedding Provider
- * Supports OpenAI, Google, Mistral, and Amazon Bedrock through Vercel AI SDK
+ * Supports OpenAI, Google, and Amazon Bedrock through Vercel AI SDK
  */
 export class VercelEmbeddingProvider implements EmbeddingProvider {
-  private providerType: 'openai' | 'google' | 'mistral' | 'amazon_bedrock';
+  private providerType: EmbeddingProviderType;
   private apiKey: string;
   private model: string;
   private dimensions: number;
   private available: boolean;
   private modelInstance: any;
 
-  constructor(config: EmbeddingConfig & { provider: 'openai' | 'google' | 'mistral' | 'amazon_bedrock' }) {
+  constructor(config: EmbeddingConfig & { provider: EmbeddingProviderType }) {
     this.providerType = config.provider;
     this.available = false;
 
@@ -54,11 +59,6 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
         this.model = config.model || 'text-embedding-004';
         this.dimensions = config.dimensions || 768;
-        break;
-      case 'mistral':
-        this.apiKey = config.apiKey || process.env.MISTRAL_API_KEY || '';
-        this.model = config.model || 'mistral-embed';
-        this.dimensions = config.dimensions || 1024;
         break;
       case 'amazon_bedrock':
         // AWS SDK handles credentials automatically - no API key needed
@@ -90,11 +90,6 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.apiKey;
           this.modelInstance = google.textEmbedding(this.model);
           break;
-        case 'mistral': {
-          const mistral = createMistral({ apiKey: this.apiKey });
-          this.modelInstance = mistral.textEmbedding(this.model);
-          break;
-        }
         case 'amazon_bedrock': {
           // AWS SDK automatically uses credential chain:
           // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
@@ -247,8 +242,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
 function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvider | null {
   const providerType = (config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai').toLowerCase();
 
-  // Validate provider type
-  if (providerType !== 'openai' && providerType !== 'google' && providerType !== 'mistral' && providerType !== 'amazon_bedrock') {
+  // Validate provider type using centralized list
+  if (!EMBEDDING_PROVIDERS.includes(providerType as EmbeddingProviderType)) {
     console.warn(`Unknown embedding provider: ${providerType}, falling back to openai`);
     return createEmbeddingProvider({ ...config, provider: 'openai' });
   }
@@ -256,7 +251,7 @@ function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvide
   try {
     const provider = new VercelEmbeddingProvider({
       ...config,
-      provider: providerType as 'openai' | 'google' | 'mistral' | 'amazon_bedrock'
+      provider: providerType as EmbeddingProviderType
     });
     return provider.isAvailable() ? provider : null;
   } catch (error) {
@@ -352,7 +347,6 @@ export class EmbeddingService {
     const keyMap = {
       'openai': 'OPENAI_API_KEY',
       'google': 'GOOGLE_API_KEY',
-      'mistral': 'MISTRAL_API_KEY',
       'amazon_bedrock': 'AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)'
     };
     const requiredKey = keyMap[requestedProvider as keyof typeof keyMap] || 'OPENAI_API_KEY';

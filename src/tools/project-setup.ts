@@ -22,7 +22,7 @@ export const PROJECT_SETUP_TOOL_INPUT_SCHEMA = {
   existingFiles: z.array(z.string()).optional().describe('List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)'),
   selectedScopes: z.array(z.string()).optional().describe('Scopes user chose to setup (e.g., ["readme", "legal", "github-community"]) (required for reportScan step after initial scan)'),
   scope: z.string().optional().describe('Scope to generate (e.g., "github-community") (required for generateScope step)'),
-  answers: z.record(z.any()).optional().describe('Answers to ALL questions for the scope (required for generateScope step)')
+  answers: z.record(z.string(), z.any()).optional().describe('Answers to ALL questions for the scope (required for generateScope step)')
 };
 
 /**

@@ -86,7 +86,7 @@ dev-debug.log
 # tasks/
 
 # Taskmaster
-.taskmaster/ 
+.taskmaster/
 
 # Creds
 gcp-creds.json
@@ -112,6 +112,7 @@ argocd/
 # Evaluation data - exclude large raw datasets but keep analysis reports
 eval/datasets/*.jsonl
 eval/results/*.jsonl
+.env.vals
 
 # Build artifacts
 *.tgz

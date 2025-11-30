@@ -5,7 +5,7 @@ deployment:
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "0.140.0"                     # Container image tag - set by CI pipeline during release
+  tag: "0.144.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -31,11 +31,8 @@ secrets:
   xai:
     keyName: xai-api-key            # Key name within the secret
     apiKey: ""                      # API key value (only needed if chart should create the secret)
-  mistral:
-    keyName: mistral-api-key        # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
-  deepseek:
-    keyName: deepseek-api-key       # Key name within the secret
+  moonshot:
+    keyName: moonshot-api-key       # Key name within the secret (PRD #237: Kimi K2)
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   customLlm:
     keyName: custom-llm-api-key     # Key name within the secret for custom LLM endpoint
@@ -70,7 +67,8 @@ ingress:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, openai, google, xai, mistral, deepseek)
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
+  sdk: native                       # AI provider SDK (native, vercel)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
@@ -121,6 +119,12 @@ extraEnv: []
   #   value: "http://jaeger-collector:4318/v1/traces"
   # - name: OTEL_SERVICE_NAME
   #   value: "dot-ai-mcp-production"
+
+# dot-ai Controller Solution CR
+# Note: Controller must be installed separately before enabling this
+# Install: helm install dot-ai-controller oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.14.0 -n dot-ai
+controller:
+  enabled: false                    # Create Solution CR to track this deployment (requires controller installed separately)
 
 # Qdrant Vector Database
 qdrant:

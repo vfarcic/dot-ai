@@ -36,6 +36,8 @@ spec:
         # AI Provider configuration
         - name: AI_PROVIDER
           value: {{ .Values.ai.provider | default "anthropic" | quote }}
+        - name: AI_PROVIDER_SDK
+          value: {{ .Values.ai.sdk | default "native" | quote }}
 {{- if .Values.ai.model }}
         - name: AI_MODEL
           value: {{ .Values.ai.model | quote }}
@@ -79,11 +81,11 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.xai.keyName }}
               optional: true
-        - name: MISTRAL_API_KEY
+        - name: MOONSHOT_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
-              key: {{ .Values.secrets.mistral.keyName }}
+              key: {{ .Values.secrets.moonshot.keyName }}
               optional: true
         - name: CUSTOM_LLM_API_KEY
           valueFrom:
@@ -96,12 +98,6 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.customEmbeddings.keyName | default "custom-embeddings-api-key" }}
-              optional: true
-        - name: DEEPSEEK_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.secrets.name }}
-              key: {{ .Values.secrets.deepseek.keyName }}
               optional: true
         - name: QDRANT_URL
           value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}
