@@ -118,148 +118,207 @@ Use this section as guidance during generation and a reference for validation.
 
 ## Process
 
+### Step 0: Check for Existing Dockerfile
+
+**Before generating anything, check if the project already has a Dockerfile.**
+
+1. Look for `Dockerfile` in the project root (also check for variants like `Dockerfile.prod`)
+2. If found, read and store its contents for Step 2
+3. Similarly, check for `.dockerignore` and read it if present
+
+This determines whether Step 2 will generate new files or improve existing ones.
+
 ### Step 1: Analyze Project Structure
 
-**Identify the project characteristics:**
+**Identify the project characteristics through exploration, not pattern matching.**
 
-1. **Language Detection**: Examine files to determine the programming language:
-   - `package.json` → Node.js/JavaScript/TypeScript
-   - `go.mod` or `*.go` files → Go
-   - `requirements.txt`, `pyproject.toml`, `setup.py` → Python
-   - `pom.xml`, `build.gradle` → Java
-   - `Cargo.toml` → Rust
-   - `*.csproj` → .NET/C#
+These are analysis goals, not lookup tables. The examples below are illustrative - apply the same analytical approach to ANY language, framework, or toolchain you encounter.
 
-2. **Version Detection**: Get the language/runtime version from project files:
-   - Node.js: `package.json` → `engines.node`
-   - Go: `go.mod` → `go` directive
-   - Python: `pyproject.toml` → `requires-python` or `.python-version`
-   - Java: `pom.xml` → `maven.compiler.source` or `build.gradle`
+1. **Language Detection**: Explore the project to identify its programming language(s).
+   - Look for dependency manifest files (e.g., `package.json`, `go.mod`, `requirements.txt`, `Cargo.toml`, `Gemfile`, `composer.json`, `mix.exs`, `build.sbt`, etc.)
+   - Examine source file extensions
+   - Read manifest contents to understand the ecosystem
+   - **Principle**: Every language has some form of dependency declaration - find it and read it
 
-3. **Framework Detection**: Identify framework from dependencies or project structure
+2. **Version Detection**: Find the required language/runtime version from project configuration.
+   - Search manifest files for version constraints or engine requirements
+   - Look for version files (e.g., `.node-version`, `.python-version`, `.ruby-version`, `.tool-versions`)
+   - Check CI configuration files which often specify versions
+   - **Principle**: Projects usually declare their required runtime version somewhere - search for it rather than assuming
 
-4. **Application Type**: Determine what kind of application this is:
-   - Web server/API
-   - CLI tool
-   - Worker/background job
-   - Static site
+3. **Framework Detection**: Identify frameworks from dependencies and project structure.
+   - Read the dependency list in manifest files
+   - Look for framework-specific configuration files
+   - Examine the project structure for framework conventions
+   - **Principle**: Frameworks leave fingerprints - configuration files, directory structures, dependencies
 
-5. **Port Detection**: Search for port configuration in source code and configuration files. Only add EXPOSE if you find evidence.
+4. **Application Type**: Determine what kind of application this is by examining entry points and configuration.
+   - Web server/API: Look for HTTP server setup, route definitions, port binding
+   - CLI tool: Look for argument parsing, command definitions, bin entries
+   - Worker/background job: Look for queue consumers, scheduled tasks
+   - Static site: Look for build output configuration, no server code
+   - **Principle**: The entry point and its imports reveal the application's purpose
 
-6. **Build Requirements**: Identify build tools, commands, and outputs from manifest files
+5. **Port Detection**: Search for port configuration in source code and configuration files.
+   - Look for environment variable usage (e.g., `PORT`, `HTTP_PORT`)
+   - Search for hardcoded port numbers in server initialization
+   - Check configuration files for port settings
+   - **Only add EXPOSE if you find concrete evidence**
 
-7. **System Dependencies**: This is a critical step - missing runtime binaries will cause the container to fail silently or crash.
-   - Search the codebase thoroughly for any code that executes external commands or binaries
-   - Use your knowledge of the detected language/framework to identify the relevant patterns
+6. **Build Requirements**: Identify how the project is built.
+   - Read the manifest file for build scripts/commands
+   - Identify the build tool (could be language-standard or third-party)
+   - Determine build outputs (compiled binaries, transpiled code, bundled assets)
+   - **Principle**: Every project that needs building has build instructions - find them
+
+7. **System Dependencies**: Critical step - missing runtime binaries cause silent failures.
+   - Search the codebase for code that executes external commands or binaries
+   - Common patterns: shell execution, subprocess calls, exec functions, system calls
    - For each binary found, verify it's needed at runtime (not just build time)
-   - If you find external binary usage, those binaries must be installed in the runtime image
-   - When uncertain whether something is a runtime dependency, ask the user
+   - Consider what the application actually does - does it need CLI tools, database clients, image processors?
+   - **When uncertain whether something is a runtime dependency, ask the user**
 
-### Step 2: Generate Dockerfile
+### Step 2: Generate or Improve Dockerfile
 
-Generate a multi-stage Dockerfile applying the best practices from the reference section above.
+**If no existing Dockerfile** → Generate a new multi-stage Dockerfile using the patterns below.
+
+**If existing Dockerfile found** → Analyze it against the best practices and checklists below, then improve:
+
+1. **Evaluate against checklists** - Check each item in the Builder and Runtime checklists
+2. **Identify issues** - Security problems (running as root, :latest tags), missing optimizations (no multi-stage, COPY . .), maintainability issues
+3. **Preserve intentional customizations** - Comments explaining decisions, custom configurations, environment-specific settings
+4. **Edit to fix issues** - Apply best practices while keeping the existing structure where it's already correct
+5. **Explain changes** - When presenting the improved Dockerfile, briefly note what was changed and why
+
+Use the patterns and checklists below for both generation and validation.
+
+**The examples below show structural patterns, not copy-paste templates.** Adapt the pattern to whatever language, package manager, and build tool the project uses.
 
 #### Stage 1: Builder
 
 ```dockerfile
-# Build stage
-FROM <base-image>:<version>-<variant> AS builder
+# Build stage - use an image with build tools for this language
+FROM <language-image>:<version>-<variant> AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests first (layer caching - see Build Optimization)
-COPY package.json package-lock.json ./
+# PATTERN: Copy dependency manifests FIRST for layer caching
+# Examples: package.json, go.mod, requirements.txt, Gemfile, Cargo.toml, pom.xml
+COPY <dependency-manifest-files> ./
 
-# Install dependencies with cache cleanup (see Security: clean in same layer)
-RUN npm ci --only=production && \
-    npm cache clean --force
+# PATTERN: Install dependencies, clean cache in same layer
+# Use whatever package manager the project uses
+RUN <install-dependencies-command> && \
+    <clean-cache-command>
 
-# Copy source files explicitly (see Build Optimization: explicit COPY)
-COPY src/ ./src/
-COPY tsconfig.json ./
+# PATTERN: Copy only the source files needed for build
+# Never use "COPY . ." - be explicit about what's needed
+COPY <source-directories> ./
+COPY <config-files-needed-for-build> ./
 
-# Build the application
-RUN npm run build
+# PATTERN: Run the project's build command
+RUN <build-command>
 ```
 
 **Builder stage checklist**:
 - [ ] Named stage (`AS builder`)
-- [ ] Version derived from project files
-- [ ] Dependency manifests copied before source
-- [ ] Dependencies installed with cache cleanup
-- [ ] Only required files copied (no `COPY . .`)
-- [ ] Build command from project analysis
+- [ ] Base image appropriate for the language (with build tools)
+- [ ] Version derived from project files (not assumed)
+- [ ] Dependency manifests copied before source code
+- [ ] Dependencies installed with cache cleanup in same RUN
+- [ ] Only required files copied (never `COPY . .`)
+- [ ] Build command matches what the project actually uses
 
 #### Stage 2: Runtime
 
 ```dockerfile
-# Runtime stage
-FROM <minimal-image>:<version>-<variant>
+# Runtime stage - use minimal image appropriate for the language
+# Compiled languages: consider distroless, scratch, or alpine
+# Interpreted languages: use slim or alpine variant with runtime only
+FROM <minimal-runtime-image>:<version>
 
 WORKDIR /app
 
-# Create non-root user (see Security: non-root user)
-RUN addgroup -g 1000 appgroup && \
-    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+# PATTERN: Create non-root user (syntax varies by base image)
+# Alpine uses addgroup/adduser, Debian uses groupadd/useradd
+RUN <create-group-command> && \
+    <create-user-command>
 
-# Copy only runtime artifacts from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
+# PATTERN: Copy ONLY runtime artifacts from builder
+# What you copy depends on the language:
+# - Compiled: just the binary
+# - Interpreted: built output + runtime dependencies + minimal config
+COPY --from=builder <build-outputs> ./
+COPY --from=builder <runtime-dependencies> ./
 
-# Set ownership
-RUN chown -R appuser:appgroup /app
+# PATTERN: Set ownership to non-root user
+RUN chown -R <user>:<group> /app
 
-# Switch to non-root user
-USER appuser
+# Switch to non-root user BEFORE exposing ports or setting CMD
+USER <non-root-user>
 
-# Expose port (only if verified from analysis)
+# Only if port was verified during analysis
 EXPOSE <port>
 
-# Use exec form (see Maintainability: exec form for CMD)
-CMD ["node", "dist/index.js"]
+# PATTERN: Use exec form for proper signal handling
+# The command depends on how this application runs
+CMD ["<executable>", "<args>"]
 ```
 
 **Runtime stage checklist**:
-- [ ] Minimal base image (alpine/slim/distroless)
-- [ ] Non-root user created (UID 1000)
+- [ ] Minimal base image (alpine/slim/distroless/scratch as appropriate)
+- [ ] Non-root user created (UID 1000+)
 - [ ] Only runtime artifacts copied from builder
-- [ ] No source code, tests, or dev files
+- [ ] No source code, tests, build tools, or dev dependencies
 - [ ] Proper ownership set
 - [ ] USER directive before CMD
-- [ ] EXPOSE only if port verified
+- [ ] EXPOSE only if port was verified in analysis
 - [ ] CMD in exec form (JSON array)
 
 #### System Package Installation Pattern
 
-When system packages are required, follow this pattern:
+When system packages are required, use the package manager appropriate for your base image. The principle is always the same: **install only what's needed and clean the cache in the same layer**.
+
+Common examples (adapt to your base image's package manager):
 
 ```dockerfile
-# For apt-get (Debian/Ubuntu)
+# apt-get (Debian, Ubuntu)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         package1 \
-        package2 \
-        package3 && \
+        package2 && \
     rm -rf /var/lib/apt/lists/*
 
-# For apk (Alpine)
+# apk (Alpine)
 RUN apk add --no-cache \
         package1 \
-        package2 \
-        package3
+        package2
+
+# yum/dnf (RHEL, Fedora, CentOS)
+RUN yum install -y \
+        package1 \
+        package2 && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 ```
 
 **Package installation checklist**:
-- [ ] `--no-install-recommends` flag used (apt-get)
-- [ ] `--no-cache` flag used (apk)
-- [ ] Packages sorted alphabetically
+- [ ] Used the correct package manager for the base image
+- [ ] Used flags to skip optional/recommended packages where available
+- [ ] Packages sorted alphabetically for maintainability
 - [ ] Cache cleaned in same RUN command
-- [ ] Only required packages installed
+- [ ] Only packages actually required by the application
 
-### Step 3: Create .dockerignore
+### Step 3: Create or Improve .dockerignore
 
-**Generate a MINIMAL .dockerignore file based on the Dockerfile you created.**
+**If no existing .dockerignore** → Generate a minimal one based on the Dockerfile.
+
+**If existing .dockerignore found** → Review it against the Dockerfile's COPY commands:
+1. Remove redundant exclusions (directories not copied by Dockerfile anyway)
+2. Add missing security exclusions (secrets inside copied directories)
+3. Keep it minimal (~10-15 lines)
+
+**Generate a MINIMAL .dockerignore file based on the Dockerfile.**
 
 Since the Dockerfile uses **explicit COPY commands** (not `COPY . .`), .dockerignore serves a limited purpose:
 
@@ -287,6 +346,8 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 
 ## Output Format
 
+### For New Dockerfiles (no existing file)
+
 **Present both files to the user:**
 
 1. **Dockerfile** with clear comments explaining each section
@@ -297,10 +358,25 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 - Build command: `docker build -t [project-name] .`
 - Run command: `docker run -p [port]:[port] [project-name]`
 - Image size expectations
-- Recommended next steps:
-  - Test locally with the provided commands
-  - Consider running `hadolint Dockerfile` for additional linting
-  - Consider scanning with `trivy image [project-name]` for vulnerabilities
+
+### For Improved Dockerfiles (existing file found)
+
+**Present the improved files with a summary of changes:**
+
+1. **Dockerfile** - the improved version
+2. **Changes made** - brief list of what was changed and why:
+   - Security fixes (e.g., "Added non-root user - was running as root")
+   - Optimization improvements (e.g., "Added multi-stage build to reduce image size")
+   - Best practice updates (e.g., "Changed CMD to exec form for signal handling")
+3. **Preserved** - note any intentional customizations that were kept
+4. **.dockerignore** - improved version if changes were needed
+
+### For Both Cases
+
+**Recommended next steps:**
+- Test locally with the provided commands
+- Consider running `hadolint Dockerfile` for additional linting
+- Consider scanning with `trivy image [project-name]` for vulnerabilities
 
 ---
 
@@ -331,13 +407,30 @@ If your Dockerfile doesn't copy a directory, excluding it in .dockerignore is po
 
 ---
 
-## Example Workflow
+## Example Workflows
 
-When invoked, follow this thought process:
+### New Dockerfile (no existing file)
 
-1. **Analyze**: "I see a package.json with express dependency - this is a Node.js web server"
-2. **Version**: "The package.json shows `engines.node: 20` - I'll use `node:20-alpine`"
-3. **Structure**: "Multi-stage build: builder (install deps + compile TypeScript) → runtime (minimal alpine)"
-4. **Security**: "Create non-root user, copy only dist/ and node_modules/, no source code"
-5. **Packages**: "The app uses kubectl - need to install it with `apk add --no-cache kubectl`"
-6. **Validate**: "Check against Success Criteria checklist before presenting"
+1. **Check**: "No existing Dockerfile found. Will generate new one."
+2. **Explore**: "Let me find the dependency manifest... found `<manifest-file>`. Reading it to understand the ecosystem."
+3. **Identify**: "This is a `<language>` project using `<framework/tool>`. The manifest indicates version `<X>`."
+4. **Trace**: "The entry point is `<file>`. Following imports to understand runtime needs."
+5. **Structure**: "Multi-stage build: builder stage needs `<build-tools>`, runtime stage needs only `<runtime-artifacts>`."
+6. **Dependencies**: "Searching for external binary usage... found `<binary>`. This needs to be in the runtime image."
+7. **Generate**: "Create non-root user, copy only `<build-outputs>`, exclude source code and dev dependencies."
+8. **Validate**: "Check against Success Criteria checklists before presenting."
+
+### Improving Existing Dockerfile
+
+1. **Check**: "Found existing Dockerfile. Reading it to analyze..."
+2. **Analyze project**: Same exploration as above to understand what the Dockerfile should do.
+3. **Evaluate**: "Checking existing Dockerfile against best practices checklists..."
+   - "❌ Running as root - no USER directive"
+   - "❌ Using :latest tag instead of pinned version"
+   - "✅ Multi-stage build already in place"
+   - "✅ Dependency manifests copied first"
+4. **Preserve**: "Keeping custom ENV variables and the specific port configuration - these appear intentional."
+5. **Improve**: "Adding non-root user, pinning image version to match project requirements."
+6. **Validate**: "Check improved Dockerfile against checklists before presenting."
+
+**Key mindset**: Investigate the actual project rather than matching against templates. Every project is unique.

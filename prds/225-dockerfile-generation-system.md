@@ -166,13 +166,13 @@ Guide the AI to generate .dockerignore with:
 - [x] Validate best practices with test projects
 
 ### Milestone 4: Existing Dockerfile Improvement
-- [ ] Detect when Dockerfile already exists in project
-- [ ] Read and analyze existing Dockerfile against best practices
-- [ ] Identify improvements (security, multi-stage, non-root, image size, etc.)
-- [ ] Preserve intentional customizations while fixing issues
-- [ ] Present diff/comparison showing proposed changes with rationale
-- [ ] Update .dockerignore if needed based on existing Dockerfile's COPY commands
-- [ ] Validate improved Dockerfile builds and runs successfully
+- [x] Detect when Dockerfile already exists in project
+- [x] Read and analyze existing Dockerfile against best practices
+- [x] Identify improvements (security, multi-stage, non-root, image size, etc.)
+- [x] Preserve intentional customizations while fixing issues
+- [x] Present diff/comparison showing proposed changes with rationale
+- [x] Update .dockerignore if needed based on existing Dockerfile's COPY commands
+- [x] Validate improved Dockerfile builds and runs successfully
 
 ### Milestone 5: Tested with Go Project
 - [ ] Tested with external Go project
@@ -429,3 +429,42 @@ After generating Dockerfile and .dockerignore, Claude should:
 **Next Session Priorities**:
 - Implement Milestone 4: Existing Dockerfile Improvement
 - Or proceed to Milestone 5: Go Project Testing
+
+### 2025-11-30: Milestone 4 Complete - Existing Dockerfile Improvement
+**Duration**: Development session
+**Primary Focus**: Add ability to detect and improve existing Dockerfiles
+
+**Completed PRD Items**:
+- [x] Added Step 0 to detect existing Dockerfile and .dockerignore
+- [x] Updated Step 2 to handle both generation and improvement flows
+- [x] Added evaluation against best practices checklists for existing files
+- [x] Added guidance to preserve intentional customizations (comments, ENV vars, configs)
+- [x] Added "Changes made" output format showing what was changed and why
+- [x] Updated Step 3 for .dockerignore improvement (remove redundant, add missing)
+- [x] Validated with dot-ai project's original Dockerfile
+
+**Additional Work - Language-Agnostic Refactoring**:
+- Rewrote Step 1 (Analyze Project Structure) from lookup tables to analysis principles
+- Changed Language Detection and Version Detection to be exploratory, not prescriptive
+- Generalized Step 2 examples from Node.js-specific to pattern-based templates
+- Added yum/dnf package manager examples alongside apt-get and apk
+- Updated Example Workflows to show both new generation and improvement scenarios
+
+**Validation Results** (tested with original tmp/Dockerfile):
+| Original Issue | Result |
+|---------------|--------|
+| Running as root (no USER) | ✅ Added non-root user (dotai, UID 1000) |
+| Missing `--no-install-recommends` | ✅ Added to apt-get install |
+| Missing `ca-certificates` | ✅ Added for curl HTTPS |
+| No session dir ownership | ✅ Added `chown -R dotai:dotai` |
+| .dockerignore 38 lines | ✅ Reduced to 9 lines (minimal) |
+| Preserved: multi-stage, kubectl, ENV vars, comments | ✅ All kept |
+
+**Key Design Decisions**:
+- **Unified flow**: Same process for new and existing, only Step 2 output differs
+- **Checklists for validation**: Same checklists used for generation and improvement
+- **Conservative preservation**: Keep anything that looks intentional (comments, custom configs)
+
+**Next Session Priorities**:
+- Test with Go project (Milestone 5) to validate language-agnostic approach
+- Complete documentation (Milestone 6)
