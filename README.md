@@ -73,7 +73,10 @@ Generate 25+ governance, legal, and automation files (LICENSE, CODE_OF_CONDUCT, 
 📖 [Learn more →](./docs/mcp-project-setup-guide.md)
 
 ### 💬 Shared Prompts Library
-Access curated prompts as native slash commands (`/dot-ai:prompt-name`) in your coding agent for consistent workflows across projects.
+Access curated prompts as native slash commands (`/dot-ai:prompt-name`) in your coding agent for consistent workflows across projects:
+- **PRD Management**: Create, track, and complete Product Requirements Documents (`prd-create`, `prd-next`, `prd-done`, etc.)
+- **Dockerfile Generation**: Generate production-ready, secure multi-stage Dockerfiles for any project (`generate-dockerfile`)
+
 📖 [Learn more →](./docs/mcp-prompts-guide.md)
 
 ### ⚡ AI Integration

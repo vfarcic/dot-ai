@@ -557,18 +557,42 @@ async function executeRemediationCommands(
   let validationResult = null;
   if (overallSuccess && finalAnalysis.validationIntent) {
     const validationIntent = finalAnalysis.validationIntent;
-    
+
     try {
-          logger.info('Running post-execution validation', { 
-            requestId, 
+          // In automatic mode, wait for Kubernetes to apply changes before validating
+          // This gives time for deployments to roll out new pods, operators to reconcile, etc.
+          // Manual mode skips this delay since the user can verify interactively
+          if (session.data.mode === 'automatic') {
+            logger.info('Waiting for Kubernetes to apply changes before validation', {
+              requestId,
+              sessionId: session.sessionId,
+              delayMs: 15000
+            });
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+
+          logger.info('Running post-execution validation', {
+            requestId,
             sessionId: session.sessionId,
             validationIntent: validationIntent
           });
 
           // Run validation by calling main function recursively with validation intent
+          // Include original issue context so the AI understands what was fixed
           const executedCommands = results.map(r => r.action);
+          const validationIssue = `POST-REMEDIATION VALIDATION
+
+Original issue that was remediated: ${session.data.issue}
+
+Commands that were executed to fix the issue:
+${executedCommands.map((cmd, i) => `${i + 1}. ${cmd}`).join('\n')}
+
+Validation task: ${validationIntent}
+
+IMPORTANT: You MUST respond with the final JSON analysis format as specified in your instructions. Verify the remediation was successful and return your analysis as JSON with issueStatus set to "resolved" if fixed, or "active" if issues remain.`;
+
           const validationInput = {
-            issue: validationIntent,
+            issue: validationIssue,
             executedCommands: executedCommands,
             interaction_id: currentInteractionId || session.data.interaction_id // Use current interaction_id for validation
           };

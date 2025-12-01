@@ -18,6 +18,8 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 4. **Identify the Single Best Next Task** - Find the one task that should be worked on next
 5. **Present Recommendation** - Give clear rationale and wait for confirmation
 6. **Design Discussion** - If confirmed, dive into implementation design details
+7. **Implementation** - User implements the task
+8. **Update Progress** - Prompt user to run /prd-update-progress
 
 ## Step 0: Context Awareness Check
 
@@ -243,3 +245,19 @@ This command should:
 - ✅ If confirmed, provide detailed implementation design guidance
 - ✅ Keep teams focused on the most important work rather than overwhelming them with options
 - ✅ Enable immediate action by transitioning from recommendation to design discussion
+
+## Step 8: Update Progress After Completion
+
+After the user completes the task implementation, prompt them to update PRD progress:
+
+---
+
+**Task implementation complete.**
+
+To update PRD progress and commit your work, run the `prd-update-progress` prompt.
+
+*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-update-progress` in Claude Code, or other syntax in different MCP clients).*
+
+---
+
+This ensures a smooth workflow from task selection → implementation → progress tracking → next task.

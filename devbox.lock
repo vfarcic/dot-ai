@@ -141,6 +141,58 @@
       "last_modified": "2025-09-28T05:12:35Z",
       "resolved": "github:NixOS/nixpkgs/e9f00bd893984bc8ce46c895c3bf7cac95331127?lastModified=1759036355&narHash=sha256-0m27AKv6ka%2Bq270dw48KflE0LwQYrO7Fm4%2F2%2F%2FKCVWg%3D"
     },
+    "hadolint@2.14.0": {
+      "last_modified": "2025-11-23T21:50:36Z",
+      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#hadolint",
+      "source": "devbox-search",
+      "version": "2.14.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/q7p7j7dzzqa175z0cl0jxhzs7zy7kw0m-hadolint-2.14.0",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/2c6kmssbjjzs9vw81hzfgmnhz2zphbi3-hadolint-2.14.0-doc"
+            }
+          ],
+          "store_path": "/nix/store/q7p7j7dzzqa175z0cl0jxhzs7zy7kw0m-hadolint-2.14.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/63acyx57xm3wcxiiq1071qgjqlb0namg-hadolint-2.14.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/63acyx57xm3wcxiiq1071qgjqlb0namg-hadolint-2.14.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/c5p1w3nl0ywsnv8kz6wymll4iyyky3x9-hadolint-2.14.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/c5p1w3nl0ywsnv8kz6wymll4iyyky3x9-hadolint-2.14.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/kavldg345m7cmwr70rhjbcdqv4g049ra-hadolint-2.14.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/kavldg345m7cmwr70rhjbcdqv4g049ra-hadolint-2.14.0"
+        }
+      }
+    },
     "kind@0.30.0": {
       "last_modified": "2025-09-18T16:33:27Z",
       "resolved": "github:NixOS/nixpkgs/f4b140d5b253f5e2a1ff4e5506edbf8267724bde#kind",

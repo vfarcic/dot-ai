@@ -1,38 +1,15 @@
-# Node.js
-node_modules/
-npm-debug.log*
+# Security - exclude secrets that could exist inside copied directories
+**/.env
+**/.env.*
+**/credentials.json
+**/*.pem
+**/*.key
 
-# Build outputs
-dist/
-*.tsbuildinfo
-
-# Environment files
-.env
-.env.local
-
-# Temporary and storage directories
-tmp/
-temp/
-kind-storage/
-
-# Git
-.git/
-.gitignore
-
-# Docker files
-Dockerfile*
-docker-compose*.yml
-
-# MCP configs
-.mcp*.json
-
-# Tests
-tests/
-coverage/
-
-# Documentation
-*.md
-docs/
-
-# Examples
-examples/
+# Performance - large directories that slow context transfer
+node_modules
+dist
+.git
+tmp
+tests
+coverage
+*.tgz

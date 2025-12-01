@@ -9,7 +9,8 @@
     "kubectl@1.33.4",
     "awscli2@2.31.11",
     "kubectl-tree@0.4.6",
-    "vals@0.42.5"
+    "vals@0.42.5",
+    "hadolint@2.14.0"
   ],
   "shell": {
     "init_hook": [

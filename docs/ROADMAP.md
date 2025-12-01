@@ -19,6 +19,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
+- Anonymous opt-in analytics for usage insights (PRD #241)
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)
