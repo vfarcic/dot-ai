@@ -1,8 +1,9 @@
 # PRD #241: Anonymous Opt-in Analytics
 
-## Status: Planning
+## Status: Closed (Superseded)
 ## Priority: Medium
 ## Created: 2025-12-01
+## Closed: 2025-12-01
 
 ---
 
@@ -206,3 +207,25 @@ Analytics: enabled (anonymous usage data)
 - Decided on env var + config file for configuration
 - Planned discoverability: one-time hint + version output + docs
 - Created GitHub issue #241
+
+### 2025-12-01 - PRD Closed (Superseded by #245)
+**Duration**: N/A (administrative closure)
+**Status**: Closed
+
+**Closure Summary**:
+This PRD proposed building a comprehensive analytics infrastructure with backend services (PostHog), middleware, config file handling, and dashboards. After further discussion, a simpler approach was chosen.
+
+**Replacement**: PRD #245 (User Feedback Collection via Google Forms)
+
+**Why Superseded**:
+The Google Forms approach achieves similar goals with significantly less complexity:
+
+| This PRD (#241) | Replacement (#245) |
+|-----------------|-------------------|
+| Build analytics backend (PostHog) | Use Google Forms (no backend) |
+| Automated metrics collection | User-initiated feedback |
+| Complex middleware layer | Simple link in responses |
+| Config file infrastructure | Environment variables only |
+| High implementation effort | Minimal implementation |
+
+**Key Insight**: Google Forms provides 80% of the value with 10% of the effort. Users can provide both quantitative (ratings) and qualitative (free text) feedback without building infrastructure.

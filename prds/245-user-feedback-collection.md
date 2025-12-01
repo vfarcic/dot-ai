@@ -1,0 +1,211 @@
+# PRD #245: User Feedback Collection via Google Forms
+
+## Status: Planning
+## Priority: Medium
+## Created: 2025-12-01
+
+---
+
+## Problem Statement
+
+Currently, there is no visibility into how users interact with dot-ai tools, making it difficult to:
+- **Prioritize development work**: Which tools are most used? Which need improvement?
+- **Understand user satisfaction**: How useful are the tools in practice?
+- **Gather improvement ideas**: What features or enhancements do users want?
+- **Identify pain points**: What frustrations do users experience?
+
+Without this feedback, product decisions rely on assumptions rather than direct user input.
+
+## Solution Overview
+
+Implement a **lightweight feedback collection system** using Google Forms, presented to users at the end of tool workflows:
+
+### Why Google Forms (vs. Building Analytics Infrastructure)
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Google Forms** | No backend needed, questions changeable without releases, free, reliable, built-in analysis | Requires user action, lower volume |
+| **Custom Analytics** | Automated, high volume | Needs backend, maintenance, privacy complexity |
+
+**Decision**: Google Forms provides 80% of the value with 10% of the effort. Can always add automated analytics later if needed.
+
+### Core Principles
+1. **Non-intrusive**: Appears only ~5% of the time (configurable)
+2. **Opt-out available**: Users can disable feedback prompts entirely
+3. **External form**: Google Forms handles questions, responses, and analysis
+4. **No code changes for questions**: Form can be updated without new releases
+5. **Minimal implementation**: Just a message with a link in tool responses
+
+### How It Works
+
+```
+User runs tool → Tool completes workflow → 5% chance → Show feedback message
+                                        → 95% chance → Normal response only
+```
+
+**Feedback message example:**
+```
+---
+Help us improve dot-ai: [Google Form Link]
+(Disable: DOT_AI_FEEDBACK_ENABLED=false)
+```
+
+## Success Criteria
+
+1. **Feedback prompts appear**: ~5% of completed workflows show feedback message
+2. **Opt-out works**: Setting `DOT_AI_FEEDBACK_ENABLED=false` disables prompts
+3. **Probability configurable**: `DOT_AI_FEEDBACK_PROBABILITY` adjusts frequency
+4. **Form receives responses**: Users successfully submit feedback via the form
+5. **Non-blocking**: Feedback message doesn't affect tool functionality
+6. **Consistent across tools**: All tools participate at workflow completion
+
+## Technical Analysis
+
+### Configuration via Environment Variables
+
+Following existing patterns (e.g., `OTEL_TRACING_ENABLED`, `DOT_AI_DEBUG`):
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DOT_AI_FEEDBACK_ENABLED` | boolean | `true` | Enable/disable feedback prompts |
+| `DOT_AI_FEEDBACK_PROBABILITY` | float | `0.05` | Probability of showing prompt (0.0-1.0) |
+| `DOT_AI_FEEDBACK_URL` | string | (hardcoded default) | Google Form URL |
+
+### Implementation Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Tool Completes Workflow                   │
+│  (recommend deploys, operate executes, remediate resolves)   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Feedback Decision Logic                         │
+│  1. Check DOT_AI_FEEDBACK_ENABLED (default: true)           │
+│  2. Generate random number                                   │
+│  3. Compare against DOT_AI_FEEDBACK_PROBABILITY (0.05)       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+         Show prompt                     No prompt
+              │                               │
+              ▼                               ▼
+┌─────────────────────────┐    ┌─────────────────────────┐
+│ Append feedback message │    │   Normal tool response  │
+│ with Google Form link   │    │                         │
+└─────────────────────────┘    └─────────────────────────┘
+```
+
+### Code Location
+
+Create a shared utility that tools can call at workflow completion:
+
+```typescript
+// src/core/feedback.ts
+
+export interface FeedbackConfig {
+  enabled: boolean;
+  probability: number;
+  formUrl: string;
+}
+
+export function loadFeedbackConfig(): FeedbackConfig {
+  return {
+    enabled: process.env.DOT_AI_FEEDBACK_ENABLED?.toLowerCase() !== 'false',
+    probability: parseFloat(process.env.DOT_AI_FEEDBACK_PROBABILITY || '0.05'),
+    formUrl: process.env.DOT_AI_FEEDBACK_URL || 'https://forms.gle/XXXXXXXXXX'
+  };
+}
+
+export function shouldShowFeedback(config: FeedbackConfig): boolean {
+  if (!config.enabled) return false;
+  return Math.random() < config.probability;
+}
+
+export function getFeedbackMessage(config: FeedbackConfig): string {
+  return `\n---\nHelp us improve dot-ai: ${config.formUrl}\n(Disable: DOT_AI_FEEDBACK_ENABLED=false)`;
+}
+```
+
+### Integration Points
+
+Tools that should include feedback prompts (at workflow completion only):
+
+| Tool | Trigger Point |
+|------|---------------|
+| `recommend` | After `deployManifests` stage completes |
+| `operate` | After `executeChoice` completes |
+| `remediate` | After `executeChoice` completes |
+| `manageOrgData` | After pattern/policy creation completes |
+| `projectSetup` | After `generateScope` completes all files |
+
+### Google Form Design (External)
+
+Initial suggested questions (managed in Google Forms, not in code):
+
+1. **How useful was this interaction?** (1-5 rating)
+2. **Which dot-ai tools do you use?** (multi-select: recommend, operate, remediate, manageOrgData, projectSetup, version)
+3. **What would you improve?** (free text)
+4. **Any other feedback?** (free text, optional)
+
+Form can be updated anytime without code changes.
+
+## Out of Scope
+
+- Building custom analytics infrastructure
+- Automated usage tracking
+- In-app questionnaire UI
+- Response analysis/dashboard (Google Forms handles this)
+- Automated sentiment analysis
+
+## Dependencies
+
+- Google Form created and URL available
+- Decision on exact form questions (can be adjusted after launch)
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Low response rate | Medium | Medium | Keep form short, 5% not too frequent |
+| User annoyance | Low | Medium | Easy opt-out, low frequency |
+| Form URL changes | Low | Low | URL configurable via env var |
+| Spam responses | Low | Low | Google Forms has built-in protection |
+
+---
+
+## Milestones
+
+### Milestone 1: Core Feedback Infrastructure
+- [ ] Create feedback configuration module (`src/core/feedback.ts`)
+- [ ] Implement environment variable loading with defaults
+- [ ] Add probability-based decision logic
+- [ ] Integration tests for configuration and probability logic
+
+### Milestone 2: Tool Integration
+- [ ] Add feedback prompt to `recommend` tool (deployManifests stage)
+- [ ] Add feedback prompt to `operate` tool (executeChoice)
+- [ ] Add feedback prompt to `remediate` tool (executeChoice)
+- [ ] Add feedback prompt to `manageOrgData` tool (creation completion)
+- [ ] Add feedback prompt to `projectSetup` tool (generateScope completion)
+- [ ] Integration tests verifying prompts appear at correct workflow stages
+
+### Milestone 3: Google Form & Documentation
+- [ ] Create Google Form with initial questions
+- [ ] Configure form response notifications
+- [ ] Update default URL in code
+- [ ] Document feedback configuration in README
+- [ ] Update CLAUDE.md if new patterns introduced
+
+---
+
+## Progress Log
+
+### 2025-12-01 - PRD Created
+- Decided on Google Forms approach (simpler than building analytics infrastructure)
+- 5% random probability, configurable via environment variable
+- Using environment variables for configuration (matching existing patterns)
+- Replaces PRD #241 (Anonymous Analytics) - simpler approach achieves similar goals
+- Created GitHub issue #245
