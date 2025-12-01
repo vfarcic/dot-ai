@@ -391,8 +391,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(nonSolutionResources.length).toBeGreaterThan(0);
 
       // CONTROLLER INTEGRATION VALIDATION: Verify controller picked up Solution CR
-      // Wait a moment for controller to reconcile
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Wait for controller to reconcile and add ownerReferences
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // Get Solution CR from cluster
       const solutionCRName = `solution-${solutionId}`;

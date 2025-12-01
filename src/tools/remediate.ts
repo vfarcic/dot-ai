@@ -578,9 +578,21 @@ async function executeRemediationCommands(
           });
 
           // Run validation by calling main function recursively with validation intent
+          // Include original issue context so the AI understands what was fixed
           const executedCommands = results.map(r => r.action);
+          const validationIssue = `POST-REMEDIATION VALIDATION
+
+Original issue that was remediated: ${session.data.issue}
+
+Commands that were executed to fix the issue:
+${executedCommands.map((cmd, i) => `${i + 1}. ${cmd}`).join('\n')}
+
+Validation task: ${validationIntent}
+
+Please verify the remediation was successful by checking the current state matches the expected outcome.`;
+
           const validationInput = {
-            issue: validationIntent,
+            issue: validationIssue,
             executedCommands: executedCommands,
             interaction_id: currentInteractionId || session.data.interaction_id // Use current interaction_id for validation
           };
