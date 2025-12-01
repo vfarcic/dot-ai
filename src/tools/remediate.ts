@@ -589,7 +589,7 @@ ${executedCommands.map((cmd, i) => `${i + 1}. ${cmd}`).join('\n')}
 
 Validation task: ${validationIntent}
 
-Please verify the remediation was successful by checking the current state matches the expected outcome.`;
+IMPORTANT: You MUST respond with the final JSON analysis format as specified in your instructions. Verify the remediation was successful and return your analysis as JSON with issueStatus set to "resolved" if fixed, or "active" if issues remain.`;
 
           const validationInput = {
             issue: validationIssue,
