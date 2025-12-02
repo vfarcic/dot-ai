@@ -1,6 +1,6 @@
 # PRD #245: User Feedback Collection via Google Forms
 
-## Status: Planning
+## Status: In Progress
 ## Priority: Medium
 ## Created: 2025-12-01
 
@@ -179,29 +179,40 @@ Form can be updated anytime without code changes.
 ## Milestones
 
 ### Milestone 1: Core Feedback Infrastructure
-- [ ] Create feedback configuration module (`src/core/feedback.ts`)
-- [ ] Implement environment variable loading with defaults
-- [ ] Add probability-based decision logic
-- [ ] Integration tests for configuration and probability logic
+- [x] Create feedback configuration module (`src/core/feedback.ts`)
+- [x] Implement environment variable loading with defaults
+- [x] Add probability-based decision logic
+- [x] Integration tests for configuration and probability logic
 
 ### Milestone 2: Tool Integration
+- [x] Add feedback prompt to `version` tool (single-stage, used for testing)
 - [ ] Add feedback prompt to `recommend` tool (deployManifests stage)
 - [ ] Add feedback prompt to `operate` tool (executeChoice)
 - [ ] Add feedback prompt to `remediate` tool (executeChoice)
 - [ ] Add feedback prompt to `manageOrgData` tool (creation completion)
 - [ ] Add feedback prompt to `projectSetup` tool (generateScope completion)
-- [ ] Integration tests verifying prompts appear at correct workflow stages
+- [x] Integration tests verifying prompts appear at correct workflow stages
 
 ### Milestone 3: Google Form & Documentation
-- [ ] Create Google Form with initial questions
+- [x] Create Google Form with initial questions
 - [ ] Configure form response notifications
-- [ ] Update default URL in code
+- [x] Update default URL in code
 - [ ] Document feedback configuration in README
-- [ ] Update CLAUDE.md if new patterns introduced
+- [x] Update CLAUDE.md if new patterns introduced
 
 ---
 
 ## Progress Log
+
+### 2025-12-02 - Milestone 1 Complete, Milestone 2 & 3 Partially Complete
+- Created `src/core/feedback.ts` with configuration loading and probability logic
+- Implemented environment variable support: `DOT_AI_FEEDBACK_ENABLED`, `DOT_AI_FEEDBACK_PROBABILITY`, `DOT_AI_FEEDBACK_URL`
+- Added decorated feedback message with visual separator for prominence
+- Integrated feedback into `version` tool (added as `message` field in JSON response)
+- Created Google Form: https://forms.gle/dJcDXtsxhCCwgxtT6
+- Updated CLAUDE.md with form URL and reminder to update form when adding new tools/prompts
+- Created integration test (`tests/integration/tools/feedback.test.ts`) with statistical verification (200 iterations)
+- Exported feedback functions from `src/core/index.ts`
 
 ### 2025-12-01 - PRD Created
 - Decided on Google Forms approach (simpler than building analytics infrastructure)
