@@ -8,6 +8,8 @@ category: project-management
 
 Complete the PRD implementation workflow including branch management, pull request creation, and issue closure.
 
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
+
 ## Workflow Steps
 
 ### 0. Implementation Type Detection

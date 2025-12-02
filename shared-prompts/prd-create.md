@@ -106,6 +106,8 @@ Work through the PRD template focusing on project management, milestone tracking
 - **Focus on major milestones**: Create 5-10 meaningful milestones rather than exhaustive micro-tasks
 - **Think cross-functionally**: Consider impact on different teams, systems, and stakeholders
 
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
+
 ## Workflow
 
 1. **Concept Discussion**: Get the basic idea and validate the need
@@ -118,7 +120,7 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.
 
-### Step 5: Update ROADMAP.md (If It Exists)
+## Update ROADMAP.md (If It Exists)
 
 After creating the PRD, check if `docs/ROADMAP.md` exists. If it does, add the new feature to the appropriate timeframe section based on PRD priority:
 - **High Priority** → Short-term section

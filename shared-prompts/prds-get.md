@@ -8,6 +8,8 @@ category: project-management
 
 Fetch all open GitHub issues from this project that have the 'PRD' label.
 
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
+
 ## Process
 
 1. **Fetch Issues**: Use GitHub CLI to get all open issues with PRD label

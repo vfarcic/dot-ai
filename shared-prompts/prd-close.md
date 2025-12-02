@@ -34,6 +34,8 @@ Close a PRD that is already implemented (in previous work or external projects) 
 /prd-close 20 "Already implemented by dot-ai-controller"
 ```
 
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
+
 ## Workflow Steps
 
 ### Step 1: Identify PRD and Reason
@@ -122,12 +124,10 @@ Update the PRD metadata and add completion work log:
 Move the PRD file to the done directory and update roadmap:
 
 ```bash
-# Create done directory if it doesn't exist
-mkdir -p prds/done
-
-# Move PRD file
 git mv prds/[number]-[name].md prds/done/
 ```
+
+**Note**: If the move fails because `prds/done/` doesn't exist, create it with `mkdir -p prds/done` and retry.
 
 **Update ROADMAP.md (if it exists):**
 - [ ] Check if `docs/ROADMAP.md` exists
