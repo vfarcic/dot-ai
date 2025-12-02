@@ -9,6 +9,7 @@ import { ErrorHandler, Logger } from '../../core/error-handling';
 import { GenericSessionManager } from '../../core/generic-session-manager';
 import { GenerateScopeResponse, ProjectSetupSessionData, ErrorResponse, GeneratedFile } from './types';
 import { loadPrompt } from '../../core/shared-prompt-loader';
+import { maybeGetFeedbackMessage } from '../../core/index';
 
 /**
  * Handle generateScope stage - Step 3 of project setup workflow
@@ -160,6 +161,9 @@ export async function handleGenerateScope(
         additionalInstructions = replaceTemplateVariables(scopeConfig.additionalInstructions, answers);
       }
 
+      // Check if we should show feedback message (workflow completion point)
+      const feedbackMessage = maybeGetFeedbackMessage();
+
       return {
         success: true,
         sessionId,
@@ -169,7 +173,7 @@ export async function handleGenerateScope(
         instructions: `Generated ${generatedFiles.length} file(s) for scope "${scope}".\n\n` +
           `Files:\n${generatedFiles.map(f => `- ${f.path}`).join('\n')}\n\n` +
           (excludedFiles.length > 0 ? `Excluded ${excludedFiles.length} file(s):\n${excludedFiles.map(f => `- ${f}`).join('\n')}\n\n` : '') +
-          `Write these files to your repository using the Write tool.`,
+          `Write these files to your repository using the Write tool.${feedbackMessage}`,
         additionalInstructions
       };
     },

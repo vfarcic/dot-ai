@@ -135,10 +135,10 @@ Tools that should include feedback prompts (at workflow completion only):
 
 | Tool | Trigger Point |
 |------|---------------|
-| `recommend` | After `deployManifests` stage completes |
-| `operate` | After `executeChoice` completes |
-| `remediate` | After `executeChoice` completes |
-| `manageOrgData` | After pattern/policy creation completes |
+| `recommend` | After `generateManifests` stage completes (core value delivery) |
+| `operate` | After `executeChoice` completes successfully |
+| `remediate` | After `executeChoice` completes successfully |
+| `manageOrgData` | After pattern/policy creation completes successfully |
 | `projectSetup` | After `generateScope` completes all files |
 
 ### Google Form Design (External)
@@ -186,11 +186,11 @@ Form can be updated anytime without code changes.
 
 ### Milestone 2: Tool Integration
 - [x] Add feedback prompt to `version` tool (single-stage, used for testing)
-- [ ] Add feedback prompt to `recommend` tool (deployManifests stage)
-- [ ] Add feedback prompt to `operate` tool (executeChoice)
-- [ ] Add feedback prompt to `remediate` tool (executeChoice)
-- [ ] Add feedback prompt to `manageOrgData` tool (creation completion)
-- [ ] Add feedback prompt to `projectSetup` tool (generateScope completion)
+- [x] Add feedback prompt to `recommend` tool (generateManifests stage)
+- [x] Add feedback prompt to `operate` tool (executeChoice)
+- [x] Add feedback prompt to `remediate` tool (executeChoice)
+- [x] Add feedback prompt to `manageOrgData` tool (pattern/policy creation completion)
+- [x] Add feedback prompt to `projectSetup` tool (generateScope completion)
 - [x] Integration tests verifying prompts appear at correct workflow stages
 
 ### Milestone 3: Google Form & Documentation
@@ -203,6 +203,18 @@ Form can be updated anytime without code changes.
 ---
 
 ## Progress Log
+
+### 2025-12-02 - Milestone 2 Complete: All Tools Integrated
+- Added feedback integration to all remaining tools:
+  - `recommend` (generateManifests stage) - `src/tools/generate-manifests.ts`
+  - `operate` (executeChoice) - `src/tools/operate-execution.ts`
+  - `remediate` (executeChoice) - `src/tools/remediate.ts`
+  - `manageOrgData` (pattern/policy creation) - `src/core/pattern-operations.ts`, `src/core/policy-operations.ts`
+  - `projectSetup` (generateScope) - `src/tools/project-setup/generate-scope.ts`
+- Changed `recommend` trigger from `deployManifests` to `generateManifests` (deployManifests is optional; generateManifests is the core value delivery point)
+- Updated PRD Integration Points table to reflect correct trigger points
+- All tools use `maybeGetFeedbackMessage()` helper with consistent pattern
+- Build verified successful
 
 ### 2025-12-02 - Milestone 1 Complete, Milestone 2 & 3 Partially Complete
 - Created `src/core/feedback.ts` with configuration loading and probability logic

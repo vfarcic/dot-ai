@@ -10,6 +10,7 @@ import { PolicyVectorService } from './policy-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
 import { executeKubectl } from './kubernetes-utils';
+import { maybeGetFeedbackMessage } from './index';
 
 // Note: validateVectorDBConnection and validateEmbeddingService are shared utilities
 // that remain in the main organizational-data.ts file as they're used by multiple domains
@@ -539,14 +540,17 @@ export async function handlePolicyOperation(
       const storageSucceeded = storageInfo.stored === true;
       const operationSucceeded = !isComplete || storageSucceeded;
 
+      // Check if we should show feedback message (workflow completion point)
+      const feedbackMessage = (isComplete && storageSucceeded) ? maybeGetFeedbackMessage() : '';
+
       return {
         success: operationSucceeded,
         operation: 'create',
         dataType: 'policy',
         workflow: workflowStep,
         storage: storageInfo,
-        message: isComplete ? 
-          (storageSucceeded ? 'Policy created and stored successfully' : 'Policy creation failed - storage error') :
+        message: isComplete ?
+          (storageSucceeded ? `Policy created and stored successfully${feedbackMessage}` : 'Policy creation failed - storage error') :
           'Workflow step ready'
       };
     }
