@@ -73,7 +73,7 @@ EXPOSE 3456
 
 # Environment variable defaults
 ENV NODE_ENV=production \
-    TRANSPORT_TYPE=http \
+    TRANSPORT_TYPE=stdio \
     PORT=3456 \
     HOST=0.0.0.0 \
     DOT_AI_SESSION_DIR=/app/tmp/sessions
