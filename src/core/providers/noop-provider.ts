@@ -54,13 +54,6 @@ export class NoOpAIProvider implements AIProvider {
   }
 
   /**
-   * Returns the SDK provider
-   */
-  getSDKProvider(): string {
-    return 'noop';
-  }
-
-  /**
    * Throws error explaining AI is not available
    */
   async sendMessage(

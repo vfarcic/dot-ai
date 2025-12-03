@@ -36,8 +36,6 @@ spec:
         # AI Provider configuration
         - name: AI_PROVIDER
           value: {{ .Values.ai.provider | default "anthropic" | quote }}
-        - name: AI_PROVIDER_SDK
-          value: {{ .Values.ai.sdk | default "native" | quote }}
 {{- if .Values.ai.model }}
         - name: AI_MODEL
           value: {{ .Values.ai.model | quote }}

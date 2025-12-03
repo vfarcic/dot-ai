@@ -152,7 +152,7 @@ export class VercelProvider implements AIProvider {
   }
 
   getProviderType(): string {
-    return 'vercel';
+    return this.providerType;
   }
 
   getDefaultModel(): string {
@@ -161,10 +161,6 @@ export class VercelProvider implements AIProvider {
 
   getModelName(): string {
     return this.model;
-  }
-
-  getSDKProvider(): string {
-    return this.providerType;
   }
 
   isInitialized(): boolean {

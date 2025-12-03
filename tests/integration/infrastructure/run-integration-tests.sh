@@ -312,10 +312,9 @@ mkdir -p ./tmp/debug-ai
 if [ "$NO_CLUSTER" = false ]; then
     # Set provider defaults if not already set
     AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
-    AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 
     log_info "Deploying dot-ai via Helm chart..."
-    log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
+    log_info "AI Provider: ${AI_PROVIDER}"
 
     # Create namespace for dot-ai
     kubectl create namespace dot-ai || true
@@ -337,7 +336,6 @@ if [ "$NO_CLUSTER" = false ]; then
         --set image.tag=test \
         --set image.pullPolicy=Never \
         --set ai.provider="${AI_PROVIDER}" \
-        --set ai.sdk="${AI_PROVIDER_SDK}" \
         --set controller.enabled=true \
         --set ingress.enabled=true \
         --set ingress.className=nginx \
@@ -390,10 +388,9 @@ if [ "$NO_CLUSTER" = false ]; then
 else
     # --no-cluster mode: Start MCP server on host
     AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
-    AI_PROVIDER_SDK=${AI_PROVIDER_SDK:-native}
 
     log_info "Starting MCP server on port ${PORT} (no-cluster mode)..."
-    log_info "AI Provider: ${AI_PROVIDER}, SDK: ${AI_PROVIDER_SDK}"
+    log_info "AI Provider: ${AI_PROVIDER}"
 
     KUBECONFIG=./kubeconfig-test.yaml \
     PORT=${PORT} \
@@ -451,7 +448,6 @@ fi
 log_info "Running integration tests..."
 # Export AI provider configuration so tests can validate server is using correct settings
 export AI_PROVIDER
-export AI_PROVIDER_SDK
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?

@@ -27,11 +27,16 @@
 
 ## 🛑 TESTING WORKFLOW
 
-- **Implementation flow**: Code → Integration Tests → `npm run test:integration` → Mark complete
+- **Implementation flow**: Code → Integration Tests → `npm run test:integration` → Cleanup → Mark complete
 - **Integration testing standards**: See `tests/integration/CLAUDE.md` for comprehensive integration testing patterns
+- **Long-running tests**: Output to file to avoid truncation: `npm run test:integration 2>&1 | tee ./tmp/test-output.log`
 - **Lightweight tests**: For tests that don't require Kubernetes cluster or Qdrant (e.g., project-setup tool):
   - `npm run test:integration -- --no-cluster [test-filter]`
   - Example: `npm run test:integration -- --no-cluster project-setup`
+- **Cleanup after successful tests**: After integration tests pass, run the teardown script to clean up resources:
+  - `./tests/integration/infrastructure/teardown-cluster.sh`
+  - This deletes the Kind cluster, removes test kubeconfig, and cleans up Qdrant container
+  - **Only run cleanup if tests passed** - keep resources available for debugging if tests fail
 
 ## Project Overview
 
