@@ -197,12 +197,17 @@ Form can be updated anytime without code changes.
 - [x] Create Google Form with initial questions
 - [ ] Configure form response notifications
 - [x] Update default URL in code
-- [ ] Document feedback configuration in README
+- [x] Document feedback configuration in README and setup guide
 - [x] Update CLAUDE.md if new patterns introduced
 
 ---
 
 ## Progress Log
+
+### 2025-12-03 - Documentation Complete
+- Added `DOT_AI_FEEDBACK_ENABLED` to setup guide configuration table (`docs/mcp-setup.md`)
+- Added "Help Us Improve" call to action section in README with direct form link
+- Kept documentation minimal: only documented opt-out variable, not probability/URL (internal use)
 
 ### 2025-12-02 - Milestone 2 Complete: All Tools Integrated
 - Added feedback integration to all remaining tools:
