@@ -1,6 +1,6 @@
 # PRD #245: User Feedback Collection via Google Forms
 
-## Status: In Progress
+## Status: Complete
 ## Priority: Medium
 ## Created: 2025-12-01
 
@@ -195,7 +195,7 @@ Form can be updated anytime without code changes.
 
 ### Milestone 3: Google Form & Documentation
 - [x] Create Google Form with initial questions
-- [ ] Configure form response notifications
+- [x] Configure form response notifications
 - [x] Update default URL in code
 - [x] Document feedback configuration in README and setup guide
 - [x] Update CLAUDE.md if new patterns introduced
@@ -204,9 +204,11 @@ Form can be updated anytime without code changes.
 
 ## Progress Log
 
-### 2025-12-03 - Documentation Complete
+### 2025-12-03 - PRD Complete
 - Added `DOT_AI_FEEDBACK_ENABLED` to setup guide configuration table (`docs/mcp-setup.md`)
 - Added "Help Us Improve" call to action section in README with direct form link
+- Added feedback form link to GitHub issue template chooser (`.github/ISSUE_TEMPLATE/config.yml`)
+- Configured Google Form email notifications for new responses
 - Kept documentation minimal: only documented opt-out variable, not probability/URL (internal use)
 
 ### 2025-12-02 - Milestone 2 Complete: All Tools Integrated
