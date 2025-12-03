@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe('Feedback Collection Integration', () => {
+describe.concurrent('Feedback Collection Integration', () => {
   const integrationTest = new IntegrationTest();
 
   describe('Feedback Message Statistical Verification', () => {
@@ -38,9 +38,9 @@ describe('Feedback Collection Integration', () => {
 
       // With 200 iterations at 5% probability:
       // Expected: 10, StdDev: ~3.08
-      // Allow range of 1-25 for statistical variance (99%+ confidence)
-      const expectedMin = 1;
-      const expectedMax = 25;
+      // Allow range of 3-17 for statistical variance (99% confidence)
+      const expectedMin = 3;
+      const expectedMax = 17;
       const probability = feedbackCount / iterations;
 
       console.log(`Feedback appeared ${feedbackCount}/${iterations} times (${(probability * 100).toFixed(1)}%)`);

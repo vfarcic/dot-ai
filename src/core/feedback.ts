@@ -37,7 +37,7 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
     return defaultValue;
   }
 
-  const lowered = value.toLowerCase();
+  const lowered = value.trim().toLowerCase();
 
   if (lowered === 'true' || lowered === '1' || lowered === 'yes') {
     return true;
