@@ -160,7 +160,8 @@ The DevOps AI Toolkit supports multiple embedding providers for semantic search 
 | Provider | EMBEDDINGS_PROVIDER | Model | Dimensions | API Key Required |
 |----------|-------------------|-------|------------|------------------|
 | **Amazon Bedrock** | `amazon_bedrock` | `amazon.titan-embed-text-v2:0` | 1024 | AWS credentials |
-| **Google** | `google` | `text-embedding-004` | 768 | `GOOGLE_API_KEY` |
+| **Google** | `google` | `text-embedding-004` (deprecated) | 768 | `GOOGLE_API_KEY` |
+| **Google** | `google` | `gemini-embedding-001` | 768 | `GOOGLE_API_KEY` |
 | **OpenAI** | `openai` (default) | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY` |
 
 **Configuration Steps:**
@@ -192,6 +193,7 @@ EMBEDDINGS_MODEL=amazon.titan-embed-text-v2:0  # Optional: defaults to Titan v2
 - **Same Provider**: If using the same provider for both AI models and embeddings (e.g., `AI_PROVIDER=google` and `EMBEDDINGS_PROVIDER=google`), you only need to set one API key
 - **Mixed Providers**: You can use different providers for AI models and embeddings (e.g., `AI_PROVIDER=anthropic` with `EMBEDDINGS_PROVIDER=google`)
 - **Embedding Support**: Not all AI model providers support embeddings. Anthropic does not provide embeddings; use OpenAI, Google, or Amazon Bedrock for embeddings
+- **Google Deprecation**: `text-embedding-004` will be discontinued on January 14, 2026. Use `gemini-embedding-001` for new deployments. When switching models, you must delete and recreate all embeddings (patterns, capabilities, policies) as vectors from different models are not compatible
 
 ### Custom Endpoint Configuration
 

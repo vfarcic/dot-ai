@@ -57,7 +57,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         break;
       case 'google':
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
-        this.model = config.model || 'text-embedding-004';
+        this.model = config.model || process.env.EMBEDDINGS_MODEL || 'gemini-embedding-001';
         this.dimensions = config.dimensions || 768;
         break;
       case 'amazon_bedrock':
