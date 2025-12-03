@@ -8,6 +8,7 @@ import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
+import { maybeGetFeedbackMessage } from '../core/index';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -637,6 +638,9 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
           });
           
           // Create success response with execution context
+          // Check if we should show feedback message (workflow completion point)
+          const feedbackMessage = maybeGetFeedbackMessage();
+
           const successResponse = {
             status: 'success',
             sessionId: session.sessionId,
@@ -653,7 +657,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             validationIntent: validationData.validationIntent,
             guidance: `✅ REMEDIATION COMPLETE: Issue has been successfully resolved through executed commands.`,
             agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the actual kubectl commands that were executed (from remediation.actions[].command field)\n3. Show execution results with success/failure status for each command\n4. Show the validation results confirming the fix worked\n5. No further action required`,
-            message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.`,
+            message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.${feedbackMessage}`,
             validation: {
               success: true,
               summary: 'Validation confirmed issue resolution'
@@ -689,14 +693,17 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     executionResults: results
   });
 
+  // Check if we should show feedback message (workflow completion point)
+  const executionFeedbackMessage = overallSuccess ? maybeGetFeedbackMessage() : '';
+
   const response = {
     status: overallSuccess ? 'success' : 'failed',
     sessionId: session.sessionId,
     executed: true,
     results: results,
     executedCommands: results.map(r => r.action),
-    message: overallSuccess 
-      ? `Successfully executed ${results.length} remediation actions`
+    message: overallSuccess
+      ? `Successfully executed ${results.length} remediation actions${executionFeedbackMessage}`
       : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
     validation: validationResult,
     instructions: {

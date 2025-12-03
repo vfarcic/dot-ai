@@ -129,6 +129,12 @@ We welcome contributions from the community! Please review:
 - **[Maintainers](docs/MAINTAINERS.md)** - Current project maintainers
 - **[Roadmap](docs/ROADMAP.md)** - Project direction and priorities
 
+## Help Us Improve
+
+Your feedback shapes dot-ai's future! After using the tools, you may occasionally see a feedback prompt - we'd love to hear what's working and what could be better.
+
+📝 **[Share your feedback](https://forms.gle/dJcDXtsxhCCwgxtT6)**
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.

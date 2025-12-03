@@ -10,7 +10,7 @@ import { join } from 'path';
 import { z } from 'zod';
 import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
-import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService } from '../core/index';
+import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage } from '../core/index';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
 import { getTracer, createTracedK8sClient } from '../core/tracing';
@@ -730,6 +730,9 @@ export async function handleVersionTool(
       kyvernoReady: kyvernoStatus.policyGenerationReady
     });
     
+    // Check if we should show feedback message
+    const feedbackMessage = maybeGetFeedbackMessage();
+
     return {
       content: [{
         type: 'text' as const,
@@ -755,7 +758,8 @@ export async function handleVersionTool(
               kyvernoStatus.policyGenerationReady ? 'kyverno-policy-generation' : null
             ].filter(Boolean)
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          ...(feedbackMessage ? { message: feedbackMessage } : {})
         }, null, 2)
       }]
     };

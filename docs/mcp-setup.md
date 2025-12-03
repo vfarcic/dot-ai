@@ -72,6 +72,7 @@ All setup methods need the same core configuration, but handle it differently:
 | `KUBECONFIG` | Path to Kubernetes configuration | `~/.kube/config` |
 | `QDRANT_URL` | Qdrant vector database connection | `http://localhost:6333` |
 | `QDRANT_API_KEY` | Qdrant API key (for cloud instances) | `your-qdrant-api-key` |
+| `DOT_AI_FEEDBACK_ENABLED` | Enable/disable feedback prompts (default: true, appears occasionally) | `false` to opt-out |
 | **AI Model API Keys** | **Corresponding API key for your chosen provider** | [See AI Model Configuration](#ai-model-configuration) |
 | **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
 | **Tracing (Optional)** | OpenTelemetry distributed tracing | [See Observability Guide](observability-guide.md) |

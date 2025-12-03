@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { DotAI } from '../core/index';
+import { DotAI, maybeGetFeedbackMessage } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
 import { ManifestValidator, ValidationResult } from '../core/schema';
@@ -372,6 +372,9 @@ export async function handleGenerateManifestsTool(
             });
             
             // Success! Return the validated manifests
+            // Check if we should show feedback message (workflow completion point)
+            const feedbackMessage = maybeGetFeedbackMessage();
+
             const response = {
               success: true,
               status: 'manifests_generated',
@@ -379,9 +382,10 @@ export async function handleGenerateManifestsTool(
               manifests: manifests,
               yamlPath: yamlPath,
               validationAttempts: attempt,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              ...(feedbackMessage ? { message: feedbackMessage } : {})
             };
-            
+
             return {
               content: [{
                 type: 'text' as const,

@@ -19,7 +19,6 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
-- User feedback collection via Google Forms (PRD #245)
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)

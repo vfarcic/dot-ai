@@ -34,17 +34,6 @@ reviews:
 language: "en-US"
 early_access: false
 
-# Reduce noise from tests
-path_instructions:
-  - path: "tests/**"
-    instructions: "Only flag critical test bugs or missing test coverage for new features. Skip minor test improvements."
-
-  - path: "**/*.test.ts"
-    instructions: "Focus on test correctness and coverage gaps only. Skip style suggestions."
-
-  - path: "prompts/**"
-    instructions: "Only review for clarity and correctness. Skip style suggestions for AI prompts."
-
 # Custom review instructions
 chat:
   auto_reply: false

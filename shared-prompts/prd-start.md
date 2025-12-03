@@ -147,11 +147,8 @@ git push -u origin feature/prd-[issue-id]-[feature-name]
 - **Documentation tools**: Ensure documentation generation tools are available
 
 ### Implementation Tracking Setup
-- **Mark PRD as "In Progress"**: Update PRD status section
-- **Create implementation log**: Add initial work log entry with start date
-- **Set up progress tracking**: Identify key milestones for progress updates
-- **✅ CRITICAL: Update milestone checkboxes**: As you complete each implementation milestone in the PRD, immediately mark the corresponding checkbox as [x] completed
-- **Commit milestone updates**: Include PRD milestone updates in your commits to maintain accurate progress tracking
+- **Identify key milestones**: Review the PRD milestones for progress tracking
+- **Plan progress checkpoints**: Determine when to update progress during implementation
 
 ## Step 4: Identify Implementation Starting Point
 
@@ -208,27 +205,20 @@ If confirmed, provide:
 - **Testing approach**: How to validate the implementation
 - **Progress checkpoints**: When to update the PRD with progress
 
-### Progress Tracking Setup
-- **Update PRD status**: Mark relevant items as "in progress"
-- **Commit initial setup**: Make initial commit with branch and any setup changes
-- **Documentation updates**: Add PRD traceability comments to any docs being implemented
+### After Implementation
+Once you complete a task or milestone, update PRD progress by running the `prd-update-progress` prompt.
 
-### Ongoing PRD Maintenance During Implementation
-Throughout the implementation process:
-- **After completing any milestone**: Immediately update the corresponding checkbox in the PRD file from `[ ]` to `[x]`
-- **Update work log**: Add entries documenting what was accomplished
-- **Keep status current**: Update the PRD status section to reflect current implementation state
+*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-update-progress` in Claude Code, or other syntax in different MCP clients).*
 
 ## Success Criteria
 
 This command should:
 - ✅ Successfully identify the target PRD for implementation
 - ✅ Validate that the PRD is ready for development work
-- ✅ Set up proper implementation context (branch, environment, tracking)
+- ✅ Set up proper implementation context (branch, environment)
 - ✅ Identify the optimal first implementation task
 - ✅ Provide clear, actionable next steps for beginning development
 - ✅ Bridge the gap between planning and actual coding work
-- ✅ Ensure proper progress tracking is established from the start
 
 ## Notes
 

@@ -1,6 +1,6 @@
 # PRD #245: User Feedback Collection via Google Forms
 
-## Status: Planning
+## Status: Complete
 ## Priority: Medium
 ## Created: 2025-12-01
 
@@ -135,10 +135,10 @@ Tools that should include feedback prompts (at workflow completion only):
 
 | Tool | Trigger Point |
 |------|---------------|
-| `recommend` | After `deployManifests` stage completes |
-| `operate` | After `executeChoice` completes |
-| `remediate` | After `executeChoice` completes |
-| `manageOrgData` | After pattern/policy creation completes |
+| `recommend` | After `generateManifests` stage completes (core value delivery) |
+| `operate` | After `executeChoice` completes successfully |
+| `remediate` | After `executeChoice` completes successfully |
+| `manageOrgData` | After pattern/policy creation completes successfully |
 | `projectSetup` | After `generateScope` completes all files |
 
 ### Google Form Design (External)
@@ -179,29 +179,59 @@ Form can be updated anytime without code changes.
 ## Milestones
 
 ### Milestone 1: Core Feedback Infrastructure
-- [ ] Create feedback configuration module (`src/core/feedback.ts`)
-- [ ] Implement environment variable loading with defaults
-- [ ] Add probability-based decision logic
-- [ ] Integration tests for configuration and probability logic
+- [x] Create feedback configuration module (`src/core/feedback.ts`)
+- [x] Implement environment variable loading with defaults
+- [x] Add probability-based decision logic
+- [x] Integration tests for configuration and probability logic
 
 ### Milestone 2: Tool Integration
-- [ ] Add feedback prompt to `recommend` tool (deployManifests stage)
-- [ ] Add feedback prompt to `operate` tool (executeChoice)
-- [ ] Add feedback prompt to `remediate` tool (executeChoice)
-- [ ] Add feedback prompt to `manageOrgData` tool (creation completion)
-- [ ] Add feedback prompt to `projectSetup` tool (generateScope completion)
-- [ ] Integration tests verifying prompts appear at correct workflow stages
+- [x] Add feedback prompt to `version` tool (single-stage, used for testing)
+- [x] Add feedback prompt to `recommend` tool (generateManifests stage)
+- [x] Add feedback prompt to `operate` tool (executeChoice)
+- [x] Add feedback prompt to `remediate` tool (executeChoice)
+- [x] Add feedback prompt to `manageOrgData` tool (pattern/policy creation completion)
+- [x] Add feedback prompt to `projectSetup` tool (generateScope completion)
+- [x] Integration tests verifying prompts appear at correct workflow stages
 
 ### Milestone 3: Google Form & Documentation
-- [ ] Create Google Form with initial questions
-- [ ] Configure form response notifications
-- [ ] Update default URL in code
-- [ ] Document feedback configuration in README
-- [ ] Update CLAUDE.md if new patterns introduced
+- [x] Create Google Form with initial questions
+- [x] Configure form response notifications
+- [x] Update default URL in code
+- [x] Document feedback configuration in README and setup guide
+- [x] Update CLAUDE.md if new patterns introduced
 
 ---
 
 ## Progress Log
+
+### 2025-12-03 - PRD Complete
+- Added `DOT_AI_FEEDBACK_ENABLED` to setup guide configuration table (`docs/mcp-setup.md`)
+- Added "Help Us Improve" call to action section in README with direct form link
+- Added feedback form link to GitHub issue template chooser (`.github/ISSUE_TEMPLATE/config.yml`)
+- Configured Google Form email notifications for new responses
+- Kept documentation minimal: only documented opt-out variable, not probability/URL (internal use)
+
+### 2025-12-02 - Milestone 2 Complete: All Tools Integrated
+- Added feedback integration to all remaining tools:
+  - `recommend` (generateManifests stage) - `src/tools/generate-manifests.ts`
+  - `operate` (executeChoice) - `src/tools/operate-execution.ts`
+  - `remediate` (executeChoice) - `src/tools/remediate.ts`
+  - `manageOrgData` (pattern/policy creation) - `src/core/pattern-operations.ts`, `src/core/policy-operations.ts`
+  - `projectSetup` (generateScope) - `src/tools/project-setup/generate-scope.ts`
+- Changed `recommend` trigger from `deployManifests` to `generateManifests` (deployManifests is optional; generateManifests is the core value delivery point)
+- Updated PRD Integration Points table to reflect correct trigger points
+- All tools use `maybeGetFeedbackMessage()` helper with consistent pattern
+- Build verified successful
+
+### 2025-12-02 - Milestone 1 Complete, Milestone 2 & 3 Partially Complete
+- Created `src/core/feedback.ts` with configuration loading and probability logic
+- Implemented environment variable support: `DOT_AI_FEEDBACK_ENABLED`, `DOT_AI_FEEDBACK_PROBABILITY`, `DOT_AI_FEEDBACK_URL`
+- Added decorated feedback message with visual separator for prominence
+- Integrated feedback into `version` tool (added as `message` field in JSON response)
+- Created Google Form: https://forms.gle/dJcDXtsxhCCwgxtT6
+- Updated CLAUDE.md with form URL and reminder to update form when adding new tools/prompts
+- Created integration test (`tests/integration/tools/feedback.test.ts`) with statistical verification (200 iterations)
+- Exported feedback functions from `src/core/index.ts`
 
 ### 2025-12-01 - PRD Created
 - Decided on Google Forms approach (simpler than building analytics infrastructure)
