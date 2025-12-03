@@ -1,5 +1,8 @@
 blank_issues_enabled: no
 contact_links:
+  - name: 📝 Share Feedback
+    url: https://forms.gle/dJcDXtsxhCCwgxtT6
+    about: Help us improve dot-ai with your feedback
   - name: 💬 GitHub Discussions
     url: https://github.com/vfarcic/dot-ai/discussions
     about: Ask questions, share ideas, and discuss with the community
