@@ -312,22 +312,32 @@ Progress: X% complete - [next major milestone]"
 
 **Note**: Do NOT push commits unless explicitly requested by the user. Commits preserve local progress checkpoints without affecting remote branches.
 
-## Step 9: Continue to Next Task
+## Step 9: Next Steps Based on PRD Status
 
-After completing the PRD update and committing changes, prompt the user to continue working:
+After completing the PRD update and committing changes, guide the user based on completion status:
+
+### If PRD has remaining tasks
 
 ---
 
 **PRD progress updated and committed.**
 
-**Recommended**: Clear the context before starting the next task to ensure a fresh start without clutter from the previous work session.
-
-To continue working on the next task:
+To continue working on this PRD:
 1. Clear/reset the conversation context
-2. Run the `prd-next` prompt to get the next task recommendation
-
-*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/clear`, `/prd-next` in Claude Code, or other syntax in different MCP clients).*
+2. Run the `prd-next` prompt to get the next task
 
 ---
 
-This ensures a smooth workflow from completing work → updating progress → fresh context → starting the next task.
+### If PRD is 100% complete
+
+---
+
+**PRD #X is complete!**
+
+To finalize:
+1. Clear/reset the conversation context
+2. Run the `prd-done` prompt to move the PRD to the done folder and close the GitHub issue
+
+---
+
+*Note: Different agents/clients may have different syntax for executing prompts (e.g., `/prd-next`, `/prd-done` in Claude Code, or other syntax in different MCP clients).*

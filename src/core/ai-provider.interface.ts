@@ -266,24 +266,11 @@ export interface AIProvider {
   getModelName(): string;
 
   /**
-   * Get the underlying SDK provider being used (for Vercel AI SDK)
-   *
-   * @returns SDK provider name (e.g., 'xai', 'anthropic', 'openai') or the provider type for native SDKs
-   */
-  getSDKProvider(): string;
-
-  /**
-   * Execute agentic loop with tool calling (NEW - PRD #136)
+   * Execute agentic loop with tool calling (PRD #136)
    *
    * AI autonomously decides which tools to call and when to stop.
    * Supports multi-turn conversations with tool execution.
-   *
-   * NOTE: Currently NOT USED in codebase. PRD #136 analysis showed JSON-based loops
-   * achieve same goals without SDK overhead. Kept for potential future use.
-   *
-   * IMPLEMENTATION STATUS:
-   * - AnthropicProvider: ✅ Implemented
-   * - VercelAIProvider: ❌ Not implemented (not needed for current workflows)
+   * Used by remediate and operate tools for AI-driven investigations.
    *
    * @param config Tool loop configuration with system prompt, tools, and executor
    * @returns Agentic result with final message, iterations, tool calls, and token usage

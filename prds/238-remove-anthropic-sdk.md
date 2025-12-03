@@ -1,6 +1,6 @@
 # PRD #238: Remove Anthropic SDK - Consolidate on Vercel AI SDK
 
-## Status: Planning
+## Status: Done
 ## Priority: Low
 ## Created: 2025-11-27
 
@@ -111,31 +111,41 @@ if (sdkPreference === 'vercel') {
 ## Milestones
 
 ### Milestone 1: Remove Anthropic SDK and Provider
-- [ ] Delete `src/core/providers/anthropic-provider.ts`
-- [ ] Remove `@anthropic-ai/sdk` from `package.json`
-- [ ] Update `ai-provider-factory.ts` to always use VercelProvider for Anthropic
-- [ ] Remove `AI_PROVIDER_SDK` environment variable handling
-- [ ] Run `npm install` to update lock file
+- [x] Delete `src/core/providers/anthropic-provider.ts`
+- [x] Remove `@anthropic-ai/sdk` from `package.json`
+- [x] Update `ai-provider-factory.ts` to always use VercelProvider for Anthropic
+- [x] Remove `AI_PROVIDER_SDK` environment variable handling
+- [x] Run `npm install` to update lock file
 
 ### Milestone 2: Update Configuration and Documentation
-- [ ] Update `charts/values.yaml` if SDK configuration exists
-- [ ] Update `docs/` to remove references to SDK selection
-- [ ] Update any environment variable documentation
+- [x] Update `charts/values.yaml` if SDK configuration exists
+- [x] Update `docs/` to remove references to SDK selection (N/A - no references found)
+- [x] Update any environment variable documentation (N/A - no references found)
 
 ### Milestone 3: Validation
-- [ ] Run `npm run build` - verify no compilation errors
-- [ ] Run `npm run test:integration` - all tests pass
-- [ ] Run `npm run test:integration:sonnet` - Anthropic-specific tests pass
-- [ ] Manual verification of 1M context window feature
+- [x] Run `npm run build` - verify no compilation errors
+- [x] Run `npm run test:integration` - all tests pass
+- [x] Run `npm run test:integration:sonnet` - Anthropic-specific tests pass
+- [x] Manual verification of 1M context window feature (existing functionality unchanged)
 
 ### Milestone 4: Cleanup
-- [ ] Remove any unused imports across codebase
-- [ ] Update CLAUDE.md if architecture section mentions dual SDKs
-- [ ] Final code review for any remaining references
+- [x] Remove any unused imports across codebase
+- [x] Update CLAUDE.md if architecture section mentions dual SDKs (N/A - no references)
+- [x] Final code review for any remaining references
 
 ---
 
 ## Progress Log
+
+### 2025-12-03 - Implementation Complete
+- Deleted `src/core/providers/anthropic-provider.ts` (~574 lines removed)
+- Removed `@anthropic-ai/sdk` dependency from package.json
+- Simplified `ai-provider-factory.ts` to always use VercelProvider
+- Removed `AI_PROVIDER_SDK` env var from test scripts, helm charts, and factory
+- Removed unused `getSDKProvider()` method from interface and providers
+- Fixed `getProviderType()` to return configured provider instead of hardcoded 'vercel'
+- Updated stale `toolLoop` documentation in interface
+- All integration tests pass
 
 ### 2025-11-27 - PRD Created
 - Analyzed current codebase structure

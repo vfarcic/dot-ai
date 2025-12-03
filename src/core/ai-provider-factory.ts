@@ -12,7 +12,6 @@ import {
   AIProvider,
   AIProviderConfig
 } from './ai-provider.interface';
-import { AnthropicProvider } from './providers/anthropic-provider';
 import { VercelProvider } from './providers/vercel-provider';
 import { NoOpAIProvider } from './providers/noop-provider';
 import { CURRENT_MODELS } from './model-config';
@@ -81,18 +80,8 @@ export class AIProviderFactory {
       );
     }
 
-    // Create provider based on type
-    switch (config.provider) {
-      case 'anthropic':
-      case 'anthropic_opus':
-      case 'anthropic_haiku':
-        return this.createAnthropicProvider(config);
-
-      default:
-        // All non-Anthropic providers use VercelProvider
-        // This matches the integration test behavior with AI_PROVIDER_SDK=vercel
-        return new VercelProvider(config);
-    }
+    // All providers use VercelProvider (PRD #238: consolidated on Vercel AI SDK)
+    return new VercelProvider(config);
   }
 
   /**
@@ -104,15 +93,10 @@ export class AIProviderFactory {
    * If no API keys are configured, returns a NoOpAIProvider that allows
    * the MCP server to start but returns helpful errors when AI is needed.
    *
-   * Supports AI_PROVIDER_SDK env var to override SDK choice:
-   * - 'native' (default): Use native provider SDK
-   * - 'vercel': Use Vercel AI SDK for the provider
-   *
    * @returns Configured AI provider instance or NoOpProvider if no keys available
    */
   static createFromEnv(): AIProvider {
     const providerType = process.env.AI_PROVIDER || 'anthropic';
-    const sdkPreference = process.env.AI_PROVIDER_SDK || 'native';
 
     // Validate provider is implemented
     if (!IMPLEMENTED_PROVIDERS.includes(providerType as ImplementedProvider)) {
@@ -180,17 +164,6 @@ export class AIProviderFactory {
       effectiveProviderType = 'custom';
     }
 
-    // If SDK override to 'vercel', use VercelProvider for all providers
-    if (sdkPreference === 'vercel') {
-      return new VercelProvider({
-        provider: effectiveProviderType,
-        apiKey,
-        model,
-        debugMode,
-        baseURL
-      });
-    }
-
     return this.create({
       provider: effectiveProviderType,
       apiKey,
@@ -198,14 +171,6 @@ export class AIProviderFactory {
       debugMode,
       baseURL
     });
-  }
-
-  /**
-   * Create Anthropic provider instance
-   * @private
-   */
-  private static createAnthropicProvider(config: AIProviderConfig): AIProvider {
-    return new AnthropicProvider(config);
   }
 
   /**

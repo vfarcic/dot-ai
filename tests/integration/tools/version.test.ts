@@ -17,17 +17,10 @@ describe.concurrent('Version Tool Integration', () => {
 
   // Get expected provider and model based on test environment configuration
   const aiProvider = process.env.AI_PROVIDER || 'anthropic';
-  const aiProviderSdk = process.env.AI_PROVIDER_SDK || 'native';
   const expectedModelName = CURRENT_MODELS[aiProvider as keyof typeof CURRENT_MODELS];
 
-  // When using Vercel SDK, providerType is 'vercel', otherwise it's the base provider type
-  const expectedProviderType = aiProviderSdk === 'vercel' ? 'vercel'
-    : aiProvider.startsWith('anthropic') ? 'anthropic'
-    : aiProvider.startsWith('openai') ? 'openai'
-    : aiProvider.startsWith('google') ? 'google'
-    : aiProvider.startsWith('xai') ? 'xai'
-    : aiProvider === 'amazon_bedrock' ? 'amazon_bedrock'
-    : aiProvider;
+  // All providers use VercelProvider (PRD #238), providerType matches the configured provider
+  const expectedProviderType = aiProvider;
 
   // Detect deployment mode based on MCP_BASE_URL
   const isInClusterMode = process.env.MCP_BASE_URL?.includes('nip.io') || false;
