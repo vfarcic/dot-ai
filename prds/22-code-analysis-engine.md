@@ -3,10 +3,12 @@
 **Created**: 2025-07-28
 **Status**: Draft
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-11-18
+**Last Updated**: 2025-12-03
 
 ## Executive Summary
-Create an MCP prompt that instructs Claude Code to analyze local project directories and generate deployment intent descriptions for the recommendation tool. This prompt focuses solely on understanding what the application is, what it needs, and how it should be deployed - providing structured analysis that helps users articulate their deployment requirements.
+Create a deep project analysis capability that automatically generates comprehensive deployment intent descriptions for the recommendation tool. When users provide vague intents like "deploy my app", the system instructs the client agent (Claude Code) to analyze the entire codebase and discover ALL deployment requirements - not just the main application, but databases, caches, message queues, and any other infrastructure dependencies.
+
+**Key Innovation**: Integrates into the existing recommend tool's clarification workflow. Instead of asking users questions, the MCP returns analysis instructions that the client agent executes automatically, producing a detailed deployment intent without manual user input.
 
 **Note**: This PRD is complementary to but independent from:
 - **PRD #225 (Dockerfile Generation)**: Containerization of applications
@@ -16,19 +18,24 @@ Create an MCP prompt that instructs Claude Code to analyze local project directo
 ## Documentation Changes
 
 ### Files Created/Updated
-- **`shared-prompts/analyze-project.md`** - New File - MCP prompt template for project analysis instructions
-- **`docs/mcp-guide.md`** - MCP Documentation - Document the analyze-project prompt
+- **`.claude/commands/analyze-project.md`** - Temporary - Claude Code slash command for development/testing (deleted after validation)
+- **`prompts/analyze-project.md`** - New File - MCP internal prompt returned in recommend workflow
+- **`src/tools/recommend.ts`** - Modified - Return analysis instructions in clarification response
+- **`docs/mcp-guide.md`** - MCP Documentation - Document the automated analysis workflow
 - **`README.md`** - Project Overview - Add automated project analysis to core capabilities
 
 ### Content Location Map
+- **Production Prompt**: See `prompts/analyze-project.md` (returned by recommend tool)
 - **Feature Overview**: See `docs/mcp-guide.md` (Section: "Automated Project Analysis")
-- **Prompt Template**: See `shared-prompts/analyze-project.md`
 - **Usage Examples**: See `docs/mcp-guide.md` (Section: "Project Analysis Examples")
 
+**Note**: The slash command is temporary for development iteration only. Final deployment has no standalone command - analysis is only available as part of the recommend workflow.
+
 ### User Journey Validation
-- [ ] **Primary workflow** documented end-to-end: User in project directory → Invoke analysis prompt → Client agent analyzes → Generates deployment intent description
-- [ ] **Prompt effectiveness** validated: Prompt produces accurate deployment intent descriptions across different project types
-- [ ] **Integration** with recommend tool: Generated intent descriptions work seamlessly when passed to recommend tool
+- [ ] **Development validation**: `/analyze-project` slash command produces accurate, comprehensive analysis (temporary)
+- [ ] **Production workflow**: User calls recommend with vague intent → MCP returns analysis instructions → Client agent analyzes → Calls recommend with detailed intent
+- [ ] **Deep analysis**: Analysis discovers ALL deployment components (app + databases + caches + queues + etc.)
+- [ ] **Prompt effectiveness**: Produces accurate, comprehensive deployment intent descriptions across different project types
 
 ## Problem Statement
 
@@ -47,33 +54,67 @@ Developers know what their application code does, but struggle to articulate dep
 
 ## Solution Overview
 
-Create `shared-prompts/analyze-project.md` that instructs Claude Code to:
+### Two-Phase Development Approach
 
-1. **Analyze project structure** - Detect language, framework, application type, dependencies
-2. **Identify deployment requirements** - Understand resource needs, scaling requirements, persistence needs
-3. **Generate deployment intent** - Create clear, comprehensive deployment intent description
-4. **Provide to user** - User can review and optionally pass to recommend tool
+**Phase 1: Slash Command Development** (`.claude/commands/analyze-project.md`) - TEMPORARY
+- Develop and iterate on the analysis prompt as a Claude Code slash command
+- Fast iteration cycle: edit markdown → run `/analyze-project` → observe results → refine
+- No build step required, pure prompt engineering
+- **Delete slash command after validation complete**
 
-This prompt focuses on **understanding and articulating** what needs to be deployed, not the deployment itself.
+**Phase 2: MCP Integration** (`prompts/analyze-project.md` + `src/tools/recommend.ts`) - PRODUCTION
+- Move validated prompt to `prompts/` directory
+- Modify recommend tool to return analysis instructions in `agentInstructions` field
+- Client agent automatically analyzes codebase and calls recommend with detailed intent
+- **No standalone command in production** - analysis only available via recommend workflow
+
+### Deep Analysis Requirements
+
+The analysis must discover the **complete deployment landscape**, not just the main application:
+
+1. **Main Application** - Language, framework, application type, entry point
+2. **Infrastructure Dependencies** - Databases (PostgreSQL, MySQL, MongoDB), caches (Redis, Memcached), message queues (RabbitMQ, Kafka), pub/sub systems
+3. **Service Configuration** - Ports, protocols, health endpoints, environment variables
+4. **Deployment Characteristics** - Stateless vs stateful, scaling requirements, persistence needs
+5. **Access Requirements** - Internal only vs public-facing, ingress needs, TLS requirements
+6. **Resource Estimates** - CPU, memory, storage based on application patterns
+
+### Workflow Integration
+
+**Current recommend workflow:**
+```
+User: "deploy my app" → MCP: Returns clarification questions → User: Answers manually → MCP: Generates recommendations
+```
+
+**New workflow:**
+```
+User: "deploy my app" → MCP: Returns analysis instructions → Client Agent: Analyzes codebase automatically → Client Agent: Calls recommend with detailed intent → MCP: Generates recommendations
+```
+
+The workflow remains two-step (initial intent → final intent), but the refinement happens automatically through code analysis instead of manual user input.
 
 ## Success Criteria
 
 ### Functional Requirements
 - ✅ Accurately identifies application type (web app, API, worker, database, etc.)
 - ✅ Detects language and framework correctly
-- ✅ Identifies dependencies (databases, caches, message queues)
+- ✅ **Deep dependency discovery**: Identifies ALL infrastructure dependencies (databases, caches, message queues, pub/sub)
 - ✅ Estimates resource requirements (CPU, memory, storage)
-- ✅ Generates clear, comprehensive deployment intent descriptions
+- ✅ Detects port exposure and protocol requirements
+- ✅ Identifies public vs internal access requirements
+- ✅ Determines stateless vs stateful characteristics
+- ✅ Generates clear, comprehensive deployment intent descriptions covering ALL components
 
 ### Quality Requirements
 - ✅ Works consistently across different project types and languages
+- ✅ **Thoroughness over speed**: Deep analysis that discovers everything, not quick superficial scans
 - ✅ Generated intent descriptions are human-readable and clear
-- ✅ Descriptions provide sufficient detail for recommend tool
+- ✅ Descriptions provide sufficient detail for recommend tool to generate complete infrastructure
 
 ### Integration Requirements
+- ✅ Integrates into recommend tool's clarification workflow via `agentInstructions`
 - ✅ Generated intent descriptions work seamlessly with recommend tool
-- ✅ Can be used independently or as part of larger workflow
-- ✅ Works in Claude Code environment
+- ✅ Works in Claude Code environment (and other MCP clients that can execute file analysis)
 
 ## User Workflows
 
@@ -99,29 +140,77 @@ This prompt focuses on **understanding and articulating** what needs to be deplo
 
 ## Implementation Milestones
 
-### Milestone 1: Core Prompt Template Created
-- [ ] `shared-prompts/analyze-project.md` created with analysis guidance
-- [ ] Project detection patterns documented (language, framework, app type)
-- [ ] Dependency identification guidance included
-- [ ] Resource requirement estimation patterns defined
-- [ ] Output format specified (deployment intent description)
+### Milestone 1: Slash Command Development (Temporary)
+- [ ] `.claude/commands/analyze-project.md` created with deep analysis guidance
+- [ ] Project detection patterns (language, framework, app type)
+- [ ] Deep dependency discovery (databases, caches, queues, pub/sub)
+- [ ] Service configuration detection (ports, protocols, env vars)
+- [ ] Deployment characteristics (stateless/stateful, scaling, persistence)
+- [ ] Output format produces structured deployment intent
 
-### Milestone 2: Tested with Diverse Projects
-- [ ] Tested with Node.js/TypeScript project
-- [ ] Tested with Go project
+### Milestone 2: Validation with Diverse Projects
+- [ ] Tested with Node.js/TypeScript project (with database dependencies)
+- [ ] Tested with Go project (with cache/queue dependencies)
 - [ ] Tested with Python project (optional, if available)
-- [ ] Generated intents are accurate and comprehensive
+- [ ] Deep analysis discovers ALL deployment components
 - [ ] Generated intents work well with recommend tool
 
-### Milestone 3: Documentation Complete
-- [ ] `docs/mcp-guide.md` updated with project analysis guide
+### Milestone 3: MCP Integration
+- [ ] Move validated prompt to `prompts/analyze-project.md`
+- [ ] Modify `src/tools/recommend.ts` to return analysis instructions in `agentInstructions`
+- [ ] Delete `.claude/commands/analyze-project.md` slash command
+- [ ] End-to-end workflow test: vague intent → auto-analysis → detailed intent → recommendations
+
+### Milestone 4: Documentation Complete
+- [ ] `docs/mcp-guide.md` updated with automated analysis workflow
 - [ ] Usage examples documented
-- [ ] Integration with recommend tool documented
 - [ ] README.md updated with analysis capabilities
 
 ## Design Decisions
 
 ### Decision Log
+
+#### 2025-12-03: Integration into Recommend Workflow
+**Decision**: Analysis prompt integrates into the existing recommend tool's clarification flow rather than being a standalone feature
+
+**Rationale**:
+- Recommend tool already has a two-step workflow (initial intent → clarification → final intent)
+- Instead of asking users questions, return instructions for client agent to analyze codebase
+- Zero user effort - analysis happens automatically
+- Same workflow structure, different refinement mechanism
+
+**Impact**:
+- **Workflow change**: `agentInstructions` field returns analysis prompt instead of user questions
+- **No new MCP tools**: Reuses existing recommend tool infrastructure
+- **Client agent responsibility**: Client (Claude Code) performs the analysis, not MCP server
+
+#### 2025-12-03: Temporary Slash Command for Development
+**Decision**: Develop prompt as `.claude/commands/analyze-project.md` slash command, delete after validation
+
+**Rationale**:
+- Fast iteration: edit markdown → run command → see results → refine
+- No build cycle or MCP server restarts needed
+- Pure prompt engineering without code changes
+- Once validated, move to `prompts/` and integrate into recommend tool
+
+**Impact**:
+- Development uses `/analyze-project` slash command
+- Production has no standalone command - analysis only via recommend workflow
+- Slash command deleted after prompt is finalized
+
+#### 2025-12-03: Deep Dependency Analysis Requirement
+**Decision**: Analysis must discover the complete deployment landscape, not just the main application
+
+**Rationale**:
+- Applications rarely run in isolation - they need databases, caches, queues, etc.
+- Shallow analysis leads to incomplete recommendations
+- User shouldn't have to manually specify infrastructure dependencies the code reveals
+- Following principle from Dockerfile prompt: "Thoroughness over speed"
+
+**Impact**:
+- Prompt must instruct deep code analysis for database connections, cache usage, queue consumers, etc.
+- Output includes ALL deployment components, not just the app
+- Longer analysis time acceptable for comprehensive results
 
 #### 2025-11-16: Pivot to Prompt-Based Approach
 **Decision**: Use MCP prompt template instead of building custom analysis engine in MCP server
@@ -228,23 +317,49 @@ This prompt focuses on **understanding and articulating** what needs to be deplo
 
 ### Example Analysis Output
 
-**Input**: Node.js Express API project
+**Input**: Node.js Express API project with database and cache dependencies
 
 **Generated Deployment Intent**:
 ```
-Deploy a Node.js Express REST API application with the following characteristics:
-- Application Type: Web API server
-- Language: Node.js (version 20)
+Deploy a complete application stack with the following components:
+
+## Primary Application
+- Type: REST API server
+- Language: Node.js 20
 - Framework: Express.js
-- Dependencies: PostgreSQL database, Redis cache
-- Port: Exposes HTTP on port 3000
-- Resource Needs: Moderate CPU/memory (typical API workload)
-- Scaling: Horizontal scaling supported (stateless)
-- Persistence: Requires persistent database connection
-- Health Check: GET /health endpoint available
+- Image: node:20-alpine (or custom if Dockerfile exists)
+- Port: 3000 (HTTP)
+- Protocol: HTTP/REST
+- Access: Public (requires ingress)
+- Scaling: Horizontal (stateless)
+- Replicas: 2+ recommended
+- Resources: 256Mi-512Mi memory, 100m-500m CPU
+
+## Database: PostgreSQL
+- Purpose: Primary data store (detected from pg/prisma/sequelize usage)
+- Version: 15 (from connection string or package version)
+- Storage: Persistent (10Gi+ recommended)
+- Access: Internal only
+- Scaling: Single instance or HA cluster
+
+## Cache: Redis
+- Purpose: Session storage and caching (detected from ioredis/redis usage)
+- Version: 7
+- Storage: Ephemeral or persistent depending on usage patterns
+- Access: Internal only
+
+## Environment Variables Required
+- DATABASE_URL: PostgreSQL connection string
+- REDIS_URL: Redis connection string
+- NODE_ENV: Runtime environment
+- PORT: Application port (default 3000)
+
+## Health & Readiness
+- Health endpoint: GET /health
+- Readiness endpoint: GET /ready (if different)
 ```
 
-**Usage**: This intent description can be passed to the recommend tool to generate Kubernetes manifests.
+**Usage**: This comprehensive intent is passed to the recommend tool with `final: true` to generate Kubernetes manifests for ALL components.
 
 ## Related PRDs
 
