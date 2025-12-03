@@ -108,6 +108,15 @@ All AI models must meet these minimum requirements:
 
 \* **Note**: These models may not perform as well as other providers for complex DevOps reasoning tasks.
 
+#### Models Not Supported
+
+| Provider | Model | Reason |
+|----------|-------|--------|
+| **DeepSeek** | DeepSeek V3.2 (`deepseek-chat`) | 128K context limit insufficient for heavy workflows |
+| **DeepSeek** | DeepSeek R1 (`deepseek-reasoner`) | 64K context limit insufficient for most workflows |
+
+**Why DeepSeek is not supported**: Integration testing revealed that DeepSeek's context window limitations (128K for V3.2, 64K for R1) cause failures in context-heavy operations like Kyverno policy generation, which can exceed 130K tokens. The toolkit requires 200K+ context for reliable operation across all features.
+
 **Configuration Steps:**
 
 1. **Set your provider** (defaults to anthropic):
