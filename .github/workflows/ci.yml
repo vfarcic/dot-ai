@@ -68,7 +68,7 @@ jobs:
       uses: github/codeql-action/init@d3ced5c96c16c4332e2a61eb6f3649d6f1b20bb8 # v3
       with:
         languages: typescript
-        
+
     - name: Setup Node.js
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
@@ -102,13 +102,13 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Pull latest changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git pull origin main
-    
+
     - name: Calculate next version
       id: version-check
       run: |
@@ -116,7 +116,7 @@ jobs:
         CURRENT_VERSION=$(node -p "require('./package.json').version")
         echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
         echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-        
+
         # Check if current version is newer than published version
         if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
           echo "new-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
@@ -127,11 +127,11 @@ jobs:
           MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
           MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
           PATCH=$(echo $PUBLISHED_VERSION | cut -d. -f3)
-          
+
           # Increment minor version, reset patch to 0
           NEW_MINOR=$((MINOR + 1))
           NEW_VERSION="$MAJOR.$NEW_MINOR.0"
-          
+
           echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "Version will be incremented from $PUBLISHED_VERSION to $NEW_VERSION"
           echo "version-changed=true" >> $GITHUB_OUTPUT
@@ -152,31 +152,31 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Setup git config
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git pull origin main
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: '22.x'
         registry-url: 'https://registry.npmjs.org'
         cache: 'npm'
-    
+
     - name: Install dependencies
       run: npm ci
-    
+
     - name: Build project
       run: npm run build
-    
+
     - name: Update package.json version if needed
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
         CURRENT_VERSION=$(node -p "require('./package.json').version")
-        
+
         if [ "$CURRENT_VERSION" != "$VERSION" ]; then
           echo "Updating package.json from $CURRENT_VERSION to $VERSION"
           npm version $VERSION --no-git-tag-version
@@ -192,17 +192,20 @@ jobs:
           echo "The server.json file is required for MCP registry publication."
           exit 1
         fi
-        
+
         echo "Updating server.json to version $VERSION"
         # Update both version fields in server.json
         sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/g" server.json
         echo "Updated server.json:"
         cat server.json
-    
+
     - name: Publish to npm
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    - name: Create npm package tarball for Docker build
+      run: npm pack
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
@@ -216,12 +219,14 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GHCR_TOKEN }}
-    
+
     - name: Build and push Docker image
       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
       with:
         context: .
         push: true
+        build-args: |
+          PACKAGE_VERSION=${{ needs.version.outputs.new-version }}
         tags: |
           ghcr.io/vfarcic/dot-ai:${{ needs.version.outputs.new-version }}
           ghcr.io/vfarcic/dot-ai:latest
@@ -231,12 +236,12 @@ jobs:
           org.opencontainers.image.licenses=MIT
           org.opencontainers.image.version=${{ needs.version.outputs.new-version }}
         platforms: linux/amd64,linux/arm64
-    
+
     - name: Install Helm
       uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
       with:
         version: 'v3.14.0'
-    
+
     - name: Update Chart.yaml and values.yaml versions
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
@@ -254,25 +259,25 @@ jobs:
 
         echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
         echo "Updated dot.nu to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
-    
+
     - name: Log in to GitHub Container Registry for Helm
       run: |
         helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
       env:
         HELM_EXPERIMENTAL_OCI: 1
-    
+
     - name: Package and push Helm chart
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
-        
+
         # Package the chart with coordinated version
         helm package charts/ --version $VERSION --app-version $VERSION
-        
+
         # Push versioned chart to GHCR as OCI artifact
         helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
-        
+
         echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
-    
+
     - name: Commit all coordinated changes and create Git tag
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
@@ -287,16 +292,16 @@ jobs:
         - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
 
         [skip ci]"
-        
+
         # Create release tag
         git tag -a "v$VERSION" -m "Release v$VERSION - coordinated npm, docker, and helm chart release"
-        
+
         # Push changes and tag
         git push origin main
         git push origin "v$VERSION"
-        
+
         echo "Released coordinated version: $VERSION"
-    
+
     # Temporarily disabled: MCP Registry schema migration in progress
     # The 2025-09-29 schema is marked as deprecated but documentation hasn't been updated
     # with the new schema version yet. Re-enable once new schema is documented.
@@ -319,7 +324,7 @@ jobs:
     #     ./mcp-publisher publish server.json
     #
     #     echo "Successfully published dot-ai v$VERSION to MCP Registry"
-    
+
     - name: Create GitHub Release with auto-generated notes
       run: |
         VERSION=${{ needs.version.outputs.new-version }}

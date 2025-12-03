@@ -12,4 +12,3 @@ dist
 tmp
 tests
 coverage
-*.tgz

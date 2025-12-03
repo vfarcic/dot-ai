@@ -1,82 +1,58 @@
-# Build stage - compile TypeScript and install dependencies
-FROM node:22-alpine AS builder
+# Note: We use tag-only references (not SHA256 digests) to support multi-architecture builds.
+# Docker Buildx automatically selects the correct architecture-specific image for each platform.
+# Using SHA256 digests would pin to a single architecture and cause "exec format error" on other platforms.
 
-WORKDIR /app
+# Stage 1: Builder - download kubectl and install npm package
+FROM node:22-slim AS builder
 
-# Copy dependency manifests first for layer caching
-COPY package.json package-lock.json ./
+# Install curl for downloading kubectl
+RUN apt-get update && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci && \
-    npm cache clean --force
-
-# Copy TypeScript configuration and source code
-COPY tsconfig.json ./
-COPY src/ ./src/
-
-# Build the application and prune devDependencies
-RUN npm run build:prod && \
-    npm prune --production
-
-# Runtime stage - minimal image with kubectl for Kubernetes operations
-FROM node:22-alpine
-
-# Install kubectl - required for Kubernetes operations at runtime
-# Uses architecture detection for multi-arch support
-RUN apk add --no-cache curl && \
-    ARCH=$(uname -m) && \
-    case ${ARCH} in \
-        x86_64) KUBECTL_ARCH="amd64" ;; \
-        aarch64) KUBECTL_ARCH="arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
-    esac && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${KUBECTL_ARCH}/kubectl" && \
+# Download kubectl
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
     chmod +x kubectl && \
-    mv kubectl /usr/local/bin/ && \
-    apk del curl
+    mv kubectl /usr/local/bin/kubectl
 
+# Copy and install pre-built dot-ai package
+# Package is built outside Docker (npm run build + npm pack)
+# For local builds: vfarcic-dot-ai-*.tgz is created by build script
+# For CI builds: same .tgz is used for both image and npm publish
+COPY vfarcic-dot-ai-*.tgz /tmp/
+RUN npm install -g /tmp/vfarcic-dot-ai-*.tgz
+
+# Stage 2: Runtime - copy installed binaries and packages
+FROM node:22-slim
+
+# Copy kubectl binary from builder
+COPY --from=builder /usr/local/bin/kubectl /usr/local/bin/kubectl
+
+# Copy entire npm global installation from builder
+COPY --from=builder /usr/local/lib/node_modules/@vfarcic/dot-ai /usr/local/lib/node_modules/@vfarcic/dot-ai
+
+# Recreate the bin symlink (Docker COPY dereferences symlinks)
+RUN ln -s /usr/local/lib/node_modules/@vfarcic/dot-ai/dist/mcp/server.js /usr/local/bin/dot-ai-mcp
+
+# Set working directory
 WORKDIR /app
 
-# Create non-root user and session directory
-RUN addgroup -g 10001 -S dotai && \
-    adduser -u 10001 -S -G dotai -h /app dotai && \
-    mkdir -p /app/tmp/sessions && \
-    chown -R dotai:dotai /app
+# Create sessions directory
+RUN mkdir -p /app/sessions
 
-# Copy production dependencies from builder
-COPY --from=builder /app/node_modules ./node_modules
+# Set default environment variables
+ENV DOT_AI_SESSION_DIR=/app/sessions
+ENV NODE_ENV=production
+# Transport defaults to stdio for backward compatibility
+# Set TRANSPORT_TYPE=http for HTTP mode
+ENV TRANSPORT_TYPE=stdio
+ENV PORT=3456
+ENV HOST=0.0.0.0
 
-# Copy compiled JavaScript
-COPY --from=builder /app/dist ./dist
-
-# Copy package.json (needed for version reading at runtime)
-COPY --from=builder /app/package.json ./
-
-# Copy prompt templates (loaded at runtime)
-COPY prompts/ ./prompts/
-COPY shared-prompts/ ./shared-prompts/
-
-# Copy assets (templates, configs)
-COPY assets/ ./assets/
-
-# Copy scripts (nushell scripts for platform operations)
-COPY scripts/ ./scripts/
-
-# Set ownership for all copied files
-RUN chown -R dotai:dotai /app
-
-# Switch to non-root user
-USER dotai
-
-# Default port for HTTP transport
+# Expose port for HTTP transport (used when TRANSPORT_TYPE=http)
 EXPOSE 3456
 
-# Environment variable defaults
-ENV NODE_ENV=production \
-    TRANSPORT_TYPE=http \
-    PORT=3456 \
-    HOST=0.0.0.0 \
-    DOT_AI_SESSION_DIR=/app/tmp/sessions
-
-# Run the MCP server
-CMD ["node", "dist/mcp/server.js"]
+# Default command to run dot-ai-mcp
+CMD ["dot-ai-mcp"]
