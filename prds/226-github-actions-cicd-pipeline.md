@@ -275,6 +275,9 @@ Guide the AI to include:
 - Recommend tool consumes published images for K8s deployment
 - Future local K8s PRD will use published images for local dev
 
+### Enables
+- **PRD #202 (GitOps Integration)**: This PRD is a prerequisite for #202. GitOps workflows require CI to update image tags in Helm values.yaml or Kustomize overlays and push to Git. Without automated CI/CD, users would manually update tags, defeating GitOps automation.
+
 ## Future Enhancements
 
 ### Potential Phase 2 Features
@@ -284,7 +287,7 @@ Guide the AI to include:
 - Build matrix for multiple versions/configurations
 - Automated release workflows with changelogs
 - Integration with semantic versioning tools
-- Deployment workflows (trigger K8s deployment after image push)
+- **GitOps manifest updates**: Update image tags in Helm values.yaml or Kustomize overlays and push to GitOps repo (ties into #202)
 
 ## Work Log
 

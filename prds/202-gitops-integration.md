@@ -4,6 +4,9 @@
 **Created**: 2025-11-03
 **Priority**: Medium
 **Dependencies**: Operations Tool PRD (must be completed first)
+**Prerequisites**:
+- **#248** (Helm/Kustomize Packaging): GitOps tools work best with properly packaged Helm charts or Kustomize overlays
+- **#226** (GitHub Actions CI/CD): GitOps workflows require CI to update image tags in manifests and push to Git
 
 ---
 
