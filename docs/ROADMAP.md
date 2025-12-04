@@ -7,6 +7,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Short-term (Next 1-3 Months)
 
+- Third-party application installation via Helm charts (PRD #250)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Parallel capability analysis for 10x faster cluster scanning (PRD #155)
 - Guided setup system to simplify onboarding (PRD #165)
