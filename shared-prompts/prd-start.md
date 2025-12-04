@@ -132,23 +132,33 @@ For documentation-first PRDs:
 
 ## Step 3: Implementation Context Setup
 
+**⚠️ MANDATORY: Complete this step BEFORE proceeding to Step 4**
+
 ### Git Branch Management
-**If not already on a feature branch:**
-```bash
-# Create feature branch for PRD implementation
-git checkout -b feature/prd-[issue-id]-[feature-name]
-git push -u origin feature/prd-[issue-id]-[feature-name]
-```
+
+1. **Check current branch**: Run `git branch --show-current`
+2. **If on `main` or `master`**: Create and switch to feature branch:
+   ```bash
+   git checkout -b feature/prd-[issue-id]-[feature-name]
+   ```
+3. **If already on a feature branch**: Verify it's the correct branch for this PRD
 
 ### Development Environment Setup
 - **Dependencies**: Install any new dependencies required by the PRD
 - **Configuration**: Set up any configuration needed for development
 - **Test data**: Prepare test data or mock services
-- **Documentation tools**: Ensure documentation generation tools are available
 
-### Implementation Tracking Setup
-- **Identify key milestones**: Review the PRD milestones for progress tracking
-- **Plan progress checkpoints**: Determine when to update progress during implementation
+### Step 3 Checkpoint (REQUIRED)
+
+**You MUST display this confirmation before proceeding to Step 4:**
+
+```markdown
+## Environment Setup ✅
+- **Branch**: `[current-branch-name]` ✅
+- **Status**: [Created new branch / Already on correct branch / Staying on main (reason)]
+```
+
+**DO NOT proceed to Step 4 until branch setup is confirmed.**
 
 ## Step 4: Identify Implementation Starting Point
 

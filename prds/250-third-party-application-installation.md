@@ -240,6 +240,17 @@ After completing this PRD, create a new PRD for:
 
 ---
 
+## Design Decisions
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2025-12-04 | **Helm detection after capability analysis**: Detection happens after AI analyzes available capabilities, not as upfront intent classification | AI needs full context (capabilities + intent) to determine if Helm is needed. "Deploy PostgreSQL" could use CNPG if installed or need Helm if not - can't know without checking capabilities first |
+| 2025-12-04 | **Unified solutions response format**: Helm solutions use same `solutions` array with `type: "helm"` and `chart` info instead of `resources` | User workflow stays identical for both flows. Client agents don't need special handling. Simpler architecture |
+| 2025-12-04 | **Presence-based detection**: `helmRecommendation` object presence indicates Helm needed (no boolean flag) | Simpler logic - mutually exclusive: either `solutions` has items OR `helmRecommendation` is present |
+| 2025-12-04 | **Automatic ArtifactHub search**: When Helm detected, system automatically searches ArtifactHub and returns chart solutions - no intermediate "Helm recommended" state | Seamless UX - user always sees actionable solutions, internal detection is invisible |
+
+---
+
 ## Milestones
 
 - [ ] Intent detection: Enhance `recommend` tool to classify third-party installation intents and route appropriately
@@ -257,3 +268,4 @@ After completing this PRD, create a new PRD for:
 | Date | Update |
 |------|--------|
 | 2025-12-04 | PRD created |
+| 2025-12-04 | Intent detection foundation: Added Helm fallback detection to resource-selection prompt, HelmRecommendation/SolutionResult types in schema.ts, updated findBestSolutions to return SolutionResult, added Helm branch placeholder in recommend.ts |

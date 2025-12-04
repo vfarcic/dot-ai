@@ -119,6 +119,17 @@ export interface ResourceSolution {
   appliedPatterns?: string[]; // Pattern descriptions that influenced this solution
 }
 
+export interface HelmRecommendation {
+  reason: string;
+  suggestedTool: string;
+  searchQuery: string;
+}
+
+export interface SolutionResult {
+  solutions: ResourceSolution[];
+  helmRecommendation: HelmRecommendation | null;
+}
+
 // Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
 // explainResource function is now passed directly to findBestSolutions
 
@@ -427,7 +438,7 @@ export class ResourceRecommender {
     intent: string,
     _explainResource: (resource: string) => Promise<any>,
     interaction_id?: string
-  ): Promise<ResourceSolution[]> {
+  ): Promise<SolutionResult> {
     if (!this.aiProvider.isInitialized()) {
       throw new Error('AI provider not initialized. API key required for AI-powered resource ranking.');
     }
@@ -447,7 +458,7 @@ export class ResourceRecommender {
       }
 
       let relevantCapabilities: any[] = [];
-      
+
       if (this.capabilityService) {
         try {
           relevantCapabilities = await this.capabilityService.searchCapabilities(intent, { limit: 50 });
@@ -462,7 +473,7 @@ export class ResourceRecommender {
       } else {
         console.warn('⚠️ Capability service not available (Vector DB not reachable), proceeding without capabilities');
       }
-      
+
       if (relevantCapabilities.length === 0) {
         // Fail fast with clear user guidance if no capabilities found
         throw new Error(
@@ -472,7 +483,7 @@ export class ResourceRecommender {
       }
 
       console.log(`🎯 Found ${relevantCapabilities.length} relevant capabilities (vs 415+ mass discovery)`);
-      
+
       // Create normalized resource objects from capability matches
       const capabilityFilteredResources = relevantCapabilities.map(cap => ({
         kind: this.extractKindFromResourceName(cap.data.resourceName),
@@ -487,14 +498,20 @@ export class ResourceRecommender {
       const enhancedResources = await this.addMissingPatternResources(capabilityFilteredResources, relevantPatterns);
 
       // Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking phases)
-      const solutions = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns, interaction_id);
-      
-      // Phase 3: Generate questions for each solution
-      for (const solution of solutions) {
+      const solutionResult = await this.assembleAndRankSolutions(intent, enhancedResources, relevantPatterns, interaction_id);
+
+      // If Helm is recommended, return early - questions will be generated from Helm chart values later
+      if (solutionResult.helmRecommendation) {
+        console.log(`🎯 Helm installation recommended for "${intent}": ${solutionResult.helmRecommendation.suggestedTool}`);
+        return solutionResult;
+      }
+
+      // Phase 3: Generate questions for each capability-based solution
+      for (const solution of solutionResult.solutions) {
         solution.questions = await this.generateQuestionsWithAI(intent, solution, _explainResource, interaction_id);
       }
-      
-      return solutions;
+
+      return solutionResult;
     } catch (error) {
       throw new Error(`AI-powered resource solution analysis failed: ${error}`);
     }
@@ -515,7 +532,7 @@ export class ResourceRecommender {
     }>,
     patterns: OrganizationalPattern[],
     interaction_id?: string
-  ): Promise<ResourceSolution[]> {
+  ): Promise<SolutionResult> {
     const prompt = await this.loadSolutionAssemblyPrompt(intent, availableResources, patterns);
     const response = await this.aiProvider.sendMessage(prompt, 'recommend-solution-assembly', {
       user_intent: intent ? `Kubernetes solution assembly for: ${intent}` : 'Kubernetes solution assembly',
@@ -527,18 +544,29 @@ export class ResourceRecommender {
   /**
    * Parse AI response for simple solution structure (no schema matching needed)
    */
-  private parseSimpleSolutionResponse(aiResponse: string): ResourceSolution[] {
+  private parseSimpleSolutionResponse(aiResponse: string): SolutionResult {
     try {
       // Use robust JSON extraction
       const parsed = extractJsonFromAIResponse(aiResponse);
-      
-      const solutions: ResourceSolution[] = parsed.solutions.map((solution: any) => {
+
+      // Handle Helm recommendation case (presence of helmRecommendation means Helm is needed)
+      const helmRecommendation: HelmRecommendation | null = parsed.helmRecommendation || null;
+
+      // If Helm is recommended (empty solutions + helmRecommendation present), return early
+      if (helmRecommendation && (!parsed.solutions || parsed.solutions.length === 0)) {
+        return {
+          solutions: [],
+          helmRecommendation
+        };
+      }
+
+      const solutions: ResourceSolution[] = (parsed.solutions || []).map((solution: any) => {
         const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
-        
+
         if (isDebugMode) {
           console.debug('DEBUG: solution object:', JSON.stringify(solution, null, 2));
         }
-        
+
         // Convert resource references to ResourceSchema format for compatibility
         const resources: ResourceSchema[] = (solution.resources || []).map((resource: any) => ({
           kind: resource.kind,
@@ -549,7 +577,7 @@ export class ResourceRecommender {
           properties: new Map(),
           namespace: true // Default assumption for new architecture
         }));
-        
+
         return {
           type: solution.type,
           resources,
@@ -563,8 +591,13 @@ export class ResourceRecommender {
       });
 
       // Sort by score descending
-      return solutions.sort((a, b) => b.score - a.score);
-      
+      const sortedSolutions = solutions.sort((a, b) => b.score - a.score);
+
+      return {
+        solutions: sortedSolutions,
+        helmRecommendation
+      };
+
     } catch (error) {
       // Enhanced error message with more context
       const errorMsg = `Failed to parse AI solution response: ${(error as Error).message}`;

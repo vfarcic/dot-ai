@@ -267,11 +267,30 @@ export async function handleRecommendTool(
 
       // Find best solutions for the user intent
       logger.debug('Generating recommendations with AI', { requestId });
-      const solutions = await recommender.findBestSolutions(
+      const solutionResult = await recommender.findBestSolutions(
         args.intent,
         explainResourceFn,
         args.interaction_id
       );
+
+      // Handle Helm recommendation case
+      if (solutionResult.helmRecommendation) {
+        logger.info('Helm installation recommended', {
+          requestId,
+          suggestedTool: solutionResult.helmRecommendation.suggestedTool,
+          searchQuery: solutionResult.helmRecommendation.searchQuery,
+          reason: solutionResult.helmRecommendation.reason
+        });
+
+        // TODO: Implement ArtifactHub search and return Helm-based solutions
+        throw new Error(
+          `Helm installation not yet implemented. ` +
+          `Suggested tool: ${solutionResult.helmRecommendation.suggestedTool}. ` +
+          `Reason: ${solutionResult.helmRecommendation.reason}`
+        );
+      }
+
+      const solutions = solutionResult.solutions;
 
       logger.info('Recommendation process completed', {
         requestId,
