@@ -114,7 +114,6 @@ export interface ResourceSolution {
   score: number;
   description: string;
   reasons: string[];
-  analysis: string;
   questions: QuestionGroup;
   appliedPatterns?: string[]; // Pattern descriptions that influenced this solution
 }
@@ -584,7 +583,6 @@ export class ResourceRecommender {
           score: solution.score,
           description: solution.description,
           reasons: solution.reasons || [],
-          analysis: solution.analysis || '',
           questions: { required: [], basic: [], advanced: [], open: { question: '', placeholder: '' } },
           appliedPatterns: solution.appliedPatterns || []
         };

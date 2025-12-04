@@ -429,4 +429,104 @@ describe.concurrent('Recommend Tool Integration', () => {
       );
     }, 1200000); // 20 minutes for full AI workflow (accommodates slower AI models like OpenAI)
   });
+
+  describe('Helm Chart Discovery', () => {
+    test('should return Helm solutions with metadata when chart exists on ArtifactHub', async () => {
+      // Use Prometheus as test case - no Prometheus CRDs in test cluster, so Helm will be triggered
+      const helmResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'Install Prometheus for monitoring',
+        final: true,
+        interaction_id: 'helm_existing_chart_test'
+      });
+
+      // Validate Helm solutions response structure
+      const expectedHelmResponse = {
+        success: true,
+        data: {
+          result: {
+            intent: 'Install Prometheus for monitoring',
+            solutions: expect.arrayContaining([
+              expect.objectContaining({
+                solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+                type: 'helm',
+                score: expect.any(Number),
+                description: expect.any(String),
+                chart: expect.objectContaining({
+                  repository: expect.stringMatching(/^https?:\/\//),
+                  repositoryName: expect.any(String),
+                  chartName: expect.any(String)
+                }),
+                reasons: expect.any(Array)
+              })
+            ]),
+            helmInstallation: true,
+            nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
+            guidance: expect.stringContaining('Helm chart options'),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(helmResponse).toMatchObject(expectedHelmResponse);
+
+      // Validate solution details
+      const solution = helmResponse.data.result.solutions[0];
+
+      // Validate score range (70-100 based on AI scoring)
+      expect(solution.score).toBeGreaterThanOrEqual(70);
+      expect(solution.score).toBeLessThanOrEqual(100);
+
+      // Validate reasons array is non-empty
+      expect(solution.reasons.length).toBeGreaterThan(0);
+
+      // Validate chart metadata fields (official/verifiedPublisher should be boolean when present)
+      if (solution.chart.official !== undefined) {
+        expect(typeof solution.chart.official).toBe('boolean');
+      }
+      if (solution.chart.verifiedPublisher !== undefined) {
+        expect(typeof solution.chart.verifiedPublisher).toBe('boolean');
+      }
+    }, 300000); // 5 minutes for AI analysis
+
+    test('should return no_charts_found when chart does not exist on ArtifactHub', async () => {
+      // Use a clearly non-existent chart name
+      const noChartResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'Install devopstoolkit-nonexistent-operator',
+        final: true,
+        interaction_id: 'helm_nonexistent_chart_test'
+      });
+
+      // Validate no_charts_found response structure
+      const expectedNoChartResponse = {
+        success: true,
+        data: {
+          result: {
+            status: 'no_charts_found',
+            searchQuery: expect.any(String),
+            reason: expect.any(String),
+            message: expect.stringContaining('No Helm charts found on ArtifactHub')
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(noChartResponse).toMatchObject(expectedNoChartResponse);
+
+      // Validate message includes issue link
+      expect(noChartResponse.data.result.message).toContain('https://github.com/vfarcic/dot-ai/issues/new');
+    }, 300000); // 5 minutes for AI analysis
+  });
 });

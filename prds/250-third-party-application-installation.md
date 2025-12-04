@@ -253,12 +253,12 @@ After completing this PRD, create a new PRD for:
 
 ## Milestones
 
-- [ ] Intent detection: Enhance `recommend` tool to classify third-party installation intents and route appropriately
-- [ ] Helm chart discovery: Implement ArtifactHub API integration with fallback to AI client web search
+- [x] Intent detection: Enhance `recommend` tool to classify third-party installation intents and route appropriately
+- [x] Helm chart discovery: Implement ArtifactHub API integration with fallback to AI client web search
 - [ ] Question generation: AI analyzes chart values and README to generate categorized questions with cluster-aware defaults
 - [ ] Validation flow: Implement Helm dry-run validation and user confirmation step
 - [ ] Helm execution: Implement helm upgrade --install with proper error handling and status reporting
-- [ ] Integration tests: Comprehensive tests covering the full workflow
+- [~] Integration tests: Comprehensive tests covering the full workflow (discovery tests complete, execution tests pending)
 - [ ] Follow-up PRD: Create PRD for `operate` tool Helm support (upgrades, rollbacks, uninstalls)
 
 ---
@@ -269,3 +269,4 @@ After completing this PRD, create a new PRD for:
 |------|--------|
 | 2025-12-04 | PRD created |
 | 2025-12-04 | Intent detection foundation: Added Helm fallback detection to resource-selection prompt, HelmRecommendation/SolutionResult types in schema.ts, updated findBestSolutions to return SolutionResult, added Helm branch placeholder in recommend.ts |
+| 2025-12-04 | Helm chart discovery complete: Created `src/core/artifacthub.ts` (ArtifactHub API client), `src/core/helm-types.ts` (type definitions), `prompts/helm-chart-selection.md` (AI chart selection prompt). Updated `recommend.ts` with full Helm flow: ArtifactHub search → AI analysis/scoring → session creation → solutions response. Added "no charts found" fallback with GitHub issue link. Removed unused `analysis` field from ResourceSolution. Added integration tests for Helm discovery (existing chart + non-existing chart). All 3 recommend tests pass. |
