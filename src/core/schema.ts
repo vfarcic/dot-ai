@@ -17,7 +17,8 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
-import { extractJsonFromAIResponse } from './platform-utils';
+import { extractJsonFromAIResponse, execAsync } from './platform-utils';
+import { HelmChartInfo } from './helm-types';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -132,10 +133,15 @@ export interface SolutionResult {
 // Note: DiscoveryFunctions interface removed as it's no longer used in capability-based approach
 // explainResource function is now passed directly to findBestSolutions
 
+export interface ClusterResourceInfo {
+  name: string;
+  isDefault: boolean;
+}
+
 export interface ClusterOptions {
   namespaces: string[];
-  storageClasses: string[];
-  ingressClasses: string[];
+  storageClasses: ClusterResourceInfo[];
+  ingressClasses: ClusterResourceInfo[];
   nodeLabels: string[];
   serviceAccounts?: { [namespace: string]: string[] };
 }
@@ -858,26 +864,34 @@ export class ResourceRecommender {
   private async discoverClusterOptions(): Promise<ClusterOptions> {
     try {
       const { executeKubectl } = await import('./kubernetes-utils');
-      
+
       // Discover namespaces
       const namespacesResult = await executeKubectl(['get', 'namespaces', '-o', 'jsonpath={.items[*].metadata.name}']);
       const namespaces = namespacesResult.split(/\s+/).filter(Boolean);
 
-      // Discover storage classes
-      let storageClasses: string[] = [];
+      // Discover storage classes with default marking
+      let storageClasses: ClusterResourceInfo[] = [];
       try {
-        const storageResult = await executeKubectl(['get', 'storageclass', '-o', 'jsonpath={.items[*].metadata.name}']);
-        storageClasses = storageResult.split(/\s+/).filter(Boolean);
+        const storageResult = await executeKubectl(['get', 'storageclass', '-o', 'json']);
+        const storageData = JSON.parse(storageResult);
+        storageClasses = (storageData.items || []).map((item: any) => ({
+          name: item.metadata?.name || '',
+          isDefault: item.metadata?.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true'
+        }));
       } catch {
         // Storage classes might not be available in all clusters
         storageClasses = [];
       }
 
-      // Discover ingress classes
-      let ingressClasses: string[] = [];
+      // Discover ingress classes with default marking
+      let ingressClasses: ClusterResourceInfo[] = [];
       try {
-        const ingressResult = await executeKubectl(['get', 'ingressclass', '-o', 'jsonpath={.items[*].metadata.name}']);
-        ingressClasses = ingressResult.split(/\s+/).filter(Boolean);
+        const ingressResult = await executeKubectl(['get', 'ingressclass', '-o', 'json']);
+        const ingressData = JSON.parse(ingressResult);
+        ingressClasses = (ingressData.items || []).map((item: any) => ({
+          name: item.metadata?.name || '',
+          isDefault: item.metadata?.annotations?.['ingressclass.kubernetes.io/is-default-class'] === 'true'
+        }));
       } catch {
         // Ingress classes might not be available
         ingressClasses = [];
@@ -889,7 +903,7 @@ export class ResourceRecommender {
         const nodesResult = await executeKubectl(['get', 'nodes', '-o', 'json']);
         const nodes = JSON.parse(nodesResult);
         const labelSet = new Set<string>();
-        
+
         nodes.items?.forEach((node: any) => {
           Object.keys(node.metadata?.labels || {}).forEach(label => {
             if (!label.startsWith('kubernetes.io/') && !label.startsWith('node.kubernetes.io/')) {
@@ -897,7 +911,7 @@ export class ResourceRecommender {
             }
           });
         });
-        
+
         nodeLabels = Array.from(labelSet);
       } catch {
         nodeLabels = [];
@@ -920,6 +934,20 @@ export class ResourceRecommender {
     }
   }
 
+  /**
+   * Format cluster options for inclusion in prompts
+   */
+  private formatClusterOptionsText(clusterOptions: ClusterOptions): string {
+    const formatResourceList = (items: ClusterResourceInfo[]): string => {
+      if (items.length === 0) return 'None discovered';
+      return items.map(item => item.isDefault ? `${item.name} (default)` : item.name).join(', ');
+    };
+
+    return `Available Namespaces: ${clusterOptions.namespaces.join(', ')}
+Available Storage Classes: ${formatResourceList(clusterOptions.storageClasses)}
+Available Ingress Classes: ${formatResourceList(clusterOptions.ingressClasses)}
+Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
+  }
 
   /**
    * Generate contextual questions using AI based on user intent and solution resources
@@ -1000,10 +1028,7 @@ ${properties}`;
       }).join('\n\n');
 
       // Format cluster options for the prompt
-      const clusterOptionsText = `Available Namespaces: ${clusterOptions.namespaces.join(', ')}
-Available Storage Classes: ${clusterOptions.storageClasses.length > 0 ? clusterOptions.storageClasses.join(', ') : 'None discovered'}
-Available Ingress Classes: ${clusterOptions.ingressClasses.length > 0 ? clusterOptions.ingressClasses.join(', ') : 'None discovered'}
-Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.nodeLabels.slice(0, 10).join(', ') : 'None discovered'}`;
+      const clusterOptionsText = this.formatClusterOptionsText(clusterOptions);
 
       // Format organizational policies for AI context with relevance scores
       const policyContextText = relevantPolicyResults.length > 0 
@@ -1016,11 +1041,18 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
           ).join('\n')
         : 'No organizational policies found for this request.';
 
+      // Build source_material for capabilities (Kubernetes resource-based solutions)
+      const sourceMaterial = `## Source Material
+You are generating questions for Kubernetes resources. The schemas below define the available configuration options.
+
+## Resources in Solution
+${resourceDetails}`;
+
       // Generate question prompt with variables
       const questionPrompt = loadPrompt('question-generation', {
         intent,
         solution_description: solution.description,
-        resource_details: resourceDetails,
+        source_material: sourceMaterial,
         cluster_options: clusterOptionsText,
         policy_context: policyContextText
       });
@@ -1058,6 +1090,173 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
         }
       };
     }
+  }
+
+  /**
+   * Generate contextual questions for Helm chart installation
+   */
+  async generateQuestionsForHelmChart(
+    intent: string,
+    chart: HelmChartInfo,
+    description: string,
+    interaction_id?: string
+  ): Promise<QuestionGroup> {
+    try {
+      console.log(`📊 Generating questions for Helm chart: ${chart.repositoryName}/${chart.chartName}`);
+
+      // Fetch chart values.yaml and README
+      const { valuesYaml, readme } = await this.fetchHelmChartContent(chart);
+
+      // Discover cluster options for dynamic questions
+      const clusterOptions = await this.discoverClusterOptions();
+
+      // Search for relevant policy intents
+      let relevantPolicyResults: Array<{policy: PolicyIntent, score: number, matchType: string}> = [];
+      if (this.policyService) {
+        try {
+          const policyResults = await this.policyService.searchPolicyIntents(
+            `${intent} ${chart.chartName} helm chart installation`,
+            { limit: 50 }
+          );
+          relevantPolicyResults = policyResults.map(result => ({
+            policy: result.data,
+            score: result.score,
+            matchType: result.matchType
+          }));
+          console.log(`🛡️ Found ${relevantPolicyResults.length} relevant policy intents for Helm question generation`);
+        } catch (error) {
+          console.warn('⚠️ Policy search failed during Helm question generation:', error);
+        }
+      }
+
+      // Build source_material for Helm chart
+      const sourceMaterial = `## Source Material
+You are generating questions for a Helm chart installation. The values.yaml and README below define the available configuration options.
+
+## Chart Information
+- Chart: ${chart.chartName}
+- Repository: ${chart.repository}
+- Version: ${chart.version || 'latest'}
+
+## Values.yaml
+\`\`\`yaml
+${valuesYaml || '# No values.yaml available'}
+\`\`\`
+
+## README
+${readme || 'No README available'}`;
+
+      // Format organizational policies
+      const policyContextText = relevantPolicyResults.length > 0
+        ? relevantPolicyResults.map(result =>
+            `- ID: ${result.policy.id}
+  Description: ${result.policy.description}
+  Rationale: ${result.policy.rationale}
+  Triggers: ${result.policy.triggers?.join(', ') || 'None'}
+  Score: ${result.score.toFixed(3)} (${result.matchType})`
+          ).join('\n')
+        : 'No organizational policies found for this request.';
+
+      // Format cluster options for the prompt
+      const clusterOptionsText = this.formatClusterOptionsText(clusterOptions);
+
+      // Generate questions using the shared prompt
+      const questionPrompt = loadPrompt('question-generation', {
+        intent,
+        solution_description: description,
+        source_material: sourceMaterial,
+        cluster_options: clusterOptionsText,
+        policy_context: policyContextText
+      });
+
+      const response = await this.aiProvider.sendMessage(questionPrompt, 'helm-question-generation', {
+        user_intent: `Generate Helm installation questions for: ${intent}`,
+        interaction_id: interaction_id || 'helm_question_generation'
+      });
+
+      const questions = extractJsonFromAIResponse(response.content);
+
+      if (!questions.required || !questions.basic || !questions.advanced) {
+        throw new Error('Invalid question structure from AI');
+      }
+
+      if (!questions.open) {
+        questions.open = {
+          question: "Any additional configuration requirements?",
+          placeholder: "e.g., custom values, specific settings..."
+        };
+      }
+
+      console.log(`✅ Generated ${questions.required.length} required, ${questions.basic.length} basic, ${questions.advanced.length} advanced questions`);
+
+      return questions as QuestionGroup;
+    } catch (error) {
+      console.warn(`Failed to generate questions for Helm chart: ${error}`);
+
+      // Fallback to minimal questions
+      return {
+        required: [
+          {
+            id: 'name',
+            question: 'What name should be used for this Helm release?',
+            type: 'text',
+            suggestedAnswer: chart.chartName
+          },
+          {
+            id: 'namespace',
+            question: 'Which namespace should this be installed in?',
+            type: 'text',
+            suggestedAnswer: 'default'
+          }
+        ],
+        basic: [],
+        advanced: [],
+        open: {
+          question: "Any additional configuration requirements?",
+          placeholder: "e.g., custom values, specific settings..."
+        }
+      };
+    }
+  }
+
+  /**
+   * Fetch Helm chart values.yaml and README
+   */
+  private async fetchHelmChartContent(chart: HelmChartInfo): Promise<{ valuesYaml: string; readme: string }> {
+    let valuesYaml = '';
+    let readme = '';
+
+    try {
+      // Add repo and update
+      await execAsync(`helm repo add ${chart.repositoryName} ${chart.repository} 2>/dev/null || true`);
+      await execAsync('helm repo update 2>/dev/null || true');
+    } catch {
+      console.warn(`⚠️ Could not add/update Helm repo ${chart.repositoryName}`);
+    }
+
+    const versionFlag = chart.version ? `--version ${chart.version}` : '';
+
+    try {
+      const { stdout } = await execAsync(
+        `helm show values ${chart.repositoryName}/${chart.chartName} ${versionFlag}`.trim()
+      );
+      valuesYaml = stdout || '';
+      console.log(`📄 Fetched values.yaml (${valuesYaml.length} chars)`);
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch values.yaml: ${error}`);
+    }
+
+    try {
+      const { stdout } = await execAsync(
+        `helm show readme ${chart.repositoryName}/${chart.chartName} ${versionFlag}`.trim()
+      );
+      readme = stdout || '';
+      console.log(`📄 Fetched README (${readme.length} chars)`);
+    } catch {
+      // README is optional
+    }
+
+    return { valuesYaml, readme };
   }
 }
 

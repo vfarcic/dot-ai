@@ -131,6 +131,13 @@ Return empty solutions with Helm recommendation. Patterns do not apply to Helm i
 }
 ```
 
+**searchQuery construction rules:**
+- Use the primary tool name only (e.g., "prometheus", "argo cd", "cert-manager")
+- Do NOT include generic terms like "helm", "chart", "kubernetes", "install"
+- Do NOT include compound queries - pick the main tool (e.g., "prometheus with alertmanager" → searchQuery: "prometheus")
+- Keep it simple - ArtifactHub search works best with short, focused queries
+- The full intent will be used later when selecting the best chart from search results
+
 IMPORTANT: Your response must be ONLY the JSON object, nothing else.
 
 ## Selection Philosophy

@@ -64,35 +64,54 @@ export async function handleChooseSolutionTool(
 
       const solution = session.data;
 
-      try {
-        logger.debug('Solution file loaded successfully', { 
-          solutionId: args.solutionId,
-          hasQuestions: !!solution.questions,
-          questionCategories: {
-            required: solution.questions?.required?.length || 0,
-            basic: solution.questions?.basic?.length || 0,
-            advanced: solution.questions?.advanced?.length || 0,
-            hasOpen: !!solution.questions?.open
-          }
-        });
-      } catch (error) {
-        throw ErrorHandler.createError(
-          ErrorCategory.STORAGE,
-          ErrorSeverity.HIGH,
-          error instanceof Error ? error.message : 'Failed to load solution session',
-          {
-            operation: 'solution_session_load',
-            component: 'ChooseSolutionTool',
+      // For Helm solutions, generate questions if not already present
+      if (solution.type === 'helm' && solution.chart) {
+        const hasQuestions = (solution.questions?.required?.length ?? 0) > 0 ||
+                            (solution.questions?.basic?.length ?? 0) > 0 ||
+                            (solution.questions?.advanced?.length ?? 0) > 0;
+
+        if (!hasQuestions) {
+          logger.info('Generating questions for Helm solution', {
             requestId,
-            input: { solutionId: args.solutionId },
-            suggestedActions: [
-              'Check that the solution ID is correct',
-              'Verify the solution session exists',
-              'Ensure the solution was created by a recent recommend tool call'
-            ]
-          }
-        );
+            solutionId: args.solutionId,
+            chart: solution.chart.chartName
+          });
+
+          const questions = await dotAI.schema.generateQuestionsForHelmChart(
+            solution.intent,
+            solution.chart,
+            solution.description,
+            `choose_solution_${args.solutionId}`
+          );
+
+          solution.questions = questions;
+
+          // Update the session with generated questions
+          sessionManager.updateSession(args.solutionId, solution);
+
+          logger.info('Helm questions generated and saved', {
+            requestId,
+            solutionId: args.solutionId,
+            questionCounts: {
+              required: questions.required?.length || 0,
+              basic: questions.basic?.length || 0,
+              advanced: questions.advanced?.length || 0
+            }
+          });
+        }
       }
+
+      logger.debug('Solution file loaded successfully', {
+        solutionId: args.solutionId,
+        type: solution.type,
+        hasQuestions: !!solution.questions,
+        questionCategories: {
+          required: solution.questions?.required?.length || 0,
+          basic: solution.questions?.basic?.length || 0,
+          advanced: solution.questions?.advanced?.length || 0,
+          hasOpen: !!solution.questions?.open
+        }
+      });
 
       // Prepare response with solution details and questions
       const response = {

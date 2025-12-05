@@ -391,11 +391,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(nonSolutionResources.length).toBeGreaterThan(0);
 
       // CONTROLLER INTEGRATION VALIDATION: Verify controller picked up Solution CR
-      // Wait for controller to reconcile and add ownerReferences
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      // Poll for controller to reconcile and add ownerReferences (up to 60 seconds)
+      const solutionCRName = `solution-${solutionId}`;
 
       // Get Solution CR from cluster
-      const solutionCRName = `solution-${solutionId}`;
       const getSolutionResult = await integrationTest.kubectl(
         `get solution ${solutionCRName} -n ${namespace} -o json`
       );
@@ -408,14 +407,36 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Verify controller added ownerReferences to at least one deployed resource
       // Get the first resource from Solution CR spec
       const firstResource = clusterSolutionCR.spec.resources[0];
-      const resourceResult = await integrationTest.kubectl(
-        `get ${firstResource.kind} ${firstResource.name} -n ${namespace} -o json`
-      );
-      const deployedResource = JSON.parse(resourceResult);
+
+      // Poll for ownerReference to be added (controller reconciliation can take time)
+      const maxWaitMs = 60000;
+      const pollIntervalMs = 2000;
+      let ownerRefFound = false;
+      let deployedResource: any;
+
+      for (let waited = 0; waited < maxWaitMs; waited += pollIntervalMs) {
+        const resourceResult = await integrationTest.kubectl(
+          `get ${firstResource.kind} ${firstResource.name} -n ${namespace} -o json`
+        );
+        deployedResource = JSON.parse(resourceResult);
+
+        // Check if Solution ownerReference exists
+        const hasOwnerRef = deployedResource.metadata.ownerReferences?.some(
+          (ref: any) => ref.kind === 'Solution' && ref.name === solutionCRName
+        );
+
+        if (hasOwnerRef) {
+          ownerRefFound = true;
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      }
 
       // Verify ownerReference pointing to Solution CR exists
       // Note: controller=false because Solution is a tracker, not a lifecycle controller
       // Actual resource controllers (like CNPG) remain as controller=true
+      expect(ownerRefFound).toBe(true);
       expect(deployedResource.metadata.ownerReferences).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -431,7 +452,7 @@ describe.concurrent('Recommend Tool Integration', () => {
   });
 
   describe('Helm Chart Discovery', () => {
-    test('should return Helm solutions with metadata when chart exists on ArtifactHub', async () => {
+    test('should return Helm solutions with official prometheus-community chart', async () => {
       // Use Prometheus as test case - no Prometheus CRDs in test cluster, so Helm will be triggered
       const helmResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         intent: 'Install Prometheus for monitoring',
@@ -439,7 +460,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         interaction_id: 'helm_existing_chart_test'
       });
 
-      // Validate Helm solutions response structure
+      // Validate response structure and that official prometheus-community chart is included
       const expectedHelmResponse = {
         success: true,
         data: {
@@ -450,13 +471,15 @@ describe.concurrent('Recommend Tool Integration', () => {
                 solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
                 type: 'helm',
                 score: expect.any(Number),
-                description: expect.any(String),
-                chart: expect.objectContaining({
-                  repository: expect.stringMatching(/^https?:\/\//),
-                  repositoryName: expect.any(String),
-                  chartName: expect.any(String)
-                }),
-                reasons: expect.any(Array)
+                description: expect.stringMatching(/prometheus/i),
+                chart: {
+                  repository: 'https://prometheus-community.github.io/helm-charts',
+                  repositoryName: 'prometheus-community',
+                  chartName: 'prometheus',
+                  official: false,
+                  verifiedPublisher: true
+                },
+                reasons: expect.arrayContaining([expect.any(String)])
               })
             ]),
             helmInstallation: true,
@@ -476,23 +499,16 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       expect(helmResponse).toMatchObject(expectedHelmResponse);
 
-      // Validate solution details
-      const solution = helmResponse.data.result.solutions[0];
+      // Find the prometheus-community chart and validate its score
+      const solutions = helmResponse.data.result.solutions;
+      const prometheusCommunityChart = solutions.find(
+        (s: any) => s.chart?.repositoryName === 'prometheus-community'
+      );
 
-      // Validate score range (70-100 based on AI scoring)
-      expect(solution.score).toBeGreaterThanOrEqual(70);
-      expect(solution.score).toBeLessThanOrEqual(100);
-
-      // Validate reasons array is non-empty
-      expect(solution.reasons.length).toBeGreaterThan(0);
-
-      // Validate chart metadata fields (official/verifiedPublisher should be boolean when present)
-      if (solution.chart.official !== undefined) {
-        expect(typeof solution.chart.official).toBe('boolean');
-      }
-      if (solution.chart.verifiedPublisher !== undefined) {
-        expect(typeof solution.chart.verifiedPublisher).toBe('boolean');
-      }
+      expect(prometheusCommunityChart).toBeDefined();
+      expect(prometheusCommunityChart.score).toBeGreaterThanOrEqual(70);
+      expect(prometheusCommunityChart.score).toBeLessThanOrEqual(100);
+      expect(prometheusCommunityChart.reasons.length).toBeGreaterThan(0);
     }, 300000); // 5 minutes for AI analysis
 
     test('should return no_charts_found when chart does not exist on ArtifactHub', async () => {

@@ -14,9 +14,10 @@ Analyze the available Helm charts and select the ones that best match the user's
 
 **Selection criteria:**
 1. **Intent match** - Does this chart actually provide what the user asked for? (Most important)
-2. **Official/Verified** - Prefer official charts from project maintainers or verified publishers
-3. **Popularity** - Higher star counts indicate community trust and active maintenance
-4. **Description match** - Does the chart description align with the user's needs?
+2. **Bundle preference** - If the user's intent mentions multiple tools (e.g., "prometheus with alertmanager", "monitoring stack"), prefer charts that bundle them together (e.g., kube-prometheus-stack) over standalone charts
+3. **Official/Verified** - Prefer official charts from project maintainers or verified publishers
+4. **Popularity** - Higher star counts indicate community trust and active maintenance
+5. **Description match** - Does the chart description align with the user's needs?
 
 **Important distinctions:**
 - Main application charts vs addon/extension charts - only select addons if the user specifically asked for them

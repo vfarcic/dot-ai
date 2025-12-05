@@ -365,7 +365,7 @@ if [ "$NO_CLUSTER" = false ]; then
     log_info "Waiting for ingress to be accessible..."
     MAX_WAIT=60
     WAITED=0
-    MCP_URL="http://dot-ai.127.0.0.1.nip.io"
+    MCP_URL="http://dot-ai.127.0.0.1.nip.io:8180"
     while [ $WAITED -lt $MAX_WAIT ]; do
         if curl -sf "${MCP_URL}/api/v1/tools/version" -X POST -H "Content-Type: application/json" -d '{}' > /dev/null 2>&1; then
             log_info "dot-ai MCP server is accessible at ${MCP_URL}"
