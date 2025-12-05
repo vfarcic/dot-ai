@@ -17,7 +17,7 @@ source scripts/cnpg.nu
 def main [] {}
 
 def "main setup" [
-    --dot-ai-tag: string = "0.151.0",
+    --dot-ai-tag: string = "0.152.0",
     --qdrant-run = false,
     --qdrant-tag: string = "latest",
     --dot-ai-kubernetes-enabled = true,
