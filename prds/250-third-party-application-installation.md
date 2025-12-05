@@ -263,7 +263,7 @@ After completing this PRD, create a new PRD for:
 - [x] Validation flow: Implement Helm dry-run validation and user confirmation step
 - [x] Helm execution: Implement helm upgrade --install with proper error handling and status reporting
 - [x] Integration tests: Comprehensive tests covering the full workflow
-- [ ] Follow-up PRD: Create PRD for `operate` tool Helm support (upgrades, rollbacks, uninstalls)
+- [x] Follow-up PRD: Create PRD for Helm Day-2 operations (PRD #251 - covers both `operate` and `remediate` tools)
 
 ---
 
