@@ -6,6 +6,15 @@
     ":semanticCommits",
     ":separatePatchReleases"
   ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\nARG \\w+_VERSION=(?<currentValue>.*)"
+      ],
+      "versioningScheme": "semver"
+    }
+  ],
   "schedule": ["before 9am on monday"],
   "timezone": "UTC",
   "labels": ["dependencies"],

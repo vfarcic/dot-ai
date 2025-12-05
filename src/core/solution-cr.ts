@@ -27,11 +27,10 @@ export function generateSolutionCR(options: SolutionCROptions): string {
   // Parse generated manifests to extract actual resource references
   const resourceReferences = extractResourceReferences(generatedManifestsYaml, namespace);
 
-  // Build rationale from solution description, reasons, and analysis
+  // Build rationale from solution description and reasons
   const rationale = [
     solution.description,
-    ...solution.reasons,
-    solution.analysis
+    ...solution.reasons
   ].filter(Boolean).join('\n\n');
 
   // Get patterns and policies from session

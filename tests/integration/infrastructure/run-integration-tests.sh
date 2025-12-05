@@ -235,7 +235,7 @@ EOF
     if [[ "${SKIP_CNPG}" != "true" ]]; then
         log_info "Waiting for CloudNativePG operator..."
         kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
-            --namespace=cnpg-system --timeout=180s || {
+            --namespace=cnpg-system --timeout=480s || {
             log_error "CloudNativePG operator failed to become ready"
             exit 1
         }
@@ -244,22 +244,22 @@ EOF
     if [[ "${SKIP_KYVERNO}" != "true" ]]; then
         log_info "Waiting for Kyverno deployments..."
         kubectl wait --for=condition=Available deployment/kyverno-admission-controller \
-            --namespace=kyverno --timeout=180s || {
+            --namespace=kyverno --timeout=480s || {
             log_error "Kyverno admission controller failed to become ready"
             exit 1
         }
         kubectl wait --for=condition=Available deployment/kyverno-background-controller \
-            --namespace=kyverno --timeout=180s || {
+            --namespace=kyverno --timeout=480s || {
             log_error "Kyverno background controller failed to become ready"
             exit 1
         }
         kubectl wait --for=condition=Available deployment/kyverno-cleanup-controller \
-            --namespace=kyverno --timeout=180s || {
+            --namespace=kyverno --timeout=480s || {
             log_error "Kyverno cleanup controller failed to become ready"
             exit 1
         }
         kubectl wait --for=condition=Available deployment/kyverno-reports-controller \
-            --namespace=kyverno --timeout=180s || {
+            --namespace=kyverno --timeout=480s || {
             log_error "Kyverno reports controller failed to become ready"
             exit 1
         }
@@ -365,7 +365,7 @@ if [ "$NO_CLUSTER" = false ]; then
     log_info "Waiting for ingress to be accessible..."
     MAX_WAIT=60
     WAITED=0
-    MCP_URL="http://dot-ai.127.0.0.1.nip.io"
+    MCP_URL="http://dot-ai.127.0.0.1.nip.io:8180"
     while [ $WAITED -lt $MAX_WAIT ]; do
         if curl -sf "${MCP_URL}/api/v1/tools/version" -X POST -H "Content-Type: application/json" -d '{}' > /dev/null 2>&1; then
             log_info "dot-ai MCP server is accessible at ${MCP_URL}"

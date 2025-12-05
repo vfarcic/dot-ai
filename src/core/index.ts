@@ -9,7 +9,8 @@ import { MemorySystem } from './memory';
 import { WorkflowEngine } from './workflow';
 import { AIProvider } from './ai-provider.interface';
 import { createAIProvider } from './ai-provider-factory';
-import { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
+import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
+import { HelmChartInfo } from './helm-types';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
@@ -29,6 +30,8 @@ export class DotAI {
     ranker: ResourceRecommender | null;
     parseResource: (resourceName: string) => Promise<any>;
     rankResources: (intent: string) => Promise<any>;
+    generateQuestionsForHelmChart: (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => Promise<QuestionGroup>;
+    fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
   };
 
   constructor(config: CoreConfig = {}) {
@@ -85,11 +88,23 @@ export class DotAI {
         if (!ranker) {
           throw new Error('ResourceRanker not available. AI provider API key is required for AI-powered ranking.');
         }
-        
+
         // Create discovery function with proper binding
         const explainResourceFn = async (resource: string) => await this.discovery.explainResource(resource);
-        
+
         return await ranker.findBestSolutions(intent, explainResourceFn);
+      },
+      generateQuestionsForHelmChart: async (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => {
+        if (!ranker) {
+          throw new Error('ResourceRanker not available. AI provider API key is required for question generation.');
+        }
+        return await ranker.generateQuestionsForHelmChart(intent, chart, description, interaction_id);
+      },
+      fetchHelmChartContent: async (chart: HelmChartInfo) => {
+        if (!ranker) {
+          throw new Error('ResourceRanker not available for fetching Helm chart content.');
+        }
+        return await ranker.fetchHelmChartContent(chart);
       }
     };
   }

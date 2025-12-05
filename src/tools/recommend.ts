@@ -16,6 +16,8 @@ import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
+import { ArtifactHubService } from '../core/artifacthub';
+import { HelmChartInfo } from '../core/helm-types';
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
@@ -36,19 +38,22 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 };
 
 // Solution data stored by GenericSessionManager
+// Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
   intent: string;
-  type: string;
+  type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
   description: string;
   reasons: string[];
-  analysis: string;
-  resources: Array<{
+  // Capability-based solutions have resources
+  resources?: Array<{
     kind: string;
     apiVersion: string;
     group: string;
     description: string;
   }>;
+  // Helm solutions have chart info
+  chart?: HelmChartInfo;
   questions: {
     required?: any[];
     basic?: any[];
@@ -267,11 +272,148 @@ export async function handleRecommendTool(
 
       // Find best solutions for the user intent
       logger.debug('Generating recommendations with AI', { requestId });
-      const solutions = await recommender.findBestSolutions(
+      const solutionResult = await recommender.findBestSolutions(
         args.intent,
         explainResourceFn,
         args.interaction_id
       );
+
+      // Handle Helm recommendation case
+      if (solutionResult.helmRecommendation) {
+        logger.info('Helm installation recommended, searching ArtifactHub', {
+          requestId,
+          suggestedTool: solutionResult.helmRecommendation.suggestedTool,
+          searchQuery: solutionResult.helmRecommendation.searchQuery,
+          reason: solutionResult.helmRecommendation.reason
+        });
+
+        // Search ArtifactHub for matching charts
+        const artifactHub = new ArtifactHubService();
+        const charts = await artifactHub.searchCharts(
+          solutionResult.helmRecommendation.searchQuery,
+          10 // Get top 10 results for AI to analyze
+        );
+
+        if (charts.length === 0) {
+          // No charts found on ArtifactHub
+          logger.warn('No charts found on ArtifactHub', { requestId, searchQuery: solutionResult.helmRecommendation.searchQuery });
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'no_charts_found',
+                searchQuery: solutionResult.helmRecommendation.searchQuery,
+                reason: solutionResult.helmRecommendation.reason,
+                message: `No Helm charts found on ArtifactHub for "${solutionResult.helmRecommendation.suggestedTool}". We currently only support charts available on ArtifactHub. If you need support for charts from other sources, please open an issue at https://github.com/vfarcic/dot-ai/issues/new`
+              }, null, 2)
+            }]
+          };
+        }
+
+        // Format charts for AI analysis
+        const chartsText = artifactHub.formatChartsForAI(charts);
+
+        // Load prompt and send to AI for chart selection
+        const chartSelectionPrompt = loadPrompt('helm-chart-selection', {
+          intent: args.intent,
+          charts: chartsText
+        });
+
+        const aiResponse = await dotAI.ai.sendMessage(
+          chartSelectionPrompt,
+          'recommend-helm-chart-selection',
+          {
+            user_intent: args.intent,
+            interaction_id: args.interaction_id
+          }
+        );
+
+        // Parse AI response
+        const aiSelection = extractJsonFromAIResponse(aiResponse.content);
+
+        if (!aiSelection.solutions || aiSelection.solutions.length === 0) {
+          // AI couldn't find matching charts
+          logger.warn('AI found no matching charts', { requestId, noMatchReason: aiSelection.noMatchReason });
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'no_matching_charts',
+                reason: aiSelection.noMatchReason || 'No charts matched the user intent',
+                searchQuery: solutionResult.helmRecommendation.searchQuery,
+                instruction: 'Consider refining your request or manually specifying a Helm chart.'
+              }, null, 2)
+            }]
+          };
+        }
+
+        // Create sessions for Helm solutions
+        const timestamp = new Date().toISOString();
+        const helmSolutionSummaries = [];
+
+        for (const aiSolution of aiSelection.solutions) {
+          // Find the original chart data from ArtifactHub results
+          const originalChart = charts.find(c => c.name === aiSolution.chartName);
+
+          const solutionData: SolutionData = {
+            intent: args.intent,
+            type: 'helm',
+            score: aiSolution.score,
+            description: aiSolution.description,
+            reasons: aiSolution.reasons,
+            chart: {
+              repository: aiSolution.repositoryUrl,
+              repositoryName: aiSolution.repositoryName,
+              chartName: aiSolution.chartName,
+              version: aiSolution.version,
+              appVersion: aiSolution.appVersion,
+              official: originalChart?.official || originalChart?.repository?.official,
+              verifiedPublisher: originalChart?.verified_publisher || originalChart?.repository?.verified_publisher
+            },
+            questions: { required: [], basic: [], advanced: [] }, // Will be generated from chart values later
+            answers: {},
+            timestamp
+          };
+
+          const session = sessionManager.createSession(solutionData);
+          const solutionId = session.sessionId;
+          logger.debug('Helm solution session created', { requestId, solutionId });
+
+          helmSolutionSummaries.push({
+            solutionId,
+            type: 'helm',
+            score: aiSolution.score,
+            description: aiSolution.description,
+            chart: solutionData.chart,
+            reasons: aiSolution.reasons
+          });
+        }
+
+        // Build Helm solutions response
+        const helmResponse = {
+          intent: args.intent,
+          solutions: helmSolutionSummaries,
+          helmInstallation: true,
+          nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
+          guidance: '🔴 CRITICAL: Present these Helm chart options to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Show the chart details (repository, version, official status) to help users decide.',
+          timestamp
+        };
+
+        logger.info('Helm solutions prepared', {
+          requestId,
+          solutionCount: helmSolutionSummaries.length,
+          topScore: helmSolutionSummaries[0]?.score
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(helmResponse, null, 2)
+          }]
+        };
+      }
+
+      const solutions = solutionResult.solutions;
 
       logger.info('Recommendation process completed', {
         requestId,
@@ -294,7 +436,6 @@ export async function handleRecommendTool(
           score: solution.score,
           description: solution.description,
           reasons: solution.reasons,
-          analysis: solution.analysis,
           resources: solution.resources.map(r => ({
             kind: r.kind,
             apiVersion: r.apiVersion,
@@ -326,7 +467,6 @@ export async function handleRecommendTool(
             description: r.description?.split('\n')[0] || `${r.kind} resource` // Use first line of description or fallback
           })),
           reasons: solution.reasons,
-          analysis: solution.analysis,
           appliedPatterns: solution.appliedPatterns || [],
           relevantPolicies: solution.questions?.relevantPolicies || []
         });

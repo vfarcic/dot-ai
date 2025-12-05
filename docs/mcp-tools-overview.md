@@ -12,8 +12,8 @@ This video demonstrates the core AI-powered deployment workflow: capabilities di
 
 ### 🚀 Kubernetes Deployment Recommendations
 AI-powered application deployment assistance with smart intent clarification, semantic resource matching, and automated manifest generation.
-- **What it does**: Clarifies deployment intents through adaptive questioning, then provides intelligent deployment suggestions based on your cluster capabilities
-- **Use when**: Deploying applications to Kubernetes clusters, especially when requirements are not fully specified
+- **What it does**: Clarifies deployment intents through adaptive questioning, then provides intelligent deployment suggestions based on your cluster capabilities. When no capability matches, automatically discovers and installs third-party applications via Helm charts from ArtifactHub.
+- **Use when**: Deploying applications to Kubernetes clusters, or installing third-party tools (Prometheus, Argo CD, Crossplane, etc.) via Helm
 - **📖 Full Guide**: [Kubernetes Deployment Recommendations](mcp-recommendation-guide.md)
 
 ### 🔍 Capability Management  

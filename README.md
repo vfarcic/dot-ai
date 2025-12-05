@@ -57,7 +57,7 @@ DevOps AI Toolkit democratizes platform engineering and cloud native operations 
 ## Key Features
 
 ### 🔍 Resource Provisioning Intelligence
-Automatically discovers cluster resources using semantic capability management. AI understands what each resource actually does, providing intelligent recommendations for provisioning resources across clouds using Kubernetes as a control plane.
+Automatically discovers cluster resources using semantic capability management. AI understands what each resource actually does, providing intelligent recommendations for provisioning resources across clouds using Kubernetes as a control plane. When no matching capability exists, automatically discovers and installs third-party tools (Prometheus, Argo CD, Crossplane, etc.) via Helm charts from ArtifactHub.
 📖 [Deployment Guide](./docs/mcp-recommendation-guide.md) | [Capability Management](./docs/mcp-capability-management-guide.md)
 
 ### 🛠️ Issue Remediation

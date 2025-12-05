@@ -54,11 +54,37 @@ Create multiple alternative solutions. Consider:
 
 **Generate 2-5 different solutions** that genuinely address the user intent. Prioritize relevance over quantity - it's better to provide 2-3 high-quality, relevant solutions than to include irrelevant alternatives just to reach a target number.
 
+## Helm Installation Fallback
+
+**After analyzing available capabilities, determine if they can genuinely fulfill the user's intent.**
+
+Ask yourself: "If the user applies these resources, will they get what they actually asked for?"
+
+**Evaluation principles:**
+
+1. **Don't confuse "uses X" with "is X"**
+   - ServiceMonitor CRD *uses* Prometheus but doesn't *provide* Prometheus
+   - Certificate CRD *uses* cert-manager but doesn't *provide* cert-manager
+   - Prometheus CRD *provides* Prometheus instances (operator is installed)
+   - Cluster CRD from CNPG *provides* PostgreSQL instances (operator is installed)
+
+2. **Match the actual ask:**
+   - "Install Prometheus" + Prometheus CRD exists → Capability solution (can create Prometheus instance)
+   - "Install Prometheus" + Only ServiceMonitor exists → Helm fallback (cannot install Prometheus itself)
+   - "Deploy PostgreSQL" + CNPG Cluster CRD exists → Capability solution (can create database)
+   - "Deploy PostgreSQL" + No database operators → Helm fallback (need to install something first)
+
+3. **Decision:**
+   - If capabilities CAN fulfill the intent → Return `solutions` array with capability-based solutions
+   - If capabilities CANNOT fulfill the intent → Return `helmRecommendation` with empty `solutions` array
+
 ## Response Format
 
-Respond with ONLY a JSON object containing an array of complete solutions. Each solution should include resources, description, scoring, and pattern compliance:
+Respond with ONLY a JSON object. The format depends on whether capabilities can fulfill the intent:
 
-**CRITICAL**: For each resource in your solutions, you MUST include the `resourceName` field. This field contains the correct plural, lowercase resource name used for kubectl explain calls. Extract this from the Available Resources list - each resource shows its `resourceName` field that you should copy exactly.
+### When capabilities CAN fulfill the intent:
+
+Return solutions with resources. Include the `resourceName` field for each resource (extract from Available Resources list).
 
 ```json
 {
@@ -82,17 +108,35 @@ Respond with ONLY a JSON object containing an array of complete solutions. Each 
       "score": 95,
       "description": "Complete web application deployment with networking",
       "reasons": ["High capability match for web applications", "Includes essential networking"],
-      "appliedPatterns": ["High availability web application pattern", "Ingress with TLS termination"]
+      "appliedPatterns": ["High availability web application pattern"]
     }
   ]
 }
 ```
 
-**CRITICAL - Applied Patterns Field:**
-- Include `appliedPatterns` array with the **descriptions** of organizational patterns you applied to this solution
-- Use the pattern `description` field from the Organizational Patterns section provided above
-- Only include patterns that directly influenced this solution's resource selection or configuration
-- Use empty array `[]` if no organizational patterns were applied
+**Applied Patterns:** Include pattern descriptions that influenced the solution. Use empty array `[]` if none applied.
+
+### When capabilities CANNOT fulfill the intent (Helm fallback):
+
+Return empty solutions with Helm recommendation. Patterns do not apply to Helm installations.
+
+```json
+{
+  "solutions": [],
+  "helmRecommendation": {
+    "reason": "No capabilities can install Prometheus. ServiceMonitor CRD configures monitoring targets but cannot install Prometheus itself.",
+    "suggestedTool": "Prometheus",
+    "searchQuery": "prometheus"
+  }
+}
+```
+
+**searchQuery construction rules:**
+- Use the primary tool name only (e.g., "prometheus", "argo cd", "cert-manager")
+- Do NOT include generic terms like "helm", "chart", "kubernetes", "install"
+- Do NOT include compound queries - pick the main tool (e.g., "prometheus with alertmanager" → searchQuery: "prometheus")
+- Keep it simple - ArtifactHub search works best with short, focused queries
+- The full intent will be used later when selecting the best chart from search results
 
 IMPORTANT: Your response must be ONLY the JSON object, nothing else.
 

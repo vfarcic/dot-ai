@@ -1,7 +1,8 @@
 # PRD: Third-party Application Installation
 
 **Issue**: [#250](https://github.com/vfarcic/dot-ai/issues/250)
-**Status**: Draft
+**Status**: Complete
+**Completed**: 2025-12-05
 **Priority**: High
 **Created**: 2025-12-04
 
@@ -240,15 +241,30 @@ After completing this PRD, create a new PRD for:
 
 ---
 
+## Design Decisions
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2025-12-04 | **Helm detection after capability analysis**: Detection happens after AI analyzes available capabilities, not as upfront intent classification | AI needs full context (capabilities + intent) to determine if Helm is needed. "Deploy PostgreSQL" could use CNPG if installed or need Helm if not - can't know without checking capabilities first |
+| 2025-12-04 | **Unified solutions response format**: Helm solutions use same `solutions` array with `type: "helm"` and `chart` info instead of `resources` | User workflow stays identical for both flows. Client agents don't need special handling. Simpler architecture |
+| 2025-12-04 | **Presence-based detection**: `helmRecommendation` object presence indicates Helm needed (no boolean flag) | Simpler logic - mutually exclusive: either `solutions` has items OR `helmRecommendation` is present |
+| 2025-12-04 | **Automatic ArtifactHub search**: When Helm detected, system automatically searches ArtifactHub and returns chart solutions - no intermediate "Helm recommended" state | Seamless UX - user always sees actionable solutions, internal detection is invisible |
+| 2025-12-05 | **Cluster-aware defaults implemented**: Both capability and Helm question generation flows include cluster context (IngressClass, StorageClass with defaults marked, namespaces, node labels) to inform suggested answers | Unified approach for both flows. Enables intelligent defaults like suggesting the default IngressClass for ingress-related questions |
+| 2025-12-05 | **Simple ArtifactHub search queries**: AI generates single tool name search queries (e.g., "prometheus") not compound queries (e.g., "prometheus alertmanager helm chart") | ArtifactHub search doesn't handle complex queries well - compound queries return irrelevant results |
+| 2025-12-05 | **Bundle preference for multi-tool intents**: When user intent mentions multiple tools (e.g., "prometheus with alertmanager"), chart selection prefers bundle charts (e.g., kube-prometheus-stack) | Avoids need for multi-chart solutions while still fulfilling compound intents |
+
+---
+
 ## Milestones
 
-- [ ] Intent detection: Enhance `recommend` tool to classify third-party installation intents and route appropriately
-- [ ] Helm chart discovery: Implement ArtifactHub API integration with fallback to AI client web search
-- [ ] Question generation: AI analyzes chart values and README to generate categorized questions with cluster-aware defaults
-- [ ] Validation flow: Implement Helm dry-run validation and user confirmation step
-- [ ] Helm execution: Implement helm upgrade --install with proper error handling and status reporting
-- [ ] Integration tests: Comprehensive tests covering the full workflow
-- [ ] Follow-up PRD: Create PRD for `operate` tool Helm support (upgrades, rollbacks, uninstalls)
+- [x] Intent detection: Enhance `recommend` tool to classify third-party installation intents and route appropriately
+- [x] Helm chart discovery: Implement ArtifactHub API integration with fallback to AI client web search
+- [x] Question generation: AI analyzes chart values and README to generate categorized questions with cluster-aware defaults (IngressClass, StorageClass, etc.)
+- [x] Question generation tests: Add integration tests for Helm question generation flow
+- [x] Validation flow: Implement Helm dry-run validation and user confirmation step
+- [x] Helm execution: Implement helm upgrade --install with proper error handling and status reporting
+- [x] Integration tests: Comprehensive tests covering the full workflow
+- [x] Follow-up PRD: Create PRD for Helm Day-2 operations (PRD #251 - covers both `operate` and `remediate` tools)
 
 ---
 
@@ -257,3 +273,12 @@ After completing this PRD, create a new PRD for:
 | Date | Update |
 |------|--------|
 | 2025-12-04 | PRD created |
+| 2025-12-04 | Intent detection foundation: Added Helm fallback detection to resource-selection prompt, HelmRecommendation/SolutionResult types in schema.ts, updated findBestSolutions to return SolutionResult, added Helm branch placeholder in recommend.ts |
+| 2025-12-04 | Helm chart discovery complete: Created `src/core/artifacthub.ts` (ArtifactHub API client), `src/core/helm-types.ts` (type definitions), `prompts/helm-chart-selection.md` (AI chart selection prompt). Updated `recommend.ts` with full Helm flow: ArtifactHub search → AI analysis/scoring → session creation → solutions response. Added "no charts found" fallback with GitHub issue link. Removed unused `analysis` field from ResourceSolution. Added integration tests for Helm discovery (existing chart + non-existing chart). All 3 recommend tests pass. |
+| 2025-12-05 | Question generation complete: Refactored `prompts/question-generation.md` to use `{{source_material}}` template variable (works for both capabilities and Helm). Added `generateQuestionsForHelmChart()` and `fetchHelmChartContent()` methods to `src/core/schema.ts` - fetches values.yaml and README via helm CLI. Updated `src/tools/choose-solution.ts` to generate questions when Helm solution is chosen (lazy generation). Exposed new method in `src/core/index.ts`. Improved Helm discovery test to use specific hard-coded values for prometheus-community chart. |
+| 2025-12-05 | Cluster-aware defaults implemented: Updated `prompts/question-generation.md` with "Cluster Context" header and "Determining Suggested Answers" section. Enhanced `discoverClusterOptions()` in `src/core/schema.ts` to mark default IngressClass/StorageClass with new `ClusterResourceInfo` interface. Created shared `formatClusterOptionsText()` method. Wired cluster context into both capability and Helm question generation flows. |
+| 2025-12-05 | ArtifactHub search improvements: Updated `prompts/resource-selection.md` with searchQuery construction rules (simple tool names only, no compound queries). Updated `prompts/helm-chart-selection.md` to prefer bundle charts when intent mentions multiple tools. Fixed issue where "prometheus with alertmanager" returned irrelevant results. |
+| 2025-12-05 | Question generation tests complete: Extended existing Helm discovery test in `tests/integration/tools/recommend.test.ts` to cover full Helm workflow (discovery → chooseSolution → question generation through all stages). Test validates: questions have proper structure with `suggestedAnswer` fields, namespace question exists (fundamental for Helm). Increased infrastructure timeouts (CNPG/Kyverno from 180s to 480s) for slower environments. All 3 recommend tests passing. |
+| 2025-12-05 | Validation and execution flow complete: Renamed `prompts/manifest-generation.md` to `prompts/capabilities-generation.md`. Created `prompts/helm-generation.md` for AI values.yaml generation. Created `src/core/helm-utils.ts` with shared utilities (buildHelmCommand, validateHelmDryRun, deployHelmRelease, etc.). Updated `src/tools/generate-manifests.ts` with Helm branch: fetches chart values → AI generates values.yaml → saves to file → validates via `helm --dry-run` with 10-attempt retry loop. Updated `src/tools/deploy-manifests.ts` with Helm execution: adds repo → runs `helm upgrade --install --wait`. Fixed `src/tools/answer-question.ts` to return `ready_for_manifest_generation` when Helm completes advanced stage (skips 'open' stage). Updated Dockerfile: added Helm binary and ca-certificates for TLS verification. Extended integration test to cover full Helm workflow through generateManifests stage. All 3 tests passing. |
+| 2025-12-05 | UX and test improvements: Fixed `helmCommand` in generateManifests to show user-friendly `values.yaml` instead of internal server path. Made `getAgentInstructions()` in answer-question.ts Helm-aware - no longer mentions 'open stage' for Helm solutions (clients were incorrectly trying to call 'open' stage). Rewrote Helm integration test with explicit stage progression validation (required → basic → advanced → ready_for_manifest_generation) and assertions for agentInstructions text content. Clarified `prompts/helm-generation.md` to only include values that differ from chart defaults. |
+| 2025-12-05 | Documentation complete: Updated `docs/mcp-recommendation-guide.md` with Helm support in Overview, Key Features, "Helm Fallback" section, and new Example 2 (Third-Party Application Installation) with real captured outputs from Prometheus installation. Updated `docs/mcp-tools-overview.md` Kubernetes Deployment Recommendations section. Updated `README.md` Resource Provisioning Intelligence section. All docs now reflect Helm installation capability. |
