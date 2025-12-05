@@ -250,20 +250,42 @@ interface HelmRemediationAction extends RemediationAction {
 
 ### Shared Utilities
 
-Create `src/core/helm-operations.ts` with shared functions:
+#### AI-Callable Investigation Tools: `src/core/helm-tools.ts`
+
+Following the `kubectl-tools.ts` pattern, create Helm investigation tools that AI can invoke during remediation:
 
 ```typescript
-// List all Helm releases
-async function listHelmReleases(): Promise<HelmReleaseInfo[]>
+import { AITool } from './ai-provider.interface';
 
-// Get detailed release info
-async function getHelmReleaseDetails(name: string, namespace?: string): Promise<HelmReleaseDetails>
+// Tool definitions (like KUBECTL_GET_TOOL, KUBECTL_DESCRIBE_TOOL)
+export const HELM_LIST_TOOL: AITool = {
+  name: 'helm_list',
+  description: 'List all Helm releases in the cluster...',
+  inputSchema: { ... }
+};
 
-// Find release matching intent
+export const HELM_STATUS_TOOL: AITool = { ... };
+export const HELM_HISTORY_TOOL: AITool = { ... };
+export const HELM_GET_VALUES_TOOL: AITool = { ... };
+
+// Executor function (like executeKubectlTools)
+export async function executeHelmTools(toolName: string, input: any): Promise<any> {
+  switch (toolName) {
+    case 'helm_list': { /* helm list -A -o json */ }
+    case 'helm_status': { /* helm status <release> -n <ns> -o json */ }
+    case 'helm_history': { /* helm history <release> -n <ns> -o json */ }
+    case 'helm_get_values': { /* helm get values <release> -n <ns> -o json */ }
+  }
+}
+```
+
+#### Core Operations: `src/core/helm-operations.ts`
+
+Higher-level functions for operate tool workflows (builds on existing `helm-utils.ts`):
+
+```typescript
+// Find release matching user intent (fuzzy match on name/chart)
 async function findHelmRelease(intent: string): Promise<HelmReleaseInfo | null>
-
-// Get release history
-async function getHelmHistory(name: string, namespace: string): Promise<HelmRevision[]>
 
 // Execute Helm commands with dry-run support
 async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ success: boolean; output: string }>
@@ -318,6 +340,9 @@ async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ s
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2025-12-05 | **Combined PRD for operate + remediate**: Single PRD covers Helm support for both tools | Shared foundation (detection, state querying), natural workflow (diagnose → fix), manageable scope |
+| 2025-12-05 | **Helm tools as AI-callable investigation tools**: Follow `kubectl-tools.ts` pattern with `executeHelmTools()` function | Consistent with existing architecture; AI decides when to query Helm state during investigation |
+| 2025-12-05 | **Direct testing for all investigation tools**: Test each tool independently, not just through AI workflows | AI adaptability masks broken tools - if one tool fails, AI uses alternatives and integration tests still pass. Direct tests catch individual tool failures immediately. |
+| 2025-12-05 | **Include kubectl tool tests in scope**: Add direct tests for existing kubectl investigation tools alongside new Helm tools | Same rationale - existing kubectl tools have no direct tests and failures could go undetected |
 
 ---
 
@@ -325,8 +350,12 @@ async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ s
 
 ### Phase 1: Foundation
 - [ ] Shared Helm utilities: Create `src/core/helm-operations.ts` with release listing, detection, and state querying
-- [ ] Helm investigation tools: Add `helm_list`, `helm_status`, `helm_history` to remediate tool's investigation toolkit
-- [ ] Integration tests for Helm detection and state querying
+- [ ] Helm investigation tools: Create `src/core/helm-tools.ts` with `executeHelmTools()` following `kubectl-tools.ts` pattern
+- [ ] Add `helm_list`, `helm_status`, `helm_history`, `helm_get_values` as AI-callable investigation tools
+- [ ] Direct investigation tool tests: Create `tests/integration/tools/investigation-tools.test.ts`
+  - [ ] Test all existing kubectl tools directly (`kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_api_resources`)
+  - [ ] Test all new Helm tools directly (`helm_list`, `helm_status`, `helm_history`, `helm_get_values`)
+  - [ ] Validate each tool returns correct data structure and handles errors properly
 
 ### Phase 2: Remediate Tool Enhancements
 - [ ] Helm-aware investigation: Update remediate system prompt to use Helm tools when appropriate
@@ -354,3 +383,4 @@ async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ s
 | Date | Update |
 |------|--------|
 | 2025-12-05 | PRD created |
+| 2025-12-05 | Added design decisions: Helm tools as AI-callable investigation tools following kubectl-tools.ts pattern; direct testing for all investigation tools (both kubectl and Helm) to prevent AI adaptability from masking broken tools |
