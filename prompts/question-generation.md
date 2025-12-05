@@ -68,6 +68,8 @@ You MUST include these EXACT questions with these EXACT IDs in the REQUIRED sect
 2. **REQUIRED: `namespace` question (id: "namespace")**
    - ONLY if any resource in the solution is namespace-scoped - check resource scope information
    - Question ID MUST be exactly: `"id": "namespace"`
+   - **For Helm chart installations**: Use `type: "text"` (NOT `select`) because users typically want to create NEW namespaces for third-party tools (e.g., "monitoring", "argocd", "cert-manager"). Mention existing namespaces in the placeholder as suggestions.
+   - **For capability-based solutions**: Use `type: "select"` with existing namespaces as options.
 
 **VALIDATION**: Your response will fail if the REQUIRED section does not contain a question with `"id": "name"`
 
