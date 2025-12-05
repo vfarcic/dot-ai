@@ -627,10 +627,137 @@ describe.concurrent('Recommend Tool Integration', () => {
       );
       expect(hasNamespaceQuestion).toBe(true);
 
-      // TODO: PHASE 5-6 will be added when validation flow and Helm execution are implemented
-      // - generateManifests: helm dry-run validation
-      // - deployManifests: helm upgrade --install execution
-    }, 600000); // 10 minutes for full Helm workflow
+      // For Helm solutions, verify that after advanced stage, we go directly to ready_for_manifest_generation
+      // (open stage is skipped for Helm)
+      // The currentResponse should indicate completion after advanced stage
+      if (currentResponse.data.result.status === 'stage_questions' && currentStage === 'advanced') {
+        // Answer advanced stage to complete
+        const advancedQuestions = currentResponse.data.result.questions || [];
+        const advancedAnswers: Record<string, any> = {};
+        advancedQuestions.forEach((q: any) => {
+          advancedAnswers[q.id] = q.suggestedAnswer;
+        });
+
+        currentResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'answerQuestion:advanced',
+          solutionId,
+          answers: advancedAnswers,
+          interaction_id: 'helm_workflow_advanced_final'
+        });
+      }
+
+      // Helm should now be ready for manifest generation (skipping open stage)
+      expect(currentResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'ready_for_manifest_generation',
+            solutionId: solutionId,
+            nextAction: 'Call recommend tool with stage: generateManifests'
+          }
+        }
+      });
+
+      // PHASE 5: Generate Helm values (helm dry-run validation)
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
+        solutionId,
+        interaction_id: 'helm_workflow_generate'
+      });
+
+      // Validate Helm generation response
+      const expectedGenerateResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            status: 'helm_command_generated',
+            solutionId: solutionId,
+            solutionType: 'helm',
+            helmCommand: expect.stringContaining('helm upgrade --install'),
+            valuesYaml: expect.any(String),
+            valuesPath: expect.stringContaining('-values.yaml'),
+            chart: {
+              repository: 'https://prometheus-community.github.io/helm-charts',
+              repositoryName: 'prometheus-community',
+              chartName: 'prometheus'
+            },
+            releaseName: expect.any(String),
+            namespace: expect.any(String),
+            validationAttempts: expect.any(Number),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+
+      // Verify Helm command contains expected components
+      const helmCommand = generateResponse.data.result.helmCommand;
+      expect(helmCommand).toContain('prometheus-community/prometheus');
+      expect(helmCommand).toContain('--namespace');
+      expect(helmCommand).toContain('--create-namespace');
+
+      // Extract namespace and release name for deployment validation
+      const helmNamespace = generateResponse.data.result.namespace;
+      const releaseName = generateResponse.data.result.releaseName;
+
+      // PHASE 6: Deploy Helm chart (helm upgrade --install execution)
+      const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'deployManifests',
+        solutionId,
+        timeout: 120, // 2 minutes for Helm install
+        interaction_id: 'helm_workflow_deploy'
+      });
+
+      // Validate Helm deployment response
+      const expectedDeployResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            solutionId: solutionId,
+            solutionType: 'helm',
+            releaseName: releaseName,
+            namespace: helmNamespace,
+            chart: {
+              repository: 'https://prometheus-community.github.io/helm-charts',
+              repositoryName: 'prometheus-community',
+              chartName: 'prometheus'
+            },
+            message: expect.stringContaining('deployed successfully'),
+            helmOutput: expect.any(String),
+            deploymentComplete: true,
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(deployResponse).toMatchObject(expectedDeployResponse);
+
+      // PHASE 7: Verify Helm release was created in cluster
+      const helmListResult = await integrationTest.kubectl(
+        `get pods -n ${helmNamespace} -l app.kubernetes.io/instance=${releaseName} -o json`
+      );
+      const helmPods = JSON.parse(helmListResult);
+
+      // Verify at least one pod exists for the release
+      expect(helmPods.items.length).toBeGreaterThan(0);
+    }, 900000); // 15 minutes for full Helm workflow with deployment
 
     test('should return no_charts_found when chart does not exist on ArtifactHub', async () => {
       // Use a clearly non-existent chart name

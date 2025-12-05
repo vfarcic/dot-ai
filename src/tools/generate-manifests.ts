@@ -1,5 +1,6 @@
 /**
  * Generate Manifests Tool - AI-driven manifest generation with validation loop
+ * Supports both capability-based solutions (K8s manifests) and Helm-based solutions (values.yaml)
  */
 
 import { z } from 'zod';
@@ -18,6 +19,13 @@ import { extractUserAnswers, addDotAiLabels } from '../core/solution-utils';
 import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
 import { isSolutionCRDAvailable } from '../core/crd-availability';
 import { generateSolutionCR } from '../core/solution-cr';
+import { HelmChartInfo } from '../core/helm-types';
+import {
+  buildHelmCommand,
+  validateHelmDryRun,
+  getHelmValuesPath,
+  ensureTmpDir
+} from '../core/helm-utils';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -186,7 +194,7 @@ ${errorContext.previousManifests}
   // Prepare template variables
   const schemasData = JSON.stringify(resourceSchemas, null, 2);
   const labelsData = dotAiLabels ? JSON.stringify(dotAiLabels, null, 2) : '{}';
-  const aiPrompt = loadPrompt('manifest-generation', {
+  const aiPrompt = loadPrompt('capabilities-generation', {
     solution: solutionData,
     schemas: schemasData,
     previous_attempt: previousAttempt,
@@ -222,6 +230,275 @@ ${errorContext.previousManifests}
   });
 
   return manifestContent;
+}
+
+/**
+ * Error context for Helm validation retries
+ */
+interface HelmErrorContext {
+  attempt: number;
+  previousValues: string;
+  validationResult: ValidationResult;
+}
+
+/**
+ * Generate Helm values.yaml using AI provider
+ */
+async function generateHelmValuesWithAI(
+  solution: any,
+  solutionId: string,
+  dotAI: DotAI,
+  logger: Logger,
+  errorContext?: HelmErrorContext,
+  interaction_id?: string
+): Promise<string> {
+  // Fetch chart values.yaml for reference
+  const chart: HelmChartInfo = solution.chart;
+  const { valuesYaml } = await dotAI.schema.fetchHelmChartContent(chart);
+
+  // Prepare template variables
+  const solutionData = JSON.stringify(solution, null, 2);
+  const previousAttempt = errorContext ? `
+### Generated Values:
+\`\`\`yaml
+${errorContext.previousValues}
+\`\`\`
+` : 'None - this is the first attempt.';
+
+  const errorDetails = errorContext ? `
+**Attempt**: ${errorContext.attempt}
+**Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
+**Validation Warnings**: ${errorContext.validationResult.warnings.join(', ')}
+` : 'None - this is the first attempt.';
+
+  const aiPrompt = loadPrompt('helm-generation', {
+    solution: solutionData,
+    chart_values: valuesYaml || '# No default values available',
+    previous_attempt: previousAttempt,
+    error_details: errorDetails
+  });
+
+  const isRetry = !!errorContext;
+  logger.info('Generating Helm values with AI', {
+    isRetry,
+    attempt: errorContext?.attempt,
+    hasErrorContext: !!errorContext,
+    solutionId,
+    chart: `${chart.repositoryName}/${chart.chartName}`
+  });
+
+  // Get AI provider from dotAI
+  const aiProvider = dotAI.ai;
+
+  // Send prompt to AI
+  const response = await aiProvider.sendMessage(aiPrompt, 'helm-values-generation', {
+    user_intent: solution.intent || 'Helm chart installation',
+    interaction_id: interaction_id
+  });
+
+  // Extract YAML content from response
+  const valuesContent = extractContentFromMarkdownCodeBlocks(response.content, 'yaml');
+
+  logger.info('AI Helm values generation completed', {
+    valuesLength: valuesContent.length,
+    isRetry,
+    solutionId
+  });
+
+  return valuesContent;
+}
+
+/**
+ * Validate Helm installation using dry-run (wrapper around shared utility)
+ */
+async function validateHelmInstallation(
+  chart: HelmChartInfo,
+  releaseName: string,
+  namespace: string,
+  valuesPath: string,
+  logger: Logger
+): Promise<ValidationResult> {
+  logger.info('Running Helm dry-run validation', {
+    chart: `${chart.repositoryName}/${chart.chartName}`,
+    releaseName,
+    namespace
+  });
+
+  const result = await validateHelmDryRun(chart, releaseName, namespace, valuesPath);
+
+  if (result.success) {
+    logger.info('Helm dry-run validation successful');
+    return {
+      valid: true,
+      errors: [],
+      warnings: []
+    };
+  }
+
+  logger.warn('Helm dry-run validation failed', { error: result.error });
+  return {
+    valid: false,
+    errors: [result.error || 'Unknown Helm validation error'],
+    warnings: []
+  };
+}
+
+/**
+ * Handle Helm solution generation
+ */
+async function handleHelmGeneration(
+  solution: any,
+  solutionId: string,
+  dotAI: DotAI,
+  logger: Logger,
+  requestId: string,
+  interaction_id?: string
+): Promise<{ content: { type: 'text'; text: string }[] }> {
+  const maxAttempts = 10;
+  const chart: HelmChartInfo = solution.chart;
+  const userAnswers = extractUserAnswers(solution);
+
+  // Extract release name and namespace from answers
+  const releaseName = userAnswers.name;
+  const namespace = userAnswers.namespace || 'default';
+
+  if (!releaseName) {
+    throw ErrorHandler.createError(
+      ErrorCategory.VALIDATION,
+      ErrorSeverity.HIGH,
+      'Release name (name) is required for Helm installation',
+      {
+        operation: 'helm_generation',
+        component: 'GenerateManifestsTool',
+        requestId,
+        suggestedActions: ['Ensure the "name" question was answered in the configuration']
+      }
+    );
+  }
+
+  // Prepare file paths using shared utilities
+  ensureTmpDir();
+  const valuesPath = getHelmValuesPath(solutionId);
+
+  // AI generation and validation loop
+  let lastError: HelmErrorContext | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    logger.info('Helm values generation attempt', {
+      attempt,
+      maxAttempts,
+      isRetry: attempt > 1,
+      requestId,
+      chart: `${chart.repositoryName}/${chart.chartName}`
+    });
+
+    try {
+      // Generate values.yaml with AI
+      const valuesYaml = await generateHelmValuesWithAI(
+        solution,
+        solutionId,
+        dotAI,
+        logger,
+        lastError,
+        interaction_id
+      );
+
+      // Save values to file
+      fs.writeFileSync(valuesPath, valuesYaml, 'utf8');
+      logger.info('Helm values saved to file', { valuesPath, attempt, requestId });
+
+      // Save attempt for debugging
+      const attemptPath = valuesPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
+      fs.writeFileSync(attemptPath, valuesYaml, 'utf8');
+
+      // Validate with helm dry-run
+      const validation = await validateHelmInstallation(
+        chart,
+        releaseName,
+        namespace,
+        valuesPath,
+        logger
+      );
+
+      if (validation.valid) {
+        logger.info('Helm validation successful', {
+          attempt,
+          valuesPath,
+          requestId
+        });
+
+        // Build the final helm command
+        const helmCommand = buildHelmCommand(chart, releaseName, namespace, valuesPath);
+
+        // Check if we should show feedback message
+        const feedbackMessage = maybeGetFeedbackMessage();
+
+        const response = {
+          success: true,
+          status: 'helm_command_generated',
+          solutionId: solutionId,
+          solutionType: 'helm',
+          helmCommand: helmCommand,
+          valuesYaml: valuesYaml,
+          valuesPath: valuesPath,
+          chart: {
+            repository: chart.repository,
+            repositoryName: chart.repositoryName,
+            chartName: chart.chartName,
+            version: chart.version
+          },
+          releaseName: releaseName,
+          namespace: namespace,
+          validationAttempts: attempt,
+          timestamp: new Date().toISOString(),
+          ...(feedbackMessage ? { message: feedbackMessage } : {})
+        };
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(response, null, 2)
+          }]
+        };
+      }
+
+      // Validation failed, prepare error context for next attempt
+      lastError = {
+        attempt,
+        previousValues: valuesYaml,
+        validationResult: validation
+      };
+
+      logger.warn('Helm validation failed', {
+        attempt,
+        maxAttempts,
+        validationErrors: validation.errors,
+        validationWarnings: validation.warnings,
+        requestId
+      });
+
+    } catch (error) {
+      logger.error('Error during Helm values generation attempt', error as Error);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      // Prepare error context for retry
+      lastError = {
+        attempt,
+        previousValues: lastError?.previousValues || '',
+        validationResult: {
+          valid: false,
+          errors: [error instanceof Error ? error.message : String(error)],
+          warnings: []
+        }
+      };
+    }
+  }
+
+  // All attempts failed
+  throw new Error(`Failed to generate valid Helm values after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`);
 }
 
 
@@ -279,8 +556,30 @@ export async function handleGenerateManifestsTool(
       const solution = session.data;
       logger.debug('Solution loaded successfully', {
         solutionId: args.solutionId,
+        solutionType: solution.type,
         hasQuestions: !!solution.questions,
         primaryResources: solution.resources
+      });
+
+      // Branch based on solution type
+      if (solution.type === 'helm') {
+        logger.info('Detected Helm solution, using Helm generation flow', {
+          solutionId: args.solutionId,
+          chart: solution.chart ? `${solution.chart.repositoryName}/${solution.chart.chartName}` : 'unknown'
+        });
+        return await handleHelmGeneration(
+          solution,
+          args.solutionId,
+          dotAI,
+          logger,
+          requestId,
+          args.interaction_id
+        );
+      }
+
+      // Capability-based solution: Generate Kubernetes manifests
+      logger.info('Using capability-based manifest generation flow', {
+        solutionId: args.solutionId
       });
 
       // Prepare file path for manifests (store in tmp directory)

@@ -1222,7 +1222,7 @@ ${readme || 'No README available'}`;
   /**
    * Fetch Helm chart values.yaml and README
    */
-  private async fetchHelmChartContent(chart: HelmChartInfo): Promise<{ valuesYaml: string; readme: string }> {
+  async fetchHelmChartContent(chart: HelmChartInfo): Promise<{ valuesYaml: string; readme: string }> {
     let valuesYaml = '';
     let readme = '';
 

@@ -31,6 +31,7 @@ export class DotAI {
     parseResource: (resourceName: string) => Promise<any>;
     rankResources: (intent: string) => Promise<any>;
     generateQuestionsForHelmChart: (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => Promise<QuestionGroup>;
+    fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
   };
 
   constructor(config: CoreConfig = {}) {
@@ -98,6 +99,12 @@ export class DotAI {
           throw new Error('ResourceRanker not available. AI provider API key is required for question generation.');
         }
         return await ranker.generateQuestionsForHelmChart(intent, chart, description, interaction_id);
+      },
+      fetchHelmChartContent: async (chart: HelmChartInfo) => {
+        if (!ranker) {
+          throw new Error('ResourceRanker not available for fetching Helm chart content.');
+        }
+        return await ranker.fetchHelmChartContent(chart);
       }
     };
   }

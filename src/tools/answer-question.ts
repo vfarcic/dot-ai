@@ -142,48 +142,73 @@ interface StageState {
 }
 
 /**
+ * Check if solution is a Helm-based installation
+ */
+function isHelmSolution(solution: any): boolean {
+  return solution.type === 'helm';
+}
+
+/**
  * Determine current stage based on solution state
+ * For Helm solutions, the open stage is skipped entirely
  */
 function getCurrentStage(solution: any): StageState {
   const hasRequired = solution.questions.required && solution.questions.required.length > 0;
   const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
   const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
   const hasOpen = !!solution.questions.open;
+  const isHelm = isHelmSolution(solution);
 
   // Check completion status
   const requiredComplete = !hasRequired || solution.questions.required.every((q: any) => q.answer !== undefined);
   const basicComplete = !hasBasic || solution.questions.basic.every((q: any) => q.answer !== undefined);
   const advancedComplete = !hasAdvanced || solution.questions.advanced.every((q: any) => q.answer !== undefined);
-  const openComplete = !hasOpen || solution.questions.open.answer !== undefined;
+  // For Helm solutions, treat open as always complete (skip it)
+  const openComplete = isHelm || !hasOpen || solution.questions.open.answer !== undefined;
 
   // Determine current stage
   if (!requiredComplete) {
+    // For Helm: skip open in nextStage calculation
+    const nextAfterRequired = hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : (isHelm ? null : 'open'));
     return {
       currentStage: 'required',
-      nextStage: hasBasic ? 'basic' : 'open',
+      nextStage: nextAfterRequired,
       hasQuestions: true,
       isComplete: false
     };
   }
-  
+
   if (!basicComplete) {
+    // For Helm: skip open in nextStage calculation
+    const nextAfterBasic = hasAdvanced ? 'advanced' : (isHelm ? null : 'open');
     return {
       currentStage: 'basic',
-      nextStage: hasAdvanced ? 'advanced' : 'open',
+      nextStage: nextAfterBasic,
       hasQuestions: true,
       isComplete: false
     };
   }
-  
+
   if (!advancedComplete) {
     return {
-      currentStage: 'advanced', 
-      nextStage: 'open',
+      currentStage: 'advanced',
+      // For Helm: go directly to completion (null), not open
+      nextStage: isHelm ? null : 'open',
       hasQuestions: true,
       isComplete: false
     };
   }
-  
+
+  // For Helm, we're complete after advanced (skip open)
+  if (isHelm) {
+    return {
+      currentStage: 'advanced',
+      nextStage: null,
+      hasQuestions: false,
+      isComplete: true
+    };
+  }
+
   if (!openComplete) {
     return {
       currentStage: 'open',
@@ -211,25 +236,30 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
     return { valid: true };
   }
 
+  const isHelm = isHelmSolution(solution);
+
   // Determine the next stage based on what questions exist
   let expectedNext: Stage | null = null;
-  
+
   if (currentStage === 'required') {
     if (solution.questions.basic && solution.questions.basic.length > 0) {
       expectedNext = 'basic';
     } else if (solution.questions.advanced && solution.questions.advanced.length > 0) {
       expectedNext = 'advanced';
     } else {
-      expectedNext = 'open';
+      // For Helm, skip open stage
+      expectedNext = isHelm ? null : 'open';
     }
   } else if (currentStage === 'basic') {
     if (solution.questions.advanced && solution.questions.advanced.length > 0) {
       expectedNext = 'advanced';
     } else {
-      expectedNext = 'open';
+      // For Helm, skip open stage
+      expectedNext = isHelm ? null : 'open';
     }
   } else if (currentStage === 'advanced') {
-    expectedNext = 'open';
+    // For Helm, skip open stage - go to completion
+    expectedNext = isHelm ? null : 'open';
   } else {
     expectedNext = null; // open stage is final
   }
@@ -292,14 +322,17 @@ function getStageMessage(stage: Stage): string {
 /**
  * Get stage-specific guidance
  */
-function getStageGuidance(stage: Stage): string {
+function getStageGuidance(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
       return 'All required questions must be answered to proceed.';
     case 'basic':
       return 'Answer questions in this stage or skip to proceed to the advanced stage. Do NOT try to generate manifests yet.';
     case 'advanced':
-      return 'Answer questions in this stage or skip to proceed to the open stage. Do NOT try to generate manifests yet.';
+      // For Helm, don't mention the open stage since it's skipped
+      return isHelm
+        ? 'Answer questions in this stage or skip to proceed to manifest generation.'
+        : 'Answer questions in this stage or skip to proceed to the open stage. Do NOT try to generate manifests yet.';
     case 'open':
       return 'Use "N/A" if you have no additional requirements. Complete this stage before generating manifests.';
     default:
@@ -781,10 +814,42 @@ export async function handleAnswerQuestionTool(
       
       // Regular stage flow: determine next stage and return questions
       const newStageState = getCurrentStage(solution);
-      
+
+      // For Helm solutions, if all stages are complete, return ready for manifest generation
+      // This happens when advanced stage is completed (open stage is skipped for Helm)
+      if (newStageState.isComplete && isHelmSolution(solution)) {
+        const userAnswers = extractUserAnswers(solution);
+
+        const completionResponse = {
+          status: 'ready_for_manifest_generation',
+          solutionId: args.solutionId,
+          message: 'Configuration complete. Ready to generate Helm values.',
+          solutionData: {
+            primaryResources: solution.resources || [],
+            type: solution.type || 'helm',
+            description: solution.description || '',
+            userAnswers: userAnswers,
+            hasOpenRequirements: false
+          },
+          nextAction: 'Call recommend tool with stage: generateManifests',
+          guidance: 'All configuration stages are complete. Ready to generate Helm values.yaml for deployment.',
+          agentInstructions: 'All configuration stages are now complete. You may proceed to generate Helm values using the generateManifests tool.',
+          timestamp: new Date().toISOString()
+        };
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(completionResponse, null, 2)
+            }
+          ]
+        };
+      }
+
       // If stage is complete, move to next stage
       const nextStageQuestions = getQuestionsForStage(solution, newStageState.currentStage);
-      
+
       const response = {
         status: 'stage_questions',
         solutionId: args.solutionId,
@@ -792,7 +857,7 @@ export async function handleAnswerQuestionTool(
         questions: nextStageQuestions,
         nextStage: newStageState.nextStage,
         message: getStageMessage(newStageState.currentStage),
-        guidance: getStageGuidance(newStageState.currentStage),
+        guidance: getStageGuidance(newStageState.currentStage, isHelmSolution(solution)),
         agentInstructions: getAgentInstructions(newStageState.currentStage),
         nextAction: `Call recommend tool with stage: answerQuestion:${newStageState.currentStage}`,
         timestamp: new Date().toISOString()

@@ -17,6 +17,14 @@ RUN ARCH=$(dpkg --print-architecture) && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/kubectl
 
+# Download and install Helm (latest version)
+RUN ARCH=$(dpkg --print-architecture) && \
+    HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') && \
+    curl -fsSL https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz -o helm.tar.gz && \
+    tar -zxvf helm.tar.gz && \
+    mv linux-${ARCH}/helm /usr/local/bin/helm && \
+    rm -rf helm.tar.gz linux-${ARCH}
+
 # Copy and install pre-built dot-ai package
 # Package is built outside Docker (npm run build + npm pack)
 # For local builds: vfarcic-dot-ai-*.tgz is created by build script
@@ -27,8 +35,15 @@ RUN npm install -g /tmp/vfarcic-dot-ai-*.tgz
 # Stage 2: Runtime - copy installed binaries and packages
 FROM node:22-slim
 
-# Copy kubectl binary from builder
+# Install ca-certificates for TLS verification (required for helm repo operations)
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy kubectl and helm binaries from builder
 COPY --from=builder /usr/local/bin/kubectl /usr/local/bin/kubectl
+COPY --from=builder /usr/local/bin/helm /usr/local/bin/helm
 
 # Copy entire npm global installation from builder
 COPY --from=builder /usr/local/lib/node_modules/@vfarcic/dot-ai /usr/local/lib/node_modules/@vfarcic/dot-ai
