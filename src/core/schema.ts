@@ -19,6 +19,7 @@ import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
 import { extractJsonFromAIResponse, execAsync } from './platform-utils';
 import { HelmChartInfo } from './helm-types';
+import { sanitizeChartInfo } from './helm-utils';
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -1226,19 +1227,21 @@ ${readme || 'No README available'}`;
     let valuesYaml = '';
     let readme = '';
 
+    // Sanitize chart info to prevent command injection
+    const safeChart = sanitizeChartInfo(chart);
+    const versionFlag = safeChart.version ? `--version ${safeChart.version}` : '';
+
     try {
       // Add repo and update
-      await execAsync(`helm repo add ${chart.repositoryName} ${chart.repository} 2>/dev/null || true`);
+      await execAsync(`helm repo add ${safeChart.repositoryName} ${safeChart.repository} 2>/dev/null || true`);
       await execAsync('helm repo update 2>/dev/null || true');
     } catch {
-      console.warn(`⚠️ Could not add/update Helm repo ${chart.repositoryName}`);
+      console.warn(`⚠️ Could not add/update Helm repo ${safeChart.repositoryName}`);
     }
-
-    const versionFlag = chart.version ? `--version ${chart.version}` : '';
 
     try {
       const { stdout } = await execAsync(
-        `helm show values ${chart.repositoryName}/${chart.chartName} ${versionFlag}`.trim()
+        `helm show values ${safeChart.repositoryName}/${safeChart.chartName} ${versionFlag}`.trim()
       );
       valuesYaml = stdout || '';
       console.log(`📄 Fetched values.yaml (${valuesYaml.length} chars)`);
@@ -1248,7 +1251,7 @@ ${readme || 'No README available'}`;
 
     try {
       const { stdout } = await execAsync(
-        `helm show readme ${chart.repositoryName}/${chart.chartName} ${versionFlag}`.trim()
+        `helm show readme ${safeChart.repositoryName}/${safeChart.chartName} ${versionFlag}`.trim()
       );
       readme = stdout || '';
       console.log(`📄 Fetched README (${readme.length} chars)`);

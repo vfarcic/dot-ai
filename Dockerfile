@@ -11,19 +11,18 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+ARG KUBECTL_VERSION=v1.32.0
 # Download kubectl
 RUN ARCH=$(dpkg --print-architecture) && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" && \
+    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/kubectl
 
-# Download and install Helm (latest version)
-RUN ARCH=$(dpkg --print-architecture) && \
-    HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') && \
-    curl -fsSL https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz -o helm.tar.gz && \
-    tar -zxvf helm.tar.gz && \
-    mv linux-${ARCH}/helm /usr/local/bin/helm && \
-    rm -rf helm.tar.gz linux-${ARCH}
+# renovate: datasource=github-releases depName=helm/helm
+ARG HELM_VERSION=v4.0.1
+# Download and install Helm
+RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash -s -- --version ${HELM_VERSION}
 
 # Copy and install pre-built dot-ai package
 # Package is built outside Docker (npm run build + npm pack)

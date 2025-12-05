@@ -2,13 +2,41 @@
  * Helm Utilities - Shared functions for Helm chart operations
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { HelmChartInfo } from './helm-types';
+import { execAsync } from './platform-utils';
 
-const execAsync = promisify(exec);
+/**
+ * Sanitize input for safe shell command usage.
+ * Validates that input contains only safe characters to prevent command injection.
+ * @throws Error if input contains potentially dangerous characters
+ */
+export function sanitizeShellArg(arg: string, fieldName: string = 'argument'): string {
+  // Allow alphanumeric, dash, underscore, dot, forward slash, colon (for URLs), and @ (for versions)
+  // This covers valid Helm chart names, repo names, URLs, and version strings
+  if (!/^[a-zA-Z0-9\-_./:\\@]+$/.test(arg)) {
+    throw new Error(`Invalid characters in ${fieldName}: "${arg}". Only alphanumeric characters, dashes, underscores, dots, forward slashes, colons, and @ are allowed.`);
+  }
+  return arg;
+}
+
+/**
+ * Validate and sanitize HelmChartInfo for safe shell command usage
+ */
+export function sanitizeChartInfo(chart: HelmChartInfo): {
+  repositoryName: string;
+  repository: string;
+  chartName: string;
+  version?: string;
+} {
+  return {
+    repositoryName: sanitizeShellArg(chart.repositoryName, 'repository name'),
+    repository: sanitizeShellArg(chart.repository, 'repository URL'),
+    chartName: sanitizeShellArg(chart.chartName, 'chart name'),
+    version: chart.version ? sanitizeShellArg(chart.version, 'version') : undefined
+  };
+}
 
 /**
  * Build the Helm command from chart info and deployment options
@@ -19,20 +47,26 @@ export function buildHelmCommand(
   namespace: string,
   valuesPath?: string
 ): string {
+  // Sanitize all inputs to prevent command injection
+  const safeChart = sanitizeChartInfo(chart);
+  const safeReleaseName = sanitizeShellArg(releaseName, 'release name');
+  const safeNamespace = sanitizeShellArg(namespace, 'namespace');
+
   const parts = [
     'helm upgrade --install',
-    releaseName,
-    `${chart.repositoryName}/${chart.chartName}`,
-    `--namespace ${namespace}`,
+    safeReleaseName,
+    `${safeChart.repositoryName}/${safeChart.chartName}`,
+    `--namespace ${safeNamespace}`,
     '--create-namespace'
   ];
 
-  if (chart.version) {
-    parts.push(`--version ${chart.version}`);
+  if (safeChart.version) {
+    parts.push(`--version ${safeChart.version}`);
   }
 
   if (valuesPath) {
-    parts.push(`-f ${valuesPath}`);
+    // Values path is internally generated, but sanitize anyway
+    parts.push(`-f ${sanitizeShellArg(valuesPath, 'values path')}`);
   }
 
   return parts.join(' ');
@@ -42,7 +76,9 @@ export function buildHelmCommand(
  * Ensure Helm repository is added and updated
  */
 export async function ensureHelmRepo(chart: HelmChartInfo): Promise<void> {
-  await execAsync(`helm repo add ${chart.repositoryName} ${chart.repository} 2>/dev/null || true`);
+  // Sanitize chart info to prevent command injection
+  const safeChart = sanitizeChartInfo(chart);
+  await execAsync(`helm repo add ${safeChart.repositoryName} ${safeChart.repository} 2>/dev/null || true`);
   await execAsync('helm repo update 2>/dev/null || true');
 }
 
