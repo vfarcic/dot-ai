@@ -20,9 +20,9 @@ Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure you
 
 ## Overview
 
-**What it does**: Provides AI-powered Kubernetes deployment recommendations with semantic capability matching, organizational pattern integration, and guided workflow from intent clarification through deployment.
+**What it does**: Provides AI-powered Kubernetes deployment recommendations using cluster capabilities, and installs third-party applications via Helm charts when no matching capability exists. Features semantic capability matching, organizational pattern integration, and guided workflow from intent clarification through deployment.
 
-**Use when**: You need intelligent deployment recommendations that leverage your cluster's actual capabilities, follow organizational best practices, and guide you through configuration, manifest generation, and deployment.
+**Use when**: You need intelligent deployment recommendations that leverage your cluster's actual capabilities, or want to install third-party tools (Prometheus, Argo CD, Crossplane, etc.) via Helm charts with AI-guided configuration.
 
 📖 **Full Guide**: This document covers the complete recommendation workflow with detailed examples and behind-the-scenes explanations.
 
@@ -36,6 +36,7 @@ The DevOps AI Toolkit recommendation feature provides:
 - **Organizational pattern integration** - Automatically enhances recommendations with your team's best practices and standards
 - **Guided configuration** - Step-by-step configuration collection for your deployments
 - **Manifest generation** - Creates ready-to-deploy Kubernetes YAML files
+- **Helm chart installation** - Discovers and installs third-party applications via ArtifactHub when no cluster capability matches
 - **Automated deployment** - Deploys and monitors your applications
 
 ### How Capability-Enhanced Recommendations Work
@@ -49,6 +50,8 @@ The DevOps AI Toolkit recommendation feature provides:
 2. **Capability Search**: Semantic search finds relevant resources with capability context
 3. **Pre-filtered Results**: AI gets semantically relevant resources instead of all generic resource names
 4. **Enhanced Recommendations**: Optimal matches like `sqls.devopstoolkit.live` appear as top suggestions
+
+**Helm Fallback**: When no cluster capability matches (e.g., "Install Prometheus" but no Prometheus operator installed), the system automatically searches ArtifactHub for Helm charts and presents installation options.
 
 ## Complete Workflow Examples
 
@@ -372,288 +375,160 @@ Your Golang web application is now live with autoscaling and network security!
 - Verified HorizontalPodAutoscaler attached to deployment and NetworkPolicy applied to pods
 - Provided access information based on Service configuration (ClusterIP = internal access only)
 
-### Example 2: Microservice API with Auto-scaling
+### Example 2: Third-Party Application Installation (Helm)
+
+This example demonstrates installing third-party tools via Helm charts when no matching cluster capability exists.
 
 ```md
-User: I want to deploy a REST API microservice that needs to handle variable traffic loads
+User: Install Prometheus
 ```
 
 ```md
-Agent: I'll help you deploy a REST API microservice for variable traffic. To provide optimal scaling recommendations, I have some questions:
+Agent: [Uses mcp__dot-ai__recommend with intent "install Prometheus monitoring" and final: true]
 
-[Uses mcp__dot-ai__recommend with intent "deploy REST API microservice with variable traffic loads"]
+Found a Prometheus Helm chart solution:
 
-**API Architecture:**
-1. What type of API are you deploying (REST, GraphQL, gRPC) and what's the expected request/response pattern?
+**prometheus-community/prometheus (v27.49.0)**
+- App Version: v3.8.0
+- Official chart maintained by prometheus-community
+- Verified Publisher with 523 stars
+- Repository: https://prometheus-community.github.io/helm-charts
 
-**Traffic & Scaling:**
-2. What are your expected traffic patterns - steady load, burst traffic, or unpredictable spikes?
+This is the standard, recommended chart for installing Prometheus monitoring on Kubernetes.
 
-**External Access:**
-3. Does this API need external internet access, or will it only serve internal microservices?
-
-**Data & Dependencies:**
-4. What external dependencies does your API have (databases, other services, third-party APIs)?
-
-**Environment & Security:**
-5. Is this for production use, and do you have specific security or compliance requirements?
-
-**Performance Requirements:**
-6. Do you have specific latency, throughput, or availability requirements?
-
-**Additional Context:**
-7. Are there any other specific requirements for this microservice deployment?
-
-You can answer the relevant questions, or let me know if you'd like recommendations based on the current information.
-```
-
-```md
-User: It's a REST API for internal services, expects unpredictable traffic spikes, needs to connect to PostgreSQL and Redis, for production with high availability requirements.
-```
-
-```md
-Agent: Excellent! Based on your production requirements with traffic spikes and high availability needs, let me get deployment recommendations.
-
-[Uses mcp__dot-ai__recommend with refined intent "deploy production REST API microservice for internal services with unpredictable traffic spikes, PostgreSQL and Redis connectivity, high availability requirements" and final: true]
-
-Based on your requirements, I found 3 scalable deployment options:
-
-1. **Enterprise API Stack (Score: 88)**
-   - Resources: Deployment, Service, HorizontalPodAutoscaler, Ingress, ServiceMonitor
-   - Features: Advanced scaling, external access, traffic routing, monitoring integration
-   - Uses organizational patterns: ✅ API Service Pattern, Monitoring Pattern
-   - Best for: Production APIs with external access and observability
-   
-2. **Internal API Service (Score: 79)**
-   - Resources: Deployment, Service, HorizontalPodAutoscaler
-   - Features: Automatic scaling, internal networking
-   - Uses organizational patterns: ✅ Stateless Apps Pattern
-   - Best for: Internal microservices within the cluster
-   
-3. **Simple API Deployment (Score: 65)**
-   - Resources: Deployment, Service
-   - Features: Basic API hosting with fixed scaling
-   - Uses organizational patterns: ❌
-   - Best for: Development or low-traffic APIs
-
-Which approach fits your API requirements?
+Would you like me to proceed with this chart? I'll guide you through the configuration options.
 ```
 
 **What happened behind the scenes:**
-- Initial intent triggered clarification with 7 targeted questions covering API architecture, traffic patterns, dependencies, and production requirements
-- User provided specific clarification: internal REST API, unpredictable traffic spikes, PostgreSQL/Redis dependencies, production HA requirements
-- Enhanced intent analysis extracted key concepts: "production REST API", "internal microservices", "unpredictable traffic spikes", "PostgreSQL/Redis connectivity", "high availability"
-- Pattern matching found: API Service Pattern (high relevance), Stateless Apps Pattern (medium relevance)
-- The clarified "unpredictable traffic spikes" and "high availability" requirements strongly influenced resource selection toward HorizontalPodAutoscaler and monitoring
-- Generated 3 solutions prioritizing internal access and scaling capabilities based on clarified production requirements
-
-**Note:** Pattern integration requires [Pattern Management](pattern-management-guide.md) setup with Vector DB and organizational patterns. Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
+- System detected "Install Prometheus" as a third-party installation intent
+- No Prometheus-related CRDs found in cluster capabilities, triggering Helm chart discovery
+- ArtifactHub API searched for "prometheus" charts
+- AI analyzed and scored charts based on official status, verified publisher, and popularity
 
 ```md
-User: Option 2 please
+User: Yes, continue
 ```
 
 ```md
-Agent: Great choice! Internal APIs with autoscaling are ideal for microservice architectures. Let me get the configuration details.
+Agent: [Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId]
 
-[Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId]
-
-I need some required details to configure your API deployment:
+I need some details to configure your Prometheus installation:
 
 **Required Configuration:**
-- API service name? (e.g., "user-api", "order-service")
-- Target namespace for deployment?
-- Container image for your API? (e.g., "myregistry/api:v2.1.0")
-- API port your service listens on?
-
-🛡️ **Policy Requirements:**
-- **CPU resource limit** ⚠️ required by Resource Limits Policy (minimum: 100m, maximum: 2000m)
-- **Memory resource limit** ⚠️ required by Resource Limits Policy (minimum: 128Mi, maximum: 4Gi)
+- What name should be used for this Prometheus deployment?
+- Which namespace should Prometheus be deployed to?
+- Should Prometheus use persistent storage for metrics data?
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'chooseSolution' loaded the Internal API Service solution and returned only required stage questions
-- Questions focused on API-specific needs: service naming, microservice namespace, container image, port
-- Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.91) 
-- Policy requirements promoted to REQUIRED questions with compliance constraints
-- System recognizes this is for "variable traffic" and will emphasize scaling in later stages
+- System fetched chart values.yaml and README via Helm CLI
+- AI analyzed configuration options and categorized into required/basic/advanced questions
+- Cluster context gathered: available namespaces, StorageClasses
+- Questions include suggested answers based on chart defaults and cluster state
 
 ```md
-User: Service name "payment-api", namespace "microservices", image "internal/payment-api:v3.2.1", port 8080. CPU limit 500m, memory limit 1Gi.
+User: prometheus, monitoring namespace, no persistence
 ```
 
 ```md
-Agent: Perfect! Let me configure the required settings.
+Agent: [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
 
-[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
+Here are some basic configuration options. Would you like to customize these or use defaults?
 
-Great! Your configuration meets all policy requirements:
-✅ **Resource Limits Policy**: CPU (500m) and memory (1Gi) within acceptable ranges
-
-Now for scaling configuration:
-
-**Basic Configuration (optional):**
-- Initial number of replicas? (default: 2)
-- Enable horizontal pod autoscaling? (recommended: true)
-- Target CPU utilization for scaling? (default: 70%)
-- Maximum replicas during high traffic? (default: 10)
-```
-
-**What happened behind the scenes:**
-- recommend tool with stage 'answerQuestion:required' processed required API configuration (service name, namespace, image, port)
-- Validated all required fields and updated solution file
-- Moved to basic stage focused on scaling configuration (core requirement from "variable traffic loads")
-- Questions are optional but recommended for traffic handling
-
-```md
-User: 2 replicas initially, enable autoscaling at 70% CPU, max 15 replicas.
+**Key settings (defaults shown):**
+- Data retention: 15 days
+- Scrape interval: 1 minute
+- AlertManager: enabled
+- kube-state-metrics: enabled (cluster object metrics)
+- node-exporter: enabled (node hardware metrics)
+- PushGateway: disabled
+- Ingress: disabled
 ```
 
 ```md
-Agent: Excellent scaling configuration! Let me set this up.
-
-[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
-
-Any additional requirements or constraints?
-
-**Open Configuration:**
-- Are there any additional requirements or constraints for your API deployment that we should consider? (e.g., specific security requirements, networking constraints, performance needs...)
-```
-
-**What happened behind the scenes:**
-- recommend tool with stage 'answerQuestion:basic' processed scaling configuration (replicas: 2, autoscaling: true, CPU target: 70%, max replicas: 15)
-- Updated solution file with scaling-focused answers
-- Skipped advanced stage (no advanced configuration questions for this solution)
-- Moved directly to open stage for additional requirements
-
-```md
-User: N/A
+User: Enable AlertManager
 ```
 
 ```md
-Agent: Perfect! Configuration complete.
+Agent: [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
 
-[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:open', solutionId, answers: {open: "N/A"}]
+Basic configuration set. Now for advanced options.
 
-Configuration complete. Ready to generate deployment manifests.
-```
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:advanced', solutionId, answers: {}]
 
-**What happened behind the scenes:**
-- recommend tool with stage 'answerQuestion:open' processed open stage with "N/A" (no additional requirements)
-- All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
-- Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
-
-```md
-User: Generate the manifests
-```
-
-```md
-Agent: Generating your API manifests...
+Skipping advanced options. Ready to generate the installation.
 
 [Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
 
-Generated your scalable API deployment:
+Helm installation ready. Here's the configuration:
 
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: payment-api
-  namespace: microservices
-  labels:
-    dot-ai.io/managed: "true"
-    dot-ai.io/app-name: "payment-api"
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: payment-api
-  template:
-    spec:
-      containers:
-      - name: payment-api
-        image: internal/payment-api:v3.2.1
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: payment-api
-  namespace: microservices
-spec:
-  type: ClusterIP
-  ports:
-  - port: 8080
-    targetPort: 8080
-  selector:
-    app: payment-api
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: payment-api
-  namespace: microservices
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: payment-api
-  minReplicas: 2
-  maxReplicas: 15
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+**Helm Command:**
+helm upgrade --install prometheus prometheus-community/prometheus \
+  --namespace monitoring --create-namespace \
+  --version 27.49.0 -f values.yaml
 
-Ready to deploy your payment API?
+**Values (values.yaml):**
+server:
+  global:
+    scrape_interval: 1m
+    scrape_timeout: 10s
+    evaluation_interval: 1m
+  retention: 15d
+  persistentVolume:
+    enabled: false
+
+alertmanager:
+  enabled: true
+
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  enabled: true
+
+prometheus-pushgateway:
+  enabled: false
+
+Ready to install?
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'generateManifests' loaded the fully configured solution file
-- AI generated YAML using scaling-focused configuration
-- Policy requirements enforced: Resource limits (CPU: 500m, memory: 1Gi) applied to containers
-- Stateless Apps Pattern influenced resource requests/limits for predictable scaling
-- Service.spec.type: ClusterIP set appropriately for internal microservices
-- HPA configured with your specific parameters (2-15 replicas, 70% CPU target)
-- System validated manifests with kubectl apply --dry-run=server --validate=true
-- Returned status: 'manifests_generated' with complete YAML content
+- AI generated values.yaml containing only non-default values
+- System ran `helm upgrade --install --dry-run` to validate the installation
+- Returned helm command and values for user review
 
 ```md
-User: Yes, deploy it!
+User: Yes, deploy
 ```
 
 ```md
-Agent: Deploying your payment API microservice...
+Agent: [Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
 
-[Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
+Prometheus deployed successfully to the monitoring namespace.
 
-🎉 **API deployment successful!**
+**Deployed Components:**
+- Prometheus Server
+- AlertManager
+- kube-state-metrics
+- node-exporter
 
-**Status:**
-- Deployment: payment-api (2/2 pods running)
-- Service: payment-api (ClusterIP created)
-- HorizontalPodAutoscaler: payment-api (active, scaling 2-15 replicas at 70% CPU)
-- Internal access: payment-api.microservices.svc.cluster.local:8080
-- Ready to handle variable traffic loads
+**Access Prometheus UI:**
+kubectl --namespace monitoring port-forward svc/prometheus-server 9090:80
+Then open http://localhost:9090
 
-Your payment API microservice is now live with intelligent autoscaling!
+**Access AlertManager:**
+kubectl --namespace monitoring port-forward svc/prometheus-alertmanager 9093:9093
+Then open http://localhost:9093
+
+**Internal DNS names:**
+- Prometheus: prometheus-server.monitoring.svc.cluster.local:80
+- AlertManager: prometheus-alertmanager.monitoring.svc.cluster.local:9093
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'deployManifests' applied manifests using kubectl apply --wait and monitored deployment progress
-- HorizontalPodAutoscaler attached to deployment and began monitoring CPU metrics
-- Service created internal DNS entry: payment-api.microservices.svc.cluster.local:8080
-- Ready to automatically scale from 2-15 replicas based on CPU utilization, handling variable traffic as requested
+- Helm repository added and `helm upgrade --install --wait` executed
+- Helm waited for all pods to become ready before reporting success
+- Access instructions provided based on installed components
 
 ## See Also
 
