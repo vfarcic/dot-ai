@@ -42,11 +42,12 @@ Generate a values.yaml file for Helm chart installation based on the user's conf
    - Arrays/Lists: proper YAML list format
    - Nested objects: proper YAML indentation
 
-4. **Include Only User-Configured Values**:
-   - Only include values that the user explicitly configured
-   - Do NOT repeat default values from the chart
+4. **Include Only Values That Differ From Defaults**:
+   - Compare each user answer to the chart's default values above
+   - Only include values that DIFFER from the chart's defaults
+   - If user's answer matches the default value, do NOT include it in values.yaml
    - Do NOT include `name` or `namespace` in the values (they're CLI args)
-   - This keeps the values file clean and intentional
+   - This keeps the values file minimal and intentional - only showing what's changed
 
 5. **Process Open Requirements**:
    - If the user provided open-ended requirements, translate them to appropriate values

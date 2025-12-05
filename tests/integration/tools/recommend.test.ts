@@ -557,55 +557,22 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
       });
 
-      // PHASE 3-4: Progress through structured question stages (required → basic → advanced)
-      // Helm charts may have different numbers of questions per stage, and empty stages are skipped
-      // The 'open' stage has free-form questions with different structure, so we stop before it
+      // PHASE 3: Answer required stage questions
+      // Helm workflow: required → basic → advanced → ready_for_manifest_generation (NO 'open' stage)
       const allQuestions = [...requiredQuestions];
-      let currentResponse = chooseResponse;
-      let currentStage = currentResponse.data.result.currentStage;
 
-      // Progress through structured stages until we reach 'open' or completion
-      while (currentStage !== 'open' && currentResponse.data.result.status === 'stage_questions') {
-        const currentQuestions = currentResponse.data.result.questions || [];
+      // Helper to build answers from questions using suggested values
+      const buildAnswers = (questions: any[]) => {
         const answers: Record<string, any> = {};
-        currentQuestions.forEach((q: any) => {
+        questions.forEach((q: any) => {
           answers[q.id] = q.suggestedAnswer;
         });
+        return answers;
+      };
 
-        // Determine next stage action
-        const nextStageAction = currentResponse.data.result.nextAction;
-        const stageMatch = nextStageAction?.match(/answerQuestion:(\w+)/);
-        const stageToAnswer = stageMatch ? stageMatch[1] : currentStage;
-
-        const nextResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: `answerQuestion:${stageToAnswer}`,
-          solutionId,
-          answers,
-          interaction_id: `helm_workflow_${stageToAnswer}`
-        });
-
-        expect(nextResponse).toMatchObject({
-          success: true,
-          data: {
-            result: {
-              solutionId: solutionId,
-            }
-          }
-        });
-
-        currentResponse = nextResponse;
-        currentStage = currentResponse.data.result.currentStage;
-
-        // Break before processing 'open' stage (different question structure)
-        if (currentStage === 'open' || currentResponse.data.result.status !== 'stage_questions') {
-          break;
-        }
-
-        // Collect and validate structured questions from this stage (not 'open' stage)
-        const nextQuestions = nextResponse.data.result.questions || [];
-        allQuestions.push(...nextQuestions);
-
-        nextQuestions.forEach((q: any) => {
+      // Helper to validate question structure
+      const validateQuestions = (questions: any[]) => {
+        questions.forEach((q: any) => {
           expect(q).toMatchObject({
             id: expect.any(String),
             question: expect.any(String),
@@ -613,41 +580,82 @@ describe.concurrent('Recommend Tool Integration', () => {
             suggestedAnswer: expect.anything()
           });
         });
-      }
+      };
 
-      // Validate questions were generated
+      // Answer required stage → should move to basic
+      const basicResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required',
+        solutionId,
+        answers: buildAnswers(requiredQuestions),
+        interaction_id: 'helm_workflow_required'
+      });
+
+      expect(basicResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            solutionId: solutionId,
+            currentStage: 'basic',
+            nextStage: 'advanced', // NOT 'open' - Helm skips open stage
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      const basicQuestions = basicResponse.data.result.questions || [];
+      validateQuestions(basicQuestions);
+      allQuestions.push(...basicQuestions);
+
+      // PHASE 4: Answer basic stage questions → should move to advanced
+      const advancedResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic',
+        solutionId,
+        answers: buildAnswers(basicQuestions),
+        interaction_id: 'helm_workflow_basic'
+      });
+
+      expect(advancedResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            solutionId: solutionId,
+            currentStage: 'advanced',
+            nextStage: null, // CRITICAL: Helm has NO 'open' stage - nextStage must be null
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      // CRITICAL: Verify text instructions don't mention 'open stage' for Helm
+      // This is what client agents read to decide what to do next
+      expect(advancedResponse.data.result.agentInstructions).not.toContain('open stage');
+      expect(advancedResponse.data.result.guidance).toContain('manifest generation');
+
+      const advancedQuestions = advancedResponse.data.result.questions || [];
+      validateQuestions(advancedQuestions);
+      allQuestions.push(...advancedQuestions);
+
+      // Validate questions were generated across all stages
       expect(allQuestions.length).toBeGreaterThan(0);
 
-      // Validate question structure for all collected questions
-      const questionTexts = allQuestions.map((q: any) => `${q.id} ${q.question}`.toLowerCase());
-
       // Namespace question - fundamental for any Helm installation (MUST exist)
-      const hasNamespaceQuestion = questionTexts.some(
-        text => text.includes('namespace')
-      );
+      const questionTexts = allQuestions.map((q: any) => `${q.id} ${q.question}`.toLowerCase());
+      const hasNamespaceQuestion = questionTexts.some(text => text.includes('namespace'));
       expect(hasNamespaceQuestion).toBe(true);
 
-      // For Helm solutions, verify that after advanced stage, we go directly to ready_for_manifest_generation
-      // (open stage is skipped for Helm)
-      // The currentResponse should indicate completion after advanced stage
-      if (currentResponse.data.result.status === 'stage_questions' && currentStage === 'advanced') {
-        // Answer advanced stage to complete
-        const advancedQuestions = currentResponse.data.result.questions || [];
-        const advancedAnswers: Record<string, any> = {};
-        advancedQuestions.forEach((q: any) => {
-          advancedAnswers[q.id] = q.suggestedAnswer;
-        });
-
-        currentResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: 'answerQuestion:advanced',
-          solutionId,
-          answers: advancedAnswers,
-          interaction_id: 'helm_workflow_advanced_final'
-        });
-      }
+      // PHASE 5: Answer advanced stage questions → should go directly to ready_for_manifest_generation
+      // (Helm NEVER goes to 'open' stage)
+      const completionResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced',
+        solutionId,
+        answers: buildAnswers(advancedQuestions),
+        interaction_id: 'helm_workflow_advanced'
+      });
 
       // Helm should now be ready for manifest generation (skipping open stage)
-      expect(currentResponse).toMatchObject({
+      expect(completionResponse).toMatchObject({
         success: true,
         data: {
           result: {
@@ -658,7 +666,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       });
 
-      // PHASE 5: Generate Helm values (helm dry-run validation)
+      // PHASE 6: Generate Helm values (helm dry-run validation)
       const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         stage: 'generateManifests',
         solutionId,
@@ -676,7 +684,8 @@ describe.concurrent('Recommend Tool Integration', () => {
             solutionType: 'helm',
             helmCommand: expect.stringContaining('helm upgrade --install'),
             valuesYaml: expect.any(String),
-            valuesPath: expect.stringContaining('-values.yaml'),
+            // Note: valuesPath is intentionally NOT included - it's an internal implementation detail
+            // The helmCommand uses generic 'values.yaml' for user-friendly display
             chart: {
               repository: 'https://prometheus-community.github.io/helm-charts',
               repositoryName: 'prometheus-community',
@@ -704,6 +713,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(helmCommand).toContain('prometheus-community/prometheus');
       expect(helmCommand).toContain('--namespace');
       expect(helmCommand).toContain('--create-namespace');
+      // Verify user-friendly values file reference (not internal path)
+      expect(helmCommand).toContain('-f values.yaml');
+      expect(helmCommand).not.toContain('/tmp/');
+      expect(helmCommand).not.toContain('sol-');
 
       // Extract namespace and release name for deployment validation
       const helmNamespace = generateResponse.data.result.namespace;

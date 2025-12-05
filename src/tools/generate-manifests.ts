@@ -427,8 +427,9 @@ async function handleHelmGeneration(
           requestId
         });
 
-        // Build the final helm command
-        const helmCommand = buildHelmCommand(chart, releaseName, namespace, valuesPath);
+        // Build user-friendly helm command with generic values file path
+        // (internal valuesPath is used for actual execution, not shown to user)
+        const helmCommand = buildHelmCommand(chart, releaseName, namespace, 'values.yaml');
 
         // Check if we should show feedback message
         const feedbackMessage = maybeGetFeedbackMessage();
@@ -440,7 +441,6 @@ async function handleHelmGeneration(
           solutionType: 'helm',
           helmCommand: helmCommand,
           valuesYaml: valuesYaml,
-          valuesPath: valuesPath,
           chart: {
             repository: chart.repository,
             repositoryName: chart.repositoryName,

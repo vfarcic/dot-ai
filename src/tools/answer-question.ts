@@ -85,15 +85,19 @@ function validateAnswer(answer: any, question: any): string | null {
 
 /**
  * Get stage-specific instructions for different stages
+ * For Helm solutions, advanced stage proceeds directly to manifest generation (no open stage)
  */
-function getStageSpecificInstructions(stage: Stage): string {
+function getStageSpecificInstructions(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
       return 'STAGE: REQUIRED - All questions must be answered before proceeding. No skipping allowed.';
     case 'basic':
       return 'STAGE: BASIC - These questions can be skipped. User can provide answers or say "skip" to proceed to advanced stage.';
     case 'advanced':
-      return 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to open stage.';
+      // For Helm, don't mention open stage since it's skipped
+      return isHelm
+        ? 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to manifest generation.'
+        : 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to open stage.';
     case 'open':
       return 'STAGE: OPEN - Final configuration stage. User can provide additional requirements or say "N/A" to proceed to manifest generation.';
     default:
@@ -104,9 +108,9 @@ function getStageSpecificInstructions(stage: Stage): string {
 /**
  * Get enhanced anti-cascade agent instructions for stage responses
  */
-function getAgentInstructions(stage: Stage): string {
+function getAgentInstructions(stage: Stage, isHelm: boolean = false): string {
   const antiCascadeRule = 'CRITICAL ANTI-CASCADE RULE: When user says "skip" for ANY stage, only skip THAT specific stage and present the NEXT stage questions to the user. NEVER automatically skip multiple stages in sequence.';
-  
+
   const mandatoryWorkflow = `
 MANDATORY CLIENT AGENT WORKFLOW:
 1. Present these questions to the user in natural language
@@ -116,7 +120,13 @@ MANDATORY CLIENT AGENT WORKFLOW:
 5. NEVER call answerQuestion without receiving user input first
 6. NEVER assume what the user wants for subsequent stages`;
 
-  const strictConstraints = `
+  // For Helm, don't mention open stage constraints
+  const strictConstraints = isHelm ? `
+STRICT BEHAVIORAL CONSTRAINTS:
+- DO NOT call answerQuestion automatically
+- DO NOT assume user wants to proceed to manifest generation
+- DO NOT interpret "skip" as "automatically proceed to next stage"
+- MUST present each stage's questions individually and wait for user response` : `
 STRICT BEHAVIORAL CONSTRAINTS:
 - DO NOT call answerQuestion automatically
 - DO NOT assume user wants to proceed to manifest generation
@@ -124,8 +134,8 @@ STRICT BEHAVIORAL CONSTRAINTS:
 - DO NOT interpret "skip" as "automatically proceed to next stage"
 - MUST present each stage's questions individually and wait for user response`;
 
-  const stageSpecific = getStageSpecificInstructions(stage);
-  
+  const stageSpecific = getStageSpecificInstructions(stage, isHelm);
+
   return `${antiCascadeRule}\n${mandatoryWorkflow}\n${strictConstraints}\n\n${stageSpecific}`;
 }
 
@@ -858,7 +868,7 @@ export async function handleAnswerQuestionTool(
         nextStage: newStageState.nextStage,
         message: getStageMessage(newStageState.currentStage),
         guidance: getStageGuidance(newStageState.currentStage, isHelmSolution(solution)),
-        agentInstructions: getAgentInstructions(newStageState.currentStage),
+        agentInstructions: getAgentInstructions(newStageState.currentStage, isHelmSolution(solution)),
         nextAction: `Call recommend tool with stage: answerQuestion:${newStageState.currentStage}`,
         timestamp: new Date().toISOString()
       };
