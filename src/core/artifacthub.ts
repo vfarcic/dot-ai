@@ -55,12 +55,16 @@ export class ArtifactHubService {
   private baseUrl = 'https://artifacthub.io/api/v1';
   private timeout = 10000; // 10 seconds
 
+  // Repositories to exclude from search results
+  // Bitnami charts often have non-standard configurations
+  private excludedRepos = ['bitnami'];
+
   /**
    * Search for Helm charts matching the query
    *
    * @param query - Search query (e.g., "argo cd", "prometheus")
    * @param limit - Maximum number of results to return
-   * @returns Array of search results sorted by relevance
+   * @returns Array of search results sorted by relevance (excludes Bitnami)
    */
   async searchCharts(query: string, limit: number = 10): Promise<ArtifactHubSearchResult[]> {
     const encodedQuery = encodeURIComponent(query);
@@ -87,8 +91,11 @@ export class ArtifactHubService {
 
       const data = await response.json() as { packages?: ArtifactHubSearchResult[] };
 
-      // ArtifactHub returns { packages: [...] }
-      return data.packages || [];
+      // Filter out excluded repositories (e.g., Bitnami)
+      const packages = data.packages || [];
+      return packages.filter(pkg =>
+        !this.excludedRepos.includes(pkg.repository.name.toLowerCase())
+      );
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`ArtifactHub API timeout after ${this.timeout}ms`);
