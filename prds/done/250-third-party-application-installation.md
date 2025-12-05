@@ -1,7 +1,8 @@
 # PRD: Third-party Application Installation
 
 **Issue**: [#250](https://github.com/vfarcic/dot-ai/issues/250)
-**Status**: Draft
+**Status**: Complete
+**Completed**: 2025-12-05
 **Priority**: High
 **Created**: 2025-12-04
 
