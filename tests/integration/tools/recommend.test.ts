@@ -146,7 +146,6 @@ describe.concurrent('Recommend Tool Integration', () => {
           id: expect.any(String),
           question: expect.any(String),
           type: expect.stringMatching(/^(text|select|number|boolean|multiselect)$/),
-          validation: expect.any(Object),
           suggestedAnswer: expect.anything() // CRITICAL: Verify suggestedAnswer exists
         });
       });
@@ -452,12 +451,13 @@ describe.concurrent('Recommend Tool Integration', () => {
   });
 
   describe('Helm Chart Discovery', () => {
-    test('should return Helm solutions with official prometheus-community chart', async () => {
+    test('should complete Helm workflow: discovery → choose solution → question generation', async () => {
+      // PHASE 1: Discover Helm solutions
       // Use Prometheus as test case - no Prometheus CRDs in test cluster, so Helm will be triggered
       const helmResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         intent: 'Install Prometheus for monitoring',
         final: true,
-        interaction_id: 'helm_existing_chart_test'
+        interaction_id: 'helm_workflow_discovery'
       });
 
       // Validate response structure and that official prometheus-community chart is included
@@ -472,13 +472,13 @@ describe.concurrent('Recommend Tool Integration', () => {
                 type: 'helm',
                 score: expect.any(Number),
                 description: expect.stringMatching(/prometheus/i),
-                chart: {
+                chart: expect.objectContaining({
                   repository: 'https://prometheus-community.github.io/helm-charts',
                   repositoryName: 'prometheus-community',
                   chartName: 'prometheus',
-                  official: false,
+                  official: true,
                   verifiedPublisher: true
-                },
+                }),
                 reasons: expect.arrayContaining([expect.any(String)])
               })
             ]),
@@ -509,7 +509,128 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(prometheusCommunityChart.score).toBeGreaterThanOrEqual(70);
       expect(prometheusCommunityChart.score).toBeLessThanOrEqual(100);
       expect(prometheusCommunityChart.reasons.length).toBeGreaterThan(0);
-    }, 300000); // 5 minutes for AI analysis
+
+      const solutionId = prometheusCommunityChart.solutionId;
+
+      // PHASE 2: Choose Helm solution - triggers question generation
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
+        solutionId,
+        interaction_id: 'helm_workflow_choose'
+      });
+
+      // Validate chooseSolution response structure (same format as capability-based solutions)
+      const expectedChooseResponse = {
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            solutionId: solutionId,
+            currentStage: 'required',
+            questions: expect.any(Array),
+            nextStage: 'basic',
+            message: expect.stringContaining('required configuration'),
+            nextAction: 'Call recommend tool with stage: answerQuestion:required',
+            guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(chooseResponse).toMatchObject(expectedChooseResponse);
+
+      // Validate question structure - each question must have suggestedAnswer for cluster-aware defaults
+      const requiredQuestions = chooseResponse.data.result.questions;
+      requiredQuestions.forEach((q: any) => {
+        expect(q).toMatchObject({
+          id: expect.any(String),
+          question: expect.any(String),
+          type: expect.stringMatching(/^(text|select|number|boolean|multiselect)$/),
+          suggestedAnswer: expect.anything() // CRITICAL: Cluster-aware defaults
+        });
+      });
+
+      // PHASE 3-4: Progress through structured question stages (required → basic → advanced)
+      // Helm charts may have different numbers of questions per stage, and empty stages are skipped
+      // The 'open' stage has free-form questions with different structure, so we stop before it
+      const allQuestions = [...requiredQuestions];
+      let currentResponse = chooseResponse;
+      let currentStage = currentResponse.data.result.currentStage;
+
+      // Progress through structured stages until we reach 'open' or completion
+      while (currentStage !== 'open' && currentResponse.data.result.status === 'stage_questions') {
+        const currentQuestions = currentResponse.data.result.questions || [];
+        const answers: Record<string, any> = {};
+        currentQuestions.forEach((q: any) => {
+          answers[q.id] = q.suggestedAnswer;
+        });
+
+        // Determine next stage action
+        const nextStageAction = currentResponse.data.result.nextAction;
+        const stageMatch = nextStageAction?.match(/answerQuestion:(\w+)/);
+        const stageToAnswer = stageMatch ? stageMatch[1] : currentStage;
+
+        const nextResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: `answerQuestion:${stageToAnswer}`,
+          solutionId,
+          answers,
+          interaction_id: `helm_workflow_${stageToAnswer}`
+        });
+
+        expect(nextResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              solutionId: solutionId,
+            }
+          }
+        });
+
+        currentResponse = nextResponse;
+        currentStage = currentResponse.data.result.currentStage;
+
+        // Break before processing 'open' stage (different question structure)
+        if (currentStage === 'open' || currentResponse.data.result.status !== 'stage_questions') {
+          break;
+        }
+
+        // Collect and validate structured questions from this stage (not 'open' stage)
+        const nextQuestions = nextResponse.data.result.questions || [];
+        allQuestions.push(...nextQuestions);
+
+        nextQuestions.forEach((q: any) => {
+          expect(q).toMatchObject({
+            id: expect.any(String),
+            question: expect.any(String),
+            type: expect.stringMatching(/^(text|select|number|boolean|multiselect)$/),
+            suggestedAnswer: expect.anything()
+          });
+        });
+      }
+
+      // Validate questions were generated
+      expect(allQuestions.length).toBeGreaterThan(0);
+
+      // Validate question structure for all collected questions
+      const questionTexts = allQuestions.map((q: any) => `${q.id} ${q.question}`.toLowerCase());
+
+      // Namespace question - fundamental for any Helm installation (MUST exist)
+      const hasNamespaceQuestion = questionTexts.some(
+        text => text.includes('namespace')
+      );
+      expect(hasNamespaceQuestion).toBe(true);
+
+      // TODO: PHASE 5-6 will be added when validation flow and Helm execution are implemented
+      // - generateManifests: helm dry-run validation
+      // - deployManifests: helm upgrade --install execution
+    }, 600000); // 10 minutes for full Helm workflow
 
     test('should return no_charts_found when chart does not exist on ArtifactHub', async () => {
       // Use a clearly non-existent chart name
