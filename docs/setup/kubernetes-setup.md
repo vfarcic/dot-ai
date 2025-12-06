@@ -116,7 +116,7 @@ Create an `.mcp.json` file in your project root:
 
 **Notes**:
 - Replace the URL with your actual hostname if you changed `ingress.host`.
-- For production deployments, configure TLS certificates and use `https://` URLs for secure connections.
+- For production deployments with TLS, see [TLS Configuration](#tls-configuration) below.
 
 ### Step 5: Start Your MCP Client
 
@@ -216,6 +216,19 @@ secrets:
 - Configuration examples are based on common patterns but not yet validated
 
 → See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variable alternatives and more details.
+
+## TLS Configuration
+
+To enable HTTPS, add these values (requires [cert-manager](https://cert-manager.io/) with a ClusterIssuer):
+
+```yaml
+ingress:
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt  # Your ClusterIssuer name
+```
+
+Then update your `.mcp.json` URL to use `https://`.
 
 ## Integration with kagent
 
