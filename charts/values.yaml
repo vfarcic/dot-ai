@@ -64,6 +64,7 @@ ingress:
   tls:
     enabled: false                  # Enable TLS/HTTPS
     secretName: ""                  # TLS secret name (generated if empty when enabled)
+    clusterIssuer: ""               # cert-manager ClusterIssuer name (e.g., "letsencrypt")
 
 # AI Provider configuration
 ai:
