@@ -17,13 +17,15 @@ This roadmap is a living document and may change based on community feedback and
 - Controller-based autonomous capability scanning with event-driven updates (PRD #216)
 - Deployment documentation & example-based learning (PRD #228)
 - Helm/Kustomize packaging for recommendations (PRD #248)
+- Argo CD integration for third-party Helm charts (PRD #254)
+- Argo CD integration for packaged recommendations (PRD #255)
+- Flux integration for GitOps deployments (PRD #256)
 
 ## Medium-term (3-6 Months)
 
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)
-- GitOps integration for Argo CD and Flux deployment workflows (PRD #202)
 - Pattern & policy learning system with AI-driven suggestions (PRD #218)
 
 ## Long-term (6-12 Months)

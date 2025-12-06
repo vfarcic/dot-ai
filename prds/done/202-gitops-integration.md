@@ -1,12 +1,33 @@
 # PRD #202: GitOps Integration for Argo CD and Flux
 
-**Status**: Draft
+**Status**: Superseded
 **Created**: 2025-11-03
 **Priority**: Medium
 **Dependencies**: Operations Tool PRD (must be completed first)
 **Prerequisites**:
 - **#248** (Helm/Kustomize Packaging): GitOps tools work best with properly packaged Helm charts or Kustomize overlays
 - **#226** (GitHub Actions CI/CD): GitOps workflows require CI to update image tags in manifests and push to Git
+
+---
+
+## SUPERSEDED NOTICE
+
+**This PRD has been superseded by more focused PRDs:**
+
+| New PRD | Scope |
+|---------|-------|
+| **#254** | [Argo CD + Third-Party Helm](./254-argocd-third-party-helm.md) |
+| **#255** | [Argo CD + Packaged Recommendations](./255-argocd-packaged-recommendations.md) |
+| **#256** | [Flux Integration (all scenarios)](./256-flux-integration.md) |
+
+**Rationale**: The original scope was too broad. Splitting into focused PRDs enables:
+- Smaller, deliverable increments
+- Clearer ownership and dependencies
+- Independent progress on Argo CD vs Flux tracks
+
+**Original content preserved below for reference.**
+
+---
 
 ---
 
