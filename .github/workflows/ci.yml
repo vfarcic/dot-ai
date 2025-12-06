@@ -113,29 +113,17 @@ jobs:
       id: version-check
       run: |
         PUBLISHED_VERSION=$(npm view @vfarcic/dot-ai version 2>/dev/null || echo "0.0.0")
-        CURRENT_VERSION=$(node -p "require('./package.json').version")
         echo "published-version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
-        echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
-        # Check if current version is newer than published version
-        if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
-          echo "new-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Version will be published: $CURRENT_VERSION (currently published: $PUBLISHED_VERSION)"
-          echo "version-changed=true" >> $GITHUB_OUTPUT
-        else
-          # Parse published version and increment minor version
-          MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
-          MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
-          PATCH=$(echo $PUBLISHED_VERSION | cut -d. -f3)
+        # Always bump from published version (avoids race conditions)
+        MAJOR=$(echo $PUBLISHED_VERSION | cut -d. -f1)
+        MINOR=$(echo $PUBLISHED_VERSION | cut -d. -f2)
+        NEW_MINOR=$((MINOR + 1))
+        NEW_VERSION="$MAJOR.$NEW_MINOR.0"
 
-          # Increment minor version, reset patch to 0
-          NEW_MINOR=$((MINOR + 1))
-          NEW_VERSION="$MAJOR.$NEW_MINOR.0"
-
-          echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Version will be incremented from $PUBLISHED_VERSION to $NEW_VERSION"
-          echo "version-changed=true" >> $GITHUB_OUTPUT
-        fi
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Version will be incremented from $PUBLISHED_VERSION to $NEW_VERSION"
+        echo "version-changed=true" >> $GITHUB_OUTPUT
 
   release:
     needs: [version]

@@ -154,9 +154,17 @@ Please enter 1 or 2:
 
 ### Option 1: Start Working Now
 
-If user chooses option 1, execute: **prd-start [issue-id]**
+If user chooses option 1, first commit and push the PRD (same as Option 2), then instruct them:
 
-This will help identify the first task and set up the development workflow.
+---
+
+**PRD committed and pushed.**
+
+To start working on this PRD, run the `prd-start` prompt with the PRD ID: `prd-start [issue-id]`
+
+*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-start [issue-id]` in Claude Code, or other syntax in different MCP clients). Start a new conversation/context to run the prompt.*
+
+---
 
 ### Option 2: Commit and Push for Later
 
