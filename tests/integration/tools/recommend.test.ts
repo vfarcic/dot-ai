@@ -640,6 +640,9 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Validate questions were generated across all stages
       expect(allQuestions.length).toBeGreaterThan(0);
 
+      // Ensure advanced stage has questions to answer (prevents empty answer submission)
+      expect(advancedQuestions.length).toBeGreaterThan(0);
+
       // Namespace question - fundamental for any Helm installation (MUST exist)
       const questionTexts = allQuestions.map((q: any) => `${q.id} ${q.question}`.toLowerCase());
       const hasNamespaceQuestion = questionTexts.some(text => text.includes('namespace'));
@@ -655,6 +658,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Helm should now be ready for manifest generation (skipping open stage)
+      // Log full response on failure for debugging
+      if (completionResponse.data?.result?.status === 'stage_error') {
+        console.error('Stage error details:', JSON.stringify(completionResponse.data.result, null, 2));
+      }
       expect(completionResponse).toMatchObject({
         success: true,
         data: {

@@ -1,5 +1,7 @@
 # PRD #257: Bearer Token Authentication
 
+**Status**: ✅ Complete (2025-12-07)
+
 ## Overview
 
 **Problem**: The MCP server exposed via HTTP (Kubernetes, Docker, or any network deployment) has no authentication mechanism. Anyone with the URL can access and use the server, posing a security risk for production deployments.
@@ -86,16 +88,17 @@ secrets:
 
 ## Milestones
 
-- [ ] Implement Bearer token middleware in MCP server
-- [ ] Add Helm chart support for auth token secret
-- [ ] Update documentation for all deployment types
-- [ ] Integration tests for authenticated requests
+- [x] Implement Bearer token middleware in MCP server
+- [x] Add Helm chart support for auth token secret
+- [x] Update documentation for all deployment types
+- [x] Integration tests for authenticated requests
 
 ## Progress Log
 
 | Date | Update |
 |------|--------|
 | 2025-12-07 | PRD created |
+| 2025-12-07 | Implemented Bearer token middleware (`src/interfaces/auth.ts`) with constant-time comparison. Added Helm chart support (`secrets.auth.token`). Updated test infrastructure to include auth token. Removed `--no-cluster` mode from test runner. |
 
 ## Out of Scope (Future Enhancements)
 
