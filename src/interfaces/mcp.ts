@@ -59,6 +59,7 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
+import { checkBearerAuth } from './auth';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
 
@@ -385,12 +386,22 @@ export class MCPServer {
         // Handle CORS for browser-based clients
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id, Authorization');
 
         if (req.method === 'OPTIONS') {
           res.writeHead(204);
           res.end();
           endSpan(204);
+          return;
+        }
+
+        // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
+        const authResult = checkBearerAuth(req);
+        if (!authResult.authorized) {
+          this.logger.warn('Authentication failed', { message: authResult.message });
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: authResult.message }));
+          endSpan(401);
           return;
         }
 

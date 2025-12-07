@@ -86,8 +86,8 @@ secrets:
 
 ## Milestones
 
-- [ ] Implement Bearer token middleware in MCP server
-- [ ] Add Helm chart support for auth token secret
+- [x] Implement Bearer token middleware in MCP server
+- [x] Add Helm chart support for auth token secret
 - [ ] Update documentation for all deployment types
 - [ ] Integration tests for authenticated requests
 
@@ -96,6 +96,7 @@ secrets:
 | Date | Update |
 |------|--------|
 | 2025-12-07 | PRD created |
+| 2025-12-07 | Implemented Bearer token middleware (`src/interfaces/auth.ts`) with constant-time comparison. Added Helm chart support (`secrets.auth.token`). Updated test infrastructure to include auth token. Removed `--no-cluster` mode from test runner. |
 
 ## Out of Scope (Future Enhancements)
 

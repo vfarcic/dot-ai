@@ -23,8 +23,13 @@ export class IntegrationTest {
     this.kc.loadFromDefault();
     this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
 
-    // Initialize HTTP client for REST API calls
-    this.httpClient = new HttpRestApiClient();
+    // Initialize HTTP client for REST API calls with auth header if configured
+    const authToken = process.env.DOT_AI_AUTH_TOKEN;
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    this.httpClient = new HttpRestApiClient({ headers });
   }
 
   /**
