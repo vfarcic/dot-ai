@@ -30,25 +30,30 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
     return { authorized: true };
   }
 
-  const authHeader = req.headers['authorization'];
+  const rawAuthHeader = req.headers['authorization'];
 
   // Check if Authorization header is present
-  if (!authHeader) {
+  if (!rawAuthHeader) {
     return {
       authorized: false,
       message: 'Authentication required. Provide Authorization: Bearer <token> header.'
     };
   }
 
-  // Check if it's a Bearer token
-  if (!authHeader.startsWith('Bearer ')) {
+  // Normalize header to string (handle array case) and parse Bearer token (case-insensitive per RFC 7235)
+  const authHeader = Array.isArray(rawAuthHeader)
+    ? (rawAuthHeader[0] ?? '')
+    : rawAuthHeader;
+
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+  if (!match) {
     return {
       authorized: false,
       message: 'Invalid authorization format. Expected: Bearer <token>'
     };
   }
 
-  const providedToken = authHeader.slice(7); // Remove 'Bearer ' prefix
+  const providedToken = match[1];
 
   // Check if token is empty
   if (!providedToken) {
