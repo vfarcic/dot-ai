@@ -1,5 +1,7 @@
 # PRD #257: Bearer Token Authentication
 
+**Status**: ✅ Complete (2025-12-07)
+
 ## Overview
 
 **Problem**: The MCP server exposed via HTTP (Kubernetes, Docker, or any network deployment) has no authentication mechanism. Anyone with the URL can access and use the server, posing a security risk for production deployments.
