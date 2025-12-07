@@ -40,20 +40,33 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
     };
   }
 
-  // Normalize header to string (handle array case) and parse Bearer token (case-insensitive per RFC 7235)
+  // Normalize header to string (handle array case)
   const authHeader = Array.isArray(rawAuthHeader)
     ? (rawAuthHeader[0] ?? '')
     : rawAuthHeader;
 
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  if (!match) {
+  // Parse Bearer token (case-insensitive per RFC 7235)
+  // Use split instead of regex to avoid ReDoS vulnerability
+  const trimmedHeader = authHeader.trim();
+  const spaceIndex = trimmedHeader.indexOf(' ');
+
+  if (spaceIndex === -1) {
     return {
       authorized: false,
       message: 'Invalid authorization format. Expected: Bearer <token>'
     };
   }
 
-  const providedToken = match[1];
+  const scheme = trimmedHeader.slice(0, spaceIndex);
+  const providedToken = trimmedHeader.slice(spaceIndex + 1).trim();
+
+  // Validate Bearer scheme (case-insensitive)
+  if (scheme.toLowerCase() !== 'bearer') {
+    return {
+      authorized: false,
+      message: 'Invalid authorization format. Expected: Bearer <token>'
+    };
+  }
 
   // Check if token is empty
   if (!providedToken) {
