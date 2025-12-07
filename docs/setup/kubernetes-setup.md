@@ -38,12 +38,13 @@
 
 ### Step 1: Set Environment Variables
 
-Export your API keys:
+Export your API keys and auth token:
 
 ```bash
-# Required: Set your API keys
+# Required
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
+export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 ```
 
 ### Step 2: Install the Controller (Optional)
@@ -80,6 +81,7 @@ export DOT_AI_VERSION="..."
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set ingress.enabled=true \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \
   --set controller.enabled=true \
@@ -90,7 +92,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 **Notes**:
 - Remove `--set controller.enabled=true` if you skipped the controller installation in Step 2.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
-- For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
+- For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key`, `openai-api-key`, and `auth-token` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../observability-guide.md) for complete configuration.
@@ -104,11 +106,16 @@ Create an `.mcp.json` file in your project root:
   "mcpServers": {
     "dot-ai": {
       "type": "http",
-      "url": "http://dot-ai.127.0.0.1.nip.io"
+      "url": "http://dot-ai.127.0.0.1.nip.io",
+      "headers": {
+        "Authorization": "Bearer <your-auth-token>"
+      }
     }
   }
 }
 ```
+
+Replace `<your-auth-token>` with the token from Step 1 (run `echo $DOT_AI_AUTH_TOKEN` to view it).
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory

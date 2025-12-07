@@ -31,7 +31,7 @@ Choose the method that best fits your environment and workflow:
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
 | **[Docker](setup/docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |  
-| **[Kubernetes](setup/kubernetes-setup.md)** | Full control, standard resources, HTTP transport | Requires K8s cluster + Helm | Teams wanting direct resource management |
+| **[Kubernetes](setup/kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication | Requires K8s cluster + Helm | Teams wanting direct resource management |
 | **[ToolHive](setup/kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
 | **[NPX](setup/npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
 | **[Development](setup/development-setup.md)** | Fast iteration, easy debugging | Requires source build + manual Qdrant setup | Contributors, toolkit development |
@@ -50,7 +50,7 @@ Choose the method that best fits your environment and workflow:
 
 **🎯 Recommended setup** → [Docker Setup](setup/docker-setup.md) - Complete stack, all features working in 2 commands
 
-**🚀 Production deployment** → [Kubernetes Setup](setup/kubernetes-setup.md) - Standard resources, full control, HTTP transport
+**🚀 Production deployment** → [Kubernetes Setup](setup/kubernetes-setup.md) - Standard resources, full control, HTTP transport with Bearer token authentication
 
 **🔧 Operator-managed deployment** → [ToolHive Setup](setup/kubernetes-toolhive-setup.md) - Simplified management, built-in security
 
@@ -262,6 +262,8 @@ echo ".env" >> .gitignore
 # Set restrictive file permissions
 chmod 600 .env
 ```
+
+**HTTP Authentication**: For Kubernetes deployments exposed via Ingress, Bearer token authentication is required. See [Kubernetes Setup](setup/kubernetes-setup.md) for configuration details.
 
 #### Usage with Setup Methods
 

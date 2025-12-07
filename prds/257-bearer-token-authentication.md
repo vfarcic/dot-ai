@@ -88,8 +88,8 @@ secrets:
 
 - [x] Implement Bearer token middleware in MCP server
 - [x] Add Helm chart support for auth token secret
-- [ ] Update documentation for all deployment types
-- [ ] Integration tests for authenticated requests
+- [x] Update documentation for all deployment types
+- [x] Integration tests for authenticated requests
 
 ## Progress Log
 

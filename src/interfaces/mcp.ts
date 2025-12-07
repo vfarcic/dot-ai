@@ -60,6 +60,7 @@ import {
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
 import { checkBearerAuth } from './auth';
+import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
 
@@ -399,8 +400,7 @@ export class MCPServer {
         const authResult = checkBearerAuth(req);
         if (!authResult.authorized) {
           this.logger.warn('Authentication failed', { message: authResult.message });
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: authResult.message }));
+          sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
           endSpan(401);
           return;
         }
@@ -423,8 +423,7 @@ export class MCPServer {
           } catch (error) {
             this.logger.error('REST API request failed', error as Error);
             if (!res.headersSent) {
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'REST API internal server error' }));
+              sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'REST API internal server error');
             }
             endSpan(500);
             return;
@@ -441,8 +440,7 @@ export class MCPServer {
         } catch (error) {
           this.logger.error('Error handling MCP HTTP request', error as Error);
           if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'MCP internal server error' }));
+            sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'MCP internal server error');
           }
           endSpan(500);
         }
@@ -453,8 +451,7 @@ export class MCPServer {
           endSpan(500);
 
           if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Internal server error' }));
+            sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'Internal server error');
           }
         }
       }); // Close context.with()
