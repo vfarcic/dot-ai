@@ -1,4 +1,4 @@
-# DevOps AI Toolkit MCP Project Setup Guide
+# GitHub Repository Setup & Governance Guide
 
 **Complete guide for using AI-powered repository setup and governance through MCP (Model Context Protocol).**
 
@@ -45,6 +45,10 @@ Use project setup when you want to:
 - Standardize team workflows across multiple repositories
 - Implement security and contribution guidelines
 - Add GitHub automation (dependency updates, PR labeling, stale issue management)
+
+### Video: Transform Your GitHub Repository
+
+[![Transform Your GitHub Repository: Templates, Automation, and Governance](https://img.youtube.com/vi/gYl3moYa4iI/maxresdefault.jpg)](https://youtu.be/gYl3moYa4iI)
 
 ## Complete Workflow Example
 
