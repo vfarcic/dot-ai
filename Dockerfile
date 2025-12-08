@@ -2,27 +2,8 @@
 # Docker Buildx automatically selects the correct architecture-specific image for each platform.
 # Using SHA256 digests would pin to a single architecture and cause "exec format error" on other platforms.
 
-# Stage 1: Builder - download kubectl and install npm package
+# Stage 1: Builder - install npm package
 FROM node:22-slim AS builder
-
-# Install curl for downloading kubectl
-RUN apt-get update && \
-    apt-get install -y curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.32.0
-# Download kubectl
-RUN ARCH=$(dpkg --print-architecture) && \
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/kubectl
-
-# renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=v4.0.1
-# Download and install Helm
-RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash -s -- --version ${HELM_VERSION}
 
 # Copy and install pre-built dot-ai package
 # Package is built outside Docker (npm run build + npm pack)
@@ -40,9 +21,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy kubectl and helm binaries from builder
-COPY --from=builder /usr/local/bin/kubectl /usr/local/bin/kubectl
-COPY --from=builder /usr/local/bin/helm /usr/local/bin/helm
+# Copy kubectl and helm binaries from official images (Renovate auto-updates these)
+COPY --from=rancher/kubectl:v1.34.2 /bin/kubectl /usr/local/bin/kubectl
+COPY --from=alpine/helm:4.0.1 /usr/bin/helm /usr/local/bin/helm
 
 # Copy entire npm global installation from builder
 COPY --from=builder /usr/local/lib/node_modules/@vfarcic/dot-ai /usr/local/lib/node_modules/@vfarcic/dot-ai
