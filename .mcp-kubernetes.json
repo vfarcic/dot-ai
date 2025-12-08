@@ -2,7 +2,10 @@
   "mcpServers": {
     "dot-ai": {
       "type": "http",
-      "url": "http://dot-ai.127.0.0.1.nip.io"
+      "url": "http://dot-ai.127.0.0.1.nip.io",
+      "headers": {
+        "Authorization": "Bearer ${DOT_AI_AUTH_TOKEN}"
+      }
     }
   }
 }
