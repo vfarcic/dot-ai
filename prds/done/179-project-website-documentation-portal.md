@@ -337,13 +337,33 @@ Evaluation criteria:
 
 ## Progress Log
 
-### [Date] - PRD Created
+### 2025-12-08 - PRD Closure: Superseded by Separate Repository
+**Duration**: N/A (architectural decision)
+**Status**: Closed - Superseded
+
+**Closure Summary**:
+This PRD originally proposed building the website within the dot-ai repository. After discussion, the architecture was revised to use a separate repository to:
+- Keep dot-ai focused on MCP code only
+- Support multi-project ecosystem (dot-ai, dot-ai-controller, future projects)
+- Allow the website to aggregate documentation from multiple source repos
+
+**Implementation Reference**:
+- New repository: [dot-ai-website](https://github.com/vfarcic/dot-ai-website)
+- New PRD: [dot-ai-website PRD #1](https://github.com/vfarcic/dot-ai-website/blob/main/prds/1-documentation-portal-website.md)
+
+**Key Decisions**:
+- Technology: Docusaurus (CNCF standard, multi-docs support)
+- Architecture: Website fetches docs from source repos at build time
+- Docs remain in source repos, website aggregates them
+
+### 2025-10-24 - PRD Created
 - Initial PRD created with 7 major milestones
 - GitHub issue #179 opened
 - Ready for review and discussion
 
 ---
 
-**Last Updated**: 2025-10-24
-**Status**: Planning
-**Next Action**: Review and approve PRD, then begin Milestone 1
+**Last Updated**: 2025-12-08
+**Status**: Closed - Superseded
+**Closed**: 2025-12-08
+**Superseded By**: [dot-ai-website PRD #1](https://github.com/vfarcic/dot-ai-website/issues/1)
