@@ -122,6 +122,7 @@ Get started in 3 steps:
 - **GitHub Discussions**: [Community Q&A and discussions](https://github.com/vfarcic/dot-ai/discussions)
 - **Troubleshooting**: See [Troubleshooting Guide](./docs/mcp-setup.md#troubleshooting) for common problems
 
+<!-- docs-exclude-start -->
 ## Contributing & Governance
 
 We welcome contributions from the community! Please review:
@@ -132,6 +133,7 @@ We welcome contributions from the community! Please review:
 - **[Governance](docs/GOVERNANCE.md)** - Project governance and decision-making
 - **[Maintainers](docs/MAINTAINERS.md)** - Current project maintainers
 - **[Roadmap](docs/ROADMAP.md)** - Project direction and priorities
+<!-- docs-exclude-end -->
 
 ## Help Us Improve
 
