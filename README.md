@@ -115,6 +115,7 @@ Get started in 3 steps:
 - **[Policy Management](docs/policy-management-guide.md)** - Governance and compliance
 - **[Project Setup](docs/mcp-project-setup-guide.md)** - Repository governance automation
 
+<!-- docs-exclude-start -->
 ## Support
 
 - **[Support Guide](SUPPORT.md)** - How to get help and where to ask questions
@@ -122,7 +123,6 @@ Get started in 3 steps:
 - **GitHub Discussions**: [Community Q&A and discussions](https://github.com/vfarcic/dot-ai/discussions)
 - **Troubleshooting**: See [Troubleshooting Guide](./docs/mcp-setup.md#troubleshooting) for common problems
 
-<!-- docs-exclude-start -->
 ## Contributing & Governance
 
 We welcome contributions from the community! Please review:
