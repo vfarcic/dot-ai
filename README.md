@@ -3,7 +3,9 @@
 <!-- docs-exclude-start -->
 <div align="center">
 
-![DevOps AI Toolkit Logo](assets/images/logo.png)
+<p align="center">
+    <img src="assets/images/logo.jpeg" alt="DevOps AI Toolkit Logo" width="400">
+</p>
 
 [![npm version](https://badge.fury.io/js/%40vfarcic%2Fdot-ai.svg)](https://www.npmjs.com/package/@vfarcic/dot-ai)
 [![npm downloads](https://img.shields.io/npm/dm/@vfarcic/dot-ai.svg)](https://www.npmjs.com/package/@vfarcic/dot-ai)
