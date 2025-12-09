@@ -1,5 +1,6 @@
 # DevOps AI Toolkit
 
+<!-- docs-exclude-start -->
 <div align="center">
 
 ![DevOps AI Toolkit Logo](assets/images/logo.png)
@@ -13,6 +14,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/vfarcic/dot-ai.svg?style=social&label=Star)](https://github.com/vfarcic/dot-ai)
 
 </div>
+<!-- docs-exclude-end -->
 
 **AI-powered platform engineering and DevOps automation through intelligent Kubernetes operations and conversational workflows.**
 
