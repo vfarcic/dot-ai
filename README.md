@@ -133,7 +133,6 @@ We welcome contributions from the community! Please review:
 - **[Governance](docs/GOVERNANCE.md)** - Project governance and decision-making
 - **[Maintainers](docs/MAINTAINERS.md)** - Current project maintainers
 - **[Roadmap](docs/ROADMAP.md)** - Project direction and priorities
-<!-- docs-exclude-end -->
 
 ## Help Us Improve
 
@@ -152,6 +151,7 @@ DevOps AI Toolkit is built on:
 - [Vercel AI SDK](https://sdk.vercel.ai/) for unified AI provider interface
 - [Kubernetes](https://kubernetes.io/) for the cloud native foundation
 - [CNCF](https://www.cncf.io/) for the cloud native ecosystem
+<!-- docs-exclude-end -->
 
 ---
 
