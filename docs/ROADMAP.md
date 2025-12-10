@@ -20,6 +20,7 @@ This roadmap is a living document and may change based on community feedback and
 - Argo CD integration for packaged recommendations (PRD #255)
 - Flux integration for GitOps deployments (PRD #256)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
+- Intelligent CI/CD workflow generation with full repository analysis (PRD #263)
 
 ## Medium-term (3-6 Months)
 
