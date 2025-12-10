@@ -150,6 +150,29 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
       });
 
+      // PACKAGING QUESTIONS VALIDATION: Capability-based solutions must have outputFormat and outputPath
+      const outputFormatQuestion = requiredQuestions.find((q: any) => q.id === 'outputFormat');
+      const outputPathQuestion = requiredQuestions.find((q: any) => q.id === 'outputPath');
+
+      expect(outputFormatQuestion).toBeDefined();
+      expect(outputFormatQuestion).toMatchObject({
+        id: 'outputFormat',
+        question: 'How would you like the manifests packaged?',
+        type: 'select',
+        options: ['raw', 'helm', 'kustomize'],
+        suggestedAnswer: 'raw',
+        validation: { required: true }
+      });
+
+      expect(outputPathQuestion).toBeDefined();
+      expect(outputPathQuestion).toMatchObject({
+        id: 'outputPath',
+        question: 'Where would you like to save the output?',
+        type: 'text',
+        suggestedAnswer: './manifests',
+        validation: { required: true }
+      });
+
       // PHASE 4: Answer required stage questions using suggestedAnswers
       const requiredAnswers: Record<string, any> = {};
       requiredQuestions.forEach((q: any) => {
@@ -556,6 +579,13 @@ describe.concurrent('Recommend Tool Integration', () => {
           suggestedAnswer: expect.anything() // CRITICAL: Cluster-aware defaults
         });
       });
+
+      // PACKAGING QUESTIONS VALIDATION: Helm solutions should NOT have outputFormat/outputPath
+      // These are only for capability-based solutions where we package raw manifests
+      const outputFormatQuestion = requiredQuestions.find((q: any) => q.id === 'outputFormat');
+      const outputPathQuestion = requiredQuestions.find((q: any) => q.id === 'outputPath');
+      expect(outputFormatQuestion).toBeUndefined();
+      expect(outputPathQuestion).toBeUndefined();
 
       // PHASE 3: Answer required stage questions
       // Helm workflow: required → basic → advanced → ready_for_manifest_generation (NO 'open' stage)

@@ -1,6 +1,6 @@
 # PRD #248: Helm/Kustomize Packaging for Recommendations
 
-**Status**: Draft
+**Status**: In Progress
 **Created**: 2025-12-03
 **Priority**: High
 **Issue**: [#248](https://github.com/vfarcic/dot-ai/issues/248)
@@ -192,8 +192,8 @@ When `outputFormat: 'raw'` is selected:
 ## Implementation Phases
 
 ### Phase 1: Question Integration
-- [ ] Add `outputFormat` to required questions schema
-- [ ] Add `outputPath` question (text input)
+- [x] Add `outputFormat` to required questions schema
+- [x] Add `outputPath` question (text input)
 - [ ] Update recommend workflow to collect these answers
 - [ ] Pass format selection to manifest generation stage
 
@@ -266,3 +266,29 @@ When `outputFormat: 'raw'` is selected:
 - Identified as prerequisite for #202 (GitOps Integration)
 - Defined three output options: Helm, Kustomize, Raw YAML
 - Established approach for extracting user answers into values/patches
+
+### 2025-12-10: Phase 1 Question Integration (Partial)
+**Completed PRD Items**:
+- [x] Add `outputFormat` to required questions schema
+- [x] Add `outputPath` question (text input)
+
+**Implementation Details**:
+- Added `OUTPUT_FORMAT_QUESTION` and `OUTPUT_PATH_QUESTION` constants in `src/core/schema.ts`
+- Created `injectPackagingQuestions()` function to programmatically inject these questions into capability-based solutions (not Helm chart solutions)
+- Questions are injected after AI generates questions, ensuring consistent presence
+- `outputFormat` options: `raw`, `helm`, `kustomize` (default: `raw`)
+- `outputPath` default: `./manifests`
+
+**Testing Updates**:
+- Updated `tests/integration/tools/recommend.test.ts` to validate:
+  - Capability-based solutions HAVE `outputFormat` and `outputPath` questions
+  - Helm chart solutions do NOT have these questions (format is implicitly Helm)
+
+**Design Decision**:
+- Packaging questions only apply to capability-based solutions (raw K8s manifests)
+- Helm chart solutions already have an implicit format - no need to ask
+
+**Next Steps**:
+- Implement routing in `generate-manifests` based on `outputFormat` answer
+- Implement Helm chart structure generation (Phase 2)
+- Implement Kustomize structure generation (Phase 3)

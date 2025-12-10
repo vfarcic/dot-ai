@@ -109,6 +109,51 @@ export interface QuestionGroup {
   relevantPolicies?: string[];  // Policy IDs that influenced question generation
 }
 
+/**
+ * Packaging questions for capability-based solutions (not Helm charts)
+ * These are injected programmatically after AI generates questions
+ */
+export const OUTPUT_FORMAT_QUESTION: Question = {
+  id: 'outputFormat',
+  question: 'How would you like the manifests packaged?',
+  type: 'select',
+  options: ['raw', 'helm', 'kustomize'],
+  placeholder: 'Select output format',
+  suggestedAnswer: 'raw',
+  validation: { required: true }
+};
+
+export const OUTPUT_PATH_QUESTION: Question = {
+  id: 'outputPath',
+  question: 'Where would you like to save the output?',
+  type: 'text',
+  placeholder: 'e.g., ./manifests or ./my-app',
+  suggestedAnswer: './manifests',
+  validation: { required: true }
+};
+
+/**
+ * Inject packaging questions into a QuestionGroup for capability-based solutions
+ * Adds outputFormat and outputPath to required questions if not already present
+ */
+function injectPackagingQuestions(questions: QuestionGroup): QuestionGroup {
+  const hasOutputFormat = questions.required.some(q => q.id === 'outputFormat');
+  const hasOutputPath = questions.required.some(q => q.id === 'outputPath');
+
+  const packagingQuestions: Question[] = [];
+  if (!hasOutputFormat) {
+    packagingQuestions.push({ ...OUTPUT_FORMAT_QUESTION });
+  }
+  if (!hasOutputPath) {
+    packagingQuestions.push({ ...OUTPUT_PATH_QUESTION });
+  }
+
+  return {
+    ...questions,
+    required: [...questions.required, ...packagingQuestions]
+  };
+}
+
 
 export interface ResourceSolution {
   type: 'single' | 'combination';
@@ -1070,8 +1115,9 @@ ${resourceDetails}`;
       if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {
         throw new Error('Invalid question structure from AI');
       }
-      
-      return questions as QuestionGroup;
+
+      // Inject packaging questions for capability-based solutions
+      return injectPackagingQuestions(questions as QuestionGroup);
     } catch (error) {
       // Re-throw errors about missing resourceName - these are bugs, not generation failures
       if (error instanceof Error && error.message.includes('missing resourceName field')) {
@@ -1079,9 +1125,9 @@ ${resourceDetails}`;
       }
       
       console.warn(`Failed to generate AI questions for solution: ${error}`);
-      
-      // Fallback to basic open question
-      return {
+
+      // Fallback to basic open question with packaging questions
+      return injectPackagingQuestions({
         required: [],
         basic: [],
         advanced: [],
@@ -1089,7 +1135,7 @@ ${resourceDetails}`;
           question: "Is there anything else about your requirements or constraints that would help us provide better recommendations?",
           placeholder: "e.g., specific security requirements, performance needs, existing infrastructure constraints..."
         }
-      };
+      });
     }
   }
 
