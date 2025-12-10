@@ -19,6 +19,7 @@ This roadmap is a living document and may change based on community feedback and
 - Argo CD integration for third-party Helm charts (PRD #254)
 - Argo CD integration for packaged recommendations (PRD #255)
 - Flux integration for GitOps deployments (PRD #256)
+- Documentation validation system - crawling, readability, syntax validation (PRD #262)
 
 ## Medium-term (3-6 Months)
 
