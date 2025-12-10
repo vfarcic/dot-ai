@@ -1,3 +1,7 @@
+---
+sidebar_position: 0
+---
+
 # DevOps AI Toolkit
 
 <!-- docs-exclude-start -->
@@ -20,8 +24,9 @@
 
 **AI-powered platform engineering and DevOps automation through intelligent Kubernetes operations and conversational workflows.**
 
+<!-- docs-exclude-start -->
 📚 [Quick Start](./docs/quick-start.md) | 🔧 [MCP Setup](./docs/setup/mcp-setup.md) | 🛠️ [Features & Tools](./docs/guides/mcp-tools-overview.md)
-
+<!-- docs-exclude-end -->
 ---
 
 ## What is DevOps AI Toolkit?
