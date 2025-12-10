@@ -850,4 +850,169 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(noChartResponse.data.result.message).toContain('https://github.com/vfarcic/dot-ai/issues/new');
     }, 300000); // 5 minutes for AI analysis
   });
+
+  describe('Helm Packaging (outputFormat: helm)', () => {
+    test('should generate Helm chart structure when outputFormat is helm', async () => {
+      // PHASE 1: Get solutions for a capability-based deployment
+      const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx web server',
+        final: true,
+        interaction_id: 'helm_packaging_solutions'
+      });
+
+      expect(solutionsResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            solutions: expect.any(Array)
+          }
+        }
+      });
+
+      // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
+      const solutions = solutionsResponse.data.result.solutions;
+      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      expect(capabilitySolution).toBeDefined();
+
+      const solutionId = capabilitySolution.solutionId;
+
+      // PHASE 2: Choose solution
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
+        solutionId,
+        interaction_id: 'helm_packaging_choose'
+      });
+
+      expect(chooseResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'required',
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      // PHASE 3: Answer required questions with outputFormat: 'helm'
+      const requiredQuestions = chooseResponse.data.result.questions;
+      const requiredAnswers: Record<string, any> = {};
+
+      requiredQuestions.forEach((q: any) => {
+        if (q.id === 'outputFormat') {
+          requiredAnswers[q.id] = 'helm'; // Select Helm packaging
+        } else if (q.id === 'outputPath') {
+          requiredAnswers[q.id] = './my-nginx-chart';
+        } else {
+          requiredAnswers[q.id] = q.suggestedAnswer;
+        }
+      });
+
+      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required',
+        solutionId,
+        answers: requiredAnswers,
+        interaction_id: 'helm_packaging_required'
+      });
+
+      expect(answerRequiredResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'basic'
+          }
+        }
+      });
+
+      // PHASE 4-6: Skip through remaining stages
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic',
+        solutionId,
+        answers: {},
+        interaction_id: 'helm_packaging_basic'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced',
+        solutionId,
+        answers: {},
+        interaction_id: 'helm_packaging_advanced'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:open',
+        solutionId,
+        answers: { open: 'N/A' },
+        interaction_id: 'helm_packaging_open'
+      });
+
+      // PHASE 7: Generate manifests with Helm packaging
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
+        solutionId,
+        interaction_id: 'helm_packaging_generate'
+      });
+
+      // Validate Helm chart structure in response
+      const expectedGenerateResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            status: 'manifests_generated',
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            outputFormat: 'helm',
+            outputPath: './my-nginx-chart',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'Chart.yaml',
+                content: expect.stringContaining('apiVersion: v2')
+              }),
+              expect.objectContaining({
+                relativePath: 'values.yaml',
+                content: expect.any(String)
+              })
+            ]),
+            validationAttempts: expect.any(Number),
+            packagingAttempts: expect.any(Number),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Helm chart')
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+
+      // Validate Helm chart file structure
+      const files = generateResponse.data.result.files;
+      const chartYaml = files.find((f: any) => f.relativePath === 'Chart.yaml');
+      const valuesYaml = files.find((f: any) => f.relativePath === 'values.yaml');
+      const templateFiles = files.filter((f: any) => f.relativePath.startsWith('templates/'));
+
+      // Chart.yaml must exist and contain required fields
+      expect(chartYaml).toBeDefined();
+      expect(chartYaml.content).toContain('name:');
+      expect(chartYaml.content).toContain('version:');
+
+      // values.yaml must exist
+      expect(valuesYaml).toBeDefined();
+
+      // At least one template file must exist
+      expect(templateFiles.length).toBeGreaterThan(0);
+
+      // Template files should contain Helm templating syntax
+      const hasHelmSyntax = templateFiles.some((f: any) =>
+        f.content.includes('{{ .Values.') || f.content.includes('{{ .Release.')
+      );
+      expect(hasHelmSyntax).toBe(true);
+    }, 900000); // 15 minutes for full workflow with AI packaging
+  });
 });

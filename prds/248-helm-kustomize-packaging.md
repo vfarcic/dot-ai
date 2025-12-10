@@ -301,10 +301,10 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 - [x] Add `agentInstructions` for client agent file writing guidance
 
 ### Phase 2: Helm Chart Generation
-- [ ] Create Helm chart structure generator
-- [ ] Implement values.yaml generation from user answers
-- [ ] Convert manifests to Helm templates with value references
-- [ ] Generate Chart.yaml with solution metadata
+- [x] Create Helm chart structure generator
+- [x] Implement values.yaml generation from user answers
+- [x] Convert manifests to Helm templates with value references
+- [x] Generate Chart.yaml with solution metadata
 - [ ] Add helm lint validation (nice to have)
 
 ### Phase 3: Kustomize Generation
@@ -314,7 +314,8 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 - [ ] Add kustomize build validation (nice to have)
 
 ### Phase 4: Integration & Testing
-- [ ] Integration tests for all three output formats
+- [x] Integration tests for Helm output format
+- [ ] Integration tests for Kustomize output format
 - [ ] Test with various solution types (simple deployments, stateful apps, etc.)
 - [ ] Ensure raw YAML maintains exact current behavior
 - [ ] Update documentation
@@ -355,7 +356,7 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 ## Milestones
 
 - [x] **M1**: Required questions for format and path integrated into workflow
-- [ ] **M2**: Helm chart generation working with values.yaml from answers
+- [x] **M2**: Helm chart generation working with values.yaml from answers
 - [ ] **M3**: Kustomize generation working with patches from answers
 - [ ] **M4**: All three formats tested and documented
 - [ ] **M5**: PRD #202 unblocked and can proceed with GitOps integration
@@ -472,3 +473,62 @@ New structure:
 **Next Steps**:
 - Phase 2: Implement Helm chart packaging (detect `outputFormat: 'helm'`, call AI packaging prompt, return multi-file structure)
 - Phase 3: Implement Kustomize packaging
+
+### 2025-12-10: Phase 2 - Helm Chart Generation Complete
+
+**Completed PRD Items**:
+- [x] Create Helm chart structure generator
+- [x] Implement values.yaml generation from user answers
+- [x] Convert manifests to Helm templates with value references
+- [x] Generate Chart.yaml with solution metadata
+- [x] Integration tests for Helm output format
+- [x] **M2**: Helm chart generation working with values.yaml from answers
+
+**Implementation Details**:
+
+1. **New Files Created**:
+   - `prompts/packaging-generation.md` - AI prompt template supporting both Helm and Kustomize with format-specific placeholders
+   - `src/core/packaging.ts` - Packaging module with:
+     - `packageManifests()` function for AI-driven packaging
+     - Format-specific instructions for Helm (HELM_FORMAT_INSTRUCTIONS, HELM_FORMAT_EXAMPLE)
+     - Format-specific instructions for Kustomize (ready for Phase 3)
+     - JSON response parsing for files array
+
+2. **Modified Files**:
+   - `src/tools/generate-manifests.ts`:
+     - Added `renderPackageToYaml()` - Renders Helm chart to raw YAML via `helm template`
+     - Added `writePackageFiles()` - Writes package files to temp directory
+     - Added `packageAndValidate()` - Packaging with validation retry loop (max 5 attempts)
+     - Updated validation success block to route based on `outputFormat` from user answers
+   - `tests/integration/tools/recommend.test.ts`:
+     - Added "Helm Packaging (outputFormat: helm)" test suite
+     - Test validates Chart.yaml, values.yaml, and templates/*.yaml structure
+     - Test verifies Helm templating syntax ({{ .Values.xxx }})
+
+3. **Architecture Implementation**:
+   - Raw manifests are generated and validated first (Decision 1)
+   - AI packaging transforms validated manifests into Helm chart (Decision 2)
+   - Single prompt template with format placeholders (Decision 3)
+   - Files array response structure (Decision 4)
+   - Validation via `helm template | kubectl dry-run` (Decision 5)
+
+**Flow**:
+```
+Raw manifests validated → Check outputFormat →
+  If 'helm': AI packaging → helm template → validateManifests() → Return files array
+  If 'raw': Return as-is (existing behavior)
+```
+
+**Test Results**:
+```
+✓ should return no_charts_found when chart does not exist on ArtifactHub (4459ms)
+✓ should complete Helm workflow: discovery → choose solution → question generation (89180ms)
+✓ should generate Helm chart structure when outputFormat is helm (92574ms)
+✓ should complete full workflow: clarification → solutions → choose → answer → generate → deploy (114733ms)
+4 passed
+```
+
+**Next Steps**:
+- Phase 3: Implement Kustomize packaging (structure already prepared in packaging.ts)
+- Add helm lint validation (nice to have)
+- Update documentation

@@ -26,6 +26,7 @@ import {
   getHelmValuesPath,
   ensureTmpDir
 } from '../core/helm-utils';
+import { packageManifests, OutputFormat } from '../core/packaging';
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -503,6 +504,146 @@ async function handleHelmGeneration(
 
 
 /**
+ * Render packaged output to raw YAML for validation
+ */
+async function renderPackageToYaml(
+  packageDir: string,
+  format: OutputFormat,
+  logger: Logger
+): Promise<{ success: boolean; yaml?: string; error?: string }> {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execAsync = promisify(exec);
+
+  try {
+    const command = format === 'helm'
+      ? `helm template test-release "${packageDir}"`
+      : `kustomize build "${packageDir}"`;
+
+    logger.debug('Rendering package to YAML', { format, command });
+    const { stdout, stderr } = await execAsync(command);
+
+    if (stderr && !stdout) {
+      return { success: false, error: stderr };
+    }
+
+    return { success: true, yaml: stdout };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Write package files to a temporary directory
+ */
+function writePackageFiles(
+  files: { relativePath: string; content: string }[],
+  baseDir: string
+): void {
+  for (const file of files) {
+    const filePath = path.join(baseDir, file.relativePath);
+    const fileDir = path.dirname(filePath);
+
+    if (!fs.existsSync(fileDir)) {
+      fs.mkdirSync(fileDir, { recursive: true });
+    }
+
+    fs.writeFileSync(filePath, file.content, 'utf8');
+  }
+}
+
+/**
+ * Package manifests and validate the output
+ */
+async function packageAndValidate(
+  rawManifests: string,
+  solution: any,
+  outputFormat: OutputFormat,
+  outputPath: string,
+  solutionId: string,
+  dotAI: DotAI,
+  logger: Logger,
+  interaction_id?: string
+): Promise<{ files: { relativePath: string; content: string }[]; attempts: number }> {
+  const maxAttempts = 5;
+  let packagingError: { attempt: number; previousOutput: string; validationError: string } | undefined;
+
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  const packageDir = path.join(tmpDir, `${solutionId}-${outputFormat}`);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    logger.info('Packaging attempt', { attempt, maxAttempts, format: outputFormat });
+
+    try {
+      const packagingResult = await packageManifests(
+        rawManifests,
+        solution,
+        outputFormat,
+        outputPath,
+        dotAI,
+        logger,
+        packagingError,
+        interaction_id
+      );
+
+      // Write files to temp directory
+      if (fs.existsSync(packageDir)) {
+        fs.rmSync(packageDir, { recursive: true });
+      }
+      fs.mkdirSync(packageDir, { recursive: true });
+      writePackageFiles(packagingResult.files, packageDir);
+
+      // Render to raw YAML
+      const renderResult = await renderPackageToYaml(packageDir, outputFormat, logger);
+      if (!renderResult.success) {
+        packagingError = {
+          attempt,
+          previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+          validationError: `Failed to render ${outputFormat}: ${renderResult.error}`
+        };
+        logger.warn('Package render failed', { attempt, error: renderResult.error });
+        continue;
+      }
+
+      // Validate rendered YAML
+      const renderedYamlPath = path.join(tmpDir, `${solutionId}-${outputFormat}-rendered.yaml`);
+      fs.writeFileSync(renderedYamlPath, renderResult.yaml!, 'utf8');
+
+      const validation = await validateManifests(renderedYamlPath);
+      if (validation.valid) {
+        logger.info('Package validation successful', { format: outputFormat, attempt });
+        return { files: packagingResult.files, attempts: attempt };
+      }
+
+      packagingError = {
+        attempt,
+        previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+        validationError: validation.errors.join(', ')
+      };
+      logger.warn('Package validation failed', { attempt, errors: validation.errors });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Packaging attempt failed', error as Error);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      packagingError = {
+        attempt,
+        previousOutput: packagingError?.previousOutput || '',
+        validationError: errorMessage
+      };
+    }
+  }
+
+  throw new Error(`Failed to generate valid ${outputFormat} package after ${maxAttempts} attempts. Last error: ${packagingError?.validationError}`);
+}
+
+
+/**
  * Direct MCP tool handler for generateManifests functionality
  */
 export async function handleGenerateManifestsTool(
@@ -664,20 +805,53 @@ export async function handleGenerateManifestsTool(
           const validation = await validateManifests(yamlPath);
           
           if (validation.valid) {
-            logger.info('Manifest validation successful', { 
-              attempt, 
+            logger.info('Manifest validation successful', {
+              attempt,
               yamlPath,
-              requestId 
+              requestId
             });
-            
-            // Success! Return the validated manifests
-            // Check if we should show feedback message (workflow completion point)
-            const feedbackMessage = maybeGetFeedbackMessage();
 
             // Extract packaging options from user answers (with defaults)
-            const outputFormat = solution.answers?.outputFormat || 'raw';
-            const outputPath = solution.answers?.outputPath || './manifests';
+            const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
+            const outputPath = userAnswers.outputPath || './manifests';
+            const feedbackMessage = maybeGetFeedbackMessage();
 
+            // Handle packaging based on outputFormat
+            if (outputFormat === 'helm' || outputFormat === 'kustomize') {
+              const packagingResult = await packageAndValidate(
+                manifests,
+                solution,
+                outputFormat,
+                outputPath,
+                args.solutionId,
+                dotAI,
+                logger,
+                args.interaction_id
+              );
+
+              const response = {
+                success: true,
+                status: 'manifests_generated',
+                solutionId: args.solutionId,
+                outputFormat,
+                outputPath,
+                files: packagingResult.files,
+                validationAttempts: attempt,
+                packagingAttempts: packagingResult.attempts,
+                timestamp: new Date().toISOString(),
+                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+                ...(feedbackMessage ? { message: feedbackMessage } : {})
+              };
+
+              return {
+                content: [{
+                  type: 'text' as const,
+                  text: JSON.stringify(response, null, 2)
+                }]
+              };
+            }
+
+            // Raw format - return manifests as-is
             const response = {
               success: true,
               status: 'manifests_generated',
