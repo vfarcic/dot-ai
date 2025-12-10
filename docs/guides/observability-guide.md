@@ -1,4 +1,8 @@
-# DevOps AI Toolkit Observability Guide
+---
+sidebar_position: 12
+---
+
+# Observability Guide
 
 **Complete guide for distributed tracing and observability in the DevOps AI Toolkit MCP server.**
 
@@ -20,7 +24,7 @@ This guide focuses on DevOps AI Toolkit-specific tracing implementation, configu
 
 ## Prerequisites
 
-- DevOps AI Toolkit MCP server configured (see [MCP Setup](mcp-setup.md))
+- DevOps AI Toolkit MCP server configured (see [MCP Setup](../setup/mcp-setup.md))
 - Basic understanding of distributed tracing concepts (optional but helpful)
 - Backend for viewing traces (Jaeger, Grafana Tempo, vendor service) or use console output
 
@@ -28,7 +32,7 @@ This guide focuses on DevOps AI Toolkit-specific tracing implementation, configu
 
 ### Environment Variables
 
-Add tracing environment variables to your MCP client configuration (see [MCP Setup](mcp-setup.md) for how to configure environment variables).
+Add tracing environment variables to your MCP client configuration (see [MCP Setup](../setup/mcp-setup.md) for how to configure environment variables).
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|

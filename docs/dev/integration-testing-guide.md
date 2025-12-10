@@ -27,7 +27,7 @@ This provides:
 
 ### Required Environment Variables
 
-Set these before running tests (see [MCP Setup Guide](mcp-setup.md) for all supported models):
+Set these before running tests (see [MCP Setup Guide](../setup/mcp-setup.md) for all supported models):
 
 ```bash
 # Example with Claude (default) + OpenAI embeddings

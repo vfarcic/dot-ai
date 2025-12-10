@@ -1,12 +1,16 @@
-# DevOps AI Toolkit MCP Operate Guide
+---
+sidebar_position: 4
+---
+
+# Operate Guide
 
 **Complete guide for using AI-powered Kubernetes operations through MCP (Model Context Protocol).**
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure your MCP server with:
+Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
 - DevOps AI Toolkit MCP server running
-- AI model API key configured (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for supported models and setup)
+- AI model API key configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster
 
 **Required - Capability Management:**

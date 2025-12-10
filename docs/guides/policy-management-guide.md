@@ -1,3 +1,7 @@
+---
+sidebar_position: 8
+---
+
 # Policy Management Guide
 
 <!-- PRD-74 -->
@@ -47,15 +51,15 @@ This video demonstrates how Policy Management transforms organizational governan
 Before using Policy Management, ensure you have:
 
 ### Required Setup
-- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
+- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
 - **Vector DB service** (Qdrant) for policy storage
-- **API keys** for AI models and embedding providers (see [Configuration Guide](mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [Configuration Guide](../setup/mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
 
 ### Optional (for Kyverno enforcement)
 - **[Kyverno](https://kyverno.io/)** installed in your cluster for optional policy enforcement
 - **kubectl access** to your cluster for policy deployment
 
-For complete setup instructions, see the [MCP Setup Guide](./mcp-setup.md).
+For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
 
 ## Section 1: Policy Management Basics
 
@@ -462,7 +466,7 @@ The recommendation system automatically:
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   See [Complete Configuration Guide](mcp-setup.md#configuration-components) for AI model and embedding provider setup with all available options.
+   See [Complete Configuration Guide](../setup/mcp-setup.md#configuration-components) for AI model and embedding provider setup with all available options.
 
 #### Kyverno Policy Generation Fails
 
@@ -513,7 +517,7 @@ The recommendation system automatically:
    - Test with different request phrasings
 
 2. **Check embedding service**:
-   - Verify embedding provider is configured (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
+   - Verify embedding provider is configured (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
    - Confirm embedding service API key is properly set
 
 3. **Verify policy storage**:
@@ -566,7 +570,7 @@ The recommendation system automatically:
 
 **Solutions**:
 1. **Verify OpenAI configuration**:
-   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration))
+   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
    - Test API key with simple request
    - Check API usage limits and billing status
 
@@ -681,7 +685,7 @@ A: Yes, generated policies use modern Kyverno CEL expressions and follow least-p
 
 ## See Also
 
-- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
 - **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
 
 ---

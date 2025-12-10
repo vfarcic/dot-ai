@@ -1,3 +1,7 @@
+---
+sidebar_position: 10
+---
+
 <!-- PRD-29 -->
 # MCP Prompts Guide: Shared Prompt Library
 
@@ -18,7 +22,7 @@ Before using MCP Prompts, you need:
 - **MCP-enabled coding agent** (Claude Code, Cursor, or VS Code with MCP extension)  
 - **Successfully configured dot-ai MCP server connection**
 
-**Setup Required**: Follow the [MCP Setup Guide](./mcp-setup.md) to configure your environment before proceeding.
+**Setup Required**: Follow the [MCP Setup Guide](../setup/mcp-setup.md) to configure your environment before proceeding.
 
 **Note**: The Anthropic API key is only required for AI-powered tools (like deployment recommendations), not for using the shared prompts library.
 
@@ -41,7 +45,7 @@ This video demonstrates how to use the PRD (Product Requirements Document) promp
 
 ### Discovering Available Prompts
 
-1. Ensure you're connected to the dot-ai MCP server (see [MCP Setup Guide](./mcp-setup.md))
+1. Ensure you're connected to the dot-ai MCP server (see [MCP Setup Guide](../setup/mcp-setup.md))
 2. Access prompts using your agent's interface:
    - **Claude Code**: Type `/` and look for `/dot-ai:prompt-name` commands
    - **VS Code + GitHub Copilot**: Type `/` and look for `/mcp.dot-ai.prompt-name` commands
@@ -247,7 +251,7 @@ Your prompt instructions go here...
 **Prompts don't appear in command menu**
 - **Cause**: MCP server not connected or prompts capability not enabled
 - **Solution**: Check MCP connection status and server configuration
-- **See**: [MCP Setup Guide](./mcp-setup.md) for connection troubleshooting
+- **See**: [MCP Setup Guide](../setup/mcp-setup.md) for connection troubleshooting
 
 **Prompt execution fails with "not found" error**
 - **Cause**: Prompt ID mismatch or server synchronization issue
@@ -261,5 +265,5 @@ Your prompt instructions go here...
 
 ## See Also
 
-- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
 - **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features

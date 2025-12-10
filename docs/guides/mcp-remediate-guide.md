@@ -1,12 +1,16 @@
-# DevOps AI Toolkit MCP Remediate Guide
+---
+sidebar_position: 3
+---
+
+# Remediate Guide
 
 **Complete guide for using AI-powered Kubernetes issue analysis and remediation through MCP (Model Context Protocol).**
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure your MCP server with:
+Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
 - DevOps AI Toolkit MCP server running  
-- AI model API key configured (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for supported models and setup)
+- AI model API key configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional for pure analysis)
 - kubectl command-line tool installed
 
@@ -96,8 +100,7 @@ This section demonstrates both manual and automatic execution modes:
 
 ---
 
-<a id="manual-mode-example"></a>
-### Manual Mode Example: Cross-Resource Issue - Missing Storage Resources
+### Manual Mode Example {#manual-mode-example}
 
 **Manual Mode**: Demonstrates how pod issues can require fixing different resources
 
@@ -158,7 +161,6 @@ At this point, we have two execution paths available. We'll explore both options
 
 ---
 
-<a id="option-1-automatic-mcp-execution"></a>
 ### Option 1: Automatic MCP Execution
 
 **User selects Choice 1** - MCP tool executes commands internally and returns complete results
@@ -210,7 +212,6 @@ Your postgres-demo namespace database is now working correctly!
 
 ---
 
-<a id="option-2-manual-agent-execution"></a>
 ### Option 2: Manual Agent Execution
 
 **User selects Choice 2** - Agent executes commands manually, then calls for validation
@@ -276,8 +277,7 @@ This creates a SQL custom resource that will likely have configuration issues re
 The automatic mode will demonstrate the tool executing fixes without user interaction when confidence/risk thresholds are met.
 -->
 
-<a id="automatic-mode-example"></a>
-### Automatic Mode Example: Multi-Issue Discovery with Safety Fallback
+### Automatic Mode Example {#automatic-mode-example}
 
 **Automatic Mode**: Tool executes first remediation automatically, then falls back to manual mode when validation discovers additional issues
 

@@ -1,3 +1,7 @@
+---
+sidebar_position: 6
+---
+
 # Capability Management Guide
 
 <!-- dotai-test-hint: Test all capability management workflows using mcp__dot-ai__manageOrgData tool with dataType="capabilities" and various operations (scan, list, get, search, delete, deleteAll, progress) to verify documented examples match actual tool behavior. For scanning, use "specific" subset with 1-2 test resources, NOT "all" as full cluster scans take too long -->
@@ -59,16 +63,16 @@ For a complete understanding of how these three types work together, see the **[
 Before using Capability Management, ensure you have:
 
 ### Required Setup
-- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](./mcp-setup.md))
+- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
 - **Vector DB service** (Qdrant) for capability storage and semantic search
-- **AI integration** for capability inference (see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for supported models and API keys)
+- **AI integration** for capability inference (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and API keys)
 - **Kubernetes cluster access** for resource discovery and schema analysis
 
 ### Optional Enhancements  
-- **Embedding provider** configured for semantic search (see [Embedding Provider Configuration](mcp-setup.md#embedding-provider-configuration) for options)
-- **Organizational patterns** for enhanced recommendations (see [Pattern Management Guide](./pattern-management-guide.md))
+- **Embedding provider** configured for semantic search (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration) for options)
+- **Organizational patterns** for enhanced recommendations (see [Pattern Management Guide](pattern-management-guide.md))
 
-For complete setup instructions, see the [MCP Setup Guide](./mcp-setup.md).
+For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
 
 ## Capability Management Operations
 
@@ -307,7 +311,7 @@ This resource is ideal for teams wanting database solutions without managing und
 
 Once capabilities are discovered and stored, they automatically enhance deployment recommendations by providing semantic context about each resource's purpose and complexity. This enables the AI to make smarter, more informed suggestions tailored to your specific cluster capabilities.
 
-**For complete examples and workflows**, see the [Recommendation Guide](./mcp-recommendation-guide.md).
+**For complete examples and workflows**, see the [Recommendation Guide](mcp-recommendation-guide.md).
 
 ## Capability Management Operations
 

@@ -1,4 +1,8 @@
-# DevOps AI Toolkit - Tools and Features Overview
+---
+sidebar_position: 1
+---
+
+# Tools and Features Overview
 
 **Quick reference to all available tools in the DevOps AI Toolkit MCP server.**
 
@@ -67,7 +71,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 
 ## Quick Start
 
-1. **Complete Setup**: Follow the [MCP Setup Guide](mcp-setup.md)
+1. **Complete Setup**: Follow the [MCP Setup Guide](../setup/mcp-setup.md)
 2. **Start with Capability Management** to scan your cluster (required for recommendations and operations)
 3. **Try Deployment Recommendations** with a simple application
 4. **Use Kubernetes Operations** for Day 2 changes (updates, scaling, enhancements)
@@ -76,7 +80,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 ## Prerequisites
 
 **Required for all tools:**
-- **MCP server configured**: See [MCP Setup Guide](mcp-setup.md)
+- **MCP server configured**: See [MCP Setup Guide](../setup/mcp-setup.md)
 
 **Works without AI keys:**
 - ✅ **Project Setup & Governance**
@@ -84,7 +88,7 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 - ✅ **REST API Gateway**
 
 **For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
-- **AI Model API key**: See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for model options
+- **AI Model API key**: See [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for model options
 - **Cluster access**: `KUBECONFIG` for Kubernetes integration (deployment, remediation, capabilities)
 - **Vector database**: Qdrant for capability, pattern, and policy storage
 - **Embedding provider API key**: OpenAI, Google, or Amazon Bedrock for pattern/policy semantic search

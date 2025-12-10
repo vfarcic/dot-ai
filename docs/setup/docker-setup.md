@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Docker Setup Guide
 
 **Complete Docker deployment with MCP server + Qdrant vector database - all features included out-of-the-box.**
@@ -14,7 +18,7 @@
 - Company-wide or centralized deployments (use Docker with external orchestration)
 - Environments without Docker
 
-→ See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
+→ See [other setup methods](mcp-setup.md#setup-methods) for alternatives
 
 ## What You Get
 
@@ -28,7 +32,7 @@
 
 - Docker and Docker Compose installed
 - Kubernetes cluster access (kubectl configured)
-- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
+- AI model API key (default: Anthropic). See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (for enhanced semantic search)
 
 ## Quick Start (2 Minutes)
@@ -42,7 +46,7 @@ curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot
 
 ### 2. Set Environment Variables
 
-**All environment variables from the [Configuration Overview](../mcp-setup.md#configuration-overview) can be used with Docker setup.** Variables must be added to the `docker-compose-dot-ai.yaml` file's `environment:` section to be passed to the container.
+**All environment variables from the [Configuration Overview](mcp-setup.md#configuration-overview) can be used with Docker setup.** Variables must be added to the `docker-compose-dot-ai.yaml` file's `environment:` section to be passed to the container.
 
 **Quick start example:**
 
@@ -120,7 +124,7 @@ This creates:
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP client configuration](../mcp-setup.md#mcp-client-compatibility) for filename and location
+- **Other clients**: See [MCP client configuration](mcp-setup.md#mcp-client-compatibility) for filename and location
 
 ### 4. Start Your MCP Client
 
@@ -141,7 +145,7 @@ You should see comprehensive system status with all components showing ✅.
 
 ### Environment File Setup
 
-For easier variable management, consider using a `.env` file (see [Environment Variable Management](../mcp-setup.md#environment-variable-management) in the main setup guide). The MCP configuration above includes `--env-file .env` to automatically load your environment variables.
+For easier variable management, consider using a `.env` file (see [Environment Variable Management](mcp-setup.md#environment-variable-management) in the main setup guide). The MCP configuration above includes `--env-file .env` to automatically load your environment variables.
 
 ## Data Persistence
 
@@ -187,7 +191,7 @@ To use external Qdrant instead of the bundled one:
    Edit `docker-compose-dot-ai.yaml` and delete the entire `qdrant:` service section (including all its sub-configurations like `image:`, `ports:`, `volumes:`, etc.)
 
 2. **Set external Qdrant connection**:
-   Set `QDRANT_URL` and `QDRANT_API_KEY` environment variables using any method from the [Environment Variable Management](../mcp-setup.md#environment-variable-management) guide.
+   Set `QDRANT_URL` and `QDRANT_API_KEY` environment variables using any method from the [Environment Variable Management](mcp-setup.md#environment-variable-management) guide.
 
 3. **Run Qdrant externally** however you prefer (cloud service, separate container, etc.)
 
@@ -195,13 +199,13 @@ The MCP client will automatically connect to your external Qdrant using the envi
 
 ## Troubleshooting
 
-For troubleshooting guidance, see the [Troubleshooting section](../mcp-setup.md#troubleshooting) in the main setup guide.
+For troubleshooting guidance, see the [Troubleshooting section](mcp-setup.md#troubleshooting) in the main setup guide.
 
 ## Security Considerations
 
 ### API Key Management
 
-See [Environment Variable Management](../mcp-setup.md#environment-variable-management) for security best practices.
+See [Environment Variable Management](mcp-setup.md#environment-variable-management) for security best practices.
 
 ### Container Security
 
@@ -211,10 +215,10 @@ See [Environment Variable Management](../mcp-setup.md#environment-variable-manag
 
 ## Next Steps
 
-Once your Docker setup is complete, see the [Next Steps section](../mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
+Once your Docker setup is complete, see the [Next Steps section](mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
 
 ## See Also
 
-- [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
+- [MCP Setup Guide](mcp-setup.md) - Method comparison and feature overview
 - [NPX Setup](npx-setup.md) - Alternative setup without Docker
-- [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools
+- [Tools and Features Overview](../guides/mcp-tools-overview.md) - Complete guide to all available tools

@@ -1,4 +1,8 @@
-# DevOps AI Toolkit MCP Server Setup Guide
+---
+sidebar_position: 1
+---
+
+# MCP Server Setup Guide
 
 **Complete setup guide for using DevOps AI Toolkit as an MCP (Model Context Protocol) server with AI development tools.**
 
@@ -30,10 +34,10 @@ Choose the method that best fits your environment and workflow:
 
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
-| **[Docker](setup/docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |  
-| **[Kubernetes](setup/kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication | Requires K8s cluster + Helm | Teams wanting direct resource management |
-| **[ToolHive](setup/kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
-| **[NPX](setup/npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
+| **[Docker](docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |
+| **[Kubernetes](kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication | Requires K8s cluster + Helm | Teams wanting direct resource management |
+| **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
+| **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
 
 ### Infrastructure Dependencies
 
@@ -47,13 +51,13 @@ Choose the method that best fits your environment and workflow:
 
 ### Decision Tree
 
-**🎯 Recommended setup** → [Docker Setup](setup/docker-setup.md) - Complete stack, all features working in 2 commands
+**🎯 Recommended setup** → [Docker Setup](docker-setup.md) - Complete stack, all features working in 2 commands
 
-**🚀 Production deployment** → [Kubernetes Setup](setup/kubernetes-setup.md) - Standard resources, full control, HTTP transport with Bearer token authentication
+**🚀 Production deployment** → [Kubernetes Setup](kubernetes-setup.md) - Standard resources, full control, HTTP transport with Bearer token authentication
 
-**🔧 Operator-managed deployment** → [ToolHive Setup](setup/kubernetes-toolhive-setup.md) - Simplified management, built-in security
+**🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified management, built-in security
 
-**🔧 Don't like Docker?** → [NPX Setup](setup/npx-setup.md) - Uses Node.js, requires manual Qdrant setup
+**🔧 Don't like Docker?** → [NPX Setup](npx-setup.md) - Uses Node.js, requires manual Qdrant setup
 
 ## Configuration Overview
 
@@ -72,7 +76,7 @@ All setup methods need the same core configuration, but handle it differently:
 | `DOT_AI_FEEDBACK_ENABLED` | Enable/disable feedback prompts (default: true, appears occasionally) | `false` to opt-out |
 | **AI Model API Keys** | **Corresponding API key for your chosen provider** | [See AI Model Configuration](#ai-model-configuration) |
 | **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
-| **Tracing (Optional)** | OpenTelemetry distributed tracing | [See Observability Guide](observability-guide.md) |
+| **Tracing (Optional)** | OpenTelemetry distributed tracing | [See Observability Guide](../guides/observability-guide.md) |
 
 **Note**: How you configure these depends on your chosen setup method. See the individual setup guides for specific configuration instructions.
 
@@ -260,7 +264,7 @@ echo ".env" >> .gitignore
 chmod 600 .env
 ```
 
-**HTTP Authentication**: For Kubernetes deployments exposed via Ingress, Bearer token authentication is required. See [Kubernetes Setup](setup/kubernetes-setup.md) for configuration details.
+**HTTP Authentication**: For Kubernetes deployments exposed via Ingress, Bearer token authentication is required. See [Kubernetes Setup](kubernetes-setup.md) for configuration details.
 
 #### Usage with Setup Methods
 
@@ -291,7 +295,7 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 
 **kagent (Kubernetes AI Agent Framework)**
 - Requires Kubernetes-deployed MCP server (HTTP transport)
-- See [kagent Setup Guide](setup/kagent-setup.md) for agent integration
+- See [kagent Setup Guide](kagent-setup.md) for agent integration
 
 **Other MCP Clients**
 - Any client supporting the Model Context Protocol standard
@@ -316,10 +320,10 @@ Each setup method provides an MCP configuration that works with any compatible c
 
 ### 1. Choose Your Setup Method
 
-- **Recommended**: [Docker Setup](setup/docker-setup.md) - Complete working system in 2 commands
-- **Production**: [Kubernetes Setup](setup/kubernetes-setup.md) - Standard resources, full control, HTTP transport
-- **Operator-managed**: [ToolHive Setup](setup/kubernetes-toolhive-setup.md) - Simplified deployment with built-in security
-- **Alternative**: [NPX Setup](setup/npx-setup.md) - If you prefer Node.js over Docker  
+- **Recommended**: [Docker Setup](docker-setup.md) - Complete working system in 2 commands
+- **Production**: [Kubernetes Setup](kubernetes-setup.md) - Standard resources, full control, HTTP transport
+- **Operator-managed**: [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified deployment with built-in security
+- **Alternative**: [NPX Setup](npx-setup.md) - If you prefer Node.js over Docker  
 
 ### 2. Follow Setup Instructions
 
@@ -347,7 +351,7 @@ Test that everything is working:
 
 ### 4. Explore Available Features
 
-Once setup is complete, see [Tools Overview](mcp-tools-overview.md) for detailed information about available capabilities and usage examples.
+Once setup is complete, see [Tools Overview](../guides/mcp-tools-overview.md) for detailed information about available capabilities and usage examples.
 
 ## Troubleshooting
 
@@ -366,10 +370,10 @@ This will show the status of all system components and help identify any problem
 Once your MCP server is running:
 
 ### 1. Explore Available Tools and Features
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
+- **[Tools and Features Overview](../guides/mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
 
 ### 2. Enable Observability (Optional)
-- **[Observability Guide](observability-guide.md)** - Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
+- **[Observability Guide](../guides/observability-guide.md)** - Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
 
 ### 3. Production Considerations
 - For production workloads, plan for Docker deployment with external orchestration

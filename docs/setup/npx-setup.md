@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # NPX Setup Guide
 
 **Simple single-command start with Node.js runtime - external Qdrant required for full features.**
@@ -15,7 +19,7 @@
 - Local development and testing (use [Docker](docker-setup.md) for complete isolation)
 - Production deployments (use Docker with external orchestration)
 
-→ See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
+→ See [other setup methods](mcp-setup.md#setup-methods) for alternatives
 
 ## What You Get
 
@@ -28,7 +32,7 @@
 
 - Node.js 18+ and npm installed
 - Kubernetes cluster access (kubectl configured)
-- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
+- AI model API key (default: Anthropic). See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (for enhanced semantic search)
 - **External Qdrant setup** (see [Qdrant Setup](#qdrant-setup) section)
 
@@ -61,7 +65,7 @@ Create your MCP configuration file with this content:
 }
 ```
 
-**Optional: Custom Endpoints** - Add to `env` section for OpenRouter or self-hosted models ([details](../mcp-setup.md#custom-endpoint-configuration)):
+**Optional: Custom Endpoints** - Add to `env` section for OpenRouter or self-hosted models ([details](mcp-setup.md#custom-endpoint-configuration)):
 ```json
 "CUSTOM_LLM_API_KEY": "sk-or-v1-...",
 "CUSTOM_LLM_BASE_URL": "https://openrouter.ai/api/v1",
@@ -79,7 +83,7 @@ Create your MCP configuration file with this content:
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP client configuration](../mcp-setup.md#mcp-client-compatibility) for filename and location
+- **Other clients**: See [MCP client configuration](mcp-setup.md#mcp-client-compatibility) for filename and location
 
 ### 3. Start Your MCP Client
 
@@ -106,7 +110,7 @@ You'll need to update the `QDRANT_URL` in your MCP configuration accordingly, an
 
 ### Environment File Setup
 
-For easier variable management, consider using a `.env` file (see [Environment Variable Management](../mcp-setup.md#environment-variable-management) in the main setup guide).
+For easier variable management, consider using a `.env` file (see [Environment Variable Management](mcp-setup.md#environment-variable-management) in the main setup guide).
 
 ### NPX-Specific Configuration
 
@@ -166,7 +170,7 @@ export QDRANT_API_KEY="your-secure-api-key"
 
 ## Troubleshooting
 
-For troubleshooting guidance, see the [Troubleshooting section](../mcp-setup.md#troubleshooting) in the main setup guide.
+For troubleshooting guidance, see the [Troubleshooting section](mcp-setup.md#troubleshooting) in the main setup guide.
 
 ### NPX-Specific Issues
 
@@ -182,7 +186,7 @@ For troubleshooting guidance, see the [Troubleshooting section](../mcp-setup.md#
 
 ### API Key Management
 
-See [Environment Variable Management](../mcp-setup.md#environment-variable-management) for security best practices.
+See [Environment Variable Management](mcp-setup.md#environment-variable-management) for security best practices.
 
 ### NPX Security
 
@@ -191,10 +195,10 @@ See [Environment Variable Management](../mcp-setup.md#environment-variable-manag
 
 ## Next Steps
 
-Once your NPX setup is complete, see the [Next Steps section](../mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
+Once your NPX setup is complete, see the [Next Steps section](mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
 
 ## See Also
 
-- [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
+- [MCP Setup Guide](mcp-setup.md) - Method comparison and feature overview
 - [Docker Setup](docker-setup.md) - Complete setup with bundled Qdrant
-- [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools
+- [Tools and Features Overview](../guides/mcp-tools-overview.md) - Complete guide to all available tools

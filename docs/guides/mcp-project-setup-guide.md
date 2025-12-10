@@ -1,10 +1,14 @@
+---
+sidebar_position: 9
+---
+
 # GitHub Repository Setup & Governance Guide
 
 **Complete guide for using AI-powered repository setup and governance through MCP (Model Context Protocol).**
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](mcp-setup.md) to configure your MCP server with:
+Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
 - DevOps AI Toolkit MCP server running
 - No additional dependencies required (tool does not need Kubernetes or AI model access)
 
@@ -225,6 +229,6 @@ User: Add security scanning and policies
 
 ## See Also
 
-- **[MCP Setup Guide](mcp-setup.md)** - Initial MCP server configuration
+- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
 - **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
 

@@ -1,3 +1,7 @@
+---
+sidebar_position: 7
+---
+
 # Development Setup Guide
 
 **Source code development with hot-reload and debugging - external Qdrant required for full features.**
@@ -11,11 +15,11 @@
 - Testing changes before publishing
 
 ❌ **Consider alternatives for:**
-- Using the toolkit as an MCP server (use [Docker](docker-setup.md) or [NPX](npx-setup.md))
+- Using the toolkit as an MCP server (use [Docker](../setup/docker-setup.md) or [NPX](../setup/npx-setup.md))
 - Production environments (use Docker with external orchestration)
-- Quick evaluations (use [Docker](docker-setup.md) for complete setup)
+- Quick evaluations (use [Docker](../setup/docker-setup.md) for complete setup)
 
-→ See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
+→ See [other setup methods](../setup/mcp-setup.md#setup-methods) for alternatives
 
 ## What You Get
 
@@ -30,7 +34,7 @@
 - Node.js 18+ and npm installed
 - Git for repository cloning
 - Kubernetes cluster access (kubectl configured)
-- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
+- AI model API key (default: Anthropic). See [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (for enhanced semantic search)
 - **External Qdrant setup** (see [Qdrant Setup](#qdrant-setup) section)
 
@@ -77,7 +81,7 @@ Create your MCP configuration file with this content:
 }
 ```
 
-**Optional: Custom Endpoints** - Add to `env` for OpenRouter or self-hosted ([details](../mcp-setup.md#custom-endpoint-configuration)):
+**Optional: Custom Endpoints** - Add to `env` for OpenRouter or self-hosted ([details](../setup/mcp-setup.md#custom-endpoint-configuration)):
 ```json
 "CUSTOM_LLM_API_KEY": "sk-or-v1-...",
 "CUSTOM_LLM_BASE_URL": "https://openrouter.ai/api/v1",
@@ -104,7 +108,7 @@ AI_MODEL=anthropic/claude-3.5-sonnet
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP client configuration](../mcp-setup.md#mcp-client-compatibility) for filename and location
+- **Other clients**: See [MCP client configuration](../setup/mcp-setup.md#mcp-client-compatibility) for filename and location
 
 ### 4. Start Your MCP Client
 
@@ -166,7 +170,7 @@ You'll need to update the `QDRANT_URL` in your MCP configuration accordingly, an
 
 ### Environment File Setup
 
-For easier variable management, consider using a `.env` file (see [Environment Variable Management](../mcp-setup.md#environment-variable-management) in the main setup guide).
+For easier variable management, consider using a `.env` file (see [Environment Variable Management](../setup/mcp-setup.md#environment-variable-management) in the main setup guide).
 
 ### Development-Specific Configuration
 
@@ -226,7 +230,7 @@ Available build commands:
 
 ## Troubleshooting
 
-For troubleshooting guidance, see the [Troubleshooting section](../mcp-setup.md#troubleshooting) in the main setup guide.
+For troubleshooting guidance, see the [Troubleshooting section](../setup/mcp-setup.md#troubleshooting) in the main setup guide.
 
 ### Development-Specific Issues
 
@@ -249,7 +253,7 @@ For troubleshooting guidance, see the [Troubleshooting section](../mcp-setup.md#
 
 ### API Key Management
 
-See [Environment Variable Management](../mcp-setup.md#environment-variable-management) for security best practices.
+See [Environment Variable Management](../setup/mcp-setup.md#environment-variable-management) for security best practices.
 
 ### Development Security
 
@@ -269,11 +273,11 @@ For contributing to the project:
 
 ## Next Steps
 
-Once your development setup is complete, see the [Next Steps section](../mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
+Once your development setup is complete, see the [Next Steps section](../setup/mcp-setup.md#next-steps) in the main setup guide for guidance on exploring features and advanced usage.
 
 ## See Also
 
-- [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
-- [Docker Setup](docker-setup.md) - Complete setup with bundled Qdrant
-- [NPX Setup](npx-setup.md) - Simple single-command start
-- [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools
+- [MCP Setup Guide](../setup/mcp-setup.md) - Method comparison and feature overview
+- [Docker Setup](../setup/docker-setup.md) - Complete setup with bundled Qdrant
+- [NPX Setup](../setup/npx-setup.md) - Simple single-command start
+- [Tools and Features Overview](../guides/mcp-tools-overview.md) - Complete guide to all available tools

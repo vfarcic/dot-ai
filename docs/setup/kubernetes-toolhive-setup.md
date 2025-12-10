@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # ToolHive Kubernetes Setup Guide
 
 **Deploy DevOps AI Toolkit MCP Server to Kubernetes using ToolHive operator - simplified enterprise deployment with built-in security and multi-tenancy.**
@@ -16,7 +20,7 @@
 - Teams wanting full control over Kubernetes resources (use [Traditional Kubernetes](kubernetes-setup.md) instead)
 - Environments without operator installation permissions
 
-→ See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
+→ See [other setup methods](mcp-setup.md#setup-methods) for alternatives
 
 → **Learn more about ToolHive**: See [ToolHive documentation](https://docs.stacklok.com/toolhive) for operator details and advanced configuration
 
@@ -34,7 +38,7 @@
 - Kubernetes cluster (1.19+) with kubectl access
 - Helm 3.x installed
 - Cluster admin permissions (required for ToolHive operator installation)
-- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
+- AI model API key (default: Anthropic). See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (required for vector operations)
 
 ## Quick Start (10 Minutes)
@@ -94,7 +98,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.83.0 \
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
-- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../observability-guide.md) for complete configuration.
+- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
 
 ### Step 4: Configure MCP Client
 
@@ -113,7 +117,7 @@ Create an `.mcp.json` file in your project root:
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP client configuration](../mcp-setup.md#mcp-client-compatibility) for filename and location
+- **Other clients**: See [MCP client configuration](mcp-setup.md#mcp-client-compatibility) for filename and location
 
 **Notes**:
 - Replace the URL with your actual hostname if you changed `ingress.host`.

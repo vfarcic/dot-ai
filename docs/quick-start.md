@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Quick Start
 
 **Get started with DevOps AI Toolkit in minutes - deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows through MCP.**
@@ -8,7 +12,7 @@
 
 **Use when**: You want intelligent Kubernetes operations without memorizing commands, need AI-powered troubleshooting, or want to establish governance policies across your cluster.
 
-**📖 Full Guide**: See [MCP Setup Guide](mcp-setup.md) for detailed configuration options and [Tools Overview](mcp-tools-overview.md) for complete feature reference.
+**📖 Full Guide**: See [MCP Setup Guide](setup/mcp-setup.md) for detailed configuration options and [Tools Overview](guides/mcp-tools-overview.md) for complete feature reference.
 
 ## Prerequisites
 
@@ -17,7 +21,7 @@
 
 **For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
 - **AI Model API key** - Required for AI analysis and intelligent recommendations
-  - **Multiple AI models supported** - see [AI Model Configuration](mcp-setup.md#ai-model-configuration) for all options and setup
+  - **Multiple AI models supported** - see [AI Model Configuration](setup/mcp-setup.md#ai-model-configuration) for all options and setup
   - **Quick setup**: Claude (default) - `export ANTHROPIC_API_KEY=your_key_here`
 
 **For Kubernetes deployment recommendations:**
@@ -87,7 +91,7 @@ EOF
 - ✅ **No External Dependencies**: Everything runs in containers
 - ✅ **Kubernetes Integration**: Direct kubectl access to your clusters
 
-**Alternative Methods**: See the [MCP Setup Guide](mcp-setup.md) for NPX (Node.js) and Development setup options.
+**Alternative Methods**: See the [MCP Setup Guide](setup/mcp-setup.md) for NPX (Node.js) and Development setup options.
 
 3. **Start your MCP client:**
 ```bash
@@ -208,6 +212,6 @@ Agent: I'm executing the PRD creation workflow. Please describe the feature you 
 
 ## Next Steps
 
-📖 **[MCP Setup Guide →](mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
+📖 **[MCP Setup Guide →](setup/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
 
-📖 **[Complete Tools & Features Reference →](mcp-tools-overview.md)** - Comprehensive guide to all available tools, workflows, and advanced features
+📖 **[Complete Tools & Features Reference →](guides/mcp-tools-overview.md)** - Comprehensive guide to all available tools, workflows, and advanced features

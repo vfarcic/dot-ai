@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Organizational Data Management Concepts
 
 <!-- PRD-74 -->
@@ -193,7 +197,7 @@ All with policy-compliant configurations and organizational best practices
 **All types require**:
 - DevOps AI Toolkit MCP server configured
 - Vector DB service (Qdrant) for semantic storage
-- API keys for AI models and embedding providers (see [Configuration Guide](mcp-setup.md#configuration-components))
+- API keys for AI models and embedding providers (see [Configuration Guide](../setup/mcp-setup.md#configuration-components))
 
 **Additionally for Policies**:
 - Kyverno installed (optional - only needed for cluster enforcement)
@@ -238,7 +242,7 @@ A: No, all three types require Vector DB for semantic storage and retrieval. Thi
 - **[Capability Management Guide](mcp-capability-management-guide.md)** - Cluster resource discovery and understanding
 - **[Pattern Management Guide](pattern-management-guide.md)** - Creating organizational deployment standards  
 - **[Policy Management Guide](policy-management-guide.md)** - Implementing governance and compliance requirements
-- **[MCP Setup Guide](mcp-setup.md)** - Initial configuration for all organizational data features
+- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial configuration for all organizational data features
 
 ---
 

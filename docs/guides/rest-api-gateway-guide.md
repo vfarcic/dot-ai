@@ -1,4 +1,8 @@
-# DevOps AI Toolkit REST API Gateway
+---
+sidebar_position: 11
+---
+
+# REST API Gateway
 
 **Complete guide for accessing DevOps AI Toolkit functionality via standard HTTP REST endpoints.**
 
@@ -22,7 +26,7 @@ The REST API Gateway provides HTTP access to all DevOps AI Toolkit capabilities 
 
 The REST API is automatically available when you deploy the DevOps AI Toolkit MCP server. **No special configuration is needed** - the same server provides both MCP protocol and REST API endpoints simultaneously.
 
-**🎯 Follow the [Kubernetes Setup Guide](setup/kubernetes-setup.md) to deploy the server.**
+**🎯 Follow the [Kubernetes Setup Guide](../setup/kubernetes-setup.md) to deploy the server.**
 
 The Kubernetes deployment automatically provides:
 - ✅ **REST API endpoints** on the configured ingress URL  

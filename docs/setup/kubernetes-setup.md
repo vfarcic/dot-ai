@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Kubernetes Setup Guide
 
 **Deploy DevOps AI Toolkit MCP Server to Kubernetes using standard resources via Helm chart - production-ready deployment with HTTP transport.**
@@ -15,7 +19,7 @@
 - Single developer local usage (use [Docker setup](docker-setup.md) instead)
 - Quick trials or testing (use [NPX setup](npx-setup.md) instead)
 
-→ See [other setup methods](../mcp-setup.md#setup-methods) for alternatives
+→ See [other setup methods](mcp-setup.md#setup-methods) for alternatives
 
 ## What You Get
 
@@ -30,7 +34,7 @@
 
 - Kubernetes cluster (1.19+) with kubectl access
 - Helm 3.x installed
-- AI model API key (default: Anthropic). See [AI Model Configuration](../mcp-setup.md#ai-model-configuration) for available model options.
+- AI model API key (default: Anthropic). See [AI Model Configuration](mcp-setup.md#ai-model-configuration) for available model options.
 - OpenAI API key (required for vector operations)
 - Ingress controller (any standard controller)
 
@@ -94,8 +98,8 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key`, `openai-api-key`, and `auth-token` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
-- **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
-- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../observability-guide.md) for complete configuration.
+- **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
+- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
 
 ### Step 4: Configure MCP Client
 
@@ -119,7 +123,7 @@ Replace `<your-auth-token>` with the token from Step 1 (run `echo $DOT_AI_AUTH_T
 
 **Save this configuration:**
 - **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP client configuration](../mcp-setup.md#mcp-client-compatibility) for filename and location
+- **Other clients**: See [MCP client configuration](mcp-setup.md#mcp-client-compatibility) for filename and location
 
 **Notes**:
 - Replace the URL with your actual hostname if you changed `ingress.host`.
@@ -222,7 +226,7 @@ secrets:
 - If model requirements are too high for your setup, please open an issue
 - Configuration examples are based on common patterns but not yet validated
 
-→ See [Custom Endpoint Configuration](../mcp-setup.md#custom-endpoint-configuration) for environment variable alternatives and more details.
+→ See [Custom Endpoint Configuration](mcp-setup.md#custom-endpoint-configuration) for environment variable alternatives and more details.
 
 ## TLS Configuration
 
