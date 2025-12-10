@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Remediate Guide
 
 **Complete guide for using AI-powered Kubernetes issue analysis and remediation through MCP (Model Context Protocol).**

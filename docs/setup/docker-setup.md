@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Docker Setup Guide
 
 **Complete Docker deployment with MCP server + Qdrant vector database - all features included out-of-the-box.**

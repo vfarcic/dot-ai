@@ -1,9 +1,6 @@
----
-sidebar_position: 10
----
+# MCP Prompts Guide: Shared Prompt Library
 
 <!-- PRD-29 -->
-# MCP Prompts Guide: Shared Prompt Library
 
 ## What are MCP Prompts
 

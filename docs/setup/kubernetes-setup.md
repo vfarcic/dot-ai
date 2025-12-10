@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Kubernetes Setup Guide
 
 **Deploy DevOps AI Toolkit MCP Server to Kubernetes using standard resources via Helm chart - production-ready deployment with HTTP transport.**

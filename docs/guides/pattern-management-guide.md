@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Pattern Management Guide
 
 **Complete guide for creating and managing organizational deployment patterns with the DevOps AI Toolkit.**

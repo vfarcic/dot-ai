@@ -1,7 +1,3 @@
----
-sidebar_position: 0
----
-
 # DevOps AI Toolkit
 
 <!-- docs-exclude-start -->
@@ -91,12 +87,6 @@ Access curated prompts as native slash commands (`/dot-ai:prompt-name`) in your 
 ### ⚡ AI Integration
 Works with Claude Code, Cursor, VS Code via Model Context Protocol. Supports multiple AI providers (Claude, GPT, Gemini) for flexibility and cost optimization.
 📖 [AI Model Configuration](./docs/setup/mcp-setup.md#ai-model-configuration)
-
-## See It In Action
-
-[![DevOps AI Toolkit: AI-Powered Application Deployment](https://img.youtube.com/vi/8Yzn-9qQpQI/maxresdefault.jpg)](https://youtu.be/8Yzn-9qQpQI)
-
-This video explains the platform engineering problem and demonstrates the Kubernetes deployment recommendation workflow from intent to running applications.
 
 ## Quick Start
 

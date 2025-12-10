@@ -1,7 +1,3 @@
----
-sidebar_position: 11
----
-
 # REST API Gateway
 
 **Complete guide for accessing DevOps AI Toolkit functionality via standard HTTP REST endpoints.**

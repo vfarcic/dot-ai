@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # ToolHive Kubernetes Setup Guide
 
 **Deploy DevOps AI Toolkit MCP Server to Kubernetes using ToolHive operator - simplified enterprise deployment with built-in security and multi-tenancy.**

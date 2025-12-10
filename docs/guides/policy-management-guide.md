@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Policy Management Guide
 
 <!-- PRD-74 -->

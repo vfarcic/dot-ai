@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # kagent Setup Guide
 
 **Connect DevOps AI Toolkit MCP Server to kagent agents.**

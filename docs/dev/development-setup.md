@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Development Setup Guide
 
 **Source code development with hot-reload and debugging - external Qdrant required for full features.**

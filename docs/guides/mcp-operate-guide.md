@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Operate Guide
 
 **Complete guide for using AI-powered Kubernetes operations through MCP (Model Context Protocol).**

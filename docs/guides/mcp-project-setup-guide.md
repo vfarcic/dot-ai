@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # GitHub Repository Setup & Governance Guide
 
 **Complete guide for using AI-powered repository setup and governance through MCP (Model Context Protocol).**

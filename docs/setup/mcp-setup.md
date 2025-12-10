@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # MCP Server Setup Guide
 
 **Complete setup guide for using DevOps AI Toolkit as an MCP (Model Context Protocol) server with AI development tools.**

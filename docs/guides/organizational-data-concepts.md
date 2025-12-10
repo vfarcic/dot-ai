@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Organizational Data Management Concepts
 
 <!-- PRD-74 -->

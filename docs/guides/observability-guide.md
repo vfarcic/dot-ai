@@ -1,7 +1,3 @@
----
-sidebar_position: 12
----
-
 # Observability Guide
 
 **Complete guide for distributed tracing and observability in the DevOps AI Toolkit MCP server.**

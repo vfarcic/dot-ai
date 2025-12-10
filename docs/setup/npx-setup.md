@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # NPX Setup Guide
 
 **Simple single-command start with Node.js runtime - external Qdrant required for full features.**
