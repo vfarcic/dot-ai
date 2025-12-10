@@ -199,7 +199,9 @@ function parsePackagingResponse(response: string): PackageFile[] {
   let jsonContent = response.trim();
 
   // Remove markdown code blocks if present
-  const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+  // Use greedy match (*) not lazy (*?) to handle nested code blocks in content (e.g., README with ```bash examples)
+  // The $ anchor ensures we match the LAST closing ```
+  const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*)```\s*$/);
   if (jsonMatch) {
     jsonContent = jsonMatch[1].trim();
   }

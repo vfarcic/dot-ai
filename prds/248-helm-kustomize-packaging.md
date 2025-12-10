@@ -305,7 +305,7 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 - [x] Implement values.yaml generation from user answers
 - [x] Convert manifests to Helm templates with value references
 - [x] Generate Chart.yaml with solution metadata
-- [ ] Add helm lint validation (nice to have)
+- [x] Add helm lint validation (nice to have)
 
 ### Phase 3: Kustomize Generation
 - [ ] Create Kustomize structure generator
@@ -530,5 +530,44 @@ Raw manifests validated → Check outputFormat →
 
 **Next Steps**:
 - Phase 3: Implement Kustomize packaging (structure already prepared in packaging.ts)
-- Add helm lint validation (nice to have)
+- ~~Add helm lint validation (nice to have)~~ ✅ Done
 - Update documentation
+
+### 2025-12-10: Phase 2 Enhancements - Helm Lint & JSON Parsing Fix
+
+**Completed PRD Items**:
+- [x] Add helm lint validation (nice to have)
+
+**Implementation Details**:
+
+1. **Helm Lint Validation** (`src/tools/generate-manifests.ts:131-180`):
+   - Added `helmLint()` function that runs `helm lint` on chart directory
+   - Integrated into `packageAndValidate()` after writing files, before `helm template`
+   - Lint failures trigger AI retry loop with error context
+   - Warnings are logged but don't fail validation
+   - Catches structural issues like hyphenated keys in label references
+
+2. **Bug Fix - JSON Parsing Regex** (`src/core/packaging.ts:204`):
+   - **Problem**: AI-generated README files with nested code blocks (e.g., `bash` examples) caused JSON parsing failures
+   - **Root Cause**: Lazy regex `*?` matched first closing ``` inside README content instead of actual JSON end
+   - **Fix**: Changed to greedy `*` with `$` anchor: `/```(?:json)?\s*([\s\S]*)```\s*$/`
+   - **Impact**: Reduced packaging retries from ~17 attempts to 1-2 attempts
+   - **Performance**: Helm packaging test improved from 303s to 79s (3.8x faster)
+
+**Validation Flow**:
+```
+Raw manifests validated → Check outputFormat →
+  If 'helm': AI packaging → writePackageFiles → helm lint → helm template → kubectl dry-run
+```
+
+**Test Results** (after fixes):
+```
+✓ should return no_charts_found when chart does not exist on ArtifactHub (4635ms)
+✓ should generate Helm chart structure when outputFormat is helm (79411ms)  ← Was 303141ms
+✓ should complete Helm workflow: discovery → choose solution → question generation (95597ms)
+✓ should complete full workflow: clarification → solutions → choose → answer → generate → deploy (118768ms)
+4 passed - Duration: 119.32s (was 303.69s)
+```
+
+**Next Steps**:
+- Phase 3: Implement Kustomize packaging

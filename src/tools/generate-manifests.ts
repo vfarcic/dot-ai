@@ -131,6 +131,61 @@ function validateYamlSyntax(yamlContent: string): { valid: boolean; error?: stri
 
 
 /**
+ * Run helm lint on a chart directory
+ */
+async function helmLint(
+  chartDir: string,
+  logger: Logger
+): Promise<{ valid: boolean; errors: string[]; warnings: string[] }> {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execAsync = promisify(exec);
+
+  try {
+    const command = `helm lint "${chartDir}"`;
+    logger.debug('Running helm lint', { chartDir, command });
+
+    const { stdout, stderr } = await execAsync(command);
+
+    // Parse helm lint output for warnings
+    const warnings: string[] = [];
+    const lines = (stdout + stderr).split('\n');
+    for (const line of lines) {
+      if (line.includes('[WARNING]')) {
+        warnings.push(line.trim());
+      }
+    }
+
+    logger.debug('helm lint passed', { warnings: warnings.length });
+    return { valid: true, errors: [], warnings };
+
+  } catch (error) {
+    // helm lint exits with non-zero on errors
+    const errorOutput = error instanceof Error ? (error as any).stderr || error.message : String(error);
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Parse output for errors and warnings
+    const lines = errorOutput.split('\n');
+    for (const line of lines) {
+      if (line.includes('[ERROR]')) {
+        errors.push(line.trim());
+      } else if (line.includes('[WARNING]')) {
+        warnings.push(line.trim());
+      }
+    }
+
+    // If no specific errors found, use the full output
+    if (errors.length === 0) {
+      errors.push(errorOutput.trim());
+    }
+
+    logger.warn('helm lint failed', { errors, warnings });
+    return { valid: false, errors, warnings };
+  }
+}
+
+/**
  * Validate manifests using multi-layer approach
  */
 async function validateManifests(yamlPath: string): Promise<ValidationResult> {
@@ -593,6 +648,24 @@ async function packageAndValidate(
       }
       fs.mkdirSync(packageDir, { recursive: true });
       writePackageFiles(packagingResult.files, packageDir);
+
+      // Run helm lint for Helm charts (catches structural issues before rendering)
+      if (outputFormat === 'helm') {
+        const lintResult = await helmLint(packageDir, logger);
+        if (!lintResult.valid) {
+          packagingError = {
+            attempt,
+            previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+            validationError: `helm lint failed: ${lintResult.errors.join(', ')}`
+          };
+          logger.warn('helm lint failed', { attempt, errors: lintResult.errors });
+          continue;
+        }
+        // Log warnings but don't fail on them
+        if (lintResult.warnings.length > 0) {
+          logger.info('helm lint warnings', { warnings: lintResult.warnings });
+        }
+      }
 
       // Render to raw YAML
       const renderResult = await renderPackageToYaml(packageDir, outputFormat, logger);
