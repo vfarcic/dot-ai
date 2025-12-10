@@ -189,13 +189,116 @@ When `outputFormat: 'raw'` is selected:
 
 ---
 
+## Architecture Decisions
+
+### Decision 1: Raw Manifests Generated First (Always)
+
+**Decision**: Raw YAML manifests are always generated and validated first, regardless of output format. Helm/Kustomize packaging is a post-processing step applied to validated manifests.
+
+**Rationale**:
+- `kubectl dry-run` validation catches errors in generated YAML - this validation is critical for all formats
+- Helm/Kustomize don't generate new manifests; they package existing ones
+- AI generates Kubernetes resource content; packaging is a transformation layer
+- Allows same validation retry loop for all formats
+
+**Flow**:
+```
+User answers → AI generates raw YAML → kubectl dry-run validates → Retry if needed
+                                                                        ↓
+                                                              Valid raw manifests
+                                                                        ↓
+                                              ┌─────────────────────────┼─────────────────────────┐
+                                              ↓                         ↓                         ↓
+                                         raw: return as-is    helm: package as chart    kustomize: package as overlay
+```
+
+### Decision 2: AI-Driven Packaging (Not Deterministic Code)
+
+**Decision**: Use AI to convert raw manifests + user answers into Helm charts or Kustomize overlays, rather than deterministic code transformation.
+
+**Rationale**:
+- No programmatic way to map question/answer to manifest field (e.g., `replicas: 3` could match multiple places in YAML)
+- AI has semantic understanding - it generated both the questions and the manifests, so it knows the relationship
+- Deterministic approach would require explicit metadata mapping that doesn't exist in current architecture
+
+**Constraints for AI**:
+1. AI chooses which answers should become variables (not all should - e.g., `protocol: TCP` is static)
+2. AI may ONLY use provided user answers as variables - no inventing new variables
+3. AI receives: raw manifests, questions/answers, user intent, solution description
+
+### Decision 3: Single Prompt Template with Format Placeholder
+
+**Decision**: Use one prompt template for both Helm and Kustomize packaging, with placeholders for format-specific instructions.
+
+**Template Structure**:
+```markdown
+## User Intent
+{INTENT}
+
+## Solution Description
+{SOLUTION_DESCRIPTION}
+
+## Raw Manifests (Validated)
+{RAW_MANIFESTS}
+
+## User Configuration (Questions and Answers)
+{QUESTIONS_AND_ANSWERS}
+
+## Instructions
+Generate a {OUTPUT_FORMAT} package...
+{FORMAT_SPECIFIC_INSTRUCTIONS}
+```
+
+### Decision 4: New Response Structure (Files Array)
+
+**Decision**: Change `generateManifests` response from single `manifests` string to `files` array with `relativePath` and `content` for each file.
+
+**Rationale**:
+- Helm/Kustomize require multiple files (Chart.yaml, values.yaml, templates/, etc.)
+- MCP tools return JSON; client agent handles file writing
+- Unified structure works for all formats (raw is just single file)
+
+**New Structure**:
+```typescript
+{
+  success: true,
+  status: 'manifests_generated',
+  solutionId: 'sol-xxx',
+  outputFormat: 'helm',  // 'raw' | 'helm' | 'kustomize'
+  outputPath: './my-app',
+  files: [
+    { relativePath: 'Chart.yaml', content: '...' },
+    { relativePath: 'values.yaml', content: '...' },
+    { relativePath: 'templates/deployment.yaml', content: '...' }
+  ],
+  validationAttempts: 1,
+  timestamp: '...'
+}
+```
+
+**No Backward Compatibility Needed**: `deployManifests` stage reads from session storage and disk, not from `generateManifests` response.
+
+### Decision 5: Validation Strategy Per Format
+
+| Format | Validation Method |
+|--------|-------------------|
+| Raw YAML | `kubectl apply --dry-run=server` (current) |
+| Helm Chart | `helm template ./chart \| kubectl apply --dry-run=server -f -` |
+| Kustomize | `kustomize build ./dir \| kubectl apply --dry-run=server -f -` |
+
+All formats ultimately validate rendered YAML through kubectl dry-run.
+
+---
+
 ## Implementation Phases
 
 ### Phase 1: Question Integration
 - [x] Add `outputFormat` to required questions schema
 - [x] Add `outputPath` question (text input)
-- [ ] Update recommend workflow to collect these answers
-- [ ] Pass format selection to manifest generation stage
+- [x] Update recommend workflow to collect these answers
+- [x] Pass format selection to manifest generation stage
+- [x] Update `generateManifests` response to use `files` array structure
+- [x] Add `agentInstructions` for client agent file writing guidance
 
 ### Phase 2: Helm Chart Generation
 - [ ] Create Helm chart structure generator
@@ -242,16 +345,16 @@ When `outputFormat: 'raw'` is selected:
 
 ## Open Questions
 
-1. **Default Format**: Should `raw` remain the default, or should we encourage Helm/Kustomize?
+1. ~~**Default Format**: Should `raw` remain the default, or should we encourage Helm/Kustomize?~~ **RESOLVED**: `raw` remains default for backward compatibility
 2. **Chart Naming**: How to derive chart name - from solution name, user input, or app name answer?
 3. **Kustomize Overlay Examples**: Should we generate example overlay directories (dev/staging/prod)?
-4. **Save Behavior**: Should saving be automatic or require explicit user confirmation?
+4. ~~**Save Behavior**: Should saving be automatic or require explicit user confirmation?~~ **RESOLVED**: MCP returns files array; client agent handles file writing based on `outputPath`
 
 ---
 
 ## Milestones
 
-- [ ] **M1**: Required questions for format and path integrated into workflow
+- [x] **M1**: Required questions for format and path integrated into workflow
 - [ ] **M2**: Helm chart generation working with values.yaml from answers
 - [ ] **M3**: Kustomize generation working with patches from answers
 - [ ] **M4**: All three formats tested and documented
@@ -292,3 +395,80 @@ When `outputFormat: 'raw'` is selected:
 - Implement routing in `generate-manifests` based on `outputFormat` answer
 - Implement Helm chart structure generation (Phase 2)
 - Implement Kustomize structure generation (Phase 3)
+
+### 2025-12-10: Architecture Decisions Finalized
+
+**Key Design Decisions Made**:
+
+1. **Raw manifests always generated first**: Helm/Kustomize packaging is post-processing on validated YAML
+   - Enables consistent validation via `kubectl dry-run` for all formats
+   - Packaging is a transformation layer, not a generation step
+
+2. **AI-driven packaging**: Cannot programmatically map question/answer to manifest fields
+   - AI has semantic understanding of what it generated
+   - AI decides which answers should become variables (not all should)
+   - AI constrained to ONLY use provided user answers as variables
+
+3. **Single prompt template**: One prompt for both Helm/Kustomize with format placeholder
+   - Reduces duplication
+   - Includes intent and solution description for context
+
+4. **New response structure**: `files` array replaces `manifests` string
+   - `files: [{ relativePath, content }, ...]` works for all formats
+   - No backward compatibility needed (`deployManifests` reads from session/disk)
+   - Client agent handles file writing based on response
+
+5. **Incremental implementation strategy**:
+   - Step 1: Update raw manifest generation to new `files` array structure
+   - Step 2: Run all integration tests to validate
+   - Step 3: Add Helm/Kustomize packaging on stable foundation
+
+**Implementation Approach**:
+- Update `generate-manifests.ts` response structure first (raw format)
+- Validate with existing tests before adding packaging complexity
+- Create `prompts/packaging-generation.md` for AI packaging prompt
+
+### 2025-12-10: Phase 1 Step 1 - New Response Structure Implemented
+
+**Completed Items**:
+- [x] Updated `generateManifests` response structure to use `files` array
+- [x] Added `outputFormat` and `outputPath` fields extracted from user answers
+- [x] Added `agentInstructions` field to guide client agent on file writing
+- [x] Updated integration tests to validate new structure
+- [x] All integration tests passing
+
+**Response Structure Change** (`src/tools/generate-manifests.ts:677-694`):
+
+Old structure:
+```typescript
+{
+  manifests: string,      // Single YAML string
+  yamlPath: string        // Informational path
+}
+```
+
+New structure:
+```typescript
+{
+  outputFormat: 'raw',    // From user answer (default: 'raw')
+  outputPath: './manifests',  // From user answer (default: './manifests')
+  files: [
+    { relativePath: 'manifests.yaml', content: '<yaml>' }
+  ],
+  agentInstructions: 'Write the files to "./manifests". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".'
+}
+```
+
+**Key Design Points**:
+- `yamlPath` removed from response (was purely informational, `deployManifests` constructs path from `solutionId`)
+- Internal tmp file still written for `deployManifests` compatibility
+- `files` array ready for multi-file output (Helm charts, Kustomize overlays)
+- `agentInstructions` tells client to write files to user's chosen location
+
+**Prompt Improvements** (unrelated but fixed during testing):
+- `prompts/intent-analysis.md`: Made `enhancementPotential` enum stricter with `<ENUM: HIGH | MEDIUM | LOW>`
+- `prompts/question-generation.md`: Added CRITICAL note that `suggestedAnswer` is required
+
+**Next Steps**:
+- Phase 2: Implement Helm chart packaging (detect `outputFormat: 'helm'`, call AI packaging prompt, return multi-file structure)
+- Phase 3: Implement Kustomize packaging

@@ -674,14 +674,22 @@ export async function handleGenerateManifestsTool(
             // Check if we should show feedback message (workflow completion point)
             const feedbackMessage = maybeGetFeedbackMessage();
 
+            // Extract packaging options from user answers (with defaults)
+            const outputFormat = solution.answers?.outputFormat || 'raw';
+            const outputPath = solution.answers?.outputPath || './manifests';
+
             const response = {
               success: true,
               status: 'manifests_generated',
               solutionId: args.solutionId,
-              manifests: manifests,
-              yamlPath: yamlPath,
+              outputFormat,
+              outputPath,
+              files: [
+                { relativePath: 'manifests.yaml', content: manifests }
+              ],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
+              agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
               ...(feedbackMessage ? { message: feedbackMessage } : {})
             };
 

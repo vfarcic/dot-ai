@@ -84,7 +84,7 @@ Respond with ONLY a JSON object in this exact format:
     }
   ],
   "overallAssessment": {
-    "enhancementPotential": "HIGH|MEDIUM|LOW",
+    "enhancementPotential": "<ENUM: HIGH | MEDIUM | LOW>",
     "primaryGaps": ["Most important missing context area 1", "Most important missing context area 2"],
     "recommendedFocus": "The single most valuable clarification opportunity"
   },

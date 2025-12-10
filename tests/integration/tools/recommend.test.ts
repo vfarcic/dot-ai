@@ -309,10 +309,17 @@ describe.concurrent('Recommend Tool Integration', () => {
             success: true,
             status: 'manifests_generated',
             solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
-            manifests: expect.stringContaining('apiVersion:'), // Should contain YAML
-            yamlPath: expect.stringContaining('.yaml'),
+            outputFormat: 'raw',
+            outputPath: './manifests',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'manifests.yaml',
+                content: expect.stringContaining('apiVersion:')
+              })
+            ]),
             validationAttempts: expect.any(Number),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Write the files to')
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -327,7 +334,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
       // Verify manifests contain valid Kubernetes YAML structure (generic validation)
-      const manifests = generateResponse.data.result.manifests;
+      const manifests = generateResponse.data.result.files[0].content;
       expect(manifests).toContain('apiVersion:');
       expect(manifests).toContain('kind:');
       expect(manifests).toContain('metadata:');
