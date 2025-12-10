@@ -217,5 +217,4 @@ Once your Docker setup is complete, see the [Next Steps section](../mcp-setup.md
 
 - [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
 - [NPX Setup](npx-setup.md) - Alternative setup without Docker
-- [Development Setup](development-setup.md) - For toolkit development
 - [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools

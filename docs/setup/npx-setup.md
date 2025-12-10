@@ -197,5 +197,4 @@ Once your NPX setup is complete, see the [Next Steps section](../mcp-setup.md#ne
 
 - [MCP Setup Guide](../mcp-setup.md) - Method comparison and feature overview
 - [Docker Setup](docker-setup.md) - Complete setup with bundled Qdrant
-- [Development Setup](development-setup.md) - For toolkit development
 - [Tools and Features Overview](../mcp-tools-overview.md) - Complete guide to all available tools

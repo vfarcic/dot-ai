@@ -34,7 +34,6 @@ Choose the method that best fits your environment and workflow:
 | **[Kubernetes](setup/kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication | Requires K8s cluster + Helm | Teams wanting direct resource management |
 | **[ToolHive](setup/kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
 | **[NPX](setup/npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
-| **[Development](setup/development-setup.md)** | Fast iteration, easy debugging | Requires source build + manual Qdrant setup | Contributors, toolkit development |
 
 ### Infrastructure Dependencies
 
@@ -55,8 +54,6 @@ Choose the method that best fits your environment and workflow:
 **🔧 Operator-managed deployment** → [ToolHive Setup](setup/kubernetes-toolhive-setup.md) - Simplified management, built-in security
 
 **🔧 Don't like Docker?** → [NPX Setup](setup/npx-setup.md) - Uses Node.js, requires manual Qdrant setup
-
-**🛠️ Development work** → [Development Setup](setup/development-setup.md) - Source code access and fast iteration
 
 ## Configuration Overview
 
@@ -323,7 +320,6 @@ Each setup method provides an MCP configuration that works with any compatible c
 - **Production**: [Kubernetes Setup](setup/kubernetes-setup.md) - Standard resources, full control, HTTP transport
 - **Operator-managed**: [ToolHive Setup](setup/kubernetes-toolhive-setup.md) - Simplified deployment with built-in security
 - **Alternative**: [NPX Setup](setup/npx-setup.md) - If you prefer Node.js over Docker  
-- **Development**: [Development Setup](setup/development-setup.md) - For contributing to the toolkit
 
 ### 2. Follow Setup Instructions
 
