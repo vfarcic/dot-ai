@@ -351,7 +351,7 @@ Test that everything is working:
 
 ### 4. Explore Available Features
 
-Once setup is complete, see [Key Features](../README.md#key-features) for detailed information about available capabilities and usage examples.
+Once setup is complete, see [Tools Overview](mcp-tools-overview.md) for detailed information about available capabilities and usage examples.
 
 ## Troubleshooting
 
