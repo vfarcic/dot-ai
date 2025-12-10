@@ -21,8 +21,16 @@ Integration tests take several minutes to complete. When running via Claude Code
 # Run all integration tests
 npm run test:integration
 
-# Run specific test file (filter by filename pattern)
-npm run test:integration build-platform
+# Filter by FILENAME pattern (matches against file paths)
+npm run test:integration recommend          # Runs recommend.test.ts
+npm run test:integration build-platform     # Runs build-platform.test.ts
+
+# Filter by TEST NAME pattern (matches against test/describe names)
+npm run test:integration -- -t "Kustomize"           # Runs tests with "Kustomize" in name
+npm run test:integration -- -t "should generate"     # Runs tests matching pattern
+
+# Combine both filters
+npm run test:integration recommend -- -t "Helm"      # recommend.test.ts tests with "Helm" in name
 
 # Run with debug metrics enabled
 DEBUG_DOT_AI=true npm run test:integration build-platform
@@ -34,6 +42,15 @@ npm run test:integration:gpt       # GPT via Vercel AI SDK
 # Run specific test files with model selection
 npm run test:integration:sonnet tests/integration/tools/manage-org-data-capabilities.test.ts
 npm run test:integration:gpt tests/integration/tools/remediate.test.ts
+```
+
+**⚠️ COMMON MISTAKE:**
+```bash
+# ❌ WRONG - This does NOT filter by test name (the flag is ignored without --)
+npm run test:integration --testNamePattern="Kustomize"
+
+# ✅ CORRECT - Use -- to pass flags to vitest, then -t for test name
+npm run test:integration -- -t "Kustomize"
 ```
 
 **❌ TEST IS NOT ACCEPTABLE IF:**

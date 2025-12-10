@@ -99,22 +99,30 @@ const HELM_FORMAT_EXAMPLE = `
 const KUSTOMIZE_FORMAT_INSTRUCTIONS = `
 ### Kustomize Structure
 
-Generate the following files:
+Generate a production-ready Kustomize structure with base/ directory:
 
-1. **kustomization.yaml** - Main kustomization file
+1. **base/kustomization.yaml** - Base kustomization file
    - \`apiVersion: kustomize.config.k8s.io/v1beta1\`
    - \`kind: Kustomization\`
-   - List resources in \`resources:\` section
-   - Use \`patches:\` for value customizations from user answers
-   - Use \`configMapGenerator:\` for configuration data if applicable
+   - List all resource files in \`resources:\` section (e.g., \`- deployment.yaml\`)
+   - Do NOT include patches here - base should be clean defaults
 
 2. **base/*.yaml** - Base Kubernetes manifests
-   - One file per resource type
-   - Use default/placeholder values that will be patched
+   - One file per Kubernetes resource (deployment.yaml, service.yaml, etc.)
+   - Include complete, valid manifests with sensible default values
+   - Resource names should be consistent across all files
 
-3. **kustomization.yaml patches** - Customize values from user answers
-   - Use JSON patch format or strategic merge patches
-   - Target specific resources by kind and name
+3. **kustomization.yaml** (root) - Default overlay with user customizations
+   - \`apiVersion: kustomize.config.k8s.io/v1beta1\`
+   - \`kind: Kustomization\`
+   - Reference base: \`resources: [base]\`
+   - Use \`namespace:\` field if namespace was specified in answers
+   - Use \`patches:\` section for customizations based on user answers
+   - Use JSON patch format: \`op: replace\`, \`path: /spec/...\`, \`value: ...\`
+
+**Structure enables easy extension**:
+- Users can add \`overlays/dev/\`, \`overlays/prod/\` directories later
+- Each overlay references \`../../base\` and applies environment-specific patches
 `;
 
 /**
@@ -128,11 +136,19 @@ const KUSTOMIZE_FORMAT_EXAMPLE = `
   "files": [
     {
       "relativePath": "kustomization.yaml",
-      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\n\\nresources:\\n  - base/deployment.yaml\\n  - base/service.yaml\\n\\npatches:\\n  - patch: |-\\n      - op: replace\\n        path: /spec/replicas\\n        value: 3\\n    target:\\n      kind: Deployment\\n      name: my-app"
+      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\n\\nnamespace: production\\n\\nresources:\\n  - base\\n\\npatches:\\n  - patch: |-\\n      - op: replace\\n        path: /spec/replicas\\n        value: 3\\n    target:\\n      kind: Deployment\\n      name: my-app"
+    },
+    {
+      "relativePath": "base/kustomization.yaml",
+      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\n\\nresources:\\n  - deployment.yaml\\n  - service.yaml"
     },
     {
       "relativePath": "base/deployment.yaml",
-      "content": "apiVersion: apps/v1\\nkind: Deployment\\nmetadata:\\n  name: my-app\\nspec:\\n  replicas: 1\\n  ..."
+      "content": "apiVersion: apps/v1\\nkind: Deployment\\nmetadata:\\n  name: my-app\\nspec:\\n  replicas: 1\\n  selector:\\n    matchLabels:\\n      app: my-app\\n  template:\\n    metadata:\\n      labels:\\n        app: my-app\\n    spec:\\n      containers:\\n        - name: my-app\\n          image: nginx:1.21\\n          ports:\\n            - containerPort: 80"
+    },
+    {
+      "relativePath": "base/service.yaml",
+      "content": "apiVersion: v1\\nkind: Service\\nmetadata:\\n  name: my-app\\nspec:\\n  selector:\\n    app: my-app\\n  ports:\\n    - port: 80\\n      targetPort: 80"
     }
   ]
 }

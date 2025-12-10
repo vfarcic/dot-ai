@@ -308,14 +308,14 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 - [x] Add helm lint validation (nice to have)
 
 ### Phase 3: Kustomize Generation
-- [ ] Create Kustomize structure generator
-- [ ] Implement base manifest generation
-- [ ] Generate kustomization.yaml with patches from user answers
-- [ ] Add kustomize build validation (nice to have)
+- [x] Create Kustomize structure generator
+- [x] Implement base manifest generation
+- [x] Generate kustomization.yaml with patches from user answers
+- [x] Add kustomize build validation (nice to have)
 
 ### Phase 4: Integration & Testing
 - [x] Integration tests for Helm output format
-- [ ] Integration tests for Kustomize output format
+- [x] Integration tests for Kustomize output format
 - [ ] Test with various solution types (simple deployments, stateful apps, etc.)
 - [ ] Ensure raw YAML maintains exact current behavior
 - [ ] Update documentation
@@ -357,7 +357,7 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 
 - [x] **M1**: Required questions for format and path integrated into workflow
 - [x] **M2**: Helm chart generation working with values.yaml from answers
-- [ ] **M3**: Kustomize generation working with patches from answers
+- [x] **M3**: Kustomize generation working with patches from answers
 - [ ] **M4**: All three formats tested and documented
 - [ ] **M5**: PRD #202 unblocked and can proceed with GitOps integration
 
@@ -570,4 +570,67 @@ Raw manifests validated → Check outputFormat →
 ```
 
 **Next Steps**:
-- Phase 3: Implement Kustomize packaging
+- ~~Phase 3: Implement Kustomize packaging~~ ✅ Done
+
+### 2025-12-10: Phase 3 - Kustomize Generation Complete
+
+**Completed PRD Items**:
+- [x] Create Kustomize structure generator
+- [x] Implement base manifest generation
+- [x] Generate kustomization.yaml with patches from user answers
+- [x] Add kustomize build validation (via kubectl kustomize)
+- [x] Integration tests for Kustomize output format
+- [x] **M3**: Kustomize generation working with patches from answers
+
+**Implementation Details**:
+
+1. **Kustomize Format Instructions** (`src/core/packaging.ts`):
+   - Production-ready structure with `base/` directory for environment extensibility
+   - `base/kustomization.yaml` - Lists all base resource files
+   - `base/*.yaml` - Base Kubernetes manifests (deployment.yaml, service.yaml, etc.)
+   - Root `kustomization.yaml` - Default overlay referencing base with user customizations
+   - JSON patch format for customizations based on user answers
+
+2. **Validation via kubectl** (`src/tools/generate-manifests.ts:576`):
+   - Changed from `kustomize build` to `kubectl kustomize` (kubectl has kustomize built-in)
+   - Docker image only had kubectl and helm binaries, not standalone kustomize
+   - Same validation flow: render to YAML → kubectl dry-run validation
+
+3. **Terminal Error Fast-Fail** (`src/tools/generate-manifests.ts`):
+   - Added `isTerminalError` flag to `renderPackageToYaml()` return type
+   - Detects infrastructure errors (e.g., "command not found", "ENOENT")
+   - `packageAndValidate()` throws immediately on terminal errors instead of retrying
+   - Prevents 100+ retry iterations on unrecoverable errors
+
+4. **Integration Test** (`tests/integration/tools/recommend.test.ts`):
+   - Added "Kustomize Packaging (outputFormat: kustomize)" test suite
+   - Validates production structure: root kustomization.yaml, base/kustomization.yaml, base resources
+   - Verifies base resources have proper Kind (Deployment, Service)
+   - Test passes in ~134 seconds
+
+**Kustomize Structure Generated**:
+```
+<outputPath>/
+├── kustomization.yaml       # Root overlay with namespace & patches
+├── base/
+│   ├── kustomization.yaml   # Lists resources
+│   ├── deployment.yaml      # Base deployment manifest
+│   └── service.yaml         # Base service manifest
+```
+
+**Test Results**:
+```
+✓ should return no_charts_found when chart does not exist on ArtifactHub (4549ms)
+✓ should generate Helm chart structure when outputFormat is helm (73746ms)
+✓ should complete Helm workflow: discovery → choose solution → question generation (81946ms)
+✓ should complete full workflow: clarification → solutions → choose → answer → generate → deploy (80773ms)
+✓ should generate Kustomize structure when outputFormat is kustomize (86044ms)
+5 passed - Duration: 134.25s
+```
+
+**Additional Fixes**:
+- Updated `tests/integration/CLAUDE.md` with correct test filtering syntax (`-- -t` instead of `--testNamePattern`)
+- Fixed `tests/integration/infrastructure/teardown-cluster.sh` to handle malformed user kubeconfig
+
+**Next Steps**:
+- Phase 4 remaining: Test with various solution types, ensure raw YAML maintains current behavior, update documentation

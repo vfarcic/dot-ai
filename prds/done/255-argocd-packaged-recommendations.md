@@ -1,9 +1,10 @@
 # PRD: Argo CD Integration for Packaged Recommendations
 
 **Issue**: [#255](https://github.com/vfarcic/dot-ai/issues/255)
-**Status**: Draft
+**Status**: Superseded
 **Priority**: High
 **Created**: 2025-12-06
+**Closed**: 2025-12-10
 
 ---
 
@@ -316,3 +317,20 @@ interface ArgoApplicationConfig {
 |------|--------|
 | 2025-12-06 | PRD created as part of GitOps integration restructuring |
 | 2025-12-06 | Scoped to packaged output only; third-party Helm in #254 |
+| 2025-12-10 | PRD superseded by new GitOps architecture |
+
+---
+
+## Closure Summary
+
+**Status**: Superseded
+**Closed**: 2025-12-10
+**Reason**: Architectural restructuring
+
+This PRD has been superseded by a new GitOps architecture that provides better separation of concerns:
+
+- **#264** (GitOps Tool with Argo CD Support): Standalone `gitops` tool with shared infrastructure and pluggable provider architecture
+- **#265** (Flux Support for GitOps Tool): Adds Flux as a provider
+- **#266** (GitOps Integration in Recommend Workflow): Integrates gitops into recommend workflow
+
+The functionality originally planned in this PRD (Argo CD integration for packaged recommendations) is now covered by #266, which adds an optional `deployViaGitOps` stage to the recommend workflow that delegates to the gitops tool's generator infrastructure.

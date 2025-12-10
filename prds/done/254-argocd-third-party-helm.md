@@ -1,9 +1,10 @@
 # PRD: Argo CD Integration for Third-Party Helm Charts
 
 **Issue**: [#254](https://github.com/vfarcic/dot-ai/issues/254)
-**Status**: Draft
+**Status**: Superseded
 **Priority**: High
 **Created**: 2025-12-06
+**Closed**: 2025-12-10
 
 ---
 
@@ -289,3 +290,25 @@ This PRD is part of a larger GitOps integration effort:
 |------|--------|
 | 2025-12-06 | PRD created as part of GitOps integration planning |
 | 2025-12-06 | Scoped to third-party Helm charts only; other combinations tracked separately |
+| 2025-12-10 | PRD superseded by new GitOps architecture |
+
+---
+
+## Closure Summary
+
+**Status**: Superseded
+**Closed**: 2025-12-10
+**Reason**: Architectural restructuring
+
+This PRD has been superseded by a new GitOps architecture that provides better separation of concerns:
+
+- **#264** (GitOps Tool with Argo CD Support): Standalone `gitops` tool with shared infrastructure and pluggable provider architecture
+- **#265** (Flux Support for GitOps Tool): Adds Flux as a provider
+- **#266** (GitOps Integration in Recommend Workflow): Integrates gitops into recommend workflow
+
+The new architecture:
+1. Creates a standalone `gitops` tool that works with any existing packages
+2. Provides smart package detection (Helm, Kustomize, raw manifests)
+3. Uses a pluggable provider interface for extensibility
+4. Enables code reuse between Argo CD and Flux providers
+5. Supports both standalone usage and integration with recommend workflow

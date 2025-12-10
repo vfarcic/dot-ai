@@ -1015,4 +1015,172 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(hasHelmSyntax).toBe(true);
     }, 900000); // 15 minutes for full workflow with AI packaging
   });
+
+  describe('Kustomize Packaging (outputFormat: kustomize)', () => {
+    test('should generate Kustomize structure when outputFormat is kustomize', async () => {
+      // PHASE 1: Get solutions for a capability-based deployment
+      const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx web server',
+        final: true,
+        interaction_id: 'kustomize_packaging_solutions'
+      });
+
+      expect(solutionsResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            solutions: expect.any(Array)
+          }
+        }
+      });
+
+      // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
+      const solutions = solutionsResponse.data.result.solutions;
+      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      expect(capabilitySolution).toBeDefined();
+
+      const solutionId = capabilitySolution.solutionId;
+
+      // PHASE 2: Choose solution
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
+        solutionId,
+        interaction_id: 'kustomize_packaging_choose'
+      });
+
+      expect(chooseResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'required',
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      // PHASE 3: Answer required questions with outputFormat: 'kustomize'
+      const requiredQuestions = chooseResponse.data.result.questions;
+      const requiredAnswers: Record<string, any> = {};
+
+      requiredQuestions.forEach((q: any) => {
+        if (q.id === 'outputFormat') {
+          requiredAnswers[q.id] = 'kustomize'; // Select Kustomize packaging
+        } else if (q.id === 'outputPath') {
+          requiredAnswers[q.id] = './my-nginx-kustomize';
+        } else {
+          requiredAnswers[q.id] = q.suggestedAnswer;
+        }
+      });
+
+      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required',
+        solutionId,
+        answers: requiredAnswers,
+        interaction_id: 'kustomize_packaging_required'
+      });
+
+      expect(answerRequiredResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'basic'
+          }
+        }
+      });
+
+      // PHASE 4-6: Skip through remaining stages
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic',
+        solutionId,
+        answers: {},
+        interaction_id: 'kustomize_packaging_basic'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced',
+        solutionId,
+        answers: {},
+        interaction_id: 'kustomize_packaging_advanced'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:open',
+        solutionId,
+        answers: { open: 'N/A' },
+        interaction_id: 'kustomize_packaging_open'
+      });
+
+      // PHASE 7: Generate manifests with Kustomize packaging
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
+        solutionId,
+        interaction_id: 'kustomize_packaging_generate'
+      });
+
+      // Validate Kustomize structure in response
+      const expectedGenerateResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            status: 'manifests_generated',
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            outputFormat: 'kustomize',
+            outputPath: './my-nginx-kustomize',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'kustomization.yaml',
+                content: expect.stringContaining('apiVersion: kustomize.config.k8s.io/v1beta1')
+              }),
+              expect.objectContaining({
+                relativePath: 'base/kustomization.yaml',
+                content: expect.stringContaining('resources:')
+              })
+            ]),
+            validationAttempts: expect.any(Number),
+            packagingAttempts: expect.any(Number),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Kustomize overlay')
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+
+      // Validate Kustomize file structure
+      const files = generateResponse.data.result.files;
+      const rootKustomization = files.find((f: any) => f.relativePath === 'kustomization.yaml');
+      const baseKustomization = files.find((f: any) => f.relativePath === 'base/kustomization.yaml');
+      const baseResources = files.filter((f: any) =>
+        f.relativePath.startsWith('base/') && f.relativePath !== 'base/kustomization.yaml'
+      );
+
+      // Root kustomization.yaml must exist and reference base
+      expect(rootKustomization).toBeDefined();
+      expect(rootKustomization.content).toContain('kind: Kustomization');
+      expect(rootKustomization.content).toMatch(/resources:[\s\S]*base/);
+
+      // base/kustomization.yaml must exist
+      expect(baseKustomization).toBeDefined();
+      expect(baseKustomization.content).toContain('kind: Kustomization');
+
+      // At least one base resource file must exist
+      expect(baseResources.length).toBeGreaterThan(0);
+
+      // Base resources should be valid Kubernetes manifests
+      const hasK8sResources = baseResources.some((f: any) =>
+        f.content.includes('apiVersion:') && f.content.includes('kind:')
+      );
+      expect(hasK8sResources).toBe(true);
+    }, 900000); // 15 minutes for full workflow with AI packaging
+  });
 });

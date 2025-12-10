@@ -565,7 +565,7 @@ async function renderPackageToYaml(
   packageDir: string,
   format: OutputFormat,
   logger: Logger
-): Promise<{ success: boolean; yaml?: string; error?: string }> {
+): Promise<{ success: boolean; yaml?: string; error?: string; isTerminalError?: boolean }> {
   const { exec } = await import('child_process');
   const { promisify } = await import('util');
   const execAsync = promisify(exec);
@@ -573,7 +573,7 @@ async function renderPackageToYaml(
   try {
     const command = format === 'helm'
       ? `helm template test-release "${packageDir}"`
-      : `kustomize build "${packageDir}"`;
+      : `kubectl kustomize "${packageDir}"`;
 
     logger.debug('Rendering package to YAML', { format, command });
     const { stdout, stderr } = await execAsync(command);
@@ -585,7 +585,25 @@ async function renderPackageToYaml(
     return { success: true, yaml: stdout };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { success: false, error: errorMessage };
+
+    // Check for terminal infrastructure errors that won't be fixed by AI retrying
+    const terminalErrorPatterns = [
+      'not found',           // command not found
+      'command not found',   // explicit command not found
+      'ENOENT',              // file/command doesn't exist
+      'permission denied',   // permission issues
+      'EACCES',              // access denied
+    ];
+
+    const isTerminalError = terminalErrorPatterns.some(pattern =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
+
+    return {
+      success: false,
+      error: errorMessage,
+      isTerminalError  // Signal to caller to not retry
+    };
   }
 }
 
@@ -670,6 +688,15 @@ async function packageAndValidate(
       // Render to raw YAML
       const renderResult = await renderPackageToYaml(packageDir, outputFormat, logger);
       if (!renderResult.success) {
+        // Check for terminal infrastructure errors - fail fast, don't retry
+        if (renderResult.isTerminalError) {
+          const terminalError = new Error(`Infrastructure error (not retryable): ${renderResult.error}`);
+          logger.error('Terminal infrastructure error - cannot retry', terminalError, {
+            format: outputFormat
+          });
+          throw terminalError;
+        }
+
         packagingError = {
           attempt,
           previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
