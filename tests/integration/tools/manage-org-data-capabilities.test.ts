@@ -253,12 +253,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'crud_resource_selection'
       });
 
+      // Use unique resource types not used by other concurrent tests to avoid race conditions
       const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
         sessionId,
         step: 'resource-specification',
-        resourceList: 'Service,ConfigMap',
+        resourceList: 'LimitRange,ResourceQuota',
         interaction_id: 'crud_resource_spec'
       }, { timeout: 300000 }); // 5 minutes for scan completion
 
