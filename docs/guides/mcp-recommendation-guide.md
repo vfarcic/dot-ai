@@ -100,36 +100,38 @@ User: It's for production, needs external access, expects moderate traffic with 
 ```md
 Agent: Perfect! Based on your clarified requirements, let me get production-focused deployment recommendations.
 
-[Uses mcp__dot-ai__recommend with refined intent "deploy a production stateless Golang web application with external access, auto-scaling for traffic spikes, and PostgreSQL database connectivity" and final: true]
+[Uses mcp__dot-ai__recommend with refined intent "deploy stateless Golang web application for production with external access via ingress, moderate traffic with occasional spikes requiring autoscaling, connects to PostgreSQL database" and final: true]
 
-Based on your cluster capabilities, I found 3 deployment options:
+I found 5 deployment solutions for your Golang web application. All include:
+- Deployment - manages your stateless app with rolling updates
+- Service - internal load balancing and service discovery
+- Ingress - external HTTP/HTTPS access
+- HorizontalPodAutoscaler - handles traffic spikes
 
-1. **Complete Stateless Application Stack (Score: 85)** - RECOMMENDED
-   - Resources: Deployment, Service, HorizontalPodAutoscaler, NetworkPolicy
-   - Features: Pod lifecycle management, stable networking, automatic scaling, network security
-   - Uses organizational patterns: ✅ Stateless Apps Pattern, Network Security Pattern
-   - Best for: Production deployments requiring security and scaling
-   
-2. **Simple Application Deployment (Score: 72)**
-   - Resources: Deployment, Service
-   - Features: Basic pod management and networking
-   - Uses organizational patterns: ❌
-   - Best for: Development/testing or simple use cases
-   
-3. **Minimal Pod Deployment (Score: 58)**
-   - Resources: Deployment only
-   - Features: Basic container orchestration
-   - Uses organizational patterns: ❌
-   - Best for: Internal services that don't need external access
+The difference is how PostgreSQL is provisioned:
 
-Which approach interests you most?
+| #   | Solution                  | Database Approach                                  | Score |
+|-----|---------------------------|----------------------------------------------------|-------|
+| 1   | Multi-cloud (Recommended) | DevOps Toolkit SQL - portable across AWS/GCP/Azure | 96    |
+| 2   | Azure-native              | Azure Flexible Server + ResourceGroup              | 92    |
+| 3   | AWS-native                | RDS DBInstance                                     | 90    |
+| 4   | GCP-native                | Cloud SQL DatabaseInstance + Database              | 88    |
+| 5   | UpCloud                   | ManagedDatabasePostgreSQL                          | 85    |
+
+Organizational Context:
+- Solutions 1 & 2 follow your organization's patterns (DevOps Toolkit DB pattern, Azure ResourceGroup pattern)
+- Policy enforced: Applications must never use the latest image tag
+- Database regions are standardized (us-east-1 for AWS, us-east1 for GCP, eastus for Azure)
+
+Which solution would you like to proceed with? (1-5)
 ```
 
 **What happened behind the scenes:**
-- Capability search found relevant resources: Deployment (score: 0.85), Service (score: 0.78), HorizontalPodAutoscaler (score: 0.65)
-- Vector DB search found matching organizational patterns: Stateless Apps Pattern (score: 0.621), Network Security Pattern (score: 0.333) 
-- AI received pre-filtered capability-rich resources with semantic context instead of raw resource names
-- Generated 3 solution alternatives with different complexity/capability tradeoffs, scoring based on capability relevance and pattern influence
+- Capability search found relevant resources: Deployment, Service, Ingress, HorizontalPodAutoscaler, plus database operators (DevOps Toolkit SQL, Azure FlexibleServer, AWS RDS, GCP CloudSQL, UpCloud)
+- Vector DB search found matching organizational patterns: DevOps Toolkit DB pattern, Azure ResourceGroup pattern
+- AI understood the intent includes PostgreSQL connectivity, so it included database provisioning in all solutions
+- Generated 5 solution alternatives with different cloud provider options, scoring based on capability relevance and pattern alignment
+- Policy intents automatically enforced (e.g., no `latest` image tags, standardized regions)
 
 **Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
@@ -140,78 +142,113 @@ User: I'll go with option 1
 ```md
 Agent: Excellent choice! Let me get the configuration requirements.
 
-[Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId: 'sol_2025-08-01T151532_d0e8f0c19e0e']
+[Uses mcp__dot-ai__recommend with stage: 'chooseSolution', solutionId: 'sol-1765409923079-fa3f055c']
 
-I need some required details to configure your deployment:
+I need some required configuration details:
 
-**Required Configuration:**
-- What name should be used for the application resources? (e.g., "my-go-app")
-- Which namespace should the application be deployed to? (options: a-team, b-team, default, kube-public)
-- What is the container image for your Go application? (e.g., "registry.example.com/go-app:v1.0.0")
-- What port does your Go application listen on? (1-65535)
+**Application:**
+- Name - What should the app be called? (e.g., my-golang-app)
+- Namespace - Where to deploy? Options: a-team, b-team, default, dot-ai
+- Container image - Full image URI with version tag (e.g., myregistry.io/app:v1.0.0) - latest tag is not allowed per policy
+- Port - What port does your app listen on? (default: 8080)
+- Ingress hostname - Public DNS name (e.g., myapp.example.com)
 
-🛡️ **Policy Requirements:**
-- **CPU resource limit** ⚠️ required by Resource Limits Policy (minimum: 100m, maximum: 2000m)
-- **Memory resource limit** ⚠️ required by Resource Limits Policy (minimum: 128Mi, maximum: 4Gi)
+**Database:**
+- Cloud provider - aws, azure, or gcp?
+- Size - small, medium, or large?
+- PostgreSQL version - e.g., 15, 14.8
+
+**Output:**
+- Format - raw YAML, helm chart, or kustomize?
+- Output path - Where to save files? (e.g., ./manifests)
+
+You can answer all at once or just the ones you want to customize (I'll use sensible defaults for the rest).
 ```
 
 **What happened behind the scenes:**
 - recommend tool with stage 'chooseSolution' loaded the selected solution and returned only the required stage questions
-- Questions generated from resource schema analysis: Deployment needs name/image/port, Service needs port configuration
-- Policy search found relevant policy intents: "Resource Limits Policy" (score: 0.89)
-- Policy requirements promoted to REQUIRED questions with compliance indicators and constraints
+- Questions generated from resource schema analysis: Deployment needs name/image/port, Ingress needs hostname, database needs provider/size/version
+- Policy intents enforced: "latest" image tag not allowed (flagged in question)
+- New packaging questions added: `outputFormat` (raw/helm/kustomize) and `outputPath` for GitOps-ready output
 - System categorizes questions as required (must answer) to proceed
 
 ```md
-User: App name is "my-app", deploy to "a-team" namespace, image is "ghcr.io/vfarcic/silly-demo:v1.5.151", port 8080. CPU limit 500m, memory limit 512Mi.
+User: my-app, a-team namespace, ghcr.io/vfarcic/silly-demo:v1.5.223, port 8080, silly-demo.acme.com for ingress. AWS provider, small database, PostgreSQL 15. Output as Kustomize to ./manifests.
 ```
 
 ```md
 Agent: Perfect! Let me configure the required settings.
 
-[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:required', solutionId, answers: {name: "my-app", namespace: "a-team", container-image: "ghcr.io/vfarcic/silly-demo:v1.5.223", application-port: 8080, ingress-host: "silly-demo.acme.com", database-cloud-provider: "aws", database-size: "small", database-version: "15.0", outputFormat: "kustomize", outputPath: "./manifests"}]
 
-Great! Your configuration meets all policy requirements:
-✅ **Resource Limits Policy**: CPU (500m) and memory (512Mi) within acceptable ranges
+Required configuration saved. Now for basic settings (all optional - I can use defaults):
 
-Now for some basic configuration options:
+**Scaling:**
+- Initial replicas: 2
+- Min replicas (HPA): 2
+- Max replicas (HPA): 10
 
-**Basic Configuration (optional):**
-- How many replicas of the application should run? (default: 3)
-- What type of Service should be created? (ClusterIP, NodePort, LoadBalancer)
-- Enable horizontal pod autoscaling? (true/false)
+**Resources per pod:**
+- CPU: 250m request / 500m limit
+- Memory: 256Mi request / 512Mi limit
+
+**Networking:**
+- Ingress class: nginx
+- Enable TLS/HTTPS: yes
+
+**Database:**
+- Database name: appdb
+
+Would you like to customize any of these, or should I proceed with these defaults? (say "skip" to use defaults)
 ```
 
 **What happened behind the scenes:**
 - recommend tool with stage 'answerQuestion:required' processed required stage answers and updated solution file
-- Validated all required fields were provided (name, namespace, image, port)
-- Determined next stage is 'basic' and returned basic configuration questions
-- Questions are optional at this stage - user can answer or skip to advanced stage
+- Validated all required fields were provided (name, namespace, image, port, ingress host, database config)
+- Captured output format (Kustomize) and path (./manifests) for later manifest generation
+- Determined next stage is 'basic' and returned basic configuration questions with sensible defaults
+- Questions are optional at this stage - user can answer, customize specific values, or skip to use defaults
 
 ```md
-User: 3 replicas, ClusterIP service, and yes to autoscaling.
+User: 2 replicas, DB name: mydb
 ```
 
 ```md
-Agent: Excellent! Let me configure those settings.
+Agent: Basic settings saved. Now for advanced configuration (all optional):
 
-[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers]
+[Uses mcp__dot-ai__recommend with stage: 'answerQuestion:basic', solutionId, answers: {replicas: 2, hpa-min-replicas: 2, hpa-max-replicas: 10, cpu-request: "250m", cpu-limit: "500m", memory-request: "256Mi", memory-limit: "512Mi", ingress-class: "nginx", database-name: "mydb", enable-tls: true}]
 
-Would you like to configure advanced features?
+**Deployment Strategy:**
+- RollingUpdate with max surge 1, max unavailable 0 (zero-downtime)
 
-**Advanced Configuration (optional):**
-- Specify container resource limits (CPU and memory)? (true/false)
-- Maximum CPU cores per pod? (e.g., "500m")
-- Maximum memory per pod? (e.g., "512Mi")
-- Minimum number of replicas for autoscaling? (default: 2)
-- Maximum number of replicas for autoscaling? (default: 10)
-- Target CPU utilization percentage for autoscaling? (default: 80)
+**Health Probes:**
+- Readiness: /health, 10s initial delay, 10s period
+- Liveness: /health, 30s initial delay, 15s period
+
+**Autoscaling:**
+- Target CPU: 75%
+- Target memory: 75%
+
+**Resilience:**
+- PodDisruptionBudget: min 1 available
+- Termination grace period: 30s
+- Pod anti-affinity: spread across nodes
+
+**Security:**
+- Run as non-root: yes
+- Read-only filesystem: no
+- TLS secret name: app-tls-cert
+
+**Database:**
+- Backups enabled: yes
+
+Would you like to customize any of these, or say "skip" to use defaults?
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'answerQuestion:basic' processed basic stage answers (replicas: 3, serviceType: ClusterIP, autoscaling: true)
+- recommend tool with stage 'answerQuestion:basic' processed basic stage answers (replicas: 2, database-name: mydb, plus defaults)
 - Updated solution file and determined next stage is 'advanced'
-- Returned advanced configuration questions focused on resource limits and autoscaling tuning
+- Returned advanced configuration questions focused on deployment strategy, health probes, autoscaling, resilience, and security
 
 ```md
 User: Skip advanced configuration
@@ -222,15 +259,11 @@ Agent: No problem! Moving to the final configuration stage.
 
 [Uses mcp__dot-ai__recommend with stage: 'answerQuestion:advanced', solutionId, answers: {}]
 
-Any additional requirements or constraints?
-
-**Open Configuration:**
-- Are there any additional requirements or constraints for your Go application deployment that we should consider? (e.g., specific security requirements, networking constraints, performance needs...)
+Any additional requirements or constraints for your deployment?
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'answerQuestion:advanced' processed empty advanced stage answers (skipped all advanced questions)
-- Marked advanced questions as explicitly skipped (answer: null)
+- recommend tool with stage 'answerQuestion:advanced' processed empty advanced stage answers (using defaults for all)
 - Determined next stage is 'open' and returned the open-ended question
 
 ```md
@@ -247,7 +280,7 @@ Configuration complete. Ready to generate deployment manifests.
 
 **What happened behind the scenes:**
 - recommend tool with stage 'answerQuestion:open' processed open stage with "N/A" (no additional requirements)
-- All configuration stages now complete (required ✓, basic ✓, advanced skipped, open ✓)
+- All configuration stages now complete (required ✓, basic ✓, advanced defaults, open ✓)
 - Returned status: 'ready_for_manifest_generation', nextAction: 'generateManifests'
 
 ```md
@@ -255,131 +288,98 @@ User: Generate the manifests
 ```
 
 ```md
-Agent: Generating your Kubernetes manifests...
+Agent: Configuration complete. Generating your Kustomize manifests...
 
 [Uses mcp__dot-ai__recommend with stage: 'generateManifests', solutionId]
 
-Generated your complete deployment stack:
+Your Kustomize manifests are ready at ./manifests/:
 
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-app
-  namespace: a-team
-  labels:
-    dot-ai.io/managed: "true"
-    dot-ai.io/app-name: "my-app"
-    dot-ai.io/intent: "deploy-a-stateless-golang-web-application"
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: my-app
-  template:
-    spec:
-      containers:
-      - name: my-app
-        image: ghcr.io/vfarcic/silly-demo:v1.5.151
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-app
-  namespace: a-team
-spec:
-  type: ClusterIP
-  ports:
-  - port: 8080
-    targetPort: 8080
-  selector:
-    app: my-app
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: my-app
-  namespace: a-team
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: my-app
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 80
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: my-app
-  namespace: a-team
-spec:
-  podSelector:
-    matchLabels:
-      app: my-app
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - ports:
-    - port: 8080
-      protocol: TCP
-  egress:
-  - {}
+manifests/
+├── kustomization.yaml              # Points to overlays/production
+├── README.md
+├── overlays/
+│   └── production/
+│       └── kustomization.yaml      # ← Edit this file to customize
+└── base/
+    ├── kustomization.yaml
+    ├── namespace.yaml
+    ├── deployment.yaml             # Image without tag (tag set in overlay)
+    ├── service.yaml
+    ├── ingress.yaml
+    ├── hpa.yaml
+    ├── pdb.yaml
+    ├── sql.yaml
+    └── secret.yaml
 
-Ready to deploy to your cluster?
+**What's included:**
+- **Deployment** - 2 replicas, rolling updates, pod anti-affinity, non-root security
+- **Service** - ClusterIP on port 80
+- **Ingress** - silly-demo.acme.com with TLS via cert-manager
+- **HPA** - scales 2-10 replicas based on CPU/memory (75% threshold)
+- **PDB** - ensures at least 1 pod available during disruptions
+- **SQL** - AWS PostgreSQL 15 (small) via DevOps Toolkit pattern
+- **Secret** - database credentials (placeholder - will be populated by Crossplane)
+
+**To customize:**
+Edit `overlays/production/kustomization.yaml`:
+- `image:` section to change image tag (for upgrades)
+- `patches:` for other customizations
+
+Deploy with:
+kubectl apply -k ./manifests
+
+Would you like me to deploy this to your cluster now?
 ```
 
 **What happened behind the scenes:**
 - recommend tool with stage 'generateManifests' loaded the fully configured solution file
-- AI generated YAML manifests using all collected configuration answers
-- Policy requirements enforced: Resource limits (CPU: 500m, memory: 512Mi) applied to containers
-- System performed up to 10 validation loops with `kubectl apply --dry-run=server --validate=true`
-- Each resource includes dot-ai.io/ labels for tracking and proper resource linking via labels/selectors
-- Organizational patterns influenced the final YAML (NetworkPolicy added for security, HPA configured for scaling)
-- Returned status: 'manifests_generated' with complete YAML content
+- AI generated Kustomize structure based on `outputFormat: kustomize` selection
+- Raw manifests generated first, validated via `kubectl kustomize | kubectl apply --dry-run=server`
+- AI packaged validated manifests into Kustomize structure:
+  - `base/` contains generic manifests (image without tag)
+  - `overlays/production/kustomization.yaml` sets image tag and customizations
+- Response includes `files` array with `relativePath` and `content` for each file
+- Agent writes files to user's chosen `outputPath` (./manifests)
+- Each resource includes dot-ai.io/ labels for tracking
+- README.md generated with deployment instructions and overlay examples
 
 ```md
 User: Yes, deploy it!
 ```
 
 ```md
-Agent: Deploying your Golang application...
+Agent: Deploying your application...
 
 [Uses mcp__dot-ai__recommend with stage: 'deployManifests', solutionId]
 
-🎉 **Deployment successful!**
+🎉 **Deployed successfully!** All resources were created:
 
-**Status:**
-- Deployment: my-app (3/3 pods running)
-- Service: my-app (ClusterIP created)
-- HorizontalPodAutoscaler: my-app (active, scaling 3-10 replicas)
-- NetworkPolicy: my-app (network security applied)
-- Internal access: my-app.a-team.svc.cluster.local:8080
+- namespace/a-team configured
+- deployment.apps/my-app created
+- service/my-app created
+- ingress.networking.k8s.io/my-app created
+- horizontalpodautoscaler.autoscaling/my-app created
+- poddisruptionbudget.policy/my-app created
+- sql.devopstoolkit.live/my-app-db created
+- secret/my-app-db-credentials created
 
-Your Golang web application is now live with autoscaling and network security!
+**Next steps:**
+1. Wait for the SQL resource to provision the AWS RDS PostgreSQL instance (may take 5-10 minutes)
+2. Once RDS is ready, Crossplane will populate the actual database credentials
+3. The app will become healthy once it can connect to the database
+4. Access your app at https://silly-demo.acme.com (ensure DNS points to your ingress controller)
+
+**Verify status:**
+kubectl get all -n a-team
+kubectl get sql -n a-team
+kubectl get ingress -n a-team
 ```
 
 **What happened behind the scenes:**
-- recommend tool with stage 'deployManifests' applied all manifests using `kubectl apply --wait`
-- Monitored deployment progress and pod startup
-- Verified HorizontalPodAutoscaler attached to deployment and NetworkPolicy applied to pods
-- Provided access information based on Service configuration (ClusterIP = internal access only)
+- recommend tool with stage 'deployManifests' applied Kustomize manifests using `kubectl apply -k`
+- Created all resources: Namespace, Deployment, Service, Ingress, HPA, PDB, SQL (database), Secret
+- SQL resource triggers Crossplane to provision AWS RDS PostgreSQL instance
+- Provided next steps and verification commands
 
 ### Example 2: Third-Party Application Installation (Helm)
 

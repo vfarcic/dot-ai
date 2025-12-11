@@ -1135,6 +1135,10 @@ describe.concurrent('Recommend Tool Integration', () => {
                 content: expect.stringContaining('apiVersion: kustomize.config.k8s.io/v1beta1')
               }),
               expect.objectContaining({
+                relativePath: 'overlays/production/kustomization.yaml',
+                content: expect.stringContaining('images:')
+              }),
+              expect.objectContaining({
                 relativePath: 'base/kustomization.yaml',
                 content: expect.stringContaining('resources:')
               })
@@ -1142,7 +1146,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             packagingAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Kustomize overlay')
+            agentInstructions: expect.stringContaining('Kustomize')
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -1159,15 +1163,22 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Validate Kustomize file structure
       const files = generateResponse.data.result.files;
       const rootKustomization = files.find((f: any) => f.relativePath === 'kustomization.yaml');
+      const productionOverlay = files.find((f: any) => f.relativePath === 'overlays/production/kustomization.yaml');
       const baseKustomization = files.find((f: any) => f.relativePath === 'base/kustomization.yaml');
       const baseResources = files.filter((f: any) =>
         f.relativePath.startsWith('base/') && f.relativePath !== 'base/kustomization.yaml'
       );
 
-      // Root kustomization.yaml must exist and reference base
+      // Root kustomization.yaml must exist and reference overlays/production
       expect(rootKustomization).toBeDefined();
       expect(rootKustomization.content).toContain('kind: Kustomization');
-      expect(rootKustomization.content).toMatch(/resources:[\s\S]*base/);
+      expect(rootKustomization.content).toMatch(/resources:[\s\S]*overlays\/production/);
+
+      // overlays/production/kustomization.yaml must exist with images transformer
+      expect(productionOverlay).toBeDefined();
+      expect(productionOverlay.content).toContain('kind: Kustomization');
+      expect(productionOverlay.content).toContain('images:');
+      expect(productionOverlay.content).toMatch(/resources:[\s\S]*\.\.\/\.\.\/base/);
 
       // base/kustomization.yaml must exist
       expect(baseKustomization).toBeDefined();
@@ -1176,11 +1187,20 @@ describe.concurrent('Recommend Tool Integration', () => {
       // At least one base resource file must exist
       expect(baseResources.length).toBeGreaterThan(0);
 
-      // Base resources should be valid Kubernetes manifests
-      const hasK8sResources = baseResources.some((f: any) =>
-        f.content.includes('apiVersion:') && f.content.includes('kind:')
-      );
-      expect(hasK8sResources).toBe(true);
+      // Base resources should be valid Kubernetes manifests with image without tag
+      const deploymentFile = baseResources.find((f: any) => f.content.includes('kind: Deployment'));
+      expect(deploymentFile).toBeDefined();
+      // Base deployment image should NOT have a tag (tag is in overlay)
+      const imageMatch = deploymentFile.content.match(/image:\s*["']?([^"'\s]+)["']?/);
+      expect(imageMatch).toBeDefined();
+      // Image should not contain a colon followed by a tag (e.g., nginx:1.21)
+      // Allow for images like "nginx" or "ghcr.io/org/app" but not "nginx:tag"
+      const imageName = imageMatch[1];
+      // If image has a registry (contains /), allow colons in registry but not for tags
+      // Simple check: if there's a colon after the last slash, it's likely a tag
+      const lastSlashIndex = imageName.lastIndexOf('/');
+      const afterLastSlash = lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
+      expect(afterLastSlash).not.toMatch(/:[a-zA-Z0-9]/); // No tag like :v1.0 or :latest
     }, 900000); // 15 minutes for full workflow with AI packaging
   });
 });

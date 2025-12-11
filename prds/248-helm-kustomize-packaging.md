@@ -1,6 +1,6 @@
 # PRD #248: Helm/Kustomize Packaging for Recommendations
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2025-12-03
 **Priority**: High
 **Issue**: [#248](https://github.com/vfarcic/dot-ai/issues/248)
@@ -316,9 +316,9 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 ### Phase 4: Integration & Testing
 - [x] Integration tests for Helm output format
 - [x] Integration tests for Kustomize output format
-- [ ] Test with various solution types (simple deployments, stateful apps, etc.)
-- [ ] Ensure raw YAML maintains exact current behavior
-- [ ] Update documentation
+- [x] Test with various solution types (simple deployments, stateful apps, etc.)
+- [x] Ensure raw YAML maintains exact current behavior
+- [x] Update documentation
 
 ---
 
@@ -358,8 +358,8 @@ All formats ultimately validate rendered YAML through kubectl dry-run.
 - [x] **M1**: Required questions for format and path integrated into workflow
 - [x] **M2**: Helm chart generation working with values.yaml from answers
 - [x] **M3**: Kustomize generation working with patches from answers
-- [ ] **M4**: All three formats tested and documented
-- [ ] **M5**: PRD #202 unblocked and can proceed with GitOps integration
+- [x] **M4**: All three formats tested and documented
+- [x] **M5**: PRD #202 unblocked and can proceed with GitOps integration
 
 ---
 
@@ -634,3 +634,55 @@ Raw manifests validated → Check outputFormat →
 
 **Next Steps**:
 - Phase 4 remaining: Test with various solution types, ensure raw YAML maintains current behavior, update documentation
+
+### 2025-12-11: Phase 4 Complete - Integration & Testing
+
+**Completed PRD Items**:
+- [x] Test with various solution types (simple deployments, stateful apps, etc.)
+- [x] Ensure raw YAML maintains exact current behavior
+- [x] Update documentation
+- [x] **M4**: All three formats tested and documented
+- [x] **M5**: PRD #202 unblocked and can proceed with GitOps integration
+
+**Implementation Details**:
+
+1. **Documentation Updates** (`docs/guides/mcp-recommendation-guide.md`):
+   - Updated Example 1 with new response structures (5 database solutions instead of 3)
+   - Added `outputFormat` and `outputPath` questions to required configuration
+   - Added database configuration questions (provider, size, version)
+   - Updated generateManifests output to show Kustomize overlays structure
+   - Added overlay customization instructions (`image:` and `patches:`)
+
+2. **Kustomize Structure Enhancement** (`src/core/packaging.ts`):
+   - Updated structure to generate `overlays/production/` directory
+   - Base manifests now have images WITHOUT tags (tag set in overlay)
+   - Production overlay uses `images:` transformer for tag customization
+   - Similar to Helm's `values.yaml` pattern for easy upgrades
+
+3. **Integration Test Updates** (`tests/integration/tools/recommend.test.ts`):
+   - Updated Kustomize test to validate overlays/production structure
+   - Validates `images:` transformer in production overlay
+   - Verifies base deployment image has no tag (tag in overlay)
+   - Validates root kustomization.yaml points to overlays/production
+
+4. **Verification**:
+   - Confirmed Helm chart solutions do NOT get packaging questions (correct behavior)
+   - `generateQuestionsForHelmChart()` does not call `injectPackagingQuestions()`
+   - Packaging questions only apply to capability-based solutions
+
+**Kustomize Structure Generated**:
+```
+<outputPath>/
+├── kustomization.yaml              # Points to overlays/production
+├── README.md
+├── overlays/
+│   └── production/
+│       └── kustomization.yaml      # ← Edit this file to customize (images:, patches:)
+└── base/
+    ├── kustomization.yaml
+    ├── deployment.yaml             # Image without tag (tag set in overlay)
+    ├── service.yaml
+    └── ...
+```
+
+**PRD Status**: COMPLETE - All phases and milestones achieved

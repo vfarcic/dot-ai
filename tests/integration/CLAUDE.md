@@ -21,37 +21,20 @@ Integration tests take several minutes to complete. When running via Claude Code
 # Run all integration tests
 npm run test:integration
 
-# Filter by FILENAME pattern (matches against file paths)
+# Run a specific test file (by filename pattern)
 npm run test:integration recommend          # Runs recommend.test.ts
 npm run test:integration build-platform     # Runs build-platform.test.ts
-
-# Filter by TEST NAME pattern (matches against test/describe names)
-npm run test:integration -- -t "Kustomize"           # Runs tests with "Kustomize" in name
-npm run test:integration -- -t "should generate"     # Runs tests matching pattern
-
-# Combine both filters
-npm run test:integration recommend -- -t "Helm"      # recommend.test.ts tests with "Helm" in name
+npm run test:integration version            # Runs version.test.ts
 
 # Run with debug metrics enabled
-DEBUG_DOT_AI=true npm run test:integration build-platform
+DEBUG_DOT_AI=true npm run test:integration
 
 # Run tests with specific models (generates eval datasets)
 npm run test:integration:sonnet    # Claude via Vercel AI SDK
 npm run test:integration:gpt       # GPT via Vercel AI SDK
-
-# Run specific test files with model selection
-npm run test:integration:sonnet tests/integration/tools/manage-org-data-capabilities.test.ts
-npm run test:integration:gpt tests/integration/tools/remediate.test.ts
 ```
 
-**⚠️ COMMON MISTAKE:**
-```bash
-# ❌ WRONG - This does NOT filter by test name (the flag is ignored without --)
-npm run test:integration --testNamePattern="Kustomize"
-
-# ✅ CORRECT - Use -- to pass flags to vitest, then -t for test name
-npm run test:integration -- -t "Kustomize"
-```
+**⚠️ IMPORTANT:** Always run complete test files, not individual tests. The test infrastructure sets up a fresh cluster for each run, so filtering to individual tests doesn't save time and may cause issues with test isolation.
 
 **❌ TEST IS NOT ACCEPTABLE IF:**
 - It duplicates functionality already tested elsewhere

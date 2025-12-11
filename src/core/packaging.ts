@@ -99,30 +99,42 @@ const HELM_FORMAT_EXAMPLE = `
 const KUSTOMIZE_FORMAT_INSTRUCTIONS = `
 ### Kustomize Structure
 
-Generate a production-ready Kustomize structure with base/ directory:
+Generate a production-ready Kustomize structure with base/ and overlays/ directories:
 
 1. **base/kustomization.yaml** - Base kustomization file
    - \`apiVersion: kustomize.config.k8s.io/v1beta1\`
    - \`kind: Kustomization\`
    - List all resource files in \`resources:\` section (e.g., \`- deployment.yaml\`)
-   - Do NOT include patches here - base should be clean defaults
+   - Do NOT include namespace, patches, or images here - base should be generic/reusable
 
 2. **base/*.yaml** - Base Kubernetes manifests
    - One file per Kubernetes resource (deployment.yaml, service.yaml, etc.)
-   - Include complete, valid manifests with sensible default values
+   - Include complete, valid manifests
+   - For container images: use ONLY the repository (e.g., \`image: nginx\` or \`image: ghcr.io/org/app\`) WITHOUT any tag - tags are set in overlays
    - Resource names should be consistent across all files
 
-3. **kustomization.yaml** (root) - Default overlay with user customizations
+3. **overlays/production/kustomization.yaml** - Production overlay (THE KEY FILE FOR CUSTOMIZATION)
    - \`apiVersion: kustomize.config.k8s.io/v1beta1\`
    - \`kind: Kustomization\`
-   - Reference base: \`resources: [base]\`
-   - Use \`namespace:\` field if namespace was specified in answers
-   - Use \`patches:\` section for customizations based on user answers
-   - Use JSON patch format: \`op: replace\`, \`path: /spec/...\`, \`value: ...\`
+   - Reference base: \`resources: [../../base]\`
+   - Use \`namespace:\` field with the user-specified namespace
+   - **REQUIRED**: Use \`images:\` section to set image tags from user answers:
+     \`\`\`yaml
+     images:
+       - name: <repository-without-tag>
+         newTag: <tag-from-user-answer>
+     \`\`\`
+   - Use \`replicas:\` section if replicas were customized
+   - Use \`patches:\` for other customizations (resources, env vars, etc.)
 
-**Structure enables easy extension**:
-- Users can add \`overlays/dev/\`, \`overlays/prod/\` directories later
-- Each overlay references \`../../base\` and applies environment-specific patches
+4. **kustomization.yaml** (root) - Points to production overlay for easy deployment
+   - Simple file that references the production overlay: \`resources: [overlays/production]\`
+
+**WHY THIS STRUCTURE**:
+- \`base/\` contains generic, reusable manifests (like Helm templates)
+- \`overlays/production/kustomization.yaml\` is like \`values.yaml\` - the single file users edit to customize
+- Users can add \`overlays/staging/\`, \`overlays/dev/\` by copying the production overlay
+- To upgrade: change \`newTag\` in the overlay, not the base manifests
 `;
 
 /**
@@ -136,15 +148,19 @@ const KUSTOMIZE_FORMAT_EXAMPLE = `
   "files": [
     {
       "relativePath": "kustomization.yaml",
-      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\n\\nnamespace: production\\n\\nresources:\\n  - base\\n\\npatches:\\n  - patch: |-\\n      - op: replace\\n        path: /spec/replicas\\n        value: 3\\n    target:\\n      kind: Deployment\\n      name: my-app"
+      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\nresources:\\n  - overlays/production"
+    },
+    {
+      "relativePath": "overlays/production/kustomization.yaml",
+      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\nnamespace: production\\nresources:\\n  - ../../base\\nimages:\\n  - name: nginx\\n    newTag: \\"1.21\\"\\nreplicas:\\n  - name: my-app\\n    count: 3"
     },
     {
       "relativePath": "base/kustomization.yaml",
-      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\n\\nresources:\\n  - deployment.yaml\\n  - service.yaml"
+      "content": "apiVersion: kustomize.config.k8s.io/v1beta1\\nkind: Kustomization\\nresources:\\n  - deployment.yaml\\n  - service.yaml"
     },
     {
       "relativePath": "base/deployment.yaml",
-      "content": "apiVersion: apps/v1\\nkind: Deployment\\nmetadata:\\n  name: my-app\\nspec:\\n  replicas: 1\\n  selector:\\n    matchLabels:\\n      app: my-app\\n  template:\\n    metadata:\\n      labels:\\n        app: my-app\\n    spec:\\n      containers:\\n        - name: my-app\\n          image: nginx:1.21\\n          ports:\\n            - containerPort: 80"
+      "content": "apiVersion: apps/v1\\nkind: Deployment\\nmetadata:\\n  name: my-app\\nspec:\\n  replicas: 1\\n  selector:\\n    matchLabels:\\n      app: my-app\\n  template:\\n    metadata:\\n      labels:\\n        app: my-app\\n    spec:\\n      containers:\\n        - name: my-app\\n          image: nginx\\n          ports:\\n            - containerPort: 80"
     },
     {
       "relativePath": "base/service.yaml",

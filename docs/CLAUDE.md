@@ -56,12 +56,15 @@
 - **Sync feature lists**: Major feature additions should be reflected in both README.md overview and detailed guides
 
 ### Validation Workflow
-1. **Draft documentation** with placeholders for commands/examples
-2. **Execute and test** all commands and MCP tool calls
-3. **Replace placeholders** with actual verified outputs  
-4. **Cross-check prerequisites** by testing setup requirements
-5. **Update README.md** if the new documentation adds major features or changes setup flow
-6. **Final review** for consistency with existing documentation format
+
+**🚨 MANDATORY: Execute-then-document, one item at a time.**
+
+For each command/example in documentation:
+1. Execute it and capture actual output
+2. Document that item with real output
+3. Move to next item and repeat
+
+**NEVER** batch-write multiple examples then test afterward. Validate each step before proceeding to the next.
 
 ## ⚠️ MCP DOCUMENTATION ANTI-PATTERNS (NEVER DO THIS)
 
