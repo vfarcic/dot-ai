@@ -134,6 +134,8 @@ When multiple resources need the same information, create a single question with
 
 ## Response Format
 
+**CRITICAL**: Every question object MUST include a `suggestedAnswer` field - this is required, not optional.
+
 Return your response as JSON in this exact format:
 
 ```json

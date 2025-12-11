@@ -1,9 +1,10 @@
 # PRD: Flux Integration for GitOps Deployments
 
 **Issue**: [#256](https://github.com/vfarcic/dot-ai/issues/256)
-**Status**: Draft
+**Status**: Superseded
 **Priority**: High
 **Created**: 2025-12-06
+**Closed**: 2025-12-10
 
 ---
 
@@ -387,3 +388,23 @@ src/
 |------|--------|
 | 2025-12-06 | PRD created covering all Flux integration scenarios |
 | 2025-12-06 | Consolidated third-party Helm, packaged Helm, and Kustomize into single PRD |
+| 2025-12-10 | PRD superseded by new GitOps architecture |
+
+---
+
+## Closure Summary
+
+**Status**: Superseded
+**Closed**: 2025-12-10
+**Reason**: Architectural restructuring
+
+This PRD has been superseded by a new GitOps architecture that provides better separation of concerns:
+
+- **#264** (GitOps Tool with Argo CD Support): Standalone `gitops` tool with shared infrastructure and pluggable provider architecture
+- **#265** (Flux Support for GitOps Tool): Adds Flux as a provider using the shared infrastructure
+- **#266** (GitOps Integration in Recommend Workflow): Integrates gitops into recommend workflow
+
+The Flux functionality originally planned in this PRD is now covered by #265, which implements a `FluxGenerator` class that conforms to the `GitOpsGenerator` interface from #264. This approach:
+1. Eliminates code duplication between Argo CD and Flux
+2. Reuses shared infrastructure (detection, session management, questions)
+3. Allows Flux to be added incrementally after Argo CD is implemented

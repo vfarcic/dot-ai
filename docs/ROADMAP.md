@@ -15,10 +15,9 @@ This roadmap is a living document and may change based on community feedback and
 - Dynamic credential management for multi-user MCP deployments (PRD #180)
 - Controller-based autonomous capability scanning with event-driven updates (PRD #216)
 - Deployment documentation & example-based learning (PRD #228)
-- Helm/Kustomize packaging for recommendations (PRD #248)
-- Argo CD integration for third-party Helm charts (PRD #254)
-- Argo CD integration for packaged recommendations (PRD #255)
-- Flux integration for GitOps deployments (PRD #256)
+- GitOps tool with Argo CD support - standalone package detection and Application generation (PRD #264)
+- Flux support for GitOps tool (PRD #265)
+- GitOps integration in recommend workflow (PRD #266)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Intelligent CI/CD workflow generation with full repository analysis (PRD #263)
 

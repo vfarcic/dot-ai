@@ -150,6 +150,29 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
       });
 
+      // PACKAGING QUESTIONS VALIDATION: Capability-based solutions must have outputFormat and outputPath
+      const outputFormatQuestion = requiredQuestions.find((q: any) => q.id === 'outputFormat');
+      const outputPathQuestion = requiredQuestions.find((q: any) => q.id === 'outputPath');
+
+      expect(outputFormatQuestion).toBeDefined();
+      expect(outputFormatQuestion).toMatchObject({
+        id: 'outputFormat',
+        question: 'How would you like the manifests packaged?',
+        type: 'select',
+        options: ['raw', 'helm', 'kustomize'],
+        suggestedAnswer: 'raw',
+        validation: { required: true }
+      });
+
+      expect(outputPathQuestion).toBeDefined();
+      expect(outputPathQuestion).toMatchObject({
+        id: 'outputPath',
+        question: 'Where would you like to save the output?',
+        type: 'text',
+        suggestedAnswer: './manifests',
+        validation: { required: true }
+      });
+
       // PHASE 4: Answer required stage questions using suggestedAnswers
       const requiredAnswers: Record<string, any> = {};
       requiredQuestions.forEach((q: any) => {
@@ -286,10 +309,17 @@ describe.concurrent('Recommend Tool Integration', () => {
             success: true,
             status: 'manifests_generated',
             solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
-            manifests: expect.stringContaining('apiVersion:'), // Should contain YAML
-            yamlPath: expect.stringContaining('.yaml'),
+            outputFormat: 'raw',
+            outputPath: './manifests',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'manifests.yaml',
+                content: expect.stringContaining('apiVersion:')
+              })
+            ]),
             validationAttempts: expect.any(Number),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Write the files to')
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -304,7 +334,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
       // Verify manifests contain valid Kubernetes YAML structure (generic validation)
-      const manifests = generateResponse.data.result.manifests;
+      const manifests = generateResponse.data.result.files[0].content;
       expect(manifests).toContain('apiVersion:');
       expect(manifests).toContain('kind:');
       expect(manifests).toContain('metadata:');
@@ -556,6 +586,13 @@ describe.concurrent('Recommend Tool Integration', () => {
           suggestedAnswer: expect.anything() // CRITICAL: Cluster-aware defaults
         });
       });
+
+      // PACKAGING QUESTIONS VALIDATION: Helm solutions should NOT have outputFormat/outputPath
+      // These are only for capability-based solutions where we package raw manifests
+      const outputFormatQuestion = requiredQuestions.find((q: any) => q.id === 'outputFormat');
+      const outputPathQuestion = requiredQuestions.find((q: any) => q.id === 'outputPath');
+      expect(outputFormatQuestion).toBeUndefined();
+      expect(outputPathQuestion).toBeUndefined();
 
       // PHASE 3: Answer required stage questions
       // Helm workflow: required → basic → advanced → ready_for_manifest_generation (NO 'open' stage)
@@ -812,5 +849,358 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Validate message includes issue link
       expect(noChartResponse.data.result.message).toContain('https://github.com/vfarcic/dot-ai/issues/new');
     }, 300000); // 5 minutes for AI analysis
+  });
+
+  describe('Helm Packaging (outputFormat: helm)', () => {
+    test('should generate Helm chart structure when outputFormat is helm', async () => {
+      // PHASE 1: Get solutions for a capability-based deployment
+      const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx web server',
+        final: true,
+        interaction_id: 'helm_packaging_solutions'
+      });
+
+      expect(solutionsResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            solutions: expect.any(Array)
+          }
+        }
+      });
+
+      // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
+      const solutions = solutionsResponse.data.result.solutions;
+      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      expect(capabilitySolution).toBeDefined();
+
+      const solutionId = capabilitySolution.solutionId;
+
+      // PHASE 2: Choose solution
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
+        solutionId,
+        interaction_id: 'helm_packaging_choose'
+      });
+
+      expect(chooseResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'required',
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      // PHASE 3: Answer required questions with outputFormat: 'helm'
+      const requiredQuestions = chooseResponse.data.result.questions;
+      const requiredAnswers: Record<string, any> = {};
+
+      requiredQuestions.forEach((q: any) => {
+        if (q.id === 'outputFormat') {
+          requiredAnswers[q.id] = 'helm'; // Select Helm packaging
+        } else if (q.id === 'outputPath') {
+          requiredAnswers[q.id] = './my-nginx-chart';
+        } else {
+          requiredAnswers[q.id] = q.suggestedAnswer;
+        }
+      });
+
+      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required',
+        solutionId,
+        answers: requiredAnswers,
+        interaction_id: 'helm_packaging_required'
+      });
+
+      expect(answerRequiredResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'basic'
+          }
+        }
+      });
+
+      // PHASE 4-6: Skip through remaining stages
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic',
+        solutionId,
+        answers: {},
+        interaction_id: 'helm_packaging_basic'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced',
+        solutionId,
+        answers: {},
+        interaction_id: 'helm_packaging_advanced'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:open',
+        solutionId,
+        answers: { open: 'N/A' },
+        interaction_id: 'helm_packaging_open'
+      });
+
+      // PHASE 7: Generate manifests with Helm packaging
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
+        solutionId,
+        interaction_id: 'helm_packaging_generate'
+      });
+
+      // Validate Helm chart structure in response
+      const expectedGenerateResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            status: 'manifests_generated',
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            outputFormat: 'helm',
+            outputPath: './my-nginx-chart',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'Chart.yaml',
+                content: expect.stringContaining('apiVersion: v2')
+              }),
+              expect.objectContaining({
+                relativePath: 'values.yaml',
+                content: expect.any(String)
+              })
+            ]),
+            validationAttempts: expect.any(Number),
+            packagingAttempts: expect.any(Number),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Helm chart')
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+
+      // Validate Helm chart file structure
+      const files = generateResponse.data.result.files;
+      const chartYaml = files.find((f: any) => f.relativePath === 'Chart.yaml');
+      const valuesYaml = files.find((f: any) => f.relativePath === 'values.yaml');
+      const templateFiles = files.filter((f: any) => f.relativePath.startsWith('templates/'));
+
+      // Chart.yaml must exist and contain required fields
+      expect(chartYaml).toBeDefined();
+      expect(chartYaml.content).toContain('name:');
+      expect(chartYaml.content).toContain('version:');
+
+      // values.yaml must exist
+      expect(valuesYaml).toBeDefined();
+
+      // At least one template file must exist
+      expect(templateFiles.length).toBeGreaterThan(0);
+
+      // Template files should contain Helm templating syntax
+      const hasHelmSyntax = templateFiles.some((f: any) =>
+        f.content.includes('{{ .Values.') || f.content.includes('{{ .Release.')
+      );
+      expect(hasHelmSyntax).toBe(true);
+    }, 900000); // 15 minutes for full workflow with AI packaging
+  });
+
+  describe('Kustomize Packaging (outputFormat: kustomize)', () => {
+    test('should generate Kustomize structure when outputFormat is kustomize', async () => {
+      // PHASE 1: Get solutions for a capability-based deployment
+      const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx web server',
+        final: true,
+        interaction_id: 'kustomize_packaging_solutions'
+      });
+
+      expect(solutionsResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            solutions: expect.any(Array)
+          }
+        }
+      });
+
+      // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
+      const solutions = solutionsResponse.data.result.solutions;
+      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      expect(capabilitySolution).toBeDefined();
+
+      const solutionId = capabilitySolution.solutionId;
+
+      // PHASE 2: Choose solution
+      const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'chooseSolution',
+        solutionId,
+        interaction_id: 'kustomize_packaging_choose'
+      });
+
+      expect(chooseResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'required',
+            questions: expect.any(Array)
+          }
+        }
+      });
+
+      // PHASE 3: Answer required questions with outputFormat: 'kustomize'
+      const requiredQuestions = chooseResponse.data.result.questions;
+      const requiredAnswers: Record<string, any> = {};
+
+      requiredQuestions.forEach((q: any) => {
+        if (q.id === 'outputFormat') {
+          requiredAnswers[q.id] = 'kustomize'; // Select Kustomize packaging
+        } else if (q.id === 'outputPath') {
+          requiredAnswers[q.id] = './my-nginx-kustomize';
+        } else {
+          requiredAnswers[q.id] = q.suggestedAnswer;
+        }
+      });
+
+      const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:required',
+        solutionId,
+        answers: requiredAnswers,
+        interaction_id: 'kustomize_packaging_required'
+      });
+
+      expect(answerRequiredResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'stage_questions',
+            currentStage: 'basic'
+          }
+        }
+      });
+
+      // PHASE 4-6: Skip through remaining stages
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:basic',
+        solutionId,
+        answers: {},
+        interaction_id: 'kustomize_packaging_basic'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:advanced',
+        solutionId,
+        answers: {},
+        interaction_id: 'kustomize_packaging_advanced'
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'answerQuestion:open',
+        solutionId,
+        answers: { open: 'N/A' },
+        interaction_id: 'kustomize_packaging_open'
+      });
+
+      // PHASE 7: Generate manifests with Kustomize packaging
+      const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+        stage: 'generateManifests',
+        solutionId,
+        interaction_id: 'kustomize_packaging_generate'
+      });
+
+      // Validate Kustomize structure in response
+      const expectedGenerateResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            status: 'manifests_generated',
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            outputFormat: 'kustomize',
+            outputPath: './my-nginx-kustomize',
+            files: expect.arrayContaining([
+              expect.objectContaining({
+                relativePath: 'kustomization.yaml',
+                content: expect.stringContaining('apiVersion: kustomize.config.k8s.io/v1beta1')
+              }),
+              expect.objectContaining({
+                relativePath: 'overlays/production/kustomization.yaml',
+                content: expect.stringContaining('images:')
+              }),
+              expect.objectContaining({
+                relativePath: 'base/kustomization.yaml',
+                content: expect.stringContaining('resources:')
+              })
+            ]),
+            validationAttempts: expect.any(Number),
+            packagingAttempts: expect.any(Number),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            agentInstructions: expect.stringContaining('Kustomize')
+          },
+          tool: 'recommend',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+
+      // Validate Kustomize file structure
+      const files = generateResponse.data.result.files;
+      const rootKustomization = files.find((f: any) => f.relativePath === 'kustomization.yaml');
+      const productionOverlay = files.find((f: any) => f.relativePath === 'overlays/production/kustomization.yaml');
+      const baseKustomization = files.find((f: any) => f.relativePath === 'base/kustomization.yaml');
+      const baseResources = files.filter((f: any) =>
+        f.relativePath.startsWith('base/') && f.relativePath !== 'base/kustomization.yaml'
+      );
+
+      // Root kustomization.yaml must exist and reference overlays/production
+      expect(rootKustomization).toBeDefined();
+      expect(rootKustomization.content).toContain('kind: Kustomization');
+      expect(rootKustomization.content).toMatch(/resources:[\s\S]*overlays\/production/);
+
+      // overlays/production/kustomization.yaml must exist with images transformer
+      expect(productionOverlay).toBeDefined();
+      expect(productionOverlay.content).toContain('kind: Kustomization');
+      expect(productionOverlay.content).toContain('images:');
+      expect(productionOverlay.content).toMatch(/resources:[\s\S]*\.\.\/\.\.\/base/);
+
+      // base/kustomization.yaml must exist
+      expect(baseKustomization).toBeDefined();
+      expect(baseKustomization.content).toContain('kind: Kustomization');
+
+      // At least one base resource file must exist
+      expect(baseResources.length).toBeGreaterThan(0);
+
+      // Base resources should be valid Kubernetes manifests with image without tag
+      const deploymentFile = baseResources.find((f: any) => f.content.includes('kind: Deployment'));
+      expect(deploymentFile).toBeDefined();
+      // Base deployment image should NOT have a tag (tag is in overlay)
+      const imageMatch = deploymentFile.content.match(/image:\s*["']?([^"'\s]+)["']?/);
+      expect(imageMatch).toBeDefined();
+      // Image should not contain a colon followed by a tag (e.g., nginx:1.21)
+      // Allow for images like "nginx" or "ghcr.io/org/app" but not "nginx:tag"
+      const imageName = imageMatch[1];
+      // If image has a registry (contains /), allow colons in registry but not for tags
+      // Simple check: if there's a colon after the last slash, it's likely a tag
+      const lastSlashIndex = imageName.lastIndexOf('/');
+      const afterLastSlash = lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
+      expect(afterLastSlash).not.toMatch(/:[a-zA-Z0-9]/); // No tag like :v1.0 or :latest
+    }, 900000); // 15 minutes for full workflow with AI packaging
   });
 });

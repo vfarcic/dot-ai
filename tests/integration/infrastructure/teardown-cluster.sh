@@ -19,8 +19,13 @@ fi
 # Delete Kind cluster if it exists
 if kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
     echo "🗑️  Deleting Kind cluster: ${CLUSTER_NAME}"
-    kind delete cluster --name="${CLUSTER_NAME}"
-    echo "✅ Cluster deleted successfully"
+    # Use --kubeconfig to avoid touching the user's main kubeconfig (which may be malformed)
+    if kind delete cluster --name="${CLUSTER_NAME}" --kubeconfig="${KUBECONFIG_PATH}" 2>/dev/null || \
+       kind delete cluster --name="${CLUSTER_NAME}" 2>/dev/null; then
+        echo "✅ Cluster deleted successfully"
+    else
+        echo "⚠️  Could not delete cluster (may already be gone)"
+    fi
 else
     echo "ℹ️  Cluster ${CLUSTER_NAME} does not exist"
 fi

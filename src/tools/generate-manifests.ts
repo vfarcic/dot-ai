@@ -4,6 +4,8 @@
  */
 
 import { z } from 'zod';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI, maybeGetFeedbackMessage } from '../core/index';
 import { Logger } from '../core/error-handling';
@@ -26,6 +28,9 @@ import {
   getHelmValuesPath,
   ensureTmpDir
 } from '../core/helm-utils';
+import { packageManifests, OutputFormat } from '../core/packaging';
+
+const execFileAsync = promisify(execFile);
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -128,6 +133,57 @@ function validateYamlSyntax(yamlContent: string): { valid: boolean; error?: stri
   }
 }
 
+
+/**
+ * Run helm lint on a chart directory
+ */
+async function helmLint(
+  chartDir: string,
+  logger: Logger
+): Promise<{ valid: boolean; errors: string[]; warnings: string[] }> {
+  try {
+    // Use execFile with array arguments to prevent command injection
+    logger.debug('Running helm lint', { chartDir });
+
+    const { stdout, stderr } = await execFileAsync('helm', ['lint', chartDir]);
+
+    // Parse helm lint output for warnings
+    const warnings: string[] = [];
+    const lines = (stdout + stderr).split('\n');
+    for (const line of lines) {
+      if (line.includes('[WARNING]')) {
+        warnings.push(line.trim());
+      }
+    }
+
+    logger.debug('helm lint passed', { warnings: warnings.length });
+    return { valid: true, errors: [], warnings };
+
+  } catch (error) {
+    // helm lint exits with non-zero on errors
+    const errorOutput = error instanceof Error ? (error as any).stderr || error.message : String(error);
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Parse output for errors and warnings
+    const lines = errorOutput.split('\n');
+    for (const line of lines) {
+      if (line.includes('[ERROR]')) {
+        errors.push(line.trim());
+      } else if (line.includes('[WARNING]')) {
+        warnings.push(line.trim());
+      }
+    }
+
+    // If no specific errors found, use the full output
+    if (errors.length === 0) {
+      errors.push(errorOutput.trim());
+    }
+
+    logger.warn('helm lint failed', { errors, warnings });
+    return { valid: false, errors, warnings };
+  }
+}
 
 /**
  * Validate manifests using multi-layer approach
@@ -503,6 +559,214 @@ async function handleHelmGeneration(
 
 
 /**
+ * Render packaged output to raw YAML for validation
+ */
+async function renderPackageToYaml(
+  packageDir: string,
+  format: OutputFormat,
+  logger: Logger
+): Promise<{ success: boolean; yaml?: string; error?: string; isTerminalError?: boolean }> {
+  try {
+    // Use execFile with array arguments to prevent command injection
+    const args = format === 'helm'
+      ? ['template', 'test-release', packageDir]
+      : ['kustomize', packageDir];
+    const command = format === 'helm' ? 'helm' : 'kubectl';
+
+    logger.debug('Rendering package to YAML', { format, command, args });
+    const { stdout, stderr } = await execFileAsync(command, args);
+
+    if (stderr && !stdout) {
+      return { success: false, error: stderr };
+    }
+
+    return { success: true, yaml: stdout };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check for terminal infrastructure errors that won't be fixed by AI retrying
+    const terminalErrorPatterns = [
+      'not found',           // command not found
+      'command not found',   // explicit command not found
+      'ENOENT',              // file/command doesn't exist
+      'permission denied',   // permission issues
+      'EACCES',              // access denied
+    ];
+
+    const isTerminalError = terminalErrorPatterns.some(pattern =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
+
+    return {
+      success: false,
+      error: errorMessage,
+      isTerminalError  // Signal to caller to not retry
+    };
+  }
+}
+
+/**
+ * Write package files to a temporary directory
+ */
+function writePackageFiles(
+  files: { relativePath: string; content: string }[],
+  baseDir: string
+): void {
+  const resolvedBase = path.resolve(baseDir);
+
+  for (const file of files) {
+    const filePath = path.join(baseDir, file.relativePath);
+    const resolvedPath = path.resolve(filePath);
+
+    // Prevent path traversal attacks
+    if (!resolvedPath.startsWith(resolvedBase)) {
+      throw new Error(`Invalid file path: ${file.relativePath} would escape base directory`);
+    }
+
+    const fileDir = path.dirname(filePath);
+
+    if (!fs.existsSync(fileDir)) {
+      fs.mkdirSync(fileDir, { recursive: true });
+    }
+
+    fs.writeFileSync(filePath, file.content, 'utf8');
+  }
+}
+
+/**
+ * Package manifests and validate the output
+ */
+async function packageAndValidate(
+  rawManifests: string,
+  solution: any,
+  outputFormat: OutputFormat,
+  outputPath: string,
+  solutionId: string,
+  dotAI: DotAI,
+  logger: Logger,
+  interaction_id?: string
+): Promise<{ files: { relativePath: string; content: string }[]; attempts: number }> {
+  const maxAttempts = 5;
+  let packagingError: { attempt: number; previousOutput: string; validationError: string } | undefined;
+
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  const packageDir = path.join(tmpDir, `${solutionId}-${outputFormat}`);
+
+  // Helper to cleanup temp directory
+  const cleanupPackageDir = () => {
+    if (fs.existsSync(packageDir)) {
+      try {
+        fs.rmSync(packageDir, { recursive: true });
+      } catch (cleanupError) {
+        logger.warn('Failed to cleanup temp package directory', { packageDir, error: cleanupError });
+      }
+    }
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    logger.info('Packaging attempt', { attempt, maxAttempts, format: outputFormat });
+
+    try {
+      const packagingResult = await packageManifests(
+        rawManifests,
+        solution,
+        outputFormat,
+        outputPath,
+        dotAI,
+        logger,
+        packagingError,
+        interaction_id
+      );
+
+      // Write files to temp directory
+      if (fs.existsSync(packageDir)) {
+        fs.rmSync(packageDir, { recursive: true });
+      }
+      fs.mkdirSync(packageDir, { recursive: true });
+      writePackageFiles(packagingResult.files, packageDir);
+
+      // Run helm lint for Helm charts (catches structural issues before rendering)
+      if (outputFormat === 'helm') {
+        const lintResult = await helmLint(packageDir, logger);
+        if (!lintResult.valid) {
+          packagingError = {
+            attempt,
+            previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+            validationError: `helm lint failed: ${lintResult.errors.join(', ')}`
+          };
+          logger.warn('helm lint failed', { attempt, errors: lintResult.errors });
+          continue;
+        }
+        // Log warnings but don't fail on them
+        if (lintResult.warnings.length > 0) {
+          logger.info('helm lint warnings', { warnings: lintResult.warnings });
+        }
+      }
+
+      // Render to raw YAML
+      const renderResult = await renderPackageToYaml(packageDir, outputFormat, logger);
+      if (!renderResult.success) {
+        // Check for terminal infrastructure errors - fail fast, don't retry
+        if (renderResult.isTerminalError) {
+          const terminalError = new Error(`Infrastructure error (not retryable): ${renderResult.error}`);
+          logger.error('Terminal infrastructure error - cannot retry', terminalError, {
+            format: outputFormat
+          });
+          throw terminalError;
+        }
+
+        packagingError = {
+          attempt,
+          previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+          validationError: `Failed to render ${outputFormat}: ${renderResult.error}`
+        };
+        logger.warn('Package render failed', { attempt, error: renderResult.error });
+        continue;
+      }
+
+      // Validate rendered YAML
+      const renderedYamlPath = path.join(tmpDir, `${solutionId}-${outputFormat}-rendered.yaml`);
+      if (!renderResult.yaml) {
+        throw new Error('Render succeeded but no YAML content returned');
+      }
+      fs.writeFileSync(renderedYamlPath, renderResult.yaml, 'utf8');
+
+      const validation = await validateManifests(renderedYamlPath);
+      if (validation.valid) {
+        logger.info('Package validation successful', { format: outputFormat, attempt });
+        cleanupPackageDir();
+        return { files: packagingResult.files, attempts: attempt };
+      }
+
+      packagingError = {
+        attempt,
+        previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
+        validationError: validation.errors.join(', ')
+      };
+      logger.warn('Package validation failed', { attempt, errors: validation.errors });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Packaging attempt failed', error as Error);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      packagingError = {
+        attempt,
+        previousOutput: packagingError?.previousOutput || '',
+        validationError: errorMessage
+      };
+    }
+  }
+
+  cleanupPackageDir();
+  throw new Error(`Failed to generate valid ${outputFormat} package after ${maxAttempts} attempts. Last error: ${packagingError?.validationError}`);
+}
+
+
+/**
  * Direct MCP tool handler for generateManifests functionality
  */
 export async function handleGenerateManifestsTool(
@@ -664,24 +928,65 @@ export async function handleGenerateManifestsTool(
           const validation = await validateManifests(yamlPath);
           
           if (validation.valid) {
-            logger.info('Manifest validation successful', { 
-              attempt, 
+            logger.info('Manifest validation successful', {
+              attempt,
               yamlPath,
-              requestId 
+              requestId
             });
-            
-            // Success! Return the validated manifests
-            // Check if we should show feedback message (workflow completion point)
+
+            // Extract packaging options from user answers (with defaults)
+            const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
+            const outputPath = userAnswers.outputPath || './manifests';
             const feedbackMessage = maybeGetFeedbackMessage();
 
+            // Handle packaging based on outputFormat
+            if (outputFormat === 'helm' || outputFormat === 'kustomize') {
+              const packagingResult = await packageAndValidate(
+                manifests,
+                solution,
+                outputFormat,
+                outputPath,
+                args.solutionId,
+                dotAI,
+                logger,
+                args.interaction_id
+              );
+
+              const response = {
+                success: true,
+                status: 'manifests_generated',
+                solutionId: args.solutionId,
+                outputFormat,
+                outputPath,
+                files: packagingResult.files,
+                validationAttempts: attempt,
+                packagingAttempts: packagingResult.attempts,
+                timestamp: new Date().toISOString(),
+                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+                ...(feedbackMessage ? { message: feedbackMessage } : {})
+              };
+
+              return {
+                content: [{
+                  type: 'text' as const,
+                  text: JSON.stringify(response, null, 2)
+                }]
+              };
+            }
+
+            // Raw format - return manifests as-is
             const response = {
               success: true,
               status: 'manifests_generated',
               solutionId: args.solutionId,
-              manifests: manifests,
-              yamlPath: yamlPath,
+              outputFormat,
+              outputPath,
+              files: [
+                { relativePath: 'manifests.yaml', content: manifests }
+              ],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
+              agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
               ...(feedbackMessage ? { message: feedbackMessage } : {})
             };
 

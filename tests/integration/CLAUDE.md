@@ -21,20 +21,20 @@ Integration tests take several minutes to complete. When running via Claude Code
 # Run all integration tests
 npm run test:integration
 
-# Run specific test file (filter by filename pattern)
-npm run test:integration build-platform
+# Run a specific test file (by filename pattern)
+npm run test:integration recommend          # Runs recommend.test.ts
+npm run test:integration build-platform     # Runs build-platform.test.ts
+npm run test:integration version            # Runs version.test.ts
 
 # Run with debug metrics enabled
-DEBUG_DOT_AI=true npm run test:integration build-platform
+DEBUG_DOT_AI=true npm run test:integration
 
 # Run tests with specific models (generates eval datasets)
 npm run test:integration:sonnet    # Claude via Vercel AI SDK
 npm run test:integration:gpt       # GPT via Vercel AI SDK
-
-# Run specific test files with model selection
-npm run test:integration:sonnet tests/integration/tools/manage-org-data-capabilities.test.ts
-npm run test:integration:gpt tests/integration/tools/remediate.test.ts
 ```
+
+**⚠️ IMPORTANT:** Always run complete test files, not individual tests. The test infrastructure sets up a fresh cluster for each run, so filtering to individual tests doesn't save time and may cause issues with test isolation.
 
 **❌ TEST IS NOT ACCEPTABLE IF:**
 - It duplicates functionality already tested elsewhere
