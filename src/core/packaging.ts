@@ -239,7 +239,13 @@ function parsePackagingResponse(response: string): PackageFile[] {
   }
 
   // Parse JSON
-  const parsed = JSON.parse(jsonContent);
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonContent);
+  } catch (parseError) {
+    const preview = jsonContent.slice(0, 200);
+    throw new Error(`Failed to parse packaging response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}. Content preview: ${preview}...`);
+  }
 
   if (!parsed.files || !Array.isArray(parsed.files)) {
     throw new Error('Invalid packaging response: missing files array');

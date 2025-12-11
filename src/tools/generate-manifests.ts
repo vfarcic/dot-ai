@@ -4,6 +4,8 @@
  */
 
 import { z } from 'zod';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI, maybeGetFeedbackMessage } from '../core/index';
 import { Logger } from '../core/error-handling';
@@ -27,6 +29,8 @@ import {
   ensureTmpDir
 } from '../core/helm-utils';
 import { packageManifests, OutputFormat } from '../core/packaging';
+
+const execFileAsync = promisify(execFile);
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -137,15 +141,11 @@ async function helmLint(
   chartDir: string,
   logger: Logger
 ): Promise<{ valid: boolean; errors: string[]; warnings: string[] }> {
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
-
   try {
-    const command = `helm lint "${chartDir}"`;
-    logger.debug('Running helm lint', { chartDir, command });
+    // Use execFile with array arguments to prevent command injection
+    logger.debug('Running helm lint', { chartDir });
 
-    const { stdout, stderr } = await execAsync(command);
+    const { stdout, stderr } = await execFileAsync('helm', ['lint', chartDir]);
 
     // Parse helm lint output for warnings
     const warnings: string[] = [];
@@ -566,17 +566,15 @@ async function renderPackageToYaml(
   format: OutputFormat,
   logger: Logger
 ): Promise<{ success: boolean; yaml?: string; error?: string; isTerminalError?: boolean }> {
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
-
   try {
-    const command = format === 'helm'
-      ? `helm template test-release "${packageDir}"`
-      : `kubectl kustomize "${packageDir}"`;
+    // Use execFile with array arguments to prevent command injection
+    const args = format === 'helm'
+      ? ['template', 'test-release', packageDir]
+      : ['kustomize', packageDir];
+    const command = format === 'helm' ? 'helm' : 'kubectl';
 
-    logger.debug('Rendering package to YAML', { format, command });
-    const { stdout, stderr } = await execAsync(command);
+    logger.debug('Rendering package to YAML', { format, command, args });
+    const { stdout, stderr } = await execFileAsync(command, args);
 
     if (stderr && !stdout) {
       return { success: false, error: stderr };
@@ -614,8 +612,17 @@ function writePackageFiles(
   files: { relativePath: string; content: string }[],
   baseDir: string
 ): void {
+  const resolvedBase = path.resolve(baseDir);
+
   for (const file of files) {
     const filePath = path.join(baseDir, file.relativePath);
+    const resolvedPath = path.resolve(filePath);
+
+    // Prevent path traversal attacks
+    if (!resolvedPath.startsWith(resolvedBase)) {
+      throw new Error(`Invalid file path: ${file.relativePath} would escape base directory`);
+    }
+
     const fileDir = path.dirname(filePath);
 
     if (!fs.existsSync(fileDir)) {
@@ -644,6 +651,17 @@ async function packageAndValidate(
 
   const tmpDir = path.join(process.cwd(), 'tmp');
   const packageDir = path.join(tmpDir, `${solutionId}-${outputFormat}`);
+
+  // Helper to cleanup temp directory
+  const cleanupPackageDir = () => {
+    if (fs.existsSync(packageDir)) {
+      try {
+        fs.rmSync(packageDir, { recursive: true });
+      } catch (cleanupError) {
+        logger.warn('Failed to cleanup temp package directory', { packageDir, error: cleanupError });
+      }
+    }
+  };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     logger.info('Packaging attempt', { attempt, maxAttempts, format: outputFormat });
@@ -708,11 +726,15 @@ async function packageAndValidate(
 
       // Validate rendered YAML
       const renderedYamlPath = path.join(tmpDir, `${solutionId}-${outputFormat}-rendered.yaml`);
-      fs.writeFileSync(renderedYamlPath, renderResult.yaml!, 'utf8');
+      if (!renderResult.yaml) {
+        throw new Error('Render succeeded but no YAML content returned');
+      }
+      fs.writeFileSync(renderedYamlPath, renderResult.yaml, 'utf8');
 
       const validation = await validateManifests(renderedYamlPath);
       if (validation.valid) {
         logger.info('Package validation successful', { format: outputFormat, attempt });
+        cleanupPackageDir();
         return { files: packagingResult.files, attempts: attempt };
       }
 
@@ -739,6 +761,7 @@ async function packageAndValidate(
     }
   }
 
+  cleanupPackageDir();
   throw new Error(`Failed to generate valid ${outputFormat} package after ${maxAttempts} attempts. Last error: ${packagingError?.validationError}`);
 }
 
