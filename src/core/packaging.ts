@@ -60,6 +60,8 @@ Generate the following files:
    - Use the actual values from user answers as defaults
 
 3. **templates/*.yaml** - One file per Kubernetes resource type
+   - **CRITICAL**: Include ALL manifests from the raw input - do not filter out any resources
+   - This includes custom resources (CRDs) like Solution, Crossplane resources, etc.
    - Use \`{{ .Release.Name }}\` for resource names
    - Use \`{{ .Release.Namespace }}\` when namespace is referenced
    - Use \`{{ .Values.xxx }}\` for externalized configuration
@@ -108,7 +110,9 @@ Generate a production-ready Kustomize structure with base/ and overlays/ directo
    - Do NOT include namespace, patches, or images here - base should be generic/reusable
 
 2. **base/*.yaml** - Base Kubernetes manifests
-   - One file per Kubernetes resource (deployment.yaml, service.yaml, etc.)
+   - One file per Kubernetes resource (deployment.yaml, service.yaml, solution.yaml, etc.)
+   - **CRITICAL**: Include ALL manifests from the raw input - do not filter out any resources
+   - This includes custom resources (CRDs) like Solution, Crossplane resources, etc.
    - Include complete, valid manifests
    - For container images: use ONLY the repository (e.g., \`image: nginx\` or \`image: ghcr.io/org/app\`) WITHOUT any tag - tags are set in overlays
    - Resource names should be consistent across all files
