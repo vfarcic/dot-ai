@@ -29,33 +29,27 @@ describe.concurrent('Recommend Tool Integration', () => {
   });
 
   describe('Recommendation Workflow', () => {
-    test('should complete full workflow: clarification → solutions → choose → answer → generate → deploy', async () => {
+    test('should complete full workflow: intent refinement → solutions → choose → answer → generate → deploy', async () => {
       let manifestPath: string;
 
-      // PHASE 1: Request recommendations without final flag (clarification)
+      // PHASE 1: Request recommendations without final flag (intent refinement)
       // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
-      const clarificationResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+      // Vague intent (< 100 chars) triggers heuristic-based guidance response (PRD #22)
+      const refinementResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
         intent: 'deploy database',
         // stage omitted - should default to 'recommend'
-        interaction_id: 'clarification_phase'
+        interaction_id: 'refinement_phase'
       });
 
-      // Validate clarification response structure (based on actual API inspection)
-      const expectedClarificationResponse = {
+      // Validate intent refinement response structure (heuristic-based, no AI call)
+      const expectedRefinementResponse = {
         success: true,
         data: {
           result: {
-            status: 'clarification_available',
+            success: true,
+            needsRefinement: true,
             intent: 'deploy database',
-            analysis: {
-              enhancementPotential: expect.stringMatching(/^(LOW|MEDIUM|HIGH)$/),
-              recommendedFocus: expect.any(String),
-              currentSpecificity: expect.any(String),
-              strengthAreas: expect.any(Array),
-              improvementAreas: expect.any(Array)
-            },
-            questions: expect.any(Array),
-            agentInstructions: expect.stringContaining('clarification questions')
+            guidance: expect.stringContaining('Intent Refinement Guidance')
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -67,7 +61,14 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       };
 
-      expect(clarificationResponse).toMatchObject(expectedClarificationResponse);
+      expect(refinementResponse).toMatchObject(expectedRefinementResponse);
+
+      // Validate guidance content includes key sections
+      const guidance = refinementResponse.data.result.guidance;
+      expect(guidance).toContain('Analyze Available Context');
+      expect(guidance).toContain('Perform Deep Analysis');
+      expect(guidance).toContain('Discuss With User');
+      expect(guidance).toContain('final: true');
 
       // PHASE 2: Request recommendations with refined intent and final=true (solutions)
       const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {

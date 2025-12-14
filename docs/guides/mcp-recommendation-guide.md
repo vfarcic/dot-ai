@@ -35,7 +35,7 @@ Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to conf
 ### Key Features
 
 The DevOps AI Toolkit recommendation feature provides:
-- **Smart intent clarification** - Adaptive questioning to gather missing context for better recommendations
+- **Intent refinement guidance** - When intent is vague, provides guidance for the client agent (Claude Code, Cursor, etc.) to analyze the project and gather details before proceeding
 - **Semantic capability understanding** - Uses discovered resource capabilities for intelligent semantic matching
 - **AI-powered recommendations** - Suggests optimal deployment approaches based on capability-filtered resources with rich context
 - **Enhanced resource discovery** - Finds resources like `sqls.devopstoolkit.live` for "PostgreSQL database" requests through semantic search
@@ -64,43 +64,33 @@ The DevOps AI Toolkit recommendation feature provides:
 ### Example 1: Stateless Golang Web Application
 
 ```md
-User: I want to deploy a stateless Golang web application
+User: I want to deploy my app
 ```
 
 ```md
-Agent: I'll help you deploy a stateless Golang web application. To provide the best recommendations, I have a few clarification questions:
+Agent: [Uses mcp__dot-ai__recommend with intent "deploy my app"]
 
-[Uses mcp__dot-ai__recommend with intent "deploy a stateless Golang web application"]
+The intent needs more detail. Let me analyze your project to understand what you're deploying.
 
-**Application Details:**
-1. What is the expected traffic pattern and scaling requirements for your application?
+[Agent analyzes the project directory, reads package.json, Dockerfile, source code, etc.]
 
-**Environment & Infrastructure:**
-2. Is this for development, staging, or production use?
+Based on my analysis of your project:
+- **Language**: Go (found go.mod, main.go)
+- **Type**: Web application (HTTP server on port 8080)
+- **Dependencies**: Connects to PostgreSQL database (found database connection code)
+- **Container**: Ready to containerize (Dockerfile present)
 
-**Security & Networking:**
-3. Does your application need external access or will it only serve internal traffic?
-
-**Performance & Resources:**
-4. Do you have specific CPU, memory, or storage requirements?
-
-**Integration:**
-5. Are there any other services this application needs to connect to?
-
-**Additional Context:**
-6. Are there any other specific requirements or constraints we should consider?
-
-You can answer the questions that are relevant to your needs, or let me know if you'd like to proceed with the information provided.
+Is this for production or development? And should the app be publicly accessible?
 ```
 
 ```md
-User: It's for production, needs external access, expects moderate traffic with occasional spikes, and needs to connect to a PostgreSQL database.
+User: It's for production, needs external access, expects moderate traffic with occasional spikes.
 ```
 
 ```md
-Agent: Perfect! Based on your clarified requirements, let me get production-focused deployment recommendations.
+Agent: Perfect! Based on my analysis and your requirements, let me get production-focused deployment recommendations.
 
-[Uses mcp__dot-ai__recommend with refined intent "deploy stateless Golang web application for production with external access via ingress, moderate traffic with occasional spikes requiring autoscaling, connects to PostgreSQL database" and final: true]
+[Uses mcp__dot-ai__recommend with refined intent "deploy stateless Golang web application for production with external access via ingress, moderate traffic with occasional spikes requiring autoscaling, connects to PostgreSQL database, container image available" and final: true]
 
 I found 5 deployment solutions for your Golang web application. All include:
 - Deployment - manages your stateless app with rolling updates
@@ -127,9 +117,13 @@ Which solution would you like to proceed with? (1-5)
 ```
 
 **What happened behind the scenes:**
-- Capability search found relevant resources: Deployment, Service, Ingress, HorizontalPodAutoscaler, plus database operators (DevOps Toolkit SQL, Azure FlexibleServer, AWS RDS, GCP CloudSQL, UpCloud)
+- First call with vague intent ("deploy my app" - under 100 characters) triggered intent refinement guidance
+- Agent received guidance to analyze the project and gather details before proceeding
+- Agent used its local tools (file reading, code analysis) to discover: Go language, web app type, PostgreSQL dependency, Dockerfile
+- Agent discussed findings with user and gathered missing context (production, external access, traffic pattern)
+- Second call with detailed intent + `final: true` proceeded to recommendations
+- Capability search found relevant resources: Deployment, Service, Ingress, HorizontalPodAutoscaler, plus database operators
 - Vector DB search found matching organizational patterns: DevOps Toolkit DB pattern, Azure ResourceGroup pattern
-- AI understood the intent includes PostgreSQL connectivity, so it included database provisioning in all solutions
 - Generated 5 solution alternatives with different cloud provider options, scoring based on capability relevance and pattern alignment
 - Policy intents automatically enforced (e.g., no `latest` image tags, standardized regions)
 
