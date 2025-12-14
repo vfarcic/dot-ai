@@ -293,11 +293,12 @@ Closes #[issue-id]
     - CLI commands: `gh pr view [pr-number]`, `gh pr checks [pr-number]`, `gh api repos/owner/repo/pulls/[pr-number]/comments`
     - **Web interface inspection**: Fetch the PR URL directly to capture all comments, including inline code suggestions that CLI tools may miss
     - Look for comments from automated tools (usernames ending in 'ai', 'bot', or known review tools)
-- [ ] **Present code review findings**: ALWAYS summarize automated review feedback for the user (unless there are no findings)
-  - **Categorize findings**: Critical, Important, Optional based on impact
+- [ ] **Present ALL code review findings**: ALWAYS present every review comment to the user, regardless of severity
+  - **Show ALL comments**: Present every suggestion, nitpick, and recommendation - do not filter or omit any
+  - **Categorize findings**: Critical, Important, Optional/Nitpick based on impact
   - **Provide specific examples**: Quote actual suggestions and their locations
-  - **Explain assessment**: Why each category was assigned and which items should be addressed
-  - **User decision**: Let user decide which optional improvements to implement before merge
+  - **Explain assessment**: Why each category was assigned
+  - **User decision**: Let user decide which improvements to implement before merge (critical items must be addressed, others are user's choice)
 - [ ] **Assess feedback priority**: Categorize review feedback
   - **Critical**: Security issues, breaking changes, test failures - MUST address before merge
   - **Important**: Code quality, maintainability, performance - SHOULD address for production readiness
