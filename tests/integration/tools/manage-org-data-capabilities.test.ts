@@ -133,7 +133,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // Step 3: Poll for completion using progress operation
       let scanComplete = false;
       let progressResponse;
-      const maxAttempts = 270; // 45 minutes with 10 second intervals
+      const maxAttempts = 60; // 10 minutes with 10 second intervals
       let attempts = 0;
 
       while (!scanComplete && attempts < maxAttempts) {
@@ -146,10 +146,9 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `progress_check_${attempts}`
         });
 
-        // Check if scan is complete using explicit status values
-        const status = progressResponse.data.result.status;
-        const step = progressResponse.data.result.step;
-        if (status === 'complete' || status === 'completed' || step === 'complete') {
+        // Check if scan is complete - status is inside progress object
+        const progressStatus = progressResponse.data.result.progress?.status;
+        if (progressStatus === 'complete' || progressStatus === 'completed') {
           scanComplete = true;
         }
         attempts++;
@@ -171,7 +170,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       // NOTE: This test does NOT clean up capabilities data
       // The full scan results will be used by recommendation tests
-    }, 2700000); // 45 minute timeout for full test (accommodates slower AI models like OpenAI)
+    }, 660000); // 11 minute timeout (10 min polling + buffer)
 
     test('should handle specific resource scanning workflow', async () => {
       // Step 1: Start scan
