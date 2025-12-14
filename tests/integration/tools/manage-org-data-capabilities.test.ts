@@ -146,11 +146,10 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `progress_check_${attempts}`
         });
 
-        // Check if scan is complete
-        if (progressResponse.data.result.status === 'complete' ||
-            progressResponse.data.result.step === 'complete' ||
-            progressResponse.data.result.message?.includes('completed') ||
-            progressResponse.data.result.message?.includes('No active')) {
+        // Check if scan is complete using explicit status values
+        const status = progressResponse.data.result.status;
+        const step = progressResponse.data.result.step;
+        if (status === 'complete' || status === 'completed' || step === 'complete') {
           scanComplete = true;
         }
         attempts++;
@@ -195,7 +194,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       });
 
       // Should ask for resource specification
-      expect(specificResponse.data.result.success).toBeDefined(); // Accept any boolean value
+      expect(specificResponse.data.result.success).toBe(true);
       expect(specificResponse.data.result.workflow.step).toBe('resource-specification');
       expect(specificResponse.data.result.workflow.question).toContain('resource');
 

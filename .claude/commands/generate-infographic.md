@@ -18,7 +18,7 @@ Read the specified documentation file to understand its content.
 
 Create a retro arcade style prompt following this format:
 
-```
+```text
 Create a retro 8-bit pixel art infographic for "[PAGE TITLE]" from DevOps AI Toolkit.
 
 Style: Retro arcade game aesthetic, pixel art, CRT glow effects, scanlines, neon pink/cyan on dark background, NES game instruction card style.

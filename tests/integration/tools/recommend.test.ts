@@ -310,12 +310,12 @@ describe.concurrent('Recommend Tool Integration', () => {
             success: true,
             status: 'manifests_generated',
             solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
-            outputFormat: 'raw',
+            outputFormat: 'kustomize',
             outputPath: './manifests',
             files: expect.arrayContaining([
               expect.objectContaining({
-                relativePath: 'manifests.yaml',
-                content: expect.stringContaining('apiVersion:')
+                relativePath: 'kustomization.yaml',
+                content: expect.stringContaining('kind: Kustomization')
               })
             ]),
             validationAttempts: expect.any(Number),
@@ -334,16 +334,32 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
-      // Verify manifests contain valid Kubernetes YAML structure (generic validation)
-      const manifests = generateResponse.data.result.files[0].content;
-      expect(manifests).toContain('apiVersion:');
-      expect(manifests).toContain('kind:');
-      expect(manifests).toContain('metadata:');
+      // Verify kustomize structure contains valid files
+      const files = generateResponse.data.result.files;
+      const rootKustomization = files.find((f: any) => f.relativePath === 'kustomization.yaml');
+      expect(rootKustomization).toBeDefined();
+      expect(rootKustomization.content).toContain('kind: Kustomization');
+
+      // Find a file with actual Kubernetes manifests (in base/ or overlay directories)
+      const manifestFile = files.find((f: any) =>
+        f.content.includes('apiVersion:') &&
+        f.content.includes('kind:') &&
+        !f.content.includes('kind: Kustomization')
+      );
+      expect(manifestFile).toBeDefined();
+      expect(manifestFile.content).toContain('metadata:');
 
       // SOLUTION CR VALIDATION: Verify Solution CR is included and properly structured
       const yaml = await import('js-yaml');
-      const parsedManifests = yaml.loadAll(manifests);
-      const solutionCR = parsedManifests.find((m: any) => m.kind === 'Solution');
+      // Look for Solution CR in all manifest files
+      let solutionCR = null;
+      for (const file of files) {
+        if (file.content.includes('kind: Solution')) {
+          const parsedManifests = yaml.loadAll(file.content);
+          solutionCR = parsedManifests.find((m: any) => m?.kind === 'Solution');
+          if (solutionCR) break;
+        }
+      }
 
       // Extract namespace from answers (default to 'default' if not specified)
       const namespace = requiredAnswers.namespace || 'default';
