@@ -30,7 +30,6 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Long-term (6-12 Months)
 
-- Intent refinement via client agent intelligence for better deployment recommendations (PRD #22)
 - Web UI for MCP server interaction (PRD #109)
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 - Remove Anthropic SDK, consolidate on Vercel AI SDK (PRD #238)
