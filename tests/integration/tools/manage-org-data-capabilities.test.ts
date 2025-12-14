@@ -92,7 +92,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(startResponse).toMatchObject(expectedStartResponse);
       const sessionId = startResponse.data.result.workflow.sessionId;
 
-      // Step 2: Select 'all' resources
+      // Step 2: Select 'all' resources - this now starts scan in background
       const resourceSelectionResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
@@ -102,31 +102,21 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'resource_selection'
       });
 
-      // Step 2 should trigger automatic scanning (no processing-mode step)
-      // Validate scan completion response directly after resource selection
-      const expectedFinalResponse = {
+      // Step 2 should start background scan and return immediately
+      const expectedStartedResponse = {
         success: true,
         data: {
           result: {
             success: true,
             operation: 'scan',
             dataType: 'capabilities',
-            mode: 'auto',
-            step: 'complete',
+            status: 'started',
             sessionId: sessionId,
-            summary: {
-              totalScanned: expect.any(Number),
-              successful: expect.any(Number),
-              failed: expect.any(Number),
-              processingTime: expect.any(String)
-            },
-            message: expect.stringMatching(/✅ Capability scan completed/),
-            availableOptions: {
-              viewResults: "Use 'list' operation to browse all discovered capabilities",
-              getDetails: "Use 'get' operation with capability ID to view specific capability details",
-              checkStatus: expect.stringMatching(/Capabilities are now available for AI-powered recommendations|No capabilities were stored/)
-            },
-            userNote: "The above options are available for you to choose from - the system will not execute them automatically."
+            message: 'Capability scan started. Use operation "progress" to check status.',
+            checkProgress: {
+              dataType: 'capabilities',
+              operation: 'progress'
+            }
           },
           tool: 'manageOrgData',
           executionTime: expect.any(Number)
@@ -137,17 +127,48 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         })
       };
 
-      expect(resourceSelectionResponse).toMatchObject(expectedFinalResponse);
-
-      // Validate scan completion - the exact response structure may vary based on implementation
-      // Key requirement is that scan completes successfully
+      expect(resourceSelectionResponse).toMatchObject(expectedStartedResponse);
       expect(resourceSelectionResponse.data.result.sessionId).toBeDefined();
-      expect(resourceSelectionResponse.data.result.summary).toBeDefined();
 
-      // If operators are found, they should be in summary
-      if (resourceSelectionResponse.data.result.summary.operatorsFound) {
-        expect(Array.isArray(resourceSelectionResponse.data.result.summary.operatorsFound)).toBe(true);
+      // Step 3: Poll for completion using progress operation
+      let scanComplete = false;
+      let progressResponse;
+      const maxAttempts = 270; // 45 minutes with 10 second intervals
+      let attempts = 0;
+
+      while (!scanComplete && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds between checks
+
+        progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `progress_check_${attempts}`
+        });
+
+        // Check if scan is complete
+        if (progressResponse.data.result.status === 'complete' ||
+            progressResponse.data.result.step === 'complete' ||
+            progressResponse.data.result.message?.includes('completed') ||
+            progressResponse.data.result.message?.includes('No active')) {
+          scanComplete = true;
+        }
+        attempts++;
       }
+
+      // Validate scan eventually completed
+      expect(scanComplete).toBe(true);
+
+      // Verify capabilities were stored by listing them
+      const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10,
+        interaction_id: 'verify_scan_complete'
+      });
+
+      expect(listResponse.success).toBe(true);
+      expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
 
       // NOTE: This test does NOT clean up capabilities data
       // The full scan results will be used by recommendation tests

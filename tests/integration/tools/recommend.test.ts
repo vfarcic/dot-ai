@@ -123,7 +123,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             nextStage: expect.stringMatching(/^(basic|advanced|open)$/),
             message: expect.stringContaining('required configuration'),
             nextAction: 'Call recommend tool with stage: answerQuestion:required',
-            guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
+            guidance: expect.stringContaining('Present ALL required questions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
           tool: 'recommend',
@@ -562,7 +562,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             nextStage: 'basic',
             message: expect.stringContaining('required configuration'),
             nextAction: 'Call recommend tool with stage: answerQuestion:required',
-            guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
+            guidance: expect.stringContaining('Present ALL required questions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
           tool: 'recommend',
