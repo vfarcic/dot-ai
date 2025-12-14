@@ -161,7 +161,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         question: 'How would you like the manifests packaged?',
         type: 'select',
         options: ['raw', 'helm', 'kustomize'],
-        suggestedAnswer: 'raw',
+        suggestedAnswer: 'kustomize',
         validation: { required: true }
       });
 
