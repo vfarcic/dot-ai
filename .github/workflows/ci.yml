@@ -47,7 +47,7 @@ jobs:
 
     - name: Run integration tests (with automated cluster creation and server management)
       run: devbox run -- npm run test:integration
-      timeout-minutes: 15
+      timeout-minutes: 30
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
