@@ -149,7 +149,7 @@ export class DotAI {
 export { KubernetesDiscovery } from './discovery';
 export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
-export { AIProvider, AIResponse, IntentAnalysisResult, AIProviderConfig } from './ai-provider.interface';
+export { AIProvider, AIResponse, AIProviderConfig } from './ai-provider.interface';
 export { createAIProvider, AIProviderFactory } from './ai-provider-factory';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';

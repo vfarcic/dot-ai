@@ -25,50 +25,6 @@ export interface AIResponse {
 }
 
 /**
- * Impact level for clarification opportunities
- */
-export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
-
-/**
- * Clarification category types
- */
-export type ClarificationCategory =
-  | 'TECHNICAL_SPECIFICATIONS'
-  | 'ARCHITECTURAL_CONTEXT'
-  | 'OPERATIONAL_REQUIREMENTS'
-  | 'SECURITY_COMPLIANCE'
-  | 'ORGANIZATIONAL_ALIGNMENT';
-
-/**
- * Clarification opportunity structure
- */
-export interface ClarificationOpportunity {
-  category: ClarificationCategory;
-  missingContext: string;
-  impactLevel: ImpactLevel;
-  reasoning: string;
-  suggestedQuestions?: string[];
-  patternAlignment?: string;
-}
-
-/**
- * Intent analysis result structure
- */
-export interface IntentAnalysisResult {
-  clarificationOpportunities: ClarificationOpportunity[];
-  overallAssessment: {
-    enhancementPotential: ImpactLevel;
-    primaryGaps: string[];
-    recommendedFocus: string;
-  };
-  intentQuality: {
-    currentSpecificity: string;
-    strengthAreas: string[];
-    improvementAreas: string[];
-  };
-}
-
-/**
  * AI Provider configuration
  */
 export interface AIProviderConfig {

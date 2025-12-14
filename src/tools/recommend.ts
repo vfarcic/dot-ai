@@ -5,7 +5,6 @@
 import { z } from 'zod';
 import { ErrorHandler } from '../core/error-handling';
 import { ResourceRecommender } from '../core/schema';
-import { AIProvider, IntentAnalysisResult } from '../core/ai-provider.interface';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
@@ -18,6 +17,9 @@ import { loadPrompt } from '../core/shared-prompt-loader';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { ArtifactHubService } from '../core/artifacthub';
 import { HelmChartInfo } from '../core/helm-types';
+
+// Intent refinement heuristic constants
+const VAGUE_INTENT_THRESHOLD = 100; // Characters - intents below this trigger guidance
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
@@ -67,69 +69,31 @@ export interface SolutionData {
 }
 
 /**
- * Analyze intent for clarification opportunities using AI
+ * Check if intent is vague using simple heuristic (character count)
  *
- * @param intent User's deployment intent
- * @param aiProvider AI provider instance to use for analysis
- * @param logger Logger for error reporting
- * @param organizationalPatterns Optional organizational patterns context
- * @returns Analysis result with clarification opportunities
+ * @param intent User's intent string
+ * @returns true if intent is considered vague and needs refinement
  */
-async function analyzeIntentForClarification(
-  intent: string,
-  aiProvider: AIProvider,
-  logger: Logger,
-  organizationalPatterns: string = '',
-  evaluationContext?: {
-    user_intent?: string;
-    setup_context?: string;
-    failure_analysis?: string;
-    interaction_id?: string;
-  }
-): Promise<IntentAnalysisResult> {
-  try {
-    // Load intent analysis prompt template
-    const analysisPrompt = loadPrompt('intent-analysis', {
-      intent,
-      organizational_patterns: organizationalPatterns || 'No specific organizational patterns available'
-    });
+function isVagueIntent(intent: string): boolean {
+  return intent.length < VAGUE_INTENT_THRESHOLD;
+}
 
-    // Send to AI for analysis
-    const response = await aiProvider.sendMessage(analysisPrompt, 'recommend-intent-analysis', evaluationContext);
+/**
+ * Generate guidance response for vague intents by loading the prompt template
+ *
+ * @param intent The vague intent that was provided
+ * @returns Structured response with guidance for the client agent
+ */
+function generateIntentRefinementGuidance(intent: string): object {
+  // Load the guidance prompt from file
+  const guidance = loadPrompt('intent-refinement-guidance', {});
 
-    // Parse JSON response using shared utility
-    const analysisResult = extractJsonFromAIResponse(response.content);
-
-    // Validate the response structure
-    if (!analysisResult.clarificationOpportunities || !Array.isArray(analysisResult.clarificationOpportunities)) {
-      throw new Error('Invalid analysis result structure: missing clarificationOpportunities array');
-    }
-
-    if (!analysisResult.overallAssessment || !analysisResult.intentQuality) {
-      throw new Error('Invalid analysis result structure: missing overallAssessment or intentQuality');
-    }
-
-    return analysisResult;
-
-  } catch (error) {
-    // If parsing fails or API call fails, return a fallback minimal analysis
-    logger.warn?.('Intent analysis failed, returning minimal analysis', {
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return {
-      clarificationOpportunities: [],
-      overallAssessment: {
-        enhancementPotential: 'LOW',
-        primaryGaps: [],
-        recommendedFocus: 'Proceed with original intent - analysis unavailable'
-      },
-      intentQuality: {
-        currentSpecificity: 'Unable to analyze - using original intent',
-        strengthAreas: ['User provided clear deployment intent'],
-        improvementAreas: []
-      }
-    };
-  }
+  return {
+    success: true,
+    needsRefinement: true,
+    intent,
+    guidance
+  };
 }
 
 
@@ -191,71 +155,34 @@ export async function handleRecommendTool(
         hasApiProvider: dotAI.ai.isInitialized()
       });
 
-      // Initialize AI provider for potential clarification analysis
-      const aiProvider = dotAI.ai;
+      // Check if intent needs refinement using simple heuristic (unless final=true)
+      if (!args.final && isVagueIntent(args.intent)) {
+        logger.debug('Vague intent detected, returning refinement guidance', {
+          requestId,
+          intent: args.intent,
+          intentLength: args.intent.length,
+          threshold: VAGUE_INTENT_THRESHOLD
+        });
 
-      // Check if intent clarification is needed (unless final=true)
-      if (!args.final) {
-        logger.debug('Analyzing intent for clarification opportunities', { requestId, intent: args.intent });
+        const guidanceResponse = generateIntentRefinementGuidance(args.intent);
 
-        const analysisResult = await analyzeIntentForClarification(
-          args.intent, 
-          aiProvider, 
-          logger, 
-          '', // organizationalPatterns - empty for now
-          {
-            user_intent: args.intent,
-            interaction_id: args.interaction_id
-          }
-        );
-        
-        // If clarification opportunities exist, return them to the client agent
-        if (analysisResult.clarificationOpportunities && 
-            analysisResult.clarificationOpportunities.length > 0 &&
-            analysisResult.overallAssessment.enhancementPotential !== 'LOW') {
-          
-          // Convert analysis to structured questions for client agent
-          const questions = analysisResult.clarificationOpportunities
-            .map((opp: any, index: number) => ({
-              id: `clarification-${index + 1}`,
-              question: opp.suggestedQuestions?.[0] || `Can you provide more details about ${opp.missingContext.toLowerCase()}?`,
-              reasoning: opp.reasoning,
-              examples: opp.suggestedQuestions?.slice(1) || []
-            }));
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(guidanceResponse, null, 2)
+            }
+          ]
+        };
+      }
 
-          const clarificationResponse = {
-            status: 'clarification_available',
-            intent: args.intent,
-            analysis: {
-              enhancementPotential: analysisResult.overallAssessment.enhancementPotential,
-              recommendedFocus: analysisResult.overallAssessment.recommendedFocus,
-              currentSpecificity: analysisResult.intentQuality.currentSpecificity,
-              strengthAreas: analysisResult.intentQuality.strengthAreas,
-              improvementAreas: analysisResult.intentQuality.improvementAreas
-            },
-            questions,
-            agentInstructions: 'Present these clarification questions to help the user provide a more specific intent. When the user provides a refined intent (or confirms the current intent is sufficient), call the recommend tool again with final: true to proceed with recommendations.'
-          };
-
-          logger.debug('Returning clarification questions', { 
-            requestId, 
-            questionsCount: questions.length,
-            enhancementPotential: analysisResult.overallAssessment.enhancementPotential
-          });
-
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(clarificationResponse, null, 2)
-              }
-            ]
-          };
-        }
-
-        logger.debug('No significant clarification opportunities found, proceeding with recommendations', { requestId });
+      if (args.final) {
+        logger.debug('Skipping intent refinement check (final=true), proceeding directly', { requestId });
       } else {
-        logger.debug('Skipping intent clarification (final=true), proceeding directly with recommendations', { requestId });
+        logger.debug('Intent is detailed enough, proceeding with recommendations', {
+          requestId,
+          intentLength: args.intent.length
+        });
       }
 
       // Ensure cluster connectivity before proceeding with recommendations
