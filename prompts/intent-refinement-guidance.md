@@ -51,3 +51,18 @@ Once you and the user have agreed on what they want to do and the relevant detai
 ## What Makes a Good Intent
 
 A detailed intent describes what the user wants to do with relevant specifics. What details matter depends entirely on what they're trying to accomplish. The more relevant detail you provide, the better.
+
+## What NOT to Include
+
+**Do NOT specify Kubernetes resource types** (e.g., "need a Deployment", "use Ingress", "create a Service"). The recommendation engine's job is to analyze your intent and find the BEST Kubernetes resources for your needs. Pre-specifying resources prevents it from recommending better alternatives like:
+
+- Operators and CRDs (Knative Service, Crossplane resources, etc.)
+- Platform-specific solutions (OpenShift Routes vs Ingress, etc.)
+- Better-fit resource types (StatefulSet vs Deployment for stateful apps)
+- Organization-specific patterns
+
+**Good intent**: "Deploy a Python Flask API that connects to PostgreSQL. Container listens on port 5000, needs 512Mi memory, requires DATABASE_URL environment variable. Expose publicly at api.example.com"
+
+**Bad intent**: "Deploy Flask API. Need Kubernetes Deployment, Service, and Ingress to expose..."
+
+Focus on: WHAT you're deploying, the technical context (ports, runtime, requirements), and the desired outcome. Let the recommendation engine determine HOW.

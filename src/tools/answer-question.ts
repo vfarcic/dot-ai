@@ -90,16 +90,16 @@ function validateAnswer(answer: any, question: any): string | null {
 function getStageSpecificInstructions(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
-      return 'STAGE: REQUIRED - All questions must be answered before proceeding. No skipping allowed.';
+      return 'STAGE: REQUIRED - Present ALL questions to the user and collect answers. All questions must be answered before proceeding.';
     case 'basic':
-      return 'STAGE: BASIC - These questions can be skipped. User can provide answers or say "skip" to proceed to advanced stage.';
+      return 'STAGE: BASIC - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to advanced stage.';
     case 'advanced':
       // For Helm, don't mention open stage since it's skipped
       return isHelm
-        ? 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to manifest generation.'
-        : 'STAGE: ADVANCED - These questions can be skipped. User can provide answers or say "skip" to proceed to open stage.';
+        ? 'STAGE: ADVANCED - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to manifest generation.'
+        : 'STAGE: ADVANCED - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to open stage.';
     case 'open':
-      return 'STAGE: OPEN - Final configuration stage. User can provide additional requirements or say "N/A" to proceed to manifest generation.';
+      return 'STAGE: OPEN - Final configuration stage. Ask user for any additional requirements or constraints. User can say "N/A" if none.';
     default:
       return 'STAGE: UNKNOWN - Present questions to the user and wait for their response.';
   }
@@ -113,26 +113,22 @@ function getAgentInstructions(stage: Stage, isHelm: boolean = false): string {
 
   const mandatoryWorkflow = `
 MANDATORY CLIENT AGENT WORKFLOW:
-1. Present these questions to the user in natural language
-2. Wait for explicit user response
-3. If user provides answers: call answerQuestion with their specific answers
-4. If user says "skip": call answerQuestion with empty answers object ({})
-5. NEVER call answerQuestion without receiving user input first
-6. NEVER assume what the user wants for subsequent stages`;
+1. Present ALL questions from this stage to the user - do not skip any
+2. For each question, show the default value if one exists and ask user to confirm or change it
+3. Wait for explicit user response on EVERY question
+4. Only call answerQuestion after user has reviewed and responded to all questions
+5. NEVER auto-fill answers without user confirmation, even if you can deduce values
+6. NEVER assume what the user wants for any question or stage`;
 
-  // For Helm, don't mention open stage constraints
-  const strictConstraints = isHelm ? `
+  const strictConstraints = `
 STRICT BEHAVIORAL CONSTRAINTS:
 - DO NOT call answerQuestion automatically
-- DO NOT assume user wants to proceed to manifest generation
-- DO NOT interpret "skip" as "automatically proceed to next stage"
-- MUST present each stage's questions individually and wait for user response` : `
-STRICT BEHAVIORAL CONSTRAINTS:
-- DO NOT call answerQuestion automatically
-- DO NOT assume user wants to proceed to manifest generation
-- DO NOT call answerQuestion with empty open stage answers unless user explicitly provides them
-- DO NOT interpret "skip" as "automatically proceed to next stage"
-- MUST present each stage's questions individually and wait for user response`;
+- DO NOT skip questions - present ALL questions even if they have defaults
+- DO NOT assume user wants default values - always ask for confirmation
+- DO NOT fill in values you deduced without asking user first
+- DO NOT interpret "skip" as permission to auto-fill remaining questions
+- MUST present each question individually and collect user's explicit response
+- If a question has a default, show it as a suggestion but still ask user to confirm`;
 
   const stageSpecific = getStageSpecificInstructions(stage, isHelm);
 
@@ -335,18 +331,18 @@ function getStageMessage(stage: Stage): string {
 function getStageGuidance(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
-      return 'All required questions must be answered to proceed.';
+      return 'Present all required questions to the user. All must be answered to proceed.';
     case 'basic':
-      return 'Answer questions in this stage or skip to proceed to the advanced stage. Do NOT try to generate manifests yet.';
+      return 'Present all basic questions to the user. Show default values as suggestions but ask user to confirm each one.';
     case 'advanced':
       // For Helm, don't mention the open stage since it's skipped
       return isHelm
-        ? 'Answer questions in this stage or skip to proceed to manifest generation.'
-        : 'Answer questions in this stage or skip to proceed to the open stage. Do NOT try to generate manifests yet.';
+        ? 'Present all advanced questions to the user. Show default values as suggestions but ask user to confirm each one. After this stage: manifest generation.'
+        : 'Present all advanced questions to the user. Show default values as suggestions but ask user to confirm each one. After this stage: open stage.';
     case 'open':
-      return 'Use "N/A" if you have no additional requirements. Complete this stage before generating manifests.';
+      return 'Ask user for any additional requirements or constraints. User can say "N/A" if none.';
     default:
-      return 'Please provide answers for this stage.';
+      return 'Present all questions to the user and collect their responses.';
   }
 }
 

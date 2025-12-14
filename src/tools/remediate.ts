@@ -567,9 +567,9 @@ async function executeRemediationCommands(
             logger.info('Waiting for Kubernetes to apply changes before validation', {
               requestId,
               sessionId: session.sessionId,
-              delayMs: 15000
+              delayMs: 30000
             });
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            await new Promise(resolve => setTimeout(resolve, 30000));
           }
 
           logger.info('Running post-execution validation', {

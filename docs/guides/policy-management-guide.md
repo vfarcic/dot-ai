@@ -4,6 +4,8 @@
 
 **Complete guide for creating and managing organizational policy intents with the DevOps AI Toolkit.**
 
+![Policy Management Infographic](../img/policies.jpeg)
+
 ## Overview
 
 Policy Management enables platform engineers and security teams to create governance policies that proactively guide users toward compliant configurations. Unlike traditional policy enforcement that blocks manifests after they're created, this system integrates policies into AI recommendations, ensuring compliance from the start.

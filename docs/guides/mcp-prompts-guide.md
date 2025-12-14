@@ -2,6 +2,8 @@
 
 <!-- PRD-29 -->
 
+![Shared Prompt Library Infographic](../img/prompts.jpeg)
+
 ## What are MCP Prompts
 
 MCP Prompts provide a centralized way to share and discover prompts across projects and team members. Instead of manually copying prompt files between projects, prompts are served directly through the dot-ai MCP server and automatically appear as native slash commands in MCP-enabled coding agents.

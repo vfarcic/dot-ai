@@ -122,7 +122,12 @@ export async function handleChooseSolutionTool(
         nextStage: 'basic',
         message: 'Please provide the required configuration for your application.',
         nextAction: 'Call recommend tool with stage: answerQuestion:required',
-        guidance: 'Answer questions in this stage or skip to proceed to the next stage. Do NOT try to generate manifests yet.',
+        guidance: 'Present ALL required questions to the user. All must be answered before proceeding.',
+        agentInstructions: `MANDATORY: Present ALL questions from this stage to the user - do not skip any.
+For each question, show the default value if one exists and ask user to confirm or change it.
+Wait for explicit user response on EVERY question before calling answerQuestion.
+NEVER auto-fill answers without user confirmation, even if you can deduce values.
+NEVER assume what the user wants - always ask.`,
         timestamp: new Date().toISOString()
       };
       

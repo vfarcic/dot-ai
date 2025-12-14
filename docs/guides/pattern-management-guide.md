@@ -2,6 +2,8 @@
 
 **Complete guide for creating and managing organizational deployment patterns with the DevOps AI Toolkit.**
 
+![Pattern Management Infographic](../img/patterns.jpeg)
+
 ## Overview
 
 Pattern Management enables platform engineers and architects to capture organizational deployment knowledge as reusable patterns. These patterns automatically enhance AI deployment recommendations, ensuring consistency with your team's best practices and organizational standards.

@@ -123,7 +123,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             nextStage: expect.stringMatching(/^(basic|advanced|open)$/),
             message: expect.stringContaining('required configuration'),
             nextAction: 'Call recommend tool with stage: answerQuestion:required',
-            guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
+            guidance: expect.stringContaining('Present ALL required questions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
           tool: 'recommend',
@@ -161,7 +161,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         question: 'How would you like the manifests packaged?',
         type: 'select',
         options: ['raw', 'helm', 'kustomize'],
-        suggestedAnswer: 'raw',
+        suggestedAnswer: 'kustomize',
         validation: { required: true }
       });
 
@@ -175,9 +175,14 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 4: Answer required stage questions using suggestedAnswers
+      // Explicitly use 'raw' format for main workflow test (kustomize/helm have dedicated tests)
       const requiredAnswers: Record<string, any> = {};
       requiredQuestions.forEach((q: any) => {
-        requiredAnswers[q.id] = q.suggestedAnswer;
+        if (q.id === 'outputFormat') {
+          requiredAnswers[q.id] = 'raw'; // Use raw format for main workflow
+        } else {
+          requiredAnswers[q.id] = q.suggestedAnswer;
+        }
       });
 
       const answerRequiredResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -303,6 +308,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate generateManifests response (based on actual API inspection)
+      // Raw format returns a single manifests.yaml file
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -334,16 +340,22 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
-      // Verify manifests contain valid Kubernetes YAML structure (generic validation)
-      const manifests = generateResponse.data.result.files[0].content;
-      expect(manifests).toContain('apiVersion:');
-      expect(manifests).toContain('kind:');
-      expect(manifests).toContain('metadata:');
+      // Verify raw format contains single manifests.yaml file
+      const files = generateResponse.data.result.files;
+      const manifestFile = files.find((f: any) => f.relativePath === 'manifests.yaml');
+      expect(manifestFile).toBeDefined();
+      expect(manifestFile.content).toContain('apiVersion:');
+      expect(manifestFile.content).toContain('kind:');
+      expect(manifestFile.content).toContain('metadata:');
+
+      // For raw format, all manifests are in a single file
+      const manifests = manifestFile.content;
 
       // SOLUTION CR VALIDATION: Verify Solution CR is included and properly structured
       const yaml = await import('js-yaml');
+      // For raw format, parse the single manifests.yaml file
       const parsedManifests = yaml.loadAll(manifests);
-      const solutionCR = parsedManifests.find((m: any) => m.kind === 'Solution');
+      const solutionCR = parsedManifests.find((m: any) => m?.kind === 'Solution');
 
       // Extract namespace from answers (default to 'default' if not specified)
       const namespace = requiredAnswers.namespace || 'default';
@@ -562,7 +574,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             nextStage: 'basic',
             message: expect.stringContaining('required configuration'),
             nextAction: 'Call recommend tool with stage: answerQuestion:required',
-            guidance: expect.stringContaining('Do NOT try to generate manifests yet'),
+            guidance: expect.stringContaining('Present ALL required questions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
           },
           tool: 'recommend',
@@ -1193,15 +1205,61 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(deploymentFile).toBeDefined();
       // Base deployment image should NOT have a tag (tag is in overlay)
       const imageMatch = deploymentFile.content.match(/image:\s*["']?([^"'\s]+)["']?/);
-      expect(imageMatch).toBeDefined();
+      expect(imageMatch).not.toBeNull(); // Fix: toBeDefined passes for null
       // Image should not contain a colon followed by a tag (e.g., nginx:1.21)
       // Allow for images like "nginx" or "ghcr.io/org/app" but not "nginx:tag"
-      const imageName = imageMatch[1];
+      const imageName = imageMatch![1];
       // If image has a registry (contains /), allow colons in registry but not for tags
       // Simple check: if there's a colon after the last slash, it's likely a tag
       const lastSlashIndex = imageName.lastIndexOf('/');
       const afterLastSlash = lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
       expect(afterLastSlash).not.toMatch(/:[a-zA-Z0-9]/); // No tag like :v1.0 or :latest
+
+      // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
+      const yaml = await import('js-yaml');
+      const overlayResources = files.filter((f: any) =>
+        f.relativePath.startsWith('overlays/production/') && f.relativePath !== 'overlays/production/kustomization.yaml'
+      );
+      const solutionFile = overlayResources.find((f: any) => f.content.includes('kind: Solution'));
+      expect(solutionFile).toBeDefined();
+
+      // Verify overlay kustomization.yaml references the solution file
+      expect(productionOverlay.content).toMatch(/resources:[\s\S]*solution\.yaml/);
+
+      const parsedSolution = yaml.loadAll(solutionFile.content);
+      const solutionCR = parsedSolution.find((m: any) => m?.kind === 'Solution');
+      expect(solutionCR).toBeDefined();
+
+      // Verify Solution CR structure
+      expect(solutionCR).toMatchObject({
+        apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
+        kind: 'Solution',
+        metadata: {
+          name: expect.stringMatching(/^solution-sol-\d+-[a-f0-9]{8}$/),
+          namespace: expect.any(String), // namespace in metadata for overlay resources
+          labels: {
+            'dot-ai.devopstoolkit.live/created-by': 'dot-ai-mcp',
+            'dot-ai.devopstoolkit.live/solution-id': expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/)
+          }
+        },
+        spec: {
+          intent: 'deploy nginx web server',
+          // Verify resources have namespace preserved (kustomize doesn't transform spec.resources)
+          resources: expect.arrayContaining([
+            expect.objectContaining({
+              kind: expect.any(String),
+              name: expect.any(String),
+              namespace: expect.any(String) // namespace must be present in spec.resources
+            })
+          ]),
+          context: {
+            createdBy: 'dot-ai-mcp',
+            rationale: expect.any(String),
+            patterns: expect.any(Array),
+            policies: expect.any(Array)
+          }
+        }
+      });
     }, 900000); // 15 minutes for full workflow with AI packaging
   });
 });

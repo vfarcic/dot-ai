@@ -4,6 +4,8 @@
 
 **Complete guide for discovering, managing, and leveraging Kubernetes resource capabilities with the DevOps AI Toolkit.**
 
+![Capability Management Infographic](../img/capabilities.jpeg)
+
 ## Overview
 
 Capability Management transforms how the DevOps AI Toolkit understands your Kubernetes cluster by discovering and storing semantic information about what each resource actually does. Instead of treating resources as generic names, the system learns their capabilities, providers, complexity, and use cases - enabling intelligent, context-aware deployment recommendations.
