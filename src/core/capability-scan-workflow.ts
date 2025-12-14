@@ -138,8 +138,28 @@ export async function handleResourceSelection(
       currentResourceIndex: 0  // Start with first resource
     }, args);
 
-    // Begin actual capability scanning and return completion summary
-    return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
+    // Start scanning in background (don't await) to avoid MCP timeout
+    handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse)
+      .catch(error => {
+        logger.error('Background capability scan failed', error as Error, {
+          requestId,
+          sessionId: session.sessionId
+        });
+      });
+
+    // Return immediately - user can check progress with operation: 'progress'
+    return {
+      success: true,
+      operation: 'scan',
+      dataType: 'capabilities',
+      status: 'started',
+      sessionId: session.sessionId,
+      message: 'Capability scan started. Use operation "progress" to check status.',
+      checkProgress: {
+        dataType: 'capabilities',
+        operation: 'progress'
+      }
+    };
   }
   
   if (normalizedResponse === 'specific') {

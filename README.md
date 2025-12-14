@@ -31,6 +31,8 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 
 Built on the Model Context Protocol (MCP), it integrates seamlessly with Claude Code, Cursor, and VS Code to provide conversational interaction for complex DevOps and development tasks.
 
+![DevOps AI Toolkit Infographic](docs/img/index.jpeg)
+
 ## Mission
 
 DevOps AI Toolkit democratizes platform engineering and cloud native operations by making complex workflows accessible through AI-powered automation. We eliminate the expertise barrier that prevents teams from adopting best practices in Kubernetes operations, repository governance, and standardized development workflows—making professional-grade DevOps accessible through natural language interaction.

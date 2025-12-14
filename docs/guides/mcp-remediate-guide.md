@@ -2,6 +2,8 @@
 
 **Complete guide for using AI-powered Kubernetes issue analysis and remediation through MCP (Model Context Protocol).**
 
+![Issue Remediation Infographic](../img/remediation.jpeg)
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:

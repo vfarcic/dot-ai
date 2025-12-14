@@ -2,6 +2,8 @@
 
 **Complete guide for using AI-powered repository setup and governance through MCP (Model Context Protocol).**
 
+![Project Setup & Governance Infographic](../img/github.jpeg)
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:

@@ -2,6 +2,8 @@
 
 **Complete guide for using AI-powered Kubernetes operations through MCP (Model Context Protocol).**
 
+![Day 2 Operations Infographic](../img/operations.jpeg)
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:

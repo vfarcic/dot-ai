@@ -119,7 +119,7 @@ export const OUTPUT_FORMAT_QUESTION: Question = {
   type: 'select',
   options: ['raw', 'helm', 'kustomize'],
   placeholder: 'Select output format',
-  suggestedAnswer: 'raw',
+  suggestedAnswer: 'kustomize',
   validation: { required: true }
 };
 

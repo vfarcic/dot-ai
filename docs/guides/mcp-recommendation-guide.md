@@ -2,6 +2,8 @@
 
 **Complete guide for using Kubernetes deployment recommendations through MCP (Model Context Protocol).**
 
+![Resource Provisioning Intelligence Infographic](../img/recommendation.jpeg)
+
 ## See It In Action
 
 [![DevOps AI Toolkit: AI-Powered Application Deployment](https://img.youtube.com/vi/8Yzn-9qQpQI/maxresdefault.jpg)](https://youtu.be/8Yzn-9qQpQI)
