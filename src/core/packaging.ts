@@ -109,18 +109,17 @@ Generate a production-ready Kustomize structure with base/ and overlays/ directo
    - List all resource files in \`resources:\` section (e.g., \`- deployment.yaml\`)
    - Do NOT include namespace, patches, or images here - base should be generic/reusable
 
-2. **base/*.yaml** - Base Kubernetes manifests
-   - One file per Kubernetes resource (deployment.yaml, service.yaml, solution.yaml, etc.)
-   - **CRITICAL**: Include ALL manifests from the raw input - do not filter out any resources
-   - This includes custom resources (CRDs) like Solution, Crossplane resources, etc.
-   - Include complete, valid manifests
+2. **base/*.yaml** - Base Kubernetes manifests (generic, reusable)
+   - One file per Kubernetes resource (deployment.yaml, service.yaml, etc.)
+   - Include complete, valid manifests WITHOUT namespace in metadata
    - For container images: use ONLY the repository (e.g., \`image: nginx\` or \`image: ghcr.io/org/app\`) WITHOUT any tag - tags are set in overlays
    - Resource names should be consistent across all files
+   - **IMPORTANT**: Resources with namespace-specific internal references (e.g., spec fields referencing other namespaced resources) should go in overlays, not base, since kustomize only transforms metadata.namespace
 
 3. **overlays/production/kustomization.yaml** - Production overlay (THE KEY FILE FOR CUSTOMIZATION)
    - \`apiVersion: kustomize.config.k8s.io/v1beta1\`
    - \`kind: Kustomization\`
-   - Reference base: \`resources: [../../base]\`
+   - Reference base AND any overlay-specific resources: \`resources: [../../base, solution.yaml]\`
    - Use \`namespace:\` field with the user-specified namespace
    - **REQUIRED**: Use \`images:\` section to set image tags from user answers:
      \`\`\`yaml
@@ -131,7 +130,12 @@ Generate a production-ready Kustomize structure with base/ and overlays/ directo
    - Use \`replicas:\` section if replicas were customized
    - Use \`patches:\` for other customizations (resources, env vars, etc.)
 
-4. **kustomization.yaml** (root) - Points to production overlay for easy deployment
+4. **overlays/production/*.yaml** - Environment-specific resources
+   - Place resources with namespace-specific internal references here (e.g., Solution CRD with spec.resources[].namespace)
+   - These resources contain namespace values that kustomize won't transform
+   - This allows different overlays (staging, dev) to have their own versions
+
+5. **kustomization.yaml** (root) - Points to production overlay for easy deployment
    - Simple file that references the production overlay: \`resources: [overlays/production]\`
 
 **WHY THIS STRUCTURE**:
