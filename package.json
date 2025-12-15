@@ -17,6 +17,7 @@
     "test:integration:teardown": "./tests/integration/infrastructure/teardown-cluster.sh",
     "test:integration:server": "KUBECONFIG=./kubeconfig-test.yaml PORT=3456 DOT_AI_SESSION_DIR=./tmp/sessions TRANSPORT_TYPE=http QDRANT_URL=http://localhost:6335 QDRANT_CAPABILITIES_COLLECTION=capabilities-policies ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY OPENAI_API_KEY=$OPENAI_API_KEY node dist/mcp/server.js",
     "test:integration": "./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:unit": "vitest --config=vitest.unit.config.ts",
     "test:integration:watch": "vitest --config=vitest.integration.config.ts --test-timeout=1200000",
     "test:integration:sonnet": "AI_PROVIDER=anthropic DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:opus": "AI_PROVIDER=anthropic_opus DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",

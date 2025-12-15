@@ -106,6 +106,9 @@ export class MCPServer {
       }
     );
 
+    // Configure HostProvider if active
+    this.configureHostProvider();
+
     this.logger.info('Initializing MCP Server', {
       name: config.name,
       version: config.version,
@@ -142,7 +145,10 @@ export class MCPServer {
     };
 
     // Register traced handler with MCP server
-    this.server.tool(name, description, inputSchema, tracedHandler);
+    this.server.registerTool(name, {
+      description,
+      inputSchema
+    }, tracedHandler);
 
     // Register traced handler with REST registry
     this.restRegistry.registerTool({
@@ -321,6 +327,45 @@ export class MCPServer {
     this.logger.info('Registered prompts capability with McpServer', {
       endpoints: ['prompts/list', 'prompts/get'],
     });
+  }
+
+  private configureHostProvider(): void {
+    // Configure HostProvider if active
+    // We use capability detection (duck typing) to avoid strict class dependency
+    // and handle potential class loading issues
+    const aiProvider = this.dotAI.ai as any;
+
+    if (typeof aiProvider.setSamplingHandler === 'function') {
+      this.logger.info('Configuring Host AI Provider with Sampling capability');
+      aiProvider.setSamplingHandler(this.handleSamplingRequest.bind(this));
+    } else {
+      this.logger.info('Using configured AI Provider', {
+        type: this.dotAI.ai.getProviderType ? this.dotAI.ai.getProviderType() : 'unknown'
+      });
+    }
+  }
+
+  private async handleSamplingRequest(
+    messages: any[],
+    systemPrompt?: string,
+    options?: any
+  ): Promise<any> {
+    try {
+      if (!this.server.server.createMessage) {
+         throw new Error('Server does not support createMessage (sampling)');
+      }
+      
+      return await this.server.server.createMessage({
+        messages,
+        systemPrompt,
+        includeContext: 'none',
+        maxTokens: options?.maxTokens || 4096,
+        ...options
+      });
+    } catch (error) {
+      this.logger.error('Sampling request failed', error as Error);
+      throw error;
+    }
   }
 
   private generateRequestId(): string {

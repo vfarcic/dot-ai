@@ -87,7 +87,7 @@ Access curated prompts as native slash commands (`/dot-ai:prompt-name`) in your 
 📖 [Learn more →](./docs/guides/mcp-prompts-guide.md)
 
 ### ⚡ AI Integration
-Works with Claude Code, Cursor, VS Code via Model Context Protocol. Supports multiple AI providers (Claude, GPT, Gemini) for flexibility and cost optimization.
+Works with Claude Code, Cursor, VS Code via Model Context Protocol. Supports multiple AI providers (Claude, GPT, Gemini, Host LLM) for flexibility and cost optimization.
 📖 [AI Model Configuration](./docs/setup/mcp-setup.md#ai-model-configuration)
 
 ## Quick Start
