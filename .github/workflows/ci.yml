@@ -45,12 +45,29 @@ jobs:
     - name: Build project
       run: devbox run -- npm run build
 
+    - name: Check if secrets are available
+      id: secrets-check
+      run: |
+        if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ] && [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+          echo "available=true" >> $GITHUB_OUTPUT
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "::warning::API keys not available - this is expected for PRs from forks. A maintainer can manually trigger tests using the 'Test Fork PR' workflow."
+        fi
+
     - name: Run integration tests (with automated cluster creation and server management)
+      if: steps.secrets-check.outputs.available == 'true'
       run: devbox run -- npm run test:integration
       timeout-minutes: 30
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    - name: Skip integration tests (fork PR)
+      if: steps.secrets-check.outputs.available == 'false'
+      run: |
+        echo "::notice::Integration tests skipped - secrets not available for fork PRs"
+        echo "A maintainer can manually run tests using: Actions → 'Test Fork PR (Manual)' → Run workflow"
 
   security:
     name: Security Analysis

@@ -1,0 +1,94 @@
+name: Test Fork PR (Manual)
+
+# This workflow allows maintainers to manually run integration tests
+# on PRs from forks after reviewing the code for security.
+#
+# Fork PRs don't have access to repository secrets, so this workflow
+# provides a secure way to test external contributions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull Request number to test'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write  # To post test results as PR comment
+
+jobs:
+  test-fork-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Get PR details
+      id: pr
+      run: |
+        PR_DATA=$(gh pr view ${{ inputs.pr_number }} --json headRefName,headRepository,headRepositoryOwner,isCrossRepository)
+        echo "head_ref=$(echo $PR_DATA | jq -r '.headRefName')" >> $GITHUB_OUTPUT
+        echo "is_fork=$(echo $PR_DATA | jq -r '.isCrossRepository')" >> $GITHUB_OUTPUT
+        echo "fork_owner=$(echo $PR_DATA | jq -r '.headRepositoryOwner.login')" >> $GITHUB_OUTPUT
+        echo "PR Details: $PR_DATA"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Checkout PR code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        ref: refs/pull/${{ inputs.pr_number }}/head
+
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
+    - name: Run linter
+      run: devbox run -- npm run lint
+
+    - name: Build project
+      run: devbox run -- npm run build
+
+    - name: Run integration tests
+      run: devbox run -- npm run test:integration
+      timeout-minutes: 30
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    - name: Post success comment on PR
+      if: success()
+      run: |
+        gh pr comment ${{ inputs.pr_number }} --body "## ✅ Integration Tests Passed
+
+        Manually triggered integration tests completed successfully.
+
+        - **Triggered by:** @${{ github.actor }}
+        - **Workflow run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Post failure comment on PR
+      if: failure()
+      run: |
+        gh pr comment ${{ inputs.pr_number }} --body "## ❌ Integration Tests Failed
+
+        Manually triggered integration tests failed.
+
+        - **Triggered by:** @${{ github.actor }}
+        - **Workflow run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+        Please review the workflow logs for details."
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
