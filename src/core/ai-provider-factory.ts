@@ -13,6 +13,7 @@ import {
   AIProviderConfig
 } from './ai-provider.interface';
 import { VercelProvider } from './providers/vercel-provider';
+import { HostProvider } from './providers/host-provider';
 import { NoOpAIProvider } from './providers/noop-provider';
 import { CURRENT_MODELS } from './model-config';
 
@@ -62,6 +63,10 @@ export class AIProviderFactory {
    * @throws Error if provider type is unsupported or configuration is invalid
    */
   static create(config: AIProviderConfig): AIProvider {
+    if (config.provider === CURRENT_MODELS.host) {
+      return new HostProvider();
+    }
+
     // Validate configuration
     if (!config.apiKey) {
       throw new Error(`API key is required for ${config.provider} provider`);
@@ -120,6 +125,8 @@ export class AIProviderFactory {
       // Use dummy API key for Bedrock - AWS SDK will handle actual authentication
       // AWS credentials checked at runtime by AWS SDK (env vars, ~/.aws/credentials, IAM roles)
       apiKey = 'bedrock-uses-aws-credentials';
+    } else if (providerType === CURRENT_MODELS.host) {
+      return new HostProvider();
     } else {
       const apiKeyEnvVar = PROVIDER_ENV_KEYS[providerType];
       if (!apiKeyEnvVar) {
