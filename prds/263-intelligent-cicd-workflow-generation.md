@@ -502,13 +502,21 @@ verify it by examining the actual codebase.
 
 **Never assume. Always verify. Ask when uncertain.**
 
-### Security First for PR Workflows
+### Graceful Secret Handling for PR Workflows
 
-**ABSOLUTE RULE**: PR workflows from forks must not have write access
-to secrets or registries.
+**Key insight**: Secrets are only accessible from the org/owner that has them configured. Fork PRs cannot access base repo secrets.
 
-**Required**: Split workflows if project uses PRs - PR workflow (read-only)
-vs main workflow (write access).
+**Required pattern**: Use simple conditional to skip steps when secrets unavailable:
+
+```yaml
+- name: Run integration tests
+  if: secrets.API_KEY != ''
+  run: npm run test:integration
+  env:
+    API_KEY: ${{ secrets.API_KEY }}
+```
+
+**For fork PR testing**: Consider generating a separate manual workflow (`test-fork-pr.yml`) that maintainers can trigger after reviewing fork PR code.
 ```
 
 ### Best Practices Reference Section
@@ -523,20 +531,70 @@ Apply these practices when relevant to the project.
 | Practice | Description |
 |----------|-------------|
 | **Minimal permissions** | Use `permissions:` block, grant only what's needed |
-| **No secrets in PR workflows** | PRs from forks can't access secrets safely |
+| **Conditional secret access** | Use `if: secrets.X != ''` for steps needing secrets (fork PRs skip gracefully) |
 | **OIDC over long-lived tokens** | For cloud providers, prefer OIDC federation |
 | **Pin action versions** | Use SHA or version tags, never `@latest` |
-| **Audit third-party actions** | Prefer official actions or well-known publishers |
+| **Actions for infrastructure only** | Use actions for CI-specific operations (checkout, setup, cache, auth). Use project commands for project logic |
+| **Disable credential persistence** | Use `persist-credentials: false` on `actions/checkout` to prevent credential leaks in artifacts |
+| **Prevent script injection** | Never interpolate untrusted inputs (branch names, PR titles, commit messages) directly into `run:` commands |
+| **Avoid `pull_request_target`** | This trigger has access to secrets but can check out fork code - use `pull_request` unless secrets are truly needed |
+| **Environment protection** | Use GitHub environments with required reviewers for production deployments |
 
-### Caching Strategies
+### Actions vs Commands
 
-| Language | Cache Path | Cache Key |
-|----------|------------|-----------|
-| Node.js | `~/.npm` or `node_modules` | `package-lock.json` hash |
-| Go | `~/.cache/go-build`, `~/go/pkg/mod` | `go.sum` hash |
-| Python | `~/.cache/pip` | `requirements.txt` or `poetry.lock` hash |
-| Rust | `~/.cargo`, `target/` | `Cargo.lock` hash |
-| Java/Maven | `~/.m2/repository` | `pom.xml` hash |
+**Principle**: Actions for infrastructure, commands for logic.
+
+| Category | Examples | Approach |
+|----------|----------|----------|
+| **CI Infrastructure** | checkout, setup-node, cache, registry login | ✅ Use actions |
+| **Project Logic** | build, test, lint, docker build, deploy | ❌ Use project commands |
+
+**Why this matters**:
+- **Local/CI parity**: Project commands work the same locally and in CI; actions don't
+- **Single source of truth**: Logic lives in project automation, not scattered in workflow YAML
+- **Portability**: Commands work on any CI platform; actions are GitHub-specific
+- **Debuggability**: Run locally to debug, don't push-and-pray
+
+**When project scripts don't exist**:
+
+If a needed operation (build, test, etc.) doesn't have an existing script, ask the user:
+
+```
+I didn't find a [operation] script. Would you like me to:
+1. Add it to your existing automation (recommended)
+2. Create a shell script
+3. Use inline command in workflow (no local parity)
+```
+
+"Existing automation" means whatever the project already uses - the AI determines this from analysis (package.json scripts, Makefile targets, Taskfile.yml, pyproject.toml, etc.).
+
+### Secret Management
+
+When the generated workflow requires secrets, document them clearly and provide setup guidance:
+
+**Required output when secrets are needed**:
+```markdown
+## Required Secrets
+
+The following secrets must be configured in GitHub Settings > Secrets:
+
+| Secret Name | Description | How to Create |
+|-------------|-------------|---------------|
+| `DOCKER_USERNAME` | Docker Hub username | Your Docker Hub account username |
+| `DOCKER_TOKEN` | Docker Hub access token | Docker Hub > Account Settings > Security > New Access Token |
+
+**To create secrets via CLI:**
+```bash
+gh secret set DOCKER_USERNAME
+gh secret set DOCKER_TOKEN
+```
+```
+
+**Important**: Show the `gh secret set` commands as guidance, but do NOT execute them - the user provides secret values manually.
+
+### Caching
+
+Implement appropriate caching based on detected package manager and lock files. Analyze existing CI configuration if present to understand current caching patterns.
 
 ### Testing Best Practices
 
@@ -547,24 +605,25 @@ Apply these practices when relevant to the project.
 | **Parallel jobs** | Run independent checks concurrently |
 | **Test matrix** | Consider multiple versions/platforms if relevant |
 
-### Container Registry Authentication
+### Container Registry & Image Tagging
 
-| Registry | Authentication Method |
-|----------|----------------------|
-| GHCR | `GITHUB_TOKEN` (built-in) |
-| Docker Hub | Username + access token in secrets |
-| AWS ECR | OIDC or `aws-actions/configure-aws-credentials` |
-| GCP Artifact Registry | OIDC or service account key |
-| Azure ACR | OIDC or service principal |
+Detect registry from existing CI, Dockerfile, or documentation. If not found, ask user during interactive Q&A. For image tagging strategy, ask user about their preferences (git SHA, semantic version, latest tag, etc.) - this is a policy decision.
 
-### Image Tagging Strategy
+### Analysis Completeness Checklist
 
-| Tag Type | When to Use | Example |
-|----------|-------------|---------|
-| Git SHA | Always (immutable reference) | `abc1234` |
-| Semantic version | On version tags | `v1.2.3` |
-| `latest` | On main branch only | `latest` |
-| Branch name | Feature branches (optional) | `feature-xyz` |
+After analyzing the project, use this checklist to ensure no common CI/CD concerns are missed. This is not a list of tasks to generate - it's a list of areas to consider during analysis.
+
+| Concern | Questions to Consider |
+|---------|----------------------|
+| **Code quality** | Does project have linting, formatting, static analysis? |
+| **Testing** | What test types exist? Unit, integration, e2e? |
+| **Security** | Dependency scanning? SAST? Secret detection? |
+| **Build** | Does code need compilation/transpilation? |
+| **Containerization** | Is there a Dockerfile? Should there be? |
+| **Publishing** | Package registry (npm, PyPI)? Container registry? |
+| **Deployment** | How is it deployed? GitOps, direct, manual? |
+
+For any concern where automation exists, use it. For any concern where automation is missing but relevant, ask user if they want to add it.
 ```
 
 ### Process Section
@@ -873,18 +932,18 @@ Provide:
 
 ## Implementation Milestones
 
-### Milestone 0: Pre-Implementation Best Practices Review
+### Milestone 0: Pre-Implementation Best Practices Review ✅
 **Before implementing the prompt, discuss and validate best practices:**
 
-- [ ] Review workflow security practices - are they complete? Any missing?
-- [ ] Review caching strategies - any missing languages/ecosystems?
-- [ ] Review testing best practices - anything to add?
-- [ ] Review container registry authentication - all major registries covered?
-- [ ] Review image tagging strategy - align with common org standards?
-- [ ] Review DevBox integration - correct approach for `devbox.json` generation?
-- [ ] Identify any missing best practice categories
-- [ ] Validate interactive Q&A flow - are the right questions being asked?
-- [ ] Review example workflow output format - clear and well-commented?
+- [x] Review workflow security practices - are they complete? Any missing?
+- [x] Review caching strategies - any missing languages/ecosystems?
+- [x] Review testing best practices - anything to add?
+- [x] Review container registry authentication - all major registries covered?
+- [x] Review image tagging strategy - align with common org standards?
+- [x] Review DevBox integration - correct approach for `devbox.json` generation?
+- [x] Identify any missing best practice categories
+- [x] Validate interactive Q&A flow - are the right questions being asked?
+- [x] Review example workflow output format - clear and well-commented?
 
 **This checkpoint ensures we're encoding correct practices before they become part of the prompt.**
 
@@ -1140,3 +1199,84 @@ Provide:
 - Begin implementation of `shared-prompts/generate-cicd.md`
 - Implement three-phase interactive flow
 - Add DevBox generation capability
+
+### 2025-12-16: PRD Update - Secret Handling Best Practices
+
+**Completed Work**:
+- Updated "Security First for PR Workflows" to "Graceful Secret Handling for PR Workflows"
+- Added "Secret Management" section with `gh secret set` guidance
+- Updated Workflow Security table with nuanced secret access pattern
+
+**Design Decisions**:
+
+1. **Conditional Secret Access (Simplified Pattern)**:
+   - **Decision**: Use `if: secrets.X != ''` instead of explicit availability checks
+   - **Rationale**:
+     - Secrets are only accessible from the org/owner that has them configured
+     - Fork PRs automatically can't access base repo secrets
+     - Simple conditional skips steps gracefully without verbose checking logic
+   - **Pattern**:
+     ```yaml
+     - name: Run integration tests
+       if: secrets.API_KEY != ''
+       run: npm run test:integration
+       env:
+         API_KEY: ${{ secrets.API_KEY }}
+     ```
+
+2. **Secret Setup Guidance (Show, Don't Execute)**:
+   - **Decision**: Show `gh secret set` commands as guidance but never execute them
+   - **Rationale**:
+     - Users must provide secret values manually (security)
+     - Commands serve as documentation for CLI-savvy users
+     - Alternative: users can create secrets via GitHub UI
+   - **Impact**: Added Secret Management section with required output format
+
+**Key Changes**:
+- Replaced "No secrets in PR workflows" with "Conditional secret access" in best practices
+- Added documentation pattern for required secrets with `gh secret set` commands
+- Simplified fork PR handling - no explicit checks needed, just conditional steps
+
+### 2025-12-16: Milestone 0 Complete - Best Practices Review
+
+**Completed Work**:
+- Completed comprehensive best practices review with user validation
+- Conducted web research on industry CI/CD best practices (GitHub Docs, GitGuardian, Wiz, etc.)
+- Updated PRD with findings and new best practices
+
+**Key Additions from Review**:
+
+1. **New Security Practices** (from industry research):
+   - `persist-credentials: false` on `actions/checkout`
+   - Script injection prevention (don't interpolate untrusted inputs)
+   - `pull_request_target` warning (runs with secrets, can checkout fork code)
+   - Environment protection for production deployments
+
+2. **Actions vs Commands Principle** (new section):
+   - Use actions for CI infrastructure (checkout, setup, cache, auth)
+   - Use project commands for project logic (build, test, lint, docker build)
+   - When scripts don't exist, ask user to add to existing automation
+
+3. **Removed Prescriptive Tables**:
+   - Caching strategies → now principle-based (AI deduces from analysis)
+   - Container registry auth → now principle-based (AI detects or asks)
+   - Image tagging → now policy decision (ask user during Q&A)
+
+4. **Analysis Completeness Checklist** (new section):
+   - 7 concern areas to consider during analysis
+   - Ensures AI doesn't miss common CI/CD concerns
+   - Not prescriptive - just areas to consider
+
+**Design Decisions**:
+- Principle-based over prescriptive: Let AI deduce from project analysis rather than following rigid tables
+- User choice for policy decisions: Registry, tagging, deployment strategy are user preferences
+- Local/CI parity: Project commands work same locally and in CI, actions don't
+
+**Sources Consulted**:
+- GitHub Docs: Security hardening for GitHub Actions
+- GitGuardian: GitHub Actions Security Cheat Sheet
+- Wiz: Hardening GitHub Actions guide
+- JetBrains, Spacelift, LaunchDarkly: CI/CD best practices
+
+**Milestone Status**: ✅ Complete
+**Next**: Milestone 1 - Create `shared-prompts/generate-cicd.md` prompt template
