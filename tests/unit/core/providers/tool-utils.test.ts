@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 import { extractToolCalls } from '../../../../src/core/providers/tool-utils';
 
@@ -20,8 +19,8 @@ Here is a tool call:
     expect(result[0]).toEqual({
       tool: 'test_tool',
       arguments: {
-        arg1: 'value1'
-      }
+        arg1: 'value1',
+      },
     });
   });
 
@@ -48,11 +47,11 @@ Here is a tool call:
       arguments: {
         nested: {
           level2: {
-            level3: 'value'
-          }
+            level3: 'value',
+          },
         },
-        array: [1, 2, 3]
-      }
+        array: [1, 2, 3],
+      },
     });
   });
 
@@ -83,16 +82,16 @@ Second call:
     const result = extractToolCalls(content);
     expect(result).toHaveLength(0);
   });
-  
+
   it('should ignore blocks without "tool" key', () => {
-      const content = `
+    const content = `
   \`\`\`json
   { "not_a_tool": "value" }
   \`\`\`
   `;
-      const result = extractToolCalls(content);
-      expect(result).toHaveLength(0);
-    });
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(0);
+  });
 
   it('should extract tool calls from a JSON array', () => {
     const content = `

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HostProvider } from '../../../../src/core/providers/host-provider';
-import { ToolLoopConfig, AITool } from '../../../../src/core/ai-provider.interface';
+import {
+  ToolLoopConfig,
+  AITool,
+} from '../../../../src/core/ai-provider.interface';
 import { CURRENT_MODELS } from '../../../../src/core/model-config';
 
 describe('HostProvider', () => {
@@ -42,8 +45,8 @@ describe('HostProvider', () => {
     const mockResponse = {
       content: {
         type: 'text',
-        text: 'Response from host'
-      }
+        text: 'Response from host',
+      },
     };
     const mockHandler = vi.fn().mockResolvedValue(mockResponse);
     provider.setSamplingHandler(mockHandler);
@@ -56,9 +59,9 @@ describe('HostProvider', () => {
           role: 'user',
           content: expect.objectContaining({
             type: 'text',
-            text: 'test prompt'
-          })
-        })
+            text: 'test prompt',
+          }),
+        }),
       ]),
       undefined,
       expect.anything()
@@ -70,8 +73,8 @@ describe('HostProvider', () => {
     const mockResponse = {
       content: {
         type: 'text',
-        text: 'Response'
-      }
+        text: 'Response',
+      },
     };
     const mockHandler = vi.fn().mockResolvedValue(mockResponse);
     provider.setSamplingHandler(mockHandler);
@@ -85,7 +88,7 @@ describe('HostProvider', () => {
       undefined,
       expect.objectContaining({
         operation,
-        evaluationContext: context
+        evaluationContext: context,
       })
     );
   });
@@ -99,10 +102,10 @@ describe('HostProvider', () => {
           inputSchema: {
             type: 'object',
             properties: {
-              arg: { type: 'string' }
-            }
-          }
-        }
+              arg: { type: 'string' },
+            },
+          },
+        },
       ];
 
       const toolExecutor = vi.fn().mockResolvedValue({ result: 'success' });
@@ -110,22 +113,22 @@ describe('HostProvider', () => {
       // Capture messages at the time of call to avoid reference mutation issues
       const capturedCalls: any[] = [];
 
-      const mockHandler = vi.fn().mockImplementation(async (msgs) => {
+      const mockHandler = vi.fn().mockImplementation(async msgs => {
         capturedCalls.push(JSON.parse(JSON.stringify(msgs)));
-        
+
         if (capturedCalls.length === 1) {
           return {
             content: {
               type: 'text',
-              text: 'I will use the test tool.\n```json\n{\n  "tool": "test_tool",\n  "arguments": { "arg": "value" }\n}\n```'
-            }
+              text: 'I will use the test tool.\n```json\n{\n  "tool": "test_tool",\n  "arguments": { "arg": "value" }\n}\n```',
+            },
           };
         } else {
           return {
             content: {
               type: 'text',
-              text: 'The tool execution was successful.'
-            }
+              text: 'The tool execution was successful.',
+            },
           };
         }
       });
@@ -136,7 +139,7 @@ describe('HostProvider', () => {
         systemPrompt: 'System prompt',
         userMessage: 'Run test tool',
         tools,
-        toolExecutor
+        toolExecutor,
       };
 
       const result = await provider.toolLoop(config);
@@ -150,50 +153,60 @@ describe('HostProvider', () => {
 
       // First call should have user message
       expect(capturedCalls[0]).toHaveLength(1);
-      expect(capturedCalls[0][0]).toEqual(expect.objectContaining({ role: 'user', content: expect.objectContaining({ text: 'Run test tool' }) }));
+      expect(capturedCalls[0][0]).toEqual(
+        expect.objectContaining({
+          role: 'user',
+          content: expect.objectContaining({ text: 'Run test tool' }),
+        })
+      );
 
       // Second call should have history: User -> Assistant (Tool Call) -> User (Tool Result)
       expect(capturedCalls[1]).toHaveLength(3);
       expect(capturedCalls[1][1].role).toBe('assistant');
       expect(capturedCalls[1][2].role).toBe('user');
-      expect(capturedCalls[1][2].content.text).toContain("Tool 'test_tool' output");
+      expect(capturedCalls[1][2].content.text).toContain(
+        "Tool 'test_tool' output"
+      );
     });
 
     it('should handle invalid tool calls gracefully', async () => {
-       const tools: AITool[] = [];
-       const toolExecutor = vi.fn();
+      const tools: AITool[] = [];
+      const toolExecutor = vi.fn();
 
-       const mockHandler = vi.fn()
+      const mockHandler = vi
+        .fn()
         .mockResolvedValueOnce({
           content: {
             type: 'text',
-            text: '```json\n{ "tool": "unknown_tool", "arguments": {} }\n```'
-          }
+            text: '```json\n{ "tool": "unknown_tool", "arguments": {} }\n```',
+          },
         })
         .mockResolvedValueOnce({
-           content: {
-             type: 'text',
-             text: 'Sorry, I made a mistake.'
-           }
+          content: {
+            type: 'text',
+            text: 'Sorry, I made a mistake.',
+          },
         });
 
-       provider.setSamplingHandler(mockHandler as any);
+      provider.setSamplingHandler(mockHandler as any);
 
-       const config: ToolLoopConfig = {
+      const config: ToolLoopConfig = {
         systemPrompt: 'System prompt',
         userMessage: 'Run unknown tool',
         tools,
-        toolExecutor
+        toolExecutor,
       };
 
       const result = await provider.toolLoop(config);
-      
+
       expect(result.finalMessage).toBe('Sorry, I made a mistake.');
       expect(toolExecutor).not.toHaveBeenCalled();
-      
+
       // Verify error message was sent to assistant
       const secondCallMessages = mockHandler.mock.calls[1][0];
-      expect(secondCallMessages[2].content.text).toContain("Unknown tool 'unknown_tool'");
+      expect(secondCallMessages[2].content.text).toContain(
+        "Unknown tool 'unknown_tool'"
+      );
     });
   });
 });

@@ -242,7 +242,7 @@ export class HostProvider implements AIProvider {
         operation: 'tool_loop',
       },
       async () => {
-        const maxIterations = config.maxIterations || 10;
+        const maxIterations = config.maxIterations || 20;
         const messages: any[] = [
           { role: 'user', content: { type: 'text', text: config.userMessage } },
         ];
