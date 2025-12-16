@@ -107,4 +107,47 @@ Second call:
     expect(result[0].tool).toBe('tool1');
     expect(result[1].tool).toBe('tool2');
   });
+
+  it('should return empty array for empty string', () => {
+    const result = extractToolCalls('');
+    expect(result).toHaveLength(0);
+  });
+
+  it('should return empty array when no code blocks present', () => {
+    const content = 'Just some regular text without code blocks';
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(0);
+  });
+
+  it('should ignore non-JSON code blocks', () => {
+    const content = `
+\`\`\`javascript
+{ "tool": "test", "arguments": {} }
+\`\`\`
+`;
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(0);
+  });
+
+  it('should handle mixed valid and invalid tool calls', () => {
+    const content = `
+Valid call:
+\`\`\`json
+{ "tool": "valid_tool", "arguments": {} }
+\`\`\`
+
+Invalid JSON:
+\`\`\`json
+{ "tool": "broken",
+\`\`\`
+
+Non-JSON block:
+\`\`\`text
+{ "tool": "text_tool", "arguments": {} }
+\`\`\`
+`;
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(1);
+    expect(result[0].tool).toBe('valid_tool');
+  });
 });
