@@ -345,12 +345,12 @@ export class HostProvider implements AIProvider {
                       text: formatToolOutput(toolName, toolOutput),
                     },
                   });
-                } catch (parseError) {
+                } catch (executionError) {
                   messages.push({
                     role: 'user',
                     content: {
                       type: 'text',
-                      text: `Error parsing tool call: ${parseError}. Please ensure valid JSON format.`,
+                      text: `Error executing tool '${toolCall.tool}': ${executionError instanceof Error ? executionError.message : String(executionError)}`,
                     },
                   });
                 }
