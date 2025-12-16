@@ -3,12 +3,17 @@
 **Created**: 2025-12-10
 **Status**: Draft
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-12-10
+**Last Updated**: 2025-12-16
 **Supersedes**: PRD #226 (GitHub Actions CI/CD Pipeline Generation)
 
 ## Executive Summary
 
-Create an MCP prompt that intelligently analyzes an entire repository and generates appropriate CI/CD workflows. Unlike template-based approaches, this feature thoroughly examines the codebase, existing automation, documentation, and project structure to generate workflows that defer to existing build/test mechanisms rather than reinventing them. Initial implementation supports GitHub Actions, with architecture designed for future CI platform expansion driven by user demand.
+Create an MCP prompt that intelligently analyzes an entire repository and generates appropriate CI/CD workflows through an **interactive conversation**. Unlike template-based approaches or single-shot generators, this feature:
+1. Thoroughly examines the codebase, existing automation, documentation, and project structure
+2. **Presents findings and workflow options to the user for decision-making** (key differentiator from Dockerfile generation)
+3. Generates workflows based on confirmed user choices
+
+This interactive model is essential because CI/CD workflows involve **policy decisions** (PR vs direct push, release triggers, deployment strategy) that cannot be deduced from code alone—they reflect team preferences and organizational policies. Initial implementation supports GitHub Actions, with architecture designed for future CI platform expansion driven by user demand.
 
 ## Problem Statement
 
@@ -34,7 +39,7 @@ PRD #226 (GitHub Actions CI/CD Pipeline Generation) is too prescriptive:
 - Single workflow approach regardless of PR vs direct-push workflows
 - Treats tests as optional/secondary
 
-This PRD supersedes #226 with a fundamentally different approach: **discover first, ask second, generate third**.
+This PRD supersedes #226 with a fundamentally different approach: **discover first, present options second, confirm choices third, generate fourth**.
 
 ## Solution Overview
 
@@ -42,10 +47,33 @@ Create `shared-prompts/generate-cicd.md` that instructs Claude to:
 
 1. **Analyze the entire repository** - Source code, scripts, Makefiles, package managers, docs, existing CI, configuration files
 2. **Discover existing automation** - Find and understand existing build/test/release mechanisms
-3. **Detect workflow patterns** - PRs? Direct push? Branch protection? Release tagging?
-4. **Ask only what can't be deduced** - CI platform preference, registry choice if ambiguous, branching strategy if unclear
-5. **Generate appropriate workflows** - Split (PR + release) or unified based on their actual workflow
-6. **Defer to existing automation** - Use `make test` not `go test`, use `npm run build` not raw commands
+3. **Detect what CAN be built/tested/deployed** - Identify capabilities, not assume workflow
+4. **Present findings and workflow options** - Show what was discovered AND present choices for workflow decisions
+5. **Confirm user choices** - Get explicit confirmation on policy decisions before generating
+6. **Generate appropriate workflows** - Based on confirmed choices, not assumptions
+7. **Defer to existing automation** - Use `make test` not `go test`, use `npm run build` not raw commands
+
+### Key Distinction from Dockerfile Generation
+
+**Dockerfile generation** can be mostly automated because decisions are **technical**:
+- Language version → derivable from manifest files
+- Build command → derivable from package.json/Makefile
+- Runtime dependencies → derivable from code analysis
+- Port → derivable from server configuration
+
+**CI/CD generation** requires conversation because decisions are **policy-based**:
+- PR workflow vs direct push → team preference
+- What triggers releases → team preference
+- What runs on PR vs merge → team preference
+- Registry selection → organizational policy
+- Deployment strategy → infrastructure choice
+
+Even if we detect that tests exist and a Dockerfile exists, we cannot know:
+- Should tests block PR merge, or just run on main?
+- Should images be built on every PR (for validation) or only on merge?
+- Should releases be automatic on tag, or manual dispatch?
+
+**These are not technical questions with deterministic answers—they are workflow choices that require user input.**
 
 ### Key Principles
 
@@ -154,22 +182,116 @@ Is this correct? Would you like to change anything before I generate the workflo
 - Ensures user understands what will be generated
 - Builds trust by showing the AI's reasoning
 
-#### 5. Ask What Can't Be Deduced
+#### 5. Scripts Over Inline Commands (Local/CI Parity)
 
-Only ask questions when repository analysis doesn't provide clear answers:
+**Critical principle**: CI workflows should call project scripts, not contain inline command logic.
 
-| Question | When to Ask |
-|----------|-------------|
-| CI/CD platform | Always (start with this) |
-| Branching strategy | If no existing CI or branch protection hints |
-| Container registry | If not detectable from Dockerfile, existing CI, or org patterns |
-| Test commands | If multiple options exist and priority unclear |
-| Release trigger | If versioning strategy ambiguous |
-| App definition format | If multiple found (e.g., both Helm and Kustomize) or none detected |
-| Deployment mechanism | If not detectable from existing CI, GitOps resources, or docs |
-| GitOps repo location | If GitOps detected but unclear if same repo or separate repo |
+```yaml
+# ❌ BAD - Logic in CI, can't run locally
+- run: |
+    jest --coverage --ci
+    eslint src/ --format=stylish
 
-#### 6. GitHub Actions First, Extensible Later
+# ✅ GOOD - CI calls project scripts
+- run: npm test
+- run: npm run lint
+```
+
+**Why this matters**:
+- **Local/CI parity**: `npm test` works the same locally and in CI
+- **CI platform portability**: Switch from GitHub Actions to GitLab CI? Just change orchestration, scripts stay the same
+- **Easier debugging**: Run locally to debug, don't push-and-pray
+- **Single source of truth**: Test logic in `package.json`/`Makefile`, not scattered in workflow files
+- **Simpler workflows**: CI becomes just "checkout, setup runtime, run script"
+
+**Separation of concerns**:
+
+| Responsibility | Where it belongs |
+|----------------|------------------|
+| Test, build, lint logic | Project scripts (`npm test`, `make build`, `./scripts/release.sh`) |
+| Checkout code | CI action/step |
+| Setup runtime/tools | CI action/step |
+| Caching | CI action/step |
+| Secrets/credentials | CI |
+| Artifacts, deployments | CI |
+
+#### 6. Always Present Workflow Choices (Interactive Model)
+
+**Critical principle**: CI/CD involves policy decisions that require user input, not just technical analysis.
+
+Unlike Dockerfile generation where most decisions can be derived from code, CI/CD workflows require explicit user choices:
+
+| Workflow Decision | Why It Requires User Input |
+|-------------------|---------------------------|
+| PR workflow scope | User decides: tests only? tests + lint? tests + lint + build image? |
+| Release trigger | User decides: push to main? version tags? manual dispatch? |
+| What runs where | User decides: tests on PR only? tests on both PR and main? |
+| Container registry | Organizational policy, not derivable from code |
+| Deployment strategy | Infrastructure choice: GitOps vs direct vs manual |
+| Environment setup | User decides: DevBox vs native setup actions |
+
+**The prompt MUST present these as choices with recommendations, not assume answers.**
+
+Example interaction:
+```
+ANALYSIS COMPLETE. Here's what I found:
+
+✓ Tests: `make test` (from Makefile)
+✓ Build: `npm run build` (from package.json)
+✓ Dockerfile: Found (can build container image)
+✓ Helm chart: Found in `charts/myapp/`
+
+WORKFLOW CHOICES NEEDED:
+
+1. PR Workflow - What should run on pull requests?
+   ○ Tests + Lint only (Recommended - fast feedback)
+   ○ Tests + Lint + Build image (validates full build)
+   ○ Tests only
+
+2. Release Trigger - What triggers a release?
+   ○ Push to main branch (Recommended for continuous delivery)
+   ○ Version tags (v1.0.0)
+   ○ Manual workflow dispatch
+
+3. Environment Setup - How should CI install required tools?
+   ○ Native GitHub Actions (Recommended - fast, familiar)
+   ○ DevBox (portable, same environment locally and in CI)
+
+4. Deployment Strategy - How do you deploy?
+   ○ GitOps (update manifests, let ArgoCD/Flux sync)
+   ○ Direct Helm upgrade in CI
+   ○ Manual (CI only builds and pushes image)
+
+Please confirm your choices.
+```
+
+#### 7. Environment Setup: Detect First, Offer Choice
+
+**Critical principle**: Respect existing tooling, offer alternatives when none exists.
+
+**Detection order**:
+1. **Project uses DevBox** (`devbox.json` exists) → Use `devbox shell` automatically
+2. **Project uses mise** (`.mise.toml` exists) → Use mise automatically
+3. **Project uses asdf** (`.tool-versions` exists) → Use asdf automatically
+4. **No existing tool manager** → Ask user during interactive flow
+
+**When asking, explain trade-offs**:
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **Native GitHub Actions** | Fast (cached), familiar, no new dependencies | CI-specific, tool versions in workflow file |
+| **DevBox** | Same environment locally and CI, portable across CI platforms, single source of truth (`devbox.json`) | Adds DevBox dependency, Nix learning curve if debugging needed |
+
+**If user chooses DevBox** and project doesn't have `devbox.json`:
+- Generate `devbox.json` with detected tool requirements
+- User can optionally use `devbox shell` locally for same environment
+
+**If user chooses Native Actions**:
+- Use `actions/setup-node`, `actions/setup-go`, etc.
+- Read versions from project files (`.nvmrc`, `go.mod`, etc.)
+- Use `apt-get` for CLI tools not covered by setup actions
+
+#### 8. GitHub Actions First, Extensible Later
 
 **Initial scope**: GitHub Actions only
 
@@ -193,53 +315,129 @@ This lets user demand drive the roadmap while delivering value now.
 - Project is in a Git repository
 - User is in project root directory
 
-**Flow**:
+**Flow** (Three-Phase Interactive Model):
 
 ```
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 1: ANALYZE                                                │
+│ Discover what CAN be built/tested/deployed                      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 2: PRESENT & ASK                                          │
+│ Show findings + present workflow choices for user decision      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 3: GENERATE                                               │
+│ Create workflows based on confirmed user choices                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Detailed Steps**:
+
+```
+PHASE 1: ANALYZE
+================
+
 1. User invokes CI/CD generation prompt
 
 2. Prompt asks: "Which CI/CD platform do you use?"
-   - GitHub Actions → proceed
+   - GitHub Actions → proceed to analysis
    - Other → offer to open feature request issue
 
-3. AI analyzes entire repository:
-   - Scans all source files, scripts, configs
-   - Identifies language(s), framework(s)
-   - Discovers existing automation (Makefile, npm scripts, etc.)
+3. AI analyzes entire repository (silent, comprehensive):
+   - Scans source files, scripts, configs
+   - Identifies language(s), framework(s), version requirements
+   - Discovers existing automation (Makefile, npm scripts, Taskfile, etc.)
    - Checks for existing CI configuration
-   - Looks for registry hints in Dockerfile/configs
+   - Detects container registry hints
    - Detects app definition (Helm, Kustomize, raw manifests)
-   - Detects deployment mechanism (GitOps, direct Helm, kubectl, manual)
-   - Examines docs for deployment patterns
+   - Detects deployment mechanism (GitOps, direct Helm, kubectl)
+   - Detects existing tool managers (DevBox, mise, asdf)
+   - Examines docs for workflow patterns
 
-4. AI presents findings for user confirmation:
-   - Shows detected language, build/test commands, app definition
-   - Shows detected registry, deployment mechanism, branching strategy
-   - Shows proposed workflow structure
-   - User confirms, corrects, or clarifies
 
-5. AI asks clarifying questions (only what wasn't deducible or confirmed):
-   - "What's your branching strategy?" (if unclear)
-   - "Which container registry do you use?" (if not detected)
-   - "How do you deploy to Kubernetes?" (if not detected)
+PHASE 2: PRESENT & ASK (Interactive)
+====================================
 
-6. AI generates appropriate workflow(s):
-   - If PRs used → separate PR workflow (test/lint/scan) + release workflow (build/push/deploy)
-   - If direct push → unified workflow with conditional jobs
-   - Uses existing automation commands, not raw language commands
-   - Deployment steps match detected mechanism:
-     - GitOps → update manifests, commit (no direct deploy)
-     - Direct Helm → helm upgrade
-     - Direct kubectl → kubectl apply
-     - Manual → build and push only
+4. AI presents analysis findings:
+   ```
+   ANALYSIS COMPLETE. Here's what I found:
 
-7. AI validates generated workflow:
+   ✓ Language: Node.js 20 (from package.json engines)
+   ✓ Tests: `make test` (from Makefile - runs npm test + lint)
+   ✓ Build: `npm run build` (from package.json)
+   ✓ Dockerfile: Found
+   ✓ Helm chart: Found in `charts/myapp/`
+   ✓ Tool manager: None detected
+   ✓ Existing CI: None
+   ```
+
+5. AI presents workflow choices (ALWAYS ask these - they are policy decisions):
+
+   ```
+   WORKFLOW CHOICES NEEDED:
+
+   1. PR Workflow - What should run on pull requests?
+      ○ Tests + Lint only (Recommended - fast feedback)
+      ○ Tests + Lint + Build image
+      ○ Tests only
+      ○ No PR workflow (direct push to main)
+
+   2. Release Trigger - What triggers a release build?
+      ○ Push to main branch (Recommended)
+      ○ Version tags (v1.0.0)
+      ○ Manual workflow dispatch
+      ○ Both push to main AND version tags
+
+   3. Container Registry - Where to push images?
+      ○ GitHub Container Registry (GHCR)
+      ○ Docker Hub
+      ○ AWS ECR
+      ○ Other (specify)
+
+   4. Environment Setup - How should CI install tools?
+      ○ Native GitHub Actions (Recommended - fast, familiar)
+      ○ DevBox (portable, same environment locally and in CI)
+
+   5. Deployment Strategy - How do you deploy?
+      ○ GitOps with ArgoCD (update manifests, ArgoCD syncs)
+      ○ GitOps with Flux
+      ○ Direct Helm upgrade in CI
+      ○ Manual (CI builds and pushes image only)
+
+   Please select your choices (e.g., "1a, 2a, 3a, 4a, 5d")
+   or describe your preferences.
+   ```
+
+6. User confirms choices or provides corrections
+
+
+PHASE 3: GENERATE
+=================
+
+7. AI generates workflow(s) based on confirmed choices:
+   - Uses project scripts (npm test, make build) - NOT inline commands
+   - Implements selected environment setup (DevBox or native actions)
+   - Creates appropriate workflow structure:
+     - If PR workflow selected → `.github/workflows/ci.yml`
+     - If release workflow selected → `.github/workflows/release.yml`
+   - Deployment steps match selected mechanism
+   - If DevBox chosen and no devbox.json → generates devbox.json too
+
+8. AI validates generated workflow:
    - Syntax check
    - References correct files/scripts
-   - Secrets/permissions make sense
-   - Deployment steps match mechanism
+   - Secrets/permissions documented
+   - All user choices reflected
 
-8. User reviews and commits workflow(s)
+9. AI presents generated files with explanation:
+   - Shows each file with comments
+   - Lists required secrets to configure
+   - Notes any manual setup steps
+
+10. User reviews and commits workflow(s)
 ```
 
 ### Workflow: Project Uses Unsupported CI Platform
@@ -675,10 +873,25 @@ Provide:
 
 ## Implementation Milestones
 
+### Milestone 0: Pre-Implementation Best Practices Review
+**Before implementing the prompt, discuss and validate best practices:**
+
+- [ ] Review workflow security practices - are they complete? Any missing?
+- [ ] Review caching strategies - any missing languages/ecosystems?
+- [ ] Review testing best practices - anything to add?
+- [ ] Review container registry authentication - all major registries covered?
+- [ ] Review image tagging strategy - align with common org standards?
+- [ ] Review DevBox integration - correct approach for `devbox.json` generation?
+- [ ] Identify any missing best practice categories
+- [ ] Validate interactive Q&A flow - are the right questions being asked?
+- [ ] Review example workflow output format - clear and well-commented?
+
+**This checkpoint ensures we're encoding correct practices before they become part of the prompt.**
+
 ### Milestone 1: Prompt Template Created
 - [ ] `shared-prompts/generate-cicd.md` created with full structure
 - [ ] Critical principles documented
-- [ ] Best practices reference tables complete
+- [ ] Best practices reference tables validated and complete
 - [ ] Process steps detailed
 - [ ] Checklists defined
 
@@ -718,8 +931,11 @@ Provide:
 ### Functional Requirements
 - [ ] Discovers and uses existing automation (Makefile, npm scripts, etc.)
 - [ ] Generates valid GitHub Actions workflow syntax
-- [ ] Creates appropriate workflow structure based on branching strategy
-- [ ] Asks only questions that can't be answered from repo analysis
+- [ ] Implements three-phase interactive flow (Analyze → Present & Ask → Generate)
+- [ ] Always presents workflow choices for policy decisions (PR scope, release trigger, deployment strategy)
+- [ ] Detects existing tool managers (DevBox, mise, asdf) and uses them automatically
+- [ ] Offers DevBox vs native actions choice when no tool manager detected
+- [ ] Uses project scripts in generated workflows, not inline commands
 - [ ] Guides users to feature request for unsupported CI platforms
 
 ### Quality Requirements
@@ -728,6 +944,8 @@ Provide:
 - [ ] PR workflows don't leak secrets to forks
 - [ ] Workflows are readable and maintainable
 - [ ] Comments explain non-obvious decisions
+- [ ] Local/CI parity: all test/build commands can run locally with same result
+- [ ] If DevBox chosen, generated `devbox.json` includes all required tools
 
 ### Integration Requirements
 - [ ] Works seamlessly in Claude Code workflow
@@ -856,3 +1074,69 @@ Provide:
 4. Step 4: Deployment Steps by Mechanism (GitOps, Helm, kubectl, manual)
 5. New clarifying questions for app definition and deployment
 6. Updated checklists for deployment validation
+
+### 2025-12-16: PRD Update - Interactive Q&A Model & Environment Setup
+
+**Completed Work**:
+- Fundamentally restructured the approach from "ask only what can't be deduced" to "always present workflow choices"
+- Added three-phase interactive workflow model (Analyze → Present & Ask → Generate)
+- Added "Scripts Over Inline Commands" principle for local/CI parity
+- Added DevBox as environment setup option with smart detection
+- Updated User Workflows section with complete interactive flow
+- Renumbered Key Principles (now 8 principles instead of 6)
+
+**Design Decisions**:
+
+1. **Interactive Q&A Model (Key Architectural Change)**:
+   - **Decision**: CI/CD generation requires conversation because workflow decisions are policy-based, not technical
+   - **Rationale**: Unlike Dockerfile generation where most decisions can be derived from code (language version, build command, ports), CI/CD involves team preferences:
+     - Should tests run on PR, main, or both?
+     - What triggers a release?
+     - Which registry to use?
+     - How to deploy?
+   - **Impact**: Changed from "ask only what can't be deduced" to "always present workflow choices with recommendations"
+   - **Contrast with Dockerfile**: Dockerfile generation can be mostly automated; CI/CD generation must be conversational
+
+2. **Scripts Over Inline Commands (Local/CI Parity)**:
+   - **Decision**: CI workflows should call project scripts (`npm test`, `make build`), not contain inline command logic
+   - **Rationale**:
+     - Same commands work locally and in CI
+     - Easier to switch CI platforms (scripts are portable, CI config is not)
+     - Single source of truth for test/build logic
+     - Easier debugging (run locally, don't push-and-pray)
+   - **Impact**: Added new Key Principle #5 with examples and separation of concerns table
+
+3. **DevBox as Environment Setup Option**:
+   - **Decision**: Offer DevBox as a choice during interactive Q&A, don't prescribe it
+   - **Rationale**:
+     - DevBox provides true local/CI environment parity via `devbox shell`
+     - But adds dependency most projects don't have
+     - Native GitHub Actions (setup-node, setup-go) are fast, familiar, well-cached
+     - Trade-off should be user's choice, not our prescription
+   - **Detection Order**: DevBox → mise → asdf → ask user
+   - **Impact**: Added Key Principle #7 with detection logic and trade-off table
+   - **If user chooses DevBox**: Generate `devbox.json` if not present
+
+4. **Three-Phase Workflow Model**:
+   - **Decision**: Restructure flow into explicit phases: Analyze → Present & Ask → Generate
+   - **Rationale**: Makes the interactive nature explicit and ensures user confirmation before generation
+   - **Impact**: Updated User Workflows section with visual flow diagram and detailed steps
+
+**Rejected Alternatives**:
+
+1. **DevBox as default for all projects**: Rejected because it adds unnecessary dependency for simple projects. Native setup actions are simpler and faster for most use cases.
+
+2. **Fully automated CI generation (like Dockerfile)**: Rejected because CI/CD decisions are fundamentally different from containerization decisions. Technical choices can be derived; policy choices require user input.
+
+3. **`devbox run` for command execution**: Rejected in favor of `devbox shell` + normal scripts. The goal is environment setup parity, not command wrapping. Users still run `npm test`, not `devbox run npm test`.
+
+**Key Principle Changes**:
+- Principle #5: Changed from "Ask What Can't Be Deduced" → "Scripts Over Inline Commands"
+- Principle #6: New - "Always Present Workflow Choices (Interactive Model)"
+- Principle #7: New - "Environment Setup: Detect First, Offer Choice"
+- Principle #8: Renumbered from #6 - "GitHub Actions First, Extensible Later"
+
+**Next Steps**:
+- Begin implementation of `shared-prompts/generate-cicd.md`
+- Implement three-phase interactive flow
+- Add DevBox generation capability
