@@ -22,6 +22,35 @@ export function formatToolOutput(toolName: string, output: any): string {
 
 /**
  * Regex for extracting tool calls from markdown code blocks.
- * Matches: ```json { "tool": "name", ... } ```
+ * Matches: ```json ... ``` and captures the content.
  */
-export const TOOL_CALL_REGEX = /```json\s*({[\s\S]*?"tool"\s*:\s*"[^"]+"[\s\S]*?})\s*```/g;
+export const TOOL_CALL_REGEX = /```json\s*([\s\S]*?)\s*```/g;
+
+/**
+ * Extracts tool calls from a string containing markdown code blocks.
+ * Handles nested objects and malformed JSON gracefully.
+ */
+export function extractToolCalls(content: string): any[] {
+  const toolCalls: any[] = [];
+  const matches = [...content.matchAll(TOOL_CALL_REGEX)];
+
+  for (const match of matches) {
+    try {
+      const jsonContent = match[1];
+      const parsed = JSON.parse(jsonContent);
+
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && typeof item === 'object' && item.tool) {
+            toolCalls.push(item);
+          }
+        }
+      } else if (parsed && typeof parsed === 'object' && parsed.tool) {
+        toolCalls.push(parsed);
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+  return toolCalls;
+}

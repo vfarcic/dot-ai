@@ -18,7 +18,7 @@ import { withAITracing } from '../tracing/ai-tracing';
 import {
   formatToolDefinitions,
   formatToolOutput,
-  TOOL_CALL_REGEX,
+  extractToolCalls,
 } from './tool-utils';
 
 export interface SamplingMessage {
@@ -302,12 +302,11 @@ export class HostProvider implements AIProvider {
             });
 
             // Check for tool calls
-            const toolCallMatches = [...content.matchAll(TOOL_CALL_REGEX)];
+            const toolCalls = extractToolCalls(content);
 
-            if (toolCallMatches.length > 0) {
-              for (const toolCallMatch of toolCallMatches) {
+            if (toolCalls.length > 0) {
+              for (const toolCall of toolCalls) {
                 try {
-                  const toolCall = JSON.parse(toolCallMatch[1]);
                   const toolName = toolCall.tool;
                   const toolArgs = toolCall.arguments || {};
 
