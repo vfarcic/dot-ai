@@ -10,7 +10,6 @@ This roadmap is a living document and may change based on community feedback and
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Parallel capability analysis for 10x faster cluster scanning (PRD #155)
 - Guided setup system to simplify onboarding (PRD #165)
-- CNCF Foundation Sandbox submission (PRD #173)
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)
 - Dynamic credential management for multi-user MCP deployments (PRD #180)
 - Controller-based autonomous capability scanning with event-driven updates (PRD #216)
