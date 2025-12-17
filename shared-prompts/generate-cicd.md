@@ -49,7 +49,7 @@ CI workflows should call project automation, not contain inline command logic.
 
 **When project automation doesn't exist**, ask the user:
 
-```
+```text
 I didn't find automation for [operation]. Would you like me to:
 1. Add it to the project (recommended for local/CI parity)
 2. Use inline command in workflow
@@ -78,7 +78,7 @@ Use conditional to skip steps when secrets unavailable:
 
 When the generated workflow requires secrets, document them clearly:
 
-~~~markdown
+```markdown
 ## Required Secrets
 
 | Secret Name | Description | How to Create |
@@ -87,11 +87,9 @@ When the generated workflow requires secrets, document them clearly:
 | `REGISTRY_TOKEN` | Container registry access token | Registry settings > Access Tokens |
 
 **To create secrets via CLI:**
-```bash
 gh secret set REGISTRY_USERNAME
 gh secret set REGISTRY_TOKEN
 ```
-~~~
 
 Show the `gh secret set` commands as guidance, but do NOT execute them.
 
@@ -128,7 +126,7 @@ Implement appropriate caching based on detected package manager and lock files.
 
 The workflow follows three phases:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │ PHASE 1: ANALYZE                                                │
 │ Discover what CAN be built/tested/deployed                      │
@@ -158,7 +156,7 @@ Ask the user which CI/CD platform they use. Present ONLY these options:
 
 **If Other** → STOP. Ask which platform they use, then respond:
 
-```
+```text
 [Platform] is not yet supported. Would you like me to open a feature
 request issue at https://github.com/dot-ai-app/dot-ai/issues so we
 can prioritize adding it?
