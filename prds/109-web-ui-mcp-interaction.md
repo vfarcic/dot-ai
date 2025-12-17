@@ -16,6 +16,9 @@ Create a web-based user interface (separate repository: `dot-ai-web-ui`) that co
 - Uses existing REST API gateway (no MCP protocol in Web UI)
 - TypeScript types auto-generated from OpenAPI schema
 - Direct React component rendering from semantic JSON responses
+- **Visualization-only model**: UI displays rich visualizations, user interacts via chat/text
+- **Typed content blocks**: MCP returns typed data (`image`, `cards`, `code`), UI renders appropriately
+- **MVP: Server-generated images**: MCP generates Mermaid diagrams → SVG, UI simply displays them (no graph libraries needed)
 
 ## Problem Statement
 
@@ -65,31 +68,34 @@ Create a web-based user interface (separate repository: `dot-ai-web-ui`) that co
 
 ### Core User Journey
 ```
-User opens Web UI → Authenticated session → Chat interface loads → 
-User types intent ("deploy web app") → MCP processes request → 
-Visual solution cards displayed → User configures through forms → 
-Deployment manifests shown with syntax highlighting → 
-Deploy button triggers MCP deployment → Status updates shown graphically
+User opens Web UI → Authenticated session → Chat interface loads →
+User types intent ("deploy web app") → MCP processes request →
+Visual solution cards displayed → User types selection in chat →
+MCP returns configuration questions as visualization → User types answers →
+Deployment manifests shown with syntax highlighting →
+User types "deploy" → Status updates shown graphically
 ```
+
+**Note on Interaction Model**: Users interact via text/chat, not forms or buttons. The UI displays rich visualizations (graphs, cards, code), but all user input flows through the chat. This simplifies cross-platform compatibility and leverages AI's ability to interpret natural language.
 
 ### Detailed User Stories
 
 **As a DevOps Engineer**, I want to:
-- See cluster capabilities as interactive cards/charts rather than text lists
-- Configure deployment solutions through visual forms instead of typing answers
+- See cluster capabilities as interactive graphs/cards rather than text lists
+- View configuration options as visual cards while typing my choices in chat
 - View generated Kubernetes manifests with syntax highlighting and collapsible sections
 - Monitor deployment progress through visual status indicators
 
 **As a Platform Engineer**, I want to:
 - Browse solution patterns through a visual catalog interface
-- Create and manage organizational patterns using drag-and-drop or form interfaces  
-- Visualize resource dependencies as interactive graphs
+- See organizational patterns visualized as relationship graphs
+- Visualize resource dependencies as interactive graphs (Cluster Capability Map)
 - Share deployment configurations via shareable URLs
 
 **As a Developer**, I want to:
 - Chat with the AI in a familiar interface similar to ChatGPT/Claude
-- See deployment recommendations as comparison tables or decision trees
-- Preview how my application will look in the cluster before deploying
+- See deployment recommendations as visual comparison cards
+- Preview deployment topology (how resources relate) before deploying
 - Get visual feedback on deployment success/failure with actionable next steps
 
 ## Technical Architecture
@@ -128,16 +134,196 @@ The MCP server's existing REST API gateway returns structured, semantic JSON. Th
 
 **What We're NOT Doing:**
 - ❌ Microsoft Adaptive Cards (unnecessary transformation layer for single-platform web app)
-- ❌ MCP-UI or Remote DOM (adds complexity without benefit)
+- ❌ MCP-UI or Remote DOM (returns HTML/components instead of data; couples server to UI)
 - ❌ Server-driven UI (couples server to presentation logic, breaks other clients)
 - ❌ MCP protocol in Web UI (REST API is simpler and sufficient)
 - ❌ Custom UI protocol (semantic JSON from server is already structured)
+- ❌ Separate visualization standard project (premature; build into dot-ai first, extract if needed)
+- ❌ Complex form/button interactions (use chat-based input; AI interprets natural language)
+- ❌ Cross-platform client SDKs (focus on Web UI first; other clients are future scope)
 
 **Format Standardization:**
 During Web UI development, if multiple tools return semantically identical data in different formats (e.g., questions, solutions, status), we will standardize these in the MCP server to:
 - Simplify Web UI component architecture
 - Provide cleaner OpenAPI schema
 - Benefit all future clients
+
+### Typed Content Blocks
+
+MCP responses include typed visualization blocks that the UI renders based on type, not tool identity. This decouples visualization from specific tools.
+
+**Visualization Types:**
+```typescript
+type Visualization =
+  | { type: "text", data: string }
+  | { type: "code", data: { content: string, language: string } }
+  | { type: "table", data: { headers: string[], rows: string[][] } }
+  | { type: "cards", data: { items: Card[] } }
+  | { type: "image", data: ImageData }              // MVP: MCP-generated diagrams
+  | { type: "graph", data: GraphData }              // Future: interactive graphs
+  | { type: "tree", data: { root: TreeNode } }
+  | { type: "diff", data: { before: string, after: string } }
+  | { type: "progress", data: { steps: Step[], current: number } }
+
+interface Card {
+  id: string;
+  title: string;
+  description?: string;
+  tags?: string[];
+  metadata?: Record<string, string>;
+}
+
+// MVP: MCP generates images (Mermaid → SVG)
+interface ImageData {
+  format: "svg" | "png";
+  content: string;                    // Inline SVG or base64-encoded PNG
+  alt: string;                        // Accessibility description
+  source?: "mermaid" | "graphviz";    // How the image was generated
+}
+
+// Future: Interactive graphs (requires D3/Cytoscape in UI)
+interface GraphData {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+interface Node {
+  id: string;
+  label: string;
+  category?: string;
+  metadata?: Record<string, any>;
+}
+
+interface Edge {
+  from: string;
+  to: string;
+  label?: string;
+  relationship?: string;
+}
+```
+
+**MVP Approach: Server-Generated Images**
+
+For MVP, the MCP server generates diagram images using Mermaid, and the UI simply displays them. This dramatically simplifies the UI (no graph libraries needed) while still providing visual value.
+
+| Visualization | MVP Approach | Future Enhancement |
+|---------------|--------------|-------------------|
+| Cluster Capability Map | Mermaid → SVG image | Interactive D3/Cytoscape graph |
+| Remediation Flow | Mermaid flowchart → SVG | Interactive step-through |
+| Deployment Topology | Mermaid → SVG | Interactive preview |
+| Solution Cards | Structured data (cards type) | Same |
+| Code/Manifests | Structured data (code type) | Same |
+
+**Why Mermaid for MVP:**
+- Deterministic output (same input = same diagram)
+- Fast generation (milliseconds)
+- No API costs (unlike AI image generation)
+- High quality SVG output
+- Well-suited for flowcharts, graphs, sequence diagrams
+
+**Response Structure:**
+```typescript
+interface MCPVisualizationResponse {
+  message: string;                    // AI's text response (rendered in chat)
+  visualizations?: Visualization[];   // Visual elements to render
+  prompt?: string;                    // Suggested follow-up question
+  workflow?: {
+    sessionId: string;
+    progress?: { current: number, total: number, label?: string };
+  }
+}
+```
+
+**Example Response:**
+```json
+{
+  "message": "Here are the available solutions for PostgreSQL deployment:",
+  "visualizations": [
+    {
+      "type": "cards",
+      "data": {
+        "items": [
+          { "id": "sol-1", "title": "PostgreSQL Operator", "tags": ["HA", "recommended"] },
+          { "id": "sol-2", "title": "Helm Chart", "tags": ["simple"] }
+        ]
+      }
+    }
+  ],
+  "prompt": "Which solution would you like? You can say 'the HA one' or 'compare them'.",
+  "workflow": { "sessionId": "rec-123", "progress": { "current": 1, "total": 5 } }
+}
+```
+
+### AI-Generated Visualization Data
+
+For complex visualizations like the **Cluster Capability Map**, the AI generates the visualization. The MCP server doesn't just return raw capability lists—it uses AI to infer relationships and generate diagrams.
+
+**MVP: AI → Mermaid → SVG Pipeline**
+```
+AI analyzes CRDs → Generates Mermaid code → Renders to SVG → Returns image
+```
+
+**Example: Capability Map Generation**
+```typescript
+// Instead of returning flat list:
+{ capabilities: [{ kind: "VPC" }, { kind: "Subnet" }, { kind: "SecurityGroup" }] }
+
+// MCP returns AI-generated Mermaid diagram as SVG:
+{
+  "visualizations": [{
+    "type": "image",
+    "data": {
+      "format": "svg",
+      "content": "<svg>...</svg>",  // Rendered Mermaid diagram
+      "alt": "Cluster capabilities: VPC contains Subnet and SecurityGroup. Subnet and SecurityGroup both require VPC.",
+      "source": "mermaid"
+    }
+  }]
+}
+
+// The AI internally generated this Mermaid code:
+// graph TD
+//     subgraph Networking
+//         VPC[VPC]
+//         Subnet[Subnet] -->|requires| VPC
+//         SG[SecurityGroup] -->|requires| VPC
+//     end
+```
+
+The AI analyzes CRD schemas and infers:
+- Logical groupings (networking, databases, observability)
+- Dependency relationships (Subnet requires VPC)
+- Composition patterns (resources typically deployed together)
+
+**Benefits of Server-Side Image Generation:**
+- UI is trivially simple (just display `<img>` or inline SVG)
+- Same image works in Web UI, future Claude Code (with graphics), documentation
+- AI controls the visualization logic, not the UI
+- No graph library complexity in frontend
+
+### Fallback Representations (Future-Proofing)
+
+To support future clients with varying capabilities (e.g., Claude Code if terminal graphics are added), visualizations can include fallback representations:
+
+```typescript
+{
+  type: "graph",
+  data: { nodes: [...], edges: [...] },
+  render: {
+    mermaid: "graph TD; VPC-->Subnet; VPC-->SecurityGroup",
+    ascii: "VPC\n├── Subnet\n└── SecurityGroup",
+    text: "VPC contains Subnet and SecurityGroup"
+  }
+}
+```
+
+| Client | Renders |
+|--------|---------|
+| Web UI | Interactive graph from `data` |
+| Future Claude Code (with graphics) | Mermaid or image |
+| Current Claude Code | ASCII or text fallback |
+
+**Note**: Fallback generation can happen server-side (MCP generates all formats) or client-side (client transforms `data`). Start with server-side for simplicity.
 
 ### Component Breakdown
 
@@ -148,11 +334,12 @@ During Web UI development, if multiple tools return semantically identical data 
 - **UI Library**: Material-UI (MUI) or shadcn/ui for base components
 - **State Management**: User sessions, conversation history, deployment tracking
 
-**Backend Integration (No Changes Required)**
+**Backend Integration (Minor Additions for MVP)**
 - **MCP Server**: Existing REST API gateway at `/api/v1/*`
 - **OpenAPI Endpoint**: Schema available at `GET /api/v1/openapi`
 - **Tool Endpoints**: All tools at `POST /api/v1/tools/{toolName}`
 - **CORS**: Already configured for cross-origin requests
+- **New**: Mermaid.js integration for diagram generation (server-side rendering to SVG)
 
 ### Technology Stack
 
@@ -165,11 +352,14 @@ During Web UI development, if multiple tools return semantically identical data 
 - **State Management**: React Context + hooks (or Zustand if needed)
 - **Syntax Highlighting**: Prism.js or react-syntax-highlighter
 - **HTTP Client**: Fetch API or Axios
+- **Graph Visualization**: Not needed for MVP (server generates images); Future: D3.js, Cytoscape.js, or React Flow
 
-**Backend (Existing - No Changes)**
-- **REST API Gateway**: Already implemented in dot-ai
+**Backend (dot-ai MCP Server - Minor Additions)**
+- **REST API Gateway**: Already implemented
 - **OpenAPI 3.0**: Auto-generated specification
-- **Response Format**: Semantic JSON (tool results unwrapped from MCP format)
+- **Response Format**: Semantic JSON with typed visualization blocks
+- **Diagram Generation**: Mermaid.js for rendering diagrams to SVG (new dependency)
+- **Image Pipeline**: AI generates Mermaid code → Mermaid renders to SVG → Return in response
 
 ## Feature Requirements
 
@@ -181,7 +371,7 @@ During Web UI development, if multiple tools return semantically identical data 
 - [ ] Loading states during REST API calls
 - [ ] Quick action buttons for common operations
 
-**Note**: Primary UX is visual (cards, forms, manifests), not chat-based. Intent input is for entering deployment intents, but responses render as rich visual components.
+**Note**: Primary UX combines chat input with rich visual output. Users type intents and responses in chat; the UI renders results as visual components (graphs, cards, code). This "visualization-only" model keeps interaction simple while maximizing visual value.
 
 #### REST API Tool Integration
 - [ ] All existing MCP tools accessible via REST API
@@ -190,10 +380,11 @@ During Web UI development, if multiple tools return semantically identical data 
 - [ ] Proper error handling for REST API failures
 
 #### Visual Data Representation
-- [ ] Cluster capabilities displayed as interactive cards/tables
-- [ ] Solution configurations shown as forms instead of Q&A
+- [ ] Cluster capabilities displayed as Mermaid-generated diagrams (Cluster Capability Map)
+- [ ] Solution options shown as visual cards with comparison capability
 - [ ] Kubernetes manifests with syntax highlighting and collapsible sections
 - [ ] Deployment status with progress indicators and success/error states
+- [ ] Remediation investigation flow as Mermaid flowchart diagrams
 
 #### Core Workflows
 - [ ] Solution recommendation → configuration → deployment flow
@@ -202,6 +393,15 @@ During Web UI development, if multiple tools return semantically identical data 
 - [ ] Documentation testing with results presentation
 
 ### Should-Have Features (Phase 2)
+
+#### High-Value Visualizations (Priority)
+
+| Visualization | Value | MVP Implementation | Future Enhancement |
+|---------------|-------|-------------------|-------------------|
+| Cluster Capability Map | High | Mermaid diagram (SVG) | Interactive D3/Cytoscape graph |
+| Remediation Investigation Flow | High | Mermaid flowchart (SVG) | Interactive step-through |
+| Solution Comparison Cards | Medium | Structured cards data | Same |
+| Deployment Topology Preview | Medium | Mermaid diagram (SVG) | Interactive preview |
 
 #### Enhanced Visualization
 - [ ] Resource dependency graphs using network diagrams
@@ -215,10 +415,10 @@ During Web UI development, if multiple tools return semantically identical data 
 - [ ] Team workspaces for shared patterns and solutions
 
 #### Advanced UX
-- [ ] Drag-and-drop solution configuration
-- [ ] Auto-complete for Kubernetes resources and common patterns
+- [ ] Auto-complete suggestions in chat input
 - [ ] Saved conversation templates and quick actions
 - [ ] Dark/light mode theming
+- [ ] Clickable elements in visualizations that insert text into chat (e.g., click card → "I want solution 1")
 
 ### Could-Have Features (Future)
 - [ ] Mobile-responsive design for tablet access
@@ -248,14 +448,16 @@ During Web UI development, if multiple tools return semantically identical data 
 **Success Criteria**: TypeScript types generated from OpenAPI, successful REST API calls
 
 ### Milestone 2: Core Visual Components (2-3 weeks)
-- [ ] Implement SolutionPicker component (displays recommendation results)
-- [ ] Implement QuestionForm component (handles answerQuestion workflow)
-- [ ] Implement ManifestViewer component with syntax highlighting
-- [ ] Implement StatusDisplay component (deployment status, errors)
-- [ ] Create base layout with navigation and header
+- [ ] Define TypeScript interfaces for typed content blocks (Visualization types)
+- [ ] Implement type-based renderer that dispatches to appropriate component
+- [ ] Implement CardRenderer component (displays solution options, patterns)
+- [ ] Implement CodeRenderer component with syntax highlighting (manifests, configs)
+- [ ] Implement ImageRenderer component (displays SVG/PNG from MCP - trivially simple)
+- [ ] Implement ProgressRenderer component (workflow progress, remediation steps)
+- [ ] Create base layout with chat input and visualization area
 - [ ] Add UI component library (MUI or shadcn/ui)
 
-**Success Criteria**: Core components render semantic JSON from REST API responses
+**Success Criteria**: UI renders typed content blocks from MCP responses; ImageRenderer simply displays server-generated diagrams (no graph library complexity)
 
 ### Milestone 3: Complete Tool Workflows (2-3 weeks)
 - [ ] Implement full `recommend` workflow (intent → solutions → questions → manifests → deploy)
@@ -396,6 +598,23 @@ During Web UI development, if multiple tools return semantically identical data 
   - Updated all milestones to reflect REST API approach
   - Added format standardization strategy
   - Clarified that MCP server requires minimal/no changes
+- **2025-12-03**: Visualization architecture refinement
+  - Added **visualization-only interaction model**: UI displays, user interacts via chat
+  - Added **typed content blocks** specification with TypeScript interfaces
+  - Added **AI-generated visualization data** concept (MCP generates graph relationships)
+  - Added **fallback representations** for future multi-client support
+  - Identified **high-value visualizations**: Cluster Capability Map, Remediation Investigation Flow
+  - Updated user stories to reflect chat-based interaction
+  - Updated milestones to include type-based renderer architecture
+  - Explicitly rejected: MCP-UI approach (returns HTML), separate standard project (premature), complex form interactions
+- **2025-12-17**: MVP simplification - server-generated images
+  - Added **image type** to visualization types for server-generated diagrams
+  - Changed MVP approach: MCP generates Mermaid diagrams → renders to SVG → UI displays
+  - Added **Mermaid.js** to backend tech stack for diagram generation
+  - Removed D3/Cytoscape from MVP frontend requirements (future enhancement only)
+  - Updated ImageRenderer to be trivially simple (just display SVG/PNG)
+  - Updated high-value visualizations table with MVP vs Future columns
+  - Key insight: Server-generated images dramatically simplify UI while providing visual value
 - **Status**: Ready for implementation
 
 ## Stakeholders
