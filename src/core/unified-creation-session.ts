@@ -921,7 +921,7 @@ Please try again or modify your policy description.`,
 
     // Use existing searchCapabilities function - no fallback, let it throw if it fails
     const searchResults = await capabilityService.searchCapabilities(searchQuery, {
-      limit: 40 // Reduced to manage token count
+      limit: 35 // Reduced to manage token count (Haiku max: 180K tokens)
     });
 
     if (searchResults.length === 0) {
