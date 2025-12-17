@@ -124,6 +124,8 @@ Implement appropriate caching based on detected package manager and lock files.
 
 ## Process
 
+**IMPORTANT**: Execute this process SEQUENTIALLY. Each step may change the direction of the conversation. Do NOT batch all questions upfront - ask questions one phase at a time and wait for user responses before proceeding.
+
 The workflow follows three phases:
 
 ```
@@ -143,20 +145,29 @@ The workflow follows three phases:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 0: Determine CI Platform
+### Step 0: Determine CI Platform (BLOCKING GATE)
 
-Ask the user which CI/CD platform they use:
+**CRITICAL**: This is a blocking gate. Ask about CI platform FIRST and ALONE. Do NOT ask any other questions or perform any analysis until the user confirms they want GitHub Actions.
 
-- **GitHub Actions** → Proceed with analysis
-- **Other** → Respond:
-  ```
-  [Platform] is not yet supported. Would you like me to open a feature
-  request issue at https://github.com/dot-ai-app/dot-ai/issues so we
-  can prioritize adding it?
+Ask the user which CI/CD platform they use. Present ONLY these options:
 
-  1. Yes, open a feature request
-  2. No, I'll use a different approach
-  ```
+1. **GitHub Actions**
+2. **Other**
+
+**If GitHub Actions** → Proceed to Step 1 (analysis)
+
+**If Other** → STOP. Ask which platform they use, then respond:
+
+```
+[Platform] is not yet supported. Would you like me to open a feature
+request issue at https://github.com/dot-ai-app/dot-ai/issues so we
+can prioritize adding it?
+
+1. Yes, open a feature request
+2. No, I'll use a different approach
+```
+
+Then handle the user's response (create issue or end conversation). Do NOT proceed to repository analysis for unsupported platforms.
 
 ### Step 1: Comprehensive Repository Analysis
 
@@ -261,6 +272,7 @@ Is this correct? Would you like to change anything?
 Common choices include:
 - **PR Workflow**: What should run on pull requests?
 - **Release Trigger**: What triggers a release build?
+- **Release Validation**: Should release workflow re-run checks that already passed in PR? (Re-run all = safest/slowest, Skip validation = fastest, Security scans only = compromise)
 - **Container Registry**: Where to push images? (if containerized)
 - **Environment Setup**: Native GitHub Actions or DevBox?
 - **Deployment Strategy**: GitOps, direct, or manual? (if deployed)
