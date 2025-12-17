@@ -947,12 +947,12 @@ Provide:
 
 **This checkpoint ensures we're encoding correct practices before they become part of the prompt.**
 
-### Milestone 1: Prompt Template Created
-- [ ] `shared-prompts/generate-cicd.md` created with full structure
-- [ ] Critical principles documented
-- [ ] Best practices reference tables validated and complete
-- [ ] Process steps detailed
-- [ ] Checklists defined
+### Milestone 1: Prompt Template Created ✅
+- [x] `shared-prompts/generate-cicd.md` created with full structure
+- [x] Critical principles documented
+- [x] Best practices reference tables validated and complete
+- [x] Process steps detailed
+- [x] Checklists removed (redundant per principle-based approach)
 
 ### Milestone 2: Repository Analysis Working
 - [ ] Discovers existing automation (Makefile, npm scripts, etc.)
@@ -1280,3 +1280,58 @@ Provide:
 
 **Milestone Status**: ✅ Complete
 **Next**: Milestone 1 - Create `shared-prompts/generate-cicd.md` prompt template
+
+### 2025-12-17: Milestone 1 Complete - Prompt Template Created
+
+**Completed Work**:
+- Created `shared-prompts/generate-cicd.md` (~300 lines, principle-based)
+- Applied iterative refinement with user feedback throughout implementation
+
+**Key Design Decisions**:
+
+1. **Principle-based, not prescriptive**:
+   - Removed specific file lists (e.g., "search for Makefile, Taskfile.yml..." → "find what automation exists")
+   - Changed "shell scripts" → "scripts" (language-agnostic)
+   - Examples are illustrative, not templates to fill out
+   - Trust AI's knowledge of build systems, CI/CD patterns
+
+2. **Clear separation of concerns**:
+   - Instructions + Key Rules: Process guidance (verify everything, always present choices)
+   - Best Practices: Output guidance (use project automation, secret handling, security)
+   - Process: Step-by-step workflow (Steps 0-7)
+
+3. **Logical step ordering**:
+   - Swapped: Language/Framework Detection (1.1) before Discover Automation (1.2)
+   - Rationale: Need to know the ecosystem before knowing where to find automation
+
+4. **GitOps clarity**:
+   - CI updates manifests, GitOps controller syncs
+   - ArgoCD Application may need to be created (same repo or separate cluster-config repo)
+   - Manifests location is separate question from controller resource location
+
+5. **Real validation step added (Step 7)**:
+   - Commit workflows following project's process
+   - Trigger, monitor, iterate until green
+   - Not just "generate and hope"
+
+6. **Removed redundant sections**:
+   - Output Format section (duplicated Step 2 example)
+   - Success Criteria checklists (duplicated Best Practices and Process)
+   - Unsupported Platforms section (duplicated Step 0)
+
+7. **Interactive choices are context-dependent**:
+   - Only ask about container registry if project has Dockerfile
+   - Only ask about deployment if it's not a library
+   - Present relevant choices, not a fixed form
+
+**Prompt Structure** (final):
+```
+Instructions (+ Key Rules)
+Best Practices (6 subsections)
+Process (Steps 0-7)
+```
+
+**Size reduction**: From ~570 lines (PRD design) to ~300 lines (implementation)
+
+**Milestone Status**: ✅ Complete
+**Next**: Milestone 2 - Test repository analysis on real projects
