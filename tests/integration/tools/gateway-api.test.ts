@@ -305,19 +305,12 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
   describe('Mutual Exclusivity with Ingress', () => {
     test('should fail when both ingress.enabled and gateway.enabled are true', () => {
-      let errorOutput = '';
-      try {
-        helmTemplate({
-          'ingress.enabled': true,
-          'gateway.enabled': true,
-        });
-      } catch (error: unknown) {
-        if (error instanceof Error && 'stderr' in error) {
-          errorOutput = (error as { stderr: string }).stderr || '';
-        }
-      }
+      const output = helmTemplate({
+        'ingress.enabled': true,
+        'gateway.enabled': true,
+      });
 
-      expect(errorOutput).toContain(
+      expect(output).toContain(
         'Cannot enable both ingress.enabled and gateway.enabled'
       );
     });
