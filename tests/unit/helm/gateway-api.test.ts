@@ -1,5 +1,5 @@
 /**
- * Integration Test: Gateway API Helm Chart
+ * Unit Test: Gateway API Helm Chart Templates
  *
  * Tests Gateway API Helm chart templates to ensure they render correctly
  * and validate mutual exclusivity with Ingress.
