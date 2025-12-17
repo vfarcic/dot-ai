@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 283 |
 | **Feature Name** | Trigger Website Rebuild on Release |
-| **Status** | Draft |
+| **Status** | Complete |
 | **Priority** | High |
 | **Created** | 2025-12-17 |
 | **Last Updated** | 2025-12-17 |
