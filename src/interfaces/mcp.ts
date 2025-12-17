@@ -361,6 +361,8 @@ export class MCPServer {
         includeContext: 'none',
         maxTokens: options?.maxTokens || 4096,
         ...options
+      }, {
+        timeout: 3600000 // 1 hour timeout for sampling requests
       });
     } catch (error) {
       this.logger.error('Sampling request failed', error as Error);
