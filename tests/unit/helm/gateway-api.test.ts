@@ -11,6 +11,7 @@
 import { describe, test, expect } from 'vitest';
 import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
+import { readFileSync } from 'fs';
 
 describe.concurrent('Gateway API Helm Chart Integration', () => {
   const chartPath = './charts';
@@ -486,7 +487,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
   describe('Chart Version', () => {
     test('should have bumped version to 0.163.0', () => {
-      const chartYaml = require('fs').readFileSync(
+      const chartYaml = readFileSync(
         `${chartPath}/Chart.yaml`,
         'utf-8'
       );
@@ -495,7 +496,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
     });
 
     test('should include gateway-api keyword', () => {
-      const chartYaml = require('fs').readFileSync(
+      const chartYaml = readFileSync(
         `${chartPath}/Chart.yaml`,
         'utf-8'
       );
