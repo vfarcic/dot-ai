@@ -84,14 +84,14 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/downloa
 Export your API keys and auth token:
 
 ```bash
-# Required
-export ANTHROPIC_API_KEY="sk-ant-api03-..."
-export OPENAI_API_KEY="sk-proj-..."
+# Required - replace with your actual API keys
+export ANTHROPIC_API_KEY="sk-ant-api03-..."  # Your Anthropic API key
+export OPENAI_API_KEY="sk-proj-..."           # Your OpenAI API key
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
-# Gateway configuration
-export GATEWAY_CLASS="istio"  # Use your GatewayClass name
-export HOSTNAME="dot-ai.example.com"  # Your hostname
+# Gateway configuration - replace with your values
+export GATEWAY_CLASS="istio"              # Your GatewayClass (e.g., istio, nginx, envoy)
+export HOSTNAME="dot-ai.example.com"      # Your actual domain name
 ```
 
 ### Step 2: Install the MCP Server
@@ -131,11 +131,11 @@ kubectl get httproute -n dot-ai
 # Check Gateway details and assigned IP/hostname
 kubectl describe gateway dot-ai -n dot-ai
 
-# Example output:
+# Example output (actual values will vary based on your Gateway controller):
 # Status:
 #   Addresses:
 #     Type:   IPAddress
-#     Value:  203.0.113.42
+#     Value:  203.0.113.42  # Example IP - yours will differ
 #   Conditions:
 #     Type:   Programmed
 #     Status: True
@@ -149,8 +149,8 @@ Point your hostname to the Gateway's external IP:
 # Get the Gateway's assigned IP
 GATEWAY_IP=$(kubectl get gateway dot-ai -n dot-ai -o jsonpath='{.status.addresses[0].value}')
 
-# Create DNS A record (using your DNS provider)
-# Example: dot-ai.example.com -> $GATEWAY_IP
+# Create DNS A record using your DNS provider
+# Point your domain to the Gateway IP (e.g., dot-ai.yourdomain.com -> $GATEWAY_IP)
 ```
 
 ### Step 5: Test the MCP Server
