@@ -24,7 +24,7 @@ spec:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: {{ if eq .Values.deployment.method "toolhive" }}mcp-{{ include "dot-ai.fullname" . }}-proxy{{ else }}{{ include "dot-ai.fullname" . }}{{ end }}
+    - name: {{ include "dot-ai.backendServiceName" . }}
       port: 3456
     {{- if .Values.gateway.timeouts }}
     timeouts:

@@ -60,3 +60,14 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Get the backend service name based on deployment method
+*/}}
+{{- define "dot-ai.backendServiceName" -}}
+{{- if eq .Values.deployment.method "toolhive" }}
+{{- printf "mcp-%s-proxy" (include "dot-ai.fullname" .) }}
+{{- else }}
+{{- include "dot-ai.fullname" . }}
+{{- end }}
+{{- end }}
