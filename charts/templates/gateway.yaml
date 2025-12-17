@@ -1,0 +1,56 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "dot-ai.fullname" . }}
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ .Values.gateway.className }}
+  listeners:
+  {{- if .Values.gateway.listeners.http.enabled }}
+  - name: http
+    protocol: HTTP
+    port: 80
+    {{- if .Values.gateway.listeners.http.hostname }}
+    hostname: {{ .Values.gateway.listeners.http.hostname }}
+    {{- end }}
+    allowedRoutes:
+      namespaces:
+        from: Same
+  {{- end }}
+  {{- if .Values.gateway.listeners.https.enabled }}
+  - name: https
+    protocol: HTTPS
+    port: 443
+    {{- if .Values.gateway.listeners.https.hostname }}
+    hostname: {{ .Values.gateway.listeners.https.hostname }}
+    {{- end }}
+    tls:
+      mode: Terminate
+      {{- if .Values.gateway.listeners.https.certificateRefs }}
+      certificateRefs:
+      {{- range .Values.gateway.listeners.https.certificateRefs }}
+      - kind: {{ .kind | default "Secret" }}
+        name: {{ .name }}
+        {{- if .group }}
+        group: {{ .group }}
+        {{- end }}
+        {{- if .namespace }}
+        namespace: {{ .namespace }}
+        {{- end }}
+      {{- end }}
+      {{- else }}
+      certificateRefs:
+      - kind: Secret
+        name: {{ .Values.gateway.listeners.https.secretName | default (printf "%s-tls" (include "dot-ai.fullname" .)) }}
+      {{- end }}
+    allowedRoutes:
+      namespaces:
+        from: Same
+  {{- end }}
+{{- end }}

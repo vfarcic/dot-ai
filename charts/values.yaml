@@ -50,6 +50,7 @@ serviceAccount:
   name: ""                          # ServiceAccount name override (generated if empty)
 
 # Ingress configuration
+# NOTE: Mutually exclusive with gateway.enabled - only one can be enabled
 ingress:
   enabled: false                    # Create Ingress resource
   className: nginx                  # Ingress class name
@@ -68,6 +69,36 @@ ingress:
     enabled: false                  # Enable TLS/HTTPS
     secretName: ""                  # TLS secret name (generated if empty when enabled)
     clusterIssuer: ""               # cert-manager ClusterIssuer name (e.g., "letsencrypt")
+
+# Gateway API configuration (Kubernetes 1.26+)
+# NOTE: Mutually exclusive with ingress.enabled - only one can be enabled
+# Requires Gateway API CRDs and GatewayClass pre-installed in cluster
+gateway:
+  enabled: false                    # Create Gateway and HTTPRoute resources
+  className: ""                     # GatewayClass name (e.g., "istio", "envoy-gateway", "gke-l7-global-external-managed")
+  # Annotations for integration with external-dns, cert-manager, etc.
+  # Example for external-dns: external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
+  annotations: {}
+  listeners:
+    http:
+      enabled: true                 # Enable HTTP listener on port 80
+      hostname: ""                  # Optional: hostname for HTTP listener (e.g., "dot-ai.example.com")
+    https:
+      enabled: false                # Enable HTTPS listener on port 443
+      hostname: ""                  # Optional: hostname for HTTPS listener (e.g., "dot-ai.example.com")
+      secretName: ""                # TLS secret name (generated if empty: <fullname>-tls)
+      # Optional: certificateRefs for advanced TLS configuration
+      # Useful for cert-manager integration or cross-namespace secrets (requires ReferenceGrant)
+      # certificateRefs:
+      # - kind: Secret
+      #   name: dot-ai-tls
+      #   # Optional: group (defaults to core for Secret)
+      #   # Optional: namespace (for cross-namespace references, requires ReferenceGrant)
+      certificateRefs: []
+  # Timeouts for SSE streaming support (GEP-1742)
+  timeouts:
+    request: "3600s"                # Request timeout (supports SSE streaming)
+    backendRequest: "3600s"         # Backend request timeout
 
 # AI Provider configuration
 ai:
