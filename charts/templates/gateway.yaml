@@ -1,4 +1,10 @@
 {{- if .Values.gateway.enabled }}
+{{- if not .Values.gateway.className }}
+{{- fail "gateway.className is required when gateway.enabled is true" }}
+{{- end }}
+{{- if not (or .Values.gateway.listeners.http.enabled .Values.gateway.listeners.https.enabled) }}
+{{- fail "At least one listener (http or https) must be enabled when gateway.enabled is true" }}
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

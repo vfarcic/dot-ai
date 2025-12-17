@@ -395,6 +395,95 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
     });
   });
 
+  describe('Gateway Configuration Validations', () => {
+    test('should fail when gateway.className is empty', () => {
+      const output = helmTemplate({
+        'gateway.enabled': true,
+        'gateway.className': '',
+      });
+
+      expect(output).toContain(
+        'gateway.className is required when gateway.enabled is true'
+      );
+    });
+
+    test('should fail when both listeners are disabled', () => {
+      const output = helmTemplate({
+        'gateway.enabled': true,
+        'gateway.className': 'istio',
+        'gateway.listeners.http.enabled': false,
+        'gateway.listeners.https.enabled': false,
+      });
+
+      expect(output).toContain(
+        'At least one listener (http or https) must be enabled when gateway.enabled is true'
+      );
+    });
+
+    test('should succeed when HTTP listener is enabled', () => {
+      const output = helmTemplate({
+        'gateway.enabled': true,
+        'gateway.className': 'istio',
+        'gateway.listeners.http.enabled': true,
+        'gateway.listeners.https.enabled': false,
+      });
+
+      const docs = parseYamlDocs(output);
+      const gateway = docs.find(
+        (doc: unknown) =>
+          typeof doc === 'object' &&
+          doc !== null &&
+          'kind' in doc &&
+          doc.kind === 'Gateway'
+      ) as { spec: { listeners: unknown[] } };
+
+      expect(gateway).toBeDefined();
+      expect(gateway.spec.listeners).toHaveLength(1);
+    });
+
+    test('should succeed when HTTPS listener is enabled', () => {
+      const output = helmTemplate({
+        'gateway.enabled': true,
+        'gateway.className': 'istio',
+        'gateway.listeners.http.enabled': false,
+        'gateway.listeners.https.enabled': true,
+      });
+
+      const docs = parseYamlDocs(output);
+      const gateway = docs.find(
+        (doc: unknown) =>
+          typeof doc === 'object' &&
+          doc !== null &&
+          'kind' in doc &&
+          doc.kind === 'Gateway'
+      ) as { spec: { listeners: unknown[] } };
+
+      expect(gateway).toBeDefined();
+      expect(gateway.spec.listeners).toHaveLength(1);
+    });
+
+    test('should succeed when both listeners are enabled', () => {
+      const output = helmTemplate({
+        'gateway.enabled': true,
+        'gateway.className': 'istio',
+        'gateway.listeners.http.enabled': true,
+        'gateway.listeners.https.enabled': true,
+      });
+
+      const docs = parseYamlDocs(output);
+      const gateway = docs.find(
+        (doc: unknown) =>
+          typeof doc === 'object' &&
+          doc !== null &&
+          'kind' in doc &&
+          doc.kind === 'Gateway'
+      ) as { spec: { listeners: unknown[] } };
+
+      expect(gateway).toBeDefined();
+      expect(gateway.spec.listeners).toHaveLength(2);
+    });
+  });
+
   describe('Chart Version', () => {
     test('should have bumped version to 0.163.0', () => {
       const chartYaml = require('fs').readFileSync(
