@@ -1,13 +1,13 @@
 # Resource Analysis for Enhancement
 
 ## Current Solution
-{{current_solution}}
+{{{current_solution}}}
 
 ## User Request
-{{user_request}}
+{{{user_request}}}
 
 ## Available Resource Types
-{{available_resource_types}}
+{{{available_resource_types}}}
 
 ## Instructions
 

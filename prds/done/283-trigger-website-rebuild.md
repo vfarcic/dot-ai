@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 283 |
 | **Feature Name** | Trigger Website Rebuild on Release |
-| **Status** | Draft |
+| **Status** | Complete |
 | **Priority** | High |
 | **Created** | 2025-12-17 |
 | **Last Updated** | 2025-12-17 |
@@ -37,10 +37,30 @@ Add a repository dispatch step at the end of the release job that sends an `upst
 
 ### Implementation Details
 
-Add this step at the end of the `release` job in `.github/workflows/ci.yml` (after the GitHub Release creation step):
+Add these steps at the end of the `release` job in `.github/workflows/ci.yml` (after the GitHub Release creation step):
 
 ```yaml
+- name: Check if docs changed since last release
+  id: docs-check
+  run: |
+    PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+    if [ -n "$PREV_TAG" ]; then
+      DOCS_CHANGED=$(git diff --name-only $PREV_TAG HEAD -- README.md docs/ | wc -l)
+      echo "Checking for doc changes between $PREV_TAG and HEAD"
+    else
+      DOCS_CHANGED=1  # First release, always trigger
+      echo "No previous tag found, will trigger website rebuild"
+    fi
+    if [ "$DOCS_CHANGED" -gt 0 ]; then
+      echo "docs-changed=true" >> $GITHUB_OUTPUT
+      echo "Documentation changes detected ($DOCS_CHANGED files changed)"
+    else
+      echo "docs-changed=false" >> $GITHUB_OUTPUT
+      echo "No documentation changes detected, skipping website rebuild"
+    fi
+
 - name: Trigger Website Rebuild
+  if: steps.docs-check.outputs.docs-changed == 'true'
   uses: peter-evans/repository-dispatch@v3
   with:
     token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
@@ -48,6 +68,8 @@ Add this step at the end of the `release` job in `.github/workflows/ci.yml` (aft
     event-type: upstream-release
     client-payload: '{"source": "dot-ai", "version": "${{ needs.version.outputs.new-version }}"}'
 ```
+
+**Optimization**: The workflow only triggers the website rebuild when `README.md` or `docs/` directory changed since the previous release tag, avoiding unnecessary rebuilds for code-only releases.
 
 ### Prerequisites
 - Personal Access Token with `repo` scope (or fine-grained token with `contents: write` on dot-ai-website)
@@ -64,7 +86,7 @@ Add this step at the end of the `release` job in `.github/workflows/ci.yml` (aft
 
 - [ ] Create PAT with appropriate permissions
 - [ ] Add `WEBSITE_DISPATCH_TOKEN` secret to repository
-- [ ] Add repository dispatch step to release workflow
+- [x] Add repository dispatch step to release workflow (with conditional docs change detection)
 - [ ] Test end-to-end: release triggers website rebuild
 - [ ] Verify documentation updates appear on website
 
@@ -86,6 +108,7 @@ Add this step at the end of the `release` job in `.github/workflows/ci.yml` (aft
 | Date | Update |
 |------|--------|
 | 2025-12-17 | PRD created |
+| 2025-12-17 | Implemented conditional website rebuild trigger in CI workflow |
 
 ## References
 

@@ -363,3 +363,31 @@ jobs:
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if docs changed since last release
+      id: docs-check
+      run: |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        if [ -n "$PREV_TAG" ]; then
+          DOCS_CHANGED=$(git diff --name-only $PREV_TAG HEAD -- README.md docs/ | wc -l)
+          echo "Checking for doc changes between $PREV_TAG and HEAD"
+        else
+          DOCS_CHANGED=1  # First release, always trigger
+          echo "No previous tag found, will trigger website rebuild"
+        fi
+        if [ "$DOCS_CHANGED" -gt 0 ]; then
+          echo "docs-changed=true" >> $GITHUB_OUTPUT
+          echo "Documentation changes detected ($DOCS_CHANGED files changed)"
+        else
+          echo "docs-changed=false" >> $GITHUB_OUTPUT
+          echo "No documentation changes detected, skipping website rebuild"
+        fi
+
+    - name: Trigger Website Rebuild
+      if: steps.docs-check.outputs.docs-changed == 'true'
+      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      with:
+        token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        repository: vfarcic/dot-ai-website
+        event-type: upstream-release
+        client-payload: '{"source": "dot-ai", "version": "${{ needs.version.outputs.new-version }}"}'

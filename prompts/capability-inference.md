@@ -7,7 +7,7 @@ Analyze this Kubernetes resource and identify its capabilities for semantic matc
 
 ## Resource Definition
 ```yaml
-{{resourceDefinition}}
+{{{resourceDefinition}}}
 ```
 
 ## Analysis Instructions
