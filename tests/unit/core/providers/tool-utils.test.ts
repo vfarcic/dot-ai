@@ -119,14 +119,15 @@ Second call:
     expect(result).toHaveLength(0);
   });
 
-  it('should ignore non-JSON code blocks', () => {
+  it('should extract tool calls from non-JSON code blocks via fallback', () => {
     const content = `
 \`\`\`javascript
 { "tool": "test", "arguments": {} }
 \`\`\`
 `;
     const result = extractToolCalls(content);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].tool).toBe('test');
   });
 
   it('should handle mixed valid and invalid tool calls', () => {
@@ -149,5 +150,22 @@ Non-JSON block:
     const result = extractToolCalls(content);
     expect(result).toHaveLength(1);
     expect(result[0].tool).toBe('valid_tool');
+  });
+
+  it('should extract tool call from raw JSON without code blocks (fallback)', () => {
+    const content = '{ "tool": "fallback_tool", "arguments": { "arg": "val" } }';
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      tool: 'fallback_tool',
+      arguments: { arg: 'val' }
+    });
+  });
+
+  it('should extract tool call from raw JSON embedded in text (fallback)', () => {
+    const content = 'I will use this tool: { "tool": "embedded_tool", "arguments": {} } to do something.';
+    const result = extractToolCalls(content);
+    expect(result).toHaveLength(1);
+    expect(result[0].tool).toBe('embedded_tool');
   });
 });
