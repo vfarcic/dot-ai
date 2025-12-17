@@ -1,17 +1,17 @@
 # Helm Values Generation
 
 ## Solution Configuration
-{{solution}}
+{{{solution}}}
 
 ## Chart Values Structure
 The following is the chart's default values.yaml that defines available configuration options:
-{{chart_values}}
+{{{chart_values}}}
 
 ## Previous Attempt (if retry)
-{{previous_attempt}}
+{{{previous_attempt}}}
 
 ## Validation Error Details (if retry)
-{{error_details}}
+{{{error_details}}}
 
 ## Instructions
 

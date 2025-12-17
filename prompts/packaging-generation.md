@@ -10,11 +10,11 @@ Convert validated Kubernetes manifests into {{output_format_description}}.
 
 ## Raw Kubernetes Manifests (Validated)
 ```yaml
-{{raw_manifests}}
+{{{raw_manifests}}}
 ```
 
 ## User Configuration (Questions and Answers)
-{{questions_and_answers}}
+{{{questions_and_answers}}}
 
 ## Output Path
 {{output_path}}
@@ -31,7 +31,7 @@ Transform the raw Kubernetes manifests into {{output_format_description}}.
 
 4. **Generate Metadata**: Create required metadata files for the package.
 
-{{format_specific_instructions}}
+{{{format_specific_instructions}}}
 
 ## Response Format
 
@@ -53,13 +53,13 @@ Return a JSON object with exactly this structure:
   - `relativePath`: string (required) - File path relative to output directory (e.g., "Chart.yaml", "templates/deployment.yaml")
   - `content`: string (required) - Complete file content
 
-{{format_example}}
+{{{format_example}}}
 
 ## Previous Attempt (if retry)
-{{previous_attempt}}
+{{{previous_attempt}}}
 
 ## Validation Error Details (if retry)
-{{error_details}}
+{{{error_details}}}
 
 If this is a retry, analyze the validation error and fix the specific issue while preserving working parts.
 
