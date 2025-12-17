@@ -1,9 +1,9 @@
 # PRD: Intelligent CI/CD Workflow Generation
 
 **Created**: 2025-12-10
-**Status**: Draft
+**Status**: Complete
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-12-16
+**Last Updated**: 2025-12-17
 **Supersedes**: PRD #226 (GitHub Actions CI/CD Pipeline Generation)
 
 ## Executive Summary
@@ -973,15 +973,15 @@ Provide:
 - [x] Validates workflow runs successfully on GitHub Actions
 - [x] Verifies caching works correctly
 
-### Milestone 5: Documentation Complete
-- [ ] `docs/mcp-guide.md` updated with CI/CD generation guide
-- [ ] Troubleshooting section for common issues
-- [ ] Feature request process documented for unsupported platforms
+### Milestone 5: Documentation Complete ✅
+- [x] `docs/guides/mcp-prompts-guide.md` updated with CI/CD generation guide
+- [~] Troubleshooting section - not needed (prompt handles errors inline)
+- [~] Feature request process - built into prompt (Step 0 handles unsupported platforms)
 
-### Milestone 6: PRD #226 Retired
-- [ ] Close #226 with reference to this PRD
-- [ ] Update any dependent PRDs to reference #263
-- [ ] Archive or note supersession in old PRD file
+### Milestone 6: PRD #226 Retired ✅
+- [x] Close #226 with reference to this PRD (already done - issue closed 2025-12-10)
+- [~] Update dependent PRDs - not needed (references in `prds/done/` are historical records)
+- [x] Archive or note supersession in old PRD file (done - `prds/done/226-*.md` marked as superseded)
 
 ## Success Criteria
 
@@ -1375,3 +1375,22 @@ Process (Steps 0-7)
 
 **Milestone Status**: ✅ Milestones 2, 3, 4 Complete
 **Next**: Milestone 5 - Documentation, Milestone 6 - Retire PRD #226
+
+### 2025-12-17: Milestones 5-6 Complete - Documentation & PRD Closure
+
+**Completed Work**:
+- Updated `docs/guides/mcp-prompts-guide.md` with `generate-cicd` prompt entry and workflow example
+- Updated `README.md` with CI/CD Generation in Shared Prompts Library section
+- Verified PRD #226 already closed and marked as superseded (done 2025-12-10)
+- Verified `prds/done/226-*.md` properly notes supersession
+
+**Documentation Added**:
+- Prompt entry under "Development Prompts" section
+- "Workflow 3: CI/CD Generation" example showing the 7-step interactive flow
+
+**Design Decisions**:
+- No separate troubleshooting section needed - prompt handles errors inline (e.g., unsupported CI platform)
+- Feature request process built into prompt Step 0, not separate documentation
+- References to #226 in completed PRDs left as historical records
+
+**PRD Status**: ✅ Complete - All 6 milestones done

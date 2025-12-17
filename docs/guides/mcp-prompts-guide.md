@@ -130,6 +130,11 @@ The prompt content executes exactly as if it were a local command file, but with
 - **Use when**: Containerizing an application for production deployment, or improving an existing Dockerfile
 - **Example**: Setting up Docker for a new project, or fixing security issues in an existing Dockerfile
 
+**`generate-cicd`**
+- **Purpose**: Generate intelligent CI/CD workflows through interactive conversation by analyzing repository structure and user preferences
+- **Use when**: Setting up CI/CD pipelines that understand your project's existing automation (Makefile, npm scripts, etc.)
+- **Example**: Adding GitHub Actions workflows that use your project's build system rather than raw commands
+
 ## Example Workflows
 
 ### Workflow 1: Complete PRD Lifecycle
@@ -184,6 +189,17 @@ The prompt content executes exactly as if it were a local command file, but with
   2. Security issues identified (running as root, :latest tags, etc.)
   3. Optimizations applied while preserving intentional customizations
   4. Changes explained with rationale
+
+### Workflow 3: CI/CD Generation
+
+- **Generate CI/CD workflows**: Use `generate-cicd` prompt to create intelligent workflows
+  1. CI platform confirmed (GitHub Actions supported, feature request offered for others)
+  2. Repository analyzed (language, automation, existing CI, deployment mechanism)
+  3. Findings presented for user confirmation
+  4. Workflow choices presented (PR workflow, release triggers, deployment strategy)
+  5. Workflows generated using project automation (npm test, make build, etc.)
+  6. Required secrets and permissions documented
+  7. Workflows committed and validated
 
 ## Cross-Agent Compatibility
 
