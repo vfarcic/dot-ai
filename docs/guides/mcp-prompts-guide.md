@@ -1,4 +1,4 @@
-# MCP Prompts Guide: Shared Prompt Library
+# Shared Prompt Library
 
 <!-- PRD-29 -->
 
