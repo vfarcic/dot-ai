@@ -179,9 +179,10 @@ Then handle the user's response (create issue or end conversation). Do NOT proce
 - Detect frameworks from dependencies
 - Note version requirements
 
-#### 1.2 Discover Existing Automation
+#### 1.2 Discover and Understand Existing Automation
 
-Find what automation exists in this project:
+Find what automation exists and **read scripts to understand how they work** - what arguments they accept, what they handle internally, how they should be called. Don't just note that a script exists; understand it.
+
 - If automation exists for a task → use it in the generated workflow
 - Only generate raw commands if no existing automation found
 - When multiple automation options exist → ask the user
@@ -303,7 +304,7 @@ Provide:
 1. **Generated workflow file(s)** with explanatory comments
 2. **Summary** of what was detected and decisions made
 3. **Required secrets** to configure (with setup guidance)
-4. **Manual setup steps** needed (if any)
+4. **Required permissions and settings** - Based on what the workflow does, identify what permissions or repository settings are needed and provide instructions to configure them. Don't wait for the workflow to fail - tell users upfront what to configure.
 
 ### Step 7: Validate
 

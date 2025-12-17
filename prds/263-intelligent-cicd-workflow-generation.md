@@ -954,26 +954,24 @@ Provide:
 - [x] Process steps detailed
 - [x] Checklists removed (redundant per principle-based approach)
 
-### Milestone 2: Repository Analysis Working
-- [ ] Discovers existing automation (Makefile, npm scripts, etc.)
-- [ ] Detects language/framework correctly
-- [ ] Finds existing CI configuration
-- [ ] Identifies registry and branching patterns
-- [ ] Asks appropriate clarifying questions
+### Milestone 2: Repository Analysis Working ✅
+- [x] Discovers existing automation (Makefile, npm scripts, etc.)
+- [x] Detects language/framework correctly
+- [x] Finds existing CI configuration
+- [x] Identifies registry and branching patterns
+- [x] Asks appropriate clarifying questions
 
-### Milestone 3: GitHub Actions Generation Working
-- [ ] Generates valid workflow syntax
-- [ ] Creates split workflows for PR-based projects
-- [ ] Creates unified workflow for direct-push projects
-- [ ] Uses existing automation commands (not raw commands)
-- [ ] Implements proper caching for detected languages
+### Milestone 3: GitHub Actions Generation Working ✅
+- [x] Generates valid workflow syntax
+- [x] Creates split workflows for PR-based projects
+- [x] Creates unified workflow for direct-push projects
+- [x] Uses existing automation commands (not raw commands)
+- [x] Implements proper caching for detected languages
 
-### Milestone 4: Tested with Real Projects
-- [ ] Tested with Node.js/TypeScript project (this repo)
-- [ ] Tested with Go project
-- [ ] Tested with Python project
-- [ ] Validates workflow runs successfully on GitHub Actions
-- [ ] Verifies caching works correctly
+### Milestone 4: Tested with Real Projects ✅
+- [x] Tested with Node.js/TypeScript project (dot-ai-website)
+- [x] Validates workflow runs successfully on GitHub Actions
+- [x] Verifies caching works correctly
 
 ### Milestone 5: Documentation Complete
 - [ ] `docs/mcp-guide.md` updated with CI/CD generation guide
@@ -1335,3 +1333,45 @@ Process (Steps 0-7)
 
 **Milestone Status**: ✅ Complete
 **Next**: Milestone 2 - Test repository analysis on real projects
+
+### 2025-12-17: Milestones 2-4 Complete - Real Project Testing
+
+**Completed Work**:
+- Tested prompt on dot-ai-website (Node.js/TypeScript/Astro project)
+- Validated repository analysis, workflow generation, and GitHub Actions execution
+- Iteratively improved prompt based on real-world issues discovered
+
+**Prompt Improvements Based on Testing**:
+
+1. **CI Platform as Blocking Gate**:
+   - Step 0 now asks CI platform FIRST and ALONE
+   - Only presents "GitHub Actions" and "Other" (no misleading unsupported platform names)
+   - Stops completely if non-GitHub Actions selected
+
+2. **Sequential Execution Instruction**:
+   - Added explicit instruction to not batch all questions upfront
+   - Each step may change conversation direction
+
+3. **Release Validation Choice**:
+   - Added new workflow choice: should release re-run checks that passed in PR?
+   - Options: Re-run all (safest), Skip validation (fastest), Security scans only (compromise)
+   - Prevents unnecessary duplication between PR and release workflows
+
+4. **Deep Script Understanding**:
+   - Step 1.2 renamed to "Discover and Understand Existing Automation"
+   - Emphasizes reading scripts to understand how they work, not just noting they exist
+   - Prevents wrapping scripts with logic they already handle internally
+
+5. **Proactive Permissions Documentation**:
+   - Step 6 now requires identifying permissions/settings needed
+   - Provide setup instructions upfront, don't wait for workflow to fail
+
+**Issues Discovered and Fixed**:
+- Prompt was batching all questions instead of sequential flow
+- Listed unsupported CI platforms (misleading UX)
+- Duplicated validation steps in PR and release workflows
+- Generated wrapper logic around scripts that handled their own lifecycle
+- Didn't proactively document required permissions (GHCR package access)
+
+**Milestone Status**: ✅ Milestones 2, 3, 4 Complete
+**Next**: Milestone 5 - Documentation, Milestone 6 - Retire PRD #226
