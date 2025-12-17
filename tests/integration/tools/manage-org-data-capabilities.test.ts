@@ -180,10 +180,18 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'get_capability_test'
       });
 
-      expect(getResponse.success).toBe(true);
-      expect(getResponse.data.result.success).toBe(true);
-      expect(getResponse.data.result.data.id).toBe(capabilityId);
-      expect(getResponse.data.result.data.resourceName).toBe(capabilityResourceName);
+      expect(getResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            data: {
+              id: capabilityId,
+              resourceName: capabilityResourceName
+            }
+          }
+        }
+      });
 
       // === DELETE: Remove the capability ===
       const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -193,10 +201,18 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'delete_capability_test'
       });
 
-      expect(deleteResponse.success).toBe(true);
-      expect(deleteResponse.data.result.success).toBe(true);
-      expect(deleteResponse.data.result.operation).toBe('delete');
-      expect(deleteResponse.data.result.deletedCapability.id).toBe(capabilityId);
+      expect(deleteResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'delete',
+            deletedCapability: {
+              id: capabilityId
+            }
+          }
+        }
+      });
 
       // === VERIFY DELETE: Confirm capability no longer exists ===
       const getDeletedResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -206,9 +222,17 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'verify_deleted_test'
       });
 
-      expect(getDeletedResponse.success).toBe(true);
-      expect(getDeletedResponse.data.result.success).toBe(false);
-      expect(getDeletedResponse.data.result.error.message).toContain('Capability not found');
+      expect(getDeletedResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            error: {
+              message: expect.stringContaining('Capability not found')
+            }
+          }
+        }
+      });
 
       // NOTE: One capability was deleted, but the rest remain for recommendation tests
     }, 660000); // 11 minute timeout (10 min polling + buffer)

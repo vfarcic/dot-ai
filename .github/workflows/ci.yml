@@ -385,7 +385,7 @@ jobs:
 
     - name: Trigger Website Rebuild
       if: steps.docs-check.outputs.docs-changed == 'true'
-      uses: peter-evans/repository-dispatch@v3
+      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
       with:
         token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
         repository: vfarcic/dot-ai-website

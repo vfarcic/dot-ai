@@ -10,6 +10,6 @@ You have access to the following tools. To use a tool, output a JSON block with 
 { "tool": "tool_name", "arguments": { ... } }
 ```
 
-{{{TOOL_DEFINITIONS}}}
+{{TOOL_DEFINITIONS}}
 
 When you have gathered enough information, provide your final answer without any tool calls.
