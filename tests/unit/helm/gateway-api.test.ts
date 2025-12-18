@@ -13,9 +13,69 @@ import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
 import { readFileSync } from 'fs';
 
+/**
+ * Type definitions for Kubernetes Gateway API resources
+ */
+interface Listener {
+  name: string;
+  protocol: string;
+  port: number;
+  hostname?: string;
+  tls?: {
+    mode: string;
+    certificateRefs?: Array<{ name: string; kind: string }>;
+  };
+}
+
+interface GatewayResource {
+  apiVersion: string;
+  kind: 'Gateway';
+  metadata: {
+    name: string;
+    annotations?: Record<string, string>;
+  };
+  spec: {
+    gatewayClassName: string;
+    listeners: Listener[];
+  };
+}
+
+interface HTTPRouteResource {
+  apiVersion: string;
+  kind: 'HTTPRoute';
+  metadata: {
+    name: string;
+  };
+  spec: {
+    parentRefs: Array<{ name: string; kind: string }>;
+    rules: Array<{
+      timeouts?: { request: string; backendRequest: string };
+      backendRefs: Array<{ name: string; port: number }>;
+    }>;
+    hostnames?: string[];
+  };
+}
+
+interface IngressResource {
+  kind: 'Ingress';
+}
+
 describe.concurrent('Gateway API Helm Chart Integration', () => {
   const chartPath = './charts';
-  
+
+  /**
+   * Helper function to find a resource by kind in parsed YAML documents
+   */
+  function findResourceByKind<T>(docs: unknown[], kind: string): T | undefined {
+    return docs.find(
+      (doc: unknown) =>
+        typeof doc === 'object' &&
+        doc !== null &&
+        'kind' in doc &&
+        doc.kind === kind
+    ) as T | undefined;
+  }
+
   /**
    * Helper function to run helm template and parse output
    */
@@ -59,20 +119,14 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { apiVersion: string; kind: string; metadata: { name: string }; spec: { gatewayClassName: string; listeners: unknown[] } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.apiVersion).toBe('gateway.networking.k8s.io/v1');
-      expect(gateway.kind).toBe('Gateway');
-      expect(gateway.metadata.name).toContain('dot-ai');
-      expect(gateway.spec.gatewayClassName).toBe('istio');
-      expect(gateway.spec.listeners).toHaveLength(1); // Only HTTP listener
+      expect(gateway?.apiVersion).toBe('gateway.networking.k8s.io/v1');
+      expect(gateway?.kind).toBe('Gateway');
+      expect(gateway?.metadata.name).toContain('dot-ai');
+      expect(gateway?.spec.gatewayClassName).toBe('istio');
+      expect(gateway?.spec.listeners).toHaveLength(1); // Only HTTP listener
     });
 
     test('should render Gateway with HTTP listener on port 80', () => {
@@ -84,16 +138,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: Array<{ name: string; protocol: string; port: number; hostname: string }> } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      const httpListener = gateway.spec.listeners.find(l => l.name === 'http');
+      const httpListener = gateway?.spec.listeners.find(l => l.name === 'http');
       expect(httpListener).toBeDefined();
       expect(httpListener?.protocol).toBe('HTTP');
       expect(httpListener?.port).toBe(80);
@@ -109,21 +157,15 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: Array<{ name: string; protocol: string; port: number; hostname: string; tls: { mode: string } }> } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      const httpsListener = gateway.spec.listeners.find(l => l.name === 'https');
+      const httpsListener = gateway?.spec.listeners.find(l => l.name === 'https');
       expect(httpsListener).toBeDefined();
       expect(httpsListener?.protocol).toBe('HTTPS');
       expect(httpsListener?.port).toBe(443);
       expect(httpsListener?.hostname).toBe('dot-ai.example.com');
-      expect(httpsListener?.tls.mode).toBe('Terminate');
+      expect(httpsListener?.tls?.mode).toBe('Terminate');
     });
 
     test('should support both HTTP and HTTPS listeners', () => {
@@ -135,16 +177,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: unknown[] } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.spec.listeners).toHaveLength(2); // Both HTTP and HTTPS
+      expect(gateway?.spec.listeners).toHaveLength(2); // Both HTTP and HTTPS
     });
 
     test('should include annotations when configured', () => {
@@ -156,18 +192,12 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { metadata: { annotations?: Record<string, string> } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.metadata.annotations).toBeDefined();
+      expect(gateway?.metadata.annotations).toBeDefined();
       expect(
-        gateway.metadata.annotations?.['external-dns.alpha.kubernetes.io/hostname']
+        gateway?.metadata.annotations?.['external-dns.alpha.kubernetes.io/hostname']
       ).toBe('dot-ai.example.com');
     });
   });
@@ -180,18 +210,12 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { apiVersion: string; kind: string; metadata: { name: string } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      expect(httproute.apiVersion).toBe('gateway.networking.k8s.io/v1');
-      expect(httproute.kind).toBe('HTTPRoute');
-      expect(httproute.metadata.name).toContain('dot-ai');
+      expect(httproute?.apiVersion).toBe('gateway.networking.k8s.io/v1');
+      expect(httproute?.kind).toBe('HTTPRoute');
+      expect(httproute?.metadata.name).toContain('dot-ai');
     });
 
     test('should reference Gateway in parentRefs', () => {
@@ -201,18 +225,12 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { spec: { parentRefs: Array<{ name: string; kind: string }> } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      expect(httproute.spec.parentRefs).toHaveLength(1);
-      expect(httproute.spec.parentRefs[0].kind).toBe('Gateway');
-      expect(httproute.spec.parentRefs[0].name).toContain('dot-ai');
+      expect(httproute?.spec.parentRefs).toHaveLength(1);
+      expect(httproute?.spec.parentRefs[0].kind).toBe('Gateway');
+      expect(httproute?.spec.parentRefs[0].name).toContain('dot-ai');
     });
 
     test('should configure SSE streaming timeout (3600s)', () => {
@@ -224,17 +242,11 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { spec: { rules: Array<{ timeouts: { request: string; backendRequest: string } }> } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      expect(httproute.spec.rules[0].timeouts.request).toBe('3600s');
-      expect(httproute.spec.rules[0].timeouts.backendRequest).toBe('3600s');
+      expect(httproute?.spec.rules[0].timeouts?.request).toBe('3600s');
+      expect(httproute?.spec.rules[0].timeouts?.backendRequest).toBe('3600s');
     });
 
     test('should route to standard service when deployment.method=standard', () => {
@@ -245,19 +257,13 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { spec: { rules: Array<{ backendRefs: Array<{ name: string; port: number }> }> } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      const backendRef = httproute.spec.rules[0].backendRefs[0];
-      expect(backendRef.name).toContain('dot-ai');
-      expect(backendRef.name).not.toContain('proxy');
-      expect(backendRef.port).toBe(3456);
+      const backendRef = httproute?.spec.rules[0].backendRefs[0];
+      expect(backendRef?.name).toContain('dot-ai');
+      expect(backendRef?.name).not.toContain('proxy');
+      expect(backendRef?.port).toBe(3456);
     });
 
     test('should route to proxy service when deployment.method=toolhive', () => {
@@ -268,19 +274,13 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { spec: { rules: Array<{ backendRefs: Array<{ name: string; port: number }> }> } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      const backendRef = httproute.spec.rules[0].backendRefs[0];
-      expect(backendRef.name).toContain('mcp-');
-      expect(backendRef.name).toContain('proxy');
-      expect(backendRef.port).toBe(3456);
+      const backendRef = httproute?.spec.rules[0].backendRefs[0];
+      expect(backendRef?.name).toContain('mcp-');
+      expect(backendRef?.name).toContain('proxy');
+      expect(backendRef?.port).toBe(3456);
     });
 
     test('should include hostnames from listeners', () => {
@@ -291,16 +291,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const httproute = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'HTTPRoute'
-      ) as { spec: { hostnames?: string[] } };
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
       expect(httproute).toBeDefined();
-      expect(httproute.spec.hostnames).toContain('dot-ai.example.com');
+      expect(httproute?.spec.hostnames).toContain('dot-ai.example.com');
     });
   });
 
@@ -324,20 +318,8 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      );
-      const ingress = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Ingress'
-      );
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeDefined();
       expect(ingress).toBeUndefined();
@@ -350,20 +332,8 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      );
-      const ingress = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Ingress'
-      );
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeUndefined();
       expect(ingress).toBeDefined();
@@ -376,20 +346,8 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      );
-      const ingress = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Ingress'
-      );
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeUndefined();
       expect(ingress).toBeUndefined();
@@ -430,16 +388,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: unknown[] } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.spec.listeners).toHaveLength(1);
+      expect(gateway?.spec.listeners).toHaveLength(1);
     });
 
     test('should succeed when HTTPS listener is enabled', () => {
@@ -451,16 +403,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: unknown[] } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.spec.listeners).toHaveLength(1);
+      expect(gateway?.spec.listeners).toHaveLength(1);
     });
 
     test('should succeed when both listeners are enabled', () => {
@@ -472,16 +418,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: unknown[] } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      expect(gateway.spec.listeners).toHaveLength(2);
+      expect(gateway?.spec.listeners).toHaveLength(2);
     });
   });
 
@@ -515,21 +455,15 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: Array<{ tls?: { certificateRefs: Array<{ name: string; kind: string }> } }> } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      const httpsListener = gateway.spec.listeners.find(
-        (l: { name: string }) => l.name === 'https'
+      const httpsListener = gateway?.spec.listeners.find(
+        (l: Listener) => l.name === 'https'
       );
       expect(httpsListener?.tls?.certificateRefs).toHaveLength(1);
-      expect(httpsListener?.tls?.certificateRefs[0].kind).toBe('Secret');
-      expect(httpsListener?.tls?.certificateRefs[0].name).toBe('custom-tls-secret');
+      expect(httpsListener?.tls?.certificateRefs?.[0].kind).toBe('Secret');
+      expect(httpsListener?.tls?.certificateRefs?.[0].name).toBe('custom-tls-secret');
     });
 
     test('should generate default secret name if not specified', () => {
@@ -540,19 +474,13 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const gateway = docs.find(
-        (doc: unknown) =>
-          typeof doc === 'object' &&
-          doc !== null &&
-          'kind' in doc &&
-          doc.kind === 'Gateway'
-      ) as { spec: { listeners: Array<{ tls?: { certificateRefs: Array<{ name: string }> } }> } };
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
 
       expect(gateway).toBeDefined();
-      const httpsListener = gateway.spec.listeners.find(
-        (l: { name: string }) => l.name === 'https'
+      const httpsListener = gateway?.spec.listeners.find(
+        (l: Listener) => l.name === 'https'
       );
-      expect(httpsListener?.tls?.certificateRefs[0].name).toContain('-tls');
+      expect(httpsListener?.tls?.certificateRefs?.[0].name).toContain('-tls');
     });
   });
 });

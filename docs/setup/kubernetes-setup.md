@@ -284,7 +284,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 For HTTPS with automated certificate provisioning:
 
-**Step 1: Create Certificate resource**
+#### Step 1: Create Certificate resource
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -301,7 +301,7 @@ spec:
     - dot-ai.example.com
 ```
 
-**Step 2: Install with HTTPS enabled**
+#### Step 2: Install with HTTPS enabled
 
 ```bash
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
