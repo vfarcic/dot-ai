@@ -32,7 +32,6 @@ Choose the method that best fits your environment and workflow:
 |--------|------|------|----------|
 | **[Docker](docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |
 | **[Kubernetes](kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication, Ingress support | Requires K8s cluster + Helm | Teams wanting direct resource management with traditional Ingress |
-| **[Gateway API](gateway-api-setup.md)** | Next-gen traffic management, enhanced routing, standards-based | Requires K8s 1.26+, Gateway API CRDs, GatewayClass | Modern K8s environments (GKE, EKS), advanced traffic management |
 | **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
 | **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
 
@@ -51,8 +50,6 @@ Choose the method that best fits your environment and workflow:
 **🎯 Recommended setup** → [Docker Setup](docker-setup.md) - Complete stack, all features working in 2 commands
 
 **🚀 Production deployment** → [Kubernetes Setup](kubernetes-setup.md) - Standard resources, full control, HTTP transport with Bearer token authentication
-
-**🌐 Next-gen traffic management** → [Gateway API Setup](gateway-api-setup.md) - Modern Kubernetes environments with Gateway API support
 
 **🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified management, built-in security
 

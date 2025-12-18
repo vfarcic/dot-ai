@@ -108,7 +108,6 @@ Get started in 3 steps:
 ### Deployment Options
 - **[Docker Setup](docs/setup/docker-setup.md)** - Recommended for local development
 - **[Kubernetes Setup](docs/setup/kubernetes-setup.md)** - Production deployment with Ingress
-- **[Gateway API Setup](docs/setup/gateway-api-setup.md)** - Next-gen traffic management (K8s 1.26+)
 - **[ToolHive Setup](docs/setup/kubernetes-toolhive-setup.md)** - Operator-managed deployment
 - **[NPX Setup](docs/setup/npx-setup.md)** - Quick trials with Node.js
 
