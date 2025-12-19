@@ -9,20 +9,20 @@
 
 ## Problem Statement
 
-Users lack efficient visibility into resources and their statuses within a Kubernetes cluster. The dot-ai-controller (PRD #28) has been built to watch cluster resources and send them to MCP, but **there is no MCP endpoint to receive this data**.
+Users lack efficient visibility into resources within a Kubernetes cluster. The dot-ai-controller (PRD #28) has been built to watch cluster resources and send them to MCP, but **there is no MCP endpoint to receive this data**.
 
 Without this endpoint:
-1. **No semantic search** - Can't ask "show me all database-related resources" or "what's failing?"
-2. **No unified view** - Resource status scattered across different kubectl commands
+1. **No semantic search** - Can't ask "show me all database-related resources" or "find production services"
+2. **No resource inventory** - No way to discover what's deployed across namespaces
 3. **Controller has nowhere to send data** - Phase 1 complete, blocked on Phase 2
 
 ### Related Work
 
-This PRD implements **Phase 2** of [vfarcic/dot-ai-controller#28](https://github.com/vfarcic/dot-ai-controller/issues/28) (Resource Visibility and Status Tracking).
+This PRD implements **Phase 2** of [vfarcic/dot-ai-controller#28](https://github.com/vfarcic/dot-ai-controller/issues/28) (Resource Visibility).
 
 **Phase 1 (Controller - COMPLETE)**:
 - Watches all cluster resources via dynamic informers
-- Detects changes (status, labels)
+- Detects changes (labels, annotations)
 - Debounces and batches changes
 - Sends HTTP requests to MCP endpoint (this PRD)
 
@@ -30,7 +30,7 @@ This PRD implements **Phase 2** of [vfarcic/dot-ai-controller#28](https://github
 - Receive resource data from controller
 - Generate embeddings for semantic search
 - Store in Qdrant `resources` collection
-- Provide query tools
+- Enable resource discovery queries
 
 ---
 
@@ -58,9 +58,9 @@ Implement the MCP-side infrastructure to receive, embed, and store Kubernetes re
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                    Qdrant 'resources' Collection              │   │
 │  │                                                               │   │
-│  │  - Semantic search: "failing databases", "prod deployments"  │   │
+│  │  - Semantic search: "database deployments", "prod services"  │   │
 │  │  - Keyword filters: namespace, kind, labels                   │   │
-│  │  - Status queries: "resources changed in last hour"           │   │
+│  │  - Resource inventory and discovery                           │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -90,19 +90,6 @@ Implement the MCP-side infrastructure to receive, embed, and store Kubernetes re
       "apiVersion": "apps/v1",
       "labels": {"app": "nginx", "env": "prod"},
       "annotations": {"description": "Web server"},
-      "status": {
-        "availableReplicas": 3,
-        "readyReplicas": 3,
-        "conditions": [
-          {
-            "type": "Available",
-            "status": "True",
-            "lastTransitionTime": "2025-12-18T10:00:00Z",
-            "reason": "MinimumReplicasAvailable",
-            "message": "Deployment has minimum availability."
-          }
-        ]
-      },
       "createdAt": "2025-12-13T10:00:00Z",
       "updatedAt": "2025-12-18T14:30:00Z"
     }
@@ -182,10 +169,8 @@ interface ClusterResource {
   apiGroup?: string;             // Derived from apiVersion
   labels: Record<string, string>;
   annotations?: Record<string, string>;
-  status: Record<string, any>;   // Complete status object
   createdAt: string;
   updatedAt: string;
-  embedding?: number[];
 }
 
 class ResourceVectorService extends BaseVectorService {
@@ -195,11 +180,12 @@ class ResourceVectorService extends BaseVectorService {
 
   async upsertResource(resource: ClusterResource): Promise<void>;
   async deleteResource(id: string): Promise<void>;
-  async searchResources(query: string, options?: SearchOptions): Promise<SearchResult[]>;
-  async listResources(filters?: ResourceFilters): Promise<ClusterResource[]>;
+  async listResources(): Promise<ClusterResource[]>;
   async diffAndSync(incoming: ClusterResource[]): Promise<SyncResult>;
 }
 ```
+
+**Note**: Status is intentionally excluded. Kubernetes is the source of truth for live status. This collection is for resource discovery/inventory, not status monitoring. Status queries should use kubectl or Kubernetes API directly.
 
 ### 2. Embedding Generation
 
@@ -213,49 +199,26 @@ function buildEmbeddingText(resource: ClusterResource): string {
     `apiVersion: ${resource.apiVersion}`,
   ];
 
-  // Add meaningful labels
+  // Add meaningful labels (skip standard Kubernetes labels)
   if (resource.labels) {
     const labelText = Object.entries(resource.labels)
-      .filter(([k]) => !k.startsWith('app.kubernetes.io/'))  // Skip standard labels
+      .filter(([k]) => !k.startsWith('app.kubernetes.io/'))
       .map(([k, v]) => `${k}=${v}`)
       .join(', ');
     if (labelText) parts.push(`labels: ${labelText}`);
+
+    // Include app name from standard labels if present
+    const appName = resource.labels['app.kubernetes.io/name'] ||
+                    resource.labels['app'];
+    if (appName) parts.push(`app: ${appName}`);
   }
 
-  // Add status summary
-  if (resource.status) {
-    const statusSummary = extractStatusSummary(resource.status);
-    if (statusSummary) parts.push(`status: ${statusSummary}`);
+  // Add description from annotations if present
+  if (resource.annotations?.description) {
+    parts.push(`description: ${resource.annotations.description}`);
   }
 
   return parts.join(' | ');
-}
-
-function extractStatusSummary(status: Record<string, any>): string {
-  // Extract key status indicators
-  const summaries: string[] = [];
-
-  // Check conditions
-  if (status.conditions) {
-    const conditions = status.conditions as Array<{type: string, status: string}>;
-    const falseConditions = conditions.filter(c => c.status === 'False');
-    if (falseConditions.length > 0) {
-      summaries.push(`failing: ${falseConditions.map(c => c.type).join(', ')}`);
-    }
-  }
-
-  // Check phase
-  if (status.phase) {
-    summaries.push(`phase: ${status.phase}`);
-  }
-
-  // Check replicas
-  if (status.replicas !== undefined) {
-    const ready = status.readyReplicas ?? 0;
-    summaries.push(`replicas: ${ready}/${status.replicas}`);
-  }
-
-  return summaries.join(', ');
 }
 ```
 
@@ -329,68 +292,9 @@ async function handleResourceSync(body: ResourceSyncRequest): Promise<RestApiRes
 }
 ```
 
-### 4. MCP Tool: search-resources
+### 4. MCP Tool: search-resources *(Deferred)*
 
-Add to `src/tools/organizational-data.ts` or create new `src/tools/cluster-resources.ts`:
-
-```typescript
-// Tool definition
-{
-  name: 'search-resources',
-  description: 'Semantic search across cluster resources. Use for questions like "show me failing deployments", "what databases are running?", "pods in production namespace".',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: {
-        type: 'string',
-        description: 'Natural language query describing what resources to find'
-      },
-      namespace: {
-        type: 'string',
-        description: 'Optional: filter by namespace'
-      },
-      kind: {
-        type: 'string',
-        description: 'Optional: filter by resource kind (Deployment, Pod, etc.)'
-      },
-      limit: {
-        type: 'number',
-        description: 'Maximum results to return (default: 10)'
-      }
-    },
-    required: ['query']
-  }
-}
-
-// Handler
-async function handleSearchResources(args: SearchResourcesArgs): Promise<MCP.TextContent[]> {
-  const resourceService = new ResourceVectorService(getVectorDBConfig());
-
-  const results = await resourceService.searchResources(args.query, {
-    namespace: args.namespace,
-    kind: args.kind,
-    limit: args.limit ?? 10
-  });
-
-  return [{
-    type: 'text',
-    text: JSON.stringify({
-      success: true,
-      data: {
-        count: results.length,
-        resources: results.map(r => ({
-          id: r.id,
-          kind: r.payload.kind,
-          name: r.payload.name,
-          namespace: r.payload.namespace,
-          status: extractStatusSummary(r.payload.status),
-          score: r.score
-        }))
-      }
-    })
-  }];
-}
-```
+> **Decision**: Standalone MCP tool deferred to future "cluster intelligence" PRD. The `ResourceVectorService` implements full search capabilities (`searchResources()`, `listResources()` with filters) ready for future AI orchestration layer that combines resources, capabilities, and live kubectl queries.
 
 ### 5. Resync Diff Logic
 
@@ -466,10 +370,10 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 - Insert new, update changed, delete missing
 - Efficient comparison using resource ID
 
-**M4: MCP Tools**
-- `search-resources` - semantic search tool
-- Integration with existing manageOrgData tool pattern
-- Response formatting for AI consumption
+**M4: MCP Tools** *(Deferred)*
+- ~~`search-resources` - semantic search tool~~ → Deferred to future "cluster intelligence" PRD
+- Search capabilities built into ResourceVectorService for future orchestration
+- Service layer ready for unified AI tool that combines resources, capabilities, and live kubectl
 
 **M5: Testing and Documentation**
 - Unit tests for ResourceVectorService
@@ -480,6 +384,7 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 
 ### Out of Scope
 
+- **Standalone MCP tool** - `search-resources` deferred to future "cluster intelligence" PRD that will unify resources, capabilities, and kubectl
 - On-demand resource detail fetching (call Kubernetes API) - Future enhancement
 - Resource modification through the interface
 - Multi-cluster support (single cluster only)
@@ -489,12 +394,11 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 
 ## Milestones
 
-- [ ] **M1: Resource Vector Service**
+- [x] **M1: Resource Vector Service**
   - Create `src/core/resource-vector-service.ts`
   - Qdrant collection initialization with proper schema
   - Upsert, delete, list operations
-  - Embedding text generation (`buildEmbeddingText`)
-  - Status summary extraction for semantic search
+  - Embedding text generation (`buildEmbeddingText`) from labels/annotations
 
 - [ ] **M2: REST Sync Endpoint**
   - Add `/api/v1/resources/sync` to REST router
@@ -503,17 +407,15 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
   - Handle deletes (idempotent)
   - RestApiResponse formatting with partial failure support
 
-- [ ] **M3: Resync Diff Logic**
+- [x] **M3: Resync Diff Logic**
   - Implement `diffAndSync()` method
   - Compare incoming vs Qdrant state
   - Insert new, update changed, delete missing
-  - Efficient bulk operations
 
-- [ ] **M4: MCP Tools**
-  - Add `search-resources` tool definition
-  - Handler with semantic search + filters
-  - Response formatting for AI consumption
-  - Register in tool discovery
+- [~] **M4: MCP Tools** *(Deferred)*
+  - ~~Add `search-resources` tool definition~~ → Deferred
+  - Search capabilities deferred to future "cluster intelligence" PRD
+  - Future unified tool will combine resources, capabilities, and kubectl
 
 - [ ] **M5: Testing and Documentation**
   - Unit tests for ResourceVectorService
@@ -521,6 +423,13 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
   - E2E test with mock controller requests
   - Create `docs/guides/resource-search-guide.md`
   - Uncomment ResourceSyncConfig docs in dot-ai-controller
+
+- [ ] **M6: Cluster Intelligence PRD** *(Placeholder)*
+  - Create new PRD for unified "Cluster Intelligence" tool
+  - Natural language interface: "which databases?", "show failing workloads", etc.
+  - AI orchestrates multiple data sources: resources (this PRD), capabilities, live kubectl
+  - Discuss scope, approach, and priorities when M1-M5 are complete
+  - **Note**: This is a placeholder for future discussion, not implementation work
 
 ---
 
@@ -547,7 +456,7 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 
 1. **Endpoint receives data**: Controller successfully sends resources to `/api/v1/resources/sync`
 2. **Resources stored**: Resources appear in Qdrant `resources` collection with embeddings
-3. **Semantic search works**: Query "failing deployments" returns relevant results
+3. **Semantic search works**: Query "database deployments" or "production services" returns relevant results based on labels/annotations
 4. **Resync works**: Hourly resync correctly identifies and removes deleted resources
 5. **Idempotent deletes**: Deleting non-existent resources doesn't cause errors
 6. **Partial failures handled**: API returns success=false with details on which resources failed
@@ -574,8 +483,9 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 | **Follow capabilities pattern** | Consistent architecture; reuse existing base classes and patterns. |
 | **Idempotent deletes** | Controller may send duplicate delete requests; simplifies retry logic. |
 | **Partial failure response** | Don't fail entire batch for one resource; report what succeeded. |
-| **Embedding text from metadata+status** | Enables semantic search on "failing", "production", "database" etc. |
-| **Status summary in embedding** | Full status too verbose; extract key indicators (conditions, phase, replicas). |
+| **Embedding text from labels+annotations** | Enables semantic search on "production", "database", app names, etc. |
+| **Exclude status from storage** | Status changes frequently and Kubernetes is the source of truth. This collection is for resource discovery/inventory, not status monitoring. Status queries should use kubectl directly. |
+| **Defer standalone MCP tool** | A standalone `search-resources` MCP tool provides low value since users will interact via a unified "cluster intelligence" AI that orchestrates multiple data sources (resources, capabilities, kubectl). The service layer implements full search capabilities for future orchestration, but premature tool exposure forces users/AI to know implementation details. |
 
 ---
 
@@ -584,6 +494,12 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 | Date | Update |
 |------|--------|
 | 2025-12-19 | PRD created |
+| 2025-12-19 | Decision: Defer M4 (MCP tool) - standalone `search-resources` tool provides low value; service layer will have search capabilities ready for future unified "cluster intelligence" tool |
+| 2025-12-19 | Added M6 placeholder for future "Cluster Intelligence" PRD - unified natural language interface for cluster queries |
+| 2025-12-19 | **M1 Complete**: Created `ResourceVectorService` with full CRUD operations, `buildEmbeddingText()`, `diffAndSync()` |
+| 2025-12-19 | **M3 Complete**: Implemented resync diff logic with `hasResourceChanged()` comparison |
+| 2025-12-19 | **Design Decision**: Excluded `status` from storage - Kubernetes is source of truth for live status; collection is for resource discovery/inventory only. Controller updated to not send status. |
+| 2025-12-19 | **Simplification**: Removed `searchResources()`, `ResourceSearchOptions`, `ResourceFilters` - YAGNI, will add when cluster intelligence PRD is implemented |
 
 ---
 
