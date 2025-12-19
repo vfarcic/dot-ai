@@ -241,6 +241,20 @@ Then update your `.mcp.json` URL to use `https://`.
 
 For modern Kubernetes environments (K8s 1.26+), you can use **Gateway API v1** instead of traditional Ingress for enhanced traffic management and standardized configuration.
 
+### ✅ RECOMMENDED: Reference Pattern
+
+**Gateway API is designed with separation of concerns:**
+- **Platform/Infrastructure Team**: Creates and manages shared Gateway resources
+- **Application Team**: Creates HTTPRoutes that reference existing Gateways
+
+This approach:
+- ✅ Shares cloud load balancers (cost-effective)
+- ✅ Centralizes Gateway configuration and policies
+- ✅ Follows Gateway API best practices
+- ✅ Avoids per-application infrastructure proliferation
+
+**Alternative:** The chart also supports Gateway creation mode (`gateway.create=true`) for development/testing, but this is **NOT RECOMMENDED** for production as it creates a separate load balancer per application.
+
 ### When to Use Gateway API vs Ingress
 
 **Use Gateway API when:**
@@ -256,14 +270,50 @@ For modern Kubernetes environments (K8s 1.26+), you can use **Gateway API v1** i
 
 ### Prerequisites
 
+**All deployments:**
 - Kubernetes 1.26+ cluster
 - Gateway API CRDs installed ([installation guide](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api))
-- GatewayClass resource available (created by your Gateway controller)
 - Gateway controller running (e.g., Istio, Envoy Gateway, Kong, GKE's managed controller)
 
-### Quick Start - HTTP Only
+**Reference pattern (RECOMMENDED):**
+- Existing Gateway resource created by platform team
+- GatewayClass resource available
+- Optional: ReferenceGrant for cross-namespace Gateway access
 
-Deploy with Gateway API instead of Ingress:
+**Creation pattern (development/testing only):**
+- GatewayClass resource available
+
+### Quick Start - Reference Pattern (HTTP Only) ✅ RECOMMENDED
+
+**Step 1:** Platform team creates shared Gateway (ONCE):
+
+```bash
+# Create Gateway namespace
+kubectl create namespace gateway-system
+
+# Create Gateway
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cluster-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: istio  # Use your GatewayClass name
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow routes from all namespaces
+EOF
+
+# Wait for Gateway to be ready
+kubectl wait --for=condition=Programmed gateway/cluster-gateway -n gateway-system --timeout=300s
+```
+
+**Step 2:** Application team deploys dot-ai (references existing Gateway):
 
 ```bash
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
@@ -271,62 +321,121 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set ingress.enabled=false \
-  --set gateway.enabled=true \
+  --set gateway.name="cluster-gateway" \
+  --set gateway.namespace="gateway-system" \
+  --namespace dot-ai \
+  --wait
+```
+
+**Note:** This creates only an HTTPRoute that references the existing Gateway. No per-application load balancer is created.
+
+### Quick Start - Reference Pattern (HTTPS) ✅ RECOMMENDED
+
+**Step 1:** Platform team creates Gateway with HTTPS and wildcard certificate (ONCE):
+
+```bash
+# Create wildcard certificate
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-tls
+  namespace: gateway-system
+spec:
+  secretName: wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod  # Use your ClusterIssuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.example.com"  # Your wildcard domain
+    - "example.com"
+EOF
+
+# Wait for certificate
+kubectl wait --for=condition=Ready certificate/wildcard-tls -n gateway-system --timeout=300s
+
+# Create Gateway with HTTPS
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cluster-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: https
+    protocol: HTTPS
+    port: 443
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: wildcard-tls
+    allowedRoutes:
+      namespaces:
+        from: All
+EOF
+```
+
+**Step 2:** Application team deploys dot-ai:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=false \
+  --set gateway.name="cluster-gateway" \
+  --set gateway.namespace="gateway-system" \
+  --namespace dot-ai \
+  --wait
+```
+
+### Quick Start - Creation Pattern (Development/Testing Only) ⚠️
+
+**Use this ONLY for development/testing. NOT RECOMMENDED for production.**
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=false \
+  --set gateway.create=true \
   --set gateway.className="istio" \
   --set gateway.listeners.http.hostname="dot-ai.example.com" \
   --namespace dot-ai \
   --wait
 ```
 
-**Important:** Replace `istio` with your actual GatewayClass name (check with `kubectl get gatewayclass`).
-
-### Quick Start - HTTPS with cert-manager
-
-For HTTPS with automated certificate provisioning:
-
-#### Step 1: Create Certificate resource
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: dot-ai-tls
-  namespace: dot-ai
-spec:
-  secretName: dot-ai-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-    - dot-ai.example.com
-```
-
-#### Step 2: Install with HTTPS enabled
-
-```bash
-helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
-  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
-  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
-  --set ingress.enabled=false \
-  --set gateway.enabled=true \
-  --set gateway.className="istio" \
-  --set gateway.listeners.http.enabled=true \
-  --set gateway.listeners.https.enabled=true \
-  --set gateway.listeners.https.hostname="dot-ai.example.com" \
-  --set gateway.listeners.https.secretName="dot-ai-tls" \
-  --namespace dot-ai \
-  --wait
-```
+**Note:** This creates a Gateway named `<release-name>-http` (e.g., `dot-ai-mcp-http`) to prevent kGateway Envoy deployment naming conflicts. Each created Gateway provisions a separate cloud load balancer.
 
 ### Configuration Reference
 
 Key Gateway API values in `charts/values.yaml`:
 
+#### Reference Pattern (RECOMMENDED)
 ```yaml
 gateway:
-  enabled: false                    # Enable Gateway API (mutually exclusive with ingress)
-  className: ""                     # GatewayClass name (required when enabled)
+  name: "cluster-gateway"           # Name of existing Gateway
+  namespace: "gateway-system"       # Gateway namespace (optional, if different from app)
+  timeouts:
+    request: "3600s"                # SSE streaming timeout
+    backendRequest: "3600s"
+```
+
+#### Creation Pattern (Development/Testing Only)
+```yaml
+gateway:
+  create: true                      # Create Gateway (NOT RECOMMENDED for production)
+  className: "istio"                # GatewayClass name (required when create=true)
   annotations: {}                   # For external-dns integration
   listeners:
     http:
@@ -341,13 +450,35 @@ gateway:
     backendRequest: "3600s"
 ```
 
+### Cross-Namespace Gateway Access (ReferenceGrant)
+
+If the Gateway is in a different namespace and uses `allowedRoutes.namespaces.from: Same`, create a ReferenceGrant:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-dot-ai-routes
+  namespace: gateway-system  # Gateway namespace
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: dot-ai  # Application namespace
+  to:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+EOF
+```
+
 ### Detailed Examples & Troubleshooting
 
 See the [`examples/gateway-api/`](../../examples/gateway-api/) directory for:
-- **[basic-http.yaml](../../examples/gateway-api/basic-http.yaml)** - HTTP-only deployment
-- **[https-cert-manager.yaml](../../examples/gateway-api/https-cert-manager.yaml)** - HTTPS with cert-manager
-- **[external-dns.yaml](../../examples/gateway-api/external-dns.yaml)** - Automated DNS management
-- **[README.md](../../examples/gateway-api/README.md)** - Comprehensive troubleshooting guide
+- **[basic-http.yaml](../../examples/gateway-api/basic-http.yaml)** - Reference pattern (HTTP)
+- **[https-cert-manager.yaml](../../examples/gateway-api/https-cert-manager.yaml)** - Reference pattern (HTTPS with cert-manager)
+- **[external-dns.yaml](../../examples/gateway-api/external-dns.yaml)** - Creation pattern (development/testing only)
+- **[README.md](../../examples/gateway-api/README.md)** - Comprehensive guide, ReferenceGrant docs, and troubleshooting
 
 ## Integration with kagent
 
