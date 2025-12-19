@@ -443,6 +443,14 @@ export class MCPServer {
           return;
         }
 
+        // Health check endpoint (unauthenticated, for Kubernetes probes)
+        if (req.url === '/healthz' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok' }));
+          endSpan(200);
+          return;
+        }
+
         // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
         // Skip authentication for OpenAPI specification endpoint (public documentation)
         const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
