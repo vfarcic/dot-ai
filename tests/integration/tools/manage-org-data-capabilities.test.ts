@@ -157,7 +157,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // Validate scan eventually completed
       expect(scanComplete).toBe(true);
 
-      // Verify capabilities were stored by listing them
+      // === READ: Verify capabilities were stored by listing them ===
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
@@ -168,8 +168,73 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(listResponse.success).toBe(true);
       expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
 
-      // NOTE: This test does NOT clean up capabilities data
-      // The full scan results will be used by recommendation tests
+      // Get a specific capability ID for RUD operations
+      const capabilityId = listResponse.data.result.data.capabilities[0].id;
+      const capabilityResourceName = listResponse.data.result.data.capabilities[0].resourceName;
+
+      // === READ: Get specific capability by ID ===
+      const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'get',
+        id: capabilityId,
+        interaction_id: 'get_capability_test'
+      });
+
+      expect(getResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            data: {
+              id: capabilityId,
+              resourceName: capabilityResourceName
+            }
+          }
+        }
+      });
+
+      // === DELETE: Remove the capability ===
+      const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'delete',
+        id: capabilityId,
+        interaction_id: 'delete_capability_test'
+      });
+
+      expect(deleteResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'delete',
+            deletedCapability: {
+              id: capabilityId
+            }
+          }
+        }
+      });
+
+      // === VERIFY DELETE: Confirm capability no longer exists ===
+      const getDeletedResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'get',
+        id: capabilityId,
+        interaction_id: 'verify_deleted_test'
+      });
+
+      expect(getDeletedResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            error: {
+              message: expect.stringContaining('Capability not found')
+            }
+          }
+        }
+      });
+
+      // NOTE: One capability was deleted, but the rest remain for recommendation tests
     }, 660000); // 11 minute timeout (10 min polling + buffer)
 
     test('should handle specific resource scanning workflow', async () => {
@@ -254,87 +319,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
   });
 
   describe('Capabilities Management Operations', () => {
-    test('should test complete CRUD lifecycle with deletion', async () => {
-      // First create some test capabilities via specific scan
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        interaction_id: 'crud_test_setup'
-      });
-      const sessionId = startResponse.data.result.workflow.sessionId;
-
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-selection',
-        response: 'specific',
-        interaction_id: 'crud_resource_selection'
-      });
-
-      // Use unique resource types not used by other concurrent tests to avoid race conditions
-      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-specification',
-        resourceList: 'LimitRange,ResourceQuota',
-        interaction_id: 'crud_resource_spec'
-      }, { timeout: 300000 }); // 5 minutes for scan completion
-
-      // Ensure scan completed successfully
-      expect(scanResponse.data.result.success).toBe(true);
-      expect(scanResponse.data.result.step).toBe('complete');
-
-      // List capabilities to verify they exist
-      const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 10,
-        interaction_id: 'list_test'
-      });
-
-      expect(listResponse.success).toBe(true);
-      expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
-
-      // Get a specific capability ID for individual delete test
-      const capabilityId = listResponse.data.result.data.capabilities[0].id;
-
-      const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'get',
-        id: capabilityId,
-        interaction_id: 'get_test'
-      });
-
-      expect(getResponse.success).toBe(true);
-      expect(getResponse.data.result.data.id).toBe(capabilityId);
-
-      // Test individual delete
-      const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'delete',
-        id: capabilityId,
-        interaction_id: 'delete_test'
-      });
-
-      expect(deleteResponse.success).toBe(true);
-      expect(deleteResponse.data.result.operation).toBe('delete');
-      expect(deleteResponse.data.result.deletedCapability.id).toBe(capabilityId);
-
-      // Verify individual delete worked
-      const getDeletedResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'get',
-        id: capabilityId,
-        interaction_id: 'get_deleted_test'
-      });
-
-      expect(getDeletedResponse.success).toBe(true);
-      expect(getDeletedResponse.data.result.success).toBe(false);
-      expect(getDeletedResponse.data.result.error.message).toContain('Capability not found');
-
-    });
+    // NOTE: CRUD lifecycle (Create, Read, Update, Delete) is now tested in the full auto scan test above
+    // to avoid race conditions with deterministic capability IDs across concurrent tests
 
     test('should list stored capabilities after scan', async () => {
       // First ensure we have some capabilities by running a quick scan

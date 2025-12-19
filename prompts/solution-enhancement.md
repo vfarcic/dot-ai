@@ -1,16 +1,16 @@
 # Single-Pass Solution Enhancement
 
 ## Current Solution
-{{current_solution}}
+{{{current_solution}}}
 
 ## Detailed Resource Schemas
-{{detailed_schemas}}
+{{{detailed_schemas}}}
 
 ## Analysis Result
-{{analysis_result}}
+{{{analysis_result}}}
 
 ## User Response
-{{open_response}}
+{{{open_response}}}
 
 ## Instructions
 

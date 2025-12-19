@@ -9,16 +9,16 @@
 - **Intent ID**: {{policy_id}}
 
 ## Available Resource Schemas
-{{resource_schemas}}
+{{{resource_schemas}}}
 
 ## Namespace Scope Configuration
-{{namespace_scope}}
+{{{namespace_scope}}}
 
 ## Previous Attempt Analysis
-{{previous_attempt}}
+{{{previous_attempt}}}
 
 ## Error Details from Previous Attempt
-{{error_details}}
+{{{error_details}}}
 
 ## Instructions
 

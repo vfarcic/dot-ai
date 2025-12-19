@@ -361,6 +361,8 @@ export class MCPServer {
         includeContext: 'none',
         maxTokens: options?.maxTokens || 4096,
         ...options
+      }, {
+        timeout: 3600000 // 1 hour timeout for sampling requests
       });
     } catch (error) {
       this.logger.error('Sampling request failed', error as Error);
@@ -442,12 +444,16 @@ export class MCPServer {
         }
 
         // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
-        const authResult = checkBearerAuth(req);
-        if (!authResult.authorized) {
-          this.logger.warn('Authentication failed', { message: authResult.message });
-          sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
-          endSpan(401);
-          return;
+        // Skip authentication for OpenAPI specification endpoint (public documentation)
+        const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
+        if (!isOpenApiEndpoint) {
+          const authResult = checkBearerAuth(req);
+          if (!authResult.authorized) {
+            this.logger.warn('Authentication failed', { message: authResult.message });
+            sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
+            endSpan(401);
+            return;
+          }
         }
 
         // Parse request body for POST requests

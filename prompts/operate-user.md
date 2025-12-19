@@ -1,24 +1,24 @@
 # Operational Intent
 
-{{intent}}
+{{{intent}}}
 
 ---
 
 # Organizational Patterns
 
-{{patterns}}
+{{{patterns}}}
 
 ---
 
 # Organizational Policies
 
-{{policies}}
+{{{policies}}}
 
 ---
 
 # Cluster Capabilities
 
-{{capabilities}}
+{{{capabilities}}}
 
 ---
 
