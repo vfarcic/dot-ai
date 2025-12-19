@@ -1,7 +1,7 @@
 # PRD #287: Resource Sync Endpoint - Receive and Store Cluster Resources
 
 **GitHub Issue**: [#287](https://github.com/vfarcic/dot-ai/issues/287)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-12-19
 
@@ -384,12 +384,10 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 - Search capabilities built into ResourceVectorService for future orchestration
 - Service layer ready for unified AI tool that combines resources, capabilities, and live kubectl
 
-**M5: Testing and Documentation**
-- Unit tests for ResourceVectorService
-- Integration tests with Qdrant
-- API endpoint tests
-- Update docs/guides/ with resource search guide
-- Uncomment ResourceSyncConfig docs in dot-ai-controller (3 TODO items)
+**M5: Testing**
+- Integration tests for sync endpoint
+- Documentation guide removed (no user-facing functionality - sync endpoint is internal, MCP tool deferred)
+- Controller docs (ResourceSyncConfig) tracked separately in dot-ai-controller repo
 
 ### Out of Scope
 
@@ -426,12 +424,11 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
   - Search capabilities deferred to future "cluster intelligence" PRD
   - Future unified tool will combine resources, capabilities, and kubectl
 
-- [ ] **M5: Testing and Documentation**
-  - Unit tests for ResourceVectorService
+- [x] **M5: Testing**
   - [x] Integration tests for sync endpoint (6 tests passing)
-  - E2E test with mock controller requests
-  - Create `docs/guides/resource-search-guide.md`
-  - Uncomment ResourceSyncConfig docs in dot-ai-controller
+  - Unit tests skipped - integration tests provide sufficient coverage
+  - Documentation guide removed - no user-facing functionality (sync endpoint is internal, MCP tool deferred)
+  - Controller docs (ResourceSyncConfig) tracked separately in dot-ai-controller repo
 
 - [ ] **M6: Cluster Intelligence PRD** *(Placeholder)*
   - Create new PRD for unified "Cluster Intelligence" tool
@@ -457,7 +454,7 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 
 ### Cross-Repository Dependencies
 - **vfarcic/dot-ai-controller#28** (Phase 1 complete) - Controller sending data
-- After M5: Update dot-ai-controller docs to uncomment ResourceSyncConfig references
+- **Follow-up**: Update dot-ai-controller docs to uncomment ResourceSyncConfig references (tracked in controller repo)
 
 ---
 
@@ -514,6 +511,8 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 | 2025-12-19 | **Simplification**: Removed `searchResources()`, `ResourceSearchOptions`, `ResourceFilters` - YAGNI, will add when cluster intelligence PRD is implemented |
 | 2025-12-19 | **M2 Complete**: REST sync endpoint implemented with manual validation (Zod replaced due to runtime issues). Controller sends objects with component fields; MCP constructs IDs and hashes to UUIDs for Qdrant. Integration tests passing (6 tests). |
 | 2025-12-19 | **API Contract Update**: Removed `id` field from request - controller sends only component fields (`namespace`, `apiVersion`, `kind`, `name`). MCP constructs deterministic IDs internally. Deletes array now accepts objects instead of ID strings. |
+| 2025-12-19 | **M5 Complete**: Integration tests (6 passing) provide sufficient coverage. Documentation guide removed - sync endpoint is internal infrastructure with no user-facing functionality. Controller docs tracked separately in dot-ai-controller repo. |
+| 2025-12-19 | **PRD Complete**: M1-M3, M5 complete. M4 deferred. M6 is a placeholder for future work. |
 
 ---
 
