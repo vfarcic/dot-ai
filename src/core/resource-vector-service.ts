@@ -8,6 +8,7 @@
  * it in Qdrant for semantic search capabilities.
  */
 
+import { createHash } from 'crypto';
 import { BaseVectorService } from './base-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
@@ -137,11 +138,23 @@ export function generateResourceId(
  * The hash is deterministic so the same resource ID always maps to the same UUID
  */
 export function generateResourceUuid(resourceId: string): string {
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256').update(`resource-${resourceId}`).digest('hex');
+  const hash = createHash('sha256').update(`resource-${resourceId}`).digest('hex');
 
   // Convert to UUID format: 8-4-4-4-12
   return `${hash.substring(0,8)}-${hash.substring(8,12)}-${hash.substring(12,16)}-${hash.substring(16,20)}-${hash.substring(20,32)}`;
+}
+
+/**
+ * Stringify an object with sorted keys for reliable comparison
+ * Ensures consistent ordering regardless of object creation order
+ */
+function sortedStringify(obj: Record<string, string> | undefined): string {
+  if (!obj) return '{}';
+  const sorted = Object.keys(obj).sort().reduce((acc, key) => {
+    acc[key] = obj[key];
+    return acc;
+  }, {} as Record<string, string>);
+  return JSON.stringify(sorted);
 }
 
 /**
@@ -154,17 +167,13 @@ export function hasResourceChanged(existing: ClusterResource, incoming: ClusterR
     return true;
   }
 
-  // Compare labels
-  const existingLabels = JSON.stringify(existing.labels || {});
-  const incomingLabels = JSON.stringify(incoming.labels || {});
-  if (existingLabels !== incomingLabels) {
+  // Compare labels (with sorted keys for reliable comparison)
+  if (sortedStringify(existing.labels) !== sortedStringify(incoming.labels)) {
     return true;
   }
 
-  // Compare annotations
-  const existingAnnotations = JSON.stringify(existing.annotations || {});
-  const incomingAnnotations = JSON.stringify(incoming.annotations || {});
-  if (existingAnnotations !== incomingAnnotations) {
+  // Compare annotations (with sorted keys for reliable comparison)
+  if (sortedStringify(existing.annotations) !== sortedStringify(incoming.annotations)) {
     return true;
   }
 

@@ -152,7 +152,10 @@ export class VectorDBService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.toLowerCase().includes('conflict') ||
           errorMessage.toLowerCase().includes('already exists')) {
-        // Collection exists - this is fine
+        // Collection exists - this is fine (race condition or restart)
+        if (process.env.DEBUG_DOT_AI) {
+          console.debug(`Collection ${this.collectionName} already exists, skipping creation`);
+        }
         return;
       }
       throw error;

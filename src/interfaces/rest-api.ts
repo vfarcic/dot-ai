@@ -21,7 +21,8 @@ export enum HttpStatus {
   BAD_REQUEST = 400,
   NOT_FOUND = 404,
   METHOD_NOT_ALLOWED = 405,
-  INTERNAL_SERVER_ERROR = 500
+  INTERNAL_SERVER_ERROR = 500,
+  SERVICE_UNAVAILABLE = 503
 }
 
 /**
@@ -450,8 +451,18 @@ export class RestApiRouter {
       // Delegate to the resource sync handler
       const response = await handleResourceSync(body, this.logger, requestId);
 
-      // Determine HTTP status based on response
-      const httpStatus = response.success ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
+      // Determine HTTP status based on response and error type
+      let httpStatus = HttpStatus.OK;
+      if (!response.success) {
+        const errorCode = response.error?.code;
+        if (errorCode === 'VECTOR_DB_UNAVAILABLE' || errorCode === 'HEALTH_CHECK_FAILED') {
+          httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
+        } else if (errorCode === 'SERVICE_INIT_FAILED' || errorCode === 'COLLECTION_INIT_FAILED' || errorCode === 'RESYNC_FAILED') {
+          httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        } else {
+          httpStatus = HttpStatus.BAD_REQUEST;
+        }
+      }
 
       await this.sendJsonResponse(res, httpStatus, response);
 

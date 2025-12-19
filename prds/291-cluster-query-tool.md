@@ -31,7 +31,7 @@ The existing MCP tools cover Create (`recommend`), Update (`operate`), and Fix (
 
 An MCP tool (`query`) that accepts natural language queries and orchestrates multiple data sources using an LLM with tools. The LLM decides which tools to use based on user intent.
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │                      MCP Tool: query                           │
 │                                                                │
@@ -85,7 +85,7 @@ Resources in Vector DB have limited semantic information (kind, name, labels). T
 Capabilities in Vector DB have rich semantic information (description, use cases, abstractions). They know that StatefulSet, CNPG Cluster, and Crossplane RDS are all "database-related".
 
 **The bridge:**
-```
+```text
 User: "List all database-related resources"
 
 Step 1: search_capabilities("database")

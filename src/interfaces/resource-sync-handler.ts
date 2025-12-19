@@ -13,6 +13,14 @@ import { RestApiResponse } from './rest-api';
 let resourcesCollectionInitialized = false;
 
 /**
+ * Reset initialization state (for testing or recovery)
+ * Call this to force re-initialization on the next request
+ */
+export function resetResourcesCollectionState(): void {
+  resourcesCollectionInitialized = false;
+}
+
+/**
  * Validate a single cluster resource object
  */
 function validateClusterResource(resource: unknown, index: number): { valid: boolean; errors: string[] } {
@@ -359,7 +367,7 @@ export async function handleResourceSync(
   for (const resource of upserts) {
     const resourceId = generateResourceId(resource.namespace, resource.apiVersion, resource.kind, resource.name);
     try {
-      await resourceService.upsertResource(resource as ClusterResource);
+      await resourceService.upsertResource(resource);
       upserted++;
 
       logger.debug('Resource upserted', {

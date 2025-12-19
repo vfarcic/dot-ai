@@ -8,18 +8,12 @@
  * for machine-to-machine communication between the controller and MCP.
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe('Resource Sync Endpoint Integration', () => {
   const integrationTest = new IntegrationTest();
   const testId = Date.now();
-
-  // Clean up resources collection before tests
-  beforeAll(async () => {
-    // Use manageOrgData tool pattern to clean up - but resources use direct endpoint
-    // We'll create resources and delete them as part of the test flow
-  });
 
   describe('Complete Sync Workflow', () => {
     test('should complete full resource sync workflow: upsert, verify, delete', async () => {
@@ -259,8 +253,8 @@ describe('Resource Sync Endpoint Integration', () => {
       const expectedResyncResponse = {
         success: true,
         data: {
-          upserted: expect.any(Number), // inserted + updated
-          deleted: expect.any(Number), // Resources not in incoming set
+          upserted: 2, // inserted (resync-secret) + updated (resync-app)
+          deleted: 1, // resync-config was removed
           resync: {
             inserted: 1, // resync-secret is new
             updated: 1, // resync-app was updated
