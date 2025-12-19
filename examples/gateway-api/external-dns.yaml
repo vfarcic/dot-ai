@@ -1,91 +1,65 @@
-# Gateway API - external-dns Integration Example
-# Deploy dot-ai MCP server with Gateway API and automated DNS record management
+# Gateway API - Creation Mode with external-dns (Development/Testing Only)
+# Deploy dot-ai MCP server with Gateway creation and automated DNS management
+
+# ⚠️  WARNING: This creates a Gateway per application deployment
+# This is NOT RECOMMENDED for production. Use basic-http.yaml (reference pattern) instead.
+#
+# Use this pattern ONLY for:
+# - Development environments
+# - Testing Gateway API functionality
+# - Single-application clusters
+# - Environments where platform team doesn't provide shared Gateway
 
 # Prerequisites:
 # - Kubernetes 1.26+ cluster
-# - Gateway API CRDs installed (kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml)
-# - GatewayClass available (check with: kubectl get gatewayclass)
-# - Gateway controller running (e.g., Istio, Envoy Gateway, Kong)
+# - Gateway API CRDs installed
+# - GatewayClass available
+# - Gateway controller running
 # - external-dns installed and configured for your DNS provider
-#   (See: https://github.com/kubernetes-sigs/external-dns)
 
 # Configuration:
+# - Creates Gateway with -http suffix (to avoid kGateway naming conflicts)
 # - HTTP listener on port 80
-# - Optional HTTPS listener on port 443
 # - external-dns annotations for automatic DNS record creation
 # - SSE streaming timeout: 3600s
-# - Standard deployment method (Kubernetes resources)
-
-# What this does:
-# - external-dns watches Gateway resources with annotations
-# - Automatically creates DNS A/AAAA records pointing to Gateway IP
-# - Updates records when Gateway IP changes
-# - Deletes records when Gateway is deleted
 
 ---
-# Step 1: Verify external-dns is installed and configured
-
-# Check external-dns deployment
-kubectl get deployment -n external-dns -l app.kubernetes.io/name=external-dns
-
-# Check external-dns logs to verify it's working
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns --tail=50
-
-# Verify external-dns has permission to watch Gateway resources
-kubectl get clusterrole external-dns -o yaml | grep -A 5 "gateways"
-
----
-# Step 2: Helm values.yaml for Gateway API with external-dns
-# Save this to a file (e.g., gateway-external-dns-values.yaml) and use with:
-#   helm install dot-ai oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.163.0 \
+# Example values.yaml for Helm installation with Gateway creation
+# Save this to a file (e.g., gateway-create-values.yaml) and use with:
+#   helm install dot-ai oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
 #     --namespace dot-ai \
 #     --create-namespace \
-#     -f gateway-external-dns-values.yaml
+#     -f gateway-create-values.yaml
 
 # Deployment method
 deployment:
   method: standard
 
-# Disable traditional Ingress (mutually exclusive with Gateway API)
+# Disable traditional Ingress
 ingress:
   enabled: false
 
-# Enable Gateway API with external-dns
+# Create Gateway (NOT RECOMMENDED for production)
 gateway:
-  enabled: true
-  className: "istio"  # CHANGE THIS: Use your GatewayClass name
+  # Enable Gateway creation (creates <fullname>-http Gateway)
+  create: true
+  className: "istio"  # CHANGE THIS: Your GatewayClass name
   
-  # external-dns annotations
-  # These tell external-dns to create DNS records for this Gateway
+  # external-dns annotations for automatic DNS record creation
   annotations:
-    # Primary hostname - external-dns will create A/AAAA record
     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"  # CHANGE THIS
-    
-    # Optional: TTL for DNS records (default: provider default)
+    # Optional: TTL configuration
     # external-dns.alpha.kubernetes.io/ttl: "300"
-    
-    # Optional: Additional hostnames (comma-separated)
-    # external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com,api.example.com,mcp.example.com"
-    
-    # Optional: AWS Route53 specific settings
-    # external-dns.alpha.kubernetes.io/aws-weight: "100"
-    # external-dns.alpha.kubernetes.io/set-identifier: "dot-ai-primary"
-    
-    # Optional: Cloudflare specific settings
-    # external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   
   listeners:
     # HTTP listener (port 80)
     http:
       enabled: true
-      hostname: "dot-ai.example.com"  # CHANGE THIS: Must match external-dns annotation
+      hostname: "dot-ai.example.com"  # CHANGE THIS
     
-    # HTTPS listener (port 443) - Optional
-    # Uncomment if using HTTPS with cert-manager
-    # https:
-    #   enabled: true
-    #   hostname: "dot-ai.example.com"
-    #   secretName: "dot-ai-tls"
+    # HTTPS listener (disabled for this example)
+    https:
+      enabled: false
   
   # SSE streaming timeouts
   timeouts:
@@ -112,8 +86,6 @@ qdrant:
 
 ---
 # Alternative: Manual secret creation
-# Apply with: kubectl apply -f -
-
 apiVersion: v1
 kind: Secret
 metadata:
@@ -129,60 +101,40 @@ stringData:
 # Installation Steps:
 
 # 1. Verify prerequisites
-echo "Checking Gateway API CRDs..."
 kubectl get crd gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io
-
-echo "Checking external-dns..."
-kubectl get deployment -n external-dns -l app.kubernetes.io/name=external-dns
-
-echo "Checking GatewayClass..."
 kubectl get gatewayclass
+kubectl get deploy -n external-dns
 
-# 2. Verify external-dns configuration
-# Check that external-dns is configured for your DNS provider
-kubectl get deployment external-dns -n external-dns -o yaml | grep -A 10 "args:"
-# Look for --provider flag (e.g., --provider=aws, --provider=cloudflare, --provider=google)
-
-# 3. Verify external-dns has Gateway API permissions
-kubectl get clusterrole external-dns -o yaml | grep -A 10 "apiGroups.*gateway.networking.k8s.io"
-# Should show permissions to get, list, watch gateways and httproutes
-
-# 4. Create namespace
-kubectl create namespace dot-ai
-
-# 5. Create application secrets (if not using values.yaml approach)
-# kubectl apply -f gateway-external-dns-values.yaml  # (only the Secret part)
-
-# 6. Install Helm chart with external-dns annotations
-# Edit gateway-external-dns-values.yaml with your configuration, then:
+# 2. Install dot-ai with Gateway creation
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.163.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
   --namespace dot-ai \
   --create-namespace \
-  -f gateway-external-dns-values.yaml \
+  --set gateway.create=true \
+  --set gateway.className=istio \
+  --set 'gateway.annotations.external-dns\.alpha\.kubernetes\.io/hostname=dot-ai.example.com' \
+  --set gateway.listeners.http.hostname=dot-ai.example.com \
+  --set secrets.auth.token="YOUR_TOKEN" \
+  --set secrets.anthropic.apiKey="YOUR_KEY" \
+  --set secrets.openai.apiKey="YOUR_KEY" \
   --wait
 
-# 7. Verify Gateway was created and got an IP
-kubectl get gateway dot-ai -n dot-ai
-GATEWAY_IP=$(kubectl get gateway dot-ai -n dot-ai -o jsonpath='{.status.addresses[0].value}')
-echo "Gateway IP: $GATEWAY_IP"
+# 3. Verify Gateway was created with -http suffix
+kubectl get gateway -n dot-ai
+# Expected: dot-ai-http (or <release-name>-dot-ai-http)
 
-# 8. Monitor external-dns creating DNS record
-# Watch external-dns logs for record creation
+# 4. Verify HTTPRoute references the created Gateway
+kubectl describe httproute -n dot-ai
+# Check parentRefs section for Gateway name with -http suffix
+
+# 5. Watch external-dns create DNS record
 kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns -f
 
-# You should see log entries like:
-# time="..." level=info msg="Desired change: CREATE dot-ai.example.com A [TTL: 300] <GATEWAY_IP>"
-# time="..." level=info msg="Record in zone <ZONE_ID> were successfully updated"
-
-# 9. Wait for DNS propagation (usually 1-5 minutes, depends on TTL)
-# Check DNS resolution
+# 6. Wait for DNS propagation (1-5 minutes)
 dig +short dot-ai.example.com
+# Should return the Gateway's IP address
 
-# Or use nslookup
-nslookup dot-ai.example.com
-
-# 10. Test the MCP server once DNS propagates
+# 7. Test the MCP server
 curl http://dot-ai.example.com/
 
 # Test SSE endpoint
@@ -191,181 +143,157 @@ curl -N -H "Accept: text/event-stream" \
   http://dot-ai.example.com/sse
 
 ---
-# DNS Provider Specific Configuration:
+# Understanding the -http Suffix
+
+# Why does the created Gateway have -http suffix?
+# - kGateway (Kong Gateway Operator) creates an Envoy Deployment with the same name as the Gateway
+# - Without suffix, Gateway name would match application Deployment name
+# - This causes Kubernetes naming conflicts
+# - The -http suffix prevents these collisions
+#
+# Example:
+#   Release name: dot-ai
+#   Application Deployment: dot-ai
+#   Created Gateway: dot-ai-http  (← suffix prevents conflict)
+#   HTTPRoute references: dot-ai-http
+
+# The HTTPRoute automatically references the correct Gateway name:
+# spec:
+#   parentRefs:
+#   - name: dot-ai-http  # Automatically resolved
+#     kind: Gateway
+
+---
+# external-dns Configuration Examples
 
 # AWS Route53:
-# ============
-# external-dns automatically manages records in Route53 hosted zones
-# 
-# Prerequisites:
-# - IAM policy allowing external-dns to manage Route53 records
-# - Hosted zone exists for your domain
-#
-# Additional annotations:
 # gateway:
 #   annotations:
 #     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
 #     external-dns.alpha.kubernetes.io/aws-weight: "100"
-#     external-dns.alpha.kubernetes.io/set-identifier: "dot-ai-primary"
-#     external-dns.alpha.kubernetes.io/ttl: "300"
+
+# Google Cloud DNS:
+# gateway:
+#   annotations:
+#     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
+#     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 
 # Cloudflare:
-# ===========
-# external-dns manages records via Cloudflare API
-#
-# Prerequisites:
-# - API token with DNS edit permissions
-# - Domain managed by Cloudflare
-#
-# Additional annotations:
 # gateway:
 #   annotations:
 #     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
 #     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"  # Enable Cloudflare proxy
-#     external-dns.alpha.kubernetes.io/ttl: "1"  # Cloudflare auto (1 = automatic)
-
-# Google Cloud DNS:
-# =================
-# external-dns manages records in Cloud DNS zones
-#
-# Prerequisites:
-# - Service account with DNS admin role
-# - Managed zone exists for your domain
-#
-# Additional annotations:
-# gateway:
-#   annotations:
-#     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
-#     external-dns.alpha.kubernetes.io/ttl: "300"
 
 # Azure DNS:
-# ==========
-# external-dns manages records in Azure DNS zones
-#
-# Prerequisites:
-# - Service principal with DNS Zone Contributor role
-# - DNS zone exists for your domain
-#
-# Additional annotations:
 # gateway:
 #   annotations:
 #     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
-#     external-dns.alpha.kubernetes.io/ttl: "300"
-
----
-# Multiple Hostnames:
-
-# To create multiple DNS records for the same Gateway:
-# gateway:
-#   annotations:
-#     external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com,api.example.com,mcp.example.com"
-#   listeners:
-#     http:
-#       enabled: true
-#       # Leave hostname empty or use one of the hostnames
-#       hostname: "dot-ai.example.com"
-
-# HTTPRoute will need to specify all hostnames:
-# This is handled automatically by the Helm chart if you set multiple hostnames
-
----
-# Combining external-dns with cert-manager:
-
-# For HTTPS with automatic DNS and certificate management:
-
-# 1. Configure external-dns (this example)
-# 2. Wait for DNS propagation
-# 3. Create Certificate resource with HTTP-01 challenge
-# 4. cert-manager will use the DNS record to complete ACME challenge
-
-# See https-cert-manager.yaml for cert-manager configuration
 
 ---
 # Troubleshooting:
 
+# Gateway not created?
+kubectl get gateway -n dot-ai
+kubectl describe gateway -n dot-ai
+# Check for GatewayClass issues
+
 # DNS record not created?
-# 1. Check external-dns logs
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns --tail=100
+kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
+# Check external-dns logs for errors
 
-# Common issues:
-# - external-dns not watching Gateway resources (check RBAC)
-# - Annotation typo or incorrect format
-# - DNS provider credentials not configured
-# - Rate limiting from DNS provider
+# DNS record points to wrong IP?
+kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
+# Compare with DNS resolution: dig +short dot-ai.example.com
 
-# 2. Verify Gateway has external-dns annotation
-kubectl get gateway dot-ai -n dot-ai -o yaml | grep external-dns
-
-# 3. Verify Gateway has IP address assigned
-kubectl get gateway dot-ai -n dot-ai -o yaml | grep -A 5 "addresses:"
-
-# 4. Check external-dns source configuration
-kubectl get deployment external-dns -n external-dns -o yaml | grep "source="
-# Should include: --source=gateway-httproute or --source=gateway
-
-# DNS record not resolving?
-# 1. Check DNS propagation
-dig +short dot-ai.example.com @8.8.8.8
-# Compare with your DNS provider's nameservers
-
-# 2. Verify record was created in DNS provider console
-# AWS Route53: Check hosted zone records
-# Cloudflare: Check DNS records in domain settings
-# Google Cloud DNS: Check managed zone records
-
-# 3. Check TTL - it may take time to propagate
-# Default TTL is usually 300 seconds (5 minutes)
-
-# DNS record pointing to wrong IP?
-# 1. Verify Gateway IP matches DNS record
-GATEWAY_IP=$(kubectl get gateway dot-ai -n dot-ai -o jsonpath='{.status.addresses[0].value}')
-echo "Gateway IP: $GATEWAY_IP"
-dig +short dot-ai.example.com
-# IPs should match
-
-# 2. If using Cloudflare proxy, IP will be Cloudflare's IP (expected)
-
-# external-dns not updating records?
-# 1. Check external-dns interval (default: 1 minute)
-kubectl get deployment external-dns -n external-dns -o yaml | grep "interval="
-
-# 2. Force reconciliation by restarting external-dns
-kubectl rollout restart deployment external-dns -n external-dns
+# Gateway name conflict?
+kubectl get deploy,gateway -n dot-ai
+# Verify Gateway name has -http suffix
 
 ---
-# Cleanup:
+# Migration to Reference Pattern (RECOMMENDED)
 
-# When you delete the Gateway, external-dns automatically deletes DNS records:
-helm uninstall dot-ai -n dot-ai
+# For production deployments, migrate to reference pattern:
 
-# Verify DNS record was deleted
-dig +short dot-ai.example.com
-# Should return no results after DNS TTL expires
+# 1. Platform team creates shared Gateway (ONCE)
+kubectl create namespace gateway-system
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cluster-gateway
+  namespace: gateway-system
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "*.example.com"
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All
+EOF
+
+# 2. Wait for DNS propagation for the shared Gateway
+dig +short example.com
+
+# 3. Update dot-ai deployment to use reference pattern
+helm upgrade dot-ai \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  --namespace dot-ai \
+  --set gateway.create=false \
+  --set gateway.name=cluster-gateway \
+  --set gateway.namespace=gateway-system \
+  --set secrets.auth.token="YOUR_TOKEN" \
+  --set secrets.anthropic.apiKey="YOUR_KEY" \
+  --set secrets.openai.apiKey="YOUR_KEY"
+
+# 4. Verify HTTPRoute now references shared Gateway
+kubectl describe httproute -n dot-ai
+# parentRefs should now point to cluster-gateway in gateway-system
+
+# 5. Old per-application Gateway is removed
+kubectl get gateway -n dot-ai
+# Should show no Gateways (HTTPRoute references gateway-system/cluster-gateway)
 
 ---
-# Example external-dns Installation (if not already installed):
+# Cost Comparison
 
-# Helm installation (AWS Route53 example):
-helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/
+# Creation Mode (this example):
+# - 1 Gateway per application = 1 cloud load balancer per application
+# - Cost: $18-30/month per application (AWS NLB/ALB, GCP LB, etc.)
+# - 10 applications = $180-300/month in load balancer costs
 
-helm install external-dns external-dns/external-dns \
-  --namespace external-dns \
-  --create-namespace \
-  --set provider=aws \
-  --set policy=sync \
-  --set sources[0]=gateway-httproute \
-  --set txtOwnerId=dot-ai-cluster \
-  --set domainFilters[0]=example.com \
-  --set interval=1m
-
-# Replace provider and configure according to your DNS provider
-# See: https://github.com/kubernetes-sigs/external-dns/tree/master/charts/external-dns
+# Reference Mode (RECOMMENDED):
+# - 1 shared Gateway = 1 cloud load balancer for all applications
+# - Cost: $18-30/month total
+# - 10 applications = $18-30/month total (saves $162-270/month!)
 
 ---
 # Next Steps:
 
-# - For HTTPS with cert-manager: See https-cert-manager.yaml
-# - For HTTP-only without external-dns: See basic-http.yaml
-# - For ToolHive deployment: Set deployment.method=toolhive
-# - Full documentation: docs/setup/gateway-api-setup.md
-# - external-dns documentation: https://github.com/kubernetes-sigs/external-dns
+# - For production deployments: See basic-http.yaml (reference pattern)
+# - For HTTPS with cert-manager: See https-cert-manager.yaml (reference pattern)
+# - Full documentation: docs/setup/kubernetes-setup.md
+
+---
+# Summary: When to Use Creation Mode
+
+# ✅ USE creation mode (gateway.create=true) when:
+# - Development/testing environments
+# - Single-application clusters
+# - Platform team doesn't provide shared Gateway
+# - Learning Gateway API concepts
+
+# ❌ AVOID creation mode in production:
+# - Creates per-application load balancers ($$$)
+# - Violates Gateway API separation of concerns
+# - Harder to manage centralized policies
+# - Can cause naming conflicts with kGateway
+
+# ✅ RECOMMENDED: Reference mode (gateway.name)
+# - See basic-http.yaml for reference pattern example
+# - Platform team manages shared Gateway
+# - Applications reference existing Gateway
+# - Follows Gateway API best practices
