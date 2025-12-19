@@ -341,14 +341,6 @@ gateway:
     backendRequest: "3600s"
 ```
 
-### Detailed Examples & Troubleshooting
-
-See the [`examples/gateway-api/`](../../examples/gateway-api/) directory for:
-- **[basic-http.yaml](../../examples/gateway-api/basic-http.yaml)** - HTTP-only deployment
-- **[https-cert-manager.yaml](../../examples/gateway-api/https-cert-manager.yaml)** - HTTPS with cert-manager
-- **[external-dns.yaml](../../examples/gateway-api/external-dns.yaml)** - Automated DNS management
-- **[README.md](../../examples/gateway-api/README.md)** - Comprehensive troubleshooting guide
-
 ## Integration with kagent
 
 To connect [kagent](https://kagent.dev) agents to this MCP server, see [kagent Setup Guide](kagent-setup.md).
