@@ -237,6 +237,118 @@ ingress:
 
 Then update your `.mcp.json` URL to use `https://`.
 
+## Gateway API (Alternative to Ingress)
+
+For modern Kubernetes environments (K8s 1.26+), you can use **Gateway API v1** instead of traditional Ingress for enhanced traffic management and standardized configuration.
+
+### When to Use Gateway API vs Ingress
+
+**Use Gateway API when:**
+- Running on GKE Autopilot, EKS with AWS Load Balancer Controller, or other managed Kubernetes with Gateway API support
+- Need advanced routing capabilities (weighted traffic, header-based routing, etc.)
+- Prefer role-oriented design separating infrastructure from application concerns
+- Want CRD-driven extensibility without vendor-specific annotations
+
+**Use Ingress when:**
+- Running on Kubernetes < 1.26
+- Gateway API CRDs are not available in your cluster
+- Simpler requirements met by standard Ingress features
+
+### Prerequisites
+
+- Kubernetes 1.26+ cluster
+- Gateway API CRDs installed ([installation guide](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api))
+- GatewayClass resource available (created by your Gateway controller)
+- Gateway controller running (e.g., Istio, Envoy Gateway, Kong, GKE's managed controller)
+
+### Quick Start - HTTP Only
+
+Deploy with Gateway API instead of Ingress:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=false \
+  --set gateway.enabled=true \
+  --set gateway.className="istio" \
+  --set gateway.listeners.http.hostname="dot-ai.example.com" \
+  --namespace dot-ai \
+  --wait
+```
+
+**Important:** Replace `istio` with your actual GatewayClass name (check with `kubectl get gatewayclass`).
+
+### Quick Start - HTTPS with cert-manager
+
+For HTTPS with automated certificate provisioning:
+
+#### Step 1: Create Certificate resource
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dot-ai-tls
+  namespace: dot-ai
+spec:
+  secretName: dot-ai-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - dot-ai.example.com
+```
+
+#### Step 2: Install with HTTPS enabled
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=false \
+  --set gateway.enabled=true \
+  --set gateway.className="istio" \
+  --set gateway.listeners.http.enabled=true \
+  --set gateway.listeners.https.enabled=true \
+  --set gateway.listeners.https.hostname="dot-ai.example.com" \
+  --set gateway.listeners.https.secretName="dot-ai-tls" \
+  --namespace dot-ai \
+  --wait
+```
+
+### Configuration Reference
+
+Key Gateway API values in `charts/values.yaml`:
+
+```yaml
+gateway:
+  enabled: false                    # Enable Gateway API (mutually exclusive with ingress)
+  className: ""                     # GatewayClass name (required when enabled)
+  annotations: {}                   # For external-dns integration
+  listeners:
+    http:
+      enabled: true                 # HTTP listener on port 80
+      hostname: ""                  # Optional hostname
+    https:
+      enabled: false                # HTTPS listener on port 443
+      hostname: ""                  # Optional hostname
+      secretName: ""                # TLS secret name
+  timeouts:
+    request: "3600s"                # SSE streaming timeout
+    backendRequest: "3600s"
+```
+
+### Detailed Examples & Troubleshooting
+
+See the [`examples/gateway-api/`](../../examples/gateway-api/) directory for:
+- **[basic-http.yaml](../../examples/gateway-api/basic-http.yaml)** - HTTP-only deployment
+- **[https-cert-manager.yaml](../../examples/gateway-api/https-cert-manager.yaml)** - HTTPS with cert-manager
+- **[external-dns.yaml](../../examples/gateway-api/external-dns.yaml)** - Automated DNS management
+- **[README.md](../../examples/gateway-api/README.md)** - Comprehensive troubleshooting guide
+
 ## Integration with kagent
 
 To connect [kagent](https://kagent.dev) agents to this MCP server, see [kagent Setup Guide](kagent-setup.md).

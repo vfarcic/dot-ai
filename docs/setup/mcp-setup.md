@@ -31,7 +31,7 @@ Choose the method that best fits your environment and workflow:
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
 | **[Docker](docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |
-| **[Kubernetes](kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication | Requires K8s cluster + Helm | Teams wanting direct resource management |
+| **[Kubernetes](kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication, Ingress support | Requires K8s cluster + Helm | Teams wanting direct resource management with traditional Ingress |
 | **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
 | **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
 

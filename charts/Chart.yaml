@@ -16,6 +16,7 @@ keywords:
   - kubernetes
   - deployment
   - mcp
+  - gateway-api
 annotations:
   category: Developer Tools
 dependencies:
