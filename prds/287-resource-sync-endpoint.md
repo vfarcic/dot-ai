@@ -1,7 +1,7 @@
 # PRD #287: Resource Sync Endpoint - Receive and Store Cluster Resources
 
 **GitHub Issue**: [#287](https://github.com/vfarcic/dot-ai/issues/287)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: High
 **Created**: 2025-12-19
 
@@ -83,7 +83,6 @@ Implement the MCP-side infrastructure to receive, embed, and store Kubernetes re
 {
   "upserts": [
     {
-      "id": "default:apps/v1:Deployment:nginx",
       "namespace": "default",
       "name": "nginx",
       "kind": "Deployment",
@@ -94,10 +93,19 @@ Implement the MCP-side infrastructure to receive, embed, and store Kubernetes re
       "updatedAt": "2025-12-18T14:30:00Z"
     }
   ],
-  "deletes": ["default:apps/v1:Deployment:old-nginx"],
+  "deletes": [
+    {
+      "namespace": "default",
+      "name": "old-nginx",
+      "kind": "Deployment",
+      "apiVersion": "apps/v1"
+    }
+  ],
   "isResync": false
 }
 ```
+
+**Note**: Controller sends objects with component fields. MCP constructs IDs internally using format `namespace:apiVersion:kind:name` and hashes to UUIDs for Qdrant storage.
 
 **Response Body** (follows `RestApiResponse` pattern):
 
@@ -161,8 +169,7 @@ Create `src/core/resource-vector-service.ts` following the `capability-vector-se
 
 ```typescript
 interface ClusterResource {
-  id: string;                    // namespace:apiVersion:kind:name
-  namespace: string;
+  namespace: string;             // Kubernetes namespace or '_cluster' for cluster-scoped
   name: string;
   kind: string;
   apiVersion: string;
@@ -172,6 +179,8 @@ interface ClusterResource {
   createdAt: string;
   updatedAt: string;
 }
+// Note: ID is constructed by MCP from components (namespace:apiVersion:kind:name)
+// and hashed to UUID for Qdrant storage
 
 class ResourceVectorService extends BaseVectorService {
   constructor(config: VectorDBConfig) {
@@ -400,9 +409,9 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
   - Upsert, delete, list operations
   - Embedding text generation (`buildEmbeddingText`) from labels/annotations
 
-- [ ] **M2: REST Sync Endpoint**
+- [x] **M2: REST Sync Endpoint**
   - Add `/api/v1/resources/sync` to REST router
-  - Zod schema for `ResourceSyncRequest`
+  - Manual validation for `ResourceSyncRequest` (Zod replaced due to runtime issues)
   - Handle upserts with embedding generation
   - Handle deletes (idempotent)
   - RestApiResponse formatting with partial failure support
@@ -419,7 +428,7 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 
 - [ ] **M5: Testing and Documentation**
   - Unit tests for ResourceVectorService
-  - Integration tests for sync endpoint
+  - [x] Integration tests for sync endpoint (6 tests passing)
   - E2E test with mock controller requests
   - Create `docs/guides/resource-search-guide.md`
   - Uncomment ResourceSyncConfig docs in dot-ai-controller
@@ -486,6 +495,9 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 | **Embedding text from labels+annotations** | Enables semantic search on "production", "database", app names, etc. |
 | **Exclude status from storage** | Status changes frequently and Kubernetes is the source of truth. This collection is for resource discovery/inventory, not status monitoring. Status queries should use kubectl directly. |
 | **Defer standalone MCP tool** | A standalone `search-resources` MCP tool provides low value since users will interact via a unified "cluster intelligence" AI that orchestrates multiple data sources (resources, capabilities, kubectl). The service layer implements full search capabilities for future orchestration, but premature tool exposure forces users/AI to know implementation details. |
+| **Controller sends components, not IDs** | Controller sends objects with `namespace`, `apiVersion`, `kind`, `name`. MCP constructs IDs internally (`namespace:apiVersion:kind:name`) and hashes to UUIDs for Qdrant (which requires UUIDs or integers). This keeps the controller simple and ensures ID format consistency. |
+| **Manual validation over Zod** | Zod schema parsing threw runtime exceptions in the container environment. Manual validation provides clearer error messages and avoids dependency issues. |
+| **Global collection initialization flag** | Collection is initialized once on first request, with conflict handling for race conditions. Avoids expensive re-initialization on every request while handling MCP restarts gracefully. |
 
 ---
 
@@ -500,6 +512,8 @@ async function diffAndSync(incoming: ClusterResource[]): Promise<SyncResult> {
 | 2025-12-19 | **M3 Complete**: Implemented resync diff logic with `hasResourceChanged()` comparison |
 | 2025-12-19 | **Design Decision**: Excluded `status` from storage - Kubernetes is source of truth for live status; collection is for resource discovery/inventory only. Controller updated to not send status. |
 | 2025-12-19 | **Simplification**: Removed `searchResources()`, `ResourceSearchOptions`, `ResourceFilters` - YAGNI, will add when cluster intelligence PRD is implemented |
+| 2025-12-19 | **M2 Complete**: REST sync endpoint implemented with manual validation (Zod replaced due to runtime issues). Controller sends objects with component fields; MCP constructs IDs and hashes to UUIDs for Qdrant. Integration tests passing (6 tests). |
+| 2025-12-19 | **API Contract Update**: Removed `id` field from request - controller sends only component fields (`namespace`, `apiVersion`, `kind`, `name`). MCP constructs deterministic IDs internally. Deletes array now accepts objects instead of ID strings. |
 
 ---
 

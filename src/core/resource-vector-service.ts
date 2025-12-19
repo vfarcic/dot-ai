@@ -15,9 +15,9 @@ import { EmbeddingService } from './embedding-service';
 /**
  * Cluster resource data structure
  * Matches the format sent by dot-ai-controller
+ * Note: ID is constructed by MCP from namespace/apiVersion/kind/name
  */
 export interface ClusterResource {
-  id: string;                           // namespace:apiVersion:kind:name
   namespace: string;                    // Kubernetes namespace or '_cluster' for cluster-scoped
   name: string;                         // Resource name
   kind: string;                         // Resource kind (Deployment, Service, etc.)
@@ -132,6 +132,19 @@ export function generateResourceId(
 }
 
 /**
+ * Generate a deterministic UUID from resource ID for Qdrant storage
+ * Qdrant requires UUIDs or positive integers as point IDs
+ * The hash is deterministic so the same resource ID always maps to the same UUID
+ */
+export function generateResourceUuid(resourceId: string): string {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256').update(`resource-${resourceId}`).digest('hex');
+
+  // Convert to UUID format: 8-4-4-4-12
+  return `${hash.substring(0,8)}-${hash.substring(8,12)}-${hash.substring(12,16)}-${hash.substring(16,20)}-${hash.substring(20,32)}`;
+}
+
+/**
  * Check if two resources have meaningful differences
  * Used for resync diff logic
  */
@@ -180,14 +193,17 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
 
   /**
    * Extract unique ID from resource data
+   * Always constructs from components and hashes to UUID for Qdrant
    */
   protected extractId(resource: ClusterResource): string {
-    return resource.id || generateResourceId(
+    // Always construct ID from components (ignore any provided id)
+    const resourceId = generateResourceId(
       resource.namespace,
       resource.apiVersion,
       resource.kind,
       resource.name
     );
+    return generateResourceUuid(resourceId);
   }
 
   /**
@@ -195,7 +211,7 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
    */
   protected createPayload(resource: ClusterResource): Record<string, any> {
     return {
-      id: this.extractId(resource),
+      id: generateResourceId(resource.namespace, resource.apiVersion, resource.kind, resource.name),
       namespace: resource.namespace,
       name: resource.name,
       kind: resource.kind,
@@ -213,7 +229,6 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
    */
   protected payloadToData(payload: Record<string, any>): ClusterResource {
     return {
-      id: payload.id || '',
       namespace: payload.namespace || '',
       name: payload.name || '',
       kind: payload.kind || '',
@@ -242,17 +257,22 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
 
   /**
    * Get a resource by ID
+   * Accepts human-readable ID (namespace:apiVersion:kind:name) and converts to UUID
    */
   async getResource(id: string): Promise<ClusterResource | null> {
-    return await this.getData(id);
+    const uuid = generateResourceUuid(id);
+    return await this.getData(uuid);
   }
 
   /**
    * Delete a resource by ID (idempotent - ignores not found)
+   * Accepts human-readable ID (namespace:apiVersion:kind:name) and converts to UUID
    */
   async deleteResource(id: string): Promise<void> {
     try {
-      await this.deleteData(id);
+      // Convert human-readable ID to UUID for Qdrant
+      const uuid = generateResourceUuid(id);
+      await this.deleteData(uuid);
     } catch (error) {
       // Idempotent delete - ignore "not found" errors
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -282,10 +302,13 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
    * Used for periodic resync operations
    */
   async diffAndSync(incoming: ClusterResource[]): Promise<DiffSyncResult> {
+    // Helper to get human-readable ID from resource
+    const getResourceKey = (r: ClusterResource) => generateResourceId(r.namespace, r.apiVersion, r.kind, r.name);
+
     // Get all existing resources from Qdrant
     const existing = await this.listResources();
-    const existingMap = new Map(existing.map(r => [r.id, r]));
-    const incomingMap = new Map(incoming.map(r => [r.id || this.extractId(r), r]));
+    const existingMap = new Map(existing.map(r => [getResourceKey(r), r]));
+    const incomingMap = new Map(incoming.map(r => [getResourceKey(r), r]));
 
     const toInsert: ClusterResource[] = [];
     const toUpdate: ClusterResource[] = [];
@@ -293,7 +316,7 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
 
     // Find new and changed resources
     for (const resource of incoming) {
-      const resourceId = resource.id || this.extractId(resource);
+      const resourceId = getResourceKey(resource);
       const existingResource = existingMap.get(resourceId);
 
       if (!existingResource) {
