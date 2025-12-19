@@ -1,18 +1,18 @@
 # Question Generation for Kubernetes Configuration
 
 ## User Intent
-{{intent}}
+{{{intent}}}
 
 ## Recommended Solution
-{{solution_description}}
+{{{solution_description}}}
 
 {{{source_material}}}
 
 ## Cluster Context
-{{cluster_options}}
+{{{cluster_options}}}
 
 ## Organizational Policies
-{{policy_context}}
+{{{policy_context}}}
 
 ## Instructions
 

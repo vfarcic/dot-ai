@@ -3,10 +3,10 @@
 You are a Kubernetes expert helping users select the best Helm chart for their needs.
 
 ## User Intent
-{{intent}}
+{{{intent}}}
 
 ## Available Helm Charts from ArtifactHub
-{{charts}}
+{{{charts}}}
 
 ## Instructions
 

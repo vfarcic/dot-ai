@@ -34,22 +34,77 @@ export function extractToolCalls(content: string): any[] {
   const toolCalls: any[] = [];
   const matches = [...content.matchAll(TOOL_CALL_REGEX)];
 
-  for (const match of matches) {
-    try {
-      const jsonContent = match[1];
-      const parsed = JSON.parse(jsonContent);
+  if (matches.length > 0) {
+    for (const match of matches) {
+      try {
+        const jsonContent = match[1];
+        const parsed = JSON.parse(jsonContent);
 
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          if (item && typeof item === 'object' && item.tool) {
-            toolCalls.push(item);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (item && typeof item === 'object' && item.tool) {
+              toolCalls.push(item);
+            }
+          }
+        } else if (parsed && typeof parsed === 'object' && parsed.tool) {
+          toolCalls.push(parsed);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  } else {
+    // Fallback: Try to find a JSON object in the content if no code blocks found
+    try {
+      const firstBrace = content.indexOf('{');
+      if (firstBrace !== -1) {
+        // Simple brace counting to find the end of the JSON object
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
+        let jsonEndIndex = -1;
+
+        for (let i = firstBrace; i < content.length; i++) {
+          const char = content[i];
+
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+
+          if (inString) continue;
+
+          if (char === '{') braceCount++;
+          if (char === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              jsonEndIndex = i + 1;
+              break;
+            }
           }
         }
-      } else if (parsed && typeof parsed === 'object' && parsed.tool) {
-        toolCalls.push(parsed);
+
+        if (jsonEndIndex !== -1) {
+          const jsonString = content.substring(firstBrace, jsonEndIndex);
+          const parsed = JSON.parse(jsonString);
+
+          if (parsed && typeof parsed === 'object' && parsed.tool) {
+            toolCalls.push(parsed);
+          }
+        }
       }
     } catch (e) {
-      // Ignore parse errors
+      // Ignore fallback errors
     }
   }
   return toolCalls;
