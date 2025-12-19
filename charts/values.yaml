@@ -72,13 +72,45 @@ ingress:
 
 # Gateway API configuration (Kubernetes 1.26+)
 # NOTE: Mutually exclusive with ingress.enabled - only one can be enabled
-# Requires Gateway API CRDs and GatewayClass pre-installed in cluster
+# Requires Gateway API CRDs pre-installed in cluster
+#
+# RECOMMENDED: Reference existing Gateway (platform team manages Gateway infrastructure)
+# Example:
+#   gateway:
+#     name: "cluster-gateway"          # Reference existing Gateway
+#     namespace: "gateway-system"      # Optional: Gateway namespace (if in different namespace)
+#
+# ALTERNATIVE: Create Gateway for development/testing (with -http suffix to prevent naming collisions)
+# Example:
+#   gateway:
+#     create: true                     # Create Gateway resource
+#     className: "istio"               # GatewayClass name required when create=true
 gateway:
-  enabled: false                    # Create Gateway and HTTPRoute resources
+  # Reference mode: Specify name of existing Gateway resource (RECOMMENDED)
+  # When set, HTTPRoute will reference this Gateway. Gateway must exist before deployment.
+  # Leave empty when using create mode.
+  name: ""                          # Gateway name to reference (e.g., "cluster-gateway")
+  
+  # Optional: Gateway namespace for cross-namespace references
+  # Only used when 'name' is set. Requires ReferenceGrant in Gateway namespace.
+  # Leave empty if Gateway is in same namespace as this chart.
+  namespace: ""                     # Gateway namespace (e.g., "gateway-system")
+  
+  # Creation mode: Create a new Gateway resource (for development/testing only)
+  # When true, creates Gateway with name "<fullname>-http" to prevent kGateway naming collisions.
+  # Requires 'className' to be set. Not recommended for production (use reference mode instead).
+  create: false                     # Create Gateway resource (false = reference mode)
+  
+  # GatewayClass name - REQUIRED when create=true, ignored when referencing existing Gateway
   className: ""                     # GatewayClass name (e.g., "istio", "envoy-gateway", "gke-l7-global-external-managed")
+  
   # Annotations for integration with external-dns, cert-manager, etc.
+  # Only used when create=true. For existing Gateways, configure annotations on the Gateway resource directly.
   # Example for external-dns: external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
   annotations: {}
+  
+  # Listener configuration - only used when create=true
+  # For existing Gateways, listeners are already configured on the Gateway resource.
   listeners:
     http:
       enabled: true                 # Enable HTTP listener on port 80
@@ -95,7 +127,9 @@ gateway:
       #   # Optional: group (defaults to core for Secret)
       #   # Optional: namespace (for cross-namespace references, requires ReferenceGrant)
       certificateRefs: []
+  
   # Timeouts for SSE streaming support (GEP-1742)
+  # Applied to HTTPRoute rules for both reference and create modes
   timeouts:
     request: "3600s"                # Request timeout (supports SSE streaming)
     backendRequest: "3600s"         # Backend request timeout

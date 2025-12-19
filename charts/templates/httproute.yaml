@@ -1,4 +1,4 @@
-{{- if .Values.gateway.enabled }}
+{{- if or .Values.gateway.name .Values.gateway.create }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -7,8 +7,11 @@ metadata:
     {{- include "dot-ai.labels" . | nindent 4 }}
 spec:
   parentRefs:
-  - name: {{ include "dot-ai.fullname" . }}
+  - name: {{ if .Values.gateway.name }}{{ .Values.gateway.name }}{{ else }}{{ include "dot-ai.fullname" . }}-http{{ end }}
     kind: Gateway
+    {{- if and .Values.gateway.name .Values.gateway.namespace }}
+    namespace: {{ .Values.gateway.namespace }}
+    {{- end }}
   {{- if or .Values.gateway.listeners.http.hostname .Values.gateway.listeners.https.hostname }}
   hostnames:
   {{- if .Values.gateway.listeners.http.hostname }}
