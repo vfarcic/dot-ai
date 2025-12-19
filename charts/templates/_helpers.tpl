@@ -71,20 +71,3 @@ Get the backend service name based on deployment method
 {{- include "dot-ai.fullname" . }}
 {{- end }}
 {{- end }}
-
-{{/*
-Validate Gateway API configuration
-*/}}
-{{- define "dot-ai.validateGateway" -}}
-{{- if and .Values.gateway.create (not .Values.gateway.name) }}
-{{- if not .Values.gateway.className }}
-{{- fail "gateway.className is required when gateway.create is true" }}
-{{- end }}
-{{- else if and .Values.gateway.name .Values.gateway.create }}
-{{- fail "Cannot set both gateway.name (reference mode) and gateway.create (creation mode). Choose one approach." }}
-{{- else if and (not .Values.gateway.name) (not .Values.gateway.create) }}
-{{- if or .Values.gateway.className .Values.gateway.listeners.http.enabled .Values.gateway.listeners.https.enabled }}
-{{- fail "gateway.name is required when using Gateway API in reference mode. Set gateway.name to reference an existing Gateway, or set gateway.create=true to create a new Gateway." }}
-{{- end }}
-{{- end }}
-{{- end }}
