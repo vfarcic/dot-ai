@@ -2,6 +2,14 @@
 
 This directory contains complete deployment examples for using DevOps AI Toolkit with Kubernetes Gateway API v1.
 
+## 🎯 Recommended Approach: Reference Pattern
+
+**The Gateway API is designed with a clear separation of concerns:**
+- **Platform/Infrastructure Team**: Creates and manages shared Gateway resources
+- **Application Team**: Creates HTTPRoutes that reference existing Gateways
+
+This repository demonstrates **both patterns**, but we strongly recommend the **reference pattern** for production deployments.
+
 ## Prerequisites
 
 All examples require:
@@ -23,179 +31,236 @@ kubectl get gatewayclass
 
 ## Examples
 
-### [basic-http.yaml](basic-http.yaml)
-**HTTP-only deployment with Gateway API**
+### [basic-http.yaml](basic-http.yaml) ✅ RECOMMENDED
+**HTTP-only deployment using reference pattern**
 
-Simple HTTP deployment without TLS. Perfect for:
-- Internal/private networks
-- Development environments
-- Testing Gateway API functionality
-- Environments where TLS termination happens upstream
+Demonstrates the recommended approach where the application references an existing Gateway created by the platform team.
 
-Key features:
-- HTTP listener on port 80
-- No TLS/certificate management
+**Perfect for:**
+- Production deployments
+- Multi-tenant environments
+- Cost-effective infrastructure (shared load balancer)
+- Centralized Gateway management
+
+**Key features:**
+- References existing Gateway via `gateway.name`
+- Cross-namespace Gateway support via `gateway.namespace`
+- No Gateway creation (HTTPRoute only)
 - SSE streaming timeout: 3600s
-- Standard Kubernetes deployment
+- ReferenceGrant examples for cross-namespace access
 
 **Quick start:**
 ```bash
-# Download and edit the example
-curl -O https://raw.githubusercontent.com/vfarcic/dot-ai/main/examples/gateway-api/basic-http.yaml
+# Platform team creates shared Gateway (ONCE)
+kubectl apply -f basic-http.yaml  # (Gateway resource section)
 
-# Edit configuration (hostname, GatewayClass, secrets)
-vim basic-http.yaml
-
-# Apply the configuration
-kubectl apply -f basic-http.yaml  # (Secret part)
-
-# Install with Helm
+# Application team deploys dot-ai
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.163.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
   --namespace dot-ai \
   --create-namespace \
-  -f basic-http.yaml
+  --set gateway.name=cluster-gateway \
+  --set gateway.namespace=gateway-system \
+  --set secrets.auth.token="YOUR_TOKEN" \
+  --set secrets.anthropic.apiKey="YOUR_KEY" \
+  --set secrets.openai.apiKey="YOUR_KEY"
 ```
 
 ---
 
-### [https-cert-manager.yaml](https-cert-manager.yaml)
-**HTTPS deployment with automated certificate provisioning**
+### [https-cert-manager.yaml](https-cert-manager.yaml) ✅ RECOMMENDED
+**HTTPS deployment with cert-manager using reference pattern**
 
-Production-ready HTTPS deployment with cert-manager. Perfect for:
+Production-ready HTTPS deployment with wildcard certificate managed by platform team.
+
+**Perfect for:**
 - Production environments
 - Public-facing deployments
-- Automated certificate management
+- Centralized certificate management
 - Let's Encrypt integration
 
-Key features:
-- HTTP listener on port 80 (for ACME challenge)
-- HTTPS listener on port 443 with TLS termination
-- cert-manager Certificate resource
+**Key features:**
+- References existing Gateway with HTTPS listener
+- Platform-managed wildcard certificates
 - Automatic certificate renewal
 - SSE streaming over HTTPS
+- Alternative: per-application certificates with ReferenceGrant
 
-Additional prerequisites:
+**Additional prerequisites:**
 - cert-manager installed ([installation guide](https://cert-manager.io/docs/installation/))
 - ClusterIssuer or Issuer configured (e.g., Let's Encrypt)
 
 **Quick start:**
 ```bash
-# Download and edit the example
-curl -O https://raw.githubusercontent.com/vfarcic/dot-ai/main/examples/gateway-api/https-cert-manager.yaml
+# Platform team creates Gateway with wildcard cert (ONCE)
+kubectl apply -f https-cert-manager.yaml  # (Certificate and Gateway sections)
 
-# Edit configuration (hostname, GatewayClass, ClusterIssuer, secrets)
-vim https-cert-manager.yaml
-
-# Create Certificate resource
-kubectl apply -f https-cert-manager.yaml  # (Certificate part)
-
-# Wait for certificate
-kubectl wait --for=condition=Ready certificate/dot-ai-tls -n dot-ai --timeout=300s
-
-# Install with Helm
+# Application team deploys dot-ai
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.163.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
   --namespace dot-ai \
   --create-namespace \
-  -f https-cert-manager.yaml
+  --set gateway.name=cluster-gateway \
+  --set gateway.namespace=gateway-system \
+  --set secrets.auth.token="YOUR_TOKEN" \
+  --set secrets.anthropic.apiKey="YOUR_KEY" \
+  --set secrets.openai.apiKey="YOUR_KEY"
 ```
 
 ---
 
-### [external-dns.yaml](external-dns.yaml)
-**Automated DNS record management**
+### [external-dns.yaml](external-dns.yaml) ⚠️  DEVELOPMENT/TESTING ONLY
+**Gateway creation mode with external-dns (NOT RECOMMENDED for production)**
 
-Deployment with external-dns for automatic DNS record creation. Perfect for:
-- Multi-environment deployments
-- Automated DNS management
-- Cloud DNS providers (Route53, Cloud DNS, Azure DNS, Cloudflare)
-- GitOps workflows
+Demonstrates Gateway creation per application. Use this **only** for development/testing scenarios.
 
-Key features:
-- Automatic DNS A/AAAA record creation
-- external-dns annotations on Gateway
-- Automatic record updates on IP change
-- Automatic cleanup on deletion
-- Supports multiple DNS providers
+**Use this when:**
+- Development/testing environments
+- Single-application clusters
+- Platform team doesn't provide shared Gateway
+- Learning Gateway API concepts
 
-Additional prerequisites:
+**❌ Avoid in production because:**
+- Creates per-application load balancers ($$$)
+- Violates Gateway API separation of concerns
+- Can cause kGateway Envoy deployment naming conflicts
+- Harder to manage centralized policies
+
+**Key features:**
+- Creates Gateway with `-http` suffix (prevents kGateway naming conflicts)
+- external-dns annotations for automatic DNS records
+- Per-application Gateway and load balancer
+- Cost comparison and migration guide to reference pattern
+
+**Additional prerequisites:**
 - external-dns installed ([installation guide](https://github.com/kubernetes-sigs/external-dns))
-- DNS provider configured (AWS Route53, Cloudflare, Google Cloud DNS, Azure DNS, etc.)
+- DNS provider configured (AWS Route53, Cloudflare, Google Cloud DNS, etc.)
 
 **Quick start:**
 ```bash
-# Download and edit the example
-curl -O https://raw.githubusercontent.com/vfarcic/dot-ai/main/examples/gateway-api/external-dns.yaml
-
-# Edit configuration (hostname, GatewayClass, secrets)
-vim external-dns.yaml
-
-# Install with Helm
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.163.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
   --namespace dot-ai \
   --create-namespace \
-  -f external-dns.yaml
-
-# Watch external-dns create DNS record
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns -f
-
-# Wait for DNS propagation (1-5 minutes)
-dig +short dot-ai.example.com
+  --set gateway.create=true \
+  --set gateway.className=istio \
+  --set 'gateway.annotations.external-dns\.alpha\.kubernetes\.io/hostname=dot-ai.example.com' \
+  --set secrets.auth.token="YOUR_TOKEN" \
+  --set secrets.anthropic.apiKey="YOUR_KEY" \
+  --set secrets.openai.apiKey="YOUR_KEY"
 ```
+
+**Note:** The created Gateway will have `-http` suffix (e.g., `dot-ai-http`) to prevent naming conflicts with kGateway Envoy deployments.
 
 ---
 
-## Combining Examples
+## ReferenceGrant: Cross-Namespace Gateway Access
 
-### HTTPS + external-dns
+When using cross-namespace Gateway references (e.g., Gateway in `gateway-system`, HTTPRoute in `dot-ai`), you may need a ReferenceGrant depending on the Gateway's `allowedRoutes` configuration.
 
-For production deployment with both automated DNS and certificates:
+### When do you need ReferenceGrant?
 
-1. Start with `external-dns.yaml` configuration
-2. Add cert-manager Certificate from `https-cert-manager.yaml`
-3. Enable HTTPS listener in Gateway configuration
-4. Wait for DNS propagation before cert-manager can complete ACME challenge
-
-**Combined configuration:**
+**NO ReferenceGrant needed:**
 ```yaml
-gateway:
-  enabled: true
-  className: "istio"
-  annotations:
-    # external-dns annotation
-    external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
-  listeners:
-    http:
-      enabled: true
-      hostname: "dot-ai.example.com"
-    https:
-      enabled: true
-      hostname: "dot-ai.example.com"
-      secretName: "dot-ai-tls"
+# Gateway with allowedRoutes.namespaces.from: All
+listeners:
+- name: http
+  allowedRoutes:
+    namespaces:
+      from: All  # ← Allows all namespaces
 ```
+
+**ReferenceGrant REQUIRED:**
+```yaml
+# Gateway with allowedRoutes.namespaces.from: Same
+listeners:
+- name: http
+  allowedRoutes:
+    namespaces:
+      from: Same  # ← Only allows same namespace (requires ReferenceGrant for cross-namespace)
+```
+
+### ReferenceGrant Example
+
+Platform team creates this in the Gateway namespace to allow specific namespaces to reference the Gateway:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-dot-ai-routes
+  namespace: gateway-system  # Gateway namespace
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: dot-ai  # Application namespace that can reference the Gateway
+  to:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    # Optional: name: cluster-gateway  # Restrict to specific Gateway
+```
+
+For more ReferenceGrant examples, see:
+- [basic-http.yaml](basic-http.yaml) - ReferenceGrant for cross-namespace HTTPRoute
+- [https-cert-manager.yaml](https-cert-manager.yaml) - ReferenceGrant for cross-namespace TLS Secret
+
+---
+
+## Understanding the `-http` Suffix (Creation Mode)
+
+When using `gateway.create=true`, the Helm chart creates a Gateway with `-http` suffix to prevent naming conflicts with kGateway (Kong Gateway Operator).
+
+**Why the suffix?**
+- kGateway creates an Envoy Deployment with the same name as the Gateway
+- Without suffix: Gateway name = Application Deployment name = Conflict ❌
+- With suffix: Gateway name includes `-http` = No conflict ✅
+
+**Example:**
+- Release name: `dot-ai`
+- Application Deployment: `dot-ai`
+- Created Gateway: `dot-ai-http` ← suffix prevents conflict
+- HTTPRoute automatically references: `dot-ai-http`
+
+**Note:** This suffix is an implementation detail. In reference mode, you reference the Gateway by whatever name the platform team chose (no suffix involved).
+
+---
+
+## Comparison: Reference vs Creation Mode
+
+| Aspect | Reference Mode (✅ RECOMMENDED) | Creation Mode (⚠️  DEV/TEST ONLY) |
+|--------|-------------------------------|----------------------------------|
+| **Gateway Creation** | Platform team (ONCE) | Per application |
+| **Load Balancer Cost** | Shared ($18-30/month total) | Per app ($18-30/month each) |
+| **Separation of Concerns** | ✅ Clear | ❌ Violated |
+| **Centralized Policies** | ✅ Yes | ❌ No |
+| **Gateway API Best Practice** | ✅ Yes | ❌ Anti-pattern |
+| **kGateway Conflicts** | ✅ No risk | ⚠️  Requires `-http` suffix |
+| **Configuration** | `gateway.name: cluster-gateway` | `gateway.create: true` |
+| **Production Ready** | ✅ Yes | ❌ No |
+
+---
 
 ## Common Configuration Patterns
 
 ### Multiple Hostnames
 
-Serve MCP server on multiple hostnames:
+Serve MCP server on multiple hostnames (reference mode):
 ```yaml
+# Platform team configures Gateway with wildcard or specific hostnames
 gateway:
-  annotations:
-    external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com,api.example.com"
-  listeners:
-    http:
-      enabled: true
-      hostname: "dot-ai.example.com"
+  name: cluster-gateway
+  namespace: gateway-system
 ```
+
+Use DNS to point multiple domains to the same Gateway IP.
 
 ### Custom Timeouts
 
 Increase timeout for longer SSE connections:
 ```yaml
 gateway:
+  name: cluster-gateway
   timeouts:
     request: "7200s"        # 2 hours
     backendRequest: "7200s"
@@ -211,35 +276,55 @@ deployment:
 
 The HTTPRoute will automatically route to `mcp-<name>-proxy` Service.
 
+---
+
 ## Verification Steps
 
 After deployment, verify everything is working:
 
-### 1. Check Resources
+### 1. Check Resources (Reference Mode)
 ```bash
-# Verify Gateway is programmed
-kubectl get gateway -n dot-ai
+# Verify Gateway exists (platform team's namespace)
+kubectl get gateway cluster-gateway -n gateway-system
 
-# Verify HTTPRoute is accepted
+# Verify HTTPRoute references it (your namespace)
 kubectl get httproute -n dot-ai
+kubectl describe httproute -n dot-ai | grep -A 5 parentRefs
+
+# Check Services and Pods (your namespace)
+kubectl get svc,pod -n dot-ai
+```
+
+### 2. Check Resources (Creation Mode)
+```bash
+# Verify Gateway created with -http suffix
+kubectl get gateway -n dot-ai
+# Should show: dot-ai-http (or <release-name>-dot-ai-http)
+
+# Verify HTTPRoute references it
+kubectl get httproute -n dot-ai
+kubectl describe httproute -n dot-ai | grep -A 5 parentRefs
 
 # Check Services and Pods
 kubectl get svc,pod -n dot-ai
 ```
 
-### 2. Get Gateway Address
+### 3. Get Gateway Address
 ```bash
-# Get Gateway IP or hostname
-kubectl get gateway dot-ai -n dot-ai -o jsonpath='{.status.addresses[0].value}'
+# Reference mode (platform team's namespace)
+kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addresses[0].value}'
+
+# Creation mode (your namespace)
+kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
 ```
 
-### 3. Test HTTP Endpoint
+### 4. Test HTTP Endpoint
 ```bash
 # Replace with your hostname
 curl http://dot-ai.example.com/
 ```
 
-### 4. Test SSE Connection
+### 5. Test SSE Connection
 ```bash
 # Test Server-Sent Events endpoint
 curl -N -H "Accept: text/event-stream" \
@@ -247,89 +332,115 @@ curl -N -H "Accept: text/event-stream" \
   http://dot-ai.example.com/sse
 ```
 
-### 5. For HTTPS: Verify Certificate
+### 6. For HTTPS: Verify Certificate
 ```bash
 # Check TLS certificate
 openssl s_client -connect dot-ai.example.com:443 -servername dot-ai.example.com < /dev/null 2>/dev/null | openssl x509 -text -noout | grep -A 2 "Subject:"
 ```
 
+---
+
 ## Troubleshooting
 
-### Gateway Not Getting IP
+### Gateway Not Found (Reference Mode)
 
 ```bash
-# Check Gateway status and conditions
-kubectl describe gateway dot-ai -n dot-ai
+# Check Gateway exists in platform namespace
+kubectl get gateway cluster-gateway -n gateway-system
 
 # Common issues:
-# - GatewayClass not found or not Accepted
-# - Gateway controller not running
-# - Invalid listener configuration
+# - Gateway not created by platform team
+# - Wrong Gateway name in HTTPRoute
+# - Wrong namespace specified
 
-# Verify GatewayClass
-kubectl get gatewayclass -o yaml
+# Verify Gateway name and namespace
+kubectl get gateway -A
 ```
 
 ### HTTPRoute Not Routing Traffic
 
 ```bash
 # Check HTTPRoute status
-kubectl describe httproute dot-ai -n dot-ai
+kubectl describe httproute -n dot-ai
 
-# Verify backend Service exists
-kubectl get svc -n dot-ai
+# Verify parentRef matches Gateway
+kubectl get httproute -n dot-ai -o yaml | grep -A 5 "parentRefs"
 
-# Check HTTPRoute parentRef matches Gateway
-kubectl get httproute dot-ai -n dot-ai -o yaml | grep -A 5 "parentRefs"
+# Common issues:
+# - Gateway name mismatch
+# - Gateway namespace mismatch
+# - ReferenceGrant missing (for cross-namespace)
+# - Backend Service doesn't exist
 ```
 
-### Certificate Not Ready (HTTPS example)
+### Cross-Namespace Access Denied
 
 ```bash
-# Check Certificate status
-kubectl describe certificate dot-ai-tls -n dot-ai
+# Check if ReferenceGrant exists
+kubectl get referencegrant -n gateway-system
 
-# Check cert-manager logs
-kubectl logs -n cert-manager -l app=cert-manager
+# Verify ReferenceGrant allows your namespace
+kubectl describe referencegrant -n gateway-system
 
-# Verify ClusterIssuer is ready
-kubectl get clusterissuer -o yaml
+# Check Gateway allowedRoutes configuration
+kubectl get gateway cluster-gateway -n gateway-system -o yaml | grep -A 10 "allowedRoutes"
 ```
 
-### DNS Record Not Created (external-dns example)
+### Gateway Name Conflict (Creation Mode)
+
+```bash
+# Verify Gateway has -http suffix
+kubectl get gateway -n dot-ai
+
+# Expected: dot-ai-http
+# If no suffix, you may have naming conflicts
+
+# Check for deployment conflicts
+kubectl get deploy,gateway -n dot-ai
+```
+
+### DNS Record Not Created (external-dns)
 
 ```bash
 # Check external-dns logs
 kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
 
-# Verify Gateway has annotation
-kubectl get gateway dot-ai -n dot-ai -o yaml | grep external-dns
+# Verify Gateway has external-dns annotation
+kubectl get gateway -n dot-ai -o yaml | grep external-dns
 
 # Check DNS resolution
 dig +short dot-ai.example.com
 ```
+
+---
 
 ## Migration from Ingress
 
 If you're migrating from traditional Ingress to Gateway API:
 
 1. Note your current Ingress hostname and TLS configuration
-2. Deploy Gateway with same hostname
-3. Verify Gateway is working
-4. Update DNS to point to Gateway IP
-5. Disable Ingress: `--set ingress.enabled=false`
+2. Platform team creates shared Gateway with same hostname
+3. Deploy application with `gateway.name` (reference mode)
+4. Verify Gateway is working
+5. Update DNS to point to Gateway IP (if different)
+6. Disable Ingress: `--set ingress.enabled=false`
 
-See [Gateway API Setup Guide](../../docs/setup/gateway-api-setup.md#migration-from-ingress-to-gateway-api) for detailed migration steps.
+See [Kubernetes Setup Guide](../../docs/setup/kubernetes-setup.md) for detailed migration steps.
+
+---
 
 ## Additional Resources
 
-- **[Gateway API Setup Guide](../../docs/setup/gateway-api-setup.md)** - Complete setup documentation
+- **[Gateway API Setup Guide](../../docs/setup/kubernetes-setup.md)** - Complete setup documentation
 - **[Gateway API Official Docs](https://gateway-api.sigs.k8s.io/)** - Kubernetes Gateway API documentation
+- **[Gateway API Best Practices](https://gateway-api.sigs.k8s.io/guides/best-practices/)** - Official best practices
 - **[cert-manager Gateway API Integration](https://cert-manager.io/docs/usage/gateway/)** - cert-manager documentation
 - **[external-dns Gateway API Support](https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/gateway-api.md)** - external-dns documentation
+
+---
 
 ## Support
 
 For questions or issues:
-- GitHub Issues: [vfarcic/dot-ai/issues](https://github.com/vfarcic/dot-ai/issues)
-- GitHub Discussions: [vfarcic/dot-ai/discussions](https://github.com/vfarcic/dot-ai/discussions)
+- GitHub Issues: [irizzante/dot-ai/issues](https://github.com/irizzante/dot-ai/issues)
+- GitHub Discussions: [irizzante/dot-ai/discussions](https://github.com/irizzante/dot-ai/discussions)
