@@ -442,5 +442,5 @@ See [Kubernetes Setup Guide](../../docs/setup/kubernetes-setup.md) for detailed 
 ## Support
 
 For questions or issues:
-- GitHub Issues: [irizzante/dot-ai/issues](https://github.com/irizzante/dot-ai/issues)
-- GitHub Discussions: [irizzante/dot-ai/discussions](https://github.com/irizzante/dot-ai/discussions)
+- GitHub Issues: [vfarcic/dot-ai/issues](https://github.com/vfarcic/dot-ai/issues)
+- GitHub Discussions: [vfarcic/dot-ai/discussions](https://github.com/vfarcic/dot-ai/discussions)
