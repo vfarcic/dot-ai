@@ -1,13 +1,14 @@
 ---
 issue_url: https://github.com/irizzante/dot-ai/issues/3
-status: in-progress
+status: completed
 created: 2025-12-19
+completed: 2025-12-20
 scope: medium
 ---
 
 # Gateway API: Reference Pattern with `-http` Suffix
 
-![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 ## Problem Statement
 
@@ -49,24 +50,24 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 
 | ID       | Task                                                                                               | Status | Completed |
 |----------|----------------------------------------------------------------------------------------------------|--------|-----------|
-| TASK-001 | Update `charts/values.yaml`: replace `gateway.enabled` with `gateway.name`, `gateway.namespace`, `gateway.create: false` | ⬜     |           |
-| TASK-002 | Update `charts/values.yaml`: add comprehensive inline comments explaining new structure and fields | ⬜     |           |
-| TASK-003 | Update `charts/templates/gateway.yaml`: change condition to `gateway.create`, apply `-http` suffix | ⬜     |           |
-| TASK-004 | Update `charts/templates/httproute.yaml`: change condition to `or gateway.name gateway.create`    | ⬜     |           |
-| TASK-005 | Update `charts/templates/httproute.yaml`: add parentRef name resolution logic                      | ⬜     |           |
-| TASK-006 | Update `charts/templates/httproute.yaml`: add cross-namespace reference support                   | ⬜     |           |
-| TASK-007 | Update validation logic: require `gateway.name` when `create: false`, `className` when `create: true` | ⬜     |           |
-| TASK-008 | Update validation logic: mutual exclusivity check for `or gateway.name gateway.create`            | ⬜     |           |
-| TASK-009 | Update `tests/unit/helm/gateway-api.test.ts`: Gateway creation tests with `create: true` and `-http` suffix | ⬜     |           |
-| TASK-010 | Update `tests/unit/helm/gateway-api.test.ts`: HTTPRoute tests split into reference and creation modes | ⬜     |           |
-| TASK-011 | Update `tests/unit/helm/gateway-api.test.ts`: add cross-namespace reference tests                 | ⬜     |           |
-| TASK-012 | Update `tests/unit/helm/gateway-api.test.ts`: update validation and mutual exclusivity tests      | ⬜     |           |
-| TASK-013 | Update `docs/setup/kubernetes-setup.md`: rewrite Gateway API section emphasizing reference approach | ⬜     |           |
-| TASK-014 | Update `docs/setup/kubernetes-setup.md`: update configuration reference table with new fields     | ⬜     |           |
-| TASK-015 | Update `examples/gateway-api/README.md`: add ReferenceGrant documentation for cross-namespace refs | ⬜     |           |
-| TASK-016 | Update `examples/gateway-api/basic-http.yaml`: demonstrate reference pattern with platform Gateway YAML | ⬜     |           |
-| TASK-017 | Update `examples/gateway-api/https-cert-manager.yaml`: demonstrate reference pattern              | ⬜     |           |
-| TASK-018 | Update `examples/gateway-api/external-dns.yaml`: demonstrate creation mode with annotations       | ⬜     |           |
+| TASK-001 | Update `charts/values.yaml`: replace `gateway.enabled` with `gateway.name`, `gateway.namespace`, `gateway.create: false` | ✅     | 2025-12-20 |
+| TASK-002 | Update `charts/values.yaml`: add comprehensive inline comments explaining new structure and fields | ✅     | 2025-12-20 |
+| TASK-003 | Update `charts/templates/gateway.yaml`: change condition to `gateway.create`, apply `-http` suffix | ✅     | 2025-12-20 |
+| TASK-004 | Update `charts/templates/httproute.yaml`: change condition to `or gateway.name gateway.create`    | ✅     | 2025-12-20 |
+| TASK-005 | Update `charts/templates/httproute.yaml`: add parentRef name resolution logic                      | ✅     | 2025-12-20 |
+| TASK-006 | Update `charts/templates/httproute.yaml`: add cross-namespace reference support                   | ✅     | 2025-12-20 |
+| TASK-007 | Update validation logic: require `gateway.name` when `create: false`, `className` when `create: true` | ✅     | 2025-12-20 |
+| TASK-008 | Update validation logic: mutual exclusivity check for `or gateway.name gateway.create`            | ✅     | 2025-12-20 |
+| TASK-009 | Update `tests/unit/helm/gateway-api.test.ts`: Gateway creation tests with `create: true` and `-http` suffix | ✅     | 2025-12-20 |
+| TASK-010 | Update `tests/unit/helm/gateway-api.test.ts`: HTTPRoute tests split into reference and creation modes | ✅     | 2025-12-20 |
+| TASK-011 | Update `tests/unit/helm/gateway-api.test.ts`: add cross-namespace reference tests                 | ✅     | 2025-12-20 |
+| TASK-012 | Update `tests/unit/helm/gateway-api.test.ts`: update validation and mutual exclusivity tests      | ✅     | 2025-12-20 |
+| TASK-013 | Update `docs/setup/kubernetes-setup.md`: rewrite Gateway API section emphasizing reference approach | ✅     | 2025-12-20 |
+| TASK-014 | Update `docs/setup/kubernetes-setup.md`: update configuration reference table with new fields     | ✅     | 2025-12-20 |
+| TASK-015 | Update `examples/gateway-api/README.md`: add ReferenceGrant documentation for cross-namespace refs | ✅     | 2025-12-20 |
+| TASK-016 | Update `examples/gateway-api/basic-http.yaml`: demonstrate reference pattern with platform Gateway YAML | ✅     | 2025-12-20 |
+| TASK-017 | Update `examples/gateway-api/https-cert-manager.yaml`: demonstrate reference pattern              | ✅     | 2025-12-20 |
+| TASK-018 | Update `examples/gateway-api/external-dns.yaml`: demonstrate creation mode with annotations       | ✅     | 2025-12-20 |
 
 ## Success Criteria
 
@@ -147,4 +148,25 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 
 ## Work Log
 
-_No entries yet_
+### 2025-12-20 - Gateway API Reference Pattern Implementation Complete
+
+**Summary**: Successfully implemented Gateway API reference pattern with `-http` suffix for creation mode. All Helm chart templates refactored to support both reference mode (`gateway.name`) and creation mode (`gateway.create`) with comprehensive validation and cross-namespace support.
+
+**Evidence**: 
+- All 32 unit tests passing in `tests/unit/helm/gateway-api.test.ts`
+- PR #293 created on upstream repository: https://github.com/vfarcic/dot-ai/pull/293
+- PR #5 created on fork: https://github.com/irizzante/dot-ai/pull/5
+- Documentation updated with reference pattern examples, ReferenceGrant guides, and cost comparisons
+
+**Tasks Completed**: TASK-001 through TASK-018 (all 18 implementation tasks)
+
+**Tests Validated**: TEST-001 through TEST-011 (all success criteria met)
+
+**Key Deliverables**:
+- Helm chart supports `gateway.name` (reference mode - RECOMMENDED)
+- Helm chart supports `gateway.create: true` (creation mode with `-http` suffix)
+- Cross-namespace Gateway support via `gateway.namespace`
+- Updated mutual exclusivity validation
+- 32/32 tests passing with comprehensive coverage
+- Complete documentation rewrite emphasizing reference pattern
+- Examples updated with platform team setup guides and ReferenceGrant usage
