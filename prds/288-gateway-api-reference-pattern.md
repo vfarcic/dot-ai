@@ -1,5 +1,5 @@
 ---
-issue_url: https://github.com/irizzante/dot-ai/issues/3
+issue_url: https://github.com/vfarcic/dot-ai/issues/3
 status: completed
 created: 2025-12-19
 completed: 2025-12-20
@@ -73,7 +73,7 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 
 | ID       | Criteria                                                                                              |
 |----------|-------------------------------------------------------------------------------------------------------|
-| TEST-001 | All 25+ unit tests in `tests/unit/helm/gateway-api.test.ts` pass                                     |
+| TEST-001 | All 32 unit tests in `tests/unit/helm/gateway-api.test.ts` pass                                     |
 | TEST-002 | `helm template` with `gateway.name: "cluster-gateway"` creates only HTTPRoute (no Gateway)           |
 | TEST-003 | `helm template` with `gateway.create: true` creates Gateway with `-http` suffix and matching HTTPRoute |
 | TEST-004 | HTTPRoute parentRef correctly references `gateway.name` when in reference mode                        |
@@ -154,8 +154,8 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 
 **Evidence**: 
 - All 32 unit tests passing in `tests/unit/helm/gateway-api.test.ts`
-- PR #293 created on upstream repository: https://github.com/vfarcic/dot-ai/pull/293
-- PR #5 created on fork: https://github.com/irizzante/dot-ai/pull/5
+- PR #293 created on upstream repository: <https://github.com/vfarcic/dot-ai/pull/293>
+- PR #5 created on fork: <https://github.com/irizzante/dot-ai/pull/5>
 - Documentation updated with reference pattern examples, ReferenceGrant guides, and cost comparisons
 
 **Tasks Completed**: TASK-001 through TASK-018 (all 18 implementation tasks)
