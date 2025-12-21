@@ -1,7 +1,7 @@
 # PRD #290: Skills Distribution via MCP
 
 **GitHub Issue**: [#290](https://github.com/vfarcic/dot-ai/issues/290)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: Medium
 **Created**: 2025-12-19
 
@@ -23,21 +23,58 @@ Current limitations:
 The [Agent Skills specification](https://agentskills.io/specification) defines a standard format (SKILL.md with YAML frontmatter) adopted by multiple agents. However:
 
 - **Format is standardized**: SKILL.md with `name`, `description` frontmatter + markdown body
-- **Location is NOT standardized**:
+- **Location varies by agent**:
   - Claude Code: `~/.claude/skills` (global) or `.claude/skills/` (project)
-  - Windsurf: `.windsurf/`
-  - Cursor: `.cursor/` (rules only, no native skills yet)
+  - Windsurf: `.windsurf/skills/`
+  - Cursor: `.cursor/skills/`
   - Universal: `.agent/skills/`
+
+**Agent Support Confirmed (Dec 2025)**: Agent Skills is now widely adopted:
+- Claude Code, Cursor, GitHub Copilot, VS Code, OpenAI Codex, OpenCode, Amp, Goose, Letta
+- Skills in `.claude/skills/` are automatically picked up by Copilot (cross-compatibility)
+- Source: [agentskills.io](https://agentskills.io/home), [Cursor docs](https://cursor.com/docs/context/skills), [GitHub Changelog](https://github.blog/changelog/2025-12-18-github-copilot-now-supports-agent-skills/)
 
 ---
 
 ## Solution Overview
 
-Implement a two-part solution:
+Implement a **skills-only approach** - replace MCP prompts with Agent Skills, keeping only a minimal `install-skills` MCP prompt for distribution:
 
-### Part 1: Install-Skills Prompt
+### Part 1: Auto-Install Skills on MCP Initialization
 
-Create an MCP prompt that returns skill file contents with instructions for the client agent to install them locally:
+Skills can be automatically installed when the MCP server initializes, eliminating the need for manual `/install-skills` invocation:
+
+**Option A: Config-based (Recommended)**
+```
+User configures MCP with AGENT_TYPE env var
+    ↓
+MCP server initializes
+    ↓
+MCP detects agent type from config
+    ↓
+Skills auto-installed to correct location
+    ↓
+User has skills immediately - zero friction
+```
+
+**MCP Configuration Example:**
+```json
+{
+  "mcpServers": {
+    "dot-ai": {
+      "command": "npx",
+      "args": ["-y", "@dot-ai/mcp"],
+      "env": {
+        "AGENT_TYPE": "claude"  // or "cursor", "copilot", "universal"
+      }
+    }
+  }
+}
+```
+
+**Option B: Fallback `/install-skills` Prompt**
+
+For users who don't configure `AGENT_TYPE`, keep the manual install prompt as fallback:
 
 ```
 User invokes /install-skills
@@ -52,9 +89,29 @@ Client agent creates files in correct location
 User has persistent local skills
 ```
 
-### Part 2: Convert Prompts to Full Skills
+### Part 2: Convert Prompts to Skills (Replace MCP Prompts)
 
-Rewrite existing prompts (`shared-prompts/`) to leverage Agent Skills features:
+Convert existing prompts (`shared-prompts/`) to Agent Skills and **gracefully deprecate** the MCP prompts:
+
+**Deprecation Strategy:**
+```
+User invokes /prd-create (deprecated MCP prompt)
+    ↓
+Prompt outputs deprecation notice:
+  "⚠️ DEPRECATION NOTICE: MCP prompts are being replaced by Agent Skills.
+
+   Please install skills for a better experience:
+   - Run /install-skills to get started
+   - Skills work offline and across all major agents
+
+   This prompt will be removed in a future release."
+    ↓
+(Prompt still executes for backward compatibility during transition)
+```
+
+**Note:** Full prompt retirement will be handled in a separate follow-up PRD after adoption period.
+
+Skills provide:
 
 | Feature | Current Prompts | Full Skills |
 |---------|-----------------|-------------|
@@ -66,10 +123,33 @@ Rewrite existing prompts (`shared-prompts/`) to leverage Agent Skills features:
 
 ### Part 3: Analyze MCP Tools for Skill Conversion
 
-After completing skill conversions, analyze whether MCP tools should also become skills. This provides:
-- Offline usage (no MCP connection required)
-- Native agent integration
-- Portable across different agents
+After completing skill conversions, analyze whether MCP tools could benefit from a **"Skills as Front-Doors"** hybrid pattern:
+
+```
+User invokes /recommend (skill)
+    ↓
+Skill gathers intent via conversation:
+  - "What do you want to deploy?"
+  - Clarifies requirements
+    ↓
+Skill instructs agent to call MCP tool:
+  - "Call recommend tool with intent: 'PostgreSQL with HA'"
+    ↓
+MCP tool handles complex backend:
+  - Query cluster capabilities
+  - Generate manifests, deploy
+```
+
+**Layer Responsibilities:**
+| Layer | Best For |
+|-------|----------|
+| **Skills** | Conversation, intent gathering, clarification, offline guidance |
+| **MCP Tools** | Cluster access, backend computation, state management |
+
+This hybrid provides:
+- Better UX (natural conversation before technical execution)
+- Offline capability (intent gathering works without MCP)
+- Cleaner separation (conversation vs computation)
 
 ---
 
@@ -221,11 +301,18 @@ async function handleInstallSkills(): Promise<string> {
 **M2: Convert Existing Prompts to Skills**
 - Convert all 10 prompts from `shared-prompts/` to full skills
 - Add scripts, references, and assets where beneficial
-- Maintain backward compatibility (keep prompts working via MCP)
+- Analyze enhancement opportunities during each conversion
+- Use `disable-model-invocation: true` for explicit `/skill-name` invocation
+- Add deprecation notices to existing MCP prompts (prompts still functional during transition)
 
-**M3: Install-Skills Prompt**
-- Create dynamic `install-skills` prompt
-- Support agent-specific installation paths
+**M2b: Prompt Deprecation (Follow-up PRD)**
+- Full retirement of deprecated MCP prompts after adoption period
+- To be tracked in separate PRD created after M4 completion
+
+**M3: Skills Auto-Installation**
+- Implement auto-install on MCP server initialization when `AGENT_TYPE` env var is set
+- Support agent-specific installation paths (claude, cursor, copilot, universal)
+- Create fallback `install-skills` prompt for users without `AGENT_TYPE` configured
 - Include all skills with proper formatting
 
 **M4: Documentation**
@@ -234,8 +321,9 @@ async function handleInstallSkills(): Promise<string> {
 - Update README with skills information
 
 **M5: MCP Tool Analysis**
-- Analyze which MCP tools could become skills
-- Document findings and recommendations
+- Analyze which MCP tools could benefit from "Skills as Front-Doors" pattern
+- Evaluate hybrid approach: skill handles conversation/intent, MCP tool handles backend
+- Document findings and recommendations for each tool (recommend, remediate, operate, manageOrgData, projectSetup)
 - Create follow-up PRD if needed
 
 ### Out of Scope
@@ -244,6 +332,7 @@ async function handleInstallSkills(): Promise<string> {
 - Skill versioning and compatibility checking
 - Skill marketplace integration
 - Plugin marketplace creation (separate feature)
+- Full retirement of MCP prompts (separate follow-up PRD after adoption period)
 
 ---
 
@@ -259,13 +348,22 @@ async function handleInstallSkills(): Promise<string> {
   - Convert PRD prompts (prd-create, prd-start, prd-next, prd-done, prd-close, prd-update-progress, prd-update-decisions, prds-get)
   - Convert generate-dockerfile with scripts and templates
   - Convert generate-cicd with references
+  - Analyze and add enhancements (scripts/, references/, assets/) during each conversion
+  - Use `disable-model-invocation: true` for user-invoked `/skill-name` pattern
   - Test each skill independently
+  - Add deprecation notices to existing MCP prompts (keep functional during transition)
 
-- [ ] **M3: Install-Skills Prompt**
-  - Create shared-prompts/install-skills.md
-  - Implement dynamic skill content loading
-  - Support Claude Code, Windsurf, Cursor, and universal paths
-  - Test installation flow end-to-end
+- [ ] **M2b: Create Follow-up PRD for Prompt Retirement**
+  - Create PRD to track full retirement of deprecated MCP prompts
+  - Define adoption metrics and timeline for retirement
+  - Schedule after M4 completion to allow adoption period
+
+- [ ] **M3: Skills Auto-Installation**
+  - Implement auto-install on MCP server initialization
+  - Read `AGENT_TYPE` env var to determine installation path
+  - Support paths: claude (~/.claude/skills), cursor (~/.cursor/skills), copilot, universal (.agent/skills)
+  - Create fallback shared-prompts/install-skills.md for users without AGENT_TYPE
+  - Test auto-installation and fallback prompt end-to-end
 
 - [ ] **M4: Documentation**
   - Create docs/skills.md with user guide
@@ -274,10 +372,14 @@ async function handleInstallSkills(): Promise<string> {
   - Add skills to feedback form (per CLAUDE.md requirement)
 
 - [ ] **M5: MCP Tool Analysis**
-  - Analyze recommend, remediate, operate tools
-  - Analyze manageOrgData, projectSetup tools
-  - Document which tools benefit from skill conversion
-  - Create follow-up PRD for tool-to-skill conversions
+  - Evaluate "Skills as Front-Doors" hybrid pattern for each tool:
+    - `recommend`: Skill gathers deployment intent → MCP queries capabilities and deploys
+    - `remediate`: Skill gathers issue description → MCP analyzes cluster and fixes
+    - `operate`: Skill gathers operation intent → MCP executes with validation
+    - `manageOrgData`: Evaluate if conversational front-end adds value
+    - `projectSetup`: Skill gathers project requirements → MCP generates configs
+  - Document which tools benefit from hybrid approach vs staying MCP-only
+  - Create follow-up PRD for tool-to-skill conversions if warranted
 
 ---
 
@@ -295,12 +397,13 @@ async function handleInstallSkills(): Promise<string> {
 
 ## Success Criteria
 
-1. **Skills install correctly**: User can run /install-skills and get working local skills
-2. **All prompts converted**: 10 existing prompts available as full skills
+1. **Skills auto-install**: Skills automatically installed when MCP initializes with `AGENT_TYPE` configured; fallback `/install-skills` works for manual installation
+2. **All prompts converted**: 10 existing prompts converted to skills with `/skill-name` invocation
 3. **Enhanced capabilities**: At least 3 skills use scripts/, references/, or assets/
-4. **Cross-agent support**: Installation works for Claude Code, Windsurf, Cursor
-5. **Documentation complete**: Users can find and follow installation instructions
-6. **Tool analysis complete**: Clear recommendation on which MCP tools should become skills
+4. **Cross-agent support**: Installation works for Claude Code, Cursor, Copilot, and universal path
+5. **MCP prompts deprecated**: All prompts show deprecation notice; prompts still functional during transition
+6. **Documentation complete**: Users can find and follow installation instructions
+7. **Tool analysis complete**: Clear recommendation on which MCP tools should become skills
 
 ---
 
@@ -308,23 +411,29 @@ async function handleInstallSkills(): Promise<string> {
 
 | Risk | Mitigation |
 |------|------------|
-| Agent location changes | Use universal .agent/skills/ as fallback; document known paths |
+| Agent location changes | Use universal .agent/skills/ as fallback; cross-compatibility between agents confirmed |
 | Large prompt size | Split into categories; allow partial installation |
-| Skills format changes | Follow agentskills.io spec; version skills internally |
+| Skills format changes | Follow agentskills.io spec; format is now an open standard with broad adoption |
 | Client agents don't create files | Provide manual installation instructions as backup |
 | Script compatibility | Use portable bash/python; test on multiple platforms |
+| Skills invocation reliability | Use `disable-model-invocation: true` for explicit `/skill-name` invocation; natural language matching has known issues (~50% reliability) |
 
 ---
 
 ## Decision Log
 
-| Decision | Rationale |
-|----------|-----------|
-| **Ask user for agent type** | Location not standardized; explicit selection avoids assumptions |
-| **Keep prompts AND skills** | Backward compatibility; MCP prompts work everywhere, skills are enhanced |
-| **Dynamic prompt generation** | Single source of truth; skills directory is authoritative |
-| **Separate skills/ from shared-prompts/** | Different purposes; skills are enhanced versions with extra features |
-| **Analyze tools separately** | Scope control; tool conversion is significant work requiring separate PRD |
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2025-12-19 | **Ask user for agent type** | Location not standardized; explicit selection avoids assumptions |
+| 2025-12-19 | **Dynamic prompt generation** | Single source of truth; skills directory is authoritative |
+| 2025-12-19 | **Analyze tools separately** | Scope control; tool conversion is significant work requiring separate PRD |
+| 2025-12-21 | **Skills-only approach (replaces "keep both")** | Agent Skills now widely supported (Cursor, Copilot, VS Code, etc.); MCP prompts become redundant; simplifies architecture to single source of truth |
+| 2025-12-21 | **Use `disable-model-invocation: true`** | Match existing `/command` pattern from MCP prompts; explicit user invocation preferred for workflow commands |
+| 2025-12-21 | **Analyze prompts during conversion** | More efficient than upfront analysis; enhancement opportunities discovered while working with each prompt |
+| 2025-12-21 | **Deprecate shared-prompts/ after conversion** | Skills replace prompts entirely; only install-skills MCP prompt needed for distribution |
+| 2025-12-21 | **"Skills as Front-Doors" pattern for MCP tools** | Hybrid architecture where skills handle conversation/intent gathering, MCP tools handle backend computation; better UX, offline intent gathering, cleaner separation of concerns |
+| 2025-12-21 | **Graceful deprecation with follow-up PRD** | Keep MCP prompts functional with deprecation notices during transition; create separate PRD for full retirement after adoption period; avoids breaking changes for existing users |
+| 2025-12-21 | **Auto-install skills on MCP initialization** | Use `AGENT_TYPE` env var in MCP config to auto-install skills when server starts; zero-friction UX for configured users; fallback `/install-skills` prompt for unconfigured users |
 
 ---
 
@@ -333,6 +442,7 @@ async function handleInstallSkills(): Promise<string> {
 | Date | Update |
 |------|--------|
 | 2025-12-19 | PRD created |
+| 2025-12-21 | Implementation started; confirmed broad agent support for skills; made key architectural decision to go skills-only (deprecate MCP prompts); updated decision log with rationale |
 
 ---
 
