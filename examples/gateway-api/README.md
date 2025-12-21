@@ -2,7 +2,7 @@
 
 > **📖 For complete deployment guide, see [Gateway API Deployment Guide](../../docs/setup/gateway-api.md)**
 
-This directory serves as a quick reference for users cloning the repository. All detailed examples, troubleshooting, and step-by-step guides are maintained in the documentation.
+**This directory serves as a quick reference for users cloning the repository. All detailed examples, troubleshooting, and step-by-step guides are maintained in the documentation.**
 
 ## Quick Links
 
@@ -144,5 +144,5 @@ curl http://dot-ai.example.com/
 
 - **Full deployment guide:** [Gateway API Deployment Guide](../../docs/setup/gateway-api.md)
 - **Troubleshooting:** See troubleshooting section in deployment guide
-- **Issues:** [GitHub Issues](https://github.com/irizzante/dot-ai/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/irizzante/dot-ai/discussions)
+- **Issues:** [GitHub Issues](https://github.com/vfarcic/dot-ai/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/vfarcic/dot-ai/discussions)

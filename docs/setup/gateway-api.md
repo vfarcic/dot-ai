@@ -1,6 +1,6 @@
 # Gateway API Deployment Guide
 
-Deploy DevOps AI Toolkit MCP server using Kubernetes Gateway API v1 with production-ready reference pattern or development/testing creation pattern.
+**Deploy DevOps AI Toolkit MCP server using Kubernetes Gateway API v1 with production-ready reference pattern or development/testing creation pattern.**
 
 ## When to Use Gateway API
 
