@@ -136,10 +136,14 @@ kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addr
 kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
 ```
 
-### Test Endpoint
+### Verify Deployment
+
+Verify the deployment through your MCP client by connecting to the configured endpoint. The client will validate the connection automatically.
+
+Check deployment status:
 
 ```bash
-curl http://dot-ai.example.com/
+kubectl get httproute,svc,pod -n dot-ai
 ```
 
 ## Need Help?

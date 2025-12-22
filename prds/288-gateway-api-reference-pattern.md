@@ -65,9 +65,9 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 | TASK-013 | Update `docs/setup/kubernetes-setup.md`: rewrite Gateway API section emphasizing reference approach | ✅     | 2025-12-20 |
 | TASK-014 | Update `docs/setup/kubernetes-setup.md`: update configuration reference table with new fields     | ✅     | 2025-12-20 |
 | TASK-015 | Update `examples/gateway-api/README.md`: add ReferenceGrant documentation for cross-namespace refs | ✅     | 2025-12-20 |
-| TASK-016 | REMOVED: `examples/gateway-api/basic-http.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
-| TASK-017 | REMOVED: `examples/gateway-api/https-cert-manager.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
-| TASK-018 | REMOVED: `examples/gateway-api/external-dns.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
+| TASK-016 | **REMOVED** `examples/gateway-api/basic-http.yaml` (content consolidated into comprehensive deployment guide) | ✅     | 2025-12-21 |
+| TASK-017 | **REMOVED** `examples/gateway-api/https-cert-manager.yaml` (content consolidated into comprehensive deployment guide) | ✅     | 2025-12-21 |
+| TASK-018 | **REMOVED** `examples/gateway-api/external-dns.yaml` (content consolidated into comprehensive deployment guide) | ✅     | 2025-12-21 |
 
 ## Success Criteria
 
@@ -125,9 +125,9 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 | FILE-005 | tests/unit/helm/gateway-api.test.ts    | Update all tests, add reference mode tests, verify suffix        |
 | FILE-006 | docs/setup/kubernetes-setup.md         | Rewrite Gateway API section, update config table                 |
 | FILE-007 | examples/gateway-api/README.md         | Add ReferenceGrant docs, explain modes                           |
-| FILE-008 | examples/gateway-api/basic-http.yaml   | REMOVED - integrated into docs/setup/gateway-api.md             |
-| FILE-009 | examples/gateway-api/https-cert-manager.yaml | REMOVED - integrated into docs/setup/gateway-api.md       |
-| FILE-010 | examples/gateway-api/external-dns.yaml | REMOVED - integrated into docs/setup/gateway-api.md             |
+| FILE-008 | examples/gateway-api/basic-http.yaml   | **DELETED** - content consolidated into docs/setup/gateway-api.md |
+| FILE-009 | examples/gateway-api/https-cert-manager.yaml | **DELETED** - content consolidated into docs/setup/gateway-api.md |
+| FILE-010 | examples/gateway-api/external-dns.yaml | **DELETED** - content consolidated into docs/setup/gateway-api.md |
 
 ## Assumptions
 

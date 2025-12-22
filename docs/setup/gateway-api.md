@@ -74,7 +74,9 @@ NAME       CONTROLLER              ACCEPTED   AGE
 kgateway   kgateway.dev/kgateway   True       22s
 ```
 
-## Reference Pattern (HTTP) - RECOMMENDED
+## Reference Pattern (HTTP) - Development/Testing Only
+
+> ⚠️ **SECURITY WARNING**: This HTTP-only configuration transmits all traffic unencrypted, including authentication tokens and API keys. **DO NOT use in production.** Use the [HTTPS pattern](#reference-pattern-https---recommended) for production deployments.
 
 The reference pattern follows Gateway API best practices where platform teams manage shared Gateway infrastructure and application teams create HTTPRoutes.
 
@@ -645,11 +647,13 @@ Point your hostname to the Gateway IP address:
 
 ### MCP Client Configuration (.mcp.json)
 
+**Production (HTTPS - RECOMMENDED):**
+
 ```json
 {
   "mcpServers": {
     "dot-ai": {
-      "url": "http://dot-ai.example.com",
+      "url": "https://dot-ai.example.com",
       "transport": {
         "type": "http"
       }
@@ -658,13 +662,15 @@ Point your hostname to the Gateway IP address:
 }
 ```
 
-For HTTPS:
+**Development/Testing Only (HTTP - Not Secure):**
+
+> ⚠️ **WARNING**: HTTP transmits credentials in plaintext. Use only for local development.
 
 ```json
 {
   "mcpServers": {
     "dot-ai": {
-      "url": "https://dot-ai.example.com",
+      "url": "http://dot-ai.example.com",
       "transport": {
         "type": "http"
       }
@@ -938,10 +944,14 @@ GATEWAY_IP=$(kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='
 # Update DNS A record to point to Gateway IP
 ```
 
-### Step 5: Test
+### Step 5: Verify Deployment
+
+Verify the deployment through your MCP client (Claude Desktop, Cursor, etc.) by connecting to the configured endpoint. The MCP client will automatically validate the connection and display the server status.
+
+Alternatively, check deployment status:
 
 ```bash
-curl http://dot-ai.example.com/
+kubectl get httproute,svc,pod -n dot-ai
 ```
 
 ## Additional Resources
