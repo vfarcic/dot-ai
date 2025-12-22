@@ -382,12 +382,11 @@ describe.concurrent('Recommend Tool Integration', () => {
               namespace: namespace
             })
           ]),
-          context: {
+          context: expect.objectContaining({
             createdBy: 'dot-ai-mcp',
-            rationale: expect.any(String),
-            patterns: expect.any(Array),
-            policies: expect.any(Array)
-          }
+            rationale: expect.any(String)
+            // Note: patterns and policies may be stripped by AI packaging when empty
+          })
         }
       });
 
@@ -1252,12 +1251,11 @@ describe.concurrent('Recommend Tool Integration', () => {
               namespace: expect.any(String) // namespace must be present in spec.resources
             })
           ]),
-          context: {
+          context: expect.objectContaining({
             createdBy: 'dot-ai-mcp',
-            rationale: expect.any(String),
-            patterns: expect.any(Array),
-            policies: expect.any(Array)
-          }
+            rationale: expect.any(String)
+            // Note: patterns and policies may be stripped by AI packaging when empty
+          })
         }
       });
     }, 900000); // 15 minutes for full workflow with AI packaging

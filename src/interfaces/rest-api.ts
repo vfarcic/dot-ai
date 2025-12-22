@@ -11,6 +11,7 @@ import { RestToolRegistry, ToolInfo } from './rest-registry';
 import { OpenApiGenerator } from './openapi-generator';
 import { Logger } from '../core/error-handling';
 import { DotAI } from '../core/index';
+import { handleResourceSync } from './resource-sync-handler';
 
 /**
  * HTTP status codes for REST responses
@@ -20,7 +21,8 @@ export enum HttpStatus {
   BAD_REQUEST = 400,
   NOT_FOUND = 404,
   METHOD_NOT_ALLOWED = 405,
-  INTERNAL_SERVER_ERROR = 500
+  INTERNAL_SERVER_ERROR = 500,
+  SERVICE_UNAVAILABLE = 503
 }
 
 /**
@@ -171,6 +173,16 @@ export class RestApiRouter {
           }
           break;
 
+        case 'resources':
+          if (req.method === 'POST' && pathMatch.action === 'sync') {
+            await this.handleResourceSyncRequest(req, res, requestId, body);
+          } else if (req.method !== 'POST') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for resource sync');
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown resources endpoint');
+          }
+          break;
+
         default:
           await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown API endpoint');
       }
@@ -194,38 +206,44 @@ export class RestApiRouter {
   /**
    * Parse API path and extract route information
    */
-  private parseApiPath(pathname: string): { endpoint: string; toolName?: string } | null {
+  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string } | null {
     // Expected patterns:
     // /api/v1/tools -> tools discovery
     // /api/v1/tools/{toolName} -> tool execution
     // /api/v1/openapi -> OpenAPI spec
-    
+    // /api/v1/resources/sync -> resource sync from controller
+
     const basePath = `${this.config.basePath}/${this.config.version}`;
-    
+
     if (!pathname.startsWith(basePath)) {
       return null;
     }
 
     const pathSuffix = pathname.substring(basePath.length);
-    
+
     // Remove leading slash
     const cleanPath = pathSuffix.startsWith('/') ? pathSuffix.substring(1) : pathSuffix;
-    
+
     if (cleanPath === 'tools') {
       return { endpoint: 'tools' };
     }
-    
+
     if (cleanPath === 'openapi') {
       return { endpoint: 'openapi' };
     }
-    
+
     if (cleanPath.startsWith('tools/')) {
       const toolName = cleanPath.substring(6); // Remove 'tools/'
       if (toolName) {
         return { endpoint: 'tool', toolName };
       }
     }
-    
+
+    // Handle resources/sync endpoint
+    if (cleanPath === 'resources/sync') {
+      return { endpoint: 'resources', action: 'sync' };
+    }
+
     return null;
   }
 
@@ -397,11 +415,78 @@ export class RestApiRouter {
       });
       
       await this.sendErrorResponse(
-        res, 
-        requestId, 
-        HttpStatus.INTERNAL_SERVER_ERROR, 
-        'OPENAPI_ERROR', 
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'OPENAPI_ERROR',
         'Failed to generate OpenAPI specification'
+      );
+    }
+  }
+
+  /**
+   * Handle resource sync requests from controller
+   */
+  private async handleResourceSyncRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: any
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing resource sync request', { requestId });
+
+      // Validate request body exists
+      if (!body || typeof body !== 'object') {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'Request body must be a JSON object'
+        );
+        return;
+      }
+
+      // Delegate to the resource sync handler
+      const response = await handleResourceSync(body, this.logger, requestId);
+
+      // Determine HTTP status based on response and error type
+      let httpStatus = HttpStatus.OK;
+      if (!response.success) {
+        const errorCode = response.error?.code;
+        if (errorCode === 'VECTOR_DB_UNAVAILABLE' || errorCode === 'HEALTH_CHECK_FAILED') {
+          httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
+        } else if (errorCode === 'SERVICE_INIT_FAILED' || errorCode === 'COLLECTION_INIT_FAILED' || errorCode === 'RESYNC_FAILED') {
+          httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        } else {
+          httpStatus = HttpStatus.BAD_REQUEST;
+        }
+      }
+
+      await this.sendJsonResponse(res, httpStatus, response);
+
+      this.logger.info('Resource sync request completed', {
+        requestId,
+        success: response.success,
+        upserted: response.data?.upserted,
+        deleted: response.data?.deleted
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Resource sync request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SYNC_ERROR',
+        'Resource sync failed',
+        { error: errorMessage }
       );
     }
   }

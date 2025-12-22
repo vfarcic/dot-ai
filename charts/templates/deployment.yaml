@@ -113,18 +113,17 @@ spec:
 {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
-        # Health checks will be added once /health endpoint is implemented
-        # livenessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: 3456
-        #   initialDelaySeconds: 30
-        #   periodSeconds: 10
-        # readinessProbe:
-        #   httpGet:
-        #     path: /ready
-        #     port: 3456
-        #   initialDelaySeconds: 15
-        #   periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3456
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3456
+          initialDelaySeconds: 15
+          periodSeconds: 5
       terminationGracePeriodSeconds: 30
 {{- end }}

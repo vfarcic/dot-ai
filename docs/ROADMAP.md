@@ -7,7 +7,8 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Short-term (Next 1-3 Months)
 
-- Resource sync endpoint for semantic search of cluster resources (PRD #287)
+- Gemini 3 model variants support - Flash and thinking configurations (PRD #294)
+- Cluster query tool - natural language cluster intelligence (PRD #291)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Parallel capability analysis for 10x faster cluster scanning (PRD #155)
 - Guided setup system to simplify onboarding (PRD #165)
@@ -22,6 +23,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
+- Skills distribution via MCP - install-skills prompt and enhanced skill format (PRD #290)
 - Multi-step workflow distributed tracing (PRD #197)
 - Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)

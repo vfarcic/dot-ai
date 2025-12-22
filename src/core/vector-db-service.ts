@@ -128,23 +128,38 @@ export class VectorDBService {
 
   /**
    * Create collection with specified vector size
+   * Handles conflict errors gracefully (collection already exists from race condition or restart)
    */
   private async createCollection(vectorSize: number): Promise<void> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
 
-    await this.client.createCollection(this.collectionName, {
-      vectors: {
-        size: vectorSize,
-        distance: 'Cosine',
-        on_disk: true // Enable on-disk storage for better performance with large collections
-      },
-      // Enable payload indexing for better keyword search performance
-      optimizers_config: {
-        default_segment_number: 2
+    try {
+      await this.client.createCollection(this.collectionName, {
+        vectors: {
+          size: vectorSize,
+          distance: 'Cosine',
+          on_disk: true // Enable on-disk storage for better performance with large collections
+        },
+        // Enable payload indexing for better keyword search performance
+        optimizers_config: {
+          default_segment_number: 2
+        }
+      });
+    } catch (error) {
+      // Handle race condition where collection was created between check and create
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.toLowerCase().includes('conflict') ||
+          errorMessage.toLowerCase().includes('already exists')) {
+        // Collection exists - this is fine (race condition or restart)
+        if (process.env.DEBUG_DOT_AI) {
+          console.debug(`Collection ${this.collectionName} already exists, skipping creation`);
+        }
+        return;
       }
-    });
+      throw error;
+    }
   }
 
   /**
