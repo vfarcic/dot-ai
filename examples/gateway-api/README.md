@@ -132,7 +132,7 @@ kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addr
 
 # Creation mode
 kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
-```
+```bash
 
 ### Test Endpoint
 
