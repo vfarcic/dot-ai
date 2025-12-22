@@ -68,14 +68,16 @@ helm install dot-ai \
 
 ## Why Reference Pattern?
 
-**✅ RECOMMENDED: Reference existing Gateway**
+### ✅ RECOMMENDED: Reference existing Gateway
+
 - Platform team manages shared Gateway infrastructure
 - No per-application cloud load balancer costs
 - Centralized Gateway configuration and policies
 - Follows Gateway API best practices
 - Avoids kGateway Envoy deployment naming collisions
 
-**⚠️ NOT RECOMMENDED: Create Gateway per application**
+### ⚠️ NOT RECOMMENDED: Create Gateway per application
+
 - Creates separate load balancer per app ($$$)
 - Violates Gateway API separation of concerns
 - Can cause kGateway Envoy deployment naming conflicts
@@ -132,7 +134,7 @@ kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addr
 
 # Creation mode
 kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
-```bash
+```
 
 ### Test Endpoint
 
