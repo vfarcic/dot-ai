@@ -84,6 +84,8 @@ The reference pattern follows Gateway API best practices where platform teams ma
 
 Create a shared Gateway in a dedicated namespace:
 
+> **Note:** This HTTP-only example is for development/testing. For production, skip to the [HTTPS pattern](#reference-pattern-https---recommended).
+
 ```yaml
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -96,7 +98,7 @@ spec:
   listeners:
   - name: http
     protocol: HTTP
-    port: 80
+    port: 80  # ⚠️ HTTP-only - Use HTTPS (port 443) for production
     allowedRoutes:
       namespaces:
         from: All  # Allow routes from all namespaces

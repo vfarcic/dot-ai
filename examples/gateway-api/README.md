@@ -114,6 +114,8 @@ gateway:
 
 ### Verify Deployment
 
+**Check Gateway and HTTPRoute:**
+
 ```bash
 # Check Gateway
 kubectl get gateway -A
@@ -126,7 +128,7 @@ kubectl describe httproute -n dot-ai
 kubectl get pod,svc -n dot-ai
 ```
 
-### Get Gateway IP
+**Get Gateway IP:**
 
 ```bash
 # Reference mode
@@ -136,15 +138,9 @@ kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addr
 kubectl get gateway -n dot-ai -o jsonpath='{.items[0].status.addresses[0].value}'
 ```
 
-### Verify Deployment
+**Verify MCP Connection:**
 
 Verify the deployment through your MCP client by connecting to the configured endpoint. The client will validate the connection automatically.
-
-Check deployment status:
-
-```bash
-kubectl get httproute,svc,pod -n dot-ai
-```
 
 ## Need Help?
 
