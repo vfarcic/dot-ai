@@ -239,69 +239,29 @@ Then update your `.mcp.json` URL to use `https://`.
 
 ## Gateway API (Alternative to Ingress)
 
-For modern Kubernetes environments (K8s 1.26+), you can use **Gateway API v1** instead of traditional Ingress for enhanced traffic management and standardized configuration.
+For Kubernetes 1.26+, you can use **Gateway API v1** for advanced traffic management with role-oriented design (platform teams manage Gateways, app teams create routes).
 
-### When to Use Gateway API vs Ingress
+### When to Use
 
 **Use Gateway API when:**
-- Running on GKE Autopilot, EKS with AWS Load Balancer Controller, or other managed Kubernetes with Gateway API support
-- Need advanced routing capabilities (weighted traffic, header-based routing, etc.)
-- Prefer role-oriented design separating infrastructure from application concerns
-- Want CRD-driven extensibility without vendor-specific annotations
+- Running Kubernetes 1.26+ with Gateway API support
+- Need advanced routing (weighted traffic, header-based routing)
+- Prefer separation of infrastructure and application concerns
 
 **Use Ingress when:**
-- Running on Kubernetes < 1.26
-- Gateway API CRDs are not available in your cluster
-- Simpler requirements met by standard Ingress features
+- Running Kubernetes < 1.26
+- Simpler requirements met by Ingress features
 
 ### Prerequisites
 
 - Kubernetes 1.26+ cluster
-- Gateway API CRDs installed ([installation guide](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api))
-- GatewayClass resource available (created by your Gateway controller)
-- Gateway controller running (e.g., Istio, Envoy Gateway, Kong, GKE's managed controller)
+- Gateway API CRDs installed: `kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml`
+- Gateway controller running (Istio, Envoy Gateway, Kong, etc.)
+- Existing Gateway resource created by platform team (reference pattern)
 
-### Quick Start - HTTP Only
+### Quick Start (Reference Pattern - RECOMMENDED)
 
-Deploy with Gateway API instead of Ingress:
-
-```bash
-helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
-  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
-  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
-  --set ingress.enabled=false \
-  --set gateway.enabled=true \
-  --set gateway.className="istio" \
-  --set gateway.listeners.http.hostname="dot-ai.example.com" \
-  --namespace dot-ai \
-  --wait
-```
-
-**Important:** Replace `istio` with your actual GatewayClass name (check with `kubectl get gatewayclass`).
-
-### Quick Start - HTTPS with cert-manager
-
-For HTTPS with automated certificate provisioning:
-
-#### Step 1: Create Certificate resource
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: dot-ai-tls
-  namespace: dot-ai
-spec:
-  secretName: dot-ai-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-    - dot-ai.example.com
-```
-
-#### Step 2: Install with HTTPS enabled
+Reference an existing platform-managed Gateway:
 
 ```bash
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
@@ -309,37 +269,38 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set ingress.enabled=false \
-  --set gateway.enabled=true \
-  --set gateway.className="istio" \
-  --set gateway.listeners.http.enabled=true \
-  --set gateway.listeners.https.enabled=true \
-  --set gateway.listeners.https.hostname="dot-ai.example.com" \
-  --set gateway.listeners.https.secretName="dot-ai-tls" \
+  --set gateway.name="cluster-gateway" \
+  --set gateway.namespace="gateway-system" \
   --namespace dot-ai \
   --wait
 ```
 
 ### Configuration Reference
 
-Key Gateway API values in `charts/values.yaml`:
-
 ```yaml
+# Reference pattern (RECOMMENDED)
 gateway:
-  enabled: false                    # Enable Gateway API (mutually exclusive with ingress)
-  className: ""                     # GatewayClass name (required when enabled)
-  annotations: {}                   # For external-dns integration
-  listeners:
-    http:
-      enabled: true                 # HTTP listener on port 80
-      hostname: ""                  # Optional hostname
-    https:
-      enabled: false                # HTTPS listener on port 443
-      hostname: ""                  # Optional hostname
-      secretName: ""                # TLS secret name
+  name: "cluster-gateway"           # Existing Gateway name
+  namespace: "gateway-system"       # Gateway namespace (optional)
   timeouts:
     request: "3600s"                # SSE streaming timeout
     backendRequest: "3600s"
+
+# Creation pattern (development/testing only)
+gateway:
+  create: true                      # Create Gateway (NOT for production)
+  className: "istio"                # GatewayClass name
 ```
+
+### Complete Guide
+
+See **[Gateway API Deployment Guide](gateway-api.md)** for:
+- Platform team Gateway setup (HTTP and HTTPS)
+- Application team deployment steps
+- Cross-namespace access (ReferenceGrant)
+- Development/testing creation pattern
+- Troubleshooting and verification
+- Migration from Ingress
 
 ## Integration with kagent
 

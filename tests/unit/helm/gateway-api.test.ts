@@ -47,7 +47,7 @@ interface HTTPRouteResource {
     name: string;
   };
   spec: {
-    parentRefs: Array<{ name: string; kind: string }>;
+    parentRefs: Array<{ name: string; kind: string; namespace?: string }>;
     rules: Array<{
       timeouts?: { request: string; backendRequest: string };
       backendRefs: Array<{ name: string; port: number }>;
@@ -91,9 +91,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       );
       return output;
     } catch (error: unknown) {
-      if (error instanceof Error && 'stdout' in error) {
-        // Helm validation errors come through stdout
-        return (error as { stdout: string }).stdout || '';
+      if (error instanceof Error && 'stderr' in error) {
+        // Helm validation errors come through stderr
+        return (error as { stderr: string }).stderr || '';
       }
       throw error;
     }
@@ -110,10 +110,10 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       .map(doc => yaml.load(doc));
   }
 
-  describe('Gateway Resource Template', () => {
-    test('should render Gateway resource when gateway.enabled=true', () => {
+  describe('Gateway Resource Template (Creation Mode)', () => {
+    test('should render Gateway resource when gateway.create=true with -http suffix', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.hostname': 'dot-ai.example.com',
       });
@@ -124,14 +124,15 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       expect(gateway).toBeDefined();
       expect(gateway?.apiVersion).toBe('gateway.networking.k8s.io/v1');
       expect(gateway?.kind).toBe('Gateway');
-      expect(gateway?.metadata.name).toContain('dot-ai');
+      expect(gateway?.metadata.name).toContain('dot-ai-http');
+      expect(gateway?.metadata.name).toMatch(/-http$/); // Verify -http suffix
       expect(gateway?.spec.gatewayClassName).toBe('istio');
       expect(gateway?.spec.listeners).toHaveLength(1); // Only HTTP listener
     });
 
     test('should render Gateway with HTTP listener on port 80', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': true,
         'gateway.listeners.http.hostname': 'dot-ai.example.com',
@@ -150,7 +151,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
     test('should render Gateway with HTTPS listener on port 443', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.https.enabled': true,
         'gateway.listeners.https.hostname': 'dot-ai.example.com',
@@ -170,7 +171,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
     test('should support both HTTP and HTTPS listeners', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': true,
         'gateway.listeners.https.enabled': true,
@@ -185,10 +186,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
     test('should include annotations when configured', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
-        'gateway.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname':
-          'dot-ai.example.com',
+        'gateway.annotations.test-annotation': 'test-value',
       });
 
       const docs = parseYamlDocs(output);
@@ -196,192 +196,301 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
       expect(gateway).toBeDefined();
       expect(gateway?.metadata.annotations).toBeDefined();
-      expect(
-        gateway?.metadata.annotations?.['external-dns.alpha.kubernetes.io/hostname']
-      ).toBe('dot-ai.example.com');
+      expect(gateway?.metadata.annotations?.['test-annotation']).toBe('test-value');
+    });
+
+    test('should not create Gateway in reference mode', () => {
+      const output = helmTemplate({
+        'gateway.name': 'cluster-gateway',
+      });
+
+      const docs = parseYamlDocs(output);
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+
+      expect(gateway).toBeUndefined();
     });
   });
 
   describe('HTTPRoute Resource Template', () => {
-    test('should render HTTPRoute resource when gateway.enabled=true', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
+    describe('Reference Mode', () => {
+      test('should render HTTPRoute resource when gateway.name is set', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+        });
+
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.apiVersion).toBe('gateway.networking.k8s.io/v1');
+        expect(httproute?.kind).toBe('HTTPRoute');
+        expect(httproute?.metadata.name).toContain('dot-ai');
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should reference existing Gateway in parentRefs', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+        });
 
-      expect(httproute).toBeDefined();
-      expect(httproute?.apiVersion).toBe('gateway.networking.k8s.io/v1');
-      expect(httproute?.kind).toBe('HTTPRoute');
-      expect(httproute?.metadata.name).toContain('dot-ai');
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.parentRefs).toHaveLength(1);
+        expect(httproute?.spec.parentRefs[0].kind).toBe('Gateway');
+        expect(httproute?.spec.parentRefs[0].name).toBe('cluster-gateway');
+      });
+
+      test('should support cross-namespace Gateway reference', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+          'gateway.namespace': 'gateway-system',
+        });
+
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.parentRefs).toHaveLength(1);
+        expect(httproute?.spec.parentRefs[0].kind).toBe('Gateway');
+        expect(httproute?.spec.parentRefs[0].name).toBe('cluster-gateway');
+        expect(httproute?.spec.parentRefs[0]).toHaveProperty('namespace', 'gateway-system');
+      });
     });
 
-    test('should reference Gateway in parentRefs', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
+    describe('Creation Mode', () => {
+      test('should render HTTPRoute resource when gateway.create=true', () => {
+        const output = helmTemplate({
+          'gateway.create': true,
+          'gateway.className': 'istio',
+        });
+
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.apiVersion).toBe('gateway.networking.k8s.io/v1');
+        expect(httproute?.kind).toBe('HTTPRoute');
+        expect(httproute?.metadata.name).toContain('dot-ai');
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should reference created Gateway with -http suffix in parentRefs', () => {
+        const output = helmTemplate({
+          'gateway.create': true,
+          'gateway.className': 'istio',
+        });
 
-      expect(httproute).toBeDefined();
-      expect(httproute?.spec.parentRefs).toHaveLength(1);
-      expect(httproute?.spec.parentRefs[0].kind).toBe('Gateway');
-      expect(httproute?.spec.parentRefs[0].name).toContain('dot-ai');
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.parentRefs).toHaveLength(1);
+        expect(httproute?.spec.parentRefs[0].kind).toBe('Gateway');
+        expect(httproute?.spec.parentRefs[0].name).toContain('dot-ai-http');
+        expect(httproute?.spec.parentRefs[0].name).toMatch(/-http$/);
+      });
     });
 
-    test('should configure SSE streaming timeout (3600s)', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
-        'gateway.timeouts.request': '3600s',
-        'gateway.timeouts.backendRequest': '3600s',
+    describe('Common Features (Both Modes)', () => {
+      test('should configure SSE streaming timeout (3600s) in reference mode', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+          'gateway.timeouts.request': '3600s',
+          'gateway.timeouts.backendRequest': '3600s',
+        });
+
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.rules[0].timeouts?.request).toBe('3600s');
+        expect(httproute?.spec.rules[0].timeouts?.backendRequest).toBe('3600s');
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should configure SSE streaming timeout (3600s) in creation mode', () => {
+        const output = helmTemplate({
+          'gateway.create': true,
+          'gateway.className': 'istio',
+          'gateway.timeouts.request': '3600s',
+          'gateway.timeouts.backendRequest': '3600s',
+        });
 
-      expect(httproute).toBeDefined();
-      expect(httproute?.spec.rules[0].timeouts?.request).toBe('3600s');
-      expect(httproute?.spec.rules[0].timeouts?.backendRequest).toBe('3600s');
-    });
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
-    test('should route to standard service when deployment.method=standard', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
-        'deployment.method': 'standard',
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.rules[0].timeouts?.request).toBe('3600s');
+        expect(httproute?.spec.rules[0].timeouts?.backendRequest).toBe('3600s');
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should route to standard service when deployment.method=standard', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+          'deployment.method': 'standard',
+        });
 
-      expect(httproute).toBeDefined();
-      const backendRef = httproute?.spec.rules[0].backendRefs[0];
-      expect(backendRef?.name).toContain('dot-ai');
-      expect(backendRef?.name).not.toContain('proxy');
-      expect(backendRef?.port).toBe(3456);
-    });
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
-    test('should route to proxy service when deployment.method=toolhive', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
-        'deployment.method': 'toolhive',
+        expect(httproute).toBeDefined();
+        const backendRef = httproute?.spec.rules[0].backendRefs[0];
+        expect(backendRef?.name).toContain('dot-ai');
+        expect(backendRef?.name).not.toContain('proxy');
+        expect(backendRef?.port).toBe(3456);
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should route to proxy service when deployment.method=toolhive', () => {
+        const output = helmTemplate({
+          'gateway.name': 'cluster-gateway',
+          'deployment.method': 'toolhive',
+        });
 
-      expect(httproute).toBeDefined();
-      const backendRef = httproute?.spec.rules[0].backendRefs[0];
-      expect(backendRef?.name).toContain('mcp-');
-      expect(backendRef?.name).toContain('proxy');
-      expect(backendRef?.port).toBe(3456);
-    });
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
 
-    test('should include hostnames from listeners', () => {
-      const output = helmTemplate({
-        'gateway.enabled': true,
-        'gateway.className': 'istio',
-        'gateway.listeners.http.hostname': 'dot-ai.example.com',
+        expect(httproute).toBeDefined();
+        const backendRef = httproute?.spec.rules[0].backendRefs[0];
+        expect(backendRef?.name).toContain('mcp-');
+        expect(backendRef?.name).toContain('proxy');
+        expect(backendRef?.port).toBe(3456);
       });
 
-      const docs = parseYamlDocs(output);
-      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      test('should include hostnames from listeners in creation mode', () => {
+        const output = helmTemplate({
+          'gateway.create': true,
+          'gateway.className': 'istio',
+          'gateway.listeners.http.hostname': 'dot-ai.example.com',
+        });
 
-      expect(httproute).toBeDefined();
-      expect(httproute?.spec.hostnames).toContain('dot-ai.example.com');
+        const docs = parseYamlDocs(output);
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+        expect(httproute).toBeDefined();
+        expect(httproute?.spec.hostnames).toContain('dot-ai.example.com');
+      });
     });
   });
 
   describe('Mutual Exclusivity with Ingress', () => {
-    test('should fail when both ingress.enabled and gateway.enabled are true', () => {
+    test('should fail when both ingress.enabled and gateway.name are set', () => {
       const output = helmTemplate({
         'ingress.enabled': true,
-        'gateway.enabled': true,
+        'gateway.name': 'cluster-gateway',
       });
 
       expect(output).toContain(
-        'Cannot enable both ingress.enabled and gateway.enabled'
+        'Cannot enable both ingress.enabled and Gateway API usage'
       );
     });
 
-    test('should succeed with only gateway.enabled=true', () => {
+    test('should fail when both ingress.enabled and gateway.create are true', () => {
+      const output = helmTemplate({
+        'ingress.enabled': true,
+        'gateway.create': true,
+        'gateway.className': 'istio',
+      });
+
+      expect(output).toContain(
+        'Cannot enable both ingress.enabled and Gateway API usage'
+      );
+    });
+
+    test('should succeed with only gateway.name set (reference mode)', () => {
       const output = helmTemplate({
         'ingress.enabled': false,
-        'gateway.enabled': true,
+        'gateway.name': 'cluster-gateway',
+      });
+
+      const docs = parseYamlDocs(output);
+      const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+      const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
+
+      expect(gateway).toBeUndefined(); // No Gateway created in reference mode
+      expect(httproute).toBeDefined();
+      expect(ingress).toBeUndefined();
+    });
+
+    test('should succeed with only gateway.create=true (creation mode)', () => {
+      const output = helmTemplate({
+        'ingress.enabled': false,
+        'gateway.create': true,
         'gateway.className': 'istio',
       });
 
       const docs = parseYamlDocs(output);
       const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
       const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeDefined();
+      expect(httproute).toBeDefined();
       expect(ingress).toBeUndefined();
     });
 
     test('should succeed with only ingress.enabled=true', () => {
       const output = helmTemplate({
         'ingress.enabled': true,
-        'gateway.enabled': false,
+        'gateway.name': '',
+        'gateway.create': false,
       });
 
       const docs = parseYamlDocs(output);
       const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
       const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeUndefined();
+      expect(httproute).toBeUndefined();
       expect(ingress).toBeDefined();
     });
 
     test('should succeed with both disabled', () => {
       const output = helmTemplate({
         'ingress.enabled': false,
-        'gateway.enabled': false,
+        'gateway.name': '',
+        'gateway.create': false,
       });
 
       const docs = parseYamlDocs(output);
       const gateway = findResourceByKind<GatewayResource>(docs, 'Gateway');
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
       const ingress = findResourceByKind<IngressResource>(docs, 'Ingress');
 
       expect(gateway).toBeUndefined();
+      expect(httproute).toBeUndefined();
       expect(ingress).toBeUndefined();
     });
   });
 
   describe('Gateway Configuration Validations', () => {
-    test('should fail when gateway.className is empty', () => {
+    test('should fail when gateway.className is empty in creation mode', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': '',
       });
 
       expect(output).toContain(
-        'gateway.className is required when gateway.enabled is true'
+        'gateway.className is required when gateway.create is true'
       );
     });
 
-    test('should fail when both listeners are disabled', () => {
+    test('should fail when both listeners are disabled in creation mode', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': false,
         'gateway.listeners.https.enabled': false,
       });
 
       expect(output).toContain(
-        'At least one listener (http or https) must be enabled when gateway.enabled is true'
+        'At least one listener (http or https) must be enabled when gateway.create is true'
       );
     });
 
-    test('should succeed when HTTP listener is enabled', () => {
+    test('should succeed when HTTP listener is enabled in creation mode', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': true,
         'gateway.listeners.https.enabled': false,
@@ -394,9 +503,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       expect(gateway?.spec.listeners).toHaveLength(1);
     });
 
-    test('should succeed when HTTPS listener is enabled', () => {
+    test('should succeed when HTTPS listener is enabled in creation mode', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': false,
         'gateway.listeners.https.enabled': true,
@@ -409,9 +518,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       expect(gateway?.spec.listeners).toHaveLength(1);
     });
 
-    test('should succeed when both listeners are enabled', () => {
+    test('should succeed when both listeners are enabled in creation mode', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.http.enabled': true,
         'gateway.listeners.https.enabled': true,
@@ -423,16 +532,28 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       expect(gateway).toBeDefined();
       expect(gateway?.spec.listeners).toHaveLength(2);
     });
+
+    test('should succeed in reference mode without className', () => {
+      const output = helmTemplate({
+        'gateway.name': 'cluster-gateway',
+      });
+
+      const docs = parseYamlDocs(output);
+      const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+
+      expect(httproute).toBeDefined();
+      expect(httproute?.spec.parentRefs[0].name).toBe('cluster-gateway');
+    });
   });
 
   describe('Chart Version', () => {
-    test('should have bumped version to 0.163.0', () => {
+    test('should have correct version', () => {
       const chartYaml = readFileSync(
         `${chartPath}/Chart.yaml`,
         'utf-8'
       );
       const chart = yaml.load(chartYaml) as { version: string };
-      expect(chart.version).toBe('0.163.0');
+      expect(chart.version).toBe('0.168.0');
     });
 
     test('should include gateway-api keyword', () => {
@@ -448,7 +569,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
   describe('Certificate References', () => {
     test('should use secretName when certificateRefs not specified', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.https.enabled': true,
         'gateway.listeners.https.secretName': 'custom-tls-secret',
@@ -468,7 +589,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
 
     test('should generate default secret name if not specified', () => {
       const output = helmTemplate({
-        'gateway.enabled': true,
+        'gateway.create': true,
         'gateway.className': 'istio',
         'gateway.listeners.https.enabled': true,
       });
