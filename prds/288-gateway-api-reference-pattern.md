@@ -65,9 +65,9 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 | TASK-013 | Update `docs/setup/kubernetes-setup.md`: rewrite Gateway API section emphasizing reference approach | ✅     | 2025-12-20 |
 | TASK-014 | Update `docs/setup/kubernetes-setup.md`: update configuration reference table with new fields     | ✅     | 2025-12-20 |
 | TASK-015 | Update `examples/gateway-api/README.md`: add ReferenceGrant documentation for cross-namespace refs | ✅     | 2025-12-20 |
-| TASK-016 | Update `examples/gateway-api/basic-http.yaml`: demonstrate reference pattern with platform Gateway YAML | ✅     | 2025-12-20 |
-| TASK-017 | Update `examples/gateway-api/https-cert-manager.yaml`: demonstrate reference pattern              | ✅     | 2025-12-20 |
-| TASK-018 | Update `examples/gateway-api/external-dns.yaml`: demonstrate creation mode with annotations       | ✅     | 2025-12-20 |
+| TASK-016 | REMOVED: `examples/gateway-api/basic-http.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
+| TASK-017 | REMOVED: `examples/gateway-api/https-cert-manager.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
+| TASK-018 | REMOVED: `examples/gateway-api/external-dns.yaml` - content integrated into `docs/setup/gateway-api.md` | ✅     | 2025-12-21 |
 
 ## Success Criteria
 
@@ -125,9 +125,9 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 | FILE-005 | tests/unit/helm/gateway-api.test.ts    | Update all tests, add reference mode tests, verify suffix        |
 | FILE-006 | docs/setup/kubernetes-setup.md         | Rewrite Gateway API section, update config table                 |
 | FILE-007 | examples/gateway-api/README.md         | Add ReferenceGrant docs, explain modes                           |
-| FILE-008 | examples/gateway-api/basic-http.yaml   | Show reference pattern with platform Gateway YAML               |
-| FILE-009 | examples/gateway-api/https-cert-manager.yaml | Update for reference pattern                               |
-| FILE-010 | examples/gateway-api/external-dns.yaml | Update for creation mode example                                 |
+| FILE-008 | examples/gateway-api/basic-http.yaml   | REMOVED - integrated into docs/setup/gateway-api.md             |
+| FILE-009 | examples/gateway-api/https-cert-manager.yaml | REMOVED - integrated into docs/setup/gateway-api.md       |
+| FILE-010 | examples/gateway-api/external-dns.yaml | REMOVED - integrated into docs/setup/gateway-api.md             |
 
 ## Assumptions
 
@@ -147,6 +147,20 @@ Refactor the Helm chart to reference existing Gateway resources by default (foll
 - [Issue #281: Kubernetes Gateway API Support PRD](https://github.com/vfarcic/dot-ai/issues/281)
 
 ## Work Log
+
+### 2025-12-21 - Documentation Consolidation for Docusaurus
+
+**Summary**: Consolidated Gateway API examples into main documentation for Docusaurus compatibility. Removed separate YAML example files and integrated all content into comprehensive deployment guide.
+
+**Changes**:
+- Created `docs/setup/gateway-api.md` (711 lines) with all YAML examples embedded
+- Removed `examples/gateway-api/basic-http.yaml`, `https-cert-manager.yaml`, and `external-dns.yaml`
+- Reduced `docs/setup/kubernetes-setup.md` Gateway API section from ~240 to 66 lines
+- Updated `examples/gateway-api/README.md` to redirect to main documentation
+- All documentation now self-contained with no links to examples/ directory
+- Docusaurus link validation will pass (no broken links to non-docs files)
+
+**Rationale**: Following vfarcic's feedback to consolidate documentation for Docusaurus site generation. The examples directory can exist for repository cloners but documentation doesn't depend on it.
 
 ### 2025-12-20 - Gateway API Reference Pattern Implementation Complete
 

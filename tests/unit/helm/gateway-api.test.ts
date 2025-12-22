@@ -553,7 +553,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
         'utf-8'
       );
       const chart = yaml.load(chartYaml) as { version: string };
-      expect(chart.version).toBe('0.166.0');
+      expect(chart.version).toBe('0.168.0');
     });
 
     test('should include gateway-api keyword', () => {

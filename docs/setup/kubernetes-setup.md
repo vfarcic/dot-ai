@@ -255,7 +255,7 @@ For Kubernetes 1.26+, you can use **Gateway API v1** for advanced traffic manage
 ### Prerequisites
 
 - Kubernetes 1.26+ cluster
-- Gateway API CRDs installed: `kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml`
+- Gateway API CRDs installed: `kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml`
 - Gateway controller running (Istio, Envoy Gateway, Kong, etc.)
 - Existing Gateway resource created by platform team (reference pattern)
 

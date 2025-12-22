@@ -36,7 +36,7 @@
 ### Install Gateway API CRDs
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
 ```
 
 **Output:**
@@ -256,7 +256,7 @@ Deploy with Helm:
 
 ```bash
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   -f gateway-http-values.yaml \
@@ -287,7 +287,7 @@ Or using `--set` flags:
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   --set gateway.name=cluster-gateway \
@@ -436,7 +436,7 @@ Same as HTTP deployment - the HTTPRoute will work with both HTTP and HTTPS liste
 
 ```bash
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   --set gateway.name=cluster-gateway \
@@ -608,7 +608,7 @@ Deploy:
 
 ```bash
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   --set gateway.create=true \
@@ -921,7 +921,7 @@ EOF
 
 ```bash
 helm upgrade dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --set ingress.enabled=false \
   --set gateway.name=cluster-gateway \

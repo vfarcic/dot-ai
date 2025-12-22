@@ -5,6 +5,9 @@
 {{- if not (or .Values.gateway.listeners.http.enabled .Values.gateway.listeners.https.enabled) }}
 {{- fail "At least one listener (http or https) must be enabled when gateway.create is true" }}
 {{- end }}
+{{- if .Values.gateway.name }}
+{{- fail "gateway.name and gateway.create cannot both be set; disable gateway.create when using an existing gateway.name" }}
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

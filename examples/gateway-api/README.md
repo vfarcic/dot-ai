@@ -23,7 +23,7 @@
 
 Install Gateway API CRDs:
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
 ```
 
 ## Quick Start
@@ -35,7 +35,7 @@ Platform team creates shared Gateway, application team references it:
 ```bash
 # Application team deployment
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   --set gateway.name=cluster-gateway \
@@ -54,7 +54,7 @@ Creates a Gateway per application (NOT RECOMMENDED for production):
 
 ```bash
 helm install dot-ai \
-  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.166.0 \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
   --namespace dot-ai \
   --create-namespace \
   --set gateway.create=true \
