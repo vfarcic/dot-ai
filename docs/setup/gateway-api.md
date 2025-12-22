@@ -76,7 +76,21 @@ Apply and wait for Gateway to be ready:
 ```bash
 kubectl create namespace gateway-system
 kubectl apply -f - <<EOF
-[paste YAML above]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cluster-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: istio  # Use your GatewayClass name
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow routes from all namespaces
 EOF
 kubectl wait --for=condition=Programmed gateway/cluster-gateway -n gateway-system --timeout=300s
 ```
@@ -207,13 +221,53 @@ Apply and wait:
 
 ```bash
 kubectl apply -f - <<EOF
-[paste Certificate YAML]
+---
+# Wildcard certificate managed by platform team
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-tls
+  namespace: gateway-system
+spec:
+  secretName: wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod  # Use your ClusterIssuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.example.com"  # Your wildcard domain
+    - "example.com"
 EOF
 
 kubectl wait --for=condition=Ready certificate/wildcard-tls -n gateway-system --timeout=300s
 
 kubectl apply -f - <<EOF
-[paste Gateway YAML]
+---
+# Gateway with HTTP and HTTPS listeners
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cluster-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: https
+    protocol: HTTPS
+    port: 443
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: wildcard-tls
+    allowedRoutes:
+      namespaces:
+        from: All
 EOF
 
 kubectl wait --for=condition=Programmed gateway/cluster-gateway -n gateway-system --timeout=300s
@@ -316,7 +370,20 @@ Apply:
 
 ```bash
 kubectl apply -f - <<EOF
-[paste ReferenceGrant YAML]
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-dot-ai-routes
+  namespace: gateway-system  # Gateway namespace
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: dot-ai  # Application namespace
+  to:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    # Optional: name: cluster-gateway  # Restrict to specific Gateway
 EOF
 ```
 
