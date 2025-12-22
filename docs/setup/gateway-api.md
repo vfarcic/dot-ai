@@ -683,7 +683,7 @@ kubectl get gateway cluster-gateway -n gateway-system
 ```
 
 **Output:**
-```
+```text
 NAME              CLASS      ADDRESS        PROGRAMMED   AGE
 cluster-gateway   kgateway   XXX.XXX.XXX.XXX   True         5m22s
 ```
@@ -703,7 +703,7 @@ kubectl get httproute -n dot-ai
 ```
 
 **Output:**
-```
+```text
 NAME         HOSTNAMES                   PARENTREFS          AGE
 dot-ai-http  [dot-ai.example.com]        cluster-gateway     2m
 ```
@@ -715,7 +715,7 @@ kubectl describe httproute -n dot-ai
 ```
 
 **Output (excerpt):**
-```
+```text
 Status:
   Parents:
     - Conditions:
@@ -740,7 +740,7 @@ kubectl get svc,pod -n dot-ai
 ```
 
 **Output:**
-```
+```text
 NAME                       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
 service/dot-ai             ClusterIP   XXX.XXX.XXX.XX   <none>        8080/TCP   2m
 
@@ -757,7 +757,7 @@ kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addr
 ```
 
 **Output:**
-```
+```text
 XXX.XXX.XXX.XXX
 ```
 
