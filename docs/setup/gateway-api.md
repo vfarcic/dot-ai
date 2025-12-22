@@ -36,13 +36,42 @@
 ### Install Gateway API CRDs
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+```
+
+**Output:**
+```
+customresourcedefinition.apiextensions.k8s.io/gatewayclasses.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/gateways.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/referencegrants.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/grpcroutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/tcproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/udproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/backendtlspolicies.gateway.networking.k8s.io created
 ```
 
 Verify installation:
 ```bash
 kubectl get crd gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io
+```
+
+**Output:**
+```
+NAME                                   CREATED AT
+gateways.gateway.networking.k8s.io     2025-12-22T09:37:24Z
+httproutes.gateway.networking.k8s.io   2025-12-22T09:37:24Z
+```
+
+Check available GatewayClasses:
+```bash
 kubectl get gatewayclass
+```
+
+**Output:**
+```
+NAME       CONTROLLER              ACCEPTED   AGE
+kgateway   kgateway.dev/kgateway   True       22s
 ```
 
 ## Reference Pattern (HTTP) - RECOMMENDED
@@ -75,6 +104,16 @@ Apply and wait for Gateway to be ready:
 
 ```bash
 kubectl create namespace gateway-system
+```
+
+**Output:**
+```
+namespace/gateway-system created
+```
+
+Create the Gateway:
+
+```bash
 kubectl apply -f - <<EOF
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -83,7 +122,7 @@ metadata:
   name: cluster-gateway
   namespace: gateway-system
 spec:
-  gatewayClassName: istio  # Use your GatewayClass name
+  gatewayClassName: kgateway
   listeners:
   - name: http
     protocol: HTTP
@@ -92,7 +131,85 @@ spec:
       namespaces:
         from: All  # Allow routes from all namespaces
 EOF
+```
+
+**Output:**
+```
+gateway.gateway.networking.k8s.io/cluster-gateway created
+```
+
+Wait for Gateway to be Programmed:
+
+```bash
 kubectl wait --for=condition=Programmed gateway/cluster-gateway -n gateway-system --timeout=300s
+```
+
+**Output:**
+```
+gateway.gateway.networking.k8s.io/cluster-gateway condition met
+```
+
+Verify Gateway status:
+
+```bash
+kubectl describe gateway cluster-gateway -n gateway-system
+```
+
+**Output:**
+```
+Name:         cluster-gateway
+Namespace:    gateway-system
+Labels:       <none>
+Annotations:  <none>
+API Version:  gateway.networking.k8s.io/v1
+Kind:         Gateway
+Metadata:
+  Creation Timestamp:  2025-12-22T09:38:15Z
+Spec:
+  Gateway Class Name:  kgateway
+  Listeners:
+    Allow Dropped Headers:
+      Forward:  false
+    Allow Dropped Headers:
+      Forward:  false
+    Allowed Routes:
+      Namespaces:
+        From:  All
+    Name:      http
+    Port:      80
+    Protocol:  HTTP
+Status:
+  Addresses:
+    Type:   IPAddress
+    Value:  XXX.XXX.XXX.XXX
+  Conditions:
+    Last Transition Time:  2025-12-22T09:38:17Z
+    Message:               Resource is valid
+    Observed Generation:   1
+    Reason:                Accepted
+    Status:                True
+    Type:                  Accepted
+    Last Transition Time:  2025-12-22T09:38:17Z
+    Message:               Listeners are ready
+    Observed Generation:   1
+    Reason:                Programmed
+    Status:                True
+    Type:                  Programmed
+  Listeners:
+    Attached Routes:  0
+    Conditions:
+      Last Transition Time:  2025-12-22T09:38:17Z
+      Message:               Listener is ready
+      Observation Timestamp: 2025-12-22T09:38:17Z
+      Reason:                Ready
+      Status:                True
+      Type:                  Ready
+    Name:                    http
+    Supported Kinds:
+      Group:  gateway.networking.k8s.io
+      Kind:   HTTPRoute
+      Group:  gateway.networking.k8s.io
+      Kind:   GRPCRoute
 ```
 
 ### Step 2: Application Team Deploys dot-ai
@@ -146,6 +263,24 @@ helm install dot-ai \
   --wait
 ```
 
+**Output:**
+```
+NAME: dot-ai
+LAST DEPLOYED: Sun Dec 22 09:39:45 2025
+NAMESPACE: dot-ai
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+DevOps AI Toolkit (dot-ai) has been deployed successfully.
+
+Access the service:
+- HTTP: kubectl port-forward -n dot-ai svc/dot-ai 8080:8080
+- Gateway API: Configure your DNS to point to the Gateway IP (XXX.XXX.XXX.XXX)
+
+For more information, visit: https://github.com/vfarcic/dot-ai
+```
+
 Or using `--set` flags:
 
 ```bash
@@ -161,6 +296,28 @@ helm install dot-ai \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --wait
+```
+
+**Output:**
+```
+NAME: dot-ai
+LAST DEPLOYED: Sun Dec 22 09:39:45 2025
+NAMESPACE: dot-ai
+STATUS: deployed
+REVISION: 1
+```
+
+Verify deployment:
+
+```bash
+kubectl get pods -n dot-ai
+```
+
+**Output:**
+```
+NAME                                    READY   STATUS    RESTARTS   AGE
+dot-ai-7c5f8d9b4-xyz9w                  1/1     Running   0          30s
+qdrant-0                                 1/1     Running   0          25s
 ```
 
 ## Reference Pattern (HTTPS) - RECOMMENDED
@@ -523,26 +680,58 @@ For HTTPS:
 ```bash
 # Reference mode
 kubectl get gateway cluster-gateway -n gateway-system
-kubectl describe gateway cluster-gateway -n gateway-system
-
-# Creation mode
-kubectl get gateway -n dot-ai
-kubectl describe gateway -n dot-ai
 ```
 
-Look for `Programmed` condition.
+**Output:**
+```
+NAME              CLASS      ADDRESS        PROGRAMMED   AGE
+cluster-gateway   kgateway   XXX.XXX.XXX.XXX   True         5m22s
+```
+
+Verify detailed status:
+
+```bash
+kubectl describe gateway cluster-gateway -n gateway-system
+```
+
+Look for `Programmed` condition = `True`.
 
 ### 2. Check HTTPRoute
 
 ```bash
 kubectl get httproute -n dot-ai
+```
+
+**Output:**
+```
+NAME         HOSTNAMES                   PARENTREFS          AGE
+dot-ai-http  [dot-ai.example.com]        cluster-gateway     2m
+```
+
+Verify detailed status:
+
+```bash
 kubectl describe httproute -n dot-ai
 ```
 
-Verify:
-- `Accepted` condition is True
-- `parentRefs` matches Gateway name
-- For cross-namespace: `namespace` field present
+**Output (excerpt):**
+```
+Status:
+  Parents:
+    - Conditions:
+        - Type: Accepted
+          Status: "True"
+          Reason: Accepted
+        - Type: ResolvedRefs
+          Status: "True"
+          Reason: ResolvedRefs
+      Controller Name: kgateway.dev/kgateway
+      Parent Ref:
+        Group: gateway.networking.k8s.io
+        Kind: Gateway
+        Name: cluster-gateway
+        Namespace: gateway-system
+```
 
 ### 3. Check Backend Services
 
@@ -550,31 +739,26 @@ Verify:
 kubectl get svc,pod -n dot-ai
 ```
 
-### 4. Test HTTP Endpoint
+**Output:**
+```
+NAME                       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
+service/dot-ai             ClusterIP   XXX.XXX.XXX.XX   <none>        8080/TCP   2m
+
+NAME                                    READY   STATUS    RESTARTS   AGE
+pod/dot-ai-7c5f8d9b4-xyz9w             1/1     Running   0          2m
+pod/qdrant-0                            1/1     Running   0          2m
+```
+
+### 4. Verify Gateway IP Address
 
 ```bash
 # Get Gateway IP
-GATEWAY_IP=$(kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addresses[0].value}')
-
-# Test with hostname
-curl -H "Host: dot-ai.example.com" http://$GATEWAY_IP/
-
-# Or if DNS configured
-curl http://dot-ai.example.com/
+kubectl get gateway cluster-gateway -n gateway-system -o jsonpath='{.status.addresses[0].value}'
 ```
 
-### 5. Test SSE Connection
-
-```bash
-curl -N -H "Accept: text/event-stream" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  http://dot-ai.example.com/sse
+**Output:**
 ```
-
-### 6. Verify HTTPS Certificate
-
-```bash
-openssl s_client -connect dot-ai.example.com:443 -servername dot-ai.example.com < /dev/null 2>/dev/null | openssl x509 -text -noout | grep -A 2 "Subject:"
+XXX.XXX.XXX.XXX
 ```
 
 ## Troubleshooting
