@@ -7,7 +7,6 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Short-term (Next 1-3 Months)
 
-- Gemini 3 model variants support - Flash and thinking configurations (PRD #294)
 - Cluster query tool - natural language cluster intelligence (PRD #291)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Parallel capability analysis for 10x faster cluster scanning (PRD #155)

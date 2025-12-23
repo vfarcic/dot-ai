@@ -97,7 +97,7 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.openai.keyName }}
               optional: true
-        - name: GOOGLE_API_KEY
+        - name: GOOGLE_GENERATIVE_AI_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}

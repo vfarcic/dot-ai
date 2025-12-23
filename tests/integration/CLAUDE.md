@@ -34,6 +34,10 @@ npm run test:integration:sonnet    # Claude via Vercel AI SDK
 npm run test:integration:gpt       # GPT via Vercel AI SDK
 ```
 
+**🔍 DEBUGGING FAILED TESTS:**
+
+When tests fail with `DEBUG_DOT_AI=true`, debug prompts and AI responses are written to `/app/tmp/debug-ai/` inside the MCP pod. Files follow the naming convention: `{timestamp}_{id}_{operation}_prompt.md` and `{timestamp}_{id}_{operation}_response.md`. These files can help diagnose AI-related test failures by showing the exact prompts sent and responses received.
+
 **⚠️ IMPORTANT:** Always run complete test files, not individual tests. The test infrastructure sets up a fresh cluster for each run, so filtering to individual tests doesn't save time and may cause issues with test isolation.
 
 **❌ TEST IS NOT ACCEPTABLE IF:**

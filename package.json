@@ -24,6 +24,7 @@
     "test:integration:haiku": "AI_PROVIDER=anthropic_haiku DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gpt": "AI_PROVIDER=openai DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:gemini": "AI_PROVIDER=google DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:gemini-flash": "AI_PROVIDER=google_flash DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:grok": "AI_PROVIDER=xai DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:kimi": "AI_PROVIDER=kimi DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:kimi-thinking": "AI_PROVIDER=kimi_thinking DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",

@@ -161,19 +161,30 @@ async function executeToolLoop(
 function parseAIResponse(response: string, logger: Logger): any {
   logger.debug('Parsing AI response');
 
-  // Extract JSON from code block
+  // Try to extract JSON from code block first (Claude format)
   const jsonMatch = response.match(/```json\n([\s\S]+?)\n```/);
 
-  if (!jsonMatch) {
-    const truncatedResponse = response.substring(0, 500);
-    logger.error(`AI response missing JSON code block. Response: ${truncatedResponse}`);
-    throw new Error(
-      'AI did not return structured JSON response. Expected ```json code block with proposal.'
-    );
+  let jsonContent: string;
+  if (jsonMatch) {
+    jsonContent = jsonMatch[1];
+  } else {
+    // Fallback: try to parse raw JSON response (Gemini format)
+    // Look for JSON object starting with { and ending with }
+    const rawJsonMatch = response.match(/^\s*(\{[\s\S]*\})\s*$/);
+    if (rawJsonMatch) {
+      jsonContent = rawJsonMatch[1];
+      logger.debug('Parsing raw JSON response (no code block wrapper)');
+    } else {
+      const truncatedResponse = response.substring(0, 500);
+      logger.error(`AI response not valid JSON. Response: ${truncatedResponse}`);
+      throw new Error(
+        'AI did not return structured JSON response. Expected JSON object or ```json code block.'
+      );
+    }
   }
 
   try {
-    const parsed = JSON.parse(jsonMatch[1]);
+    const parsed = JSON.parse(jsonContent);
 
     // Validate required fields
     if (!parsed.analysis || typeof parsed.analysis !== 'string') {
