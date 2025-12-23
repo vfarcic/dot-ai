@@ -52,6 +52,12 @@ import {
   PROJECT_SETUP_TOOL_INPUT_SCHEMA,
   handleProjectSetupTool,
 } from '../tools/project-setup';
+import {
+  QUERY_TOOL_NAME,
+  QUERY_TOOL_DESCRIPTION,
+  QUERY_TOOL_INPUT_SCHEMA,
+  handleQueryTool,
+} from '../tools/query';
 
 import {
   handlePromptsListRequest,
@@ -276,6 +282,23 @@ export class MCPServer {
       ['governance', 'infrastructure', 'configuration', 'files']
     );
 
+    // Register query tool (PRD #291: Cluster Query Tool)
+    this.registerTool(
+      QUERY_TOOL_NAME,
+      QUERY_TOOL_DESCRIPTION,
+      QUERY_TOOL_INPUT_SCHEMA,
+      async (args: any) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(
+          `Processing ${QUERY_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleQueryTool(args);
+      },
+      'Intelligence',
+      ['query', 'search', 'discover', 'capabilities', 'cluster']
+    );
+
     this.logger.info('Registered all tools with McpServer', {
       tools: [
         RECOMMEND_TOOL_NAME,
@@ -283,9 +306,10 @@ export class MCPServer {
         ORGANIZATIONAL_DATA_TOOL_NAME,
         REMEDIATE_TOOL_NAME,
         OPERATE_TOOL_NAME,
-        PROJECT_SETUP_TOOL_NAME
+        PROJECT_SETUP_TOOL_NAME,
+        QUERY_TOOL_NAME
       ],
-      totalTools: 6,
+      totalTools: 7,
     });
   }
 

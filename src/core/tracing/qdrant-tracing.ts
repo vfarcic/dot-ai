@@ -21,6 +21,7 @@ export type VectorDBOperation =
   | 'vector.upsert'
   | 'vector.search'
   | 'vector.search_keywords'
+  | 'vector.scroll_filtered'
   | 'vector.retrieve'
   | 'vector.delete'
   | 'vector.delete_all'

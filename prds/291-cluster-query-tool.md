@@ -147,36 +147,21 @@ This pattern is encoded in the system prompt so the LLM learns to use it.
 ```json
 {
   "success": true,
-  "findings": [
-    {
-      "kind": "Cluster",
-      "apiVersion": "postgresql.cnpg.io/v1",
-      "name": "postgres-main",
-      "namespace": "production",
-      "status": "Running",
-      "details": { ... }
-    },
-    {
-      "kind": "StatefulSet",
-      "apiVersion": "apps/v1",
-      "name": "redis-cache",
-      "namespace": "production",
-      "status": "3/3 Ready",
-      "details": { ... }
-    }
-  ],
   "summary": "Found 2 database-related resources in production namespace: 1 CNPG PostgreSQL cluster and 1 Redis StatefulSet.",
-  "toolsUsed": ["search_capabilities", "query_resources", "kubectl_get"]
+  "toolsUsed": ["search_capabilities", "query_resources", "kubectl_get"],
+  "iterations": 3
 }
 ```
+
+> **Note (M2):** Current implementation returns `summary`, `toolsUsed`, and `iterations`. The `toolsUsed` is extracted programmatically from `AgenticResult.toolCallsExecuted` for reliability. Structured `findings` array may be added in M3+ if needed.
 
 **Output (no results):**
 ```json
 {
   "success": true,
-  "findings": [],
   "summary": "No database-related resources found in the cluster.",
-  "toolsUsed": ["search_capabilities", "query_resources"]
+  "toolsUsed": ["search_capabilities", "query_resources"],
+  "iterations": 2
 }
 ```
 
@@ -353,15 +338,18 @@ Return JSON with:
   - Added `scrollWithFilter(filter)` to VectorDBService (low-level Qdrant support)
   - Note: AI constructs Qdrant filters directly; no pre-defined filter interfaces needed
 
-- [ ] **M2: Capability Tools (First)**
-  - Create `src/core/query-tools.ts` with capability tools only
-  - Define `search_capabilities` (semantic) and `query_capabilities` (Qdrant filter)
-  - Create tool executor function
-  - Create minimal `prompts/query-system.md` for capabilities only
-  - Write 2 integration tests:
-    - Semantic: "What databases can I deploy?" → expects `search_capabilities`
-    - Filter: "Show me low complexity capabilities" → expects `query_capabilities`
-  - Verify AI tool usage via `DEBUG_DOT_AI=true` debug output
+- [x] **M2: Capability Tools (First)**
+  - Created `src/core/capability-tools.ts` with reusable capability tools (can be used by query, recommend, and other tools)
+  - Defined `search_capabilities` (semantic) and `query_capabilities` (Qdrant filter)
+  - Created tool executor function with `QDRANT_CAPABILITIES_COLLECTION` env var support
+  - Created minimal `prompts/query-system.md` (tool descriptions guide AI strategy, not prompt)
+  - Created `src/tools/query.ts` MCP tool handler
+  - Registered query tool in MCP interface
+  - Wrote 2 integration tests in `tests/integration/tools/query.test.ts`:
+    - Semantic: "What databases can I deploy?" → validates `search_capabilities` used
+    - Filter: "Show me low complexity capabilities" → validates `query_capabilities` used
+  - Note: `toolsUsed` extracted from `AgenticResult.toolCallsExecuted` (not AI self-reporting)
+  - Note: `findings` field removed - AI summary is sufficient for M2 scope
 
 - [ ] **M3: Resource Tools (Second)**
   - Add `search_resources` and `query_resources` to query-tools.ts
@@ -488,6 +476,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-23 | Finalized integration test strategy: hybrid approach using real K8s resources + direct sync endpoint POST |
 | 2025-12-23 | M1 partial: Added generic `queryWithFilter()` to BaseVectorService and `scrollWithFilter()` to VectorDBService. Architecture decision: AI constructs Qdrant filters directly instead of pre-defined filter interfaces. |
 | 2025-12-23 | Updated milestones to capabilities-first approach. Added evaluation-driven test strategy decision. Updated semantic bridge example to use Qdrant filter syntax. |
+| 2025-12-23 | M2 complete: Created capability tools (`search_capabilities`, `query_capabilities`) in reusable `capability-tools.ts`. Minimal system prompt relies on tool descriptions. Integration tests validate AI selects correct tools for semantic vs filter queries. |
 
 ---
 
