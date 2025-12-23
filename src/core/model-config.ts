@@ -11,6 +11,7 @@ export const CURRENT_MODELS = {
   anthropic_haiku: 'claude-haiku-4-5-20251001',
   openai: 'gpt-5.1-codex',
   google: 'gemini-3-pro-preview',
+  google_flash: 'gemini-3-flash-preview', // PRD #294: Gemini 3 Flash - faster/cheaper variant with same 1M context
   kimi: 'kimi-k2-0905-preview', // PRD #237: Moonshot AI Kimi K2 - standard model with 256K context
   kimi_thinking: 'kimi-k2-thinking', // PRD #237: Moonshot AI Kimi K2 - extended thinking variant
   xai: 'grok-4',

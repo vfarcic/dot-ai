@@ -77,6 +77,7 @@ export class VercelProvider implements AIProvider {
           });
           break;
         case 'google':
+        case 'google_flash': // PRD #294: Gemini 3 Flash variant
           provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
           break;
         case 'anthropic':

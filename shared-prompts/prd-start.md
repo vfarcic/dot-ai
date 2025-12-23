@@ -215,10 +215,21 @@ If confirmed, provide:
 - **Testing approach**: How to validate the implementation
 - **Progress checkpoints**: When to update the PRD with progress
 
-### After Implementation
-Once you complete a task or milestone, update PRD progress by running the `prd-update-progress` prompt.
+## Step 6: Update Progress After Completion
+
+After the user completes the task implementation, prompt them to update PRD progress:
+
+---
+
+**Task implementation complete.**
+
+To update PRD progress and commit your work, run the `prd-update-progress` prompt.
 
 *Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-update-progress` in Claude Code, or other syntax in different MCP clients).*
+
+---
+
+This ensures a smooth workflow from task selection → implementation → progress tracking → next task.
 
 ## Success Criteria
 

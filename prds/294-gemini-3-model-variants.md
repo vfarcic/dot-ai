@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Status**: Draft
+**Status**: In Progress
 **Priority**: Medium
 **Created**: 2025-12-21
 **GitHub Issue**: [#294](https://github.com/vfarcic/dot-ai/issues/294)
@@ -53,11 +53,11 @@ Add Gemini 3 variants iteratively: implement one variant, run all tests, documen
 
 ## Milestones
 
-### Milestone 1: Gemini 3 Flash (google_flash)
-- [ ] Add `google_flash: 'gemini-3-flash-preview'` to `CURRENT_MODELS`
-- [ ] Add `google_flash` case to `vercel-provider.ts`
-- [ ] Run integration tests
-- [ ] Document results and update docs if successful
+### Milestone 1: Gemini 3 Flash (google_flash) ✅
+- [x] Add `google_flash: 'gemini-3-flash-preview'` to `CURRENT_MODELS`
+- [x] Add `google_flash` case to `vercel-provider.ts`
+- [x] Run integration tests (74/75 passed - 98.7%)
+- [x] Document results and update docs if successful
 
 ### Milestone 2: Gemini 3 Flash Fast (google_flash_fast)
 - [ ] Research Vercel AI SDK support for `thinking_level` parameter
@@ -110,6 +110,7 @@ All Gemini 3 variants use the same `GOOGLE_GENERATIVE_AI_API_KEY`.
 | Date | Update |
 |------|--------|
 | 2025-12-21 | PRD created with iterative implementation approach |
+| 2025-12-23 | **Milestone 1 complete**: Added `google_flash` provider. 98.7% test pass rate (74/75). Fixed JSON parsing for multi-model support, standardized `GOOGLE_GENERATIVE_AI_API_KEY` env var, updated docs. |
 
 ## Decisions
 

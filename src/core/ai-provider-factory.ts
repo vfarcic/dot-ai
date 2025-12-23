@@ -26,7 +26,8 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   anthropic_opus: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   anthropic_haiku: 'ANTHROPIC_API_KEY', // Uses same API key as regular Anthropic
   openai: 'OPENAI_API_KEY',
-  google: 'GOOGLE_API_KEY',
+  google: 'GOOGLE_GENERATIVE_AI_API_KEY', // Standard Vercel AI SDK env var (also checks GOOGLE_API_KEY as fallback)
+  google_flash: 'GOOGLE_GENERATIVE_AI_API_KEY', // PRD #294: Uses same API key as regular Google
   kimi: 'MOONSHOT_API_KEY', // PRD #237: Moonshot AI Kimi K2
   kimi_thinking: 'MOONSHOT_API_KEY', // PRD #237: Uses same API key as regular Kimi
   xai: 'XAI_API_KEY',
@@ -137,7 +138,11 @@ export class AIProviderFactory {
         return new NoOpAIProvider();
       }
 
-      const resolvedApiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
+      // Check primary env var, with fallback for Google providers (GOOGLE_API_KEY for backward compatibility)
+      let resolvedApiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
+      if (!resolvedApiKey && providerType.startsWith('google')) {
+        resolvedApiKey = process.env.GOOGLE_API_KEY; // Fallback for backward compatibility
+      }
       if (!resolvedApiKey) {
         process.stderr.write(
           `INFO: ${apiKeyEnvVar} not configured. ` +

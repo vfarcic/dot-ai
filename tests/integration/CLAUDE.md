@@ -34,6 +34,31 @@ npm run test:integration:sonnet    # Claude via Vercel AI SDK
 npm run test:integration:gpt       # GPT via Vercel AI SDK
 ```
 
+**🔍 DEBUGGING FAILED TESTS:**
+
+When tests fail with `DEBUG_DOT_AI=true`, debug prompts and AI responses are written inside the MCP pod. To analyze them:
+
+```bash
+# 1. Get the dot-ai pod name
+POD=$(kubectl get pods -n dot-ai -l app.kubernetes.io/name=dot-ai -o jsonpath='{.items[0].metadata.name}' --kubeconfig=./kubeconfig-test.yaml)
+
+# 2. List available debug files in the pod
+kubectl exec -n dot-ai $POD --kubeconfig=./kubeconfig-test.yaml -- ls -la /app/tmp/debug-ai/
+
+# 3. Copy all debug files to local ./tmp directory
+kubectl cp dot-ai/$POD:/app/tmp/debug-ai ./tmp/debug-ai --kubeconfig=./kubeconfig-test.yaml
+
+# 4. Analyze specific prompt/response pairs (files are timestamped)
+ls -la ./tmp/debug-ai/
+cat ./tmp/debug-ai/*_prompt.md    # View prompts sent to AI
+cat ./tmp/debug-ai/*_response.md  # View AI responses
+
+# 5. Filter by operation (e.g., operate, remediate, recommend)
+ls ./tmp/debug-ai/ | grep operate
+```
+
+**Debug file naming convention:** `{timestamp}_{id}_{operation}_prompt.md` and `{timestamp}_{id}_{operation}_response.md`
+
 **⚠️ IMPORTANT:** Always run complete test files, not individual tests. The test infrastructure sets up a fresh cluster for each run, so filtering to individual tests doesn't save time and may cause issues with test isolation.
 
 **❌ TEST IS NOT ACCEPTABLE IF:**
