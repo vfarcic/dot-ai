@@ -1,3 +1,8 @@
+---
+name: infographic-generator
+description: Generate retro arcade style infographic prompts for documentation pages
+---
+
 # Generate Infographic Prompt
 
 Generate an image AI prompt for creating a retro arcade style infographic for a documentation page.
