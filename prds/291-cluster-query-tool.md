@@ -1,7 +1,7 @@
 # PRD #291: Cluster Query Tool - Natural Language Cluster Intelligence
 
 **GitHub Issue**: [#291](https://github.com/vfarcic/dot-ai/issues/291)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: High
 **Created**: 2025-12-19
 
@@ -192,31 +192,33 @@ This pattern is encoded in the system prompt so the LLM learns to use it.
 
 ## Technical Design
 
-### 1. New Vector DB Methods
+### 1. Generic Vector DB Query Method
 
-**CapabilityVectorService - queryCapabilities():**
+**Architecture Decision**: Instead of pre-defined filter interfaces, the AI constructs Qdrant filters directly. This provides maximum flexibility and reduces code maintenance.
+
+**VectorDBService - scrollWithFilter():**
 ```typescript
-interface CapabilityQueryFilters {
-  kinds?: string[];           // Filter by resource kind
-  providers?: string[];       // Filter by provider (crossplane, cnpg, etc.)
-  complexity?: 'low' | 'medium' | 'high';
-  groups?: string[];          // Filter by API group
-}
-
-async queryCapabilities(filters: CapabilityQueryFilters): Promise<ResourceCapability[]>
+// Low-level Qdrant filter support
+async scrollWithFilter(filter: any, limit: number = 100): Promise<VectorDocument[]>
 ```
 
-**ResourceVectorService - queryResources():**
+**BaseVectorService - queryWithFilter():**
 ```typescript
-interface ResourceQueryFilters {
-  kinds?: string[];           // Filter by resource kind
-  apiVersions?: string[];     // Filter by apiVersion
-  namespaces?: string[];      // Filter by namespace
-  labels?: Record<string, string>;  // Filter by labels
-}
-
-async queryResources(filters: ResourceQueryFilters): Promise<ClusterResource[]>
+// Typed wrapper inherited by CapabilityVectorService and ResourceVectorService
+async queryWithFilter(filter: any, limit: number = 100): Promise<T[]>
 ```
+
+**How it works:**
+1. Tool description tells AI which payload fields are available
+2. AI constructs Qdrant filter based on user intent
+3. Filter is passed directly to Qdrant - no translation layer
+4. If AI makes syntax errors, Qdrant returns error, AI self-corrects
+
+**Available payload fields (Capabilities):**
+- `resourceName`, `group`, `apiVersion`, `providers`, `complexity`, `capabilities`, `abstractions`, `description`, `useCase`
+
+**Available payload fields (Resources):**
+- `kind`, `namespace`, `name`, `apiVersion`, `apiGroup`, `labels`, `annotations`
 
 ### 2. Tool Definitions
 
@@ -342,10 +344,11 @@ Return JSON with:
 
 ## Milestones
 
-- [ ] **M1: Vector DB Query Methods**
-  - Add `queryCapabilities(filters)` to CapabilityVectorService
-  - Add `queryResources(filters)` to ResourceVectorService
-  - Add `searchResources(query)` wrapper method
+- [x] **M1: Vector DB Query Methods**
+  - ~~Add `queryCapabilities(filters)` to CapabilityVectorService~~ → Added generic `queryWithFilter(filter)` to BaseVectorService (inherited by all services)
+  - ~~Add `queryResources(filters)` to ResourceVectorService~~ → Same generic method works for resources
+  - Added `scrollWithFilter(filter)` to VectorDBService (low-level Qdrant support)
+  - Note: AI constructs Qdrant filters directly; no pre-defined filter interfaces needed
 
 - [ ] **M2: Tool Definitions**
   - Create `src/core/query-tools.ts`
@@ -364,10 +367,47 @@ Return JSON with:
   - Add to REST API router
 
 - [ ] **M5: Integration Testing**
+  - **Hybrid test data approach**: Create real K8s resources AND sync to Qdrant directly
   - Test semantic bridge flow (capabilities → resources)
   - Test direct kubectl queries
   - Test mixed queries
   - Test error handling
+
+### Integration Test Strategy
+
+Tests use a **hybrid approach** for test data:
+
+1. **Create real K8s resources** in the test cluster (Deployment, StatefulSet, Service, etc.)
+2. **POST same resources directly** to `/api/v1/resources/sync` endpoint for immediate Qdrant population
+3. **Test the query tool** - both Vector DB search AND kubectl tools work against real resources
+
+```typescript
+// Example test setup
+// 1. Create real K8s resource (for kubectl tools)
+await kubectl('apply -f test-deployment.yaml');
+
+// 2. Sync to Qdrant immediately (bypass controller timing)
+await httpClient.post('/api/v1/resources/sync', {
+  upserts: [{
+    namespace: 'default',
+    name: 'test-nginx',
+    kind: 'Deployment',
+    apiVersion: 'apps/v1',
+    labels: { app: 'nginx' },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }]
+});
+
+// 3. Test query tool - vector search finds resource, kubectl gets live status
+const result = await query({ intent: 'describe the nginx deployment' });
+```
+
+**Why this approach:**
+- Real K8s resources required for `kubectl_get`, `kubectl_describe`, `kubectl_logs`
+- Direct sync endpoint avoids controller timing uncertainty
+- Tests are fast and deterministic
+- Full integration path is validated
 
 ---
 
@@ -424,6 +464,9 @@ Return JSON with:
 | **JSON output** | Let client agent handle formatting; maximum flexibility |
 | **System prompt strategy** | Encode semantic bridge explicitly; don't rely on LLM discovering it |
 | **No permission restrictions initially** | Start simple; add permissions in future PRD if needed |
+| **Hybrid integration test approach** | Tests create real K8s resources (for kubectl) AND POST directly to sync endpoint (for Qdrant). Avoids controller timing dependency while validating full query tool flow. |
+| **AI-constructed Qdrant filters** | Instead of pre-defined filter interfaces (e.g., `CapabilityQueryFilters`), the AI constructs Qdrant filters directly. Tool descriptions include available payload fields. More flexible, less code, AI adapts to any query. |
+| **Incremental tool validation** | Build and test each tool type separately (capabilities → resources → kubectl), verifying AI usage via debug output before combining. Reduces debugging complexity. |
 
 ---
 
@@ -432,6 +475,8 @@ Return JSON with:
 | Date | Update |
 |------|--------|
 | 2025-12-19 | PRD created after brainstorming session |
+| 2025-12-23 | Finalized integration test strategy: hybrid approach using real K8s resources + direct sync endpoint POST |
+| 2025-12-23 | M1 partial: Added generic `queryWithFilter()` to BaseVectorService and `scrollWithFilter()` to VectorDBService. Architecture decision: AI constructs Qdrant filters directly instead of pre-defined filter interfaces. |
 
 ---
 

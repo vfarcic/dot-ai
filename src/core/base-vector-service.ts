@@ -152,6 +152,20 @@ export abstract class BaseVectorService<T> {
   }
 
   /**
+   * Query data with Qdrant filter (no semantic search)
+   * @param filter - Qdrant filter object constructed by AI
+   * @param limit - Maximum results to return
+   */
+  async queryWithFilter(filter: any, limit: number = 100): Promise<T[]> {
+    const documents = await this.vectorDB.scrollWithFilter(filter, limit);
+    return documents.map(doc => {
+      const data = this.payloadToData(doc.payload);
+      (data as any).id = doc.id;
+      return data;
+    });
+  }
+
+  /**
    * Get all data (limited)
    */
   async getAllData(limit?: number): Promise<T[]> {
