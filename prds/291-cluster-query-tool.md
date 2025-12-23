@@ -88,12 +88,15 @@ Capabilities in Vector DB have rich semantic information (description, use cases
 ```text
 User: "List all database-related resources"
 
-Step 1: search_capabilities("database")
+Step 1: search_capabilities({ query: "database" })
   → Returns kinds: StatefulSet, clusters.postgresql.cnpg.io,
                    compositions.apiextensions.crossplane.io (RDS), etc.
 
-Step 2: query_resources({kinds: [...]}) or kubectl_get
+Step 2: query_resources({ filter: { must: [{ key: "kind", match: { any: ["StatefulSet", "Cluster"] } }] } })
   → Returns actual resources of those kinds
+
+  OR kubectl_get({ resource: "statefulsets" })
+  → Returns live status from cluster
 ```
 
 This pattern is encoded in the system prompt so the LLM learns to use it.
@@ -350,27 +353,33 @@ Return JSON with:
   - Added `scrollWithFilter(filter)` to VectorDBService (low-level Qdrant support)
   - Note: AI constructs Qdrant filters directly; no pre-defined filter interfaces needed
 
-- [ ] **M2: Tool Definitions**
-  - Create `src/core/query-tools.ts`
-  - Define 4 Vector DB tools (search_capabilities, query_capabilities, search_resources, query_resources)
+- [ ] **M2: Capability Tools (First)**
+  - Create `src/core/query-tools.ts` with capability tools only
+  - Define `search_capabilities` (semantic) and `query_capabilities` (Qdrant filter)
   - Create tool executor function
+  - Create minimal `prompts/query-system.md` for capabilities only
+  - Write 2 integration tests:
+    - Semantic: "What databases can I deploy?" → expects `search_capabilities`
+    - Filter: "Show me low complexity capabilities" → expects `query_capabilities`
+  - Verify AI tool usage via `DEBUG_DOT_AI=true` debug output
 
-- [ ] **M3: System Prompt**
-  - Create `prompts/query-system.md`
-  - Encode semantic bridge strategy
-  - Define output format guidelines
+- [ ] **M3: Resource Tools (Second)**
+  - Add `search_resources` and `query_resources` to query-tools.ts
+  - Extend prompt with resource tool guidance
+  - Write 2 integration tests for resource tools
+  - Verify AI tool usage via debug output
 
-- [ ] **M4: MCP Tool Implementation**
-  - Create `src/tools/query.ts`
-  - Implement `handleQuery()` with tool loop
+- [ ] **M4: Kubectl Tools Integration (Third)**
+  - Add read-only kubectl tools to query tool (already exist in kubectl-tools.ts)
+  - Extend prompt with kubectl guidance and semantic bridge strategy
+  - Write integration test for kubectl queries
+  - Verify AI uses kubectl for live status queries
+
+- [ ] **M5: Full Integration & MCP Registration**
+  - Create `src/tools/query.ts` with all 10 tools
   - Register tool in MCP interface
   - Add to REST API router
-
-- [ ] **M5: Integration Testing**
-  - **Hybrid test data approach**: Create real K8s resources AND sync to Qdrant directly
-  - Test semantic bridge flow (capabilities → resources)
-  - Test direct kubectl queries
-  - Test mixed queries
+  - Write comprehensive integration test validating semantic bridge flow (capabilities → resources → kubectl)
   - Test error handling
 
 ### Integration Test Strategy
@@ -467,6 +476,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | **Hybrid integration test approach** | Tests create real K8s resources (for kubectl) AND POST directly to sync endpoint (for Qdrant). Avoids controller timing dependency while validating full query tool flow. |
 | **AI-constructed Qdrant filters** | Instead of pre-defined filter interfaces (e.g., `CapabilityQueryFilters`), the AI constructs Qdrant filters directly. Tool descriptions include available payload fields. More flexible, less code, AI adapts to any query. |
 | **Incremental tool validation** | Build and test each tool type separately (capabilities → resources → kubectl), verifying AI usage via debug output before combining. Reduces debugging complexity. |
+| **Evaluation-driven test strategy** | For each tool type, write 2 tests: (1) semantic query triggering `search_*`, (2) filter query triggering `query_*`. Run with `DEBUG_DOT_AI=true`, manually inspect debug output to verify AI used expected tools. Human-in-the-loop validation before tests become regression tests. |
 
 ---
 
@@ -477,6 +487,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-19 | PRD created after brainstorming session |
 | 2025-12-23 | Finalized integration test strategy: hybrid approach using real K8s resources + direct sync endpoint POST |
 | 2025-12-23 | M1 partial: Added generic `queryWithFilter()` to BaseVectorService and `scrollWithFilter()` to VectorDBService. Architecture decision: AI constructs Qdrant filters directly instead of pre-defined filter interfaces. |
+| 2025-12-23 | Updated milestones to capabilities-first approach. Added evaluation-driven test strategy decision. Updated semantic bridge example to use Qdrant filter syntax. |
 
 ---
 
