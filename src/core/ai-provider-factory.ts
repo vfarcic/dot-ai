@@ -194,7 +194,12 @@ export class AIProviderFactory {
   static isProviderAvailable(provider: string): boolean {
     const apiKeyEnvVar = PROVIDER_ENV_KEYS[provider];
     if (!apiKeyEnvVar) return false;
-    return !!process.env[apiKeyEnvVar];
+    // Check primary env var, with fallback for Google providers
+    const hasKey = !!process.env[apiKeyEnvVar];
+    if (!hasKey && provider.startsWith('google')) {
+      return !!process.env.GOOGLE_API_KEY; // Fallback for backward compatibility
+    }
+    return hasKey;
   }
 
   /**
