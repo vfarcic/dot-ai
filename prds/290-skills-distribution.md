@@ -1,9 +1,10 @@
 # PRD #290: Skills Distribution via MCP
 
 **GitHub Issue**: [#290](https://github.com/vfarcic/dot-ai/issues/290)
-**Status**: In Progress
+**Status**: On Hold
 **Priority**: Medium
 **Created**: 2025-12-19
+**On Hold Since**: 2025-12-23
 
 ---
 
@@ -54,6 +55,83 @@ Most agents support BOTH systems, allowing explicit `/command` invocation alongs
 
 ---
 
+## Investigation Summary (Dec 2025)
+
+**Status: Work on hold due to fundamental MCP limitations**
+
+During implementation of M3 (Skills Installation Infrastructure), we discovered significant technical barriers that make seamless skills distribution impractical with current MCP capabilities.
+
+### Key Findings
+
+#### 1. MCP Cannot Auto-Install Skills
+
+**Problem:** MCP server may run remotely (Docker, Kubernetes, cloud) and cannot write to user's local filesystem where skills must reside.
+
+**Explored solutions:**
+- Auto-install on MCP init → Only works if MCP runs locally
+- Embed skills in MCP prompts → ~32K tokens, unreliable AI file creation
+- MCP Resources → Read-only; client can't write to disk via MCP
+- Release artifact download → Works, but requires manual user action
+
+#### 2. No Version Sync Mechanism
+
+**Problem:** Skills installed locally may become outdated when MCP server updates. No mechanism exists to notify users or auto-update.
+
+**Explored solutions:**
+- Version check on skill invocation → Doesn't catch new skills user doesn't know about
+- Auto-update on skill invocation → Same problem with new skills
+- MCP initialization hook → Doesn't exist in MCP spec
+- OAuth-style browser trigger → Only for authentication, not general actions
+
+#### 3. MCP Lifecycle Limitations
+
+**Findings from MCP spec investigation:**
+- No "on connect" hook for user-facing actions
+- `initialize`/`initialized` is protocol-level, not user-visible
+- `notifications/message` is for logging/debugging, not user messaging
+- OAuth 401 flow (browser open) is auth-specific, can't repurpose for skills
+- Server cannot proactively push user-visible notifications
+
+#### 4. The Fundamental Tension
+
+```
+Skills as source of truth     vs.     Version alignment
+─────────────────────────────────────────────────────────
+MCP prompts are thin wrappers        Cannot guarantee user has
+Skills contain all logic             correct skill version
+                                     No auto-update mechanism
+```
+
+### What Would Make Skills Viable
+
+For skills distribution to work seamlessly, MCP would need ONE of:
+
+1. **Server-initiated file transfer** - MCP spec allowing servers to push files to client filesystem
+2. **On-connect user notification** - Hook to display version warnings when client connects
+3. **Resource write capability** - Ability for clients to save MCP resources locally
+4. **Standardized skill sync** - Protocol-level skill versioning and update mechanism
+
+### Completed Work (Preserved)
+
+- `skills/prd-create/` - Full skill with references (can serve as reference implementation)
+- `shared-prompts/prd-create.md` - Thin wrapper demonstrating the pattern
+- Architecture documentation in this PRD
+
+### Recommendation
+
+**Keep MCP prompts self-contained** (current approach). They provide:
+- Always-current version (no sync issues)
+- No installation required
+- Works immediately on connection
+- Full functionality via `/command` invocation
+
+Skills could be revisited when:
+- MCP spec adds file transfer or initialization hooks
+- A standardized skill sync protocol emerges
+- Offline usage becomes a critical user requirement
+
+---
+
 ## Solution Overview
 
 Implement a **skills + MCP prompts as invokers** approach - skills contain all logic, existing MCP prompts are rewritten to invoke skills:
@@ -89,54 +167,36 @@ Use the prd-create skill to create a documentation-first PRD for the user's requ
 - **Both invocation methods**: Natural language (skill) AND explicit `/command` (MCP prompt)
 - **Graceful degradation**: If skills not installed, MCP prompt still tells user what to do
 
-### Part 1: Auto-Install Skills on MCP Initialization
+### Part 1: Skills Installation via Release Artifact
 
-Skills can be automatically installed when the MCP server initializes, eliminating the need for manual `/install-skills` invocation:
-
-**Option A: Config-based (Recommended)**
-```
-User configures MCP with AGENT_TYPE env var
-    ↓
-MCP server initializes
-    ↓
-MCP detects agent type from config
-    ↓
-Skills auto-installed to correct location
-    ↓
-User has skills immediately - zero friction
-```
-
-**MCP Configuration Example:**
-```json
-{
-  "mcpServers": {
-    "dot-ai": {
-      "command": "npx",
-      "args": ["-y", "@dot-ai/mcp"],
-      "env": {
-        "AGENT_TYPE": "claude"  // or "cursor", "copilot", "universal"
-      }
-    }
-  }
-}
-```
-
-**Option B: Fallback `/install-skills` Prompt**
-
-For users who don't configure `AGENT_TYPE`, keep the manual install prompt as fallback:
+Skills are distributed as version-aligned release artifacts, downloaded via `/install-skills` prompt:
 
 ```
+Release v0.171.0 published
+    ↓
+CI/CD creates skills.tar.gz artifact (~115KB)
+    ↓
+User connects to MCP server v0.171.0
+    ↓
 User invokes /install-skills
     ↓
-MCP returns prompt with:
-  - Agent selection question
-  - Skill file contents (embedded)
-  - File creation instructions
+MCP returns prompt with version-specific download command:
+  - curl + tar command with v0.171.0 URL
+  - Agent-specific paths (claude, cursor, copilot, universal)
     ↓
-Client agent creates files in correct location
+User runs command locally
     ↓
-User has persistent local skills
+Skills installed to correct location
 ```
+
+**Why not auto-install on MCP init?**
+MCP server may run remotely (Docker, Kubernetes, cloud) and cannot write to user's local filesystem. The download approach works regardless of where MCP runs.
+
+**Benefits:**
+- Version-aligned (skills match MCP version)
+- Works with remote MCP servers
+- Tiny prompt (~500 tokens vs ~32K for embedded content)
+- Simple curl + tar (no Docker required)
 
 ### Part 2: Convert Prompts to Skills (Replace MCP Prompts)
 
@@ -204,58 +264,66 @@ This hybrid provides:
 
 ## Technical Design
 
-### 1. Install-Skills Prompt
+### 1. Install-Skills Prompt (Version-Aligned Download)
 
-Create `shared-prompts/install-skills.md`:
+The `/install-skills` prompt dynamically generates download commands using the MCP server's version:
 
-```markdown
----
-name: install-skills
-description: Install dot-ai skills locally for your coding agent
-category: setup
----
-
-# Install dot-ai Skills
-
-## Step 1: Select Your Agent
-
-Which coding agent are you using?
-
-1. **Claude Code** - Skills will be installed to `.claude/skills/`
-2. **Windsurf** - Skills will be installed to `.windsurf/skills/`
-3. **Cursor** - Skills will be installed to `.cursor/skills/`
-4. **Other/Universal** - Skills will be installed to `.agent/skills/`
-
-Please tell me which agent you're using (1-4).
-
-## Step 2: Create Skill Files
-
-Based on your selection, create the following skill folders and files:
-
-### Skill: prd-create
-
-Create file: `[skills-path]/prd-create/SKILL.md`
-
-\`\`\`markdown
----
-name: prd-create
-description: Create documentation-first PRDs that guide development
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
----
-
-[Full skill content here...]
-\`\`\`
-
-[Additional skills...]
-
-## Step 3: Verify Installation
-
-After creating all files, verify by listing the skills directory.
+**Architecture:**
 ```
+Release v0.171.0
+    │
+    ├─► Container: ghcr.io/vfarcic/dot-ai:v0.171.0
+    │
+    └─► Artifact: github.com/vfarcic/dot-ai/releases/download/v0.171.0/skills.tar.gz
+
+User connects to MCP v0.171.0
+    │
+    ▼
+/install-skills prompt generates version-specific URL:
+    │
+    └─► "curl -sL https://github.com/.../v0.171.0/skills.tar.gz | tar -xz -C ~/.claude/skills"
+```
+
+**Dynamic prompt generation** (`src/prompts/install-skills.ts`):
+```typescript
+export async function generateInstallSkillsPrompt(): Promise<string> {
+  const version = getPackageVersion(); // e.g., "0.171.0"
+  const downloadUrl = `https://github.com/vfarcic/dot-ai/releases/download/v${version}/skills.tar.gz`;
+
+  return `
+# Install dot-ai Skills (v${version})
+
+Select your agent and run the command:
+
+| Agent | Command |
+|-------|---------|
+| Claude Code | \`mkdir -p ~/.claude/skills && curl -sL ${downloadUrl} | tar -xz -C ~/.claude/skills\` |
+| Cursor | \`mkdir -p ~/.cursor/skills && curl -sL ${downloadUrl} | tar -xz -C ~/.cursor/skills\` |
+| Copilot | \`mkdir -p ~/.claude/skills && curl -sL ${downloadUrl} | tar -xz -C ~/.claude/skills\` |
+| Universal | \`mkdir -p .agent/skills && curl -sL ${downloadUrl} | tar -xz -C .agent/skills\` |
+
+## Verify
+\`ls ~/.claude/skills\`  (or your agent's path)
+`;
+}
+```
+
+**CI/CD addition** (GitHub Actions release workflow):
+```yaml
+- name: Package skills
+  run: tar -czf skills.tar.gz -C skills .
+
+- name: Upload skills artifact
+  uses: softprops/action-gh-release@v1
+  with:
+    files: skills.tar.gz
+```
+
+**Benefits:**
+- ~500 tokens (vs ~32K tokens for embedded content)
+- Version-aligned (skills match MCP version)
+- No Docker required
+- Works on all platforms with curl + tar
 
 ### 2. Skills Directory Structure
 
@@ -313,29 +381,6 @@ generate-dockerfile/
         └── go.Dockerfile.template
 ```
 
-### 4. Dynamic Prompt Generation
-
-The `install-skills` prompt should dynamically read skill contents from the `skills/` directory:
-
-```typescript
-// In MCP prompt handler
-async function handleInstallSkills(): Promise<string> {
-  const skillsDir = path.join(process.cwd(), 'skills');
-  const skills = await fs.readdir(skillsDir);
-
-  let promptContent = INSTALL_SKILLS_HEADER;
-
-  for (const skillName of skills) {
-    const skillPath = path.join(skillsDir, skillName);
-    const skillContent = await readSkillRecursively(skillPath);
-    promptContent += formatSkillForInstallation(skillName, skillContent);
-  }
-
-  promptContent += INSTALL_SKILLS_FOOTER;
-  return promptContent;
-}
-```
-
 ---
 
 ## Scope
@@ -348,17 +393,19 @@ async function handleInstallSkills(): Promise<string> {
 - Create template skill for reference
 
 **M2: Convert Existing Prompts to Skills + Rewrite MCP Prompts**
+- For each prompt conversion:
+  1. Analyze the prompt to identify enhancement opportunities
+  2. Check agentskills.io docs for available features and best practices
+  3. Convert to skill leveraging appropriate features
+  4. Replace command-style references (e.g., "run /prd-start") with natural language (e.g., "say 'Start working on PRD #X'")
+  5. Rewrite MCP prompt as thin wrapper: `Use the **skill-name** skill.`
 - Convert all 10 prompts from `shared-prompts/` to full skills in `skills/` directory
-- Add scripts, references, and assets where beneficial
-- Analyze enhancement opportunities during each conversion
-- Rewrite existing MCP prompts (`shared-prompts/`) to invoke corresponding skills
-- MCP prompts become thin wrappers (~2-3 lines) that tell AI to use the skill
 
-**M3: Skills Auto-Installation**
-- Implement auto-install on MCP server initialization when `AGENT_TYPE` env var is set
+**M3: Skills Installation Infrastructure**
+- Add skills tarball creation to CI/CD release workflow
+- Implement dynamic `/install-skills` prompt with version-aligned download URL
 - Support agent-specific installation paths (claude, cursor, copilot, universal)
-- Create fallback `install-skills` prompt for users without `AGENT_TYPE` configured
-- Include all skills with proper formatting
+- Test end-to-end: release → download → install → verify
 
 **M4: Documentation**
 - Document skill creation process
@@ -382,27 +429,39 @@ async function handleInstallSkills(): Promise<string> {
 
 ## Milestones
 
-- [ ] **M1: Skills Directory and Format**
+- [x] **M1: Skills Directory and Format**
   - Create `skills/` directory structure
-  - Create template skill following Agent Skills spec
+  - ~~Create template skill following Agent Skills spec~~ (Decision: first real skill is the reference)
   - Define conventions for scripts/, references/, assets/
   - Validate format against agentskills.io specification
 
 - [ ] **M2: Convert Existing Prompts to Skills + Rewrite MCP Prompts**
-  - Convert PRD prompts (prd-create, prd-start, prd-next, prd-done, prd-close, prd-update-progress, prd-update-decisions, prds-get)
-  - Convert generate-dockerfile with scripts and templates
-  - Convert generate-cicd with references
-  - Analyze and add enhancements (scripts/, references/, assets/) during each conversion
-  - Rewrite each MCP prompt in `shared-prompts/` to invoke corresponding skill
+  - For each prompt:
+    1. Analyze for enhancement opportunities
+    2. Check agentskills.io docs for features and best practices
+    3. Convert to skill with appropriate enhancements
+    4. Replace command-style references with natural language invocation
+    5. Rewrite MCP prompt: `Use the **skill-name** skill.`
+  - Prompt conversions:
+    - [x] prd-create (with references/prd-template.md)
+    - [ ] prd-start
+    - [ ] prd-next
+    - [ ] prd-done
+    - [ ] prd-close
+    - [ ] prd-update-progress
+    - [ ] prd-update-decisions
+    - [ ] prds-get
+    - [ ] generate-dockerfile
+    - [ ] generate-cicd
   - Test each skill independently
-  - Test `/command` via MCP → skill invocation flow
+  - Test `/command` via MCP -> skill invocation flow
+  - **Note**: Complete M3 first to validate distribution before mass conversion
 
-- [ ] **M3: Skills Auto-Installation**
-  - Implement auto-install on MCP server initialization
-  - Read `AGENT_TYPE` env var to determine installation path
-  - Support paths: claude (~/.claude/skills), cursor (~/.cursor/skills), copilot, universal (.agent/skills)
-  - Create fallback shared-prompts/install-skills.md for users without AGENT_TYPE
-  - Test auto-installation and fallback prompt end-to-end
+- [ ] **M3: Skills Installation Infrastructure**
+  - Add skills tarball creation to CI/CD release workflow (GitHub Actions)
+  - Implement dynamic `/install-skills` prompt generation with version-aligned URL
+  - Support paths: claude (~/.claude/skills), cursor (~/.cursor/skills), copilot (~/.claude/skills), universal (.agent/skills)
+  - Test end-to-end: release artifact → curl download → tar extract → verify installation
 
 - [ ] **M4: Documentation**
   - Create docs/skills.md with user guide
@@ -436,7 +495,7 @@ async function handleInstallSkills(): Promise<string> {
 
 ## Success Criteria
 
-1. **Skills auto-install**: Skills automatically installed when MCP initializes with `AGENT_TYPE` configured; fallback `/install-skills` works for manual installation
+1. **Skills download works**: `/install-skills` generates version-aligned download command; curl + tar installs skills successfully
 2. **All prompts converted**: 10 existing prompts converted to skills with natural language invocation
 3. **MCP prompts rewritten**: All MCP prompts rewritten to invoke corresponding skills
 4. **Enhanced capabilities**: At least 3 skills use scripts/, references/, or assets/
@@ -444,6 +503,7 @@ async function handleInstallSkills(): Promise<string> {
 6. **Both invocation methods work**: Natural language triggers skill; `/command` via MCP triggers skill
 7. **Documentation complete**: Users can find and follow installation instructions
 8. **Tool analysis complete**: Clear recommendation on which MCP tools should become skills
+9. **Release artifact published**: skills.tar.gz included in every GitHub release
 
 ---
 
@@ -477,14 +537,74 @@ async function handleInstallSkills(): Promise<string> {
 | 2025-12-23 | **Cross-agent invocation differences acknowledged** | Only Claude Code supports both natural language AND `/skill-name` invocation; Copilot/Cursor use natural language only; Windsurf uses separate "workflows" system; skill descriptions must be clear enough for reliable auto-invocation across all agents |
 | 2025-12-23 | **Skills use natural language invocation (primary)** | Skills are model-invoked by default across all agents; `/skill-name` is a Claude Code bonus, not the primary invocation method; focus on writing excellent skill descriptions for cross-agent compatibility |
 | 2025-12-23 | **MCP prompts as skill invokers** | Keep MCP prompts but rewrite them to invoke skills; provides both invocation methods (natural language via skill, `/command` via MCP prompt); single source of truth in skills; no new infrastructure needed |
+| 2025-12-23 | **No template skill** | Skip creating a fake `_template` skill; first real skill (prd-create) serves as the reference implementation; template would violate spec (underscore not allowed) and confuse auto-installer |
+| 2025-12-23 | **Minimal MCP prompt format** | MCP prompts should be exactly: `Use the **skill-name** skill.` - no additional explanation needed since skill name and MCP description already convey purpose |
+| 2025-12-23 | **Validate M3 before mass M2 conversion** | Convert one skill first (prd-create), implement auto-installation (M3), validate full flow works, then convert remaining prompts; ensures infrastructure works before investing in conversions |
+| 2025-12-23 | **Natural language invocation in skills** | Skills must use natural language patterns (e.g., "say 'Start working on PRD #X'") instead of command-style references (e.g., "run /prd-start"); skills are auto-invoked by AI based on description, not explicit commands |
+| 2025-12-23 | **~~Auto-install on MCP init~~ → Release artifact download** | MCP server may run remotely (Docker, K8s, cloud) and cannot write to user's local filesystem; instead, publish skills tarball as GitHub release artifact and have `/install-skills` prompt instruct user to download via curl |
+| 2025-12-23 | **Version-aligned skill distribution** | Skills tarball published with each release; `/install-skills` prompt dynamically generates download URL using MCP's own version (e.g., `v0.171.0/skills.tar.gz`); ensures skills always match connected MCP version |
+| 2025-12-23 | **Curl + tar installation** | Simple, universal installation via `curl -sL {url} \| tar -xz -C {skills-path}`; no Docker required; works on all platforms; ~115KB download vs embedding ~32K tokens in prompt |
+| 2025-12-23 | **PRD ON HOLD - MCP limitations** | Fundamental barriers discovered: (1) MCP can't auto-install to user's local filesystem when running remotely; (2) No version sync mechanism exists; (3) No MCP "on connect" hook for user notifications; (4) Users wouldn't discover new skills added in updates. Complexity outweighs benefits given current MCP spec limitations. |
+
+---
+
+## Current Status
+
+**Last Updated**: 2025-12-23
+
+**Status**: ON HOLD - Awaiting MCP spec evolution
+
+### Why On Hold
+
+During M3 implementation planning, we discovered fundamental MCP limitations that prevent seamless skills distribution:
+
+1. **Remote MCP problem**: Server can't write to user's local filesystem
+2. **No version sync**: No mechanism to notify users when skills are outdated
+3. **No discovery of new skills**: Users won't know about skills added in updates
+4. **Manual action required**: Every approach requires user to run `/install-skills` manually
+
+The complexity of working around these limitations outweighs the benefits, especially since MCP prompts already provide full functionality.
+
+### Completed Work (Preserved)
+
+- [x] M1: Skills directory structure (`skills/prd-create/`)
+- [x] M2 (partial): One skill converted as reference implementation
+- [x] Architecture design documented in this PRD
+- [x] Investigation of MCP spec limitations documented
+
+### Deferred Work
+
+- [ ] M2: Remaining 9 prompt conversions
+- [ ] M3: Skills installation infrastructure
+- [ ] M4: Documentation
+- [ ] M5: MCP tool analysis
+
+### Conditions to Revisit
+
+This PRD should be revisited when ANY of these occur:
+
+1. **MCP spec adds file transfer** - Server can push files to client
+2. **MCP adds on-connect hooks** - User-visible notifications on connection
+3. **MCP resources become writable** - Clients can save resources locally
+4. **Offline usage demand** - Users explicitly request offline capabilities
+5. **Skill sync protocol emerges** - Standardized skill versioning/updating
 
 ---
 
 ## References
 
+### Agent Skills
 - [Agent Skills Specification](https://agentskills.io/specification)
 - [Anthropic Skills Examples](https://github.com/anthropics/skills)
 - [Simon Willison: Claude Skills](https://simonwillison.net/2025/Oct/16/claude-skills/)
 - [Claude Code Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - [SkillPort](https://github.com/gotalab/skillport) - Universal skills loader
 - [OpenSkills](https://github.com/numman-ali/openskills) - Cross-agent skills installer
+
+### MCP Specification (Investigated Dec 2025)
+- [MCP Resources](https://modelcontextprotocol.io/docs/concepts/resources) - Read-only, no write capability
+- [MCP Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) - No user-facing init hooks
+- [MCP Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) - OAuth flow (browser open) is auth-specific
+- [MCP Logging](https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/logging) - For debugging, not user messaging
+- [Spring AI MCP OAuth](https://spring.io/blog/2025/05/19/spring-ai-mcp-client-oauth2/) - How OAuth browser flow works
+- [Auth0 MCP Introduction](https://auth0.com/blog/an-introduction-to-mcp-and-authorization/) - MCP auth patterns
