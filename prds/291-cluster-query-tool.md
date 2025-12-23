@@ -351,11 +351,15 @@ Return JSON with:
   - Note: `toolsUsed` extracted from `AgenticResult.toolCallsExecuted` (not AI self-reporting)
   - Note: `findings` field removed - AI summary is sufficient for M2 scope
 
-- [ ] **M3: Resource Tools (Second)**
-  - Add `search_resources` and `query_resources` to query-tools.ts
-  - Extend prompt with resource tool guidance
-  - Write 2 integration tests for resource tools
-  - Verify AI tool usage via debug output
+- [x] **M3: Resource Tools (Second)**
+  - Created `src/core/resource-tools.ts` with reusable resource tools (can be used by query and other tools)
+  - Defined `search_resources` (semantic search on resource names/labels) and `query_resources` (Qdrant filter)
+  - Updated `src/tools/query.ts` to include resource tools alongside capability tools
+  - Extended `prompts/query-system.md` with guidance on capabilities vs resources distinction
+  - Wrote 2 integration tests validating AI selects correct tools:
+    - "Search the resource inventory for anything with postgres in the name" → `search_resources`
+    - "Query the resource inventory for resources with label team=platform" → `query_resources`
+  - Tests create real K8s resources (CNPG Cluster) and sync to Qdrant, preparing for M4 kubectl tools
 
 - [ ] **M4: Kubectl Tools Integration (Third)**
   - Add read-only kubectl tools to query tool (already exist in kubectl-tools.ts)
@@ -477,6 +481,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-23 | M1 partial: Added generic `queryWithFilter()` to BaseVectorService and `scrollWithFilter()` to VectorDBService. Architecture decision: AI constructs Qdrant filters directly instead of pre-defined filter interfaces. |
 | 2025-12-23 | Updated milestones to capabilities-first approach. Added evaluation-driven test strategy decision. Updated semantic bridge example to use Qdrant filter syntax. |
 | 2025-12-23 | M2 complete: Created capability tools (`search_capabilities`, `query_capabilities`) in reusable `capability-tools.ts`. Minimal system prompt relies on tool descriptions. Integration tests validate AI selects correct tools for semantic vs filter queries. |
+| 2025-12-23 | M3 complete: Created resource tools (`search_resources`, `query_resources`) in `resource-tools.ts`. Updated query.ts to include both capability and resource tools. Added 2 integration tests with real K8s resources (CNPG Cluster in dedicated namespace). All 4 query tests passing. |
 
 ---
 

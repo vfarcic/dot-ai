@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../core/error-handling';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
+import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -132,13 +133,29 @@ export async function handleQueryTool(args: any): Promise<any> {
     const promptPath = path.join(__dirname, '..', '..', 'prompts', 'query-system.md');
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
-    // Execute tool loop with capability tools
-    // M2: Only capability tools; M3+ will add resource and kubectl tools
+    // Combined tool executor for capability and resource tools
+    const executeQueryTools = async (toolName: string, input: any): Promise<any> => {
+      // Route to appropriate executor based on tool name
+      if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
+        return executeCapabilityTools(toolName, input);
+      }
+      if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
+        return executeResourceTools(toolName, input);
+      }
+      return {
+        success: false,
+        error: `Unknown tool: ${toolName}`,
+        message: `Tool '${toolName}' is not implemented in query tool`
+      };
+    };
+
+    // Execute tool loop with capability and resource tools
+    // M3: Capability + Resource tools; M4+ will add kubectl tools
     const result = await aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,
-      tools: CAPABILITY_TOOLS,
-      toolExecutor: executeCapabilityTools,
+      tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS],
+      toolExecutor: executeQueryTools,
       maxIterations: 10,
       operation: 'query',
       evaluationContext: {
