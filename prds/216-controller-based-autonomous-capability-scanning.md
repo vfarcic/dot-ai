@@ -505,6 +505,30 @@ type RetryConfig struct {
 - MCP server deployed and accessible via cluster DNS
 - RBAC permissions for controller ServiceAccount
 
+## Phase 3: Documentation Updates (This Repository)
+
+After Phase 2 (controller implementation) is complete, update dot-ai documentation:
+
+### Milestone 3.1: Update Kubernetes Setup Guide
+- [ ] Update `docs/setup/kubernetes-setup.md` to explain capability scanning controller installation
+- [ ] Add context: Many tools depend on capability data (recommend, patterns, policies, resources)
+- [ ] Explain that without capability scanning, these features have limited functionality
+- [ ] Document the controller as the recommended approach for keeping capabilities up-to-date
+
+### Milestone 3.2: Update Capability Documentation
+- [ ] Change capability scanning guidance from manual MCP workflow to controller deployment
+- [ ] Document that users query capabilities via `list`/`get`/`search` (not trigger scans)
+- [ ] Add deprecation notice for interactive scan workflow
+- [ ] Update any guides that reference manual capability scanning
+
+### Milestone 3.3: Consolidate Documentation Links
+- [ ] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
+- [ ] Update links to point to the unified documentation site covering both MCP and controller
+- [ ] Ensure cross-references point to specific pages, not just repo/site root (e.g., remediation guide here should link to controller's remediation-guide.md, not the repo root)
+- [ ] Ensure consistent cross-referencing between MCP and controller documentation
+
+---
+
 ## Future Tasks
 
 ### Deprecate Interactive Scan Workflow (After Controller Deployment)
