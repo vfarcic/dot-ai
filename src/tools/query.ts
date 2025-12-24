@@ -12,6 +12,15 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../co
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
+import {
+  KUBECTL_API_RESOURCES_TOOL,
+  KUBECTL_GET_TOOL,
+  KUBECTL_DESCRIBE_TOOL,
+  KUBECTL_LOGS_TOOL,
+  KUBECTL_EVENTS_TOOL,
+  KUBECTL_GET_CRD_SCHEMA_TOOL,
+  executeKubectlTools
+} from '../core/kubectl-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -133,7 +142,7 @@ export async function handleQueryTool(args: any): Promise<any> {
     const promptPath = path.join(__dirname, '..', '..', 'prompts', 'query-system.md');
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
-    // Combined tool executor for capability and resource tools
+    // Combined tool executor for capability, resource, and kubectl tools
     const executeQueryTools = async (toolName: string, input: any): Promise<any> => {
       // Route to appropriate executor based on tool name
       if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
@@ -142,6 +151,9 @@ export async function handleQueryTool(args: any): Promise<any> {
       if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
         return executeResourceTools(toolName, input);
       }
+      if (toolName.startsWith('kubectl_')) {
+        return executeKubectlTools(toolName, input);
+      }
       return {
         success: false,
         error: `Unknown tool: ${toolName}`,
@@ -149,12 +161,21 @@ export async function handleQueryTool(args: any): Promise<any> {
       };
     };
 
-    // Execute tool loop with capability and resource tools
-    // M3: Capability + Resource tools; M4+ will add kubectl tools
+    // Read-only kubectl tools for live cluster queries
+    const KUBECTL_READONLY_TOOLS = [
+      KUBECTL_API_RESOURCES_TOOL,
+      KUBECTL_GET_TOOL,
+      KUBECTL_DESCRIBE_TOOL,
+      KUBECTL_LOGS_TOOL,
+      KUBECTL_EVENTS_TOOL,
+      KUBECTL_GET_CRD_SCHEMA_TOOL
+    ];
+
+    // Execute tool loop with capability, resource, and kubectl tools
     const result = await aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,
-      tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS],
+      tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
       toolExecutor: executeQueryTools,
       maxIterations: 10,
       operation: 'query',

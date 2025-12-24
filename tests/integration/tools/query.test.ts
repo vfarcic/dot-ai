@@ -224,4 +224,36 @@ spec:
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
   }, 300000);
+
+  // M4: Kubectl Tools
+  test('should use kubectl_get for live cluster status query', async () => {
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/query',
+      {
+        intent: `Get the pods in the ${testNamespace} namespace`,
+        interaction_id: 'query_kubectl_get_pods'
+      }
+    );
+
+    // Direct namespace query should use kubectl_get for live status
+    const expectedResponse = {
+      success: true,
+      data: {
+        tool: 'query',
+        executionTime: expect.any(Number),
+        result: {
+          success: true,
+          summary: expect.any(String),
+          toolsUsed: expect.arrayContaining(['kubectl_get'])
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(response).toMatchObject(expectedResponse);
+  }, 300000);
 });

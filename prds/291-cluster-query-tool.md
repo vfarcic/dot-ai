@@ -361,11 +361,11 @@ Return JSON with:
     - "Query the resource inventory for resources with label team=platform" → `query_resources`
   - Tests create real K8s resources (CNPG Cluster) and sync to Qdrant, preparing for M4 kubectl tools
 
-- [ ] **M4: Kubectl Tools Integration (Third)**
-  - Add read-only kubectl tools to query tool (already exist in kubectl-tools.ts)
-  - Extend prompt with kubectl guidance and semantic bridge strategy
-  - Write integration test for kubectl queries
-  - Verify AI uses kubectl for live status queries
+- [x] **M4: Kubectl Tools Integration (Third)**
+  - Added 6 read-only kubectl tools to query tool: `kubectl_api_resources`, `kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events`, `kubectl_get_crd_schema`
+  - Kept system prompt minimal - tool descriptions provide sufficient guidance for AI orchestration
+  - Integration test validates AI uses `kubectl_get` for live cluster status queries
+  - All 5 query tests passing (M2 capability + M3 resource + M4 kubectl)
 
 - [ ] **M5: Full Integration & MCP Registration**
   - Create `src/tools/query.ts` with all 10 tools
@@ -469,6 +469,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | **AI-constructed Qdrant filters** | Instead of pre-defined filter interfaces (e.g., `CapabilityQueryFilters`), the AI constructs Qdrant filters directly. Tool descriptions include available payload fields. More flexible, less code, AI adapts to any query. |
 | **Incremental tool validation** | Build and test each tool type separately (capabilities → resources → kubectl), verifying AI usage via debug output before combining. Reduces debugging complexity. |
 | **Evaluation-driven test strategy** | For each tool type, write 2 tests: (1) semantic query triggering `search_*`, (2) filter query triggering `query_*`. Run with `DEBUG_DOT_AI=true`, manually inspect debug output to verify AI used expected tools. Human-in-the-loop validation before tests become regression tests. |
+| **Minimal system prompt** | System prompt contains only role definition and output format. All tool orchestration guidance is encoded in tool descriptions (e.g., `search_capabilities` says "Returns capability definitions with semantic meaning, not actual resources"). AI decides how to orchestrate tools based on descriptions alone. |
 
 ---
 
@@ -482,6 +483,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-23 | Updated milestones to capabilities-first approach. Added evaluation-driven test strategy decision. Updated semantic bridge example to use Qdrant filter syntax. |
 | 2025-12-23 | M2 complete: Created capability tools (`search_capabilities`, `query_capabilities`) in reusable `capability-tools.ts`. Minimal system prompt relies on tool descriptions. Integration tests validate AI selects correct tools for semantic vs filter queries. |
 | 2025-12-23 | M3 complete: Created resource tools (`search_resources`, `query_resources`) in `resource-tools.ts`. Updated query.ts to include both capability and resource tools. Added 2 integration tests with real K8s resources (CNPG Cluster in dedicated namespace). All 4 query tests passing. |
+| 2025-12-24 | M4 complete: Added 6 read-only kubectl tools to query tool. Kept system prompt minimal (role + output format only) - tool descriptions guide AI behavior. Integration test validates kubectl_get usage. All 5 query tests passing. |
 
 ---
 
