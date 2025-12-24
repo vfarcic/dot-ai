@@ -367,12 +367,23 @@ Return JSON with:
   - Integration test validates AI uses `kubectl_get` for live cluster status queries
   - All 5 query tests passing (M2 capability + M3 resource + M4 kubectl)
 
-- [ ] **M5: Full Integration & MCP Registration**
-  - Create `src/tools/query.ts` with all 10 tools
-  - Register tool in MCP interface
-  - Add to REST API router
-  - Write comprehensive integration test validating semantic bridge flow (capabilities → resources → kubectl)
-  - Test error handling
+- [x] **M5: Full Integration & MCP Registration**
+  - `src/tools/query.ts` with all 10 tools (completed in M2-M4)
+  - Tool registered in MCP interface (completed in M2)
+  - Tool accessible via REST API router (completed in M2)
+  - Integration test validates full semantic bridge flow: AI uses all 3 tool types (capabilities → resources → kubectl)
+  - Error handling test validates proper error messages (e.g., "Intent is required")
+  - Fixed REST API to pass through actual error messages instead of generic "Tool execution failed"
+  - All 7 query tests passing
+
+- [ ] **M6: Documentation**
+  - Create `docs/guides/mcp-query-guide.md` following existing guide patterns:
+    - Prerequisites section
+    - Overview of query tool capabilities
+    - Complete workflow examples (semantic queries, filter queries, kubectl queries, semantic bridge flow)
+    - Example intents for different use cases
+  - Update `docs/guides/mcp-tools-overview.md` to include query tool
+  - Validate all examples work before documenting (per docs/CLAUDE.md standards)
 
 ### Integration Test Strategy
 
@@ -484,6 +495,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-23 | M2 complete: Created capability tools (`search_capabilities`, `query_capabilities`) in reusable `capability-tools.ts`. Minimal system prompt relies on tool descriptions. Integration tests validate AI selects correct tools for semantic vs filter queries. |
 | 2025-12-23 | M3 complete: Created resource tools (`search_resources`, `query_resources`) in `resource-tools.ts`. Updated query.ts to include both capability and resource tools. Added 2 integration tests with real K8s resources (CNPG Cluster in dedicated namespace). All 4 query tests passing. |
 | 2025-12-24 | M4 complete: Added 6 read-only kubectl tools to query tool. Kept system prompt minimal (role + output format only) - tool descriptions guide AI behavior. Integration test validates kubectl_get usage. All 5 query tests passing. |
+| 2025-12-24 | M5 complete: Added semantic bridge integration test validating AI uses all 3 tool types (capabilities → resources → kubectl). Added error handling test. Fixed REST API to pass through actual error messages instead of generic "Tool execution failed". All 7 query tests passing. M6 (documentation) remaining. |
 
 ---
 

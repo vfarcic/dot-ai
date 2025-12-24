@@ -63,6 +63,90 @@ kind export kubeconfig --name dot-test --kubeconfig ./kubeconfig-test.yaml || {
 
 export KUBECONFIG=./kubeconfig-test.yaml
 
+# Step 2b: Preload images to speed up operator startup
+# Extract images from the same sources used for installation to ensure version alignment
+log_info "Extracting and preloading operator images..."
+
+# Define manifest URLs (same as used for installation)
+CNPG_MANIFEST="https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml"
+NGINX_MANIFEST="https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"
+QDRANT_IMAGE="ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-01"
+
+# Ensure Helm repos are up to date for image extraction
+helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
+helm repo update kyverno 2>/dev/null || true
+
+# Extract images from manifests and Helm charts
+log_info "Extracting image list from manifests and Helm charts..."
+IMAGES=()
+
+# CNPG images (if not skipped)
+if [[ "${SKIP_CNPG}" != "true" ]]; then
+    while IFS= read -r img; do
+        [[ -n "$img" ]] && IMAGES+=("$img")
+    done < <(curl -s "$CNPG_MANIFEST" | grep -oE 'ghcr.io/cloudnative-pg/[^"]+:[^"]+' | sort -u)
+fi
+
+# Kyverno images (if not skipped)
+if [[ "${SKIP_KYVERNO}" != "true" ]]; then
+    while IFS= read -r img; do
+        [[ -n "$img" ]] && IMAGES+=("$img")
+    done < <(helm template kyverno kyverno/kyverno --namespace kyverno 2>/dev/null | grep -E '^\s+image:' | awk -F'"' '{print $2}' | sort -u | grep -v '^$')
+fi
+
+# nginx ingress images
+while IFS= read -r img; do
+    [[ -n "$img" ]] && IMAGES+=("$img")
+done < <(curl -s "$NGINX_MANIFEST" | grep -oE 'registry.k8s.io/[^"]+' | sort -u)
+
+# dot-ai-controller images
+while IFS= read -r img; do
+    [[ -n "$img" ]] && IMAGES+=("$img")
+done < <(helm template dot-ai-controller oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.17.0 --namespace dot-ai 2>/dev/null | grep -E '^\s+image:' | awk -F'"' '{print $2}' | sort -u | grep -v '^$')
+
+# Qdrant image
+IMAGES+=("$QDRANT_IMAGE")
+
+# Remove duplicates
+IMAGES=($(printf '%s\n' "${IMAGES[@]}" | sort -u))
+
+log_info "Found ${#IMAGES[@]} images to preload: ${IMAGES[*]}"
+
+# Pull images to local Docker cache (in parallel)
+log_info "Pulling images to local Docker cache..."
+PULL_PIDS=()
+for img in "${IMAGES[@]}"; do
+    docker pull "$img" &
+    PULL_PIDS+=($!)
+done
+
+# Wait for all pulls to complete
+PULL_FAILED=false
+for pid in "${PULL_PIDS[@]}"; do
+    if ! wait "$pid"; then
+        PULL_FAILED=true
+    fi
+done
+
+if [[ "$PULL_FAILED" == "true" ]]; then
+    log_warn "Some image pulls failed, continuing anyway (images may be pulled by Kubernetes)"
+fi
+
+# Load images into Kind cluster (in parallel)
+log_info "Loading images into Kind cluster..."
+LOAD_PIDS=()
+for img in "${IMAGES[@]}"; do
+    kind load docker-image "$img" --name dot-test 2>/dev/null &
+    LOAD_PIDS+=($!)
+done
+
+# Wait for all loads to complete
+for pid in "${LOAD_PIDS[@]}"; do
+    wait "$pid" 2>/dev/null || true
+done
+
+log_info "Image preloading complete"
+
 # Start all operator installations in parallel
 log_info "Starting all operator installations in parallel..."
 
@@ -77,8 +161,6 @@ fi
 # Optional: Install Kyverno Policy Engine (skip with SKIP_KYVERNO=true)
 if [[ "${SKIP_KYVERNO}" != "true" ]]; then
     log_info "Starting Kyverno installation..."
-    helm repo add kyverno https://kyverno.github.io/kyverno 2>/dev/null || true
-    helm repo update
     helm upgrade --install kyverno kyverno/kyverno \
         --namespace kyverno --create-namespace \
         --timeout=300s || {
@@ -174,8 +256,6 @@ kind load docker-image dot-ai:test --name dot-test || {
     log_error "Failed to load dot-ai image into Kind"
     exit 1
 }
-
-log_info "Qdrant image will be pulled by Kubernetes from GHCR when needed"
 
 # Wait for all operators to be ready
 log_info "Waiting for all operators to be ready..."

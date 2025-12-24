@@ -4,6 +4,8 @@
  * Tests AI tool selection for cluster queries:
  * - M2: Capability tools (search_capabilities, query_capabilities)
  * - M3: Resource tools (search_resources, query_resources)
+ * - M4: Kubectl tools (kubectl_get, kubectl_describe, etc.)
+ * - M5: Full semantic bridge (capabilities → resources → kubectl) + error handling
  *
  * PRD #291: Cluster Query Tool - Natural Language Cluster Intelligence
  */
@@ -225,6 +227,62 @@ spec:
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
   }, 300000);
 
+  // M5: Full Semantic Bridge Pattern (capabilities → resources → kubectl)
+  test('should use all 3 tool types: capabilities for meaning, resources for inventory, kubectl for live status', async () => {
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/query',
+      {
+        intent: 'Find all database-related resources in the cluster and check their current status',
+        interaction_id: 'query_semantic_bridge_full'
+      }
+    );
+
+    // Full semantic bridge should:
+    // 1. Use search_capabilities to understand what "database" means (StatefulSet, CNPG Cluster, etc.)
+    // 2. Use query_resources or search_resources to find instances in inventory
+    // 3. Use kubectl_get or kubectl_describe to check live status
+    const expectedResponse = {
+      success: true,
+      data: {
+        tool: 'query',
+        executionTime: expect.any(Number),
+        result: {
+          success: true,
+          // Summary should mention actual resources and status
+          summary: expect.stringMatching(/test-pg-cluster|postgres|database|cluster|status/i),
+          toolsUsed: expect.any(Array)
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(response).toMatchObject(expectedResponse);
+
+    // Validate full semantic bridge: must use all 3 tool types
+    const toolsUsed = response.data.result.toolsUsed as string[];
+
+    const usedCapabilityTool = toolsUsed.some(t =>
+      t === 'search_capabilities' || t === 'query_capabilities'
+    );
+    const usedResourceTool = toolsUsed.some(t =>
+      t === 'search_resources' || t === 'query_resources'
+    );
+    const usedKubectlTool = toolsUsed.some(t =>
+      t.startsWith('kubectl_')
+    );
+
+    expect(usedCapabilityTool).toBe(true);
+    expect(usedResourceTool).toBe(true);
+    expect(usedKubectlTool).toBe(true);
+
+    // Multiple iterations required for full bridge pattern
+    expect(response.data.result.iterations).toBeGreaterThanOrEqual(3);
+  }, 300000);
+
   // M4: Kubectl Tools
   test('should use kubectl_get for live cluster status query', async () => {
     const response = await integrationTest.httpClient.post(
@@ -256,4 +314,31 @@ spec:
 
     expect(response).toMatchObject(expectedResponse);
   }, 300000);
+
+  // M5: Error Handling
+  test('should return error for missing intent', async () => {
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/query',
+      {
+        // Missing intent parameter
+        interaction_id: 'query_error_missing_intent'
+      }
+    );
+
+    // Validation errors return success: false with actual error message
+    const expectedResponse = {
+      success: false,
+      error: {
+        code: 'EXECUTION_ERROR',
+        message: expect.stringContaining('Intent is required')
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(response).toMatchObject(expectedResponse);
+  }, 30000);
 });
