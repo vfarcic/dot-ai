@@ -518,22 +518,46 @@ export class KubernetesDiscovery {
       // Use standard format - simple and reliable
       const output = await this.executeKubectl(['api-resources'], { kubeconfig: this.kubeconfigPath });
       const lines = output.split('\n').slice(1); // Skip header line
-      
+
       const resources: EnhancedResource[] = lines
         .filter(line => line.trim())
         .map(line => {
           // Parse the standard kubectl api-resources format:
           // NAME                                SHORTNAMES   APIVERSION                        NAMESPACED   KIND
           // pods                                po           v1                                true         Pod
+          // bindings                                         v1                                true         Binding (no shortname)
           const parts = line.trim().split(/\s+/);
-          
-          if (parts.length < 5) {
-            // Skip malformed lines
+
+          if (parts.length < 4) {
+            // Skip truly malformed lines (need at least name, apiVersion, namespaced, kind)
             return null;
           }
-          
-          const [name, shortNames, apiVersion, namespaced, kind] = parts;
-          
+
+          let name: string, shortNames: string, apiVersion: string, namespaced: string, kind: string;
+
+          if (parts.length === 4) {
+            // No shortnames column: name, apiVersion, namespaced, kind
+            [name, apiVersion, namespaced, kind] = parts;
+            shortNames = '';
+          } else if (parts.length >= 5) {
+            // Has shortnames column: name, shortNames, apiVersion, namespaced, kind
+            // But need to verify column 2 is actually shortnames, not apiVersion
+            // apiVersion matches patterns like "v1", "apps/v1", "networking.k8s.io/v1"
+            const col2 = parts[1];
+            const looksLikeApiVersion = col2.includes('/') || /^v\d/.test(col2);
+
+            if (looksLikeApiVersion) {
+              // Column 2 is apiVersion, no shortnames
+              [name, apiVersion, namespaced, kind] = parts;
+              shortNames = '';
+            } else {
+              // Column 2 is shortnames
+              [name, shortNames, apiVersion, namespaced, kind] = parts;
+            }
+          } else {
+            return null;
+          }
+
           // Extract group from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
           let group = '';
           if (apiVersion && apiVersion.includes('/')) {

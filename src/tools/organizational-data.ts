@@ -55,6 +55,9 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   // Resource list for specific resource scanning
   resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)'),
 
+  // Fire-and-forget scan mode (for controller integration)
+  mode: z.enum(['full']).optional().describe('Scan mode: "full" triggers a fire-and-forget full cluster scan that returns immediately. Use with resourceList for targeted fire-and-forget scans.'),
+
   // Collection name for capabilities (allows using different collections for different purposes)
   collection: z.string().optional().describe('Collection name for capabilities operations (default: "capabilities", use "capabilities-policies" for pre-populated test data)'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
@@ -198,6 +201,108 @@ function createCapabilityScanCompletionResponse(
   };
 }
 
+
+/**
+ * Handle fire-and-forget capability scanning (PRD #216 - Controller Integration)
+ *
+ * This function provides a simplified API for automated controllers to trigger
+ * capability scans without going through the interactive workflow.
+ *
+ * Two modes:
+ * 1. mode: "full" - Triggers full cluster scan
+ * 2. resourceList: "Kind.group,Kind.group" - Triggers targeted scan
+ *
+ * Both modes return immediately with { status: "started" } and run scanning in background.
+ */
+async function handleFireAndForgetScan(
+  args: any,
+  logger: Logger,
+  requestId: string,
+  capabilityService: CapabilityVectorService
+): Promise<any> {
+  const isFullScan = args.mode === 'full';
+  const isTargetedScan = !!args.resourceList;
+
+  logger.info('Fire-and-forget scan initiated', {
+    requestId,
+    mode: isFullScan ? 'full' : 'targeted',
+    resourceList: args.resourceList
+  });
+
+  // Create a session for progress tracking (controllers can optionally poll for status)
+  const sessionId = `cap-scan-${Date.now()}-${randomUUID().substring(0, 8)}`;
+  const session: CapabilityScanSession = {
+    sessionId,
+    currentStep: 'scanning',
+    startedAt: new Date().toISOString(),
+    lastActivity: new Date().toISOString(),
+    selectedResources: isFullScan ? 'all' : undefined,
+    resourceList: args.resourceList,
+    currentResourceIndex: 0
+  };
+
+  // If targeted scan, parse and validate resources
+  if (isTargetedScan && !isFullScan) {
+    const resources = args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+    if (resources.length === 0) {
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Empty resource list',
+          details: 'resourceList parameter must contain at least one resource'
+        }
+      };
+    }
+    session.selectedResources = resources;
+  }
+
+  // Save session for progress tracking
+  saveCapabilitySession(session);
+
+  // Start scanning in background (don't await) - fire and forget
+  handleScanningCore(
+    session,
+    { ...args, response: undefined },
+    logger,
+    requestId,
+    capabilityService,
+    parseNumericResponse,
+    transitionCapabilitySession,
+    cleanupCapabilitySession,
+    createCapabilityScanCompletionResponse
+  ).catch(error => {
+    logger.error('Background fire-and-forget scan failed', error as Error, {
+      requestId,
+      sessionId: session.sessionId,
+      mode: isFullScan ? 'full' : 'targeted'
+    });
+  });
+
+  // Return immediately - don't wait for scan to complete
+  const resourceCount = isTargetedScan && !isFullScan
+    ? args.resourceList.split(',').filter((r: string) => r.trim().length > 0).length
+    : undefined;
+
+  return {
+    success: true,
+    operation: 'scan',
+    dataType: 'capabilities',
+    status: 'started',
+    mode: isFullScan ? 'full' : 'targeted',
+    sessionId: session.sessionId,
+    message: isFullScan
+      ? 'Full cluster scan initiated. Scan runs in background.'
+      : `Scan initiated for ${resourceCount} resource(s). Scan runs in background.`,
+    ...(resourceCount && { resourceCount }),
+    checkProgress: {
+      dataType: 'capabilities',
+      operation: 'progress',
+      sessionId: session.sessionId
+    }
+  };
+}
 
 /**
  * Handle capabilities operations - PRD #48 Implementation
@@ -553,6 +658,23 @@ async function handleCapabilityScan(
     vectorDB: 'healthy',
     embeddings: 'available'
   });
+
+  // ============================================================================
+  // FIRE-AND-FORGET MODE (PRD #216 - Controller Integration)
+  // ============================================================================
+  // Check for fire-and-forget parameters BEFORE interactive workflow
+  // This allows controllers to trigger scans without going through the interactive steps
+  // ============================================================================
+
+  const isFireAndForget = !args.sessionId && (args.mode === 'full' || args.resourceList);
+
+  if (isFireAndForget) {
+    return await handleFireAndForgetScan(args, logger, requestId, capabilityService);
+  }
+
+  // ============================================================================
+  // INTERACTIVE WORKFLOW MODE (Existing behavior for human users)
+  // ============================================================================
 
   // Get or create session with step-based state management
   const session = getOrCreateCapabilitySession(args.sessionId, args, logger, requestId);
