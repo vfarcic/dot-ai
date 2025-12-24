@@ -382,8 +382,15 @@ Return JSON with:
     - Overview of query tool capabilities
     - Complete workflow examples (semantic queries, filter queries, kubectl queries, semantic bridge flow)
     - Example intents for different use cases
-  - Update `docs/guides/mcp-tools-overview.md` to include query tool
-  - Validate all examples work before documenting (per docs/CLAUDE.md standards)
+  - Update these existing docs:
+    - `docs/guides/mcp-tools-overview.md` - add query tool to tools list
+    - `docs/index.md` - add "Cluster Intelligence" to Key Features
+    - `docs/setup/mcp-setup.md` - add query to MCP capabilities list
+    - `docs/quick-start.md` - add query to workflow examples
+    - `README.md` - add cluster querying to capabilities
+    - `docs/ROADMAP.md` - remove query tool from planned (now complete)
+    - `docs/guides/mcp-capability-management-guide.md` - add cross-reference noting capabilities are used by query tool
+  - Validate all examples work before documenting (per docs/CLAUDE.md execute-then-document workflow)
 
 ### Integration Test Strategy
 
@@ -496,6 +503,7 @@ const result = await query({ intent: 'describe the nginx deployment' });
 | 2025-12-23 | M3 complete: Created resource tools (`search_resources`, `query_resources`) in `resource-tools.ts`. Updated query.ts to include both capability and resource tools. Added 2 integration tests with real K8s resources (CNPG Cluster in dedicated namespace). All 4 query tests passing. |
 | 2025-12-24 | M4 complete: Added 6 read-only kubectl tools to query tool. Kept system prompt minimal (role + output format only) - tool descriptions guide AI behavior. Integration test validates kubectl_get usage. All 5 query tests passing. |
 | 2025-12-24 | M5 complete: Added semantic bridge integration test validating AI uses all 3 tool types (capabilities → resources → kubectl). Added error handling test. Fixed REST API to pass through actual error messages instead of generic "Tool execution failed". All 7 query tests passing. M6 (documentation) remaining. |
+| 2025-12-24 | M6 in progress: Identified 8 docs to update. Added directory-specific instructions to main CLAUDE.md to ensure execute-then-document workflow is followed for docs. Documentation paused pending real output capture. |
 
 ---
 
