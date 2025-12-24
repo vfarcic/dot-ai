@@ -1,10 +1,11 @@
 # PRD: Controller-Based Autonomous Capability Scanning
 
 **Issue**: #216
-**Status**: Draft
+**Status**: Phase 1 Complete
 **Priority**: High
 **Created**: 2025-11-11
 **Last Updated**: 2025-12-24
+**Phase 2 PRD**: [dot-ai-controller #34](https://github.com/vfarcic/dot-ai-controller/issues/34)
 
 ## Scope Clarification
 
@@ -333,17 +334,19 @@ type RetryConfig struct {
 - Existing interactive workflow continues to work unchanged for human users ✅
 - Integration tests pass for both fire-and-forget and interactive modes ✅
 
-#### Milestone 1.2: Create Controller PRD
+#### Milestone 1.2: Create Controller PRD ✅
 **Deliverable**: New PRD in `dot-ai-controller` repository for Phase 2 work
 
-- [ ] Write comprehensive PRD in `dot-ai-controller` repository based on Phase 2 context below
-- [ ] Include accurate API documentation from Phase 1 implementation
-- [ ] Reference this PRD for architectural context
+- [x] Write comprehensive PRD in `dot-ai-controller` repository based on Phase 2 context below
+- [x] Include accurate API documentation from Phase 1 implementation
+- [x] Reference this PRD for architectural context
 
 **Success Criteria**:
-- Controller PRD contains all information needed for implementation
-- API examples match actual MCP implementation
-- No dependencies on dot-ai repository for controller development
+- Controller PRD contains all information needed for implementation ✅
+- API examples match actual MCP implementation ✅
+- No dependencies on dot-ai repository for controller development ✅
+
+**Deliverable**: [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/34-autonomous-capability-scanning.md)
 
 ---
 
@@ -487,11 +490,11 @@ type RetryConfig struct {
 - ✅ `manageOrgData` tool with `capabilities` dataType (PRD #132, implemented)
 - ✅ HTTP endpoints exposed by MCP server (existing)
 - ✅ Qdrant vector database for capability storage (existing)
-- ⬜ Fire-and-forget scan API (this PRD, Phase 1)
+- ✅ Fire-and-forget scan API (this PRD, Phase 1 - Milestone 1.1)
 
 ### Phase 2 Prerequisites (Controller Implementation)
-- ⬜ **Phase 1 must be complete** - Fire-and-forget API required before controller development
-- ⬜ New PRD created in `dot-ai-controller` repository
+- ✅ **Phase 1 complete** - Fire-and-forget API implemented and tested
+- ✅ New PRD created in `dot-ai-controller` repository ([PRD #34](https://github.com/vfarcic/dot-ai-controller/issues/34))
 
 ### Related PRDs
 - **PRD #155: Parallel Capability Analysis** - Future: controller could leverage parallel scanning
@@ -578,6 +581,23 @@ After the deprecation period and once controller adoption is confirmed:
 ---
 
 ## Progress Log
+
+### 2025-12-24: Phase 1 Complete - Milestone 1.2 Controller PRD Created
+**Focus**: Create comprehensive PRD in dot-ai-controller repository
+
+**Completed PRD Items**:
+- [x] Written comprehensive PRD in `dot-ai-controller` repository
+- [x] Included accurate API documentation from Phase 1 implementation
+- [x] Referenced this PRD for architectural context
+
+**Deliverables**:
+- GitHub Issue: [dot-ai-controller #34](https://github.com/vfarcic/dot-ai-controller/issues/34)
+- PRD File: [prds/34-autonomous-capability-scanning.md](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/34-autonomous-capability-scanning.md)
+
+**Phase 1 Status**: Complete - All MCP API changes delivered
+**Next Steps**: Phase 2 implementation begins in dot-ai-controller repository
+
+---
 
 ### 2025-12-24: Milestone 1.1 Complete - Fire-and-Forget API Implemented
 **Duration**: Multiple sessions
