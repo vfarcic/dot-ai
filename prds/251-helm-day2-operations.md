@@ -376,11 +376,3 @@ async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ s
 - [ ] Error handling: Graceful handling of Helm CLI failures
 - [ ] Edge cases: Handle missing releases, permission errors, namespace issues
 
----
-
-## Progress Log
-
-| Date | Update |
-|------|--------|
-| 2025-12-05 | PRD created |
-| 2025-12-05 | Added design decisions: Helm tools as AI-callable investigation tools following kubectl-tools.ts pattern; direct testing for all investigation tools (both kubectl and Helm) to prevent AI adaptability from masking broken tools |

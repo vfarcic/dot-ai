@@ -66,7 +66,7 @@ helm install dot-ai-controller \
   --wait
 ```
 
-The controller provides CRDs for autonomous cluster operations. Create Custom Resources like CapabilityScanConfig, Solution, RemediationPolicy, or ResourceSyncConfig to enable features such as capability scanning, solution tracking, and more. See the [Controller Documentation](https://devopstoolkit.ai/docs/controller/) for complete details.
+The controller provides CRDs for autonomous cluster operations. Create Custom Resources like CapabilityScanConfig, Solution, RemediationPolicy, or ResourceSyncConfig to enable features such as capability scanning, solution tracking, and more. See the [Controller Setup Guide](https://devopstoolkit.ai/docs/controller/setup-guide) for complete details.
 
 **Note**: You can skip this step if you don't need controller features. The MCP server works without the controller, but you'll need to manually trigger capability scans (see [Capability Scanning](#capability-scanning-for-ai-recommendations) below).
 
@@ -156,7 +156,7 @@ Without capability data, these tools may not work or will produce poor results.
 | MCP accessible (in-cluster deployment) | Controller with CapabilityScanConfig |
 | MCP not accessible (local, Docker Desktop) | Manual scanning via MCP client |
 
-**Controller-based scanning** (recommended for Kubernetes deployments): Create a `CapabilityScanConfig` CR to enable autonomous capability discovery. The controller watches for CRD changes and automatically scans new resources. See the [Controller Documentation](https://devopstoolkit.ai/docs/controller/) for setup instructions.
+**Controller-based scanning** (recommended for Kubernetes deployments): Create a `CapabilityScanConfig` CR to enable autonomous capability discovery. The controller watches for CRD changes and automatically scans new resources. See the [Capability Scan Guide](https://devopstoolkit.ai/docs/controller/capability-scan-guide) for setup instructions.
 
 **Manual scanning**: Trigger scans through your MCP client when the controller cannot reach the MCP server. See the [Capability Management Guide](../guides/mcp-capability-management-guide.md) for the interactive workflow.
 

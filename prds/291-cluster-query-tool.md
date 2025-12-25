@@ -427,14 +427,6 @@ Return JSON with:
 
 ---
 
-## Progress Log
-
-| Date | Update |
-|------|--------|
-| 2025-12-19 | PRD created after brainstorming session |
-
----
-
 ## References
 
 - [PRD #287: Resource Sync Endpoint](./287-resource-sync-endpoint.md) - Resources Vector DB

@@ -1,7 +1,7 @@
 # PRD: Controller-Based Autonomous Capability Scanning
 
 **Issue**: #216
-**Status**: Phase 3 In Progress (Milestone 3.2 Complete)
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-11-11
 **Last Updated**: 2025-12-25
@@ -448,11 +448,11 @@ After Phase 2 (controller implementation) is complete, update dot-ai documentati
 - [x] Explain manual scanning is required when MCP is not accessible (local development, Docker Desktop, etc.)
 - [x] Update any guides that reference capability scanning to include both approaches
 
-### Milestone 3.3: Consolidate Documentation Links
-- [ ] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
-- [ ] Update links to point to the unified documentation site covering both MCP and controller
-- [ ] Ensure cross-references point to specific pages, not just repo/site root (e.g., remediation guide here should link to controller's remediation-guide.md, not the repo root)
-- [ ] Ensure consistent cross-referencing between MCP and controller documentation
+### Milestone 3.3: Consolidate Documentation Links ✅
+- [x] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
+- [x] Update links to point to the unified documentation site covering both MCP and controller
+- [x] Ensure cross-references point to specific pages, not just repo/site root (e.g., remediation guide here should link to controller's remediation-guide.md, not the repo root)
+- [x] Ensure consistent cross-referencing between MCP and controller documentation
 
 ---
 

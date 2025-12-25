@@ -268,10 +268,3 @@ This PRD, along with #264 and #266, supersedes:
 - [ ] **M6**: Integration tests for Flux generation
 - [ ] **M7**: Documentation with Flux examples
 
----
-
-## Progress Log
-
-| Date | Update |
-|------|--------|
-| 2025-12-10 | PRD created - minimal scope, references #264 for shared infrastructure |
