@@ -1,10 +1,10 @@
 # PRD: Controller-Based Autonomous Capability Scanning
 
 **Issue**: #216
-**Status**: Phase 1 Complete
+**Status**: Phase 2 Complete
 **Priority**: High
 **Created**: 2025-11-11
-**Last Updated**: 2025-12-24
+**Last Updated**: 2025-12-25
 **Phase 2 PRD**: [dot-ai-controller #34](https://github.com/vfarcic/dot-ai-controller/issues/34)
 
 ## Scope Clarification
@@ -346,88 +346,15 @@ type RetryConfig struct {
 - API examples match actual MCP implementation ✅
 - No dependencies on dot-ai repository for controller development ✅
 
-**Deliverable**: [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/34-autonomous-capability-scanning.md)
+**Deliverable**: [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/done/34-autonomous-capability-scanning.md)
 
 ---
 
-### Phase 2: Controller Implementation (dot-ai-controller Repository)
+### Phase 2: Controller Implementation (dot-ai-controller Repository) ✅
 
-> **Note**: The following milestones are context for the PRD to be created in `dot-ai-controller` after Phase 1 is complete.
+**Status**: Complete
 
-#### Milestone 2.1: Controller Foundation
-**Deliverable**: Working controller that watches API resources and logs events
-
-- [ ] Implement Kubebuilder scaffold with CRD for `CapabilityScanConfig`
-- [ ] Build event watcher for all API resources (CRDs + built-in types)
-- [ ] Implement include/exclude filtering logic with wildcard support
-- [ ] Add structured logging and basic metrics (events watched, filtered)
-
-**Success Criteria**:
-- Controller deploys successfully in test cluster
-- Logs show detection of CRD create/update/delete events
-- Filtering rules correctly include/exclude resources based on config
-- No crashes or memory leaks during 24-hour run
-
-#### Milestone 2.2: MCP Server Integration
-**Deliverable**: Controller successfully communicates with MCP server
-
-- [ ] Implement HTTP client with retry logic (exponential backoff)
-- [ ] Build startup reconciler that checks for existing capabilities via `list` operation
-- [ ] Implement fire-and-forget scan triggering via `resourceList` parameter
-- [ ] Implement fire-and-forget full scan via `mode: "full"` on startup if empty
-- [ ] Implement delete operation for removed resources
-- [ ] Add integration tests with mock MCP server
-
-**Success Criteria**:
-- Controller successfully queries MCP for existing capabilities on startup
-- Controller triggers fire-and-forget scans for new CRDs (no polling)
-- Retry logic recovers from transient MCP server failures
-- Delete operations successfully remove capabilities when CRDs are deleted
-
-#### Milestone 2.3: Resilience & Observability
-**Deliverable**: Production-ready controller with full observability
-
-- [ ] Implement work queue with rate limiting for event processing
-- [ ] Add Prometheus metrics (scans triggered, success/failure rates, queue depth)
-- [ ] Implement health endpoints (liveness, readiness) with proper checks
-- [ ] Add dead letter queue logging for permanent failures
-- [ ] Create runbook documentation for common failure scenarios
-
-**Success Criteria**:
-- Controller handles MCP server downtime gracefully (queues events, retries)
-- Metrics accurately reflect operation counts and latencies
-- Health checks correctly report controller state
-- Failed events are logged with sufficient detail for debugging
-
-#### Milestone 2.4: Helm Chart Integration
-**Deliverable**: Controller deployable via main dot-ai Helm chart
-
-- [ ] Create controller Helm chart templates (Deployment, RBAC, ServiceAccount)
-- [ ] Add optional controller component to main `dot-ai` Helm chart
-- [ ] Implement chart values for controller configuration (endpoint, filters, retry)
-- [ ] Add default `CapabilityScanConfig` resource to chart
-- [ ] Document Helm installation options in main repository docs
-
-**Success Criteria**:
-- Users can enable controller via `--set controller.enabled=true`
-- Controller configuration is manageable through Helm values
-- RBAC permissions are correctly scoped (read API resources, no write permissions)
-- Chart upgrades don't disrupt controller operation
-
-#### Milestone 2.5: Documentation & Testing
-**Deliverable**: Complete documentation and end-to-end testing
-
-- [ ] Create comprehensive README in controller repository
-- [ ] Add architecture diagrams showing controller/MCP interaction
-- [ ] Write end-to-end tests (install operator → verify scan → uninstall → verify delete)
-- [ ] Create troubleshooting guide with common issues and solutions
-- [ ] Add performance testing documentation (resource usage, scaling limits)
-
-**Success Criteria**:
-- New users can deploy and configure controller following README alone
-- E2E tests validate complete workflow from CRD creation to capability availability
-- Troubleshooting guide addresses failure scenarios discovered during testing
-- Performance characteristics documented (events/sec, memory usage)
+See [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/done/34-autonomous-capability-scanning.md) for implementation details.
 
 ## Success Metrics
 
@@ -605,6 +532,18 @@ After the deprecation period and once controller adoption is confirmed:
 ---
 
 ## Progress Log
+
+### 2025-12-25: Phase 2 Complete - Controller Implementation Done
+**Focus**: Controller implementation in dot-ai-controller repository
+
+**Status**: Phase 2 fully implemented in separate repository
+- Controller watches Kubernetes API for CRD changes
+- Triggers fire-and-forget scans via MCP server
+- Includes Helm chart, metrics, and documentation
+
+**Next Steps**: Phase 3 - Documentation updates in this repository
+
+---
 
 ### 2025-12-24: Phase 1 Complete - Milestone 1.2 Controller PRD Created
 **Focus**: Create comprehensive PRD in dot-ai-controller repository
