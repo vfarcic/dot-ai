@@ -72,9 +72,65 @@ Before using Capability Management, ensure you have:
 
 For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
 
-## Capability Management Operations
+## Scanning Methods
 
-### Cluster Capability Scanning
+There are two ways to scan cluster capabilities. Choose based on whether your MCP server is accessible from within the Kubernetes cluster.
+
+### Method 1: Controller-Based Scanning (Recommended)
+
+**Use when**: MCP server is deployed in Kubernetes or accessible via a URL from within the cluster.
+
+The dot-ai-controller provides autonomous, event-driven capability scanning. Once configured, it automatically:
+- Scans all cluster resources on startup
+- Watches for CRD changes (create/update/delete)
+- Keeps capabilities up-to-date without manual intervention
+
+**Setup**:
+
+1. Install the controller (if not already installed via Helm):
+   ```bash
+   helm install dot-ai-controller \
+     oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller \
+     --namespace dot-ai --create-namespace --wait
+   ```
+
+2. Create a `CapabilityScanConfig` to start scanning:
+   ```yaml
+   apiVersion: dot-ai.devopstoolkit.live/v1alpha1
+   kind: CapabilityScanConfig
+   metadata:
+     name: default-scan
+     namespace: dot-ai
+   spec:
+     mcp:
+       endpoint: http://dot-ai-mcp.dot-ai.svc.cluster.local:3456/api/v1/tools/manageOrgData
+       authSecretRef:
+         name: dot-ai-secrets
+         key: auth-token
+   ```
+
+3. Apply the configuration:
+   ```bash
+   kubectl apply -f capabilityscanconfig.yaml
+   ```
+
+The controller will immediately begin scanning all cluster resources. Monitor progress with:
+```bash
+kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai-controller --tail=100
+```
+
+**Benefits**:
+- Fully autonomous - no manual scanning required
+- Event-driven - new CRDs are scanned automatically when installed
+- Resilient - retries failed operations with exponential backoff
+
+For complete controller documentation, see the [Capability Scan Guide](https://devopstoolkit.ai/docs/controller/capability-scan-guide).
+
+### Method 2: Manual Scanning via MCP
+
+**Use when**: MCP server is NOT accessible from within the cluster (e.g., running locally on your laptop, Docker Desktop, or behind NAT).
+
+When the controller cannot reach your MCP server, use the interactive scanning workflow through your MCP client. This approach requires you to manually trigger scans when cluster resources change.
 
 Discover and analyze all resources in your Kubernetes cluster through a complete workflow:
 
@@ -192,9 +248,11 @@ Agent: ✅ Stored capability for persistentvolumeclaims
 📊 All selected resources now have capability metadata for enhanced recommendations
 ```
 
-### Monitor Scanning Progress
+## Working with Capabilities
 
-Track the progress of a running capability scan. **Important**: Since scanning runs in the foreground and blocks the current agent session, you must use a **separate agent session** to monitor real-time progress while scanning is active in another session:
+Regardless of which scanning method you use, all capability operations (monitoring progress, listing, searching, etc.) are done through the MCP client.
+
+### Monitor Scanning Progress
 
 ```
 User: Check the progress of my capability scan
@@ -203,45 +261,45 @@ Agent: [Uses manageOrgData with dataType: "capabilities", operation: "progress"]
 
 **Capability Scan Progress**
 
-📊 **Current Status:** Scan completed successfully
-✅ **Results:** Processed cluster resources and stored capabilities  
-🔍 **Available Operations:** Use list, search, or get operations to explore discovered capabilities
+⏳ Status: Processing - 20/79 resources (25%)
+📊 Current resource: ResourceSyncConfig.dot-ai.devopstoolkit.live
+⏰ Est. remaining: 5.6 minutes
+🕒 Started: 2025-12-25T18:28:37Z
 
-Your cluster capabilities are now ready for enhanced deployment recommendations.
+---
+
+When complete:
+
+✅ Status: Completed
+📊 Processed: 79 resources
+⏰ Processing time: 8 minutes
+🕒 Started: 2025-12-25T18:30:08.782Z
+✔️ Completed: 2025-12-25T18:38:06.489Z
 ```
 
-### List Discovered Capabilities  
+### List Discovered Capabilities
 
 View all capabilities that have been discovered and stored:
 
 ```
-User: Show me the capabilities that were discovered
+User: How many capabilities do we have?
 
 Agent: [Uses manageOrgData with dataType: "capabilities", operation: "list"]
 
-**Discovered Resource Capabilities** (showing recent results):
+You have 15 capabilities stored in the system. Here are the first 10:
 
-🗄️ **ID: a1b2c3d4-5e6f-7890-abcd-ef1234567890**
-📋 Resource: sqls.devopstoolkit.live
-🎯 Capabilities: postgresql, mysql, database, multi-cloud
-📊 Complexity: low | Providers: azure, gcp, aws
-📝 Description: Managed database solution supporting multiple engines
-
-🗄️ **ID: f7e8d9c0-1a2b-3c4d-5e6f-789012345678**  
-📋 Resource: deployments.apps
-🎯 Capabilities: workload management, application deployment, scaling
-📊 Complexity: medium | Providers: kubernetes
-📝 Description: Manages application pods with declarative updates
-
-🗄️ **ID: 9876543a-bcde-f012-3456-789abcdef012**
-📋 Resource: resourcegroups.azure.upbound.io  
-🎯 Capabilities: infrastructure management, azure, resource organization
-📊 Complexity: low | Providers: azure
-📝 Description: Azure resource group management through Crossplane
-
-...
-
-[Showing 25 of 247 total capabilities. Use search to find specific capabilities.]
+| Resource                         | Group                        | Complexity | Capabilities                                  |
+|----------------------------------|------------------------------|------------|-----------------------------------------------|
+| CronJob                          | batch                        | medium     | scheduled jobs, cron, batch processing        |
+| ValidatingAdmissionPolicy        | admissionregistration.k8s.io | high       | admission control, policy validation          |
+| Lease                            | coordination.k8s.io          | high       | leader election, distributed coordination     |
+| ValidatingWebhookConfiguration   | admissionregistration.k8s.io | high       | admission control, webhook, validation        |
+| SelfSubjectReview                | authentication.k8s.io        | low        | user authentication, identity verification    |
+| RuntimeClass                     | node.k8s.io                  | medium     | container runtime, runtime configuration      |
+| ValidatingAdmissionPolicyBinding | admissionregistration.k8s.io | high       | admission control, policy enforcement         |
+| PodDisruptionBudget              | policy                       | medium     | availability management, pod eviction control |
+| RoleBinding                      | rbac.authorization.k8s.io    | medium     | rbac, authorization, access control           |
+| Role                             | rbac.authorization.k8s.io    | medium     | rbac, permissions, security                   |
 ```
 
 ### Search for Specific Capabilities

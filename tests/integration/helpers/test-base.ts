@@ -196,4 +196,32 @@ export class IntegrationTest {
       .replace(/^-|-$/g, '')
       .substring(0, 20); // Limit length for namespace constraints
   }
+
+  /**
+   * Poll for capability scan completion
+   * @param sessionId - The session ID to poll for
+   * @param maxAttempts - Maximum polling attempts (default: 30)
+   * @param intervalMs - Interval between polls in milliseconds (default: 10000)
+   * @returns true if scan completed, false if timed out
+   */
+  async pollForScanCompletion(
+    sessionId: string,
+    maxAttempts: number = 30,
+    intervalMs: number = 10000
+  ): Promise<boolean> {
+    for (let i = 0; i < maxAttempts; i++) {
+      await this.sleep(intervalMs);
+      const response = await this.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'progress',
+        sessionId,
+        interaction_id: `progress_poll_${i}`
+      });
+      const status = response.data?.result?.progress?.status;
+      if (status === 'complete' || status === 'completed') {
+        return true;
+      }
+    }
+    return false;
+  }
 }

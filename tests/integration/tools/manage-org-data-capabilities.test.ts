@@ -26,83 +26,30 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
   });
 
 
-  describe('Capabilities Scanning Workflow', () => {
-    test('should complete full auto scan workflow from start to finish', async () => {
-      // Step 1: Start capabilities scan
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+  describe('Fire-and-Forget Scanning (PRD #216)', () => {
+    /**
+     * Fire-and-forget scanning allows controllers to trigger scans without
+     * going through the interactive workflow. This is the primary scanning API
+     * designed for the dot-ai-controller to trigger scans when CRDs are created/updated.
+     */
+
+    test('should complete full cluster scan with mode=full', async () => {
+      // Clean capabilities collection before full scan to get accurate count
+      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
-        operation: 'scan',
-        interaction_id: 'scan_workflow'
+        operation: 'deleteAll',
+        interaction_id: 'cleanup_before_full_scan'
       });
 
-      // Validate initial workflow response
-      const expectedStartResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'scan',
-            dataType: 'capabilities',
-            REQUIRED_NEXT_CALL: {
-              tool: 'dot-ai:manageOrgData',
-              parameters: {
-                dataType: 'capabilities',
-                operation: 'scan',
-                sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
-                step: 'resource-selection',
-                response: 'user_choice_here'
-              },
-              note: 'The step parameter is MANDATORY when sessionId is provided'
-            },
-            workflow: {
-              step: 'resource-selection',
-              question: 'Scan all cluster resources or specify subset?',
-              options: [
-                {
-                  number: 1,
-                  value: 'all',
-                  display: '1. all - Scan all available cluster resources'
-                },
-                {
-                  number: 2,
-                  value: 'specific',
-                  display: '2. specific - Specify particular resource types to scan'
-                }
-              ],
-              sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
-              instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select an option.',
-              userPrompt: 'Would you like to scan all cluster resources or specify a subset?',
-              clientInstructions: expect.objectContaining({
-                behavior: 'interactive',
-                requirement: 'Ask user to choose between options',
-                prohibit: 'Do not auto-select options'
-              })
-            }
-          },
-          tool: 'manageOrgData',
-          executionTime: expect.any(Number)
-        },
-        meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-          requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
-      };
-
-      expect(startResponse).toMatchObject(expectedStartResponse);
-      const sessionId = startResponse.data.result.workflow.sessionId;
-
-      // Step 2: Select 'all' resources - this now starts scan in background
-      const resourceSelectionResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+      // Fire-and-forget full scan - no workflow steps, returns immediately
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        sessionId,
-        step: 'resource-selection',
-        response: 'all',
-        interaction_id: 'resource_selection'
+        mode: 'full',
+        interaction_id: 'fire_forget_full_scan'
       });
 
-      // Step 2 should start background scan and return immediately
+      // Validate fire-and-forget response - returns immediately with status: started
       const expectedStartedResponse = {
         success: true,
         data: {
@@ -111,11 +58,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
             operation: 'scan',
             dataType: 'capabilities',
             status: 'started',
-            sessionId: sessionId,
-            message: 'Capability scan started. Use operation "progress" to check status.',
+            mode: 'full',
+            sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
+            message: 'Full cluster scan initiated. Scan runs in background.',
             checkProgress: {
               dataType: 'capabilities',
-              operation: 'progress'
+              operation: 'progress',
+              sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/)
             }
           },
           tool: 'manageOrgData',
@@ -127,10 +76,12 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         })
       };
 
-      expect(resourceSelectionResponse).toMatchObject(expectedStartedResponse);
-      expect(resourceSelectionResponse.data.result.sessionId).toBeDefined();
+      expect(scanResponse).toMatchObject(expectedStartedResponse);
 
-      // Step 3: Poll for completion using progress operation
+      const sessionId = scanResponse.data.result.sessionId;
+      expect(sessionId).toBeDefined();
+
+      // Poll for completion using progress operation
       let scanComplete = false;
       let progressResponse;
       const maxAttempts = 60; // 10 minutes with 10 second intervals
@@ -156,6 +107,110 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       // Validate scan eventually completed
       expect(scanComplete).toBe(true);
+
+      // Capture scan statistics from final progress response for debugging
+      const scanStats = {
+        total: progressResponse?.data?.result?.progress?.total,
+        successful: progressResponse?.data?.result?.progress?.successfulResources,
+        failed: progressResponse?.data?.result?.progress?.failedResources,
+        errors: progressResponse?.data?.result?.progress?.errors,
+        processingTime: progressResponse?.data?.result?.progress?.totalProcessingTime
+      };
+
+      // === VALIDATE COUNT: Full scan processes API resources + CRDs ===
+      const countResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 1,
+        interaction_id: 'count_after_full_scan'
+      });
+      const totalCount = countResponse.data.result.data.totalCount;
+
+      // Validate count: Cluster has 91 API resources (89 unique Kinds + 2 duplicates).
+      // We expect at least 90 capabilities to ensure accurate scanning.
+      // If this fails, capability scanning is not working correctly.
+      if (totalCount < 90 || totalCount > 120) {
+        throw new Error(`Capability count ${totalCount} outside expected range [90-120].
+  Expected: ~90 capabilities (cluster has 91 API resources, 89 unique Kinds)
+  Discovered: ${scanStats.total}
+  Successful: ${scanStats.successful}
+  Failed: ${scanStats.failed}
+  Processing time: ${scanStats.processingTime}
+  Errors: ${JSON.stringify(scanStats.errors, null, 2)}`);
+      }
+
+      // === FIELD VALIDATION: Verify stored capabilities have correct field values ===
+      // Test cluster has known resources with deterministic metadata
+      const allCapabilities = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 200,
+        interaction_id: 'field_validation_list'
+      });
+
+      const capabilities = allCapabilities.data.result.data.capabilities;
+
+      // Find specific known resources for field validation
+      const pod = capabilities.find((c: any) => c.resourceName === 'Pod');
+      const deployment = capabilities.find((c: any) => c.resourceName === 'Deployment');
+      const service = capabilities.find((c: any) => c.resourceName === 'Service');
+      const configMap = capabilities.find((c: any) => c.resourceName === 'ConfigMap');
+      const statefulSet = capabilities.find((c: any) => c.resourceName === 'StatefulSet');
+      const cnpgCluster = capabilities.find((c: any) => c.resourceName === 'clusters.postgresql.cnpg.io');
+
+      // Validate core resource: Pod (apiVersion: v1, no group)
+      expect(pod).toBeDefined();
+      expect(pod).toMatchObject({
+        resourceName: 'Pod',
+        apiVersion: 'v1',
+        version: 'v1',
+        group: ''
+      });
+
+      // Validate core resource: Service (apiVersion: v1, no group)
+      expect(service).toBeDefined();
+      expect(service).toMatchObject({
+        resourceName: 'Service',
+        apiVersion: 'v1',
+        version: 'v1',
+        group: ''
+      });
+
+      // Validate core resource: ConfigMap (apiVersion: v1, no group)
+      expect(configMap).toBeDefined();
+      expect(configMap).toMatchObject({
+        resourceName: 'ConfigMap',
+        apiVersion: 'v1',
+        version: 'v1',
+        group: ''
+      });
+
+      // Validate apps group resource: Deployment (apiVersion: apps/v1)
+      expect(deployment).toBeDefined();
+      expect(deployment).toMatchObject({
+        resourceName: 'Deployment',
+        apiVersion: 'apps/v1',
+        version: 'v1',
+        group: 'apps'
+      });
+
+      // Validate apps group resource: StatefulSet (apiVersion: apps/v1)
+      expect(statefulSet).toBeDefined();
+      expect(statefulSet).toMatchObject({
+        resourceName: 'StatefulSet',
+        apiVersion: 'apps/v1',
+        version: 'v1',
+        group: 'apps'
+      });
+
+      // Validate CRD: CNPG Cluster (apiVersion: postgresql.cnpg.io/v1)
+      expect(cnpgCluster).toBeDefined();
+      expect(cnpgCluster).toMatchObject({
+        resourceName: 'clusters.postgresql.cnpg.io',
+        apiVersion: 'postgresql.cnpg.io/v1',
+        version: 'v1',
+        group: 'postgresql.cnpg.io'
+      });
 
       // === READ: Verify capabilities were stored by listing them ===
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -237,47 +292,66 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // NOTE: One capability was deleted, but the rest remain for recommendation tests
     }, 660000); // 11 minute timeout (10 min polling + buffer)
 
-    test('should handle specific resource scanning workflow', async () => {
-      // Step 1: Start scan
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+    test('should scan specific resources with resourceList parameter', async () => {
+      // Fire-and-forget targeted scan - specify resources directly, no workflow steps
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        interaction_id: 'specific_scan_workflow'
-      });
-
-      const sessionId = startResponse.data.result.workflow.sessionId;
-
-      // Step 2: Select 'specific' resources
-      const specificResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-selection',
-        response: 'specific',
-        interaction_id: 'specific_selection'
-      });
-
-      // Should ask for resource specification
-      expect(specificResponse.data.result.success).toBe(true);
-      expect(specificResponse.data.result.workflow.step).toBe('resource-specification');
-      expect(specificResponse.data.result.workflow.question).toContain('resource');
-
-      // Continue with specific resources (Deployment, Service, SQL) - use resourceList parameter
-      const resourceSpecResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-specification',
         resourceList: 'Deployment.apps,Service,SQL.devopstoolkit.live',
-        interaction_id: 'resource_specification'
-      }, { timeout: 300000 }); // 5 minutes for scan completion
+        interaction_id: 'fire_forget_specific_scan'
+      });
 
-      // Should proceed directly to scanning and complete (no processing-mode step)
-      expect(resourceSpecResponse.data.result.success).toBe(true);
-      expect(resourceSpecResponse.data.result.step).toBe('complete');
-      expect(resourceSpecResponse.data.result.mode).toBe('auto');
-      expect(resourceSpecResponse.data.result.summary).toBeDefined();
-      expect(resourceSpecResponse.data.result.summary.totalScanned).toBeGreaterThanOrEqual(3);
+      // Validate fire-and-forget response
+      const expectedStartedResponse = {
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'scan',
+            dataType: 'capabilities',
+            status: 'started',
+            mode: 'targeted',
+            resourceCount: 3,
+            sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/),
+            message: 'Scan initiated for 3 resource(s). Scan runs in background.',
+            checkProgress: {
+              dataType: 'capabilities',
+              operation: 'progress',
+              sessionId: expect.stringMatching(/^cap-scan-\d+-[a-f0-9]{8}$/)
+            }
+          },
+          tool: 'manageOrgData',
+          executionTime: expect.any(Number)
+        }
+      };
+
+      expect(scanResponse).toMatchObject(expectedStartedResponse);
+
+      const sessionId = scanResponse.data.result.sessionId;
+
+      // Poll for completion
+      let scanComplete = false;
+      const maxAttempts = 30; // 5 minutes with 10 second intervals
+      let attempts = 0;
+
+      while (!scanComplete && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        const progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `specific_progress_${attempts}`
+        });
+
+        const progressStatus = progressResponse.data.result.progress?.status;
+        if (progressStatus === 'complete' || progressStatus === 'completed') {
+          scanComplete = true;
+        }
+        attempts++;
+      }
+
+      expect(scanComplete).toBe(true);
 
       // Verify scanned capabilities have correct apiVersion
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -323,35 +397,43 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     // to avoid race conditions with deterministic capability IDs across concurrent tests
 
     test('should list stored capabilities after scan', async () => {
-      // First ensure we have some capabilities by running a quick scan
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        interaction_id: 'list_setup_scan'
-      });
-      const sessionId = startResponse.data.result.workflow.sessionId;
-
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId,
-        step: 'resource-selection',
-        response: 'specific',
-        interaction_id: 'list_resource_selection'
-      });
-
+      // First ensure we have some capabilities by running a quick fire-and-forget scan
       const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        sessionId,
-        step: 'resource-specification',
         resourceList: 'Service',
-        interaction_id: 'list_resource_spec'
-      }, { timeout: 300000 }); // 5 minutes for scan completion
+        interaction_id: 'list_setup_scan'
+      });
+
+      expect(scanResponse.data.result.success).toBe(true);
+      expect(scanResponse.data.result.status).toBe('started');
+
+      const sessionId = scanResponse.data.result.sessionId;
+
+      // Poll for completion
+      let scanComplete = false;
+      const maxAttempts = 30;
+      let attempts = 0;
+
+      while (!scanComplete && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        const progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `list_progress_${attempts}`
+        });
+
+        const progressStatus = progressResponse.data.result.progress?.status;
+        if (progressStatus === 'complete' || progressStatus === 'completed') {
+          scanComplete = true;
+        }
+        attempts++;
+      }
 
       // Ensure scan completed successfully
-      expect(scanResponse.data.result.success).toBe(true);
-      expect(scanResponse.data.result.step).toBe('complete');
+      expect(scanComplete).toBe(true);
 
       // Now list capabilities
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -464,29 +546,42 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     });
 
     test('should search capabilities by semantic query', async () => {
-      // First ensure we have some capabilities data for searching
-      const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+      // First ensure we have some capabilities data for searching via fire-and-forget scan
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
+        resourceList: 'Service,Deployment.apps',
         interaction_id: 'search_setup_scan'
       });
-      const sessionId = startResponse.data.result.workflow.sessionId;
 
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities', operation: 'scan', sessionId,
-        step: 'resource-selection', response: 'specific',
-        interaction_id: 'search_resource_selection'
-      });
+      expect(scanResponse.data.result.success).toBe(true);
+      expect(scanResponse.data.result.status).toBe('started');
 
-      integrationTest.httpClient.setTimeout(300000); // 5 minutes for specific resource scan with AI
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities', operation: 'scan', sessionId,
-        step: 'resource-specification', resourceList: 'Service,Deployment.apps',
-        interaction_id: 'search_resource_spec'
-      });
+      const sessionId = scanResponse.data.result.sessionId;
 
-      // Reset timeout to default for search (semantic search can take time with embeddings)
-      integrationTest.httpClient.setTimeout(1800000); // Back to 30 minutes default
+      // Poll for completion
+      let scanComplete = false;
+      const maxAttempts = 30;
+      let attempts = 0;
+
+      while (!scanComplete && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        const progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `search_progress_${attempts}`
+        });
+
+        const progressStatus = progressResponse.data.result.progress?.status;
+        if (progressStatus === 'complete' || progressStatus === 'completed') {
+          scanComplete = true;
+        }
+        attempts++;
+      }
+
+      expect(scanComplete).toBe(true);
 
       // Test semantic search
       const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
@@ -562,34 +657,30 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(errorResponse.data.result).toHaveProperty('error');
     });
 
-    test('should handle missing sessionId for workflow operations', async () => {
+    test('should reject empty resourceList in fire-and-forget mode', async () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        step: 'resource-selection',
-        response: 'all',
-        // Missing sessionId
-        interaction_id: 'missing_session_error'
+        resourceList: '  ,  ,  ', // Empty after trimming
+        interaction_id: 'fire_forget_empty_list'
       });
 
-      // API returns success but handles errors in workflow response
-      expect(errorResponse.success).toBe(true);
-      expect(errorResponse.data).toHaveProperty('tool', 'manageOrgData');
-    });
+      const expectedErrorResponse = {
+        success: true,
+        data: {
+          result: {
+            success: false,
+            operation: 'scan',
+            dataType: 'capabilities',
+            error: {
+              message: 'Empty resource list',
+              details: 'resourceList parameter must contain at least one resource'
+            }
+          }
+        }
+      };
 
-    test('should handle invalid sessionId', async () => {
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        sessionId: 'invalid-session-id',
-        step: 'resource-selection',
-        response: 'all',
-        interaction_id: 'invalid_session_error'
-      });
-
-      // API returns success but handles errors in workflow response
-      expect(errorResponse.success).toBe(true);
-      expect(errorResponse.data).toHaveProperty('tool', 'manageOrgData');
+      expect(errorResponse).toMatchObject(expectedErrorResponse);
     });
   });
 });

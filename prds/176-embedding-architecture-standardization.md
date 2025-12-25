@@ -528,17 +528,6 @@ throw new Error(`${ProviderName} embedding failed: ${error.message}`);
 
 ---
 
-## Progress Log
-
-### 2025-10-22 - PRD Created
-- Initial PRD draft created
-- Architecture decision: Standardize on Vercel AI SDK
-- Identified OpenAI migration as prerequisite for Bedrock
-- Defined 7 major milestones
-- Linked to PRD #175 for platform routing synergy
-
----
-
 ## References
 
 - **Vercel AI SDK Embeddings**: https://sdk.vercel.ai/docs/ai-sdk-core/embeddings
