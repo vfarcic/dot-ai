@@ -554,8 +554,6 @@ export class KubernetesDiscovery {
               // Column 2 is shortnames
               [name, shortNames, apiVersion, namespaced, kind] = parts;
             }
-          } else {
-            return null;
           }
 
           // Extract group from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")

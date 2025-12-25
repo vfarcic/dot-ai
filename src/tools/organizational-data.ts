@@ -242,9 +242,12 @@ async function handleFireAndForgetScan(
   };
 
   // If targeted scan, parse and validate resources
+  const parsedResources = isTargetedScan && !isFullScan
+    ? args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0)
+    : [];
+
   if (isTargetedScan && !isFullScan) {
-    const resources = args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0);
-    if (resources.length === 0) {
+    if (parsedResources.length === 0) {
       return {
         success: false,
         operation: 'scan',
@@ -255,7 +258,7 @@ async function handleFireAndForgetScan(
         }
       };
     }
-    session.selectedResources = resources;
+    session.selectedResources = parsedResources;
   }
 
   // Save session for progress tracking
@@ -281,9 +284,7 @@ async function handleFireAndForgetScan(
   });
 
   // Return immediately - don't wait for scan to complete
-  const resourceCount = isTargetedScan && !isFullScan
-    ? args.resourceList.split(',').filter((r: string) => r.trim().length > 0).length
-    : undefined;
+  const resourceCount = parsedResources.length > 0 ? parsedResources.length : undefined;
 
   return {
     success: true,
