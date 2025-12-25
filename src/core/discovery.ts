@@ -539,8 +539,8 @@ export class KubernetesDiscovery {
             // No shortnames column: name, apiVersion, namespaced, kind
             [name, apiVersion, namespaced, kind] = parts;
             shortNames = '';
-          } else if (parts.length >= 5) {
-            // Has shortnames column: name, shortNames, apiVersion, namespaced, kind
+          } else {
+            // parts.length >= 5: Has shortnames column: name, shortNames, apiVersion, namespaced, kind
             // But need to verify column 2 is actually shortnames, not apiVersion
             // apiVersion matches patterns like "v1", "apps/v1", "networking.k8s.io/v1"
             const col2 = parts[1];
