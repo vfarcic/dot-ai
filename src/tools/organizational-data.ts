@@ -52,11 +52,11 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
     apiVersion: z.string()
   }).optional().describe('Kubernetes resource reference (for capabilities operations)'),
   
-  // Resource list for specific resource scanning
-  resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources)'),
+  // Resource list for specific resource scanning (fire-and-forget when no sessionId)
+  resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources). When provided without sessionId, triggers a fire-and-forget targeted scan.'),
 
   // Fire-and-forget scan mode (for controller integration)
-  mode: z.enum(['full']).optional().describe('Scan mode: "full" triggers a fire-and-forget full cluster scan that returns immediately. Use with resourceList for targeted fire-and-forget scans.'),
+  mode: z.enum(['full']).optional().describe('Scan mode: "full" triggers a fire-and-forget full cluster scan that returns immediately and scans all resources in the cluster. Mutually exclusive with resourceList.'),
 
   // Collection name for capabilities (allows using different collections for different purposes)
   collection: z.string().optional().describe('Collection name for capabilities operations (default: "capabilities", use "capabilities-policies" for pre-populated test data)'),
