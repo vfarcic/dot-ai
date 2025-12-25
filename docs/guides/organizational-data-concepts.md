@@ -122,17 +122,18 @@ All with policy-compliant configurations and organizational best practices
 ## When to Use Each Type
 
 ### Capabilities (Start Here - Required)
-**Always required** for intelligent recommendations:
+**Always required** for intelligent recommendations.
 
+**Preferred: Use the controller** for automatic, event-driven scanning. See [Capability Management Guide](mcp-capability-management-guide.md#method-1-controller-based-scanning-recommended).
+
+**Alternative: Manual scanning** when controller cannot reach MCP:
 ```
 "Scan my cluster capabilities"
 ```
 
-**Use when**:
-- Setting up the AI toolkit for the first time
-- After installing new operators or CRDs  
-- When AI doesn't understand available resources
-- Quarterly maintenance to refresh resource understanding
+**Manual scanning use cases**:
+- MCP running locally (not accessible from cluster)
+- One-time scanning without controller setup
 
 ### Patterns (Optional but Recommended)
 **Enhance recommendations** with organizational standards:

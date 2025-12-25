@@ -164,7 +164,7 @@ Try these example prompts to explore the toolkit:
 
 | What You Want | Example Prompt | Guide |
 |---------------|----------------|-------|
-| Scan capabilities | "Scan my cluster for capabilities" | [Capability Management](guides/mcp-capability-management-guide.md) |
+| Scan capabilities | Use controller (recommended) or "Scan my cluster for capabilities" | [Capability Management](guides/mcp-capability-management-guide.md) |
 | Deploy an app | "I want to deploy a web application" | [Recommendation Guide](guides/mcp-recommendation-guide.md) |
 | Operate resources | "Scale my database to 3 replicas" | [Operations Guide](guides/mcp-operate-guide.md) |
 | Fix issues | "Something is wrong with my database" | [Remediation Guide](guides/mcp-remediate-guide.md) |

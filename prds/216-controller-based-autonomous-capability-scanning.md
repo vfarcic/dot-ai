@@ -1,7 +1,7 @@
 # PRD: Controller-Based Autonomous Capability Scanning
 
 **Issue**: #216
-**Status**: Phase 2 Complete
+**Status**: Phase 3 In Progress (Milestone 3.2 Complete)
 **Priority**: High
 **Created**: 2025-11-11
 **Last Updated**: 2025-12-25
@@ -442,11 +442,11 @@ After Phase 2 (controller implementation) is complete, update dot-ai documentati
 - [x] Explain that without capability scanning, these features may not work
 - [x] Document the controller as the recommended approach for keeping capabilities up-to-date
 
-### Milestone 3.2: Update Capability Documentation
-- [ ] Document when to use controller vs manual scanning (based on MCP accessibility)
-- [ ] Explain controller is recommended when MCP is accessible from cluster
-- [ ] Explain manual scanning is required when MCP is not accessible (local development, Docker Desktop, etc.)
-- [ ] Update any guides that reference capability scanning to include both approaches
+### Milestone 3.2: Update Capability Documentation ✅
+- [x] Document when to use controller vs manual scanning (based on MCP accessibility)
+- [x] Explain controller is recommended when MCP is accessible from cluster
+- [x] Explain manual scanning is required when MCP is not accessible (local development, Docker Desktop, etc.)
+- [x] Update any guides that reference capability scanning to include both approaches
 
 ### Milestone 3.3: Consolidate Documentation Links
 - [ ] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
@@ -515,136 +515,3 @@ Use the controller for automatic scanning when MCP is accessible from the Kubern
 - [PRD #132: Cluster Capability Discovery via manageOrgData](https://github.com/vfarcic/dot-ai/issues/132)
 - [PRD #155: Parallel Capability Analysis](https://github.com/vfarcic/dot-ai/issues/155)
 
----
-
-## Progress Log
-
-### 2025-12-25: Quick-Start Documentation Improvements
-**Focus**: Validate and improve quick-start guide for better onboarding experience
-
-**Documentation Changes**:
-- [x] Moved Kubernetes setup to top as recommended method (over Docker) since controller requires it
-- [x] Added Step 0: Kind cluster creation with ingress support for users without a cluster
-- [x] Added INGRESS_CLASS_NAME environment variable with comment explaining customization
-- [x] Fixed step numbering consistency (### Step X format throughout)
-- [x] Fixed MCP config token expansion (removed 'EOF' quotes so $DOT_AI_AUTH_TOKEN expands)
-- [x] Simplified Step 5 conversational workflows from ~110 lines to compact table (~15 lines)
-- [x] Added "Operate resources" feature to examples
-- [x] Reordered features table with capabilities at top (since others depend on it)
-
-**Validation Performed**:
-- Created Kind cluster with ingress port mappings
-- Installed nginx ingress controller for Kind
-- Installed dot-ai-controller via helm
-- Installed dot-ai MCP server via helm (using local chart)
-- Verified "Show dot-ai status" returns healthy status
-- Tested MCP client configuration with `--mcp-config` and `--strict-mcp-config` flags
-
-**Files Updated**:
-- `docs/quick-start.md` - Major restructuring
-- `docs/setup/kubernetes-setup.md` - Added INGRESS_CLASS_NAME
-- `docs/setup/mcp-setup.md` - Reordered setup methods (Kubernetes first)
-- `docs/index.md` - Reordered deployment options
-
-**Next Steps**: Continue to Milestone 3.2 - Update capability management guide
-
----
-
-### 2025-12-25: Milestone 3.1 Complete - Kubernetes Setup Guide Updated
-**Focus**: Documentation updates for capability scanning
-
-**Completed PRD Items**:
-- [x] Updated controller section to reference controller docs (avoiding feature list drift)
-- [x] Added "Capability Scanning for AI Recommendations" section
-- [x] Documented tools that depend on capabilities (recommend, patterns, policies)
-- [x] Added scanning methods table (controller vs manual based on MCP accessibility)
-- [x] Linked to controller docs and capability management guide
-
-**Next Steps**: Milestone 3.2 - Update Capability Documentation
-
----
-
-### 2025-12-25: Phase 2 Complete - Controller Implementation Done
-**Focus**: Controller implementation in dot-ai-controller repository
-
-**Status**: Phase 2 fully implemented in separate repository
-- Controller watches Kubernetes API for CRD changes
-- Triggers fire-and-forget scans via MCP server
-- Includes Helm chart, metrics, and documentation
-
-**Next Steps**: Phase 3 - Documentation updates in this repository
-
----
-
-### 2025-12-25: Design Decision - Manual Scanning Not Deprecated
-**Focus**: Revised deprecation strategy based on deployment topology analysis
-
-**Decision**: Manual capability scanning will NOT be deprecated. Both controller-based and manual scanning remain fully supported.
-
-**Rationale**: The controller runs inside Kubernetes and can only reach MCP endpoints that are network-accessible from the cluster. When MCP runs in locations not accessible from the cluster (e.g., developer laptop, Docker Desktop, behind NAT), manual scanning is the only option.
-
-**Changes Made**:
-- Removed "Deprecate Interactive Scan Workflow" from Future Tasks
-- Removed "Remove Scan Operation" from Future Tasks
-- Updated Milestone 3.2 to document when to use each approach instead of deprecation notices
-- Added Design Decisions section with accessibility-based guidance
-
-**Next Steps**: Continue with Phase 3 documentation updates using the revised approach
-
----
-
-### 2025-12-24: Phase 1 Complete - Milestone 1.2 Controller PRD Created
-**Focus**: Create comprehensive PRD in dot-ai-controller repository
-
-**Completed PRD Items**:
-- [x] Written comprehensive PRD in `dot-ai-controller` repository
-- [x] Included accurate API documentation from Phase 1 implementation
-- [x] Referenced this PRD for architectural context
-
-**Deliverables**:
-- GitHub Issue: [dot-ai-controller #34](https://github.com/vfarcic/dot-ai-controller/issues/34)
-- PRD File: [prds/34-autonomous-capability-scanning.md](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/34-autonomous-capability-scanning.md)
-
-**Phase 1 Status**: Complete - All MCP API changes delivered
-**Next Steps**: Phase 2 implementation begins in dot-ai-controller repository
-
----
-
-### 2025-12-24: Milestone 1.1 Complete - Fire-and-Forget API Implemented
-**Duration**: Multiple sessions
-**Focus**: Fire-and-forget scan API and bug fixes
-
-**Completed PRD Items**:
-- [x] `mode: "full"` parameter triggers full cluster scan without workflow
-- [x] `resourceList` parameter scans specific resources without workflow
-- [x] Immediate `{ "status": "started" }` response for fire-and-forget operations
-- [x] Background scanning works correctly without session management
-- [x] Integration tests written and passing (9 tests in `manage-org-data-capabilities.test.ts`)
-
-**Bug Fixes**:
-- Fixed `discovery.ts` parser bug where resources without shortnames were skipped (4-column vs 5-column format)
-- Added field validation assertions to verify stored capabilities have correct `apiVersion`, `version`, and `group` values
-
-**Test Coverage**:
-- Full cluster scan with `mode=full` validates ~90 capabilities stored with correct field values
-- Targeted scan with `resourceList` validates specific resources (Deployment, Service, SQL CRD)
-- Field validation for core resources (Pod, Service, ConfigMap), apps resources (Deployment, StatefulSet), and CRDs (CNPG Cluster)
-
-**Next Session**: Create Controller PRD in `dot-ai-controller` repository (Milestone 1.2)
-
-### 2025-12-24: PRD Restructured into Two Phases
-- **Decision**: Split PRD into Phase 1 (MCP API changes) and Phase 2 (controller implementation)
-- **Rationale**: The existing scan API uses an interactive multi-step workflow unsuitable for automated controller use. MCP must expose a simplified fire-and-forget API before controller work can begin.
-- **Key Changes**:
-  - Added Phase 1 milestones for MCP API changes in this repository
-  - Phase 2 milestones will move to a new PRD in `dot-ai-controller` repository
-  - Corrected API documentation to match actual implementation
-  - Changed from `resource` object to `resourceList` comma-separated string format
-  - Controller uses fire-and-forget pattern (no polling required)
-  - Full scan on startup if empty, single-resource scans for CRD events
-
-### 2025-11-11: PRD Created
-- Initial PRD draft completed
-- Clarified architecture: separate repository, optional Helm integration
-- Defined 5 major milestones for implementation
-- Identified key risks and mitigation strategies

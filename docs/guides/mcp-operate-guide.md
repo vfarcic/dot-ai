@@ -379,15 +379,15 @@ operate(intent="add Prometheus monitoring to my-api")
 
 **Problem:** Operate tool requires cluster capabilities for semantic resource matching.
 
-**Solution:**
+**Solution:** Use the controller for automatic capability scanning (recommended), or scan manually if the controller cannot reach MCP:
 ```md
-# Scan cluster capabilities first
+# Manual scan (only if controller not available)
 User: Scan my cluster capabilities
 
 [Uses mcp__dot-ai__manageOrgData with dataType: "capabilities", operation: "scan"]
 ```
 
-See [Capability Management Guide](mcp-capability-management-guide.md) for details.
+See [Capability Management Guide](mcp-capability-management-guide.md) for controller setup and manual scanning options.
 
 ### Pattern Not Applied to Operation
 
