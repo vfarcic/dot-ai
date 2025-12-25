@@ -45,6 +45,9 @@ Export your API keys and auth token:
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
+
+# Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
+export INGRESS_CLASS_NAME="nginx"
 ```
 
 ### Step 2: Install the Controller (Optional)
@@ -80,6 +83,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \
   --set controller.enabled=true \
   --namespace dot-ai \

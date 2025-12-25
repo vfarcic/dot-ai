@@ -43,168 +43,135 @@ DevOps AI Toolkit is designed to be used through AI development tools via MCP (M
 
 ## Usage
 
-**🎯 Recommended: Docker Setup (Complete Stack)**
-Perfect for getting all features working immediately with minimal setup:
+**🎯 Recommended: Kubernetes Setup (Full Features)**
+Production-ready deployment with autonomous capability scanning via controller:
 
-1. **Download Docker Compose configuration:**
+### Step 0: Create a Kubernetes Cluster (Optional)
+
+Skip this step if you already have a Kubernetes cluster with an ingress controller.
+
+**Prerequisites:** [Install Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) if you don't have it.
+
+**Create a Kind cluster with ingress support:**
 ```bash
-curl -o docker-compose-dot-ai.yaml https://raw.githubusercontent.com/vfarcic/dot-ai/main/docker-compose-dot-ai.yaml
+# Create Kind cluster configuration
+cat > kind-config.yaml << 'EOF'
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
+
+# Create the cluster
+kind create cluster --name dot-ai --config kind-config.yaml
+
+# Install nginx ingress controller for Kind
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+
+# Wait for ingress controller to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=90s
 ```
 
-2. **Set environment variables and create MCP configuration:**
+### Step 1: Set Environment Variables
 ```bash
-# Set your AI model API key (example with Claude - see setup guide for other models)
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
-# Set embedding provider key if needed (see setup guide for options)
 export OPENAI_API_KEY="sk-proj-your-openai-key-here"
+export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
-# Create MCP configuration for Claude Code
-cat > .mcp.json << 'EOF'
+# Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
+export INGRESS_CLASS_NAME="nginx"
+```
+
+### Step 2: Install via Helm
+```bash
+# Set versions from GitHub packages
+export DOT_AI_VERSION="..."  # https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai%2Fcharts%2Fdot-ai
+export DOT_AI_CONTROLLER_VERSION="..."  # https://github.com/vfarcic/dot-ai-controller/pkgs/container/dot-ai-controller%2Fcharts%2Fdot-ai-controller
+
+# Install controller (enables autonomous capability scanning)
+helm install dot-ai-controller \
+  oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:$DOT_AI_CONTROLLER_VERSION \
+  --namespace dot-ai --create-namespace --wait
+
+# Install MCP server
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
+  --set ingress.host="dot-ai.127.0.0.1.nip.io" \
+  --set controller.enabled=true \
+  --namespace dot-ai --wait
+```
+
+### Step 3: Create MCP Configuration
+
+Create the MCP client configuration file with your auth token:
+
+```bash
+cat > .mcp.json << EOF
 {
   "mcpServers": {
     "dot-ai": {
-      "command": "docker",
-      "args": [
-        "compose", 
-        "-f",
-        "docker-compose-dot-ai.yaml",
-        "--env-file",
-        ".env",
-        "run", 
-        "--rm",
-        "--remove-orphans",
-        "dot-ai"
-      ]
+      "type": "http",
+      "url": "http://dot-ai.127.0.0.1.nip.io",
+      "headers": {
+        "Authorization": "Bearer $DOT_AI_AUTH_TOKEN"
+      }
     }
   }
 }
 EOF
 ```
 
-**What you get:**
-- ✅ **Complete Stack**: MCP server + Qdrant vector database included
-- ✅ **All Features Working**: Capability management, pattern storage, policy governance, semantic search
-- ✅ **No External Dependencies**: Everything runs in containers
-- ✅ **Kubernetes Integration**: Direct kubectl access to your clusters
+**Note:** The `$DOT_AI_AUTH_TOKEN` variable is expanded when creating the file. Make sure you're in the same terminal session where you set the environment variables in Step 1.
 
-**Alternative Methods**: See the [MCP Setup Guide](setup/mcp-setup.md) for NPX (Node.js) and Development setup options.
+### Step 4: Start Your MCP Client
 
-3. **Start your MCP client:**
 ```bash
 claude  # or your preferred MCP-enabled AI tool
-
-# Verify everything works by asking:
-"Show dot-ai status"
 ```
 
-4. **Use conversational workflows:**
-
-**Example: Kubernetes Deployment**
-```text
-User: I want to deploy a web application to my cluster
-
-Agent: I'll help you deploy a web application. Let me get recommendations. First, a few questions to provide better suggestions:
-
-What type of web application is this? Is it for development or production?
-Does it need external access?
-[Uses recommend tool for clarification]
-
-User: It's a production Node.js API that needs external access
-
-Agent: Perfect! Based on your production requirements, I found 3 deployment options.
-Let's use the Production Web Stack with external access.
-What's your application name and container image?
-[Uses recommend tool with refined intent]
-
-User: App name is "myapp" and image is "myapp:v1.0.0"
-
-Agent: Excellent! Generating production-ready manifests and deploying...
-[Uses recommend tool with stage routing: chooseSolution → answerQuestion → generateManifests → deployManifests]
-
-Agent: ✅ Successfully deployed! Your production API is running with external access.
+Verify everything works by asking:
+```
+Show dot-ai status
 ```
 
-**Example: Capability Management**
-```text
-User: I want to scan my cluster for resource capabilities to improve recommendations
+You should see a status report showing all components are healthy.
 
-[Uses manageOrgData with capabilities scanning]
+**What you get:**
+- ✅ **Full Features**: All capabilities including autonomous scanning via controller
+- ✅ **Production-Ready**: Scalable deployment with proper resource management
+- ✅ **Automatic Capability Discovery**: Controller watches for CRD changes and scans automatically
+- ✅ **Team Collaboration**: Shared MCP server accessible by multiple developers
 
-Agent: Would you like to scan all cluster resources or specify a subset?
-Options: 1) All resources 2) Specific subset
+**Alternative Methods**: See the [MCP Setup Guide](setup/mcp-setup.md) for Docker (local development) and NPX options.
 
-User: All resources in auto mode
+### Step 5: Start Using Conversational Workflows
 
-Agent: Starting comprehensive cluster capability scan...
-✅ Capability scan completed! Processed cluster resources successfully.
+Try these example prompts to explore the toolkit:
 
-User: Now I need a PostgreSQL database
-
-Agent: Let me get enhanced recommendations using your capability data.
-[Uses recommend tool with capability pre-filtering]
-
-Agent: Perfect! I found sqls.devopstoolkit.live as the top match - it's a managed database solution supporting PostgreSQL with multi-cloud capabilities and low complexity. Much better than the generic StatefulSet approach I would have suggested before!
-```
-
-**Example: Kubernetes Issue Remediation**
-```text
-User: Something is wrong with my database in postgres-demo namespace
-
-Agent: I'll investigate the database issue using AI-powered analysis.
-[Uses remediate tool for systematic investigation]
-
-Agent: 🔍 Root Cause (95% confidence): PostgreSQL pod can't start because the required PersistentVolumeClaim 'postgres-pvc' is missing.
-
-🔧 Recommended Fix: Create missing PVC
-- Risk Level: Low  
-- Command: kubectl apply [PVC manifest]
-
-Choose execution: 1) Execute via MCP  2) Show commands
-
-User: 1
-
-Agent: ✅ Issue Resolved! Created postgres-pvc, pod transitioned to Running state. Database is operational!
-```
-
-**Example: Policy Management**
-```text
-User: I want to create a policy requiring resource limits on all deployments
-
-Agent: I'll help you create a governance policy for resource limits. Let me start the creation workflow.
-[Uses manageOrgData with policy creation]
-
-Agent: Please describe your resource limits policy intent:
-
-User: All container deployments must have CPU and memory limits to prevent resource exhaustion. CPU limits should be between 100m-2000m, memory between 128Mi-4Gi.
-
-Agent: Excellent! I've created your Resource Limits Policy and generated a Kyverno ClusterPolicy for enforcement. 
-
-Would you like to:
-1. Store policy intent only (for AI guidance)  
-2. Apply Kyverno policy to cluster (active enforcement)
-
-User: Apply the Kyverno policy for active enforcement
-
-Agent: ✅ Policy deployed! Now when users deploy applications, they'll get required questions for CPU/memory limits with your specified ranges, and any non-compliant deployments will be blocked by Kyverno.
-```
-
-*Note: Conversational examples are illustrative - actual AI responses will vary based on specific context and implementation.*
-
-**Example: Shared Prompts Library**
-```text
-# Conversational approach
-User: I want to create a new PRD for a feature
-
-Agent: I'll help you create a documentation-first PRD. Let me start the process.
-[Uses prd-create prompt via /dot-ai:prd-create]
-
-Agent: Great! I've created GitHub issue #34 and the PRD file. What feature would you like to document?
-
-# Direct slash command approach  
-User: /dot-ai:prd-create
-
-Agent: I'm executing the PRD creation workflow. Please describe the feature you want to create a PRD for...
-```
+| What You Want | Example Prompt | Guide |
+|---------------|----------------|-------|
+| Scan capabilities | "Scan my cluster for capabilities" | [Capability Management](guides/mcp-capability-management-guide.md) |
+| Deploy an app | "I want to deploy a web application" | [Recommendation Guide](guides/mcp-recommendation-guide.md) |
+| Operate resources | "Scale my database to 3 replicas" | [Operations Guide](guides/mcp-operate-guide.md) |
+| Fix issues | "Something is wrong with my database" | [Remediation Guide](guides/mcp-remediate-guide.md) |
+| Create patterns | "Create a pattern for database deployments" | [Pattern Management](guides/pattern-management-guide.md) |
+| Create policies | "Create a policy requiring resource limits" | [Policy Management](guides/policy-management-guide.md) |
+| Setup project | "Help me setup governance files" | [Project Setup Guide](guides/mcp-project-setup-guide.md) |
+| Use prompts | `/dot-ai:prd-create` | [Prompts Guide](guides/mcp-prompts-guide.md) |
 
 ## Next Steps
 

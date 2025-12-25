@@ -30,10 +30,10 @@ Choose the method that best fits your environment and workflow:
 
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
-| **[Docker](docker-setup.md)** | Complete stack, no external dependencies | Requires Docker | Full-featured setup, containerized environments |
-| **[Kubernetes](kubernetes-setup.md)** | Full control, standard resources, HTTP transport with authentication, Ingress support | Requires K8s cluster + Helm | Teams wanting direct resource management with traditional Ingress |
-| **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed deployments |
-| **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup | Quick trials, environments with Node.js |
+| **[Kubernetes](kubernetes-setup.md)** | Full features, autonomous capability scanning via controller, production-ready, HTTP transport with authentication | Requires K8s cluster + Helm | Production deployments, teams wanting full autonomous experience |
+| **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed, autonomous capability scanning | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed Kubernetes deployments |
+| **[Docker](docker-setup.md)** | Complete stack, no external dependencies, quick setup | Manual capability scanning only (controller unavailable) | Local development, individual developers |
+| **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup, manual capability scanning only | Quick trials, environments with Node.js |
 
 ### Infrastructure Dependencies
 
@@ -47,11 +47,11 @@ Choose the method that best fits your environment and workflow:
 
 ### Decision Tree
 
-**🎯 Recommended setup** → [Docker Setup](docker-setup.md) - Complete stack, all features working in 2 commands
+**🎯 Recommended setup** → [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning via controller, production-ready, HTTP transport with authentication
 
-**🚀 Production deployment** → [Kubernetes Setup](kubernetes-setup.md) - Standard resources, full control, HTTP transport with Bearer token authentication
+**🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes management with built-in security
 
-**🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified management, built-in security
+**🐳 Local development** → [Docker Setup](docker-setup.md) - Complete stack for local use (manual capability scanning only)
 
 **🔧 Don't like Docker?** → [NPX Setup](npx-setup.md) - Uses Node.js, requires manual Qdrant setup
 
@@ -318,9 +318,9 @@ Each setup method provides an MCP configuration that works with any compatible c
 
 ### 1. Choose Your Setup Method
 
-- **Recommended**: [Docker Setup](docker-setup.md) - Complete working system in 2 commands
-- **Production**: [Kubernetes Setup](kubernetes-setup.md) - Standard resources, full control, HTTP transport
-- **Operator-managed**: [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified deployment with built-in security
+- **Recommended**: [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning, production-ready
+- **Operator-managed**: [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes deployment with built-in security
+- **Local development**: [Docker Setup](docker-setup.md) - Complete stack for local use (manual capability scanning only)
 - **Alternative**: [NPX Setup](npx-setup.md) - If you prefer Node.js over Docker  
 
 ### 2. Follow Setup Instructions

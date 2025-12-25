@@ -519,6 +519,37 @@ Use the controller for automatic scanning when MCP is accessible from the Kubern
 
 ## Progress Log
 
+### 2025-12-25: Quick-Start Documentation Improvements
+**Focus**: Validate and improve quick-start guide for better onboarding experience
+
+**Documentation Changes**:
+- [x] Moved Kubernetes setup to top as recommended method (over Docker) since controller requires it
+- [x] Added Step 0: Kind cluster creation with ingress support for users without a cluster
+- [x] Added INGRESS_CLASS_NAME environment variable with comment explaining customization
+- [x] Fixed step numbering consistency (### Step X format throughout)
+- [x] Fixed MCP config token expansion (removed 'EOF' quotes so $DOT_AI_AUTH_TOKEN expands)
+- [x] Simplified Step 5 conversational workflows from ~110 lines to compact table (~15 lines)
+- [x] Added "Operate resources" feature to examples
+- [x] Reordered features table with capabilities at top (since others depend on it)
+
+**Validation Performed**:
+- Created Kind cluster with ingress port mappings
+- Installed nginx ingress controller for Kind
+- Installed dot-ai-controller via helm
+- Installed dot-ai MCP server via helm (using local chart)
+- Verified "Show dot-ai status" returns healthy status
+- Tested MCP client configuration with `--mcp-config` and `--strict-mcp-config` flags
+
+**Files Updated**:
+- `docs/quick-start.md` - Major restructuring
+- `docs/setup/kubernetes-setup.md` - Added INGRESS_CLASS_NAME
+- `docs/setup/mcp-setup.md` - Reordered setup methods (Kubernetes first)
+- `docs/index.md` - Reordered deployment options
+
+**Next Steps**: Continue to Milestone 3.2 - Update capability management guide
+
+---
+
 ### 2025-12-25: Milestone 3.1 Complete - Kubernetes Setup Guide Updated
 **Focus**: Documentation updates for capability scanning
 
