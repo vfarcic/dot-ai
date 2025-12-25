@@ -436,17 +436,17 @@ See [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blo
 
 After Phase 2 (controller implementation) is complete, update dot-ai documentation:
 
-### Milestone 3.1: Update Kubernetes Setup Guide
-- [ ] Update `docs/setup/kubernetes-setup.md` to explain capability scanning controller installation
-- [ ] Add context: Many tools depend on capability data (recommend, patterns, policies, resources)
-- [ ] Explain that without capability scanning, these features have limited functionality
-- [ ] Document the controller as the recommended approach for keeping capabilities up-to-date
+### Milestone 3.1: Update Kubernetes Setup Guide ✅
+- [x] Update `docs/setup/kubernetes-setup.md` to explain capability scanning controller installation
+- [x] Add context: Many tools depend on capability data (recommend, patterns, policies, resources)
+- [x] Explain that without capability scanning, these features may not work
+- [x] Document the controller as the recommended approach for keeping capabilities up-to-date
 
 ### Milestone 3.2: Update Capability Documentation
-- [ ] Change capability scanning guidance from manual MCP workflow to controller deployment
-- [ ] Document that users query capabilities via `list`/`get`/`search` (not trigger scans)
-- [ ] Add deprecation notice for interactive scan workflow
-- [ ] Update any guides that reference manual capability scanning
+- [ ] Document when to use controller vs manual scanning (based on MCP accessibility)
+- [ ] Explain controller is recommended when MCP is accessible from cluster
+- [ ] Explain manual scanning is required when MCP is not accessible (local development, Docker Desktop, etc.)
+- [ ] Update any guides that reference capability scanning to include both approaches
 
 ### Milestone 3.3: Consolidate Documentation Links
 - [ ] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
@@ -456,40 +456,26 @@ After Phase 2 (controller implementation) is complete, update dot-ai documentati
 
 ---
 
-## Future Tasks
+## Design Decisions
 
-### Deprecate Interactive Scan Workflow (After Controller Deployment)
+### 2025-12-25: Manual Scanning Retained (Not Deprecated)
 
-Once the controller is deployed and handling capability scanning automatically, the interactive scan workflow should be deprecated:
+**Decision**: Manual capability scanning via MCP will NOT be deprecated. Both controller-based and manual scanning remain fully supported.
 
-- [ ] Modify `manageOrgData` scan operation to return deprecation message when called without `resourceList` or `mode` parameters
-- [ ] Deprecation message should explain that scanning is now handled automatically by the controller
-- [ ] Keep `list`, `get`, `search`, and `delete` operations available for client agents
-- [ ] Update documentation to reflect that users query capabilities (not trigger scans)
+**Rationale**: The controller runs inside Kubernetes and can only reach MCP endpoints that are network-accessible from the cluster. When MCP runs in locations not accessible from the cluster (e.g., developer laptop, Docker Desktop, behind NAT), manual scanning is the only option.
 
-**Example deprecation response:**
-```json
-POST /api/v1/tools/manageOrgData
-{
-  "dataType": "capabilities",
-  "operation": "scan"
-}
+**Guidance**:
+| MCP Accessibility from Cluster | Scanning Method |
+|-------------------------------|-----------------|
+| Accessible | Controller (recommended) or Manual |
+| Not accessible | Manual only |
 
-// Response:
-{
-  "success": false,
-  "deprecated": true,
-  "message": "Manual capability scanning is deprecated. Scanning is now handled automatically by the dot-ai-controller. Use 'list' or 'search' operations to query available capabilities."
-}
-```
+Use the controller for automatic scanning when MCP is accessible from the Kubernetes cluster. Use manual scanning when MCP is not accessible (e.g., running locally on your laptop).
 
-### Remove Scan Operation (Future PRD)
-
-After the deprecation period and once controller adoption is confirmed:
-
-- [ ] Create new PRD to fully remove the `scan` operation from client-facing `manageOrgData` tool
-- [ ] Scan endpoints will only be accessible internally by the controller
-- [ ] This PRD should be created after controller has been in production for a reasonable period
+**Impact**:
+- Removed planned deprecation of interactive scan workflow
+- Removed planned removal of scan operation
+- Phase 3 documentation will explain when to use each approach instead of deprecation notices
 
 ---
 
@@ -533,6 +519,20 @@ After the deprecation period and once controller adoption is confirmed:
 
 ## Progress Log
 
+### 2025-12-25: Milestone 3.1 Complete - Kubernetes Setup Guide Updated
+**Focus**: Documentation updates for capability scanning
+
+**Completed PRD Items**:
+- [x] Updated controller section to reference controller docs (avoiding feature list drift)
+- [x] Added "Capability Scanning for AI Recommendations" section
+- [x] Documented tools that depend on capabilities (recommend, patterns, policies)
+- [x] Added scanning methods table (controller vs manual based on MCP accessibility)
+- [x] Linked to controller docs and capability management guide
+
+**Next Steps**: Milestone 3.2 - Update Capability Documentation
+
+---
+
 ### 2025-12-25: Phase 2 Complete - Controller Implementation Done
 **Focus**: Controller implementation in dot-ai-controller repository
 
@@ -542,6 +542,23 @@ After the deprecation period and once controller adoption is confirmed:
 - Includes Helm chart, metrics, and documentation
 
 **Next Steps**: Phase 3 - Documentation updates in this repository
+
+---
+
+### 2025-12-25: Design Decision - Manual Scanning Not Deprecated
+**Focus**: Revised deprecation strategy based on deployment topology analysis
+
+**Decision**: Manual capability scanning will NOT be deprecated. Both controller-based and manual scanning remain fully supported.
+
+**Rationale**: The controller runs inside Kubernetes and can only reach MCP endpoints that are network-accessible from the cluster. When MCP runs in locations not accessible from the cluster (e.g., developer laptop, Docker Desktop, behind NAT), manual scanning is the only option.
+
+**Changes Made**:
+- Removed "Deprecate Interactive Scan Workflow" from Future Tasks
+- Removed "Remove Scan Operation" from Future Tasks
+- Updated Milestone 3.2 to document when to use each approach instead of deprecation notices
+- Added Design Decisions section with accessibility-based guidance
+
+**Next Steps**: Continue with Phase 3 documentation updates using the revised approach
 
 ---
 
