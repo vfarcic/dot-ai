@@ -3,6 +3,7 @@
 ## Status: Draft
 ## Priority: Medium
 ## GitHub Issue: #306
+## Related Issues: #164 (Original feature request by @vtmocanu)
 
 ---
 
