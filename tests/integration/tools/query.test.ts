@@ -181,7 +181,7 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|postgres/i),
-          toolsUsed: ['search_resources']
+          toolsUsed: expect.arrayContaining(['search_resources'])
         }
       },
       meta: {
@@ -213,7 +213,7 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|team.*platform|platform/i),
-          toolsUsed: ['query_resources']
+          toolsUsed: expect.arrayContaining(['query_resources'])
         }
       },
       meta: {

@@ -67,7 +67,7 @@ This section demonstrates common query patterns:
 
 Semantic queries let you find resources by concept rather than exact resource types. The AI uses the semantic bridge pattern to map concepts like "databases" to actual Kubernetes resource kinds.
 
-**Example: Find all databases**
+#### Example: Find all databases
 
 ```text
 What databases are running?
@@ -94,7 +94,7 @@ Both databases are healthy and running without issues.
 
 Direct queries ask about specific resources. The AI finds the resource and retrieves detailed information without needing you to specify the exact namespace or resource type.
 
-**Example: Describe a specific resource**
+#### Example: Describe a specific resource
 
 ```text
 Describe the my-postgres cluster
@@ -151,7 +151,7 @@ failover support, backup/recovery capabilities, and secure TLS communication.
 
 Status queries check the health and operational state of resources. The AI gathers information from multiple sources including events to provide a comprehensive health assessment.
 
-**Example: Check resource health**
+#### Example: Check resource health
 
 ```text
 Is PostgreSQL healthy?

@@ -248,8 +248,6 @@ This command should:
 
 ## Step 8: Update Progress After Completion
 
-**IMPORTANT**: Do NOT manually update the PRD file (milestones, progress log, decision log). PRD updates are handled by the `prd-update-progress` prompt after implementation is complete.
-
 After the user completes the task implementation, prompt them to update PRD progress:
 
 ---

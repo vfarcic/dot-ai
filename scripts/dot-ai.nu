@@ -6,7 +6,7 @@
 # > main apply dot-ai-controller
 # > main apply dot-ai-controller --controller-version 0.17.0
 def "main apply dot-ai-controller" [
-    --controller-version = "0.16.0"
+    --controller-version = "0.37.0"
 ] {
 
     (

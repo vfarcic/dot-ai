@@ -118,7 +118,7 @@ function parseSummary(aiResponse: string): string {
  * Main query tool handler
  */
 export async function handleQueryTool(args: any): Promise<any> {
-  const requestId = `query_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   const logger = new ConsoleLogger('QueryTool');
 
   try {
