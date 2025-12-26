@@ -132,17 +132,11 @@ if [[ "$PULL_FAILED" == "true" ]]; then
     log_warn "Some image pulls failed, continuing anyway (images may be pulled by Kubernetes)"
 fi
 
-# Load images into Kind cluster (in parallel)
+# Load images into Kind cluster (sequential to avoid containerd issues)
 log_info "Loading images into Kind cluster..."
-LOAD_PIDS=()
 for img in "${IMAGES[@]}"; do
-    kind load docker-image "$img" --name dot-test 2>/dev/null &
-    LOAD_PIDS+=($!)
-done
-
-# Wait for all loads to complete
-for pid in "${LOAD_PIDS[@]}"; do
-    wait "$pid" 2>/dev/null || true
+    log_info "Loading $img..."
+    kind load docker-image "$img" --name dot-test 2>/dev/null || true
 done
 
 log_info "Image preloading complete"
