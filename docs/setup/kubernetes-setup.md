@@ -45,6 +45,9 @@ Export your API keys and auth token:
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 export OPENAI_API_KEY="sk-proj-..."
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
+
+# Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
+export INGRESS_CLASS_NAME="nginx"
 ```
 
 ### Step 2: Install the Controller (Optional)
@@ -63,12 +66,9 @@ helm install dot-ai-controller \
   --wait
 ```
 
-**What the controller provides:**
-- **Solution CRs**: Track lifecycle and health of deployments created via the `recommend` tool
-- **Resource tracking**: Monitor deployed resources and their relationships
-- **Automated remediation**: AI-powered issue analysis and remediation (future)
+The controller provides CRDs for autonomous cluster operations. Create Custom Resources like CapabilityScanConfig, Solution, RemediationPolicy, or ResourceSyncConfig to enable features such as capability scanning, solution tracking, and more. See the [Controller Setup Guide](https://devopstoolkit.ai/docs/controller/setup-guide) for complete details.
 
-**Note**: You can skip this step if you don't need Solution CR tracking. The MCP server works without the controller.
+**Note**: You can skip this step if you don't need controller features. The MCP server works without the controller, but you'll need to manually trigger capability scans (see [Capability Scanning](#capability-scanning-for-ai-recommendations) below).
 
 ### Step 3: Install the MCP Server
 
@@ -83,6 +83,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \
   --set controller.enabled=true \
   --namespace dot-ai \
@@ -137,6 +138,27 @@ Show dot-ai status
 ```
 
 You should see comprehensive system status including Kubernetes connectivity, vector database, and all available features.
+
+## Capability Scanning for AI Recommendations
+
+Many MCP tools depend on **capability data** to function:
+
+- **recommend**: Uses capabilities to find resources matching your deployment intent
+- **manageOrgData** (patterns): References capabilities when applying organizational patterns
+- **manageOrgData** (policies): Validates resources against stored capability metadata
+
+Without capability data, these tools may not work or will produce poor results.
+
+### Scanning Methods
+
+| MCP Accessibility from Cluster | Recommended Method |
+|-------------------------------|-------------------|
+| MCP accessible (in-cluster deployment) | Controller with CapabilityScanConfig |
+| MCP not accessible (local, Docker Desktop) | Manual scanning via MCP client |
+
+**Controller-based scanning** (recommended for Kubernetes deployments): Create a `CapabilityScanConfig` CR to enable autonomous capability discovery. The controller watches for CRD changes and automatically scans new resources. See the [Capability Scan Guide](https://devopstoolkit.ai/docs/controller/capability-scan-guide) for setup instructions.
+
+**Manual scanning**: Trigger scans through your MCP client when the controller cannot reach the MCP server. See the [Capability Management Guide](../guides/mcp-capability-management-guide.md) for the interactive workflow.
 
 ## Custom LLM Endpoint Configuration
 

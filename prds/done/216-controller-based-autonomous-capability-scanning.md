@@ -1,10 +1,20 @@
 # PRD: Controller-Based Autonomous Capability Scanning
 
 **Issue**: #216
-**Status**: Draft
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-11-11
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-12-25
+**Phase 2 PRD**: [dot-ai-controller #34](https://github.com/vfarcic/dot-ai-controller/issues/34)
+
+## Scope Clarification
+
+This PRD covers **two phases**:
+
+1. **Phase 1 (This Repository)**: MCP API changes to support controller integration - adding a simplified fire-and-forget scan API
+2. **Phase 2 (dot-ai-controller Repository)**: After Phase 1 is complete, a new PRD will be created in the `dot-ai-controller` repository for the actual controller implementation
+
+This document focuses primarily on Phase 1 requirements and provides context for Phase 2.
 
 ## Problem Statement
 
@@ -120,21 +130,17 @@ Deploy a Kubernetes controller that autonomously manages capability scanning by:
 1. DevOps team installs Crossplane provider (e.g., `provider-aws`)
 2. New CRDs are created (e.g., `RDSInstance.database.aws.crossplane.io`)
 3. Controller detects CRD creation event
-4. Controller sends HTTP POST to MCP server:
+4. Controller sends fire-and-forget HTTP POST to MCP server:
    ```json
    POST /api/v1/tools/manageOrgData
    {
      "dataType": "capabilities",
      "operation": "scan",
-     "resource": {
-       "kind": "RDSInstance",
-       "group": "database.aws.crossplane.io",
-       "apiVersion": "v1alpha1"
-     }
+     "resourceList": "RDSInstance.database.aws.crossplane.io"
    }
    ```
-5. MCP server scans the new resource and stores capability data
-6. Users immediately get recommendations for AWS RDS in their next deployment
+5. MCP server scans the new resource asynchronously and stores capability data
+6. Users get recommendations for AWS RDS in their next deployment
 
 **Resource Removal**:
 1. Team uninstalls operator, CRD is deleted
@@ -145,11 +151,7 @@ Deploy a Kubernetes controller that autonomously manages capability scanning by:
    {
      "dataType": "capabilities",
      "operation": "delete",
-     "resource": {
-       "kind": "RDSInstance",
-       "group": "database.aws.crossplane.io",
-       "apiVersion": "v1alpha1"
-     }
+     "id": "RDSInstance.database.aws.crossplane.io"
    }
    ```
 4. MCP server removes capability data from database
@@ -190,39 +192,77 @@ Deploy a Kubernetes controller that autonomously manages capability scanning by:
 
 ### MCP Server Integration
 
-**Existing Endpoints** (no changes needed):
+**Current State**: The existing `manageOrgData` scan operation uses an interactive multi-step workflow designed for human users. This requires multiple API calls and session management, which is unsuitable for automated controller use.
 
-```typescript
+**Required Changes (Phase 1)**: Add a simplified "fire-and-forget" API mode for controller integration.
+
+#### Existing Endpoints (No Changes Needed)
+
+```json
 // Check for existing capabilities
 POST /api/v1/tools/manageOrgData
 {
   "dataType": "capabilities",
   "operation": "list",
+  "limit": 10,
   "collection": "capabilities"
 }
+// Response: { "success": true, "data": { "capabilities": [...], "totalCount": N } }
 
-// Trigger scan for specific resource
+// Get specific capability by ID
 POST /api/v1/tools/manageOrgData
 {
   "dataType": "capabilities",
-  "operation": "scan",
-  "resource": {
-    "kind": "Deployment",
-    "group": "apps",
-    "apiVersion": "v1"
-  },
+  "operation": "get",
+  "id": "Service",
   "collection": "capabilities"
 }
 
-// Remove capability
+// Delete capability by ID (capability ID = resource name)
 POST /api/v1/tools/manageOrgData
 {
   "dataType": "capabilities",
   "operation": "delete",
-  "id": "Deployment.apps",
+  "id": "Service",
   "collection": "capabilities"
 }
 ```
+
+**Note**: Capability IDs are the resource name (e.g., `"Service"`, `"Deployment"`, `"sqls.devopstoolkit.live"`).
+
+#### New Endpoints Required (Phase 1 Deliverable)
+
+```json
+// Fire-and-forget: Trigger full cluster scan
+// Controller calls this on startup if no capabilities exist
+POST /api/v1/tools/manageOrgData
+{
+  "dataType": "capabilities",
+  "operation": "scan",
+  "mode": "full",
+  "collection": "capabilities"
+}
+// Response: { "success": true, "status": "started", "message": "Full scan initiated" }
+// Scan runs in background - no polling required
+
+// Fire-and-forget: Trigger resource scan
+// Controller calls this when CRD create/update event detected
+// resourceList is a comma-separated string of Kind.group format
+POST /api/v1/tools/manageOrgData
+{
+  "dataType": "capabilities",
+  "operation": "scan",
+  "resourceList": "RDSInstance.database.aws.crossplane.io,Bucket.s3.aws.crossplane.io",
+  "collection": "capabilities"
+}
+// Response: { "success": true, "status": "started", "message": "Scan initiated for 2 resources" }
+// Scan runs in background - no polling required
+```
+
+**Key Design Decisions**:
+- `resourceList` is a comma-separated string: `"Kind.group"` for grouped resources, `"Kind"` for core resources (e.g., `"Service"`)
+- Fire-and-forget: Controller does not poll for completion - MCP handles scanning asynchronously
+- Existing interactive workflow remains unchanged for human users
 
 **Authentication**: Controller uses Kubernetes ServiceAccount with RBAC permissions to read API resources. MCP server endpoints are currently unauthenticated (internal cluster traffic). Future enhancement: add optional authentication via bearer tokens.
 
@@ -277,80 +317,44 @@ type RetryConfig struct {
 
 ## Milestones
 
-### Milestone 1: Controller Foundation
-**Deliverable**: Working controller that watches API resources and logs events
+### Phase 1: MCP API Changes (This Repository)
 
-- [ ] Create new `dot-ai-controller` repository with Go module structure
-- [ ] Implement Kubebuilder scaffold with CRD for `CapabilityScanConfig`
-- [ ] Build event watcher for all API resources (CRDs + built-in types)
-- [ ] Implement include/exclude filtering logic with wildcard support
-- [ ] Add structured logging and basic metrics (events watched, filtered)
+#### Milestone 1.1: Fire-and-Forget Scan API ✅
+**Deliverable**: Simplified scan API that bypasses interactive workflow for controller use
 
-**Success Criteria**:
-- Controller deploys successfully in test cluster
-- Logs show detection of CRD create/update/delete events
-- Filtering rules correctly include/exclude resources based on config
-- No crashes or memory leaks during 24-hour run
-
-### Milestone 2: MCP Server Integration
-**Deliverable**: Controller successfully communicates with MCP server
-
-- [ ] Implement HTTP client with retry logic (exponential backoff)
-- [ ] Build startup reconciler that checks for existing capabilities
-- [ ] Implement scan operation triggering via `manageOrgData` endpoint
-- [ ] Implement delete operation for removed resources
-- [ ] Add integration tests with mock MCP server
+- [x] Add `mode: "full"` parameter support to trigger full cluster scan without workflow
+- [x] Add direct `resourceList` parameter support to scan specific resources without workflow
+- [x] Return immediate `{ "status": "started" }` response for fire-and-forget operations
+- [x] Ensure background scanning works correctly without session management
+- [x] Write integration tests for new fire-and-forget endpoints
 
 **Success Criteria**:
-- Controller successfully queries MCP for existing capabilities on startup
-- Controller triggers scans for new CRDs and receives successful responses
-- Retry logic recovers from transient MCP server failures
-- Delete operations successfully remove capabilities when CRDs are deleted
+- `POST { operation: "scan", mode: "full" }` triggers full scan and returns immediately ✅
+- `POST { operation: "scan", resourceList: "Kind.group" }` triggers resource scan and returns immediately ✅
+- Existing interactive workflow continues to work unchanged for human users ✅
+- Integration tests pass for both fire-and-forget and interactive modes ✅
 
-### Milestone 3: Resilience & Observability
-**Deliverable**: Production-ready controller with full observability
+#### Milestone 1.2: Create Controller PRD ✅
+**Deliverable**: New PRD in `dot-ai-controller` repository for Phase 2 work
 
-- [ ] Implement work queue with rate limiting for event processing
-- [ ] Add Prometheus metrics (scans triggered, success/failure rates, queue depth)
-- [ ] Implement health endpoints (liveness, readiness) with proper checks
-- [ ] Add dead letter queue logging for permanent failures
-- [ ] Create runbook documentation for common failure scenarios
+- [x] Write comprehensive PRD in `dot-ai-controller` repository based on Phase 2 context below
+- [x] Include accurate API documentation from Phase 1 implementation
+- [x] Reference this PRD for architectural context
 
 **Success Criteria**:
-- Controller handles MCP server downtime gracefully (queues events, retries)
-- Metrics accurately reflect operation counts and latencies
-- Health checks correctly report controller state
-- Failed events are logged with sufficient detail for debugging
+- Controller PRD contains all information needed for implementation ✅
+- API examples match actual MCP implementation ✅
+- No dependencies on dot-ai repository for controller development ✅
 
-### Milestone 4: Helm Chart Integration
-**Deliverable**: Controller deployable via main dot-ai Helm chart
+**Deliverable**: [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/done/34-autonomous-capability-scanning.md)
 
-- [ ] Create controller Helm chart templates (Deployment, RBAC, ServiceAccount)
-- [ ] Add optional controller component to main `dot-ai` Helm chart
-- [ ] Implement chart values for controller configuration (endpoint, filters, retry)
-- [ ] Add default `CapabilityScanConfig` resource to chart
-- [ ] Document Helm installation options in main repository docs
+---
 
-**Success Criteria**:
-- Users can enable controller via `--set controller.enabled=true`
-- Controller configuration is manageable through Helm values
-- RBAC permissions are correctly scoped (read API resources, no write permissions)
-- Chart upgrades don't disrupt controller operation
+### Phase 2: Controller Implementation (dot-ai-controller Repository) ✅
 
-### Milestone 5: Documentation & Testing
-**Deliverable**: Complete documentation and end-to-end testing
+**Status**: Complete
 
-- [ ] Create comprehensive README in controller repository
-- [ ] Add architecture diagrams showing controller/MCP interaction
-- [ ] Write end-to-end tests (install operator → verify scan → uninstall → verify delete)
-- [ ] Create troubleshooting guide with common issues and solutions
-- [ ] Add performance testing documentation (resource usage, scaling limits)
-
-**Success Criteria**:
-- New users can deploy and configure controller following README alone
-- E2E tests validate complete workflow from CRD creation to capability availability
-- Troubleshooting guide addresses failure scenarios discovered during testing
-- Performance characteristics documented (events/sec, memory usage)
+See [dot-ai-controller PRD #34](https://github.com/vfarcic/dot-ai-controller/blob/main/prds/done/34-autonomous-capability-scanning.md) for implementation details.
 
 ## Success Metrics
 
@@ -409,20 +413,71 @@ type RetryConfig struct {
 
 ## Dependencies
 
-### Existing Capabilities
+### Phase 1 Prerequisites (MCP API Changes)
 - ✅ `manageOrgData` tool with `capabilities` dataType (PRD #132, implemented)
 - ✅ HTTP endpoints exposed by MCP server (existing)
 - ✅ Qdrant vector database for capability storage (existing)
+- ✅ Fire-and-forget scan API (this PRD, Phase 1 - Milestone 1.1)
+
+### Phase 2 Prerequisites (Controller Implementation)
+- ✅ **Phase 1 complete** - Fire-and-forget API implemented and tested
+- ✅ New PRD created in `dot-ai-controller` repository ([PRD #34](https://github.com/vfarcic/dot-ai-controller/issues/34))
 
 ### Related PRDs
 - **PRD #155: Parallel Capability Analysis** - Future: controller could leverage parallel scanning
-- **dot-ai-controller PRD #4: Solution CRD for Deployment Tracking** - Synergy: both implemented in dot-ai-controller repo
 - **PRD #180: Dynamic Credential Management** - May inform controller authentication design
 
 ### External Dependencies
 - Kubernetes cluster with API access (minimum version: 1.20+)
 - MCP server deployed and accessible via cluster DNS
 - RBAC permissions for controller ServiceAccount
+
+## Phase 3: Documentation Updates (This Repository)
+
+After Phase 2 (controller implementation) is complete, update dot-ai documentation:
+
+### Milestone 3.1: Update Kubernetes Setup Guide ✅
+- [x] Update `docs/setup/kubernetes-setup.md` to explain capability scanning controller installation
+- [x] Add context: Many tools depend on capability data (recommend, patterns, policies, resources)
+- [x] Explain that without capability scanning, these features may not work
+- [x] Document the controller as the recommended approach for keeping capabilities up-to-date
+
+### Milestone 3.2: Update Capability Documentation ✅
+- [x] Document when to use controller vs manual scanning (based on MCP accessibility)
+- [x] Explain controller is recommended when MCP is accessible from cluster
+- [x] Explain manual scanning is required when MCP is not accessible (local development, Docker Desktop, etc.)
+- [x] Update any guides that reference capability scanning to include both approaches
+
+### Milestone 3.3: Consolidate Documentation Links ✅
+- [x] Find all links pointing directly to the controller repo (github.com/vfarcic/dot-ai-controller)
+- [x] Update links to point to the unified documentation site covering both MCP and controller
+- [x] Ensure cross-references point to specific pages, not just repo/site root (e.g., remediation guide here should link to controller's remediation-guide.md, not the repo root)
+- [x] Ensure consistent cross-referencing between MCP and controller documentation
+
+---
+
+## Design Decisions
+
+### 2025-12-25: Manual Scanning Retained (Not Deprecated)
+
+**Decision**: Manual capability scanning via MCP will NOT be deprecated. Both controller-based and manual scanning remain fully supported.
+
+**Rationale**: The controller runs inside Kubernetes and can only reach MCP endpoints that are network-accessible from the cluster. When MCP runs in locations not accessible from the cluster (e.g., developer laptop, Docker Desktop, behind NAT), manual scanning is the only option.
+
+**Guidance**:
+| MCP Accessibility from Cluster | Scanning Method |
+|-------------------------------|-----------------|
+| Accessible | Controller (recommended) or Manual |
+| Not accessible | Manual only |
+
+Use the controller for automatic scanning when MCP is accessible from the Kubernetes cluster. Use manual scanning when MCP is not accessible (e.g., running locally on your laptop).
+
+**Impact**:
+- Removed planned deprecation of interactive scan workflow
+- Removed planned removal of scan operation
+- Phase 3 documentation will explain when to use each approach instead of deprecation notices
+
+---
 
 ## Future Enhancements
 
@@ -460,12 +515,3 @@ type RetryConfig struct {
 - [PRD #132: Cluster Capability Discovery via manageOrgData](https://github.com/vfarcic/dot-ai/issues/132)
 - [PRD #155: Parallel Capability Analysis](https://github.com/vfarcic/dot-ai/issues/155)
 
----
-
-## Progress Log
-
-### 2025-11-11: PRD Created
-- Initial PRD draft completed
-- Clarified architecture: separate repository, optional Helm integration
-- Defined 5 major milestones for implementation
-- Identified key risks and mitigation strategies

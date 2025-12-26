@@ -39,6 +39,13 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 - Automated repository setup with governance files
 - Shared prompt libraries for consistent workflows
 
+## Deployment Options
+
+- **[Kubernetes Setup](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-setup/)** - Recommended: Full features with autonomous capability scanning
+- **[ToolHive Setup](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-toolhive-setup/)** - Operator-managed Kubernetes deployment
+- **[Docker Setup](https://devopstoolkit.ai/docs/mcp/setup/docker-setup/)** - Local development (manual capability scanning only)
+- **[NPX Setup](https://devopstoolkit.ai/docs/mcp/setup/npx-setup/)** - Quick trials with Node.js
+
 [Read the Documentation](https://devopstoolkit.ai/docs/mcp/)
 
 ## Support

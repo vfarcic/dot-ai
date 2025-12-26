@@ -491,22 +491,6 @@ const result = await query({ intent: 'describe the nginx deployment' });
 
 ---
 
-## Progress Log
-
-| Date | Update |
-|------|--------|
-| 2025-12-19 | PRD created after brainstorming session |
-| 2025-12-23 | Finalized integration test strategy: hybrid approach using real K8s resources + direct sync endpoint POST |
-| 2025-12-23 | M1 partial: Added generic `queryWithFilter()` to BaseVectorService and `scrollWithFilter()` to VectorDBService. Architecture decision: AI constructs Qdrant filters directly instead of pre-defined filter interfaces. |
-| 2025-12-23 | Updated milestones to capabilities-first approach. Added evaluation-driven test strategy decision. Updated semantic bridge example to use Qdrant filter syntax. |
-| 2025-12-23 | M2 complete: Created capability tools (`search_capabilities`, `query_capabilities`) in reusable `capability-tools.ts`. Minimal system prompt relies on tool descriptions. Integration tests validate AI selects correct tools for semantic vs filter queries. |
-| 2025-12-23 | M3 complete: Created resource tools (`search_resources`, `query_resources`) in `resource-tools.ts`. Updated query.ts to include both capability and resource tools. Added 2 integration tests with real K8s resources (CNPG Cluster in dedicated namespace). All 4 query tests passing. |
-| 2025-12-24 | M4 complete: Added 6 read-only kubectl tools to query tool. Kept system prompt minimal (role + output format only) - tool descriptions guide AI behavior. Integration test validates kubectl_get usage. All 5 query tests passing. |
-| 2025-12-24 | M5 complete: Added semantic bridge integration test validating AI uses all 3 tool types (capabilities → resources → kubectl). Added error handling test. Fixed REST API to pass through actual error messages instead of generic "Tool execution failed". All 7 query tests passing. M6 (documentation) remaining. |
-| 2025-12-24 | M6 in progress: Identified 8 docs to update. Added directory-specific instructions to main CLAUDE.md to ensure execute-then-document workflow is followed for docs. Documentation paused pending real output capture. |
-
----
-
 ## References
 
 - [PRD #287: Resource Sync Endpoint](./287-resource-sync-endpoint.md) - Resources Vector DB
