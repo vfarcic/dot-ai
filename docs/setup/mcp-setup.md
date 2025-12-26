@@ -7,12 +7,13 @@
 The DevOps AI Toolkit provides main capabilities through MCP (Model Context Protocol):
 
 1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance with enhanced semantic understanding
-2. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
-3. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
-4. **Policy Management** - Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
-5. **Kubernetes Issue Remediation** - AI-powered root cause analysis and automated remediation
-6. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
-7. **REST API Gateway** - HTTP endpoints for all toolkit capabilities
+2. **Cluster Query** - Natural language interface for querying cluster resources, status, and health
+3. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
+4. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
+5. **Policy Management** - Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
+6. **Kubernetes Issue Remediation** - AI-powered root cause analysis and automated remediation
+7. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
+8. **REST API Gateway** - HTTP endpoints for all toolkit capabilities
 
 This guide helps you choose the right setup method and get started quickly.
 

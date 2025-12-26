@@ -34,12 +34,16 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **Key Principle**: Focus on 5-10 major milestones rather than exhaustive task lists. Each milestone should represent meaningful progress that can be clearly validated.
 
+**Consider Including** (when applicable to the project/feature):
+- **Tests** - If the project has tests, include a milestone for test coverage of new functionality
+- **Documentation** - If the feature is user-facing, include a milestone for docs following existing project patterns
+
 **Good Milestones Examples:**
 - [ ] Core functionality implemented and working
-- [ ] Documentation complete and tested
+- [ ] Tests passing for new functionality (if project has test suite)
+- [ ] Documentation complete following existing patterns (if user-facing feature)
 - [ ] Integration with existing systems working
 - [ ] Feature ready for user testing
-- [ ] Feature launched and available
 
 **Avoid Micro-Tasks:**
 - ❌ Update README.md file

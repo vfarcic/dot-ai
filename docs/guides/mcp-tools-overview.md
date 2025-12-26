@@ -16,7 +16,13 @@ AI-powered application deployment assistance with smart intent clarification, se
 - **Use when**: Deploying applications to Kubernetes clusters, or installing third-party tools (Prometheus, Argo CD, Crossplane, etc.) via Helm
 - **📖 Full Guide**: [Kubernetes Deployment Recommendations](mcp-recommendation-guide.md)
 
-### 🔍 Capability Management  
+### 🔎 Cluster Query
+Natural language interface for querying your Kubernetes cluster.
+- **What it does**: Ask questions about your cluster in plain English - find resources by concept, describe specific resources, or check health status
+- **Use when**: Exploring your cluster, finding resources without memorizing kubectl syntax, or checking resource status
+- **📖 Full Guide**: [Cluster Query](mcp-query-guide.md)
+
+### 🔍 Capability Management
 Teaches the AI what your Kubernetes resources actually do through semantic discovery and analysis.
 - **What it does**: Scans cluster resources and discovers their capabilities for intelligent matching
 - **Use when**: Setting up recommendations (required) or improving deployment intelligence

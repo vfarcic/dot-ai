@@ -47,6 +47,11 @@ Automatically discovers cluster resources using semantic capability management. 
 
 [Deployment Guide](guides/mcp-recommendation-guide.md) | [Capability Management](guides/mcp-capability-management-guide.md)
 
+### Cluster Query
+Ask questions about your cluster in plain English. Find resources by concept ("What databases are running?"), describe specific resources, or check health status - all without memorizing kubectl syntax.
+
+[Learn more](guides/mcp-query-guide.md)
+
 ### Issue Remediation
 AI-powered root cause analysis with multi-step investigation, executable remediation commands, and safety mechanisms for manual or automatic execution.
 
@@ -99,6 +104,7 @@ Get started in 3 steps:
 
 ### Feature Guides
 - **[Resource Provisioning](guides/mcp-recommendation-guide.md)** - AI-powered deployment recommendations
+- **[Cluster Query](guides/mcp-query-guide.md)** - Natural language cluster exploration
 - **[Capability Management](guides/mcp-capability-management-guide.md)** - Semantic resource discovery
 - **[Issue Remediation](guides/mcp-remediate-guide.md)** - AI-powered troubleshooting
 - **[Pattern Management](guides/pattern-management-guide.md)** - Organizational deployment patterns

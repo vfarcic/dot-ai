@@ -334,7 +334,10 @@ export async function handleResourceSync(
           resync: {
             inserted: diffResult.inserted,
             updated: diffResult.updated,
-            deleted: diffResult.deleted
+            deleted: diffResult.deleted,
+            insertedResources: diffResult.insertedResources,
+            updatedResources: diffResult.updatedResources,
+            deletedResources: diffResult.deletedResources
           }
         },
         meta: {

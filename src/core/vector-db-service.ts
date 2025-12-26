@@ -425,6 +425,43 @@ export class VectorDBService {
   }
 
   /**
+   * Scroll documents with Qdrant filter
+   * @param filter - Qdrant filter object (must/should/must_not conditions)
+   * @param limit - Maximum documents to retrieve
+   */
+  async scrollWithFilter(filter: any, limit: number = 100): Promise<VectorDocument[]> {
+    if (!this.client) {
+      throw new Error('Vector DB client not initialized');
+    }
+
+    return withQdrantTracing(
+      {
+        operation: 'vector.scroll_filtered',
+        collectionName: this.collectionName,
+        limit,
+        serverUrl: this.config.url
+      },
+      async () => {
+        try {
+          const scrollResult = await this.client!.scroll(this.collectionName, {
+            filter,
+            limit,
+            with_payload: true,
+            with_vector: false
+          });
+
+          return scrollResult.points.map(point => ({
+            id: point.id.toString(),
+            payload: point.payload || {}
+          }));
+        } catch (error) {
+          throw new Error(`Failed to scroll with filter: ${error}`);
+        }
+      }
+    );
+  }
+
+  /**
    * Get all documents (for listing)
    * @param limit - Maximum number of documents to retrieve. Defaults to unlimited (10000).
    */

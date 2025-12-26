@@ -38,15 +38,13 @@ def --env "main apply crossplane" [
         setup aws
     } else if $provider == "azure" {
         setup azure --skip-login $skip_login
-    } else if $provider == "upcloud" {
-        setup upcloud
     }
 
     if $app_config {
 
         print $"\n(ansi green_bold)Applying `dot-application` Configuration...(ansi reset)\n"
 
-        let version = "v3.0.31"
+        let version = "v3.0.46"
         {
             apiVersion: "pkg.crossplane.io/v1"
             kind: "Configuration"
@@ -99,7 +97,7 @@ def --env "main apply crossplane" [
     if ($db_config or $db_provider) and $provider == "google" {
 
         start $"https://console.cloud.google.com/marketplace/product/google/sqladmin.googleapis.com?project=($provider_data.project_id)"
-        
+
         print $"\n(ansi yellow_bold)ENABLE(ansi reset) the API.\nPress the (ansi yellow_bold)enter key(ansi reset) to continue.\n"
         input
 
@@ -109,7 +107,7 @@ def --env "main apply crossplane" [
 
         print $"\n(ansi green_bold)Applying `dot-sql` Configuration...(ansi reset)\n"
 
-        let version = "v2.1.83"
+        let version = "v2.2.11"
         {
             apiVersion: "pkg.crossplane.io/v1"
             kind: "Configuration"
@@ -120,7 +118,7 @@ def --env "main apply crossplane" [
     } else if $db_provider {
 
         apply db-provider $provider
-        
+
     }
 
     if $github_config {
@@ -155,7 +153,7 @@ def --env "main apply crossplane" [
                 verbs: ["*"]
             }]
         } | to yaml | kubectl apply --filename -
-    
+
 
         {
             apiVersion: "v1"
@@ -325,12 +323,12 @@ def "main delete crossplane" [
     --namespace: string
 ] {
 
-    if ($kind | is-not-empty) and ($name | is-not-empty) and ($namespace | is-not-empty) { 
+    if ($kind | is-not-empty) and ($name | is-not-empty) and ($namespace | is-not-empty) {
         kubectl --namespace $namespace delete $kind $name
     }
 
     print $"\nWaiting for (ansi green_bold)Crossplane managed resources(ansi reset) to be deleted...\n"
-    
+
     mut command = { kubectl get managed --output name }
     if ($name | is-not-empty) {
         $command = {
@@ -435,7 +433,7 @@ def "apply providerconfig" [
                 }
             }
         } | to yaml | kubectl apply --filename -
-    
+
     } else if $provider == "azure" {
 
         {
@@ -448,24 +446,6 @@ def "apply providerconfig" [
                     secretRef: {
                         namespace: "crossplane-system"
                         name: "azure-creds"
-                        key: "creds"
-                    }
-                }
-            }
-        } | to yaml | kubectl apply --filename -
-
-    } else if $provider == "upcloud" {
-
-        {
-            apiVersion: "provider.upcloud.com/v1beta1"
-            kind: "ProviderConfig"
-            metadata: { name: default }
-            spec: {
-                credentials: {
-                    source: "Secret"
-                    secretRef: {
-                        namespace: "crossplane-system"
-                        name: "upcloud-creds"
                         key: "creds"
                     }
                 }
@@ -656,35 +636,5 @@ def "setup azure" [
             create secret generic azure-creds
             --from-file creds=./azure-creds.json
     )
-
-}
-
-def "setup upcloud" [] {
-
-    print $"\nInstalling (ansi green_bold)Crossplane UpCloud Provider(ansi reset)...\n"
-
-    if UPCLOUD_USERNAME not-in $env {
-        $env.UPCLOUD_USERNAME = input $"(ansi yellow_bold)UpCloud Username: (ansi reset)"
-    }
-    $"export UPCLOUD_USERNAME=($env.UPCLOUD_USERNAME)\n"
-        | save --append .env
-
-    if UPCLOUD_PASSWORD not-in $env {
-        $env.UPCLOUD_PASSWORD = input $"(ansi yellow_bold)UpCloud Password: (ansi reset)"
-    }
-    $"export UPCLOUD_PASSWORD=($env.UPCLOUD_PASSWORD)\n"
-        | save --append .env
-
-    {
-        apiVersion: "v1"
-        kind: "Secret"
-        metadata: {
-            name: "upcloud-creds"
-        }
-        type: "Opaque"
-        stringData: {
-            creds: $"{\"username\": \"($env.UPCLOUD_USERNAME)\", \"password\": \"($env.UPCLOUD_PASSWORD)\"}"
-        }
-    } | to yaml | kubectl --namespace crossplane-system apply --filename -
 
 }

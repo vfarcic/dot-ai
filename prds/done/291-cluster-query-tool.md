@@ -1,7 +1,7 @@
 # PRD #291: Cluster Query Tool - Natural Language Cluster Intelligence
 
 **GitHub Issue**: [#291](https://github.com/vfarcic/dot-ai/issues/291)
-**Status**: Not Started
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-12-19
 
@@ -88,12 +88,15 @@ Capabilities in Vector DB have rich semantic information (description, use cases
 ```text
 User: "List all database-related resources"
 
-Step 1: search_capabilities("database")
+Step 1: search_capabilities({ query: "database" })
   → Returns kinds: StatefulSet, clusters.postgresql.cnpg.io,
                    compositions.apiextensions.crossplane.io (RDS), etc.
 
-Step 2: query_resources({kinds: [...]}) or kubectl_get
+Step 2: query_resources({ filter: { must: [{ key: "kind", match: { any: ["StatefulSet", "Cluster"] } }] } })
   → Returns actual resources of those kinds
+
+  OR kubectl_get({ resource: "statefulsets" })
+  → Returns live status from cluster
 ```
 
 This pattern is encoded in the system prompt so the LLM learns to use it.
@@ -144,36 +147,21 @@ This pattern is encoded in the system prompt so the LLM learns to use it.
 ```json
 {
   "success": true,
-  "findings": [
-    {
-      "kind": "Cluster",
-      "apiVersion": "postgresql.cnpg.io/v1",
-      "name": "postgres-main",
-      "namespace": "production",
-      "status": "Running",
-      "details": { ... }
-    },
-    {
-      "kind": "StatefulSet",
-      "apiVersion": "apps/v1",
-      "name": "redis-cache",
-      "namespace": "production",
-      "status": "3/3 Ready",
-      "details": { ... }
-    }
-  ],
   "summary": "Found 2 database-related resources in production namespace: 1 CNPG PostgreSQL cluster and 1 Redis StatefulSet.",
-  "toolsUsed": ["search_capabilities", "query_resources", "kubectl_get"]
+  "toolsUsed": ["search_capabilities", "query_resources", "kubectl_get"],
+  "iterations": 3
 }
 ```
+
+> **Note (M2):** Current implementation returns `summary`, `toolsUsed`, and `iterations`. The `toolsUsed` is extracted programmatically from `AgenticResult.toolCallsExecuted` for reliability. Structured `findings` array may be added in M3+ if needed.
 
 **Output (no results):**
 ```json
 {
   "success": true,
-  "findings": [],
   "summary": "No database-related resources found in the cluster.",
-  "toolsUsed": ["search_capabilities", "query_resources"]
+  "toolsUsed": ["search_capabilities", "query_resources"],
+  "iterations": 2
 }
 ```
 
@@ -192,31 +180,33 @@ This pattern is encoded in the system prompt so the LLM learns to use it.
 
 ## Technical Design
 
-### 1. New Vector DB Methods
+### 1. Generic Vector DB Query Method
 
-**CapabilityVectorService - queryCapabilities():**
+**Architecture Decision**: Instead of pre-defined filter interfaces, the AI constructs Qdrant filters directly. This provides maximum flexibility and reduces code maintenance.
+
+**VectorDBService - scrollWithFilter():**
 ```typescript
-interface CapabilityQueryFilters {
-  kinds?: string[];           // Filter by resource kind
-  providers?: string[];       // Filter by provider (crossplane, cnpg, etc.)
-  complexity?: 'low' | 'medium' | 'high';
-  groups?: string[];          // Filter by API group
-}
-
-async queryCapabilities(filters: CapabilityQueryFilters): Promise<ResourceCapability[]>
+// Low-level Qdrant filter support
+async scrollWithFilter(filter: any, limit: number = 100): Promise<VectorDocument[]>
 ```
 
-**ResourceVectorService - queryResources():**
+**BaseVectorService - queryWithFilter():**
 ```typescript
-interface ResourceQueryFilters {
-  kinds?: string[];           // Filter by resource kind
-  apiVersions?: string[];     // Filter by apiVersion
-  namespaces?: string[];      // Filter by namespace
-  labels?: Record<string, string>;  // Filter by labels
-}
-
-async queryResources(filters: ResourceQueryFilters): Promise<ClusterResource[]>
+// Typed wrapper inherited by CapabilityVectorService and ResourceVectorService
+async queryWithFilter(filter: any, limit: number = 100): Promise<T[]>
 ```
+
+**How it works:**
+1. Tool description tells AI which payload fields are available
+2. AI constructs Qdrant filter based on user intent
+3. Filter is passed directly to Qdrant - no translation layer
+4. If AI makes syntax errors, Qdrant returns error, AI self-corrects
+
+**Available payload fields (Capabilities):**
+- `resourceName`, `group`, `apiVersion`, `providers`, `complexity`, `capabilities`, `abstractions`, `description`, `useCase`
+
+**Available payload fields (Resources):**
+- `kind`, `namespace`, `name`, `apiVersion`, `apiGroup`, `labels`, `annotations`
 
 ### 2. Tool Definitions
 
@@ -342,32 +332,101 @@ Return JSON with:
 
 ## Milestones
 
-- [ ] **M1: Vector DB Query Methods**
-  - Add `queryCapabilities(filters)` to CapabilityVectorService
-  - Add `queryResources(filters)` to ResourceVectorService
-  - Add `searchResources(query)` wrapper method
+- [x] **M1: Vector DB Query Methods**
+  - ~~Add `queryCapabilities(filters)` to CapabilityVectorService~~ → Added generic `queryWithFilter(filter)` to BaseVectorService (inherited by all services)
+  - ~~Add `queryResources(filters)` to ResourceVectorService~~ → Same generic method works for resources
+  - Added `scrollWithFilter(filter)` to VectorDBService (low-level Qdrant support)
+  - Note: AI constructs Qdrant filters directly; no pre-defined filter interfaces needed
 
-- [ ] **M2: Tool Definitions**
-  - Create `src/core/query-tools.ts`
-  - Define 4 Vector DB tools (search_capabilities, query_capabilities, search_resources, query_resources)
-  - Create tool executor function
+- [x] **M2: Capability Tools (First)**
+  - Created `src/core/capability-tools.ts` with reusable capability tools (can be used by query, recommend, and other tools)
+  - Defined `search_capabilities` (semantic) and `query_capabilities` (Qdrant filter)
+  - Created tool executor function with `QDRANT_CAPABILITIES_COLLECTION` env var support
+  - Created minimal `prompts/query-system.md` (tool descriptions guide AI strategy, not prompt)
+  - Created `src/tools/query.ts` MCP tool handler
+  - Registered query tool in MCP interface
+  - Wrote 2 integration tests in `tests/integration/tools/query.test.ts`:
+    - Semantic: "What databases can I deploy?" → validates `search_capabilities` used
+    - Filter: "Show me low complexity capabilities" → validates `query_capabilities` used
+  - Note: `toolsUsed` extracted from `AgenticResult.toolCallsExecuted` (not AI self-reporting)
+  - Note: `findings` field removed - AI summary is sufficient for M2 scope
 
-- [ ] **M3: System Prompt**
-  - Create `prompts/query-system.md`
-  - Encode semantic bridge strategy
-  - Define output format guidelines
+- [x] **M3: Resource Tools (Second)**
+  - Created `src/core/resource-tools.ts` with reusable resource tools (can be used by query and other tools)
+  - Defined `search_resources` (semantic search on resource names/labels) and `query_resources` (Qdrant filter)
+  - Updated `src/tools/query.ts` to include resource tools alongside capability tools
+  - Extended `prompts/query-system.md` with guidance on capabilities vs resources distinction
+  - Wrote 2 integration tests validating AI selects correct tools:
+    - "Search the resource inventory for anything with postgres in the name" → `search_resources`
+    - "Query the resource inventory for resources with label team=platform" → `query_resources`
+  - Tests create real K8s resources (CNPG Cluster) and sync to Qdrant, preparing for M4 kubectl tools
 
-- [ ] **M4: MCP Tool Implementation**
-  - Create `src/tools/query.ts`
-  - Implement `handleQuery()` with tool loop
-  - Register tool in MCP interface
-  - Add to REST API router
+- [x] **M4: Kubectl Tools Integration (Third)**
+  - Added 6 read-only kubectl tools to query tool: `kubectl_api_resources`, `kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_events`, `kubectl_get_crd_schema`
+  - Kept system prompt minimal - tool descriptions provide sufficient guidance for AI orchestration
+  - Integration test validates AI uses `kubectl_get` for live cluster status queries
+  - All 5 query tests passing (M2 capability + M3 resource + M4 kubectl)
 
-- [ ] **M5: Integration Testing**
-  - Test semantic bridge flow (capabilities → resources)
-  - Test direct kubectl queries
-  - Test mixed queries
-  - Test error handling
+- [x] **M5: Full Integration & MCP Registration**
+  - `src/tools/query.ts` with all 10 tools (completed in M2-M4)
+  - Tool registered in MCP interface (completed in M2)
+  - Tool accessible via REST API router (completed in M2)
+  - Integration test validates full semantic bridge flow: AI uses all 3 tool types (capabilities → resources → kubectl)
+  - Error handling test validates proper error messages (e.g., "Intent is required")
+  - Fixed REST API to pass through actual error messages instead of generic "Tool execution failed"
+  - All 7 query tests passing
+
+- [x] **M6: Documentation**
+  - Create `docs/guides/mcp-query-guide.md` following existing guide patterns:
+    - Prerequisites section
+    - Overview of query tool capabilities
+    - Complete workflow examples (semantic queries, filter queries, kubectl queries, semantic bridge flow)
+    - Example intents for different use cases
+  - Update these existing docs:
+    - `docs/guides/mcp-tools-overview.md` - add query tool to tools list
+    - `docs/index.md` - add "Cluster Intelligence" to Key Features
+    - `docs/setup/mcp-setup.md` - add query to MCP capabilities list
+    - `docs/quick-start.md` - add query to workflow examples
+    - `README.md` - add cluster querying to capabilities
+    - `docs/ROADMAP.md` - remove query tool from planned (now complete)
+    - `docs/guides/mcp-capability-management-guide.md` - add cross-reference noting capabilities are used by query tool
+  - Validate all examples work before documenting (per docs/CLAUDE.md execute-then-document workflow)
+
+### Integration Test Strategy
+
+Tests use a **hybrid approach** for test data:
+
+1. **Create real K8s resources** in the test cluster (Deployment, StatefulSet, Service, etc.)
+2. **POST same resources directly** to `/api/v1/resources/sync` endpoint for immediate Qdrant population
+3. **Test the query tool** - both Vector DB search AND kubectl tools work against real resources
+
+```typescript
+// Example test setup
+// 1. Create real K8s resource (for kubectl tools)
+await kubectl('apply -f test-deployment.yaml');
+
+// 2. Sync to Qdrant immediately (bypass controller timing)
+await httpClient.post('/api/v1/resources/sync', {
+  upserts: [{
+    namespace: 'default',
+    name: 'test-nginx',
+    kind: 'Deployment',
+    apiVersion: 'apps/v1',
+    labels: { app: 'nginx' },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }]
+});
+
+// 3. Test query tool - vector search finds resource, kubectl gets live status
+const result = await query({ intent: 'describe the nginx deployment' });
+```
+
+**Why this approach:**
+- Real K8s resources required for `kubectl_get`, `kubectl_describe`, `kubectl_logs`
+- Direct sync endpoint avoids controller timing uncertainty
+- Tests are fast and deterministic
+- Full integration path is validated
 
 ---
 
@@ -424,6 +483,11 @@ Return JSON with:
 | **JSON output** | Let client agent handle formatting; maximum flexibility |
 | **System prompt strategy** | Encode semantic bridge explicitly; don't rely on LLM discovering it |
 | **No permission restrictions initially** | Start simple; add permissions in future PRD if needed |
+| **Hybrid integration test approach** | Tests create real K8s resources (for kubectl) AND POST directly to sync endpoint (for Qdrant). Avoids controller timing dependency while validating full query tool flow. |
+| **AI-constructed Qdrant filters** | Instead of pre-defined filter interfaces (e.g., `CapabilityQueryFilters`), the AI constructs Qdrant filters directly. Tool descriptions include available payload fields. More flexible, less code, AI adapts to any query. |
+| **Incremental tool validation** | Build and test each tool type separately (capabilities → resources → kubectl), verifying AI usage via debug output before combining. Reduces debugging complexity. |
+| **Evaluation-driven test strategy** | For each tool type, write 2 tests: (1) semantic query triggering `search_*`, (2) filter query triggering `query_*`. Run with `DEBUG_DOT_AI=true`, manually inspect debug output to verify AI used expected tools. Human-in-the-loop validation before tests become regression tests. |
+| **Minimal system prompt** | System prompt contains only role definition and output format. All tool orchestration guidance is encoded in tool descriptions (e.g., `search_capabilities` says "Returns capability definitions with semantic meaning, not actual resources"). AI decides how to orchestrate tools based on descriptions alone. |
 
 ---
 

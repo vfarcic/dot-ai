@@ -36,6 +36,17 @@
   - This deletes the Kind cluster, removes test kubeconfig, and cleans up Qdrant container
   - **Only run cleanup if tests passed** - keep resources available for debugging if tests fail
 
+## 📁 DIRECTORY-SPECIFIC INSTRUCTIONS
+
+**IMPORTANT**: Some directories have their own CLAUDE.md with specialized workflows. **ALWAYS read and follow these before working in that directory:**
+
+| Directory | Instructions | Key Requirement |
+|-----------|--------------|-----------------|
+| `docs/` | `docs/CLAUDE.md` | **Execute-then-document**: Run each command/example, capture real output, then document. Never write fabricated examples. |
+| `tests/integration/` | `tests/integration/CLAUDE.md` | Comprehensive workflow tests, `toMatchObject` validation pattern, race condition prevention. |
+
+**Why this matters**: Directory-specific CLAUDE.md files contain critical workflows that prevent common mistakes (e.g., writing documentation with made-up outputs instead of validated real outputs).
+
 ## Project Overview
 
 **DevOps AI Toolkit** is an intelligent Kubernetes application deployment agent that discovers cluster capabilities and provides AI-powered recommendations for deploying applications using available resources.
@@ -144,6 +155,11 @@ prompts/                 # AI prompt templates
 **Temporary File Storage:**
 - **Always use `./tmp`**: Never use `/tmp` for temporary files or outputs - always use the project's `./tmp` directory
 - This ensures temporary files stay within the project boundary and follow .gitignore rules
+
+**Kubernetes Cluster Creation:**
+- **Always use kubeconfig in `./tmp`**: When creating Kind or other test clusters, store the kubeconfig in `./tmp/kubeconfig.yaml`
+- Set `KUBECONFIG=./tmp/kubeconfig.yaml` before cluster creation to keep cluster configs isolated
+- This prevents polluting the user's `~/.kube/config` and ensures clean teardown
 
 ### Environment Setup
 

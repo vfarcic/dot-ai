@@ -51,8 +51,10 @@ Capability Management provides the foundation for other organizational intellige
 
 **Quick Overview**:
 - **Capabilities**: What resources can do (this guide - required foundation)
-- **Patterns**: What resources to deploy together (organizational preferences)  
+- **Patterns**: What resources to deploy together (organizational preferences)
 - **Policies**: How resources should be configured (governance requirements)
+
+**Used by**: Capabilities power semantic understanding in [Cluster Query](mcp-query-guide.md), [Deployment Recommendations](mcp-recommendation-guide.md), and [Operations](mcp-operate-guide.md).
 
 For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
 

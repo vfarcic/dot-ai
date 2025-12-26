@@ -2,9 +2,7 @@
   "mcpServers": {
     "dot-ai": {
       "command": "node",
-      "args": [
-        "./dist/mcp/server.js"
-      ],
+      "args": ["./dist/mcp/server.js"],
       "env": {
         "KUBECONFIG": "./kubeconfig.yaml",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
