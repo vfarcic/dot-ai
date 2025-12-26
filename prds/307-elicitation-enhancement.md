@@ -57,17 +57,19 @@ For each tool and workflow step, evaluate:
 | Over-elicitation adds friction | Evaluate each step; skip where not beneficial |
 | Inconsistent patterns confuse users | Define standard elicitation patterns to reuse |
 | Scope creep | Checklist approach bounds the work |
+| Limited client support for MCP elicitation | Milestone 1 gate; defer work if adoption insufficient |
 
 ---
 
 ## Milestones
 
-- [ ] **Milestone 1**: Generate comprehensive checklist of all MCP tools and workflow steps
-- [ ] **Milestone 2**: Evaluate each item and document elicitation decisions
-- [ ] **Milestone 3**: Define reusable elicitation patterns (confirmation, clarification, adaptive)
-- [ ] **Milestone 4**: Implement elicitation for all selected items
-- [ ] **Milestone 5**: Integration tests for elicitation flows
-- [ ] **Milestone 6**: User validation and refinement
+- [ ] **Milestone 1**: Reevaluate MCP elicitation support across models and agents (GATE: proceed or defer based on adoption)
+- [ ] **Milestone 2**: Generate comprehensive checklist of all MCP tools and workflow steps
+- [ ] **Milestone 3**: Evaluate each item and document elicitation decisions
+- [ ] **Milestone 4**: Define reusable elicitation patterns (confirmation, clarification, adaptive)
+- [ ] **Milestone 5**: Implement elicitation for all selected items
+- [ ] **Milestone 6**: Integration tests for elicitation flows
+- [ ] **Milestone 7**: User validation and refinement
 
 ---
 
