@@ -49,12 +49,25 @@ export interface SyncResult {
 }
 
 /**
+ * Simplified resource identifier for tracking changes
+ */
+export interface ResourceIdentifier {
+  namespace: string;
+  kind: string;
+  name: string;
+  apiVersion: string;
+}
+
+/**
  * Result of a diff and sync operation
  */
 export interface DiffSyncResult {
   inserted: number;
   updated: number;
   deleted: number;
+  insertedResources: ResourceIdentifier[];
+  updatedResources: ResourceIdentifier[];
+  deletedResources: ResourceIdentifier[];
 }
 
 /**
@@ -314,6 +327,14 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
     // Helper to get human-readable ID from resource
     const getResourceKey = (r: ClusterResource) => generateResourceId(r.namespace, r.apiVersion, r.kind, r.name);
 
+    // Helper to extract resource identifier
+    const toResourceIdentifier = (r: ClusterResource): ResourceIdentifier => ({
+      namespace: r.namespace,
+      kind: r.kind,
+      name: r.name,
+      apiVersion: r.apiVersion
+    });
+
     // Get all existing resources from Qdrant
     const existing = await this.listResources();
     const existingMap = new Map(existing.map(r => [getResourceKey(r), r]));
@@ -321,7 +342,7 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
 
     const toInsert: ClusterResource[] = [];
     const toUpdate: ClusterResource[] = [];
-    const toDelete: string[] = [];
+    const toDeleteResources: ClusterResource[] = [];
 
     // Find new and changed resources
     for (const resource of incoming) {
@@ -336,9 +357,9 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
     }
 
     // Find deleted resources (in Qdrant but not in incoming)
-    for (const id of existingMap.keys()) {
+    for (const [id, resource] of existingMap.entries()) {
       if (!incomingMap.has(id)) {
-        toDelete.push(id);
+        toDeleteResources.push(resource);
       }
     }
 
@@ -347,14 +368,18 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
       await this.storeResource(resource);
     }
 
-    for (const id of toDelete) {
+    for (const resource of toDeleteResources) {
+      const id = getResourceKey(resource);
       await this.deleteResource(id);
     }
 
     return {
       inserted: toInsert.length,
       updated: toUpdate.length,
-      deleted: toDelete.length
+      deleted: toDeleteResources.length,
+      insertedResources: toInsert.map(toResourceIdentifier),
+      updatedResources: toUpdate.map(toResourceIdentifier),
+      deletedResources: toDeleteResources.map(toResourceIdentifier)
     };
   }
 }
