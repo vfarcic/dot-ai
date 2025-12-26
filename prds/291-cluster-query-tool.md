@@ -1,7 +1,7 @@
 # PRD #291: Cluster Query Tool - Natural Language Cluster Intelligence
 
 **GitHub Issue**: [#291](https://github.com/vfarcic/dot-ai/issues/291)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-12-19
 
@@ -376,7 +376,7 @@ Return JSON with:
   - Fixed REST API to pass through actual error messages instead of generic "Tool execution failed"
   - All 7 query tests passing
 
-- [ ] **M6: Documentation**
+- [x] **M6: Documentation**
   - Create `docs/guides/mcp-query-guide.md` following existing guide patterns:
     - Prerequisites section
     - Overview of query tool capabilities

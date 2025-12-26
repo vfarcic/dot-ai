@@ -156,6 +156,11 @@ prompts/                 # AI prompt templates
 - **Always use `./tmp`**: Never use `/tmp` for temporary files or outputs - always use the project's `./tmp` directory
 - This ensures temporary files stay within the project boundary and follow .gitignore rules
 
+**Kubernetes Cluster Creation:**
+- **Always use kubeconfig in `./tmp`**: When creating Kind or other test clusters, store the kubeconfig in `./tmp/kubeconfig.yaml`
+- Set `KUBECONFIG=./tmp/kubeconfig.yaml` before cluster creation to keep cluster configs isolated
+- This prevents polluting the user's `~/.kube/config` and ensures clean teardown
+
 ### Environment Setup
 
 ```bash

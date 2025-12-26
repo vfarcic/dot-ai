@@ -26,7 +26,7 @@ import * as path from 'path';
 
 // Tool metadata for MCP registration
 export const QUERY_TOOL_NAME = 'query';
-export const QUERY_TOOL_DESCRIPTION = 'Natural language query interface for Kubernetes cluster intelligence. Ask questions about your cluster capabilities, resources, and status in plain English. Examples: "What databases can I deploy?", "Show me low complexity capabilities", "What operators are installed?"';
+export const QUERY_TOOL_DESCRIPTION = 'Natural language query interface for Kubernetes cluster intelligence. Ask any questions about your cluster resources, capabilities, and status in plain English. Examples: "What databases are running?", "Describe the nginx deployment", "Show me pods in the kube-system namespace", "What operators are installed?", "Is my-postgres healthy?"';
 
 // Zod schema for MCP registration
 export const QUERY_TOOL_INPUT_SCHEMA = {

@@ -8,13 +8,17 @@ Write documentation with real, validated examples by executing commands and capt
 
 ## Workflow Overview
 
-1. **Phase 1: Setup Validation** - Agent sets up the project following quickstart/setup docs, fixing any issues found
+1. **Phase 1: Setup Validation** - You set up the project following quickstart/setup docs, fixing any issues found
 2. **Phase 2: Documentation Task** - Update existing guide or create new one with validated examples
 3. **Phase 3: Cleanup** - Tear down test infrastructure when complete
 
 ## Phase 1: Setup Validation
 
+**MANDATORY: You must complete this phase before ANY documentation work. Do not skip to Phase 2.**
+
 **Purpose**: Validate the quickstart and setup docs are accurate while preparing the environment.
+
+**Key Rule**: You execute ALL setup commands using the Bash tool. The user only executes examples that will appear in the final documentation.
 
 ### Step 1.1: Identify Setup Documentation
 
@@ -25,9 +29,9 @@ Locate the project's **user-facing** setup documentation:
 
 ### Step 1.2: Execute Setup Steps
 
-**Agent executes each setup step exactly as written** in the documentation:
+**You must execute each setup step exactly as written** in the documentation:
 
-1. Run each command from the setup docs in order
+1. Run each command from the setup docs in order using the Bash tool
 2. If the docs reference a script, run that script
 3. Verify output matches expected behavior
 4. If a prerequisite is missing (e.g., no Kubernetes cluster):
@@ -42,13 +46,15 @@ Locate the project's **user-facing** setup documentation:
 
 Continue until setup is complete and verified.
 
-### Step 1.3: Verify Relevant Features Work
+### Step 1.3: Verify Environment Ready
 
-Before proceeding to documentation, verify the features to be documented:
+Before proceeding to Phase 2, you must verify:
 
-- Identify which commands/tools/features the documentation will cover
-- Run quick tests to confirm they work
-- Note any issues or unexpected behavior
+- [ ] All setup commands executed successfully
+- [ ] Environment is verified working (run a simple test command from the docs)
+- [ ] The features to be documented are accessible and functional
+
+**Only proceed to Phase 2 after all checks pass.**
 
 ## Phase 2: Documentation Task
 
@@ -109,4 +115,4 @@ After documentation is complete:
 
 ## Key Principle
 
-Agent executes setup; user executes only the examples that will appear in the documentation.
+You execute setup; user executes only the examples that will appear in the documentation.
