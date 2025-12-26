@@ -10,7 +10,7 @@
  * PRD #291: Cluster Query Tool - Natural Language Cluster Intelligence
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import { execSync } from 'child_process';
 
@@ -93,6 +93,18 @@ spec:
         }
       ],
       deletes: [],
+      isResync: false
+    });
+  });
+
+  // Clean up resources synced to Qdrant to avoid interference with other tests
+  afterAll(async () => {
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [],
+      deletes: [
+        { namespace: testNamespace, name: 'test-pg-cluster', kind: 'Cluster', apiVersion: 'postgresql.cnpg.io/v1' },
+        { namespace: testNamespace, name: 'test-web-deployment', kind: 'Deployment', apiVersion: 'apps/v1' }
+      ],
       isResync: false
     });
   });
