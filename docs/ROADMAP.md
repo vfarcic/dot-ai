@@ -22,6 +22,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
+- Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
 - User-defined prompts - enable teams to add custom MCP prompts via GitHub or Qdrant (PRD #306)
 - Skills distribution via MCP - install-skills prompt and enhanced skill format (PRD #290)
 - Multi-step workflow distributed tracing (PRD #197)
