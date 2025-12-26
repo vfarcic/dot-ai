@@ -22,6 +22,20 @@ describe.concurrent('Query Tool Integration', () => {
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
 
+    // Clean up any leftover resources from previous runs to avoid interference
+    try {
+      await integrationTest.httpClient.post('/api/v1/resources/sync', {
+        upserts: [],
+        deletes: [
+          { namespace: testNamespace, name: 'test-pg-cluster', kind: 'Cluster', apiVersion: 'postgresql.cnpg.io/v1' },
+          { namespace: testNamespace, name: 'test-web-deployment', kind: 'Deployment', apiVersion: 'apps/v1' }
+        ],
+        isResync: false
+      });
+    } catch {
+      // Ignore errors if resources don't exist
+    }
+
     // M3: Create dedicated namespace and resources for query tool tests
     // This prepares for M4 kubectl tools while testing M3 resource tools
 
