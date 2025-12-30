@@ -366,8 +366,7 @@ export async function handlePromptsGetRequest(
     // Substitute {{argumentName}} placeholders in content
     let processedContent = prompt.content;
     for (const [argName, argValue] of Object.entries(providedArgs)) {
-      const placeholder = new RegExp(`\\{\\{${argName}\\}\\}`, 'g');
-      processedContent = processedContent.replace(placeholder, String(argValue));
+      processedContent = processedContent.replaceAll(`{{${argName}}}`, String(argValue));
     }
 
     logger.info('Prompt found and returned', {

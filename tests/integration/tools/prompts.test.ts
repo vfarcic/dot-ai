@@ -11,8 +11,15 @@ import { IntegrationTest } from '../helpers/test-base.js';
 describe.concurrent('Prompts Integration', () => {
   const integrationTest = new IntegrationTest();
 
-  // Detect deployment mode based on MCP_BASE_URL
-  const isInClusterMode = process.env.MCP_BASE_URL?.includes('nip.io') || false;
+  // Detect deployment mode based on MCP_BASE_URL (parse hostname to avoid substring matching issues)
+  const isInClusterMode = (() => {
+    try {
+      const url = new URL(process.env.MCP_BASE_URL || '');
+      return url.hostname.endsWith('.nip.io') || url.hostname === 'nip.io';
+    } catch {
+      return false;
+    }
+  })();
 
   // Exact list of all built-in prompts with their metadata
   const expectedBuiltInPrompts = [

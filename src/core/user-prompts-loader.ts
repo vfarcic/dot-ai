@@ -52,12 +52,16 @@ export function getUserPromptsConfig(): UserPromptsConfig | null {
     return null;
   }
 
+  // Validate cache TTL - fallback to default if invalid or negative
+  const parsedTtl = parseInt(process.env.DOT_AI_USER_PROMPTS_CACHE_TTL || '86400', 10);
+  const cacheTtlSeconds = Number.isNaN(parsedTtl) || parsedTtl < 0 ? 86400 : parsedTtl;
+
   return {
     repoUrl,
     branch: process.env.DOT_AI_USER_PROMPTS_BRANCH || 'main',
     subPath: process.env.DOT_AI_USER_PROMPTS_PATH || '',
     gitToken: process.env.DOT_AI_GIT_TOKEN,
-    cacheTtlSeconds: parseInt(process.env.DOT_AI_USER_PROMPTS_CACHE_TTL || '86400', 10),
+    cacheTtlSeconds,
   };
 }
 
@@ -119,6 +123,14 @@ export function sanitizeUrlForLogging(url: string): string {
 }
 
 /**
+ * Validate git branch name to prevent command injection
+ * Allows alphanumeric characters, hyphens, underscores, slashes, and dots
+ */
+function isValidGitBranch(branch: string): boolean {
+  return /^[a-zA-Z0-9_.\-\/]+$/.test(branch);
+}
+
+/**
  * Clone the user prompts repository
  */
 async function cloneRepository(
@@ -126,6 +138,11 @@ async function cloneRepository(
   localPath: string,
   logger: Logger
 ): Promise<void> {
+  // Validate branch name to prevent command injection
+  if (!isValidGitBranch(config.branch)) {
+    throw new Error(`Invalid branch name: ${config.branch}`);
+  }
+
   const authUrl = config.gitToken
     ? insertTokenInUrl(config.repoUrl, config.gitToken)
     : config.repoUrl;
@@ -162,7 +179,7 @@ async function cloneRepository(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     // Sanitize error message in case it contains the token
     const sanitizedError = config.gitToken
-      ? errorMessage.replace(new RegExp(config.gitToken, 'g'), '***')
+      ? errorMessage.replaceAll(config.gitToken, '***')
       : errorMessage;
 
     logger.error('Failed to clone user prompts repository', new Error(sanitizedError), {
@@ -203,7 +220,7 @@ async function pullRepository(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const sanitizedError = config.gitToken
-      ? errorMessage.replace(new RegExp(config.gitToken, 'g'), '***')
+      ? errorMessage.replaceAll(config.gitToken, '***')
       : errorMessage;
 
     logger.warn('Failed to pull user prompts repository, using cached version', {
