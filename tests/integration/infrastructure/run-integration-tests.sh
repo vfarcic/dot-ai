@@ -257,6 +257,15 @@ mkdir -p ./tmp/debug-ai
 # Set provider defaults if not already set
 AI_PROVIDER=${AI_PROVIDER:-anthropic_haiku}
 
+# Set user prompts repo - use private repo if token is available, otherwise public
+if [[ -n "${DOT_AI_GIT_TOKEN}" ]]; then
+    DOT_AI_USER_PROMPTS_REPO=${DOT_AI_USER_PROMPTS_REPO:-https://github.com/vfarcic/dot-ai-test-prompts.git}
+    log_info "Using private user prompts repo (DOT_AI_GIT_TOKEN is set)"
+else
+    DOT_AI_USER_PROMPTS_REPO=${DOT_AI_USER_PROMPTS_REPO:-https://github.com/vfarcic/dot-ai.git}
+    log_info "Using public user prompts repo (no DOT_AI_GIT_TOKEN)"
+fi
+
 log_info "Deploying dot-ai via Helm chart..."
 log_info "AI Provider: ${AI_PROVIDER}"
 
@@ -287,7 +296,7 @@ helm upgrade --install dot-ai ./charts \
     --set ingress.host=dot-ai.127.0.0.1.nip.io \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
-    --set-json 'extraEnv=[{"name":"QDRANT_CAPABILITIES_COLLECTION","value":"capabilities-policies"},{"name":"DEBUG_DOT_AI","value":"true"}]' \
+    --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_USER_PROMPTS_CACHE_TTL\",\"value\":\"0\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"
     kubectl get pods -n dot-ai

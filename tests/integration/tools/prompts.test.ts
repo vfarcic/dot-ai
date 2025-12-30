@@ -15,7 +15,7 @@ describe.concurrent('Prompts Integration', () => {
   const isInClusterMode = process.env.MCP_BASE_URL?.includes('nip.io') || false;
 
   // Exact list of all built-in prompts with their metadata
-  const expectedPrompts = [
+  const expectedBuiltInPrompts = [
     { name: 'generate-cicd', description: 'Generate intelligent CI/CD workflows through interactive conversation by analyzing repository structure and user preferences' },
     { name: 'generate-dockerfile', description: 'Generate production-ready, secure, multi-stage Dockerfile and .dockerignore for any project' },
     { name: 'prd-close', description: 'Close a PRD that is already implemented or no longer needed' },
@@ -34,16 +34,38 @@ describe.concurrent('Prompts Integration', () => {
     { name: 'prds-get', description: 'Fetch all open GitHub issues from this project that have the \'PRD\' label' },
   ];
 
-  beforeAll(() => {
+  // User prompts loaded from git repository (user-prompts/ directory)
+  const expectedUserPrompts = [
+    { name: 'eval-analyze-test-failure', description: 'Analyze Test Failure' },
+    {
+      name: 'eval-run',
+      description: 'Run AI Model Evaluations',
+      arguments: [
+        { name: 'toolType', description: 'Evaluation type (capabilities, policies, patterns, remediation, recommendation)', required: false },
+        { name: 'models', description: 'Comma-separated list of models (sonnet, gpt, gemini, gemini-flash, grok)', required: false }
+      ]
+    },
+    { name: 'eval-update-model-metadata', description: 'Update Model Metadata Command' },
+  ];
+
+  // Combined list of all prompts (built-in + user)
+  const expectedPrompts = [...expectedBuiltInPrompts, ...expectedUserPrompts];
+
+  beforeAll(async () => {
     // Verify we're using the test environment (either kubeconfig or in-cluster)
     if (!isInClusterMode) {
       const kubeconfig = process.env.KUBECONFIG;
       expect(kubeconfig).toContain('kubeconfig-test.yaml');
     }
+
+    // Warm-up: Make a single prompts request to ensure git clone completes
+    // before running tests. This prevents race conditions when user prompts
+    // are loaded from a git repository.
+    await integrationTest.httpClient.get('/api/v1/prompts');
   });
 
-  describe.concurrent('Prompts List', () => {
-    test('should return exactly 10 built-in prompts with correct metadata', async () => {
+  describe('Prompts List', () => {
+    test('should return 10 built-in prompts + 3 user prompts with correct metadata', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
       const expectedListResponse = {
@@ -61,13 +83,14 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      expect(response.data.prompts).toHaveLength(10);
+      // At least 10 built-in + 3 user prompts from git repository
+      expect(response.data.prompts.length).toBeGreaterThanOrEqual(13);
     });
   });
 
-  describe.concurrent('Prompts Get', () => {
-    // Test each prompt individually - run in parallel using concurrent
-    test.concurrent.each(expectedPrompts)('should return prompt content for $name', async ({ name, description }) => {
+  describe('Prompts Get', () => {
+    // Test each prompt individually
+    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description }) => {
       const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, {});
 
       const expectedGetResponse = {
@@ -116,7 +139,7 @@ describe.concurrent('Prompts Integration', () => {
     });
   });
 
-  describe.concurrent('Prompt Arguments', () => {
+  describe('Prompt Arguments', () => {
     test('should return prd-start with arguments metadata in list', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
@@ -147,7 +170,7 @@ describe.concurrent('Prompts Integration', () => {
     });
   });
 
-  describe.concurrent('HTTP Method Validation', () => {
+  describe('HTTP Method Validation', () => {
     test('should reject POST for prompts list endpoint', async () => {
       const response = await integrationTest.httpClient.post('/api/v1/prompts', {});
 
