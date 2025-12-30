@@ -215,6 +215,7 @@ When `prompts/get` is called with arguments:
 | PAT/token authentication only | 2024-12-26 | Start simple, add SSH key support later if needed |
 | Warning on name collision (not error) | 2024-12-30 | Don't fail entirely if one prompt collides; skip and continue |
 | Add MCP arguments support | 2024-12-26 | Align with MCP spec, enable parameterized prompts |
+| Arguments only for prompts that benefit | 2024-12-30 | Only prd-start gets prdNumber argument; other prompts use context auto-detection which is more flexible |
 
 ---
 
