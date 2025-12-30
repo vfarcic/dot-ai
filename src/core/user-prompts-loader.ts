@@ -127,7 +127,7 @@ export function sanitizeUrlForLogging(url: string): string {
  * Allows alphanumeric characters, hyphens, underscores, slashes, and dots
  */
 function isValidGitBranch(branch: string): boolean {
-  return /^[a-zA-Z0-9_.\-\/]+$/.test(branch);
+  return /^[a-zA-Z0-9_.\-/]+$/.test(branch);
 }
 
 /**
