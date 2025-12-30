@@ -29,6 +29,7 @@ export interface Prompt {
   description: string;
   content: string;
   arguments?: PromptArgument[];
+  source: 'built-in' | 'user';
 }
 
 /**
@@ -110,7 +111,7 @@ function parseYamlFrontmatter(yaml: string): Partial<PromptMetadata> {
 /**
  * Loads and parses a prompt file with YAML frontmatter
  */
-export function loadPromptFile(filePath: string): Prompt {
+export function loadPromptFile(filePath: string, source: 'built-in' | 'user' = 'built-in'): Prompt {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
 
@@ -138,6 +139,7 @@ export function loadPromptFile(filePath: string): Prompt {
       description: metadata.description,
       content: promptContent.trim(),
       arguments: metadata.arguments,
+      source,
     };
   } catch (error) {
     throw new Error(
@@ -147,9 +149,9 @@ export function loadPromptFile(filePath: string): Prompt {
 }
 
 /**
- * Loads all prompts from the shared-prompts directory
+ * Loads built-in prompts from the shared-prompts directory
  */
-export function loadAllPrompts(logger: Logger, baseDir?: string): Prompt[] {
+export function loadBuiltInPrompts(logger: Logger, baseDir?: string): Prompt[] {
   try {
     const promptsDir =
       baseDir ?? path.join(__dirname, '..', '..', 'shared-prompts');
@@ -167,15 +169,15 @@ export function loadAllPrompts(logger: Logger, baseDir?: string): Prompt[] {
     for (const file of promptFiles) {
       try {
         const filePath = path.join(promptsDir, file);
-        const prompt = loadPromptFile(filePath);
+        const prompt = loadPromptFile(filePath, 'built-in');
         prompts.push(prompt);
-        logger.debug('Loaded prompt', { name: prompt.name, file });
+        logger.debug('Loaded built-in prompt', { name: prompt.name, file });
       } catch (error) {
         logger.error(`Failed to load prompt file ${file}`, error as Error);
       }
     }
 
-    logger.info('Loaded prompts from shared library', {
+    logger.info('Loaded built-in prompts from shared library', {
       total: prompts.length,
       promptsDir,
     });
@@ -185,6 +187,68 @@ export function loadAllPrompts(logger: Logger, baseDir?: string): Prompt[] {
     logger.error('Failed to load prompts directory', error as Error);
     return [];
   }
+}
+
+/**
+ * Merge built-in and user prompts with collision detection
+ * Built-in prompts take precedence over user prompts with the same name
+ */
+export function mergePrompts(
+  builtInPrompts: Prompt[],
+  userPrompts: Prompt[],
+  logger: Logger
+): Prompt[] {
+  const builtInNames = new Set(builtInPrompts.map(p => p.name));
+  const merged = [...builtInPrompts];
+
+  for (const userPrompt of userPrompts) {
+    if (builtInNames.has(userPrompt.name)) {
+      logger.warn('User prompt name collision with built-in prompt, skipping user prompt', {
+        name: userPrompt.name,
+        message: 'Built-in prompt takes precedence',
+      });
+      continue;
+    }
+    merged.push(userPrompt);
+  }
+
+  return merged;
+}
+
+/**
+ * Loads all prompts (built-in + user) with collision detection
+ * This is the main entry point for loading prompts
+ */
+export async function loadAllPrompts(
+  logger: Logger,
+  baseDir?: string,
+  forceRefresh: boolean = false
+): Promise<Prompt[]> {
+  // Load built-in prompts (synchronous)
+  const builtInPrompts = loadBuiltInPrompts(logger, baseDir);
+
+  // Load user prompts from git repository (async, graceful failure)
+  let userPrompts: Prompt[] = [];
+  try {
+    const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
+    userPrompts = await loadUserPrompts(logger, forceRefresh);
+  } catch (error) {
+    logger.debug('User prompts loader not available or failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+
+  // Merge with collision detection
+  const allPrompts = mergePrompts(builtInPrompts, userPrompts, logger);
+
+  logger.info('Loaded all prompts', {
+    builtIn: builtInPrompts.length,
+    user: userPrompts.length,
+    total: allPrompts.length,
+    collisions: builtInPrompts.length + userPrompts.length - allPrompts.length,
+  });
+
+  return allPrompts;
 }
 
 /**
@@ -198,7 +262,7 @@ export async function handlePromptsListRequest(
   try {
     logger.info('Processing prompts/list request', { requestId });
 
-    const prompts = loadAllPrompts(
+    const prompts = await loadAllPrompts(
       logger,
       process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
     );
@@ -258,7 +322,7 @@ export async function handlePromptsGetRequest(
       throw new Error('Missing required parameter: name');
     }
 
-    const prompts = loadAllPrompts(
+    const prompts = await loadAllPrompts(
       logger,
       process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
     );

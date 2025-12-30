@@ -70,14 +70,14 @@ Deploy the application to {{environment}}...
 # Required: Git repository URL (any git provider)
 DOT_AI_USER_PROMPTS_REPO=https://git.example.com/org/team-prompts.git
 
-# Optional: Authentication for private repos
-DOT_AI_USER_PROMPTS_TOKEN=token_xxxx  # PAT, deploy token, or app token
-
 # Optional: Branch to use (defaults to main)
 DOT_AI_USER_PROMPTS_BRANCH=main
 
 # Optional: Subdirectory within repo (defaults to root)
 DOT_AI_USER_PROMPTS_PATH=prompts/
+
+# Shared git authentication (used by all git operations)
+DOT_AI_GIT_TOKEN=token_xxxx  # PAT, deploy token, or app token
 ```
 
 **Supported Git Providers:**
@@ -201,6 +201,7 @@ When `prompts/get` is called with arguments:
 |------|--------|
 | 2024-12-26 | PRD created, awaiting storage option decision |
 | 2024-12-30 | Storage decision made: Git-based, vendor-agnostic, Phase 1 read-only (based on @vtmocanu feedback in #164) |
+| 2024-12-30 | Decision: Use generic `DOT_AI_GIT_TOKEN` instead of feature-specific token env var for reusability |
 
 ---
 
@@ -216,6 +217,7 @@ When `prompts/get` is called with arguments:
 | Warning on name collision (not error) | 2024-12-30 | Don't fail entirely if one prompt collides; skip and continue |
 | Add MCP arguments support | 2024-12-26 | Align with MCP spec, enable parameterized prompts |
 | Arguments only for prompts that benefit | 2024-12-30 | Only prd-start gets prdNumber argument; other prompts use context auto-detection which is more flexible |
+| Generic git token naming (`DOT_AI_GIT_TOKEN`) | 2024-12-30 | Git authentication will be reused by other features; avoid proliferating feature-specific token env vars |
 
 ---
 
