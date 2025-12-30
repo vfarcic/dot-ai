@@ -7,7 +7,9 @@
         "KUBECONFIG": "./kubeconfig.yaml",
         "DOT_AI_SESSION_DIR": "./tmp/sessions",
         "QDRANT_URL": "http://localhost:6333",
-        "AI_PROVIDER": "anthropic_haiku"
+        "AI_PROVIDER": "anthropic_haiku",
+        "DOT_AI_USER_PROMPTS_REPO": "https://github.com/vfarcic/dot-ai.git",
+        "DOT_AI_USER_PROMPTS_PATH": "user-prompts"
       }
     },
     "coderabbitai": {

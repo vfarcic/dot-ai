@@ -9,6 +9,7 @@
 □ **Consistent Validation**: Use `toMatchObject` pattern throughout - no mixed assertion styles
 □ **Specific Assertions**: Use actual values instead of `expect.any()` wherever possible
 □ **Race Condition Safety**: Use `beforeAll` for cleanup, unique test data, avoid parallel data conflicts
+□ **Concurrent Execution**: Always use `describe.concurrent` at the top level so test files run in parallel. Only use `describe.concurrent` for nested blocks if tests are truly independent (no shared state)
 
 **🔴 RUNNING INTEGRATION TESTS IN CLAUDE CODE:**
 

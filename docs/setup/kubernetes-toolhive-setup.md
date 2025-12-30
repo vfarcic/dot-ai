@@ -95,6 +95,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.83.0 \
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `openai-api-key` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
+- **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../guides/mcp-prompts-guide.md#user-defined-prompts) for configuration.
 
 ### Step 4: Configure MCP Client
 

@@ -15,9 +15,11 @@ RUN npm install -g /tmp/vfarcic-dot-ai-*.tgz
 # Stage 2: Runtime - copy installed binaries and packages
 FROM node:22-slim
 
-# Install ca-certificates for TLS verification (required for helm repo operations)
+# Install required packages:
+# - ca-certificates: TLS verification (required for helm repo operations)
+# - git: Required for user-prompts feature (git clone from user repositories)
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y ca-certificates git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -34,8 +36,8 @@ RUN ln -s /usr/local/lib/node_modules/@vfarcic/dot-ai/dist/mcp/server.js /usr/lo
 # Set working directory
 WORKDIR /app
 
-# Create sessions directory
-RUN mkdir -p /app/sessions
+# Create required directories
+RUN mkdir -p /app/sessions /app/tmp
 
 # Set default environment variables
 ENV DOT_AI_SESSION_DIR=/app/sessions

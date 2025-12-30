@@ -11,7 +11,7 @@
 import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe('Resource Sync Endpoint Integration', () => {
+describe.concurrent('Resource Sync Endpoint Integration', () => {
   const integrationTest = new IntegrationTest();
   const testId = Date.now();
 

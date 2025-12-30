@@ -69,6 +69,13 @@ Create your MCP configuration file with this content:
 "AI_MODEL": "anthropic/claude-3.5-sonnet"
 ```
 
+**Optional: User-Defined Prompts** - Add to `env` section to load custom prompts from git ([details](../guides/mcp-prompts-guide.md#user-defined-prompts)):
+```json
+"DOT_AI_USER_PROMPTS_REPO": "https://github.com/your-org/team-prompts.git",
+"DOT_AI_USER_PROMPTS_PATH": "prompts",
+"DOT_AI_GIT_TOKEN": "ghp_xxxx"
+```
+
 **What this does:**
 - **`"dot-ai"`** - Server name (you'll see this in your MCP client)
 - **`"command": "npx"`** - Uses npx to run the published MCP server
