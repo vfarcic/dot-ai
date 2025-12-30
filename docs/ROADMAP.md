@@ -19,6 +19,7 @@ This roadmap is a living document and may change based on community feedback and
 - GitOps integration in recommend workflow (PRD #266)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Unified chat endpoint for Web UI - AI-powered intent routing (PRD #316)
+- Query tool visualization endpoint for Web UI - AI-inferred resource relationships (PRD #317)
 
 ## Medium-term (3-6 Months)
 
