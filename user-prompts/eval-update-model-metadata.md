@@ -1,3 +1,9 @@
+---
+name: eval-update-model-metadata
+description: Update Model Metadata Command
+category: evaluation
+---
+
 # Update Model Metadata Command
 
 Search the web for current pricing and capabilities for all AI models currently used in the evaluation system, then create/update `src/evaluation/model-metadata.json`.
