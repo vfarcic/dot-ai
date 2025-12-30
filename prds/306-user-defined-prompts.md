@@ -187,7 +187,7 @@ When `prompts/get` is called with arguments:
 ## Milestones
 
 - [x] **Milestone 1**: Storage decision - Git-based, vendor-agnostic (completed via issue discussion)
-- [x] **Milestone 2**: Implement MCP `arguments` support for existing built-in prompts
+- [x] **Milestone 2**: Implement MCP `arguments` infrastructure (parsing, substitution, validation, REST endpoints)
 - [ ] **Milestone 3**: Implement git-based user prompt loading (clone, pull, cache)
 - [ ] **Milestone 4**: Add prompt merging and collision detection
 - [ ] **Milestone 5**: Integration tests for all operations

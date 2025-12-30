@@ -2,6 +2,10 @@
 name: prd-start
 description: Start working on a PRD implementation
 category: project-management
+arguments:
+  - name: prdNumber
+    description: PRD number to start working on (e.g., 306)
+    required: false
 ---
 
 # PRD Start - Begin Implementation Work
@@ -20,9 +24,19 @@ You are helping initiate active implementation work on a specific Product Requir
 4. **Identify Starting Point** - Determine the best first implementation task
 5. **Begin Implementation** - Launch into actual development work
 
-## Step 0: Context Awareness Check
+## Step 0: Check for PRD Argument
 
-**FIRST: Check if PRD context is already clear from recent conversation:**
+**If `prdNumber` argument is provided ({{prdNumber}}):**
+- Skip Step 0 context check and Step 1 auto-detection
+- Use PRD #{{prdNumber}} directly
+- Proceed to Step 2 (PRD Readiness Validation)
+
+**If `prdNumber` argument is NOT provided:**
+- Continue to context awareness check below
+
+## Step 0b: Context Awareness Check
+
+**Check if PRD context is already clear from recent conversation:**
 
 **Skip detection/analysis if recent conversation shows:**
 - **Recent PRD work discussed** - "We just worked on PRD 29", "Just completed PRD update", etc.
@@ -31,7 +45,7 @@ You are helping initiate active implementation work on a specific Product Requir
 - **Clear work context** - Discussion of specific features, tasks, or requirements for a known PRD
 
 **If context is clear:**
-- Skip to Step 2 (PRD Readiness Validation) using the known PRD 
+- Skip to Step 2 (PRD Readiness Validation) using the known PRD
 - Use conversation history to understand current state and recent progress
 - Proceed directly with readiness validation based on known PRD status
 

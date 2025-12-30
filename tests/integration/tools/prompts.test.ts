@@ -22,7 +22,13 @@ describe.concurrent('Prompts Integration', () => {
     { name: 'prd-create', description: 'Create documentation-first PRDs that guide development through user-facing content' },
     { name: 'prd-done', description: 'Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue' },
     { name: 'prd-next', description: 'Analyze existing PRD to identify and recommend the single highest-priority task to work on next' },
-    { name: 'prd-start', description: 'Start working on a PRD implementation' },
+    {
+      name: 'prd-start',
+      description: 'Start working on a PRD implementation',
+      arguments: [
+        { name: 'prdNumber', description: 'PRD number to start working on (e.g., 306)', required: false }
+      ]
+    },
     { name: 'prd-update-decisions', description: 'Update PRD based on design decisions and strategic changes made during conversations' },
     { name: 'prd-update-progress', description: 'Update PRD progress based on git commits and code changes, enhanced by conversation context' },
     { name: 'prds-get', description: 'Fetch all open GitHub issues from this project that have the \'PRD\' label' },
@@ -107,6 +113,37 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
+    });
+  });
+
+  describe.concurrent('Prompt Arguments', () => {
+    test('should return prd-start with arguments metadata in list', async () => {
+      const response = await integrationTest.httpClient.get('/api/v1/prompts');
+
+      const prdStartPrompt = response.data.prompts.find((p: { name: string }) => p.name === 'prd-start');
+      expect(prdStartPrompt).toBeDefined();
+      expect(prdStartPrompt.arguments).toEqual([
+        { name: 'prdNumber', description: 'PRD number to start working on (e.g., 306)', required: false }
+      ]);
+    });
+
+    test('should return prd-start content without argument (placeholder remains)', async () => {
+      const response = await integrationTest.httpClient.post('/api/v1/prompts/prd-start', {});
+
+      expect(response.success).toBe(true);
+      // Without argument, the placeholder should remain in the content
+      expect(response.data.messages[0].content.text).toContain('{{prdNumber}}');
+    });
+
+    test('should substitute argument when provided to prd-start', async () => {
+      const response = await integrationTest.httpClient.post('/api/v1/prompts/prd-start', {
+        arguments: { prdNumber: '306' }
+      });
+
+      expect(response.success).toBe(true);
+      // With argument, the placeholder should be substituted
+      expect(response.data.messages[0].content.text).not.toContain('{{prdNumber}}');
+      expect(response.data.messages[0].content.text).toContain('306');
     });
   });
 
