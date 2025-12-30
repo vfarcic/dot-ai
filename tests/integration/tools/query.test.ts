@@ -134,6 +134,7 @@ spec:
     );
 
     // Test cluster has CNPG operator - semantic search should find PostgreSQL capabilities
+    // PRD #317: Query tool now stores session for visualization - sessionId returned
     const expectedResponse = {
       success: true,
       data: {
@@ -142,7 +143,8 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/postgres|cnpg|database/i),
-          toolsUsed: expect.arrayContaining(['search_capabilities'])
+          toolsUsed: expect.arrayContaining(['search_capabilities']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -174,7 +176,8 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/low complexity|configmap|namespace/i),
-          toolsUsed: expect.arrayContaining(['query_capabilities'])
+          toolsUsed: expect.arrayContaining(['query_capabilities']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -207,7 +210,8 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|postgres/i),
-          toolsUsed: expect.arrayContaining(['search_resources'])
+          toolsUsed: expect.arrayContaining(['search_resources']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -239,7 +243,8 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|team.*platform|platform/i),
-          toolsUsed: expect.arrayContaining(['query_resources'])
+          toolsUsed: expect.arrayContaining(['query_resources']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -276,7 +281,8 @@ spec:
           success: true,
           // Summary should mention actual resources and status
           summary: expect.stringMatching(/test-pg-cluster|postgres|database|cluster|status/i),
-          toolsUsed: expect.any(Array)
+          toolsUsed: expect.any(Array),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -328,7 +334,8 @@ spec:
         result: {
           success: true,
           summary: expect.any(String),
-          toolsUsed: expect.arrayContaining(['kubectl_get'])
+          toolsUsed: expect.arrayContaining(['kubectl_get']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {

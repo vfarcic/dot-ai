@@ -21,6 +21,7 @@ import {
   KUBECTL_GET_CRD_SCHEMA_TOOL,
   executeKubectlTools
 } from '../core/kubectl-tools';
+import { GenericSessionManager } from '../core/generic-session-manager';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -40,12 +41,26 @@ export interface QueryInput {
   interaction_id?: string;
 }
 
+// Session data stored for visualization (PRD #317)
+export interface QuerySessionData {
+  intent: string;
+  summary: string;
+  toolsUsed: string[];
+  iterations: number;
+  toolCallsExecuted: Array<{
+    tool: string;
+    input: any;
+    output: any;
+  }>;
+}
+
 // Output interface
 export interface QueryOutput {
   success: boolean;
   summary: string;
   toolsUsed: string[];
   iterations: number;
+  sessionId?: string;
   error?: {
     code: string;
     message: string;
@@ -195,11 +210,27 @@ export async function handleQueryTool(args: any): Promise<any> {
       toolsUsed
     });
 
+    // Store session for visualization (PRD #317)
+    const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
+    const session = sessionManager.createSession({
+      intent,
+      summary,
+      toolsUsed,
+      iterations: result.iterations,
+      toolCallsExecuted: result.toolCallsExecuted
+    });
+
+    logger.info('Session created for visualization', {
+      requestId,
+      sessionId: session.sessionId
+    });
+
     const output: QueryOutput = {
       success: true,
       summary,
       toolsUsed,
-      iterations: result.iterations
+      iterations: result.iterations,
+      sessionId: session.sessionId
     };
 
     return {

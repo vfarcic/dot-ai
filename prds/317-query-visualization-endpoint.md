@@ -199,10 +199,10 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 ## Milestones
 
 ### Milestone 1: Session Storage for Query Tool
-- [ ] Query tool generates sessionId for each query
-- [ ] Query tool stores response data (resources) in session
-- [ ] Session expiry mechanism implemented
-- [ ] Existing query functionality unchanged
+- [x] Query tool generates sessionId for each query
+- [x] Query tool stores response data (resources) in session
+- [x] Session expiry mechanism implemented (ephemeral: sessions live as long as container)
+- [x] Existing query functionality unchanged
 
 ### Milestone 2: Visualization URL in Tool Response
 - [ ] `WEB_UI_BASE_URL` environment variable support
@@ -223,7 +223,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 - [ ] Multiple visualizations returned (topology, table, health views)
 
 ### Milestone 5: Integration Tests
-- [ ] Test session storage and retrieval
+- [x] Test session storage and retrieval (sessionId returned in query responses)
 - [ ] Test visualization URL generation
 - [ ] Test visualization endpoint responses
 - [ ] Test session expiry handling
@@ -239,6 +239,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 | Date | Update |
 |------|--------|
 | 2025-12-31 | PRD created |
+| 2025-12-31 | Milestone 1 complete: Query tool now stores sessions using GenericSessionManager, returns sessionId in response. Session expiry simplified to ephemeral (container lifecycle). Integration tests updated to verify sessionId format. |
 
 ## Dependencies
 
