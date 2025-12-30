@@ -12,6 +12,7 @@ import { OpenApiGenerator } from './openapi-generator';
 import { Logger } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { handleResourceSync } from './resource-sync-handler';
+import { handlePromptsListRequest, handlePromptsGetRequest } from '../tools/prompts';
 
 /**
  * HTTP status codes for REST responses
@@ -183,6 +184,24 @@ export class RestApiRouter {
           }
           break;
 
+        case 'prompts':
+          if (req.method === 'GET') {
+            await this.handlePromptsListRequest(req, res, requestId);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for prompts list');
+          }
+          break;
+
+        case 'prompt':
+          if (req.method === 'POST' && pathMatch.promptName) {
+            await this.handlePromptsGetRequest(req, res, requestId, pathMatch.promptName, body);
+          } else if (req.method !== 'POST') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for prompt get');
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Prompt name is required');
+          }
+          break;
+
         default:
           await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown API endpoint');
       }
@@ -206,12 +225,14 @@ export class RestApiRouter {
   /**
    * Parse API path and extract route information
    */
-  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string } | null {
+  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string; promptName?: string } | null {
     // Expected patterns:
     // /api/v1/tools -> tools discovery
     // /api/v1/tools/{toolName} -> tool execution
     // /api/v1/openapi -> OpenAPI spec
     // /api/v1/resources/sync -> resource sync from controller
+    // /api/v1/prompts -> prompts list
+    // /api/v1/prompts/{promptName} -> prompt get
 
     const basePath = `${this.config.basePath}/${this.config.version}`;
 
@@ -242,6 +263,18 @@ export class RestApiRouter {
     // Handle resources/sync endpoint
     if (cleanPath === 'resources/sync') {
       return { endpoint: 'resources', action: 'sync' };
+    }
+
+    // Handle prompts endpoints
+    if (cleanPath === 'prompts') {
+      return { endpoint: 'prompts' };
+    }
+
+    if (cleanPath.startsWith('prompts/')) {
+      const promptName = cleanPath.substring(8); // Remove 'prompts/'
+      if (promptName) {
+        return { endpoint: 'prompt', promptName };
+      }
     }
 
     return null;
@@ -487,6 +520,108 @@ export class RestApiRouter {
         'SYNC_ERROR',
         'Resource sync failed',
         { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle prompts list requests
+   */
+  private async handlePromptsListRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing prompts list request', { requestId });
+
+      const result = await handlePromptsListRequest({}, this.logger, requestId);
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Prompts list request completed', {
+        requestId,
+        promptCount: result.prompts?.length || 0
+      });
+
+    } catch (error) {
+      this.logger.error('Prompts list request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'PROMPTS_LIST_ERROR',
+        'Failed to list prompts'
+      );
+    }
+  }
+
+  /**
+   * Handle prompt get requests
+   */
+  private async handlePromptsGetRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    promptName: string,
+    body: any
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing prompt get request', { requestId, promptName });
+
+      const result = await handlePromptsGetRequest(
+        { name: promptName, arguments: body?.arguments },
+        this.logger,
+        requestId
+      );
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Prompt get request completed', {
+        requestId,
+        promptName
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Prompt get request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        promptName
+      });
+
+      // Check if it's a validation error (missing required arguments or prompt not found)
+      const isValidationError = errorMessage.includes('Missing required arguments') ||
+                                errorMessage.includes('Prompt not found');
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        isValidationError ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR,
+        isValidationError ? 'VALIDATION_ERROR' : 'PROMPT_GET_ERROR',
+        errorMessage
       );
     }
   }

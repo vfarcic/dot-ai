@@ -1,6 +1,6 @@
 # PRD 306: User-Defined Prompts
 
-## Status: Draft
+## Status: Ready for Implementation
 ## Priority: Medium
 ## GitHub Issue: #306
 ## Related Issues: #164 (Original feature request by @vtmocanu)
@@ -18,25 +18,29 @@ This forces teams to either work without custom prompts or fork the project to a
 
 ## Solution Overview
 
-Enable users to define custom prompts stored in one of two backends:
-1. **GitHub Repository** - Git-based storage with full CRUD operations via MCP
-2. **Qdrant** - Vector database already deployed for patterns/policies
+Enable users to serve custom prompts from their own git repository. The MCP server will:
+1. Clone/pull a user-configured git repository containing prompt files
+2. Merge user prompts with built-in prompts in `prompts/list` and `prompts/get`
+3. Support parameterized prompts with MCP `arguments`
 
-The first milestone is to evaluate and choose between these options based on team discussion.
+**Phase 1 (this PRD)**: Read-only access - users manage prompts via standard git workflows (commit, push, PR).
+**Phase 2 (future PRD)**: Write operations via MCP (create/update/delete prompts directly).
 
 ## User Stories
 
-1. **As a team lead**, I want to define standard prompts for my team so that everyone follows consistent workflows across projects.
+1. **As a team lead**, I want to define standard prompts in our team's git repository so that everyone follows consistent workflows across projects.
 
-2. **As a developer**, I want to create/edit/delete prompts while working on a project so that I don't need to context-switch to manage a separate repository.
+2. **As an MCP user**, I want my custom prompts to appear alongside built-in prompts so that I have a unified prompt experience.
 
 3. **As an MCP user**, I want my custom prompts to work identically whether MCP runs locally, in Docker, or in Kubernetes.
 
 4. **As a prompt author**, I want to create parameterized prompts (with arguments) so that users can customize prompt behavior at runtime.
 
+5. **As a Forgejo/GitLab/Gitea user**, I want to use my self-hosted git server to store prompts, not just GitHub.
+
 ## Technical Requirements
 
-### Prompt Format (Enhanced)
+### Prompt Format
 
 User prompts must follow the same format as built-in prompts, with added support for MCP `arguments`:
 
@@ -59,72 +63,50 @@ arguments:
 Deploy the application to {{environment}}...
 ```
 
-### Storage Option A: GitHub Repository
+### Git-Based Storage (Vendor-Agnostic)
 
 **Configuration:**
 ```bash
-DOT_AI_USER_PROMPTS_REPO=https://github.com/org/team-prompts
-DOT_AI_USER_PROMPTS_TOKEN=ghp_xxxx  # PAT for private repos
-DOT_AI_USER_PROMPTS_BRANCH=main     # Optional, defaults to main
+# Required: Git repository URL (any git provider)
+DOT_AI_USER_PROMPTS_REPO=https://git.example.com/org/team-prompts.git
+
+# Optional: Authentication for private repos
+DOT_AI_USER_PROMPTS_TOKEN=token_xxxx  # PAT, deploy token, or app token
+
+# Optional: Branch to use (defaults to main)
+DOT_AI_USER_PROMPTS_BRANCH=main
+
+# Optional: Subdirectory within repo (defaults to root)
+DOT_AI_USER_PROMPTS_PATH=prompts/
 ```
 
-**Operations:**
+**Supported Git Providers:**
+- GitHub (github.com)
+- GitLab (gitlab.com or self-hosted)
+- Gitea / Forgejo (self-hosted)
+- Bitbucket (bitbucket.org)
+- Any git server supporting HTTPS clone with optional token auth
+
+**Operations (Phase 1 - Read-Only):**
 | Operation | Implementation |
 |-----------|----------------|
-| List | Clone/pull repo, read all `.md` files |
-| Get | Read specific file from local clone |
-| Create | Create file, commit, push |
-| Update | Modify file, commit, push |
-| Delete | Delete file, commit, push |
+| List | Clone/pull repo, read all `.md` files, return metadata |
+| Get | Read specific file from local clone, substitute arguments |
 
-**Pros:**
-- Version controlled with full git history
-- Natural collaboration via PRs (in the source repo)
-- "Prompts as code" philosophy
-- Teams already know git workflows
-
-**Cons:**
-- Network dependency (GitHub availability)
-- Authentication complexity (PAT management)
-- More complex implementation (~800+ lines)
-- Need to handle git conflicts
-
-### Storage Option B: Qdrant
-
-**Configuration:**
-```bash
-# Uses existing Qdrant connection from MCP
-# No additional configuration needed
-```
-
-**Operations:**
-| Operation | Implementation |
-|-----------|----------------|
-| List | Query Qdrant collection |
-| Get | Fetch by ID from Qdrant |
-| Create | Insert into Qdrant |
-| Update | Update document in Qdrant |
-| Delete | Remove from Qdrant |
-
-**Pros:**
-- Already deployed infrastructure
-- Consistent with patterns/policies architecture
-- No network dependency beyond existing Qdrant
-- Simpler implementation (~300 lines)
-- Works identically in all environments
-
-**Cons:**
-- Not version controlled by default
-- No natural PR/review workflow
-- Requires Qdrant to be running
+**Implementation Notes:**
+- Use generic `git clone` and `git pull` commands, not provider-specific APIs
+- Clone to a cache directory (e.g., `/tmp/dot-ai-user-prompts/`)
+- Pull on each `prompts/list` call (with reasonable caching)
+- Token authentication via URL embedding: `https://token@git.example.com/...`
 
 ### Prompt Merging and Collision Handling
 
 When serving prompts via `prompts/list` and `prompts/get`:
 
-1. **Priority order**: Built-in prompts take precedence
-2. **Collision behavior**: If user prompt name matches built-in, return error/warning
+1. **Priority order**: Built-in prompts take precedence over user prompts
+2. **Collision behavior**: If user prompt name matches built-in, log warning and skip user prompt
 3. **Merge strategy**: Combine built-in + user prompts in list response
+4. **Source identification**: Include `source: "built-in" | "user"` in prompt metadata
 
 ### MCP Arguments Support
 
@@ -142,6 +124,7 @@ interface Prompt {
   description: string;
   arguments?: PromptArgument[];
   content: string;
+  source: 'built-in' | 'user';
 }
 ```
 
@@ -149,58 +132,66 @@ When `prompts/get` is called with arguments:
 - Parse argument values from request
 - Substitute `{{argumentName}}` placeholders in content
 - Validate required arguments are provided
+- Return error if required argument is missing
 
-### Contribution Encouragement
+### Caching Strategy
 
-After successful prompt creation, display message:
-```
-Prompt created successfully!
+- **Clone once**: On first access, clone repository to cache directory
+- **Pull on access**: On subsequent `prompts/list` calls, run `git pull`
+- **Cache TTL**: Optional env var `DOT_AI_USER_PROMPTS_CACHE_TTL` (default: 300 seconds)
+- **Force refresh**: Support `?refresh=true` query param to force pull
 
-Consider contributing this prompt to the dot-ai project:
-https://github.com/vfarcic/dot-ai/blob/main/docs/guides/contributing-prompts.md
-```
+### Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Repository not configured | Return only built-in prompts (no error) |
+| Clone fails (auth, network) | Log error, return only built-in prompts |
+| Pull fails | Use cached version, log warning |
+| Invalid prompt format | Skip prompt, log warning, continue with others |
+| Missing required argument | Return error with list of missing arguments |
 
 ## Success Criteria
 
-1. Users can create, read, update, and delete custom prompts via MCP tools
+1. Users can configure a git repository URL to serve custom prompts
 2. Custom prompts appear in `prompts/list` alongside built-in prompts
 3. Custom prompts work identically in local, Docker, and Kubernetes deployments
 4. Parameterized prompts with arguments function correctly
-5. Name collisions with built-in prompts are detected and reported
-6. Integration tests cover all CRUD operations and edge cases
+5. Name collisions with built-in prompts are detected and logged
+6. Works with any git provider (GitHub, GitLab, Gitea, Forgejo, Bitbucket, etc.)
+7. Integration tests cover list, get, argument substitution, and error cases
 
-## Out of Scope
+## Out of Scope (Phase 1)
 
+- **Write operations via MCP** (create/update/delete) - deferred to Phase 2/future PRD
 - Multiple user prompt sources (future enhancement)
-- GitHub App or SSH key authentication (future - PAT only for now)
-- Prompt versioning/rollback within Qdrant (future)
+- SSH key authentication (PAT/token only for now)
 - Prompt sharing/marketplace (future)
 
 ## Dependencies
 
 - Existing MCP prompts infrastructure (`src/tools/prompts.ts`)
-- Qdrant integration (if Option B chosen)
-- GitHub API / git operations (if Option A chosen)
+- Git CLI available in runtime environment (Docker images, Kubernetes pods)
 
 ## Risks and Mitigations
 
 | Risk | Mitigation |
 |------|------------|
-| GitHub rate limiting | Implement caching, respect rate limits |
-| Git conflicts on concurrent edits | Lock mechanism or last-write-wins with warning |
-| Invalid prompt format | Validate on create/update, reject malformed prompts |
-| Network failures (GitHub) | Cache prompts locally, graceful degradation |
+| Network failures during clone/pull | Cache prompts locally, serve cached version on failure |
+| Invalid prompt format in user repo | Validate format, skip invalid prompts, log warnings |
+| Large repositories slow to clone | Document recommendation to keep prompt repos small |
+| Token exposure in logs | Sanitize URLs in log output, never log tokens |
 
 ---
 
 ## Milestones
 
-- [ ] **Milestone 1**: Evaluate storage options (GitHub vs Qdrant) and make decision
-- [ ] **Milestone 2**: Implement MCP `arguments` support for existing prompts
-- [ ] **Milestone 3**: Implement chosen storage backend with full CRUD operations
+- [x] **Milestone 1**: Storage decision - Git-based, vendor-agnostic (completed via issue discussion)
+- [x] **Milestone 2**: Implement MCP `arguments` support for existing built-in prompts
+- [ ] **Milestone 3**: Implement git-based user prompt loading (clone, pull, cache)
 - [ ] **Milestone 4**: Add prompt merging and collision detection
 - [ ] **Milestone 5**: Integration tests for all operations
-- [ ] **Milestone 6**: Documentation and contribution guide
+- [ ] **Milestone 6**: Documentation for configuring user prompts
 
 ---
 
@@ -209,6 +200,7 @@ https://github.com/vfarcic/dot-ai/blob/main/docs/guides/contributing-prompts.md
 | Date | Update |
 |------|--------|
 | 2024-12-26 | PRD created, awaiting storage option decision |
+| 2024-12-30 | Storage decision made: Git-based, vendor-agnostic, Phase 1 read-only (based on @vtmocanu feedback in #164) |
 
 ---
 
@@ -216,15 +208,18 @@ https://github.com/vfarcic/dot-ai/blob/main/docs/guides/contributing-prompts.md
 
 | Decision | Date | Rationale |
 |----------|------|-----------|
-| Full CRUD (not read-only) | 2024-12-26 | Users should manage prompts without leaving their project context |
-| PAT authentication only | 2024-12-26 | Start simple, add GitHub App/SSH later if needed |
-| Error on name collision | 2024-12-26 | Prevent accidental override of built-in prompts |
+| Git-based storage (not Qdrant) | 2024-12-30 | Version control is a hard requirement per @vtmocanu feedback; prompts-as-code philosophy |
+| Vendor-agnostic git support | 2024-12-30 | Users may use self-hosted git (Forgejo, Gitea, GitLab) not just GitHub |
+| Phase 1: Read-only | 2024-12-30 | Simplify initial implementation; users manage prompts via standard git workflows |
+| Phase 2 (future PRD): Write operations | 2024-12-30 | Create/update/delete via MCP deferred to keep Phase 1 focused |
+| PAT/token authentication only | 2024-12-26 | Start simple, add SSH key support later if needed |
+| Warning on name collision (not error) | 2024-12-30 | Don't fail entirely if one prompt collides; skip and continue |
 | Add MCP arguments support | 2024-12-26 | Align with MCP spec, enable parameterized prompts |
 
 ---
 
 ## Open Questions
 
-1. **Storage choice**: GitHub or Qdrant? (To be decided in Milestone 1)
-2. **Caching strategy**: How long to cache GitHub prompts locally?
-3. **Conflict resolution**: For GitHub option, how to handle concurrent edits?
+1. ~~**Storage choice**: GitHub or Qdrant?~~ **Resolved**: Git-based, vendor-agnostic
+2. **Cache directory location**: Use `/tmp` or configurable path?
+3. **Shallow clone**: Should we use `--depth 1` for faster clones?
