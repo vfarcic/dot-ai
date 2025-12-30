@@ -1,6 +1,6 @@
 # PRD 306: User-Defined Prompts
 
-## Status: Ready for Implementation
+## Status: Complete
 ## Priority: Medium
 ## GitHub Issue: #306
 ## Related Issues: #164 (Original feature request by @vtmocanu)
@@ -191,7 +191,7 @@ When `prompts/get` is called with arguments:
 - [x] **Milestone 3**: Implement git-based user prompt loading (clone, pull, cache)
 - [x] **Milestone 4**: Add prompt merging and collision detection
 - [x] **Milestone 5**: Integration tests for all operations
-- [ ] **Milestone 6**: Documentation for configuring user prompts
+- [x] **Milestone 6**: Documentation for configuring user prompts
 
 ---
 
@@ -203,6 +203,7 @@ When `prompts/get` is called with arguments:
 | 2024-12-30 | Storage decision made: Git-based, vendor-agnostic, Phase 1 read-only (based on @vtmocanu feedback in #164) |
 | 2024-12-30 | Decision: Use generic `DOT_AI_GIT_TOKEN` instead of feature-specific token env var for reusability |
 | 2024-12-30 | Milestones 3-5 complete: Git-based loading with clone/pull/cache, prompt merging, 20 integration tests passing (public + private repo auth) |
+| 2024-12-30 | Milestone 6 complete: Documentation added to mcp-prompts-guide.md (User-Defined Prompts section) and all setup guides (kubernetes, docker, npx, toolhive) |
 
 ---
 

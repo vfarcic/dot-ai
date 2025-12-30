@@ -72,6 +72,12 @@ export AI_MODEL="anthropic/claude-3.5-sonnet"
 # See: https://github.com/vfarcic/dot-ai/blob/main/docs/observability-guide.md for complete tracing configuration
 export OTEL_TRACING_ENABLED="true"
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
+
+# Optional: User-Defined Prompts (load custom prompts from git repository)
+# See: https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-prompts-guide.md#user-defined-prompts
+export DOT_AI_USER_PROMPTS_REPO="https://github.com/your-org/team-prompts.git"
+export DOT_AI_USER_PROMPTS_PATH="prompts"
+export DOT_AI_GIT_TOKEN="ghp_xxxx"  # For private repos
 ```
 
 ### 3. Create and Save MCP Client Configuration

@@ -259,6 +259,181 @@ Your prompt instructions go here...
 - Test your prompt across different scenarios before contributing
 - Follow the established prompt format and documentation patterns
 
+## User-Defined Prompts
+
+Serve custom prompts from your own git repository. Your prompts appear alongside built-in prompts and work identically across all deployment methods (local, Docker, Kubernetes).
+
+### Why User-Defined Prompts?
+
+- **Agent-agnostic**: Prompts work with any MCP-compatible coding agent (Claude Code, Cursor, VS Code, etc.) without maintaining separate prompt directories for each tool
+- **Team consistency**: Share standard prompts across all projects without contributing to the core project
+- **Organization-specific workflows**: Create prompts tailored to your team's processes
+- **Version control**: Manage prompts through standard git workflows (commit, push, PR)
+- **Works everywhere**: Same prompts work in local, Docker, and Kubernetes deployments
+
+### Configuration
+
+Configure user prompts via environment variables:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DOT_AI_USER_PROMPTS_REPO` | Git repository URL (HTTPS) | None (feature disabled) |
+| `DOT_AI_USER_PROMPTS_BRANCH` | Branch to use | `main` |
+| `DOT_AI_USER_PROMPTS_PATH` | Subdirectory within repo | Root directory |
+| `DOT_AI_GIT_TOKEN` | Authentication token for private repos | None |
+| `DOT_AI_USER_PROMPTS_CACHE_TTL` | Cache duration in seconds | `86400` (24 hours) |
+
+**Supported Git Providers:**
+- GitHub (github.com)
+- GitLab (gitlab.com or self-hosted)
+- Gitea / Forgejo (self-hosted)
+- Bitbucket (bitbucket.org)
+- Any git server supporting HTTPS clone
+
+### Repository Setup
+
+Create a git repository with prompt files as markdown (`.md`) files:
+
+```
+my-team-prompts/
+├── deploy-app.md
+├── review-pr.md
+└── team-standup.md
+```
+
+Or use a subdirectory within an existing repository:
+
+```
+my-project/
+├── src/
+├── docs/
+└── prompts/          # Set DOT_AI_USER_PROMPTS_PATH=prompts
+    ├── deploy-app.md
+    └── review-pr.md
+```
+
+### Prompt File Format
+
+User prompts follow the same format as built-in prompts, with optional MCP arguments support:
+
+```yaml
+---
+name: deploy-app
+description: Deploy an application to the specified environment
+category: deployment
+arguments:
+  - name: environment
+    description: Target environment (dev, staging, prod)
+    required: true
+  - name: version
+    description: Version to deploy
+    required: false
+---
+
+# Deploy Application
+
+Deploy the application to {{environment}}.
+
+{{#if version}}
+Deploying version: {{version}}
+{{/if}}
+
+## Steps
+
+1. Verify the deployment configuration
+2. Run pre-deployment checks
+3. Execute deployment to {{environment}}
+4. Validate deployment success
+```
+
+**Metadata Fields:**
+- **`name`**: Becomes the slash command (e.g., `name: deploy-app` → `/dot-ai:deploy-app`)
+- **`description`**: Shows in coding agent command menus
+- **`category`**: Organizes prompts in documentation
+- **`arguments`**: Optional parameters substituted via `{{argumentName}}` placeholders
+
+### Deployment Configuration
+
+#### Kubernetes (Helm)
+
+Add environment variables via `extraEnv` in your Helm values:
+
+```bash
+helm upgrade --install dot-ai oci://ghcr.io/vfarcic/helm/dot-ai \
+  --namespace dot-ai --create-namespace \
+  --set ai.anthropic.apiKey="${ANTHROPIC_API_KEY}" \
+  --set ai.embeddings.openai.apiKey="${OPENAI_API_KEY}" \
+  --set-json 'extraEnv=[
+    {"name":"DOT_AI_USER_PROMPTS_REPO","value":"https://github.com/your-org/team-prompts.git"},
+    {"name":"DOT_AI_USER_PROMPTS_PATH","value":"prompts"},
+    {"name":"DOT_AI_GIT_TOKEN","value":"'"${DOT_AI_GIT_TOKEN}"'"}
+  ]'
+```
+
+#### Docker
+
+Add to your `docker-compose-dot-ai.yaml` environment section:
+
+```yaml
+services:
+  dot-ai:
+    environment:
+      - DOT_AI_USER_PROMPTS_REPO=https://github.com/your-org/team-prompts.git
+      - DOT_AI_USER_PROMPTS_BRANCH=main
+      - DOT_AI_USER_PROMPTS_PATH=prompts
+      - DOT_AI_GIT_TOKEN=${DOT_AI_GIT_TOKEN}
+```
+
+#### NPX
+
+Set environment variables before running:
+
+```bash
+export DOT_AI_USER_PROMPTS_REPO="https://github.com/your-org/team-prompts.git"
+export DOT_AI_USER_PROMPTS_PATH="prompts"
+export DOT_AI_GIT_TOKEN="ghp_xxxx"  # For private repos
+```
+
+### How It Works
+
+1. **First access**: Repository is cloned to a local cache directory
+2. **Subsequent access**: Repository is pulled if cache TTL has expired
+3. **Merging**: User prompts are merged with built-in prompts
+4. **Precedence**: Built-in prompts take precedence over user prompts with the same name
+
+### Error Handling
+
+The feature is designed for graceful degradation:
+
+| Scenario | Behavior |
+|----------|----------|
+| Repository not configured | Built-in prompts only (no error) |
+| Clone fails (auth, network) | Built-in prompts only, error logged |
+| Pull fails | Cached version used, warning logged |
+| Invalid prompt format | Prompt skipped, warning logged |
+| Name collision with built-in | User prompt skipped, warning logged |
+
+### Troubleshooting User Prompts
+
+**User prompts don't appear**
+- **Cause**: Repository not configured or clone failed
+- **Solution**: Verify `DOT_AI_USER_PROMPTS_REPO` is set and accessible
+- **Check**: Look for clone errors in MCP server logs
+
+**Private repository auth fails**
+- **Cause**: Missing or invalid `DOT_AI_GIT_TOKEN`
+- **Solution**: Set a valid personal access token (PAT) with repo read access
+- **Note**: Tokens are never logged; URLs are sanitized in log output
+
+**Changes not appearing**
+- **Cause**: Cache hasn't expired yet
+- **Solution**: Wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
+
+**Prompt has same name as built-in**
+- **Cause**: Name collision with built-in prompt
+- **Solution**: Rename your prompt to a unique name
+- **Note**: Built-in prompts always take precedence
+
 ## Troubleshooting
 
 ### Common Issues
