@@ -1,10 +1,26 @@
+---
+name: eval-run
+description: Run AI Model Evaluations
+category: evaluation
+arguments:
+  - name: toolType
+    description: Evaluation type (capabilities, policies, patterns, remediation, recommendation)
+    required: false
+  - name: models
+    description: Comma-separated list of models (sonnet, gpt, gemini, gemini-flash, grok)
+    required: false
+---
+
 # Run AI Model Evaluations
 
 Execute comprehensive AI model evaluations for specific tool types across multiple models.
 
 ## Usage
 
-When this command is invoked, ask the user to specify:
+**Tool Type**: {{toolType}}
+**Models**: {{models}}
+
+If arguments are not provided, ask the user to specify:
 
 1. **Tool Type** (required): Which evaluation type to run
    - `capabilities` - Kubernetes capability analysis evaluation
