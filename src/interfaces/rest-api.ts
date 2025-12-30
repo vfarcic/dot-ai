@@ -414,13 +414,14 @@ export class RestApiRouter {
       });
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Tool execution failed', error instanceof Error ? error : new Error(String(error)), {
         requestId,
         toolName,
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorMessage
       });
 
-      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'EXECUTION_ERROR', 'Tool execution failed');
+      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'EXECUTION_ERROR', errorMessage);
     }
   }
 

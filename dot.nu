@@ -17,7 +17,7 @@ source scripts/cnpg.nu
 def main [] {}
 
 def "main setup" [
-    --dot-ai-tag: string = "0.172.0",
+    --dot-ai-tag: string = "0.174.0",
     --qdrant-run = false,
     --qdrant-tag: string = "latest",
     --dot-ai-kubernetes-enabled = true,
@@ -30,7 +30,7 @@ def "main setup" [
     --jaeger-enabled = false,
     --kubernetes-provider = "kind"
 ] {
-    
+
     rm --force .env
 
     # let provider = main get provider --providers ["azure" "google"]
@@ -61,7 +61,7 @@ def "main setup" [
     cp kubeconfig-dot.yaml kubeconfig.yaml
 
     main apply ingress nginx --provider kind
-    
+
     if $crossplane_enabled {(
         main apply crossplane --app-config true --db-config true
             --provider $crossplane_provider
@@ -72,7 +72,7 @@ def "main setup" [
     kubectl create namespace b-team
 
     if $kyverno_enabled {
-        
+
         main apply kyverno
 
         kubectl apply --filename examples/policies
@@ -86,13 +86,16 @@ def "main setup" [
         main apply jaeger "nginx" "jaeger.127.0.0.1.nip.io"
     }
 
-    if $dot_ai_kubernetes_enabled {(
-        main apply dot-ai
-            --anthropic-api-key $anthropic_data.token
-            --openai-api-key $openai_data.token
-            --enable-tracing true
-            --version $dot_ai_tag
-    )}
+    if $dot_ai_kubernetes_enabled {
+        (
+            main apply dot-ai
+                --anthropic-api-key $anthropic_data.token
+                --openai-api-key $openai_data.token
+                --enable-tracing true
+                --version $dot_ai_tag
+        )
+        main apply dot-ai-controller
+    }
 
     main print source
 
@@ -127,12 +130,12 @@ def "main build qdrant-image" [
 
     # Extract data from the running Qdrant container to root directory
     docker container cp $"($container):/qdrant/storage" ./qdrant_storage
-    
+
     # Verify the data was extracted successfully
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) == 0 {
         error "Failed to extract qdrant_storage from container"
     }
-    
+
     print $"Building multi-arch qdrant image with version ($version)..."
     docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile-qdrant --build-arg $"VERSION=($version)" --tag $"($repo):($version)" --tag $"($repo):($latest_version)" --push .
 

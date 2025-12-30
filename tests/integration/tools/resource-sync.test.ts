@@ -250,15 +250,35 @@ describe.concurrent('Resource Sync Endpoint Integration', () => {
         isResync: true // Trigger diff-based sync
       });
 
-      const expectedResyncResponse = {
+      // Validate specific resources are present (tolerates extras from concurrent tests)
+      expect(resyncResponse).toMatchObject({
         success: true,
         data: {
-          upserted: 2, // inserted (resync-secret) + updated (resync-app)
-          deleted: 1, // resync-config was removed
           resync: {
-            inserted: 1, // resync-secret is new
-            updated: 1, // resync-app was updated
-            deleted: 1  // resync-config was removed
+            insertedResources: expect.arrayContaining([
+              expect.objectContaining({
+                namespace: 'default',
+                name: `resync-secret-${testId}`,
+                kind: 'Secret',
+                apiVersion: 'v1'
+              })
+            ]),
+            updatedResources: expect.arrayContaining([
+              expect.objectContaining({
+                namespace: 'default',
+                name: `resync-app-${testId}`,
+                kind: 'Deployment',
+                apiVersion: 'apps/v1'
+              })
+            ]),
+            deletedResources: expect.arrayContaining([
+              expect.objectContaining({
+                namespace: 'default',
+                name: `resync-config-${testId}`,
+                kind: 'ConfigMap',
+                apiVersion: 'v1'
+              })
+            ])
           }
         },
         meta: {
@@ -266,9 +286,11 @@ describe.concurrent('Resource Sync Endpoint Integration', () => {
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
           version: 'v1'
         }
-      };
+      });
 
-      expect(resyncResponse).toMatchObject(expectedResyncResponse);
+      // Validate minimum counts (may be higher due to concurrent tests)
+      expect(resyncResponse.data.upserted).toBeGreaterThanOrEqual(2);
+      expect(resyncResponse.data.deleted).toBeGreaterThanOrEqual(1);
 
       // Clean up resync test resources
       await integrationTest.httpClient.post('/api/v1/resources/sync', {
