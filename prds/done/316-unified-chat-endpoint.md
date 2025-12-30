@@ -7,9 +7,11 @@
 | **PRD ID** | 316 |
 | **Feature Name** | Unified Chat Endpoint for Web UI |
 | **Priority** | High |
-| **Status** | Draft |
+| **Status** | Superseded |
 | **Created** | 2025-12-30 |
-| **Last Updated** | 2025-12-30 |
+| **Last Updated** | 2025-12-31 |
+| **Closed** | 2025-12-31 |
+| **Superseded By** | PRD #317 |
 
 ## Problem Statement
 
