@@ -61,10 +61,25 @@ export interface QueryOutput {
   toolsUsed: string[];
   iterations: number;
   sessionId?: string;
+  visualizationUrl?: string;  // PRD #317: URL to open visualization in Web UI
   error?: {
     code: string;
     message: string;
   };
+}
+
+/**
+ * Get visualization URL if WEB_UI_BASE_URL is configured
+ * PRD #317: Feature toggle - only include URL when env var is set
+ */
+function getVisualizationUrl(sessionId: string): string | undefined {
+  const baseUrl = process.env.WEB_UI_BASE_URL;
+  if (!baseUrl) {
+    return undefined;
+  }
+  // Remove trailing slash if present, then append /v/{sessionId}
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+  return `${normalizedBaseUrl}/v/${sessionId}`;
 }
 
 /**
@@ -220,9 +235,13 @@ export async function handleQueryTool(args: any): Promise<any> {
       toolCallsExecuted: result.toolCallsExecuted
     });
 
+    // PRD #317: Include visualization URL when WEB_UI_BASE_URL is configured
+    const visualizationUrl = getVisualizationUrl(session.sessionId);
+
     logger.info('Session created for visualization', {
       requestId,
-      sessionId: session.sessionId
+      sessionId: session.sessionId,
+      ...(visualizationUrl && { visualizationUrl })
     });
 
     const output: QueryOutput = {
@@ -230,7 +249,8 @@ export async function handleQueryTool(args: any): Promise<any> {
       summary,
       toolsUsed,
       iterations: result.iterations,
-      sessionId: session.sessionId
+      sessionId: session.sessionId,
+      ...(visualizationUrl && { visualizationUrl })
     };
 
     return {

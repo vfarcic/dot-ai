@@ -28,7 +28,7 @@ You are helping analyze an existing Product Requirements Document (PRD) to sugge
 **Skip detection/analysis if recent conversation shows:**
 - **Recent PRD work discussed** - "We just worked on PRD 29", "Just completed PRD update", etc.
 - **Specific PRD mentioned** - "PRD #X", "MCP Prompts PRD", etc.
-- **PRD-specific commands used** - Recent use of `prd-update-progress`, `prd-start` with specific PRD
+- **PRD-specific commands used** - Recent use of `/prd-update-progress`, `/prd-start` with specific PRD
 - **Clear work context** - Discussion of specific features, tasks, or requirements for a known PRD
 
 **If context is clear:**
@@ -254,9 +254,7 @@ After the user completes the task implementation, prompt them to update PRD prog
 
 **Task implementation complete.**
 
-To update PRD progress and commit your work, run the `prd-update-progress` prompt.
-
-*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-update-progress` in Claude Code, or other syntax in different MCP clients).*
+To update PRD progress and commit your work, run `/prd-update-progress`.
 
 ---
 

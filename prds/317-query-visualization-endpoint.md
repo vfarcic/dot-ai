@@ -205,9 +205,9 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 - [x] Existing query functionality unchanged
 
 ### Milestone 2: Visualization URL in Tool Response
-- [ ] `WEB_UI_BASE_URL` environment variable support
-- [ ] Query tool includes `visualizationUrl` in response when configured
-- [ ] Feature disabled when env var not set (no behavioral change)
+- [x] `WEB_UI_BASE_URL` environment variable support
+- [x] Query tool includes `visualizationUrl` in response when configured
+- [x] Feature disabled when env var not set (no behavioral change)
 
 ### Milestone 3: Visualization Endpoint
 - [ ] `GET /api/v1/visualize/{sessionId}` endpoint implemented
@@ -224,7 +224,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 
 ### Milestone 5: Integration Tests
 - [x] Test session storage and retrieval (sessionId returned in query responses)
-- [ ] Test visualization URL generation
+- [x] Test visualization URL generation
 - [ ] Test visualization endpoint responses
 - [ ] Test session expiry handling
 - [ ] Test with various query types (pods, deployments, mixed resources)
@@ -240,6 +240,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 |------|--------|
 | 2025-12-31 | PRD created |
 | 2025-12-31 | Milestone 1 complete: Query tool now stores sessions using GenericSessionManager, returns sessionId in response. Session expiry simplified to ephemeral (container lifecycle). Integration tests updated to verify sessionId format. |
+| 2025-12-31 | Milestone 2 complete: Added `WEB_UI_BASE_URL` environment variable support via Helm chart (`webUI.baseUrl`). Query tool now includes `visualizationUrl` in response when configured. Feature disabled when env var not set. Integration tests updated to verify URL format. |
 
 ## Dependencies
 
