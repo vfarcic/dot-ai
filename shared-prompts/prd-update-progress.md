@@ -302,7 +302,7 @@ After completing the PRD update and committing changes, guide the user based on 
 
 To continue working on this PRD:
 1. Clear/reset the conversation context
-2. Run the `prd-next` prompt to get the next task
+2. Run `/prd-next` to get the next task
 
 ---
 
@@ -314,8 +314,6 @@ To continue working on this PRD:
 
 To finalize:
 1. Clear/reset the conversation context
-2. Run the `prd-done` prompt to move the PRD to the done folder and close the GitHub issue
+2. Run `/prd-done` to move the PRD to the done folder and close the GitHub issue
 
 ---
-
-*Note: Different agents/clients may have different syntax for executing prompts (e.g., `/prd-next`, `/prd-done` in Claude Code, or other syntax in different MCP clients).*

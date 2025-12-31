@@ -177,6 +177,14 @@ ai:
   # Custom endpoints must support OpenAI-compatible API and models must
   # support 8K+ output tokens for reliable YAML generation.
 
+# Web UI integration (PRD #317: Query Visualization)
+# When configured, query tool responses include a visualizationUrl that opens
+# rich visualizations in the Web UI (resource topology, relationships, health)
+webUI:
+  baseUrl: ""                         # Web UI base URL (e.g., "https://dot-ai-ui.example.com")
+                                      # When set, query responses include visualizationUrl field
+                                      # Format: {baseUrl}/v/{sessionId}
+
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
 # Example use cases: tracing configuration, custom integrations, feature flags

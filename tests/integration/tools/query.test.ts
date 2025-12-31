@@ -123,17 +123,21 @@ spec:
     });
   });
 
-  // M2: Capability Tools
-  test('should use search_capabilities for semantic query and find CNPG PostgreSQL', async () => {
+  // M2: Capability Tools + PRD #317: Visualization Endpoint
+  test('should use search_capabilities for semantic query, return session, and visualization endpoint returns matching data', async () => {
+    const queryIntent = 'What databases can I deploy?';
+
+    // Step 1: Execute query
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/query',
       {
-        intent: 'What databases can I deploy?',
+        intent: queryIntent,
         interaction_id: 'query_semantic_databases'
       }
     );
 
     // Test cluster has CNPG operator - semantic search should find PostgreSQL capabilities
+    // PRD #317: Query tool now stores session for visualization - sessionId and visualizationUrl returned
     const expectedResponse = {
       success: true,
       data: {
@@ -142,7 +146,9 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/postgres|cnpg|database/i),
-          toolsUsed: expect.arrayContaining(['search_capabilities'])
+          toolsUsed: expect.arrayContaining(['search_capabilities']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -154,6 +160,56 @@ spec:
 
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
+
+    // Step 2: PRD #317 Milestone 4 - Call visualization endpoint and verify AI-generated visualization
+    const sessionId = response.data.result.sessionId;
+
+    const vizResponse = await integrationTest.httpClient.get(
+      `/api/v1/visualize/${sessionId}`
+    );
+
+    // AI generates dynamic visualizations - validate structure
+    const expectedVizResponse = {
+      success: true,
+      data: {
+        title: expect.any(String),
+        visualizations: expect.any(Array),
+        insights: expect.any(Array)
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(vizResponse).toMatchObject(expectedVizResponse);
+
+    // Validate visualizations structure - AI should generate at least one visualization
+    const visualizations = vizResponse.data.visualizations;
+    expect(visualizations.length).toBeGreaterThan(0);
+
+    // Each visualization must have required fields and valid type
+    for (const viz of visualizations) {
+      expect(viz).toMatchObject({
+        id: expect.any(String),
+        label: expect.any(String),
+        type: expect.stringMatching(/^(mermaid|cards|code|table)$/),
+        content: expect.anything()
+      });
+    }
+
+    // Validate insights are non-empty strings
+    const insights = vizResponse.data.insights;
+    expect(insights.length).toBeGreaterThan(0);
+    for (const insight of insights) {
+      expect(typeof insight).toBe('string');
+      expect(insight.length).toBeGreaterThan(0);
+    }
+
+    // Verify title is meaningful (not a fallback)
+    expect(vizResponse.data.title).not.toBe('Query: What databases can I deploy?');
+    expect(vizResponse.data.title.length).toBeGreaterThan(10);
   }, 300000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {
@@ -174,7 +230,9 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/low complexity|configmap|namespace/i),
-          toolsUsed: expect.arrayContaining(['query_capabilities'])
+          toolsUsed: expect.arrayContaining(['query_capabilities']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -207,7 +265,9 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|postgres/i),
-          toolsUsed: expect.arrayContaining(['search_resources'])
+          toolsUsed: expect.arrayContaining(['search_resources']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -239,7 +299,9 @@ spec:
         result: {
           success: true,
           summary: expect.stringMatching(/test-pg-cluster|team.*platform|platform/i),
-          toolsUsed: expect.arrayContaining(['query_resources'])
+          toolsUsed: expect.arrayContaining(['query_resources']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -276,7 +338,9 @@ spec:
           success: true,
           // Summary should mention actual resources and status
           summary: expect.stringMatching(/test-pg-cluster|postgres|database|cluster|status/i),
-          toolsUsed: expect.any(Array)
+          toolsUsed: expect.any(Array),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -328,7 +392,9 @@ spec:
         result: {
           success: true,
           summary: expect.any(String),
-          toolsUsed: expect.arrayContaining(['kubectl_get'])
+          toolsUsed: expect.arrayContaining(['kubectl_get']),
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
         }
       },
       meta: {
@@ -357,6 +423,30 @@ spec:
       error: {
         code: 'EXECUTION_ERROR',
         message: expect.stringContaining('Intent is required')
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(response).toMatchObject(expectedResponse);
+  }, 30000);
+
+  // PRD #317: Visualization endpoint error handling
+  test('should return 404 for non-existent session in visualization endpoint', async () => {
+    const nonExistentSessionId = 'qry-9999999999-nonexistent';
+
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/visualize/${nonExistentSessionId}`
+    );
+
+    const expectedResponse = {
+      success: false,
+      error: {
+        code: 'SESSION_NOT_FOUND',
+        message: `Session '${nonExistentSessionId}' not found or has expired`
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),

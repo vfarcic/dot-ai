@@ -7,7 +7,7 @@
 | **PRD ID** | 317 |
 | **Feature Name** | Query Tool Visualization Endpoint |
 | **Priority** | High |
-| **Status** | Draft |
+| **Status** | Implementation Complete |
 | **Created** | 2025-12-31 |
 | **Last Updated** | 2025-12-31 |
 
@@ -199,46 +199,52 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 ## Milestones
 
 ### Milestone 1: Session Storage for Query Tool
-- [ ] Query tool generates sessionId for each query
-- [ ] Query tool stores response data (resources) in session
-- [ ] Session expiry mechanism implemented
-- [ ] Existing query functionality unchanged
+- [x] Query tool generates sessionId for each query
+- [x] Query tool stores response data (resources) in session
+- [x] Session expiry mechanism implemented (ephemeral: sessions live as long as container)
+- [x] Existing query functionality unchanged
 
 ### Milestone 2: Visualization URL in Tool Response
-- [ ] `WEB_UI_BASE_URL` environment variable support
-- [ ] Query tool includes `visualizationUrl` in response when configured
-- [ ] Feature disabled when env var not set (no behavioral change)
+- [x] `WEB_UI_BASE_URL` environment variable support
+- [x] Query tool includes `visualizationUrl` in response when configured
+- [x] Feature disabled when env var not set (no behavioral change)
 
 ### Milestone 3: Visualization Endpoint
-- [ ] `GET /api/v1/visualize/{sessionId}` endpoint implemented
-- [ ] Endpoint loads session data by sessionId
-- [ ] Returns structured response matching API design
-- [ ] Handles session not found / expired errors
+- [x] `GET /api/v1/visualize/{sessionId}` endpoint implemented
+- [x] Endpoint loads session data by sessionId
+- [x] Returns structured response matching API design
+- [x] Handles session not found / expired errors
 
 ### Milestone 4: AI Visualization Generation
-- [ ] Visualization prompt template created (`prompts/visualize-query.md`)
-- [ ] AI analyzes resources and infers relationships
-- [ ] AI generates appropriate visualization types (mermaid, cards, table)
-- [ ] AI generates insights array
-- [ ] Multiple visualizations returned (topology, table, health views)
+- [x] Visualization prompt template created (`prompts/visualize-query.md`)
+- [x] AI analyzes resources and infers relationships
+- [x] AI generates appropriate visualization types (mermaid, cards, table)
+- [x] AI generates insights array
+- [x] Multiple visualizations returned (topology, table, health views)
 
 ### Milestone 5: Integration Tests
-- [ ] Test session storage and retrieval
-- [ ] Test visualization URL generation
-- [ ] Test visualization endpoint responses
-- [ ] Test session expiry handling
-- [ ] Test with various query types (pods, deployments, mixed resources)
+- [x] Test session storage and retrieval (sessionId returned in query responses)
+- [x] Test visualization URL generation
+- [x] Test visualization endpoint responses
+- [x] Test session expiry handling (404 for non-existent session)
+- [x] Test with various query types (pods, deployments, mixed resources)
 
 ### Milestone 6: Documentation & Follow-up
-- [ ] API documentation for visualization endpoint
-- [ ] Document environment variable configuration
-- [ ] Create follow-up PRDs for other tools (recommend, remediate, operate)
+- [~] API documentation for visualization endpoint (deferred to PRD #318)
+- [~] Document environment variable configuration (deferred to PRD #318)
+- [~] Create follow-up PRDs for other tools (recommend, remediate, operate) (deferred to PRD #318)
 
 ## Progress Log
 
 | Date | Update |
 |------|--------|
 | 2025-12-31 | PRD created |
+| 2025-12-31 | Milestone 1 complete: Query tool now stores sessions using GenericSessionManager, returns sessionId in response. Session expiry simplified to ephemeral (container lifecycle). Integration tests updated to verify sessionId format. |
+| 2025-12-31 | Milestone 2 complete: Added `WEB_UI_BASE_URL` environment variable support via Helm chart (`webUI.baseUrl`). Query tool now includes `visualizationUrl` in response when configured. Feature disabled when env var not set. Integration tests updated to verify URL format. |
+| 2025-12-31 | Milestone 3 complete: Implemented `GET /api/v1/visualize/{sessionId}` endpoint in rest-api.ts. Returns structured VisualizationResponse with title, visualizations array (summary, tools-used, raw-data), and insights. Handles session not found with 404 error. Integration tests extended to verify visualization data matches query session data. |
+| 2025-12-31 | Milestone 4 complete: Created `prompts/visualize-query.md` with resource-agnostic design. AI uses toolLoop() with capability, resource, and kubectl tools to gather additional data. Prompt emphasizes both obvious relationships (ownerReferences, selectors) and deep analysis (env var dependencies, naming patterns, architectural insights). JSON extraction handles markdown code fences; insight normalization converts object format to strings. |
+| 2025-12-31 | Milestone 5 complete: Integration tests validate AI-generated visualizations with dynamic structure checks. Tests verify visualization types (mermaid, cards, code, table), required fields, and insights array. |
+| 2025-12-31 | Milestone 6 deferred: Documentation tasks moved to PRD #318 to enable silent release and unblock Web UI development. |
 
 ## Dependencies
 
@@ -251,6 +257,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 ## Related PRDs
 
 - PRD #316: Unified Chat Endpoint for Web UI (potential future enhancement if Web UI becomes standalone chat interface)
+- PRD #318: Visualization Feature Documentation (deferred documentation tasks from Milestone 6)
 
 ## Technical Notes
 

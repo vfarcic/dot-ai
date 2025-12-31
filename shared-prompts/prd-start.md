@@ -12,22 +12,21 @@ arguments:
 
 ## Instructions
 
-You are helping initiate active implementation work on a specific Product Requirements Document (PRD). This command bridges the gap between PRD planning and actual development work by setting up the implementation context and providing clear next steps.
+You are helping initiate active implementation work on a specific Product Requirements Document (PRD). This command sets up the implementation context (validates readiness, creates branch, prepares environment) then hands off to `/prd-next` for task identification.
 
-**IMPORTANT**: Do NOT include time estimates or effort estimates in your responses. Focus on task prioritization, dependencies, and clear next steps without speculating on duration.
+**IMPORTANT**: Do NOT include time estimates or effort estimates in your responses. Focus on setup and readiness without speculating on duration.
 
 ## Process Overview
 
-1. **Select Target PRD** - Ask user which PRD they want to implement
-2. **Validate PRD Readiness** - Ensure the selected PRD is ready for implementation
-3. **Set Up Implementation Context** - Prepare the development environment
-4. **Identify Starting Point** - Determine the best first implementation task
-5. **Begin Implementation** - Launch into actual development work
+1. **Select Target PRD** - Identify which PRD to implement
+2. **Validate PRD Readiness** - Ensure the PRD is ready for implementation
+3. **Set Up Implementation Context** - Create branch and prepare environment
+4. **Hand Off to prd-next** - Delegate task identification to the appropriate prompt
 
 ## Step 0: Check for PRD Argument
 
 **If `prdNumber` argument is provided ({{prdNumber}}):**
-- Skip Step 0 context check and Step 1 auto-detection
+- Skip context check and auto-detection
 - Use PRD #{{prdNumber}} directly
 - Proceed to Step 2 (PRD Readiness Validation)
 
@@ -38,19 +37,17 @@ You are helping initiate active implementation work on a specific Product Requir
 
 **Check if PRD context is already clear from recent conversation:**
 
-**Skip detection/analysis if recent conversation shows:**
+**Skip detection if recent conversation shows:**
 - **Recent PRD work discussed** - "We just worked on PRD 29", "Just completed PRD update", etc.
 - **Specific PRD mentioned** - "PRD #X", "MCP Prompts PRD", etc.
-- **PRD-specific commands used** - Recent use of `prd-update-progress`, `prd-start` with specific PRD
+- **PRD-specific commands used** - Recent use of `/prd-update-progress`, `/prd-start` with specific PRD
 - **Clear work context** - Discussion of specific features, tasks, or requirements for a known PRD
 
 **If context is clear:**
 - Skip to Step 2 (PRD Readiness Validation) using the known PRD
-- Use conversation history to understand current state and recent progress
-- Proceed directly with readiness validation based on known PRD status
 
 **If context is unclear:**
-- Continue to Step 1 (PRD Detection) for full analysis
+- Continue to Step 1 (PRD Detection)
 
 ## Step 1: Smart PRD Detection (Only if Context Unclear)
 
@@ -69,34 +66,15 @@ You are helping initiate active implementation work on a specific Product Requir
    - Modified `prds/12-*.md` → PRD 12
    - Changes in feature-specific directories
 
-4. **Available PRDs Discovery** - List all PRDs in `prds/` directory:
-   - `prds/12-documentation-testing.md`
-   - `prds/13-cicd-documentation-testing.md`
+4. **Available PRDs Discovery** - List all PRDs in `prds/` directory
 
 5. **Fallback to User Choice** - Only if context detection fails, ask user to specify
-
-**PRD Detection Implementation:**
-```bash
-# Use these tools to gather context:
-# 1. Check git branch: gitStatus shows current branch
-# 2. Check git status: Look for modified PRD files  
-# 3. List PRDs: Use LS or Glob to find prds/*.md files
-# 4. Recent commits: Use Bash 'git log --oneline -n 5' for recent context
-```
 
 **Detection Logic:**
 - **High Confidence**: Branch name matches PRD pattern (e.g., `feature/prd-12-documentation-testing`)
 - **Medium Confidence**: Modified PRD files in git status or recent commits mention PRD
 - **Low Confidence**: Multiple PRDs available, use heuristics (most recent, largest)
 - **No Context**: Present available options to user
-
-**Example Detection Outputs:**
-```markdown
-🎯 **Auto-detected PRD 12** (Documentation Testing)
-- Branch: `feature/prd-12-documentation-testing` ✅
-- Modified files: `prds/12-documentation-testing.md` ✅
-- Recent commits mention PRD 12 features ✅
-```
 
 **If context detection fails, ask the user:**
 
@@ -105,7 +83,7 @@ You are helping initiate active implementation work on a specific Product Requir
 
 Please provide the PRD number (e.g., "12", "PRD 12", or "36").
 
-**Not sure which PRD to work on?** 
+**Not sure which PRD to work on?**
 Execute `dot-ai:prds-get` prompt to see all available PRDs organized by priority and readiness.
 
 **Your choice**: [Wait for user input]
@@ -113,8 +91,6 @@ Execute `dot-ai:prds-get` prompt to see all available PRDs organized by priority
 
 **Once PRD is identified:**
 - Read the PRD file from `prds/[issue-id]-[feature-name].md`
-- Analyze completion status across all sections
-- Identify patterns in completed vs remaining work
 
 ## Step 2: PRD Readiness Validation
 
@@ -136,13 +112,15 @@ For documentation-first PRDs:
 ### Implementation Readiness Checklist
 ```markdown
 ## PRD Readiness Check
-- [ ] All functional requirements defined ✅
-- [ ] Success criteria measurable ✅  
-- [ ] Dependencies available ✅
-- [ ] Documentation complete ✅
-- [ ] Integration points clear ✅
-- [ ] Implementation approach decided ✅
+- [ ] All functional requirements defined
+- [ ] Success criteria measurable
+- [ ] Dependencies available
+- [ ] Documentation complete
+- [ ] Integration points clear
+- [ ] Implementation approach decided
 ```
+
+**If PRD is not ready:** Inform the user what's missing and suggest they complete PRD planning first.
 
 ## Step 3: Implementation Context Setup
 
@@ -174,76 +152,29 @@ For documentation-first PRDs:
 
 **DO NOT proceed to Step 4 until branch setup is confirmed.**
 
-## Step 4: Identify Implementation Starting Point
+## Step 4: Hand Off to prd-next
 
-### Critical Path Analysis
-Identify the highest-priority first task by analyzing:
-- **Foundation requirements**: Core capabilities that other features depend on
-- **Blocking dependencies**: Items that prevent other work from starting
-- **Quick wins**: Early deliverables that provide validation or value
-- **Risk mitigation**: High-uncertainty items that should be tackled early
-
-### Implementation Phases
-For complex PRDs, identify logical implementation phases:
-1. **Phase 1 - Foundation**: Core data structures, interfaces, basic functionality
-2. **Phase 2 - Integration**: Connect with existing systems, implement workflows
-3. **Phase 3 - Enhancement**: Advanced features, optimization, polish
-4. **Phase 4 - Validation**: Testing, documentation updates, deployment
-
-### First Task Recommendation
-Select the single best first task based on:
-- **Dependency analysis**: No blocking dependencies
-- **Value delivery**: Provides meaningful progress toward PRD goals
-- **Learning opportunity**: Generates insights for subsequent work
-- **Validation potential**: Allows early testing of key assumptions
-
-## Step 5: Begin Implementation
-
-### Implementation Kickoff
-Present the implementation plan:
+Once the implementation context is set up, present this message to the user:
 
 ```markdown
-# 🚀 Starting Implementation: [PRD Name]
+## Ready for Implementation 🚀
 
-## Selected First Task: [Task Name]
+**PRD**: [PRD Name] (#[PRD Number])
+**Branch**: `[branch-name]`
+**Status**: Ready for development
 
-**Why this task first**: [Clear rationale for why this is the optimal starting point]
+---
 
-**What you'll build**: [Concrete description of what will be implemented]
-
-**Success criteria**: [How you'll know this task is complete]
-
-**Next steps after this**: [What becomes possible once this is done]
-
-## Implementation Approach
-[Brief technical approach and key decisions]
-
-## Ready to Start?
-Type 'yes' to begin implementation, or let me know if you'd prefer to start with a different task.
+To identify and start working on your first task, run `/prd-next`.
 ```
 
-### Implementation Launch
-If confirmed, provide:
-- **Detailed task breakdown**: Step-by-step implementation guide
-- **Code structure recommendations**: Files to create/modify
-- **Testing approach**: How to validate the implementation
-- **Progress checkpoints**: When to update the PRD with progress
+**⚠️ STOP HERE - DO NOT:**
+- Identify or recommend tasks to work on
+- Analyze implementation priorities or critical paths
+- Start any implementation work
+- Continue beyond presenting the handoff message
 
-## Step 6: Update Progress After Completion
-
-After the user completes the task implementation, prompt them to update PRD progress:
-
----
-
-**Task implementation complete.**
-
-To update PRD progress and commit your work, run the `prd-update-progress` prompt.
-
-*Note: Different agents/clients may have different syntax for executing commands and prompts (e.g., `/prd-update-progress` in Claude Code, or other syntax in different MCP clients).*
-
----
-
-This ensures a smooth workflow from task selection → implementation → progress tracking → next task.
+`/prd-next` handles all task identification and implementation guidance.
 
 ## Success Criteria
 
@@ -251,13 +182,10 @@ This command should:
 - ✅ Successfully identify the target PRD for implementation
 - ✅ Validate that the PRD is ready for development work
 - ✅ Set up proper implementation context (branch, environment)
-- ✅ Identify the optimal first implementation task
-- ✅ Provide clear, actionable next steps for beginning development
-- ✅ Bridge the gap between planning and actual coding work
+- ✅ Hand off to `/prd-next` for task identification
+- ✅ Bridge the gap between PRD planning and development setup
 
 ## Notes
 
-- This command is designed for PRDs that are ready to move from planning to implementation
-- Use `prd-next` for ongoing implementation guidance on what to work on next
-- Use `prd-update-progress` to track implementation progress against PRD requirements
-- Use `prd-done` when PRD implementation is complete and ready for deployment/closure
+- This command focuses on **setup only** - it validates readiness, creates the branch, and prepares the environment
+- Once setup is complete, `/prd-next` handles all task identification, implementation guidance, and progress tracking

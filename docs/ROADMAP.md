@@ -18,7 +18,6 @@ This roadmap is a living document and may change based on community feedback and
 - Flux support for GitOps tool (PRD #265)
 - GitOps integration in recommend workflow (PRD #266)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
-- Query tool visualization endpoint for Web UI - AI-inferred resource relationships (PRD #317)
 
 ## Medium-term (3-6 Months)
 
