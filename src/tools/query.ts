@@ -52,6 +52,18 @@ export interface QuerySessionData {
     input: any;
     output: any;
   }>;
+  // Cached visualization to avoid re-generation on subsequent requests
+  cachedVisualization?: {
+    title: string;
+    visualizations: Array<{
+      id: string;
+      label: string;
+      type: 'mermaid' | 'cards' | 'code' | 'table';
+      content: any;
+    }>;
+    insights: string[];
+    generatedAt: string;
+  };
 }
 
 // Output interface

@@ -712,6 +712,32 @@ export class RestApiRouter {
         return;
       }
 
+      // Check for cached visualization - return immediately if available
+      if (session.data.cachedVisualization) {
+        this.logger.info('Returning cached visualization', {
+          requestId,
+          sessionId,
+          generatedAt: session.data.cachedVisualization.generatedAt
+        });
+
+        const cachedResponse: RestApiResponse = {
+          success: true,
+          data: {
+            title: session.data.cachedVisualization.title,
+            visualizations: session.data.cachedVisualization.visualizations,
+            insights: session.data.cachedVisualization.insights
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            requestId,
+            version: this.config.version
+          }
+        };
+
+        await this.sendJsonResponse(res, HttpStatus.OK, cachedResponse);
+        return;
+      }
+
       // Generate AI-powered visualization (PRD #317 Milestone 4)
       const aiProvider = createAIProvider();
 
@@ -860,6 +886,18 @@ export class RestApiRouter {
         };
       }
 
+      // Cache the visualization in the session for subsequent requests
+      sessionManager.updateSession(sessionId, {
+        cachedVisualization: {
+          title: visualizationResponse.title,
+          visualizations: visualizationResponse.visualizations,
+          insights: visualizationResponse.insights,
+          generatedAt: new Date().toISOString()
+        }
+      });
+
+      this.logger.info('Visualization cached in session', { requestId, sessionId });
+
       const response: RestApiResponse = {
         success: true,
         data: visualizationResponse,
@@ -875,7 +913,8 @@ export class RestApiRouter {
       this.logger.info('Visualization request completed', {
         requestId,
         sessionId,
-        visualizationCount: visualizationResponse.visualizations.length
+        visualizationCount: visualizationResponse.visualizations.length,
+        cached: true
       });
 
     } catch (error) {
