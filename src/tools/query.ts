@@ -244,9 +244,14 @@ export async function handleQueryTool(args: any): Promise<any> {
       ...(visualizationUrl && { visualizationUrl })
     });
 
+    // Append visualization URL to summary so agents display it to users
+    const summaryWithUrl = visualizationUrl
+      ? `${summary}\n\n📊 **View visualization**: ${visualizationUrl}`
+      : summary;
+
     const output: QueryOutput = {
       success: true,
-      summary,
+      summary: summaryWithUrl,
       toolsUsed,
       iterations: result.iterations,
       sessionId: session.sessionId,

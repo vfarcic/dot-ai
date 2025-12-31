@@ -161,6 +161,10 @@ spec:
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
 
+    // Verify visualization URL is embedded in summary for agent display
+    expect(response.data.result.summary).toContain('📊 **View visualization**:');
+    expect(response.data.result.summary).toContain(response.data.result.visualizationUrl);
+
     // Step 2: PRD #317 Milestone 4 - Call visualization endpoint and verify AI-generated visualization
     const sessionId = response.data.result.sessionId;
 

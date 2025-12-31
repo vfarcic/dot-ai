@@ -91,6 +91,7 @@ dev-debug.log
 # Creds
 gcp-creds.json
 azure-creds.json
+gke_gcloud_auth_plugin_cache
 
 # Crush
 .crush/
