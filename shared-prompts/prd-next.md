@@ -248,7 +248,9 @@ This command should:
 
 ## Step 8: Update Progress After Completion
 
-After the user completes the task implementation, prompt them to update PRD progress:
+**CRITICAL: Do NOT update the PRD yourself. Do NOT edit PRD files directly. Your job is to prompt the user to run the update command.**
+
+After the user completes the task implementation, output ONLY this message:
 
 ---
 
@@ -258,4 +260,4 @@ To update PRD progress and commit your work, run `/prd-update-progress`.
 
 ---
 
-This ensures a smooth workflow from task selection → implementation → progress tracking → next task.
+Then STOP. Do not proceed further. The `/prd-update-progress` command handles PRD updates, progress tracking, and commits. This separation ensures proper workflow and avoids duplicate/conflicting updates.

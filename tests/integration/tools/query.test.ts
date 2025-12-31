@@ -161,54 +161,20 @@ spec:
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
 
-    // Step 2: PRD #317 Milestone 3 - Call visualization endpoint and verify it returns matching session data
+    // Step 2: PRD #317 Milestone 4 - Call visualization endpoint and verify AI-generated visualization
     const sessionId = response.data.result.sessionId;
-    const querySummary = response.data.result.summary;
-    const queryToolsUsed = response.data.result.toolsUsed;
 
     const vizResponse = await integrationTest.httpClient.get(
       `/api/v1/visualize/${sessionId}`
     );
 
+    // AI generates dynamic visualizations - validate structure
     const expectedVizResponse = {
       success: true,
       data: {
-        title: `Query: ${queryIntent}`,
-        visualizations: expect.arrayContaining([
-          {
-            id: 'summary',
-            label: 'Summary',
-            type: 'code',
-            content: {
-              language: 'markdown',
-              code: querySummary
-            }
-          },
-          {
-            id: 'tools-used',
-            label: 'Tools Used',
-            type: 'table',
-            content: {
-              headers: ['Tool', 'Calls'],
-              rows: expect.arrayContaining(
-                queryToolsUsed.map((tool: string) => [tool, '1'])
-              )
-            }
-          },
-          {
-            id: 'raw-data',
-            label: 'Raw Data',
-            type: 'code',
-            content: {
-              language: 'json',
-              code: expect.any(String)
-            }
-          }
-        ]),
-        insights: expect.arrayContaining([
-          expect.stringMatching(/Query executed in \d+ iteration/),
-          expect.stringContaining(queryToolsUsed[0])
-        ])
+        title: expect.any(String),
+        visualizations: expect.any(Array),
+        insights: expect.any(Array)
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -218,6 +184,32 @@ spec:
     };
 
     expect(vizResponse).toMatchObject(expectedVizResponse);
+
+    // Validate visualizations structure - AI should generate at least one visualization
+    const visualizations = vizResponse.data.visualizations;
+    expect(visualizations.length).toBeGreaterThan(0);
+
+    // Each visualization must have required fields and valid type
+    for (const viz of visualizations) {
+      expect(viz).toMatchObject({
+        id: expect.any(String),
+        label: expect.any(String),
+        type: expect.stringMatching(/^(mermaid|cards|code|table)$/),
+        content: expect.anything()
+      });
+    }
+
+    // Validate insights are non-empty strings
+    const insights = vizResponse.data.insights;
+    expect(insights.length).toBeGreaterThan(0);
+    for (const insight of insights) {
+      expect(typeof insight).toBe('string');
+      expect(insight.length).toBeGreaterThan(0);
+    }
+
+    // Verify title is meaningful (not a fallback)
+    expect(vizResponse.data.title).not.toBe('Query: What databases can I deploy?');
+    expect(vizResponse.data.title.length).toBeGreaterThan(10);
   }, 300000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {

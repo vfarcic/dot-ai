@@ -15,6 +15,19 @@ import { handleResourceSync } from './resource-sync-handler';
 import { handlePromptsListRequest, handlePromptsGetRequest } from '../tools/prompts';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { QuerySessionData } from '../tools/query';
+import { loadPrompt } from '../core/shared-prompt-loader';
+import { createAIProvider } from '../core/ai-provider-factory';
+import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
+import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
+import {
+  KUBECTL_API_RESOURCES_TOOL,
+  KUBECTL_GET_TOOL,
+  KUBECTL_DESCRIBE_TOOL,
+  KUBECTL_LOGS_TOOL,
+  KUBECTL_EVENTS_TOOL,
+  KUBECTL_GET_CRD_SCHEMA_TOOL,
+  executeKubectlTools
+} from '../core/kubectl-tools';
 
 /**
  * HTTP status codes for REST responses
@@ -699,45 +712,153 @@ export class RestApiRouter {
         return;
       }
 
-      // Build visualization response
-      // For Milestone 3, return session data as structured visualization
-      // Milestone 4 will add AI-powered visualization generation
-      const visualizationResponse: VisualizationResponse = {
-        title: `Query: ${session.data.intent}`,
-        visualizations: [
-          {
-            id: 'summary',
-            label: 'Summary',
-            type: 'code',
-            content: {
-              language: 'markdown',
-              code: session.data.summary
-            }
-          },
-          {
-            id: 'tools-used',
-            label: 'Tools Used',
-            type: 'table',
-            content: {
-              headers: ['Tool', 'Calls'],
-              rows: session.data.toolsUsed.map(tool => [tool, '1'])
-            }
-          },
-          {
-            id: 'raw-data',
-            label: 'Raw Data',
-            type: 'code',
-            content: {
-              language: 'json',
-              code: JSON.stringify(session.data.toolCallsExecuted, null, 2)
-            }
-          }
-        ],
-        insights: [
-          `Query executed in ${session.data.iterations} iteration(s)`,
-          `Used ${session.data.toolsUsed.length} tool(s): ${session.data.toolsUsed.join(', ')}`
-        ]
+      // Generate AI-powered visualization (PRD #317 Milestone 4)
+      const aiProvider = createAIProvider();
+
+      if (!aiProvider.isInitialized()) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'AI_NOT_CONFIGURED',
+          'AI provider is not configured. Set ANTHROPIC_API_KEY or other AI provider credentials.'
+        );
+        return;
+      }
+
+      // Load system prompt with session context
+      const systemPrompt = loadPrompt('visualize-query', {
+        intent: session.data.intent,
+        toolCallsData: JSON.stringify(session.data.toolCallsExecuted, null, 2)
+      });
+
+      // Tool executor - same as query tool
+      const executeVisualizationTools = async (toolName: string, input: any): Promise<any> => {
+        if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
+          return executeCapabilityTools(toolName, input);
+        }
+        if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
+          return executeResourceTools(toolName, input);
+        }
+        if (toolName.startsWith('kubectl_')) {
+          return executeKubectlTools(toolName, input);
+        }
+        return {
+          success: false,
+          error: `Unknown tool: ${toolName}`,
+          message: `Tool '${toolName}' is not implemented in visualization`
+        };
       };
+
+      // Read-only kubectl tools for gathering additional data
+      const KUBECTL_READONLY_TOOLS = [
+        KUBECTL_API_RESOURCES_TOOL,
+        KUBECTL_GET_TOOL,
+        KUBECTL_DESCRIBE_TOOL,
+        KUBECTL_LOGS_TOOL,
+        KUBECTL_EVENTS_TOOL,
+        KUBECTL_GET_CRD_SCHEMA_TOOL
+      ];
+
+      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionId });
+
+      // Execute tool loop - AI can gather additional data if needed
+      const result = await aiProvider.toolLoop({
+        systemPrompt,
+        userMessage: 'Generate visualizations based on the query results provided. Use tools if you need additional information about any resources.',
+        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
+        toolExecutor: executeVisualizationTools,
+        maxIterations: 5,  // Limit iterations for visualization
+        operation: 'visualize-query'
+      });
+
+      this.logger.info('AI visualization generation completed', {
+        requestId,
+        sessionId,
+        iterations: result.iterations,
+        toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
+      });
+
+      // Parse AI response as JSON
+      let visualizationResponse: VisualizationResponse;
+      try {
+        // Extract JSON from response - it may have text before/after the JSON block
+        let jsonContent = result.finalMessage.trim();
+
+        // Find JSON block in markdown code fence
+        const jsonBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonBlockMatch) {
+          jsonContent = jsonBlockMatch[1].trim();
+        } else if (!jsonContent.startsWith('{')) {
+          // Try to find raw JSON object if no code fence
+          const jsonStart = jsonContent.indexOf('{');
+          const jsonEnd = jsonContent.lastIndexOf('}');
+          if (jsonStart !== -1 && jsonEnd !== -1) {
+            jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
+          }
+        }
+
+        const parsed = JSON.parse(jsonContent);
+
+        // Validate required fields
+        if (!parsed.title || !Array.isArray(parsed.visualizations) || !Array.isArray(parsed.insights)) {
+          throw new Error('Invalid visualization response structure');
+        }
+
+        // Validate each visualization has required fields
+        for (const viz of parsed.visualizations) {
+          if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
+            throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
+          }
+          if (!['mermaid', 'cards', 'code', 'table'].includes(viz.type)) {
+            throw new Error(`Invalid visualization type: ${viz.type}`);
+          }
+        }
+
+        // Normalize insights to strings if they are objects
+        const normalizedInsights = parsed.insights.map((insight: any) => {
+          if (typeof insight === 'string') {
+            return insight;
+          }
+          // Convert object insights to string format
+          if (insight.title && insight.description) {
+            const severity = insight.severity ? ` [${insight.severity}]` : '';
+            return `${insight.title}${severity}: ${insight.description}`;
+          }
+          return String(insight);
+        });
+
+        visualizationResponse = {
+          ...parsed,
+          insights: normalizedInsights
+        } as VisualizationResponse;
+      } catch (parseError) {
+        this.logger.error('Failed to parse AI visualization response', parseError instanceof Error ? parseError : new Error(String(parseError)), {
+          requestId,
+          sessionId,
+          rawResponse: result.finalMessage.substring(0, 500)
+        });
+
+        // Fallback to basic visualization on parse error
+        visualizationResponse = {
+          title: `Query: ${session.data.intent}`,
+          visualizations: [
+            {
+              id: 'raw-data',
+              label: 'Query Results',
+              type: 'code',
+              content: {
+                language: 'json',
+                code: JSON.stringify(session.data.toolCallsExecuted, null, 2)
+              }
+            }
+          ],
+          insights: [
+            'AI visualization generation failed - showing raw query results',
+            `Query executed in ${session.data.iterations} iteration(s)`
+          ]
+        };
+      }
 
       const response: RestApiResponse = {
         success: true,
