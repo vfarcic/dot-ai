@@ -13,6 +13,8 @@ import { Logger } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { handleResourceSync } from './resource-sync-handler';
 import { handlePromptsListRequest, handlePromptsGetRequest } from '../tools/prompts';
+import { GenericSessionManager } from '../core/generic-session-manager';
+import { QuerySessionData } from '../tools/query';
 
 /**
  * HTTP status codes for REST responses
@@ -65,6 +67,30 @@ export interface ToolDiscoveryResponse extends RestApiResponse {
     categories?: string[];
     tags?: string[];
   };
+}
+
+/**
+ * Visualization types supported by the API
+ */
+export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table';
+
+/**
+ * Individual visualization item
+ */
+export interface Visualization {
+  id: string;
+  label: string;
+  type: VisualizationType;
+  content: string | { language: string; code: string } | { headers: string[]; rows: string[][] } | Array<{ id: string; title: string; description?: string; tags?: string[] }>;
+}
+
+/**
+ * Visualization endpoint response format
+ */
+export interface VisualizationResponse {
+  title: string;
+  visualizations: Visualization[];
+  insights: string[];
 }
 
 /**
@@ -202,6 +228,16 @@ export class RestApiRouter {
           }
           break;
 
+        case 'visualize':
+          if (req.method === 'GET' && pathMatch.sessionId) {
+            await this.handleVisualize(req, res, requestId, pathMatch.sessionId);
+          } else if (req.method !== 'GET') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for visualization');
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
+          }
+          break;
+
         default:
           await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown API endpoint');
       }
@@ -225,7 +261,7 @@ export class RestApiRouter {
   /**
    * Parse API path and extract route information
    */
-  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string; promptName?: string } | null {
+  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string; promptName?: string; sessionId?: string } | null {
     // Expected patterns:
     // /api/v1/tools -> tools discovery
     // /api/v1/tools/{toolName} -> tool execution
@@ -274,6 +310,14 @@ export class RestApiRouter {
       const promptName = cleanPath.substring(8); // Remove 'prompts/'
       if (promptName) {
         return { endpoint: 'prompt', promptName };
+      }
+    }
+
+    // Handle visualize endpoint (PRD #317)
+    if (cleanPath.startsWith('visualize/')) {
+      const sessionId = cleanPath.substring(10); // Remove 'visualize/'
+      if (sessionId) {
+        return { endpoint: 'visualize', sessionId };
       }
     }
 
@@ -623,6 +667,110 @@ export class RestApiRouter {
         isValidationError ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR,
         isValidationError ? 'VALIDATION_ERROR' : 'PROMPT_GET_ERROR',
         errorMessage
+      );
+    }
+  }
+
+  /**
+   * Handle visualization requests (PRD #317)
+   * Returns structured visualization data for a query session
+   */
+  private async handleVisualize(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing visualization request', { requestId, sessionId });
+
+      // Load session data using GenericSessionManager with 'qry' prefix (matches query tool)
+      const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
+      const session = sessionManager.getSession(sessionId);
+
+      if (!session) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'SESSION_NOT_FOUND',
+          `Session '${sessionId}' not found or has expired`
+        );
+        return;
+      }
+
+      // Build visualization response
+      // For Milestone 3, return session data as structured visualization
+      // Milestone 4 will add AI-powered visualization generation
+      const visualizationResponse: VisualizationResponse = {
+        title: `Query: ${session.data.intent}`,
+        visualizations: [
+          {
+            id: 'summary',
+            label: 'Summary',
+            type: 'code',
+            content: {
+              language: 'markdown',
+              code: session.data.summary
+            }
+          },
+          {
+            id: 'tools-used',
+            label: 'Tools Used',
+            type: 'table',
+            content: {
+              headers: ['Tool', 'Calls'],
+              rows: session.data.toolsUsed.map(tool => [tool, '1'])
+            }
+          },
+          {
+            id: 'raw-data',
+            label: 'Raw Data',
+            type: 'code',
+            content: {
+              language: 'json',
+              code: JSON.stringify(session.data.toolCallsExecuted, null, 2)
+            }
+          }
+        ],
+        insights: [
+          `Query executed in ${session.data.iterations} iteration(s)`,
+          `Used ${session.data.toolsUsed.length} tool(s): ${session.data.toolsUsed.join(', ')}`
+        ]
+      };
+
+      const response: RestApiResponse = {
+        success: true,
+        data: visualizationResponse,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Visualization request completed', {
+        requestId,
+        sessionId,
+        visualizationCount: visualizationResponse.visualizations.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Visualization request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        sessionId
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'VISUALIZATION_ERROR',
+        'Failed to generate visualization',
+        { error: errorMessage }
       );
     }
   }

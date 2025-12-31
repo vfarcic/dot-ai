@@ -123,12 +123,15 @@ spec:
     });
   });
 
-  // M2: Capability Tools
-  test('should use search_capabilities for semantic query and find CNPG PostgreSQL', async () => {
+  // M2: Capability Tools + PRD #317: Visualization Endpoint
+  test('should use search_capabilities for semantic query, return session, and visualization endpoint returns matching data', async () => {
+    const queryIntent = 'What databases can I deploy?';
+
+    // Step 1: Execute query
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/query',
       {
-        intent: 'What databases can I deploy?',
+        intent: queryIntent,
         interaction_id: 'query_semantic_databases'
       }
     );
@@ -157,6 +160,64 @@ spec:
 
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
+
+    // Step 2: PRD #317 Milestone 3 - Call visualization endpoint and verify it returns matching session data
+    const sessionId = response.data.result.sessionId;
+    const querySummary = response.data.result.summary;
+    const queryToolsUsed = response.data.result.toolsUsed;
+
+    const vizResponse = await integrationTest.httpClient.get(
+      `/api/v1/visualize/${sessionId}`
+    );
+
+    const expectedVizResponse = {
+      success: true,
+      data: {
+        title: `Query: ${queryIntent}`,
+        visualizations: expect.arrayContaining([
+          {
+            id: 'summary',
+            label: 'Summary',
+            type: 'code',
+            content: {
+              language: 'markdown',
+              code: querySummary
+            }
+          },
+          {
+            id: 'tools-used',
+            label: 'Tools Used',
+            type: 'table',
+            content: {
+              headers: ['Tool', 'Calls'],
+              rows: expect.arrayContaining(
+                queryToolsUsed.map((tool: string) => [tool, '1'])
+              )
+            }
+          },
+          {
+            id: 'raw-data',
+            label: 'Raw Data',
+            type: 'code',
+            content: {
+              language: 'json',
+              code: expect.any(String)
+            }
+          }
+        ]),
+        insights: expect.arrayContaining([
+          expect.stringMatching(/Query executed in \d+ iteration/),
+          expect.stringContaining(queryToolsUsed[0])
+        ])
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(vizResponse).toMatchObject(expectedVizResponse);
   }, 300000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {
@@ -370,6 +431,30 @@ spec:
       error: {
         code: 'EXECUTION_ERROR',
         message: expect.stringContaining('Intent is required')
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    };
+
+    expect(response).toMatchObject(expectedResponse);
+  }, 30000);
+
+  // PRD #317: Visualization endpoint error handling
+  test('should return 404 for non-existent session in visualization endpoint', async () => {
+    const nonExistentSessionId = 'qry-9999999999-nonexistent';
+
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/visualize/${nonExistentSessionId}`
+    );
+
+    const expectedResponse = {
+      success: false,
+      error: {
+        code: 'SESSION_NOT_FOUND',
+        message: `Session '${nonExistentSessionId}' not found or has expired`
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),

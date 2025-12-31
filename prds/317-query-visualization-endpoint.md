@@ -210,10 +210,10 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 - [x] Feature disabled when env var not set (no behavioral change)
 
 ### Milestone 3: Visualization Endpoint
-- [ ] `GET /api/v1/visualize/{sessionId}` endpoint implemented
-- [ ] Endpoint loads session data by sessionId
-- [ ] Returns structured response matching API design
-- [ ] Handles session not found / expired errors
+- [x] `GET /api/v1/visualize/{sessionId}` endpoint implemented
+- [x] Endpoint loads session data by sessionId
+- [x] Returns structured response matching API design
+- [x] Handles session not found / expired errors
 
 ### Milestone 4: AI Visualization Generation
 - [ ] Visualization prompt template created (`prompts/visualize-query.md`)
@@ -225,8 +225,8 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 ### Milestone 5: Integration Tests
 - [x] Test session storage and retrieval (sessionId returned in query responses)
 - [x] Test visualization URL generation
-- [ ] Test visualization endpoint responses
-- [ ] Test session expiry handling
+- [x] Test visualization endpoint responses
+- [x] Test session expiry handling (404 for non-existent session)
 - [ ] Test with various query types (pods, deployments, mixed resources)
 
 ### Milestone 6: Documentation & Follow-up
@@ -241,6 +241,7 @@ Generated URL format: `{WEB_UI_BASE_URL}/v/{sessionId}`
 | 2025-12-31 | PRD created |
 | 2025-12-31 | Milestone 1 complete: Query tool now stores sessions using GenericSessionManager, returns sessionId in response. Session expiry simplified to ephemeral (container lifecycle). Integration tests updated to verify sessionId format. |
 | 2025-12-31 | Milestone 2 complete: Added `WEB_UI_BASE_URL` environment variable support via Helm chart (`webUI.baseUrl`). Query tool now includes `visualizationUrl` in response when configured. Feature disabled when env var not set. Integration tests updated to verify URL format. |
+| 2025-12-31 | Milestone 3 complete: Implemented `GET /api/v1/visualize/{sessionId}` endpoint in rest-api.ts. Returns structured VisualizationResponse with title, visualizations array (summary, tools-used, raw-data), and insights. Handles session not found with 404 error. Integration tests extended to verify visualization data matches query session data. |
 
 ## Dependencies
 
