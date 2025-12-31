@@ -77,6 +77,9 @@ For showing relationships between resources.
 - Use subgraphs to group by namespace or logical grouping
 - Arrows: `-->` for ownership/direct, `-.->` for inferred/indirect
 - Keep readable - summarize similar resources rather than showing every instance
+- **IMPORTANT Mermaid syntax**: Node names in `class` statements MUST be comma-separated:
+  - CORRECT: `class mcp,website,ctrl active`
+  - INCORRECT: `class mcp website ctrl active`
 
 ### table
 For listing resources with their properties.
