@@ -260,6 +260,44 @@ ingress:
 
 Then update your `.mcp.json` URL to use `https://`.
 
+## Web UI Visualization
+
+Enable rich visualizations of query results by connecting to a [DevOps AI Web UI](https://github.com/vfarcic/dot-ai-ui) instance.
+
+When configured, the query tool includes a `visualizationUrl` field in responses that opens interactive visualizations (resource topology, relationships, health status) in your browser.
+
+### Configuration
+
+Add the Web UI base URL to your Helm values:
+
+```yaml
+webUI:
+  baseUrl: "https://dot-ai-ui.example.com"  # Your Web UI instance URL
+```
+
+Or via `--set`:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set webUI.baseUrl="https://dot-ai-ui.example.com" \
+  # ... other settings
+```
+
+### Feature Toggle Behavior
+
+- **Not configured** (default): Query responses contain only text summaries. No `visualizationUrl` field is included.
+- **Configured**: Query responses include a `visualizationUrl` field (format: `{baseUrl}/v/{sessionId}`) that opens the visualization in the Web UI.
+
+### Example Query Response
+
+When `webUI.baseUrl` is configured, query responses include:
+
+```text
+📊 **View visualization**: https://dot-ai-ui.example.com/v/abc123-session-id
+```
+
+This URL opens an interactive visualization of the query results in the Web UI.
+
 ## Gateway API (Alternative to Ingress)
 
 For Kubernetes 1.26+, you can use **Gateway API v1** for advanced traffic management with role-oriented design (platform teams manage Gateways, app teams create routes).

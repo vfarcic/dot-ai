@@ -65,28 +65,58 @@ This section demonstrates common query patterns:
 
 ### Semantic Queries
 
-Semantic queries let you find resources by concept rather than exact resource types. The AI uses the semantic bridge pattern to map concepts like "databases" to actual Kubernetes resource kinds.
+Semantic queries let you find resources by concept rather than exact resource types. The AI uses the semantic bridge pattern to map concepts like "dot-ai components" to actual Kubernetes resource kinds.
 
-#### Example: Find all databases
+#### Example: Find components by concept
 
 ```text
-What databases are running?
+What dot-ai components are running in the cluster?
 ```
 
 **Response:**
 
 ```text
-There are 2 databases running in your cluster:
+The cluster has the following dot-ai components running in the dot-ai namespace:
 
-| Database          | Type                       | Namespace | Status  | Instances    |
-|-------------------|----------------------------|-----------|---------|--------------|
-| my-postgres       | PostgreSQL (CloudNativePG) | default   | Healthy | 1/1 ready    |
-| dot-ai-mcp-qdrant | Qdrant (vector search)     | dot-ai    | Ready   | 1/1 replicas |
+Deployments (4)
 
-Both databases are healthy and running without issues.
+| Component                 | Version  | Port | Description                                              |
+|---------------------------|----------|------|----------------------------------------------------------|
+| dot-ai                    | v0.178.0 | 3456 | MCP Server - AI-powered model context protocol server using Anthropic Haiku, connects to<br>Qdrant for embeddings |
+| dot-ai-ui                 | v0.4.0   | 3000 | Web UI for interacting with the MCP server               |
+| dot-ai-website            | v0.3.22  | 8080 | Marketing/documentation website                          |
+| dot-ai-controller-manager | v0.38.0  | -    | Kubernetes operator for managing dot-ai custom resources |
+
+StatefulSets (1)
+
+| Component     | Version | Description                                   |
+|---------------|---------|-----------------------------------------------|
+| dot-ai-qdrant | v1.15.5 | Qdrant vector database for storing embeddings |
+
+Services (5)
+
+- dot-ai - ClusterIP on port 3456
+- dot-ai-ui - ClusterIP on port 3000
+- dot-ai-website - ClusterIP on port 80
+- dot-ai-qdrant - ClusterIP (ports 6333, 6334, 6335)
+- dot-ai-qdrant-headless - Headless service for cluster discovery
+
+All components are Ready/Available with 1 replica each, managed by Helm and deployed via ArgoCD.
+
+📊 View visualization: https://ui.devopstoolkit.ai/v/qry-1767307302957-c4c0e695
 ```
 
-**What happened**: The AI used capabilities to understand that "database" relates to CNPG Clusters and StatefulSets, searched the resources inventory for matching instances, and verified their live status via the Kubernetes API.
+**What happened**: The AI searched capabilities to understand "dot-ai components", queried the resources inventory to find matching Deployments, StatefulSets, and Services, then retrieved live status from the Kubernetes API.
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive topology view in the Web UI:
+
+![Query Visualization Example](../img/qyery-example-01.png)
+
+> **Note**: Visualization URLs require additional setup:
+> - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
+> - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 ---
 
@@ -181,4 +211,3 @@ Events: No warnings or errors detected
 ```
 
 **What happened**: The AI used capabilities to identify PostgreSQL-related resources, searched the inventory, then queried the Kubernetes API for status, pod details, and events to compile a comprehensive health report.
-
