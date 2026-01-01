@@ -112,7 +112,7 @@ All components are Ready/Available with 1 replica each, managed by Helm and depl
 
 The visualization URL opens an interactive topology view in the Web UI:
 
-![Query Visualization Example](../img/qyery-example-01.png)
+![Query Visualization Example](../img/query-example-01.png)
 
 > **Note**: Visualization URLs require additional setup:
 > - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
