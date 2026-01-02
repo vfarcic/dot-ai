@@ -349,6 +349,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Validate generateManifests response (based on actual API inspection)
       // Raw format returns a single manifests.yaml file
+      // PRD #320: generateManifests now returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -366,7 +367,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             ]),
             validationAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Write the files to')
+            agentInstructions: expect.stringContaining('Write the files to'),
+            // PRD #320: Visualization URL for generateManifests stage
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -429,6 +432,37 @@ describe.concurrent('Recommend Tool Integration', () => {
           })
         }
       });
+
+      // PRD #320: Test generateManifests visualization endpoint
+      const generateVizUrl = generateResponse.data.result.visualizationUrl;
+      const generateVizPath = `/api/v1/visualize/${generateVizUrl.split('/v/')[1]}`;
+      const generateVizResponse = await integrationTest.httpClient.get(generateVizPath);
+
+      const expectedGenerateVizResponse = {
+        success: true,
+        data: {
+          title: expect.any(String),
+          visualizations: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              label: expect.any(String),
+              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
+            })
+          ]),
+          insights: expect.arrayContaining([expect.any(String)])
+        }
+      };
+
+      expect(generateVizResponse).toMatchObject(expectedGenerateVizResponse);
+
+      // Verify not the fallback error response
+      expect(generateVizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+
+      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
+      const hasGenerateVizMermaid = generateVizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      if (hasGenerateVizMermaid) {
+        expect(generateVizResponse.data.toolsUsed).toContain('validate_mermaid');
+      }
 
       // PHASE 9: Deploy manifests to cluster
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -773,6 +807,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Helm generation response
+      // PRD #320: Helm generateManifests now returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -793,7 +828,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             releaseName: expect.any(String),
             namespace: expect.any(String),
             validationAttempts: expect.any(Number),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL for Helm generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -820,6 +857,37 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Extract namespace and release name for deployment validation
       const helmNamespace = generateResponse.data.result.namespace;
       const releaseName = generateResponse.data.result.releaseName;
+
+      // PRD #320: Test Helm generateManifests visualization endpoint
+      const helmGenerateVizUrl = generateResponse.data.result.visualizationUrl;
+      const helmGenerateVizPath = `/api/v1/visualize/${helmGenerateVizUrl.split('/v/')[1]}`;
+      const helmGenerateVizResponse = await integrationTest.httpClient.get(helmGenerateVizPath);
+
+      const expectedHelmGenerateVizResponse = {
+        success: true,
+        data: {
+          title: expect.any(String),
+          visualizations: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              label: expect.any(String),
+              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
+            })
+          ]),
+          insights: expect.arrayContaining([expect.any(String)])
+        }
+      };
+
+      expect(helmGenerateVizResponse).toMatchObject(expectedHelmGenerateVizResponse);
+
+      // Verify not the fallback error response
+      expect(helmGenerateVizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+
+      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
+      const hasHelmGenerateVizMermaid = helmGenerateVizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      if (hasHelmGenerateVizMermaid) {
+        expect(helmGenerateVizResponse.data.toolsUsed).toContain('validate_mermaid');
+      }
 
       // PHASE 6: Deploy Helm chart (helm upgrade --install execution)
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -1010,6 +1078,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Helm chart structure in response
+      // PRD #320: Helm packaging generateManifests returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -1032,7 +1101,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             packagingAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Helm chart')
+            agentInstructions: expect.stringContaining('Helm chart'),
+            // PRD #320: Visualization URL for packaging generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -1175,6 +1246,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Kustomize structure in response
+      // PRD #320: Kustomize packaging generateManifests returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -1201,7 +1273,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             packagingAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Kustomize')
+            agentInstructions: expect.stringContaining('Kustomize'),
+            // PRD #320: Visualization URL for Kustomize generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)

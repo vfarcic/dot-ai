@@ -44,6 +44,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 // Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
   toolName: 'recommend';  // PRD #320: Tool identifier for visualization endpoint
+  stage?: string;  // PRD #320: Workflow stage ('recommend', 'generateManifests', etc.)
   intent: string;
   type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
@@ -68,6 +69,24 @@ export interface SolutionData {
   answers: Record<string, any>;
   timestamp: string;
   appliedPatterns?: string[];  // Pattern descriptions that influenced this solution
+  // PRD #320: Generated manifests data for visualization
+  generatedManifests?: {
+    type: 'raw' | 'helm' | 'kustomize';
+    outputPath?: string;
+    files?: Array<{ relativePath: string; content: string }>;
+    valuesYaml?: string;  // For Helm charts
+    helmCommand?: string;  // For Helm charts
+    chart?: {
+      repository: string;
+      repositoryName: string;
+      chartName: string;
+      version: string;
+    };
+    releaseName?: string;
+    namespace?: string;
+    validationAttempts?: number;
+    packagingAttempts?: number;
+  };
 }
 
 /**

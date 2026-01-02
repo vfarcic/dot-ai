@@ -29,6 +29,7 @@ import {
   ensureTmpDir
 } from '../core/helm-utils';
 import { packageManifests, OutputFormat } from '../core/packaging';
+import { getVisualizationUrl } from '../core/visualization';
 
 const execFileAsync = promisify(execFile);
 
@@ -408,6 +409,7 @@ async function handleHelmGeneration(
   dotAI: DotAI,
   logger: Logger,
   requestId: string,
+  sessionManager: GenericSessionManager<SolutionData>,
   interaction_id?: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   const maxAttempts = 10;
@@ -490,6 +492,29 @@ async function handleHelmGeneration(
         // Check if we should show feedback message
         const feedbackMessage = maybeGetFeedbackMessage();
 
+        // PRD #320: Update session with generateManifests data for visualization
+        sessionManager.updateSession(solutionId, {
+          ...solution,
+          stage: 'generateManifests',
+          generatedManifests: {
+            type: 'helm',
+            valuesYaml: valuesYaml,
+            helmCommand: helmCommand,
+            chart: {
+              repository: chart.repository,
+              repositoryName: chart.repositoryName,
+              chartName: chart.chartName,
+              version: chart.version
+            },
+            releaseName: releaseName,
+            namespace: namespace,
+            validationAttempts: attempt
+          }
+        });
+
+        // PRD #320: Generate visualization URL
+        const visualizationUrl = getVisualizationUrl(solutionId);
+
         const response = {
           success: true,
           status: 'helm_command_generated',
@@ -507,7 +532,8 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          ...(feedbackMessage ? { message: feedbackMessage } : {})
+          ...(feedbackMessage ? { message: feedbackMessage } : {}),
+          ...(visualizationUrl && { visualizationUrl })
         };
 
         return {
@@ -837,6 +863,7 @@ export async function handleGenerateManifestsTool(
           dotAI,
           logger,
           requestId,
+          sessionManager,
           args.interaction_id
         );
       }
@@ -952,6 +979,22 @@ export async function handleGenerateManifestsTool(
                 args.interaction_id
               );
 
+              // PRD #320: Update session with generateManifests data for visualization
+              sessionManager.updateSession(args.solutionId, {
+                ...solution,
+                stage: 'generateManifests',
+                generatedManifests: {
+                  type: outputFormat,
+                  outputPath,
+                  files: packagingResult.files,
+                  validationAttempts: attempt,
+                  packagingAttempts: packagingResult.attempts
+                }
+              });
+
+              // PRD #320: Generate visualization URL
+              const visualizationUrl = getVisualizationUrl(args.solutionId);
+
               const response = {
                 success: true,
                 status: 'manifests_generated',
@@ -963,7 +1006,8 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-                ...(feedbackMessage ? { message: feedbackMessage } : {})
+                ...(feedbackMessage ? { message: feedbackMessage } : {}),
+                ...(visualizationUrl && { visualizationUrl })
               };
 
               return {
@@ -973,6 +1017,21 @@ export async function handleGenerateManifestsTool(
                 }]
               };
             }
+
+            // PRD #320: Update session with generateManifests data for visualization (raw format)
+            sessionManager.updateSession(args.solutionId, {
+              ...solution,
+              stage: 'generateManifests',
+              generatedManifests: {
+                type: 'raw',
+                outputPath,
+                files: [{ relativePath: 'manifests.yaml', content: manifests }],
+                validationAttempts: attempt
+              }
+            });
+
+            // PRD #320: Generate visualization URL
+            const visualizationUrl = getVisualizationUrl(args.solutionId);
 
             // Raw format - return manifests as-is
             const response = {
@@ -987,7 +1046,8 @@ export async function handleGenerateManifestsTool(
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-              ...(feedbackMessage ? { message: feedbackMessage } : {})
+              ...(feedbackMessage ? { message: feedbackMessage } : {}),
+              ...(visualizationUrl && { visualizationUrl })
             };
 
             return {
