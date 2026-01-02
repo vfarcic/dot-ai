@@ -9,6 +9,7 @@ import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 import { maybeGetFeedbackMessage } from '../core/index';
+import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -44,7 +45,9 @@ export interface RemediateInput {
 }
 
 // Session data stored by GenericSessionManager
-export interface RemediateSessionData {
+// PRD #320: Extends BaseVisualizationData for visualization support
+export interface RemediateSessionData extends BaseVisualizationData {
+  toolName: 'remediate';  // PRD #320: Tool identifier for visualization prompt selection
   issue: string;
   mode: 'manual' | 'automatic';
   interaction_id?: string;
@@ -804,7 +807,9 @@ export async function handleRemediateTool(args: any): Promise<any> {
     }
     
     // Create initial session using session manager
+    // PRD #320: Include toolName for visualization prompt selection
     const session = sessionManager.createSession({
+      toolName: 'remediate',
       issue: validatedInput.issue,
       mode: validatedInput.mode || 'manual',
       interaction_id: validatedInput.interaction_id,
@@ -842,13 +847,19 @@ export async function handleRemediateTool(args: any): Promise<any> {
         sessionId: session.sessionId,
         status: finalAnalysis.status
       });
-      
+
+      // PRD #320: Generate visualization URL for resolved issues
+      const visualizationUrl = getVisualizationUrl(session.sessionId);
+
       // Return MCP-compliant response for resolved issues
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(finalAnalysis, null, 2)
+            text: JSON.stringify({
+              ...finalAnalysis,
+              ...(visualizationUrl && { visualizationUrl })
+            }, null, 2)
           }
         ]
       };
@@ -913,12 +924,18 @@ export async function handleRemediateTool(args: any): Promise<any> {
       );
     }
 
+    // PRD #320: Generate visualization URL for analysis response
+    const visualizationUrl = getVisualizationUrl(session.sessionId);
+
     // Return MCP-compliant response
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(finalResult, null, 2)
+          text: JSON.stringify({
+            ...finalResult,
+            ...(visualizationUrl && { visualizationUrl })
+          }, null, 2)
         }
       ]
     };

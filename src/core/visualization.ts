@@ -49,27 +49,14 @@ export type VisualizationToolName =
   | 'projectSetup';
 
 /**
- * Tool-to-prompt mapping
- * Maps tool names to their visualization prompt files
- */
-const TOOL_PROMPT_MAP: Record<string, string> = {
-  query: 'visualize-query',
-  recommend: 'visualize-recommend',
-  remediate: 'visualize-remediate',
-  operate: 'visualize-operate',
-  version: 'visualize-version',
-  projectSetup: 'visualize-project-setup',
-};
-
-/**
- * Get the prompt file name for a given tool
- * Falls back to 'visualize-query' for unknown tools (backwards compatibility)
+ * Get the prompt file name for visualization
+ * All tools use the unified visualize.md template (PRD #320)
  *
- * @param toolName - Name of the tool
+ * @param toolName - Name of the tool (unused, kept for API compatibility)
  * @returns Prompt file name (without .md extension)
  */
-export function getPromptForTool(toolName: string): string {
-  return TOOL_PROMPT_MAP[toolName] || 'visualize-query';
+export function getPromptForTool(_toolName: string): string {
+  return 'visualize';
 }
 
 /**

@@ -803,24 +803,33 @@ export class RestApiRouter {
       this.logger.info('Loading visualization prompt', { requestId, sessionIds, toolName, promptName });
 
       // Load system prompt with session context
-      // PRD #320: Tool-aware data field selection
-      // - recommend tool: uses solutionsData (single or multi-session)
-      // - query tool: uses toolCallsData
-      // - remediate/operate/etc: uses their respective data fields
-      let promptData: { intent: string; toolCallsData?: string; solutionsData?: string };
-      if (toolName === 'recommend') {
-        // Recommend tool: always use solutionsData regardless of session count
-        promptData = {
-          intent: primarySession.data.intent || '',
-          solutionsData: JSON.stringify(isMultiSession ? sessions.map(s => s.data) : primarySession.data, null, 2)
-        };
-      } else {
-        // Query and other tools: use toolCallsExecuted or full data
-        promptData = {
-          intent: primarySession.data.intent || '',
-          toolCallsData: JSON.stringify(primarySession.data.toolCallsExecuted || primarySession.data, null, 2)
-        };
+      // PRD #320: Unified visualization prompt with tool-aware data selection
+      let intent: string;
+      let data: any;
+
+      switch (toolName) {
+        case 'recommend':
+          intent = primarySession.data.intent || '';
+          data = isMultiSession ? sessions.map(s => s.data) : primarySession.data;
+          break;
+        case 'remediate':
+          intent = primarySession.data.issue || '';
+          data = primarySession.data.finalAnalysis || primarySession.data;
+          break;
+        case 'operate':
+          intent = primarySession.data.intent || '';
+          data = primarySession.data;
+          break;
+        default:
+          // Query and other tools: use toolCallsExecuted or full data
+          intent = primarySession.data.intent || '';
+          data = primarySession.data.toolCallsExecuted || primarySession.data;
       }
+
+      const promptData = {
+        intent,
+        data: JSON.stringify(data, null, 2)
+      };
 
       const systemPrompt = loadPrompt(promptName, promptData);
 

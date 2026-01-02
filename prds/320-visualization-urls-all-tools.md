@@ -268,23 +268,23 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 ### Milestone 3: remediate Tool Visualization
 **Implementation:**
-- [ ] Add session storage to remediate analysis stage (store `finalAnalysis` in session)
-- [ ] Create `prompts/visualize-remediate.md`
-- [ ] Return `visualizationUrl` in remediate analysis response
-- [ ] Visualization prompt adapts based on session status (analysis_complete vs executed_*)
+- [x] Add session storage to remediate analysis stage (store `finalAnalysis` in session)
+- [x] Create unified `prompts/visualize.md` (replaces tool-specific prompts - see Decision 8)
+- [x] Return `visualizationUrl` in remediate analysis response
+- [x] Visualization prompt adapts based on session status (analysis_complete vs executed_*)
 
 **Integration Tests:**
-- [ ] Test that `visualizationUrl` is returned in response
-- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
-- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+- [x] Test that `visualizationUrl` is returned in response
+- [x] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [x] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
 
 **Data Quality Validation (DEBUG_DOT_AI=true):**
-- [ ] Inspect debug prompts: verify `finalAnalysis` data is populated (rootCause, confidence, factors, actions)
-- [ ] Verify AI uses provided data first (not re-investigating the issue)
-- [ ] Verify AI calls tools for additional context it might need (e.g., current resource state)
+- [x] Inspect debug prompts: verify `finalAnalysis` data is populated (rootCause, confidence, factors, actions)
+- [x] Verify AI uses provided data first (not re-investigating the issue)
+- [x] Verify AI calls tools for additional context it might need (e.g., current resource state)
 
 **Manual Web UI Test:**
-- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
+- [x] Open visualizationUrl in browser and confirm all visualizations render correctly
 
 ### Milestone 4: operate Tool Visualization
 **Implementation:**
@@ -346,6 +346,7 @@ Each tool follows the same validation pattern:
 | 2026-01-02 | Milestone 2.7 added (retroactive): Discovered recommend visualization tests are incomplete - they only verify `visualizationUrl` is returned but don't test the visualization endpoint, data quality, or Web UI. Added comprehensive validation requirements for all pending milestones: (1) integration test for visualization endpoint, (2) debug prompt inspection for data quality, (3) verify AI uses provided data + fetches enrichment, (4) manual Web UI test. |
 | 2026-01-02 | Milestone 2.7 complete: Fixed bug where REST API passed `toolCallsData` instead of `solutionsData` for single recommend sessions (tool-aware data field selection). Added integration test that calls visualization endpoint and validates response. Verified via debug output: (1) prompt now has 64KB of solution data (was empty), (2) AI generates proper visualizations (cards, tables, feature matrices), (3) AI uses provided data first and only calls `validate_mermaid` for validation. Manual Web UI test passed. |
 | 2026-01-02 | Milestone 2.8 complete: Added `?reload=true` query parameter to visualization endpoint. When set, bypasses cache and regenerates visualization from current session data. Generic implementation works for ALL tools. Integration test added to query.test.ts verifying: (1) cached response is fast (<1s), (2) reload response takes longer (AI regeneration), (3) reload response has valid structure. |
+| 2026-01-02 | Milestone 3 complete: remediate tool now returns `visualizationUrl` in analysis response. Added `toolName: 'remediate'` to session data, extended `RemediateSessionData` with `BaseVisualizationData`. **Architecture change**: Consolidated all tool-specific visualization prompts into unified `prompts/visualize.md` (deleted `visualize-query.md`, `visualize-recommend.md`). REST API uses switch statement to map tool-specific data fields to unified `{{{data}}}` variable. Integration tests verify URL returned, visualization endpoint works, and `validate_mermaid` in toolsUsed. Debug validation confirmed AI uses provided `finalAnalysis` data (rootCause, confidence, factors, actions) and enriches with kubectl tools. |
 
 ## Dependencies
 
@@ -455,7 +456,27 @@ Each tool follows the same validation pattern:
 - **Session status determines content**:
   - `analysis_complete`: Shows investigation flow, root cause, proposed actions
   - `executed_successfully`/`executed_with_errors`: Shows investigation + execution results + success/failure
-- **Owner**: To be implemented in Milestone 3
+- **Owner**: Implemented in Milestone 3
+
+### Decision 8: Unified Visualization Prompt
+- **Date**: 2026-01-02
+- **Decision**: Consolidate all tool-specific visualization prompts into a single `prompts/visualize.md` template
+- **Rationale**: Tool-specific guidance was redundant - the AI can infer what visualizations are valuable from the data structure itself (e.g., seeing `confidence: 0.98` and `risk: "low"` tells the AI what to highlight without explicit instructions)
+- **Changes**:
+  - Deleted: `prompts/visualize-query.md`, `prompts/visualize-recommend.md`
+  - Created: `prompts/visualize.md` with `{{{intent}}}` and `{{{data}}}` template variables
+  - Updated `getPromptForTool()` in `src/core/visualization.ts` to return `'visualize'` for all tools
+  - REST API switch statement in `handleVisualize` maps tool-specific data fields to unified `data` variable:
+    - `query`: `intent` from session, `data` from `toolCallsExecuted || session.data`
+    - `recommend`: `intent` from session, `data` from solution data
+    - `remediate`: `intent` from `issue` field, `data` from `finalAnalysis || session.data`
+    - `operate`: `intent` from session, `data` from full session data
+- **Benefits**:
+  - Single source of truth for visualization prompt structure
+  - Easier maintenance - no need to update multiple prompts
+  - Consistent visualization behavior across all tools
+  - AI adapts naturally to different data structures
+- **Owner**: Implemented during Milestone 3
 
 ## Open Questions (Resolved)
 
