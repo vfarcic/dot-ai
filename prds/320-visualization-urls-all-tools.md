@@ -337,51 +337,56 @@ Each tool follows the same validation pattern.
 **version:**
 
 *Implementation:*
-- [ ] Add session storage to version tool (store health status, diagnostics)
-- [ ] Uses unified `prompts/visualize.md` (per Decision 8)
-- [ ] Return `visualizationUrl` in version response
+- [x] Add session storage to version tool (store health status, diagnostics)
+- [x] Uses unified `prompts/visualize.md` (per Decision 8)
+- [x] Return `visualizationUrl` in version response
 
 *Integration Tests:*
-- [ ] Test that `visualizationUrl` is returned in response
-- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
-- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+- [x] Test that `visualizationUrl` is returned in response
+- [x] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [x] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
 
 *Data Quality Validation (test script includes DEBUG_DOT_AI=true):*
-- [ ] Inspect debug prompts: verify health/diagnostics data is populated
-- [ ] Verify AI uses provided data first (not re-checking health)
-- [ ] Verify AI calls tools for additional context it might need
-- [ ] Output session ID to user for manual verification
+- [x] Inspect debug prompts: verify health/diagnostics data is populated
+- [x] Verify AI uses provided data first (not re-checking health)
+- [x] Verify AI calls tools for additional context it might need
+- [x] Output session ID to user for manual verification: `ver-1767397786102-8734f825`
 
 *Manual Web UI Test:*
-- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
+- [x] Open visualizationUrl in browser and confirm all visualizations render correctly
+
+*Test Optimization:*
+- [x] Consolidated all visualization endpoint tests to version.test.ts (fastest tool)
+- [x] Removed redundant endpoint tests from query/recommend/remediate/operate (keep URL expectation only)
+- [x] Added cache test and `?reload=true` test to version.test.ts
 
 ---
 
-**projectSetup/reportScan:**
+**projectSetup/reportScan:** *(Deferred)*
 
 *Implementation:*
-- [ ] Add session storage to reportScan stage (store coverage, missing files, recommendations)
-- [ ] Uses unified `prompts/visualize.md` (per Decision 8)
-- [ ] Return `visualizationUrl` in reportScan response
+- [~] Add session storage to reportScan stage (store coverage, missing files, recommendations)
+- [~] Uses unified `prompts/visualize.md` (per Decision 8)
+- [~] Return `visualizationUrl` in reportScan response
 
 *Integration Tests:*
-- [ ] Test that `visualizationUrl` is returned in response
-- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
-- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+- [~] Test that `visualizationUrl` is returned in response
+- [~] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [~] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
 
 *Data Quality Validation (test script includes DEBUG_DOT_AI=true):*
-- [ ] Inspect debug prompts: verify scan results are populated (coverage, missing files)
-- [ ] Verify AI uses provided data first (not re-scanning repository)
-- [ ] Verify AI calls tools for additional context it might need
-- [ ] Output session ID to user for manual verification
+- [~] Inspect debug prompts: verify scan results are populated (coverage, missing files)
+- [~] Verify AI uses provided data first (not re-scanning repository)
+- [~] Verify AI calls tools for additional context it might need
+- [~] Output session ID to user for manual verification
 
 *Manual Web UI Test:*
-- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
+- [~] Open visualizationUrl in browser and confirm all visualizations render correctly
 
-### Milestone 6: Documentation
-- [ ] Update tool documentation with visualization examples
-- [ ] Document new visualization types
-- [ ] Add visualization screenshots to docs
+### Milestone 6: Documentation *(Deferred)*
+- [~] Update tool documentation with visualization examples
+- [~] Document new visualization types
+- [~] Add visualization screenshots to docs
 
 ## Progress Log
 
@@ -399,6 +404,7 @@ Each tool follows the same validation pattern.
 | 2026-01-02 | Milestone 2.7 complete: Fixed bug where REST API passed `toolCallsData` instead of `solutionsData` for single recommend sessions (tool-aware data field selection). Added integration test that calls visualization endpoint and validates response. Verified via debug output: (1) prompt now has 64KB of solution data (was empty), (2) AI generates proper visualizations (cards, tables, feature matrices), (3) AI uses provided data first and only calls `validate_mermaid` for validation. Manual Web UI test passed. |
 | 2026-01-02 | Milestone 2.8 complete: Added `?reload=true` query parameter to visualization endpoint. When set, bypasses cache and regenerates visualization from current session data. Generic implementation works for ALL tools. Integration test added to query.test.ts verifying: (1) cached response is fast (<1s), (2) reload response takes longer (AI regeneration), (3) reload response has valid structure. |
 | 2026-01-02 | Milestone 3 complete: remediate tool now returns `visualizationUrl` in analysis response. Added `toolName: 'remediate'` to session data, extended `RemediateSessionData` with `BaseVisualizationData`. **Architecture change**: Consolidated all tool-specific visualization prompts into unified `prompts/visualize.md` (deleted `visualize-query.md`, `visualize-recommend.md`). REST API uses switch statement to map tool-specific data fields to unified `{{{data}}}` variable. Integration tests verify URL returned, visualization endpoint works, and `validate_mermaid` in toolsUsed. Debug validation confirmed AI uses provided `finalAnalysis` data (rootCause, confidence, factors, actions) and enriches with kubectl tools. |
+| 2026-01-03 | Milestone 5 (version) complete: Added session storage with `VersionSessionData`, returns `visualizationUrl` in response. Added `case 'version'` to REST API switch statement. **Test optimization**: Consolidated ALL visualization endpoint tests to version.test.ts (fastest tool) - removed redundant endpoint tests from query/recommend/remediate/operate tests (keep URL expectation only). Version test now includes cache test and `?reload=true` test. Debug validation confirmed health/diagnostics data populated, AI uses provided data first, enriches with kubectl tools for pod counts. Session ID: `ver-1767397786102-8734f825`. Deferred: projectSetup/reportScan and Documentation (Milestone 6). |
 
 ## Dependencies
 

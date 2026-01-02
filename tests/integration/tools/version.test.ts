@@ -124,7 +124,9 @@ describe.concurrent('Version Tool Integration', () => {
                 'kyverno-policy-generation' // Available only when Kyverno is installed
               ]) // Pattern - should contain all expected capabilities
             },
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/) // Pattern - ISO timestamp
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/), // Pattern - ISO timestamp
+            // PRD #320: Version tool returns visualizationUrl
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/ver-\d+-[a-f0-9]+$/)
           }
         },
         meta: {
@@ -141,7 +143,77 @@ describe.concurrent('Version Tool Integration', () => {
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedVersionResponse);
-    });
+
+      // PRD #320: Verify visualization endpoint works
+      // NOTE: This is the ONLY test that validates the visualization endpoint since
+      // the version tool is fastest. Other tools just verify visualizationUrl is returned.
+      const visualizationUrl = response.data.result.visualizationUrl;
+      const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
+      const vizResponse = await integrationTest.httpClient.get(vizPath);
+
+      const expectedVizResponse = {
+        success: true,
+        data: {
+          title: expect.any(String),
+          visualizations: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              label: expect.any(String),
+              type: expect.stringMatching(/^(mermaid|cards|table|code|diff)$/)
+            })
+          ]),
+          insights: expect.arrayContaining([expect.any(String)]),
+          toolsUsed: expect.any(Array)
+        }
+      };
+
+      expect(vizResponse).toMatchObject(expectedVizResponse);
+
+      // Verify visualization is not a fallback error
+      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+
+      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid diagrams present
+      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      if (hasMermaid) {
+        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
+      }
+
+      // Verify caching - second request should return cached data instantly
+      const cacheStartTime = Date.now();
+      const cachedVizResponse = await integrationTest.httpClient.get(vizPath);
+      const cachedResponseTime = Date.now() - cacheStartTime;
+
+      // Cached response should be fast (< 1 second vs ~40+ seconds for generation)
+      expect(cachedResponseTime).toBeLessThan(1000);
+
+      // Cached response should have same structure and content
+      expect(cachedVizResponse).toMatchObject(expectedVizResponse);
+      expect(cachedVizResponse.data.title).toBe(vizResponse.data.title);
+      expect(cachedVizResponse.data.visualizations.length).toBe(vizResponse.data.visualizations.length);
+      expect(cachedVizResponse.data.insights.length).toBe(vizResponse.data.insights.length);
+      expect(cachedVizResponse.data.toolsUsed).toEqual(vizResponse.data.toolsUsed);
+
+      // PRD #320 Milestone 2.8: Verify ?reload=true bypasses cache and regenerates
+      const reloadStartTime = Date.now();
+      const reloadVizResponse = await integrationTest.httpClient.get(`${vizPath}?reload=true`);
+      const reloadResponseTime = Date.now() - reloadStartTime;
+
+      // Reload response should take longer than cached (regenerating via AI)
+      // Cached was < 1 second, regeneration typically takes 10-60+ seconds
+      expect(reloadResponseTime).toBeGreaterThan(1000);
+
+      // Reload response should have valid structure (AI regenerated)
+      expect(reloadVizResponse).toMatchObject(expectedVizResponse);
+      expect(reloadVizResponse.data.title).toBeDefined();
+      expect(reloadVizResponse.data.visualizations.length).toBeGreaterThan(0);
+
+      // Verify reload actually regenerated - toolsUsed should be populated (AI called tools)
+      expect(reloadVizResponse.data.toolsUsed).toBeDefined();
+      expect(Array.isArray(reloadVizResponse.data.toolsUsed)).toBe(true);
+
+      // Output session ID for manual Web UI verification
+      console.log(`\n📊 Version visualization session ID: ${visualizationUrl.split('/v/')[1]}`);
+    }, 300000); // Increased timeout for visualization generation + cache + reload tests
 
     test('should handle POST method requirement', async () => {
       // Define expected error response structure (based on actual API inspection)

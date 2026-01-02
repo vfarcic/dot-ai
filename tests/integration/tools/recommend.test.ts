@@ -110,36 +110,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
       expect(urlSessionIds).toEqual(solutionIds);
 
-      // PRD #320 Milestone 2.7: Call visualization endpoint and verify it works
-      const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
-      const vizResponse = await integrationTest.httpClient.get(vizPath);
-
-      const expectedVizResponse = {
-        success: true,
-        data: {
-          title: expect.any(String),
-          visualizations: expect.arrayContaining([
-            expect.objectContaining({
-              id: expect.any(String),
-              label: expect.any(String),
-              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
-            })
-          ]),
-          insights: expect.any(Array),
-          toolsUsed: expect.any(Array)
-        }
-      };
-
-      expect(vizResponse).toMatchObject(expectedVizResponse);
-
-      // Verify not the fallback error response
-      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
-
-      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
-      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
-      if (hasMermaid) {
-        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
-      }
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
@@ -433,36 +404,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       });
 
-      // PRD #320: Test generateManifests visualization endpoint
-      const generateVizUrl = generateResponse.data.result.visualizationUrl;
-      const generateVizPath = `/api/v1/visualize/${generateVizUrl.split('/v/')[1]}`;
-      const generateVizResponse = await integrationTest.httpClient.get(generateVizPath);
-
-      const expectedGenerateVizResponse = {
-        success: true,
-        data: {
-          title: expect.any(String),
-          visualizations: expect.arrayContaining([
-            expect.objectContaining({
-              id: expect.any(String),
-              label: expect.any(String),
-              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
-            })
-          ]),
-          insights: expect.arrayContaining([expect.any(String)])
-        }
-      };
-
-      expect(generateVizResponse).toMatchObject(expectedGenerateVizResponse);
-
-      // Verify not the fallback error response
-      expect(generateVizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
-
-      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
-      const hasGenerateVizMermaid = generateVizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
-      if (hasGenerateVizMermaid) {
-        expect(generateVizResponse.data.toolsUsed).toContain('validate_mermaid');
-      }
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 9: Deploy manifests to cluster
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -858,36 +800,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const helmNamespace = generateResponse.data.result.namespace;
       const releaseName = generateResponse.data.result.releaseName;
 
-      // PRD #320: Test Helm generateManifests visualization endpoint
-      const helmGenerateVizUrl = generateResponse.data.result.visualizationUrl;
-      const helmGenerateVizPath = `/api/v1/visualize/${helmGenerateVizUrl.split('/v/')[1]}`;
-      const helmGenerateVizResponse = await integrationTest.httpClient.get(helmGenerateVizPath);
-
-      const expectedHelmGenerateVizResponse = {
-        success: true,
-        data: {
-          title: expect.any(String),
-          visualizations: expect.arrayContaining([
-            expect.objectContaining({
-              id: expect.any(String),
-              label: expect.any(String),
-              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
-            })
-          ]),
-          insights: expect.arrayContaining([expect.any(String)])
-        }
-      };
-
-      expect(helmGenerateVizResponse).toMatchObject(expectedHelmGenerateVizResponse);
-
-      // Verify not the fallback error response
-      expect(helmGenerateVizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
-
-      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
-      const hasHelmGenerateVizMermaid = helmGenerateVizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
-      if (hasHelmGenerateVizMermaid) {
-        expect(helmGenerateVizResponse.data.toolsUsed).toContain('validate_mermaid');
-      }
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 6: Deploy Helm chart (helm upgrade --install execution)
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {

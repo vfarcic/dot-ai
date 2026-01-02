@@ -820,6 +820,11 @@ export class RestApiRouter {
           intent = primarySession.data.intent || '';
           data = primarySession.data;
           break;
+        case 'version':
+          // PRD #320: Version tool provides system health status
+          intent = `System health: ${primarySession.data.summary?.overall || 'unknown'}`;
+          data = primarySession.data;
+          break;
         default:
           // Query and other tools: use toolCallsExecuted or full data
           intent = primarySession.data.intent || '';

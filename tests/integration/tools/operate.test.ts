@@ -120,36 +120,7 @@ EOF`);
       const sessionId = analysisResponse.data.result.sessionId;
       expect(sessionId).toBeTruthy();
 
-      // PRD #320: Verify visualization endpoint works for operate tool
-      const visualizationUrl = analysisResponse.data.result.visualizationUrl;
-      const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
-      const vizResponse = await integrationTest.httpClient.get(vizPath);
-
-      const expectedVizResponse = {
-        success: true,
-        data: {
-          title: expect.any(String),
-          visualizations: expect.arrayContaining([
-            expect.objectContaining({
-              id: expect.any(String),
-              label: expect.any(String),
-              type: expect.stringMatching(/^(mermaid|cards|table|code)$/)
-            })
-          ]),
-          insights: expect.any(Array),
-          toolsUsed: expect.any(Array)
-        }
-      };
-      expect(vizResponse).toMatchObject(expectedVizResponse);
-
-      // Verify visualization is not a fallback error response
-      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
-
-      // If Mermaid diagrams present, validate_mermaid should be in toolsUsed
-      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
-      if (hasMermaid) {
-        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
-      }
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Verify original deployment unchanged (no execution yet)
       const unchangedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);

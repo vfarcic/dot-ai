@@ -15,6 +15,8 @@ import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
 import { getTracer, createTracedK8sClient } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
+import { GenericSessionManager } from '../core/generic-session-manager';
+import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -102,6 +104,23 @@ export interface SystemStatus {
     serviceName: string;
     initialized: boolean;
   };
+}
+
+// PRD #320: Session data for version tool visualization
+export interface VersionSessionData extends BaseVisualizationData {
+  toolName: 'version';
+  system: SystemStatus;
+  summary: {
+    overall: 'healthy' | 'degraded';
+    patternSearch: string;
+    capabilityScanning: string;
+    kubernetesAccess: string;
+    policyIntentManagement: string;
+    kyvernoPolicyGeneration: string;
+    capabilities: string[];
+  };
+  timestamp: string;
+  status: 'success' | 'error';
 }
 
 /**
@@ -733,33 +752,52 @@ export async function handleVersionTool(
     // Check if we should show feedback message
     const feedbackMessage = maybeGetFeedbackMessage();
 
+    // Build summary object
+    const summary = {
+      overall: (vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
+      patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
+      capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
+      kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
+      policyIntentManagement: vectorDBStatus.connected && embeddingStatus.available ? 'ready' : 'not-ready',
+      kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
+      capabilities: [
+        vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
+        // Policy intent management is available if Vector DB and embedding service are ready
+        vectorDBStatus.connected && embeddingStatus.available ? 'policy-intent-management' : null,
+        capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
+        embeddingStatus.available ? 'semantic-search' : null,
+        aiProviderStatus.connected ? 'ai-recommendations' : null,
+        kubernetesStatus.connected ? 'kubernetes-integration' : null,
+        // Kyverno policy generation is only available when Kyverno is installed
+        kyvernoStatus.policyGenerationReady ? 'kyverno-policy-generation' : null
+      ].filter(Boolean) as string[]
+    };
+
+    const timestamp = new Date().toISOString();
+
+    // PRD #320: Create session for visualization
+    const sessionManager = new GenericSessionManager<VersionSessionData>('ver');
+    const session = sessionManager.createSession({
+      toolName: 'version',
+      system: systemStatus,
+      summary,
+      timestamp,
+      status: 'success'
+    });
+
+    // PRD #320: Generate visualization URL if configured
+    const visualizationUrl = getVisualizationUrl(session.sessionId);
+
     return {
       content: [{
         type: 'text' as const,
         text: JSON.stringify({
           status: 'success',
           system: systemStatus,
-          summary: {
-            overall: vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded',
-            patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
-            capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
-            kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
-            policyIntentManagement: vectorDBStatus.connected && embeddingStatus.available ? 'ready' : 'not-ready',
-            kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
-            capabilities: [
-              vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
-              // Policy intent management is available if Vector DB and embedding service are ready
-              vectorDBStatus.connected && embeddingStatus.available ? 'policy-intent-management' : null,
-              capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
-              embeddingStatus.available ? 'semantic-search' : null,
-              aiProviderStatus.connected ? 'ai-recommendations' : null,
-              kubernetesStatus.connected ? 'kubernetes-integration' : null,
-              // Kyverno policy generation is only available when Kyverno is installed
-              kyvernoStatus.policyGenerationReady ? 'kyverno-policy-generation' : null
-            ].filter(Boolean)
-          },
-          timestamp: new Date().toISOString(),
-          ...(feedbackMessage ? { message: feedbackMessage } : {})
+          summary,
+          timestamp,
+          ...(feedbackMessage ? { message: feedbackMessage } : {}),
+          ...(visualizationUrl ? { visualizationUrl } : {})
         }, null, 2)
       }]
     };
