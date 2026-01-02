@@ -79,6 +79,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate solutions response structure (based on actual API inspection)
+      // PRD #320: Recommend tool returns visualizationUrl with multiple session IDs joined by +
       const expectedSolutionsResponse = {
         success: true,
         data: {
@@ -87,7 +88,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             solutions: expect.any(Array),
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('You MUST present these solutions'),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL contains multiple solution session IDs joined by +
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+(\+sol-\d+-[a-f0-9]+)*$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -100,6 +103,12 @@ describe.concurrent('Recommend Tool Integration', () => {
       };
 
       expect(solutionsResponse).toMatchObject(expectedSolutionsResponse);
+
+      // PRD #320: Verify visualization URL contains all solution session IDs
+      const solutionIds = solutionsResponse.data.result.solutions.map((s: any) => s.solutionId);
+      const visualizationUrl = solutionsResponse.data.result.visualizationUrl;
+      const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
+      expect(urlSessionIds).toEqual(solutionIds);
 
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
@@ -503,6 +512,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate response structure and that official prometheus-community chart is included
+      // PRD #320: Helm solutions also return visualizationUrl with multiple session IDs
       const expectedHelmResponse = {
         success: true,
         data: {
@@ -527,7 +537,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             helmInstallation: true,
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('Helm chart options'),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL for Helm solutions
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+(\+sol-\d+-[a-f0-9]+)*$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)

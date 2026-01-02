@@ -33,6 +33,7 @@ import {
   KUBECTL_GET_CRD_SCHEMA_TOOL,
   executeKubectlTools
 } from '../core/kubectl-tools';
+import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
 
 /**
  * HTTP status codes for REST responses
@@ -118,11 +119,13 @@ export interface Visualization {
 
 /**
  * Visualization endpoint response format
+ * PRD #320: Added toolsUsed for test validation of mermaid validation
  */
 export interface VisualizationResponse {
   title: string;
   visualizations: Visualization[];
   insights: string[];
+  toolsUsed?: string[];  // Tools called during visualization generation
 }
 
 /**
@@ -711,41 +714,55 @@ export class RestApiRouter {
     req: IncomingMessage,
     res: ServerResponse,
     requestId: string,
-    sessionId: string
+    sessionIdParam: string
   ): Promise<void> {
     try {
-      this.logger.info('Processing visualization request', { requestId, sessionId });
+      // PRD #320: Support multiple session IDs separated by +
+      const sessionIds = sessionIdParam.split('+').filter(id => id.length > 0);
+      const isMultiSession = sessionIds.length > 1;
 
-      // PRD #320: Extract prefix from sessionId to support any tool's sessions
-      const sessionPrefix = extractPrefixFromSessionId(sessionId);
-      const sessionManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
-      const session = sessionManager.getSession(sessionId);
+      this.logger.info('Processing visualization request', {
+        requestId,
+        sessionIds,
+        isMultiSession
+      });
 
-      if (!session) {
-        await this.sendErrorResponse(
-          res,
-          requestId,
-          HttpStatus.NOT_FOUND,
-          'SESSION_NOT_FOUND',
-          `Session '${sessionId}' not found or has expired`
-        );
-        return;
+      // Fetch all sessions
+      const sessions: Array<{ sessionId: string; data: any }> = [];
+      for (const sessionId of sessionIds) {
+        const sessionPrefix = extractPrefixFromSessionId(sessionId);
+        const sessionManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
+        const session = sessionManager.getSession(sessionId);
+
+        if (!session) {
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            HttpStatus.NOT_FOUND,
+            'SESSION_NOT_FOUND',
+            `Session '${sessionId}' not found or has expired`
+          );
+          return;
+        }
+        sessions.push({ sessionId, data: session.data });
       }
 
-      // Check for cached visualization - return immediately if available
-      if (session.data.cachedVisualization) {
+      // For single session, check cache (multi-session doesn't use cache yet)
+      const primarySession = sessions[0];
+      if (!isMultiSession && primarySession.data.cachedVisualization) {
         this.logger.info('Returning cached visualization', {
           requestId,
-          sessionId,
-          generatedAt: session.data.cachedVisualization.generatedAt
+          sessionId: sessionIds[0],
+          generatedAt: primarySession.data.cachedVisualization.generatedAt
         });
 
         const cachedResponse: RestApiResponse = {
           success: true,
           data: {
-            title: session.data.cachedVisualization.title,
-            visualizations: session.data.cachedVisualization.visualizations,
-            insights: session.data.cachedVisualization.insights
+            title: primarySession.data.cachedVisualization.title,
+            visualizations: primarySession.data.cachedVisualization.visualizations,
+            insights: primarySession.data.cachedVisualization.insights,
+            toolsUsed: primarySession.data.cachedVisualization.toolsUsed  // PRD #320
           },
           meta: {
             timestamp: new Date().toISOString(),
@@ -773,20 +790,32 @@ export class RestApiRouter {
       }
 
       // PRD #320: Select prompt based on tool name (defaults to 'query' for backwards compatibility)
-      const toolName = session.data.toolName || 'query';
+      const toolName = primarySession.data.toolName || 'query';
       const promptName = getPromptForTool(toolName);
 
-      this.logger.info('Loading visualization prompt', { requestId, sessionId, toolName, promptName });
+      this.logger.info('Loading visualization prompt', { requestId, sessionIds, toolName, promptName });
 
       // Load system prompt with session context
-      // For query tool (and backwards compatibility): use intent and toolCallsExecuted
-      // For other tools: they'll provide their own data structure in session.data
-      const systemPrompt = loadPrompt(promptName, {
-        intent: session.data.intent || '',
-        toolCallsData: JSON.stringify(session.data.toolCallsExecuted || session.data, null, 2)
-      });
+      // For single session (query tool): use intent and toolCallsExecuted
+      // For multi-session (recommend tool): use intent and combined solutions data
+      let promptData: { intent: string; toolCallsData?: string; solutionsData?: string };
+      if (isMultiSession) {
+        // Multi-session: combine all session data for visualization
+        promptData = {
+          intent: primarySession.data.intent || '',
+          solutionsData: JSON.stringify(sessions.map(s => s.data), null, 2)
+        };
+      } else {
+        // Single session: use toolCallsExecuted or full data
+        promptData = {
+          intent: primarySession.data.intent || '',
+          toolCallsData: JSON.stringify(primarySession.data.toolCallsExecuted || primarySession.data, null, 2)
+        };
+      }
 
-      // Tool executor - same as query tool
+      const systemPrompt = loadPrompt(promptName, promptData);
+
+      // Tool executor - same as query tool, plus mermaid validation
       const executeVisualizationTools = async (toolName: string, input: any): Promise<any> => {
         if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
           return executeCapabilityTools(toolName, input);
@@ -796,6 +825,10 @@ export class RestApiRouter {
         }
         if (toolName.startsWith('kubectl_')) {
           return executeKubectlTools(toolName, input);
+        }
+        // PRD #320: Mermaid validation tools
+        if (toolName === 'validate_mermaid') {
+          return executeMermaidTools(toolName, input);
         }
         return {
           success: false,
@@ -814,13 +847,14 @@ export class RestApiRouter {
         KUBECTL_GET_CRD_SCHEMA_TOOL
       ];
 
-      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionId, toolName });
+      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionIds, toolName });
 
       // Execute tool loop - AI can gather additional data if needed
       const result = await aiProvider.toolLoop({
         systemPrompt,
         userMessage: 'Generate visualizations based on the query results provided. Use tools if you need additional information about any resources.',
-        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
+        // PRD #320: Include MERMAID_TOOLS for diagram validation
+        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS, ...MERMAID_TOOLS],
         toolExecutor: executeVisualizationTools,
         maxIterations: 5,  // Limit iterations for visualization
         operation: `visualize-${toolName}`  // PRD #320: Include tool name for debugging
@@ -828,7 +862,7 @@ export class RestApiRouter {
 
       this.logger.info('AI visualization generation completed', {
         requestId,
-        sessionId,
+        sessionIds,
         toolName,
         iterations: result.iterations,
         toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
@@ -883,49 +917,55 @@ export class RestApiRouter {
           return String(insight);
         });
 
+        // PRD #320: Include toolsUsed for test validation
+        const toolsUsed = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
         visualizationResponse = {
           ...parsed,
-          insights: normalizedInsights
+          insights: normalizedInsights,
+          toolsUsed
         } as VisualizationResponse;
       } catch (parseError) {
         this.logger.error('Failed to parse AI visualization response', parseError instanceof Error ? parseError : new Error(String(parseError)), {
           requestId,
-          sessionId,
+          sessionIds,
           rawResponse: result.finalMessage.substring(0, 500)
         });
 
         // Fallback to basic visualization on parse error
         visualizationResponse = {
-          title: `Query: ${session.data.intent}`,
+          title: `Query: ${primarySession.data.intent}`,
           visualizations: [
             {
               id: 'raw-data',
-              label: 'Query Results',
+              label: 'Raw Data',
               type: 'code',
               content: {
                 language: 'json',
-                code: JSON.stringify(session.data.toolCallsExecuted, null, 2)
+                code: JSON.stringify(isMultiSession ? sessions.map(s => s.data) : primarySession.data, null, 2)
               }
             }
           ],
           insights: [
-            'AI visualization generation failed - showing raw query results',
-            `Query executed in ${session.data.iterations} iteration(s)`
+            'AI visualization generation failed - showing raw data'
           ]
         };
       }
 
-      // Cache the visualization in the session for subsequent requests
-      sessionManager.updateSession(sessionId, {
-        cachedVisualization: {
-          title: visualizationResponse.title,
-          visualizations: visualizationResponse.visualizations,
-          insights: visualizationResponse.insights,
-          generatedAt: new Date().toISOString()
-        }
-      });
-
-      this.logger.info('Visualization cached in session', { requestId, sessionId });
+      // Cache the visualization in the session for subsequent requests (single session only)
+      if (!isMultiSession) {
+        const sessionPrefix = extractPrefixFromSessionId(sessionIds[0]);
+        const cacheManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
+        cacheManager.updateSession(sessionIds[0], {
+          cachedVisualization: {
+            title: visualizationResponse.title,
+            visualizations: visualizationResponse.visualizations,
+            insights: visualizationResponse.insights,
+            toolsUsed: visualizationResponse.toolsUsed,  // PRD #320: Cache toolsUsed
+            generatedAt: new Date().toISOString()
+          }
+        });
+        this.logger.info('Visualization cached in session', { requestId, sessionId: sessionIds[0] });
+      }
 
       const response: RestApiResponse = {
         success: true,
@@ -941,16 +981,16 @@ export class RestApiRouter {
 
       this.logger.info('Visualization request completed', {
         requestId,
-        sessionId,
+        sessionIds,
         visualizationCount: visualizationResponse.visualizations.length,
-        cached: true
+        cached: !isMultiSession
       });
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Visualization request failed', error instanceof Error ? error : new Error(String(error)), {
         requestId,
-        sessionId
+        sessionIdParam
       });
 
       await this.sendErrorResponse(

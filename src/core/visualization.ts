@@ -9,6 +9,7 @@ import { VisualizationType } from '../interfaces/rest-api';
 
 /**
  * Cached visualization structure stored in sessions
+ * PRD #320: Added toolsUsed for test validation of mermaid validation
  */
 export interface CachedVisualization {
   title: string;
@@ -19,6 +20,7 @@ export interface CachedVisualization {
     content: any;
   }>;
   insights: string[];
+  toolsUsed?: string[];  // Tools called during visualization generation
   generatedAt: string;
 }
 
@@ -76,17 +78,19 @@ export function getPromptForTool(toolName: string): string {
  * Get visualization URL if WEB_UI_BASE_URL is configured
  * Feature toggle - only returns URL when env var is set
  *
- * @param sessionId - The session ID to include in URL
+ * @param sessionIds - Single session ID or array of session IDs to include in URL
  * @returns Visualization URL or undefined if not configured
  */
-export function getVisualizationUrl(sessionId: string): string | undefined {
+export function getVisualizationUrl(sessionIds: string | string[]): string | undefined {
   const baseUrl = process.env.WEB_UI_BASE_URL;
   if (!baseUrl) {
     return undefined;
   }
-  // Remove trailing slash if present, then append /v/{sessionId}
+  // Remove trailing slash if present, then append /v/{sessionId(s)}
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
-  return `${normalizedBaseUrl}/v/${sessionId}`;
+  // Join multiple session IDs with + separator
+  const sessionPath = Array.isArray(sessionIds) ? sessionIds.join('+') : sessionIds;
+  return `${normalizedBaseUrl}/v/${sessionPath}`;
 }
 
 /**

@@ -215,6 +215,8 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 | Inconsistent visualization quality across tools | Poor UX | Standardize prompt structure, review each output |
 | Session storage growth | Memory pressure | Same ephemeral strategy as query tool |
 | AI latency on complex visualizations | Slow page load | Accept tradeoff; consider caching |
+| Visualization AI re-fetches data instead of using provided data | High latency, unnecessary cost | Store actual results in session (not tool metadata), remove prompt language encouraging tool usage |
+| `toolCallsExecuted` loses input/output due to undefined serialization | Empty data in visualization prompt | Ensure tool outputs are captured; convert undefined to null before storage |
 
 ## Out of Scope
 
@@ -232,10 +234,35 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 - [x] Create shared visualization utilities (session creation, URL generation)
 
 ### Milestone 2: recommend Tool Visualization
-- [ ] Add session storage to recommend stage
-- [ ] Create `prompts/visualize-recommend.md`
-- [ ] Return `visualizationUrl` in recommend response
-- [ ] Integration tests for recommend visualization
+- [x] Add session storage to recommend stage
+- [x] Create `prompts/visualize-recommend.md`
+- [x] Return `visualizationUrl` in recommend response
+- [x] Integration tests for recommend visualization
+
+### Milestone 2.5: Visualization Data Quality Fix (Blocking)
+**Priority**: Must complete before continuing with other tools - affects all visualization
+
+- [x] Fix `toolCallsExecuted` serialization to preserve `input`/`output` fields (convert undefined to null)
+- [x] Fix Vercel provider to capture tool results during execution (not reconstruct from steps)
+- [x] Update `prompts/visualize-query.md` to clarify: use provided data first, fetch additional detail for enrichment
+- [x] Update `prompts/visualize-recommend.md` similarly
+- [x] Verify provided data appears in prompt (not empty/stripped) - confirmed via integration tests
+- [ ] Validate visualization data quality for all other tools (recommend, remediate, operate, manageOrgData) - same verification as query tool
+
+### Milestone 2.6: Mermaid Diagram Validation
+**Priority**: High - prevents broken visualizations from reaching Web UI
+
+- [x] Add `mermaid` npm package for diagram validation
+- [x] Create `validate_mermaid` tool that parses Mermaid syntax and returns validation result
+- [x] Add tool to visualization tool loop (all visualize-* prompts)
+- [x] Tool description instructs AI to validate before returning (no prompt changes needed)
+- [x] Integration tests for Mermaid validation (verify validate_mermaid in toolsUsed when Mermaid present)
+
+**Mermaid Generation Guidelines** (added to visualization prompts):
+
+- If using `classDef`, ALWAYS specify both `fill` AND `color` (text) with sufficient contrast for readability
+- Truncate UUIDs to first 8 characters (e.g., `pvc-508555a4...`)
+- Keep node labels under 30 characters when possible
 
 ### Milestone 3: remediate Tool Visualization
 - [ ] Add session storage to remediate analysis stage
@@ -271,6 +298,11 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 |------|--------|
 | 2026-01-02 | PRD created |
 | 2026-01-02 | Milestone 1 complete: Added `diff` type, created `src/core/visualization.ts` with shared utilities, updated visualization endpoint for tool-aware prompt selection, query tool now includes `toolName` in sessions |
+| 2026-01-02 | Milestone 2 complete: recommend tool returns `visualizationUrl` with multi-session support (session IDs joined by `+`), created `prompts/visualize-recommend.md`, updated visualization endpoint to handle multiple sessions, integration tests added |
+| 2026-01-02 | Design decisions documented: (1) Multi-session URL format using `+` separator, (2) Data-first visualization approach, (3) Visualization prompts should not encourage tool usage. Bug identified: `toolCallsExecuted` loses input/output data during JSON serialization |
+| 2026-01-02 | Milestone 2.5 mostly complete: Fixed Vercel provider to capture tool results during execution (not reconstruct from steps), fixed serialization to preserve undefined as null, updated visualization prompts. Verified via integration tests: data now appears in prompts (before: 70K tokens with null data, after: 4K tokens with actual data, 60% fewer tool calls during visualization) |
+| 2026-01-02 | Milestone 2.6 added: Mermaid validation via AI tool. Issue discovered during Web UI testing: AI generated `classDist` instead of `classDef`. Solution: provide validate_mermaid tool so AI can self-validate and fix errors before returning |
+| 2026-01-02 | Milestone 2.6 complete: Added `mermaid` npm package, created `validate_mermaid` tool in `src/core/mermaid-tools.ts`, added to visualization tool loop in `rest-api.ts`, tool description instructs AI to validate (no prompt changes needed), tests verify `validate_mermaid` in `toolsUsed` when Mermaid visualizations are present |
 
 ## Dependencies
 
@@ -289,3 +321,55 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 - Visualization prompts should follow same structure as `visualize-query.md`
 - Consider extracting common visualization utilities to `src/core/visualization.ts`
 - Session IDs should maintain tool-specific prefixes (sol-, rem-, opr-, etc.)
+
+## Design Decisions
+
+### Decision 1: Multi-Session URL Format
+- **Date**: 2026-01-02
+- **Decision**: Use `+` as separator for multiple session IDs in visualization URLs (e.g., `/v/sol-123+sol-456+sol-789`)
+- **Rationale**: Tools like `recommend` create multiple sessions (one per solution). Instead of creating a duplicate "visualization session" containing all data, we reuse existing sessions and compose them via URL
+- **Impact**:
+  - Avoids data duplication in session storage
+  - Visualization endpoint must parse `+` separated IDs and fetch multiple sessions
+  - Web UI must be updated to handle multi-session URLs
+- **Owner**: Discussion during Milestone 2 implementation
+
+### Decision 2: Data-First Visualization (vs Tool Call Metadata)
+- **Date**: 2026-01-02
+- **Decision**: Visualization prompts should receive the actual gathered data/results, not technical tool call metadata (`toolCallsExecuted`)
+- **Rationale**: For visualization, what matters is "what was found" (capability descriptions, resources, etc.), not "which tools were called with what parameters"
+- **Impact**:
+  - Session storage should include aggregated results data, not just tool call structure
+  - Prompts should be updated to analyze provided data instead of re-fetching
+  - **Bug identified**: Current `toolCallsExecuted` storage loses `input`/`output` fields due to `JSON.stringify` dropping `undefined` values
+- **Owner**: To be addressed in follow-up work
+
+### Decision 3: Visualization Should Use Provided Data First, Then Enrich
+- **Date**: 2026-01-02
+- **Decision**: Visualization prompts should analyze provided data first, then fetch additional detail for enrichment. Visualization should be richer than the MCP text output.
+- **Rationale**: Current implementation passes empty data (serialization bug), forcing AI to re-fetch everything. Fix is ensuring base data is available; AI can still call tools for additional enrichment to create more detailed visualizations.
+- **Impact**:
+  - Fix data serialization so provided data is actually available
+  - Prompts should clarify: use provided data as foundation, fetch more for enrichment
+  - Visualization can be more detailed than MCP tool output (this is desirable)
+- **Owner**: To be addressed in Milestone 2.5
+
+### Decision 4: Mermaid Validation via AI Tool
+- **Date**: 2026-01-02
+- **Decision**: Provide a `validate_mermaid` tool to the visualization AI and instruct it to validate diagrams before returning
+- **Rationale**: AI occasionally generates Mermaid syntax errors (e.g., `classDist` instead of `classDef`). Rather than post-processing validation, the AI can self-validate and fix errors in context.
+- **Impact**:
+  - Add `mermaid` npm package as dependency
+  - Create validation tool that parses Mermaid and returns errors
+  - Update all visualization prompts to require validation before returning
+  - AI can iterate to fix errors rather than returning broken diagrams
+- **Owner**: Milestone 2.6 implementation
+
+## Open Questions (Resolved)
+
+| Question | Resolution | Date |
+|----------|------------|------|
+| How to handle multi-solution visualization URLs? | Use `+` separator for session IDs, reuse existing sessions | 2026-01-02 |
+| Should we create separate visualization sessions? | No - reuse existing tool sessions to avoid duplication | 2026-01-02 |
+| What data should visualization prompts receive? | Actual results/data, not tool call metadata | 2026-01-02 |
+| How to prevent Mermaid syntax errors in visualizations? | Provide validate_mermaid tool, instruct AI to validate before returning | 2026-01-02 |

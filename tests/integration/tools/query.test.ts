@@ -173,12 +173,14 @@ spec:
     );
 
     // AI generates dynamic visualizations - validate structure
+    // PRD #320: Added toolsUsed for test validation of mermaid validation
     const expectedVizResponse = {
       success: true,
       data: {
         title: expect.any(String),
         visualizations: expect.any(Array),
-        insights: expect.any(Array)
+        insights: expect.any(Array),
+        toolsUsed: expect.any(Array)  // PRD #320: Track tools used during visualization
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -202,6 +204,13 @@ spec:
         type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/),
         content: expect.anything()
       });
+    }
+
+    // PRD #320 Milestone 2.6: Verify validate_mermaid was called if Mermaid diagrams present
+    const hasMermaidVisualizations = visualizations.some((viz: any) => viz.type === 'mermaid');
+    const toolsUsed = vizResponse.data.toolsUsed as string[];
+    if (hasMermaidVisualizations) {
+      expect(toolsUsed).toContain('validate_mermaid');
     }
 
     // Validate insights are non-empty strings
@@ -231,6 +240,8 @@ spec:
     expect(cachedVizResponse.data.title).toBe(vizResponse.data.title);
     expect(cachedVizResponse.data.visualizations.length).toBe(vizResponse.data.visualizations.length);
     expect(cachedVizResponse.data.insights.length).toBe(vizResponse.data.insights.length);
+    // PRD #320: Cached response should also have toolsUsed
+    expect(cachedVizResponse.data.toolsUsed).toEqual(vizResponse.data.toolsUsed);
   }, 300000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {
