@@ -242,6 +242,27 @@ spec:
     expect(cachedVizResponse.data.insights.length).toBe(vizResponse.data.insights.length);
     // PRD #320: Cached response should also have toolsUsed
     expect(cachedVizResponse.data.toolsUsed).toEqual(vizResponse.data.toolsUsed);
+
+    // Step 4: PRD #320 Milestone 2.8 - Verify ?reload=true bypasses cache and regenerates
+    const reloadStartTime = Date.now();
+    const reloadVizResponse = await integrationTest.httpClient.get(
+      `/api/v1/visualize/${sessionId}?reload=true`
+    );
+    const reloadResponseTime = Date.now() - reloadStartTime;
+
+    // Reload response should take longer than cached (regenerating via AI)
+    // Cached was < 1 second, regeneration typically takes 10-60+ seconds
+    expect(reloadResponseTime).toBeGreaterThan(1000);
+
+    // Reload response should have valid structure (AI regenerated)
+    expect(reloadVizResponse).toMatchObject(expectedVizResponse);
+    expect(reloadVizResponse.data.title).toBeDefined();
+    expect(reloadVizResponse.data.visualizations.length).toBeGreaterThan(0);
+
+    // Verify reload actually regenerated - toolsUsed should be populated (AI called tools)
+    // The cached response just returns stored data, reload triggers full AI visualization
+    expect(reloadVizResponse.data.toolsUsed).toBeDefined();
+    expect(Array.isArray(reloadVizResponse.data.toolsUsed)).toBe(true);
   }, 300000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {

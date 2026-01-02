@@ -265,7 +265,7 @@ export class RestApiRouter {
 
         case 'visualize':
           if (req.method === 'GET' && pathMatch.sessionId) {
-            await this.handleVisualize(req, res, requestId, pathMatch.sessionId);
+            await this.handleVisualize(req, res, requestId, pathMatch.sessionId, url.searchParams);
           } else if (req.method !== 'GET') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for visualization');
           } else {
@@ -709,22 +709,28 @@ export class RestApiRouter {
   /**
    * Handle visualization requests (PRD #317)
    * Returns structured visualization data for a query session
+   * PRD #320: Supports ?reload=true to regenerate visualization from current session data
    */
   private async handleVisualize(
     req: IncomingMessage,
     res: ServerResponse,
     requestId: string,
-    sessionIdParam: string
+    sessionIdParam: string,
+    searchParams: URLSearchParams
   ): Promise<void> {
     try {
       // PRD #320: Support multiple session IDs separated by +
       const sessionIds = sessionIdParam.split('+').filter(id => id.length > 0);
       const isMultiSession = sessionIds.length > 1;
 
+      // PRD #320: Support ?reload=true to regenerate visualization from current session data
+      const reload = searchParams.get('reload') === 'true';
+
       this.logger.info('Processing visualization request', {
         requestId,
         sessionIds,
-        isMultiSession
+        isMultiSession,
+        reload
       });
 
       // Fetch all sessions
@@ -748,8 +754,9 @@ export class RestApiRouter {
       }
 
       // For single session, check cache (multi-session doesn't use cache yet)
+      // PRD #320: Skip cache if reload=true to regenerate from current session data
       const primarySession = sessions[0];
-      if (!isMultiSession && primarySession.data.cachedVisualization) {
+      if (!isMultiSession && !reload && primarySession.data.cachedVisualization) {
         this.logger.info('Returning cached visualization', {
           requestId,
           sessionId: sessionIds[0],

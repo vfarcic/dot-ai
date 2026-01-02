@@ -255,11 +255,23 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 **Bug Fix**: REST API was passing `toolCallsData` instead of `solutionsData` for single recommend sessions. Fixed by making data field selection tool-aware in `rest-api.ts`.
 
+### Milestone 2.8: Visualization Cache Reload Parameter
+**Priority**: Should complete before Milestone 3 - enables seeing updated session state after execution
+
+- [x] Pass `url.searchParams` to `handleVisualize` function in route handler
+- [x] Add `searchParams: URLSearchParams` parameter to `handleVisualize` signature
+- [x] Check for `reload=true` query parameter before cache check
+- [x] Skip cache and regenerate visualization when `reload=true`
+- [x] Integration tests: verify cached response without param, fresh response with `?reload=true`
+
+**Applies to ALL tools** - not remediate-specific.
+
 ### Milestone 3: remediate Tool Visualization
 **Implementation:**
 - [ ] Add session storage to remediate analysis stage (store `finalAnalysis` in session)
 - [ ] Create `prompts/visualize-remediate.md`
 - [ ] Return `visualizationUrl` in remediate analysis response
+- [ ] Visualization prompt adapts based on session status (analysis_complete vs executed_*)
 
 **Integration Tests:**
 - [ ] Test that `visualizationUrl` is returned in response
@@ -333,6 +345,7 @@ Each tool follows the same validation pattern:
 | 2026-01-02 | Milestone 2.5 complete: Validated data quality for remediate and operate tools. Analysis found two data paradigms: (1) tool call data (query uses `toolCallsExecuted`), (2) embedded/structured data (recommend uses `SolutionData`, remediate uses `finalAnalysis`, operate uses `EmbeddedContext` + `proposedChanges`). REST API fallback mechanism (`toolCallsExecuted || primarySession.data`) ensures all tools work with visualization. Removed manageOrgData/capabilities from scope (no sessions, lower value). |
 | 2026-01-02 | Milestone 2.7 added (retroactive): Discovered recommend visualization tests are incomplete - they only verify `visualizationUrl` is returned but don't test the visualization endpoint, data quality, or Web UI. Added comprehensive validation requirements for all pending milestones: (1) integration test for visualization endpoint, (2) debug prompt inspection for data quality, (3) verify AI uses provided data + fetches enrichment, (4) manual Web UI test. |
 | 2026-01-02 | Milestone 2.7 complete: Fixed bug where REST API passed `toolCallsData` instead of `solutionsData` for single recommend sessions (tool-aware data field selection). Added integration test that calls visualization endpoint and validates response. Verified via debug output: (1) prompt now has 64KB of solution data (was empty), (2) AI generates proper visualizations (cards, tables, feature matrices), (3) AI uses provided data first and only calls `validate_mermaid` for validation. Manual Web UI test passed. |
+| 2026-01-02 | Milestone 2.8 complete: Added `?reload=true` query parameter to visualization endpoint. When set, bypasses cache and regenerates visualization from current session data. Generic implementation works for ALL tools. Integration test added to query.test.ts verifying: (1) cached response is fast (<1s), (2) reload response takes longer (AI regeneration), (3) reload response has valid structure. |
 
 ## Dependencies
 
@@ -413,6 +426,37 @@ Each tool follows the same validation pattern:
   - `operate`: `EmbeddedContext` (patterns, policies, capabilities) + `proposedChanges` + `commands`
 - **Owner**: Documented during Milestone 2.5 validation
 
+### Decision 6: Visualization Cache Reload Parameter
+- **Date**: 2026-01-02
+- **Decision**: Add `?reload=true` query parameter to visualization endpoint to regenerate visualization from current session data instead of returning cached version
+- **Rationale**: Session data can change after initial visualization (e.g., remediate session updated with execution results after user approves). Users need ability to see updated visualization reflecting latest session state.
+- **Impact**:
+  - Add `searchParams` parameter to `handleVisualize` function
+  - Skip cache check when `reload=true` is present
+  - Regenerate visualization using current session data
+  - Update cache with new visualization
+  - Applies to ALL tools, not just remediate
+- **Use cases**:
+  - `GET /api/v1/visualize/rem-xxx` → Returns cached visualization (pre-execution state)
+  - `GET /api/v1/visualize/rem-xxx?reload=true` → Regenerates from current session (post-execution state with results)
+- **Owner**: To be implemented in Milestone 2.8
+
+### Decision 7: Remediate Session-Per-Stage Visualization
+- **Date**: 2026-01-02
+- **Decision**: Each remediate session generates its own visualization URL. Different execution paths create different sessions.
+- **Rationale**: Remediate has two execution paths with different session behaviors:
+  1. **Choice 1 (MCP execution)**: Same session (`rem-xxx`) is updated with `executionResults`
+  2. **Choice 2 (Agent execution)**: Agent calls remediate again for validation, creating a NEW session (`rem-yyy`)
+- **Impact**:
+  - Analysis stage returns `visualizationUrl` for session `rem-xxx`
+  - Choice 1: Same URL, use `?reload=true` to see execution results
+  - Choice 2: Validation creates new session with its own `visualizationUrl`
+  - Visualization prompt adapts based on session status (`analysis_complete` vs `executed_successfully`)
+- **Session status determines content**:
+  - `analysis_complete`: Shows investigation flow, root cause, proposed actions
+  - `executed_successfully`/`executed_with_errors`: Shows investigation + execution results + success/failure
+- **Owner**: To be implemented in Milestone 3
+
 ## Open Questions (Resolved)
 
 | Question | Resolution | Date |
@@ -421,3 +465,5 @@ Each tool follows the same validation pattern:
 | Should we create separate visualization sessions? | No - reuse existing tool sessions to avoid duplication | 2026-01-02 |
 | What data should visualization prompts receive? | Actual results/data, not tool call metadata | 2026-01-02 |
 | How to prevent Mermaid syntax errors in visualizations? | Provide validate_mermaid tool, instruct AI to validate before returning | 2026-01-02 |
+| How to see updated visualization after session changes? | Add `?reload=true` query parameter to skip cache and regenerate | 2026-01-02 |
+| Should remediate analysis and execution share visualization? | Each session generates its own URL; Choice 1 updates same session (use reload), Choice 2 creates new session | 2026-01-02 |
