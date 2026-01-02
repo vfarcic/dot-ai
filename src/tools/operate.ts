@@ -10,6 +10,7 @@ import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
 import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
+import { BaseVisualizationData } from '../core/visualization';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
@@ -34,7 +35,9 @@ export interface OperateInput {
 }
 
 // Session data stored by GenericSessionManager
-export interface OperateSessionData {
+// PRD #320: Extends BaseVisualizationData for visualization support
+export interface OperateSessionData extends BaseVisualizationData {
+  toolName: 'operate';  // PRD #320: Tool identifier for visualization prompt selection
   intent: string;
   interaction_id?: string;
   context: EmbeddedContext;

@@ -874,7 +874,7 @@ export class RestApiRouter {
         // PRD #320: Include MERMAID_TOOLS for diagram validation
         tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS, ...MERMAID_TOOLS],
         toolExecutor: executeVisualizationTools,
-        maxIterations: 5,  // Limit iterations for visualization
+        maxIterations: 10,  // Allow enough iterations for tool calls + JSON generation
         operation: `visualize-${toolName}`  // PRD #320: Include tool name for debugging
       });
 

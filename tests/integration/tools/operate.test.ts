@@ -74,6 +74,8 @@ EOF`);
           result: {
             status: 'awaiting_user_approval',
             sessionId: expect.stringMatching(/^opr-\d+-[a-f0-9]{8}$/), // Session ID format: opr-{timestamp}-{uuid8}
+            // PRD #320: Operate tool returns visualizationUrl
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-\d+-[a-f0-9]+$/),
             analysis: {
               summary: expect.stringContaining('nginx'), // Should mention nginx in analysis
               proposedChanges: {
@@ -117,6 +119,37 @@ EOF`);
       // Extract session ID for next phase
       const sessionId = analysisResponse.data.result.sessionId;
       expect(sessionId).toBeTruthy();
+
+      // PRD #320: Verify visualization endpoint works for operate tool
+      const visualizationUrl = analysisResponse.data.result.visualizationUrl;
+      const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
+      const vizResponse = await integrationTest.httpClient.get(vizPath);
+
+      const expectedVizResponse = {
+        success: true,
+        data: {
+          title: expect.any(String),
+          visualizations: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              label: expect.any(String),
+              type: expect.stringMatching(/^(mermaid|cards|table|code)$/)
+            })
+          ]),
+          insights: expect.any(Array),
+          toolsUsed: expect.any(Array)
+        }
+      };
+      expect(vizResponse).toMatchObject(expectedVizResponse);
+
+      // Verify visualization is not a fallback error response
+      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+
+      // If Mermaid diagrams present, validate_mermaid should be in toolsUsed
+      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      if (hasMermaid) {
+        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
+      }
 
       // PHASE 2: Verify original deployment unchanged (no execution yet)
       const unchangedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
@@ -294,6 +327,8 @@ EOF`);
       // Validate response structure
       expect(analysisResponse.success).toBe(true);
       expect(analysisResponse.data.result.status).toBe('awaiting_user_approval');
+      // PRD #320: Verify visualizationUrl is present (full visualization testing done in first test)
+      expect(analysisResponse.data.result.visualizationUrl).toMatch(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/);
 
       const analysis = analysisResponse.data.result.analysis;
 

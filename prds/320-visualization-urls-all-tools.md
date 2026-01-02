@@ -288,43 +288,95 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 ### Milestone 4: operate Tool Visualization
 **Implementation:**
-- [ ] Add session storage to operate analysis stage (store `proposedChanges`, `commands`, context)
-- [ ] Create `prompts/visualize-operate.md`
-- [ ] Return `visualizationUrl` in operate analysis response
+- [x] Add session storage to operate analysis stage (store `proposedChanges`, `commands`, context)
+- [x] Uses unified `prompts/visualize.md` (per Decision 8 - no tool-specific prompt needed)
+- [x] Return `visualizationUrl` in operate analysis response
 
 **Integration Tests:**
+- [x] Test that `visualizationUrl` is returned in response
+- [x] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [x] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+
+**Data Quality Validation (test script includes DEBUG_DOT_AI=true):**
+- [x] Inspect debug prompts: verify operation data is populated (intent, changes, commands, risk)
+- [x] Verify AI uses provided data first (not re-analyzing the operation)
+- [x] Verify AI calls tools for additional context it might need (validate_mermaid for diagram validation)
+- [x] Output session ID to user for manual verification: `opr-1767389649245-afdb160a`, `opr-1767389652976-c5f4c761`
+
+**Manual Web UI Test:**
+- [x] Open visualizationUrl in browser and confirm all visualizations render correctly
+
+**Bug Fix:** Increased visualization `maxIterations` from 5 to 10. The AI was hitting the iteration limit while still investigating, causing it to return conversational text instead of JSON (resulting in fallback "Raw Data" response).
+
+### Milestone 5: Medium Priority Tools
+Each tool follows the same validation pattern.
+
+**recommend/generateManifests:**
+
+*Implementation:*
+- [ ] Add session storage to generateManifests stage (store generated YAML, validation results)
+- [ ] Uses unified `prompts/visualize.md` (per Decision 8)
+- [ ] Return `visualizationUrl` in generateManifests response
+
+*Integration Tests:*
 - [ ] Test that `visualizationUrl` is returned in response
 - [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
 - [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
 
-**Data Quality Validation (DEBUG_DOT_AI=true):**
-- [ ] Inspect debug prompts: verify operation data is populated (intent, changes, commands, risk)
-- [ ] Verify AI uses provided data first (not re-analyzing the operation)
-- [ ] Verify AI calls tools for additional context it might need (e.g., current vs proposed state)
+*Data Quality Validation (test script includes DEBUG_DOT_AI=true):*
+- [ ] Inspect debug prompts: verify manifest data is populated (generated YAML, validation results)
+- [ ] Verify AI uses provided data first (not re-generating manifests)
+- [ ] Verify AI calls tools for additional context it might need
+- [ ] Output session ID to user for manual verification
 
-**Manual Web UI Test:**
+*Manual Web UI Test:*
 - [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
 
-### Milestone 5: Medium Priority Tools
-Each tool follows the same validation pattern:
-
-**recommend/generateManifests:**
-- [ ] Implementation: session storage, prompt, URL return
-- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
-- [ ] Debug validation: manifest data populated, AI uses provided YAML
-- [ ] Manual Web UI test
+---
 
 **version:**
-- [ ] Implementation: session storage, prompt, URL return
-- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
-- [ ] Debug validation: health/diagnostics data populated, AI uses provided status
-- [ ] Manual Web UI test
+
+*Implementation:*
+- [ ] Add session storage to version tool (store health status, diagnostics)
+- [ ] Uses unified `prompts/visualize.md` (per Decision 8)
+- [ ] Return `visualizationUrl` in version response
+
+*Integration Tests:*
+- [ ] Test that `visualizationUrl` is returned in response
+- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+
+*Data Quality Validation (test script includes DEBUG_DOT_AI=true):*
+- [ ] Inspect debug prompts: verify health/diagnostics data is populated
+- [ ] Verify AI uses provided data first (not re-checking health)
+- [ ] Verify AI calls tools for additional context it might need
+- [ ] Output session ID to user for manual verification
+
+*Manual Web UI Test:*
+- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
+
+---
 
 **projectSetup/reportScan:**
-- [ ] Implementation: session storage, prompt, URL return
-- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
-- [ ] Debug validation: scan results populated, AI uses provided coverage data
-- [ ] Manual Web UI test
+
+*Implementation:*
+- [ ] Add session storage to reportScan stage (store coverage, missing files, recommendations)
+- [ ] Uses unified `prompts/visualize.md` (per Decision 8)
+- [ ] Return `visualizationUrl` in reportScan response
+
+*Integration Tests:*
+- [ ] Test that `visualizationUrl` is returned in response
+- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+
+*Data Quality Validation (test script includes DEBUG_DOT_AI=true):*
+- [ ] Inspect debug prompts: verify scan results are populated (coverage, missing files)
+- [ ] Verify AI uses provided data first (not re-scanning repository)
+- [ ] Verify AI calls tools for additional context it might need
+- [ ] Output session ID to user for manual verification
+
+*Manual Web UI Test:*
+- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
 
 ### Milestone 6: Documentation
 - [ ] Update tool documentation with visualization examples
