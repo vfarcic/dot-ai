@@ -13,13 +13,12 @@
 
 ## Problem Statement
 
-Only the `query` tool returns visualization URLs for the Web UI (PRD #317). Other tools (`recommend`, `remediate`, `operate`, `manageOrgData`, `version`, `projectSetup`) return complex data that would benefit significantly from visual representation but lack Web UI integration.
+Only the `query` tool returns visualization URLs for the Web UI (PRD #317). Other tools (`recommend`, `remediate`, `operate`, `version`, `projectSetup`) return complex data that would benefit significantly from visual representation but lack Web UI integration.
 
 **Key insight**: Each tool returns fundamentally different data that requires tailored visualization:
 - `recommend`: Solutions need comparison cards and resource topology diagrams
 - `remediate`: Investigation paths need flowcharts, actions need risk-colored cards
 - `operate`: Changes need before/after diffs and change topology
-- `manageOrgData`: Capabilities need category-grouped maps
 - `version`: System health needs dashboard-style status indicators
 - `projectSetup`: Coverage needs gap visualization charts
 
@@ -118,27 +117,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 ---
 
-### 4. manageOrgData - capabilities list (High Priority)
-
-**Operation**: `list` for capabilities
-
-**Data to Visualize**:
-- All discovered cluster capabilities
-- CRD groups and categories
-- Resource relationships
-
-**Visualization Types**:
-| Visualization | Type | Purpose |
-|---------------|------|---------|
-| Capability Map | `mermaid` | Grouped by category (databases, networking, etc.) |
-| Capabilities Table | `table` | Sortable list with kind, group, apiVersion |
-| Category Summary | `cards` | Count per category with descriptions |
-
-**Prompt**: `prompts/visualize-capabilities.md`
-
----
-
-### 5. recommend - generateManifests (Medium Priority)
+### 4. recommend - generateManifests (Medium Priority)
 
 **Stage**: `generateManifests`
 
@@ -158,7 +137,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 ---
 
-### 6. version (Medium Priority)
+### 5. version (Medium Priority)
 
 **Stage**: Single stage (diagnostics)
 
@@ -178,7 +157,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 
 ---
 
-### 7. projectSetup - reportScan (Medium Priority)
+### 6. projectSetup - reportScan (Medium Priority)
 
 **Stage**: `reportScan`
 
@@ -237,7 +216,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 - [x] Add session storage to recommend stage
 - [x] Create `prompts/visualize-recommend.md`
 - [x] Return `visualizationUrl` in recommend response
-- [x] Integration tests for recommend visualization
+- [~] Integration tests for recommend visualization - **INCOMPLETE**: tests only verify URL is returned, not that visualization endpoint works (see Milestone 2.7)
 
 ### Milestone 2.5: Visualization Data Quality Fix (Blocking)
 **Priority**: Must complete before continuing with other tools - affects all visualization
@@ -247,7 +226,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 - [x] Update `prompts/visualize-query.md` to clarify: use provided data first, fetch additional detail for enrichment
 - [x] Update `prompts/visualize-recommend.md` similarly
 - [x] Verify provided data appears in prompt (not empty/stripped) - confirmed via integration tests
-- [ ] Validate visualization data quality for all other tools (recommend, remediate, operate, manageOrgData) - same verification as query tool
+- [x] Validate visualization data quality for remediate and operate tools - confirmed session data is rich and structured
 
 ### Milestone 2.6: Mermaid Diagram Validation
 **Priority**: High - prevents broken visualizations from reaching Web UI
@@ -264,30 +243,78 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 - Truncate UUIDs to first 8 characters (e.g., `pvc-508555a4...`)
 - Keep node labels under 30 characters when possible
 
+### Milestone 2.7: recommend Visualization Validation (Retroactive)
+**Priority**: Must complete before Milestone 3 - recommend tests are incomplete
+
+- [x] Add integration test that calls `/api/v1/visualize/{sessionIds}` for recommend
+- [x] Verify visualization endpoint returns valid visualizations (not errors)
+- [x] Run with `DEBUG_DOT_AI=true` and inspect debug prompts to verify session data is populated
+- [x] Verify AI uses provided solution data first (not re-fetching from scratch)
+- [x] Verify AI calls tools for enrichment data it might be missing
+- [x] Manual Web UI test: open visualizationUrl and confirm rendering works
+
+**Bug Fix**: REST API was passing `toolCallsData` instead of `solutionsData` for single recommend sessions. Fixed by making data field selection tool-aware in `rest-api.ts`.
+
 ### Milestone 3: remediate Tool Visualization
-- [ ] Add session storage to remediate analysis stage
+**Implementation:**
+- [ ] Add session storage to remediate analysis stage (store `finalAnalysis` in session)
 - [ ] Create `prompts/visualize-remediate.md`
 - [ ] Return `visualizationUrl` in remediate analysis response
-- [ ] Integration tests for remediate visualization
+
+**Integration Tests:**
+- [ ] Test that `visualizationUrl` is returned in response
+- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
+
+**Data Quality Validation (DEBUG_DOT_AI=true):**
+- [ ] Inspect debug prompts: verify `finalAnalysis` data is populated (rootCause, confidence, factors, actions)
+- [ ] Verify AI uses provided data first (not re-investigating the issue)
+- [ ] Verify AI calls tools for additional context it might need (e.g., current resource state)
+
+**Manual Web UI Test:**
+- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
 
 ### Milestone 4: operate Tool Visualization
-- [ ] Add session storage to operate analysis stage
+**Implementation:**
+- [ ] Add session storage to operate analysis stage (store `proposedChanges`, `commands`, context)
 - [ ] Create `prompts/visualize-operate.md`
 - [ ] Return `visualizationUrl` in operate analysis response
-- [ ] Integration tests for operate visualization
 
-### Milestone 5: manageOrgData Capabilities Visualization
-- [ ] Add session storage to capabilities list operation
-- [ ] Create `prompts/visualize-capabilities.md`
-- [ ] Return `visualizationUrl` in capabilities list response
-- [ ] Integration tests for capabilities visualization
+**Integration Tests:**
+- [ ] Test that `visualizationUrl` is returned in response
+- [ ] Test that calling `/api/v1/visualize/{sessionId}` returns valid visualizations
+- [ ] Test that `validate_mermaid` is in `toolsUsed` when Mermaid diagrams present
 
-### Milestone 6: Medium Priority Tools
-- [ ] recommend/generateManifests: session, prompt, URL, tests
-- [ ] version: session, prompt, URL, tests
-- [ ] projectSetup/reportScan: session, prompt, URL, tests
+**Data Quality Validation (DEBUG_DOT_AI=true):**
+- [ ] Inspect debug prompts: verify operation data is populated (intent, changes, commands, risk)
+- [ ] Verify AI uses provided data first (not re-analyzing the operation)
+- [ ] Verify AI calls tools for additional context it might need (e.g., current vs proposed state)
 
-### Milestone 7: Documentation
+**Manual Web UI Test:**
+- [ ] Open visualizationUrl in browser and confirm all visualizations render correctly
+
+### Milestone 5: Medium Priority Tools
+Each tool follows the same validation pattern:
+
+**recommend/generateManifests:**
+- [ ] Implementation: session storage, prompt, URL return
+- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
+- [ ] Debug validation: manifest data populated, AI uses provided YAML
+- [ ] Manual Web UI test
+
+**version:**
+- [ ] Implementation: session storage, prompt, URL return
+- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
+- [ ] Debug validation: health/diagnostics data populated, AI uses provided status
+- [ ] Manual Web UI test
+
+**projectSetup/reportScan:**
+- [ ] Implementation: session storage, prompt, URL return
+- [ ] Integration tests: URL returned, visualization endpoint works, mermaid validation
+- [ ] Debug validation: scan results populated, AI uses provided coverage data
+- [ ] Manual Web UI test
+
+### Milestone 6: Documentation
 - [ ] Update tool documentation with visualization examples
 - [ ] Document new visualization types
 - [ ] Add visualization screenshots to docs
@@ -303,6 +330,9 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 | 2026-01-02 | Milestone 2.5 mostly complete: Fixed Vercel provider to capture tool results during execution (not reconstruct from steps), fixed serialization to preserve undefined as null, updated visualization prompts. Verified via integration tests: data now appears in prompts (before: 70K tokens with null data, after: 4K tokens with actual data, 60% fewer tool calls during visualization) |
 | 2026-01-02 | Milestone 2.6 added: Mermaid validation via AI tool. Issue discovered during Web UI testing: AI generated `classDist` instead of `classDef`. Solution: provide validate_mermaid tool so AI can self-validate and fix errors before returning |
 | 2026-01-02 | Milestone 2.6 complete: Added `mermaid` npm package, created `validate_mermaid` tool in `src/core/mermaid-tools.ts`, added to visualization tool loop in `rest-api.ts`, tool description instructs AI to validate (no prompt changes needed), tests verify `validate_mermaid` in `toolsUsed` when Mermaid visualizations are present |
+| 2026-01-02 | Milestone 2.5 complete: Validated data quality for remediate and operate tools. Analysis found two data paradigms: (1) tool call data (query uses `toolCallsExecuted`), (2) embedded/structured data (recommend uses `SolutionData`, remediate uses `finalAnalysis`, operate uses `EmbeddedContext` + `proposedChanges`). REST API fallback mechanism (`toolCallsExecuted || primarySession.data`) ensures all tools work with visualization. Removed manageOrgData/capabilities from scope (no sessions, lower value). |
+| 2026-01-02 | Milestone 2.7 added (retroactive): Discovered recommend visualization tests are incomplete - they only verify `visualizationUrl` is returned but don't test the visualization endpoint, data quality, or Web UI. Added comprehensive validation requirements for all pending milestones: (1) integration test for visualization endpoint, (2) debug prompt inspection for data quality, (3) verify AI uses provided data + fetches enrichment, (4) manual Web UI test. |
+| 2026-01-02 | Milestone 2.7 complete: Fixed bug where REST API passed `toolCallsData` instead of `solutionsData` for single recommend sessions (tool-aware data field selection). Added integration test that calls visualization endpoint and validates response. Verified via debug output: (1) prompt now has 64KB of solution data (was empty), (2) AI generates proper visualizations (cards, tables, feature matrices), (3) AI uses provided data first and only calls `validate_mermaid` for validation. Manual Web UI test passed. |
 
 ## Dependencies
 
@@ -364,6 +394,24 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
   - Update all visualization prompts to require validation before returning
   - AI can iterate to fix errors rather than returning broken diagrams
 - **Owner**: Milestone 2.6 implementation
+
+### Decision 5: Two Visualization Data Paradigms
+- **Date**: 2026-01-02
+- **Decision**: Accept two distinct data paradigms for visualization based on tool architecture
+- **Rationale**: Analysis revealed tools use fundamentally different data sources:
+  1. **Tool call data**: `query` stores `toolCallsExecuted` array with raw tool inputs/outputs from AI tool loop
+  2. **Embedded/structured data**: `recommend`, `remediate`, `operate` store pre-processed meaningful structures (solutions, root cause analysis, proposed changes)
+- **Impact**:
+  - Visualization prompts receive different data shapes per tool type
+  - REST API fallback (`toolCallsExecuted || primarySession.data`) handles both paradigms
+  - Each visualization prompt must be tailored to its tool's data structure
+  - Embedded data is often higher quality for visualization (already semantically meaningful)
+- **Data by tool**:
+  - `query`: `toolCallsExecuted` array
+  - `recommend`: `SolutionData` (intent, score, resources, patterns)
+  - `remediate`: `finalAnalysis` (root cause, confidence, factors, actions with risk levels)
+  - `operate`: `EmbeddedContext` (patterns, policies, capabilities) + `proposedChanges` + `commands`
+- **Owner**: Documented during Milestone 2.5 validation
 
 ## Open Questions (Resolved)
 

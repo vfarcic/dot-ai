@@ -110,6 +110,37 @@ describe.concurrent('Recommend Tool Integration', () => {
       const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
       expect(urlSessionIds).toEqual(solutionIds);
 
+      // PRD #320 Milestone 2.7: Call visualization endpoint and verify it works
+      const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
+      const vizResponse = await integrationTest.httpClient.get(vizPath);
+
+      const expectedVizResponse = {
+        success: true,
+        data: {
+          title: expect.any(String),
+          visualizations: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              label: expect.any(String),
+              type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/)
+            })
+          ]),
+          insights: expect.any(Array),
+          toolsUsed: expect.any(Array)
+        }
+      };
+
+      expect(vizResponse).toMatchObject(expectedVizResponse);
+
+      // Verify not the fallback error response
+      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+
+      // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid present
+      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      if (hasMermaid) {
+        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
+      }
+
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
 

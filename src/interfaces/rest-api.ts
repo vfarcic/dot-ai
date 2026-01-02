@@ -796,17 +796,19 @@ export class RestApiRouter {
       this.logger.info('Loading visualization prompt', { requestId, sessionIds, toolName, promptName });
 
       // Load system prompt with session context
-      // For single session (query tool): use intent and toolCallsExecuted
-      // For multi-session (recommend tool): use intent and combined solutions data
+      // PRD #320: Tool-aware data field selection
+      // - recommend tool: uses solutionsData (single or multi-session)
+      // - query tool: uses toolCallsData
+      // - remediate/operate/etc: uses their respective data fields
       let promptData: { intent: string; toolCallsData?: string; solutionsData?: string };
-      if (isMultiSession) {
-        // Multi-session: combine all session data for visualization
+      if (toolName === 'recommend') {
+        // Recommend tool: always use solutionsData regardless of session count
         promptData = {
           intent: primarySession.data.intent || '',
-          solutionsData: JSON.stringify(sessions.map(s => s.data), null, 2)
+          solutionsData: JSON.stringify(isMultiSession ? sessions.map(s => s.data) : primarySession.data, null, 2)
         };
       } else {
-        // Single session: use toolCallsExecuted or full data
+        // Query and other tools: use toolCallsExecuted or full data
         promptData = {
           intent: primarySession.data.intent || '',
           toolCallsData: JSON.stringify(primarySession.data.toolCallsExecuted || primarySession.data, null, 2)

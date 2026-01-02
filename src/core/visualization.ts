@@ -45,7 +45,6 @@ export type VisualizationToolName =
   | 'recommend'
   | 'remediate'
   | 'operate'
-  | 'capabilities'
   | 'version'
   | 'projectSetup';
 
@@ -58,7 +57,6 @@ const TOOL_PROMPT_MAP: Record<string, string> = {
   recommend: 'visualize-recommend',
   remediate: 'visualize-remediate',
   operate: 'visualize-operate',
-  capabilities: 'visualize-capabilities',
   version: 'visualize-version',
   projectSetup: 'visualize-project-setup',
 };
@@ -115,7 +113,6 @@ export const TOOL_SESSION_PREFIXES: Record<string, string> = {
   recommend: 'sol', // "solution" - recommend tool provides solutions
   remediate: 'rem',
   operate: 'opr',
-  capabilities: 'cap',
   version: 'ver',
   projectSetup: 'prj',
 };
