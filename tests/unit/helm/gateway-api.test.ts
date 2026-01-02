@@ -547,13 +547,17 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
   });
 
   describe('Chart Version', () => {
-    test('should have correct version', () => {
+    test('should have valid semver version matching package.json', () => {
       const chartYaml = readFileSync(
         `${chartPath}/Chart.yaml`,
         'utf-8'
       );
       const chart = yaml.load(chartYaml) as { version: string };
-      expect(chart.version).toBe('0.168.0');
+      // Version should be valid semver format
+      expect(chart.version).toMatch(/^\d+\.\d+\.\d+$/);
+      // Version should match package.json (they're kept in sync)
+      const packageJson = JSON.parse(readFileSync('package.json', 'utf-8'));
+      expect(chart.version).toBe(packageJson.version);
     });
 
     test('should include gateway-api keyword', () => {

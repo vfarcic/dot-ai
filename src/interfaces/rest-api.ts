@@ -16,6 +16,11 @@ import { handlePromptsListRequest, handlePromptsGetRequest } from '../tools/prom
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { QuerySessionData } from '../tools/query';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import {
+  extractPrefixFromSessionId,
+  getPromptForTool,
+  BaseVisualizationData
+} from '../core/visualization';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
@@ -84,8 +89,17 @@ export interface ToolDiscoveryResponse extends RestApiResponse {
 
 /**
  * Visualization types supported by the API
+ * PRD #320: Added 'diff' type for before/after comparisons
  */
-export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table';
+export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff';
+
+/**
+ * Diff visualization content (PRD #320)
+ */
+export interface DiffVisualizationContent {
+  before: { language: string; code: string };
+  after: { language: string; code: string };
+}
 
 /**
  * Individual visualization item
@@ -94,7 +108,12 @@ export interface Visualization {
   id: string;
   label: string;
   type: VisualizationType;
-  content: string | { language: string; code: string } | { headers: string[]; rows: string[][] } | Array<{ id: string; title: string; description?: string; tags?: string[] }>;
+  content:
+    | string // mermaid
+    | { language: string; code: string } // code
+    | { headers: string[]; rows: string[][] } // table
+    | Array<{ id: string; title: string; description?: string; tags?: string[] }> // cards
+    | DiffVisualizationContent; // diff
 }
 
 /**
@@ -697,8 +716,9 @@ export class RestApiRouter {
     try {
       this.logger.info('Processing visualization request', { requestId, sessionId });
 
-      // Load session data using GenericSessionManager with 'qry' prefix (matches query tool)
-      const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
+      // PRD #320: Extract prefix from sessionId to support any tool's sessions
+      const sessionPrefix = extractPrefixFromSessionId(sessionId);
+      const sessionManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
       const session = sessionManager.getSession(sessionId);
 
       if (!session) {
@@ -752,10 +772,18 @@ export class RestApiRouter {
         return;
       }
 
+      // PRD #320: Select prompt based on tool name (defaults to 'query' for backwards compatibility)
+      const toolName = session.data.toolName || 'query';
+      const promptName = getPromptForTool(toolName);
+
+      this.logger.info('Loading visualization prompt', { requestId, sessionId, toolName, promptName });
+
       // Load system prompt with session context
-      const systemPrompt = loadPrompt('visualize-query', {
-        intent: session.data.intent,
-        toolCallsData: JSON.stringify(session.data.toolCallsExecuted, null, 2)
+      // For query tool (and backwards compatibility): use intent and toolCallsExecuted
+      // For other tools: they'll provide their own data structure in session.data
+      const systemPrompt = loadPrompt(promptName, {
+        intent: session.data.intent || '',
+        toolCallsData: JSON.stringify(session.data.toolCallsExecuted || session.data, null, 2)
       });
 
       // Tool executor - same as query tool
@@ -786,7 +814,7 @@ export class RestApiRouter {
         KUBECTL_GET_CRD_SCHEMA_TOOL
       ];
 
-      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionId });
+      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionId, toolName });
 
       // Execute tool loop - AI can gather additional data if needed
       const result = await aiProvider.toolLoop({
@@ -795,12 +823,13 @@ export class RestApiRouter {
         tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
         toolExecutor: executeVisualizationTools,
         maxIterations: 5,  // Limit iterations for visualization
-        operation: 'visualize-query'
+        operation: `visualize-${toolName}`  // PRD #320: Include tool name for debugging
       });
 
       this.logger.info('AI visualization generation completed', {
         requestId,
         sessionId,
+        toolName,
         iterations: result.iterations,
         toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
       });
@@ -836,7 +865,7 @@ export class RestApiRouter {
           if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
             throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
           }
-          if (!['mermaid', 'cards', 'code', 'table'].includes(viz.type)) {
+          if (!['mermaid', 'cards', 'code', 'table', 'diff'].includes(viz.type)) {
             throw new Error(`Invalid visualization type: ${viz.type}`);
           }
         }

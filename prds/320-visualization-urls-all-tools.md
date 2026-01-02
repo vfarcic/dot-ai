@@ -7,7 +7,7 @@
 | **PRD ID** | 320 |
 | **Feature Name** | Visualization URLs for All MCP Tools |
 | **Priority** | High |
-| **Status** | Draft |
+| **Status** | In Progress |
 | **Created** | 2026-01-02 |
 | **Last Updated** | 2026-01-02 |
 
@@ -226,10 +226,10 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 ## Milestones
 
 ### Milestone 1: Infrastructure Updates
-- [ ] Add `toolName` and `stage` to session metadata
-- [ ] Update visualization endpoint to select prompt based on toolName
-- [ ] Add `diff` visualization type support
-- [ ] Create shared visualization utilities (session creation, URL generation)
+- [x] Add `toolName` and `stage` to session metadata
+- [x] Update visualization endpoint to select prompt based on toolName
+- [x] Add `diff` visualization type support
+- [x] Create shared visualization utilities (session creation, URL generation)
 
 ### Milestone 2: recommend Tool Visualization
 - [ ] Add session storage to recommend stage
@@ -270,6 +270,7 @@ The visualization endpoint will load the appropriate prompt based on `toolName`.
 | Date | Update |
 |------|--------|
 | 2026-01-02 | PRD created |
+| 2026-01-02 | Milestone 1 complete: Added `diff` type, created `src/core/visualization.ts` with shared utilities, updated visualization endpoint for tool-aware prompt selection, query tool now includes `toolName` in sessions |
 
 ## Dependencies
 

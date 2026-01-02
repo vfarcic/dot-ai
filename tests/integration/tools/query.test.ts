@@ -194,11 +194,12 @@ spec:
     expect(visualizations.length).toBeGreaterThan(0);
 
     // Each visualization must have required fields and valid type
+    // PRD #320: Added 'diff' type for before/after comparisons (used by operate tool)
     for (const viz of visualizations) {
       expect(viz).toMatchObject({
         id: expect.any(String),
         label: expect.any(String),
-        type: expect.stringMatching(/^(mermaid|cards|code|table)$/),
+        type: expect.stringMatching(/^(mermaid|cards|code|table|diff)$/),
         content: expect.anything()
       });
     }
