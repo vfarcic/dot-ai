@@ -879,6 +879,7 @@ export class RestApiRouter {
 
       // Parse AI response as JSON
       let visualizationResponse: VisualizationResponse;
+      let isFallbackResponse = false;
       try {
         // Extract JSON from response - it may have text before/after the JSON block
         let jsonContent = result.finalMessage.trim();
@@ -941,6 +942,8 @@ export class RestApiRouter {
         });
 
         // Fallback to basic visualization on parse error
+        // NOTE: isFallbackResponse flag prevents caching this response
+        isFallbackResponse = true;
         visualizationResponse = {
           title: `Query: ${primarySession.data.intent}`,
           visualizations: [
@@ -961,7 +964,8 @@ export class RestApiRouter {
       }
 
       // Cache the visualization in the session for subsequent requests (single session only)
-      if (!isMultiSession) {
+      // Don't cache fallback responses - let subsequent requests retry AI generation
+      if (!isMultiSession && !isFallbackResponse) {
         const sessionPrefix = extractPrefixFromSessionId(sessionIds[0]);
         const cacheManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
         cacheManager.updateSession(sessionIds[0], {
@@ -974,6 +978,8 @@ export class RestApiRouter {
           }
         });
         this.logger.info('Visualization cached in session', { requestId, sessionId: sessionIds[0] });
+      } else if (isFallbackResponse) {
+        this.logger.warn('Skipping cache for fallback visualization response', { requestId, sessionId: sessionIds[0] });
       }
 
       const response: RestApiResponse = {
@@ -992,7 +998,8 @@ export class RestApiRouter {
         requestId,
         sessionIds,
         visualizationCount: visualizationResponse.visualizations.length,
-        cached: !isMultiSession
+        cached: !isMultiSession && !isFallbackResponse,
+        isFallback: isFallbackResponse
       });
 
     } catch (error) {
