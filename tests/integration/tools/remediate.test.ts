@@ -168,6 +168,10 @@ EOF`);
 
       expect(investigationResponse).toMatchObject(expectedInvestigationResponse);
 
+      // PRD #320: Verify visualization URL is embedded in message for agent display
+      expect(investigationResponse.data.result.message).toContain('📊 View visualization:');
+      expect(investigationResponse.data.result.message).toContain(investigationResponse.data.result.visualizationUrl);
+
       // Extract sessionId for execution
       const sessionId = investigationResponse.data.result.sessionId;
       const remediationActions = investigationResponse.data.result.remediation.actions;

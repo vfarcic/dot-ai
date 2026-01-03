@@ -324,18 +324,19 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 export async function handleOperateTool(args: any): Promise<any> {
   const result = await operate(args);
 
-  // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
-  const content: Array<{ type: 'text'; text: string }> = [{
-    type: 'text',
-    text: JSON.stringify(result, null, 2)
-  }];
+  // PRD #320: Embed visualization URL in message so agents display it to users
+  const messageWithVisualization = result.visualizationUrl
+    ? `${result.message}\n\n📊 View visualization: ${result.visualizationUrl}`
+    : result.message;
 
-  if (result.visualizationUrl) {
-    content.push({
-      type: 'text',
-      text: `📊 **View visualization**: ${result.visualizationUrl}`
-    });
-  }
-
-  return { content };
+  // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        ...result,
+        message: messageWithVisualization
+      }, null, 2)
+    }]
+  };
 }

@@ -396,8 +396,8 @@ Each tool follows the same validation pattern.
 - [x] Add "Post-Deployment Visualization" section with screenshot (`recommendation-example-04.png`)
 
 **remediate tool:**
-- [ ] Update remediate guide with visualization URL examples
-- [ ] Add visualization screenshots
+- [x] Update remediate guide with visualization URL examples
+- [x] Add visualization screenshots (`remediate-example-01.png`, `remediate-example-02.png`)
 
 **operate tool:**
 - [ ] Update operate guide with visualization URL examples
@@ -432,6 +432,8 @@ Each tool follows the same validation pattern.
 | 2026-01-03 | Milestone 5 (version) complete: Added session storage with `VersionSessionData`, returns `visualizationUrl` in response. Added `case 'version'` to REST API switch statement. **Test optimization**: Consolidated ALL visualization endpoint tests to version.test.ts (fastest tool) - removed redundant endpoint tests from query/recommend/remediate/operate tests (keep URL expectation only). Version test now includes cache test and `?reload=true` test. Debug validation confirmed health/diagnostics data populated, AI uses provided data first, enriches with kubectl tools for pod counts. Session ID: `ver-1767397786102-8734f825`. Deferred: projectSetup/reportScan and Documentation (Milestone 6). |
 | 2026-01-03 | Milestone 6 (recommend docs) complete: Updated `mcp-recommendation-guide.md` with visualization URLs throughout workflow examples. Added 4 screenshots: `recommendation-example-01.png` (solutions), `recommendation-example-02.png` (generateManifests traffic flow), `recommendation-example-03.png` (Helm chart), `recommendation-example-04.png` (post-deployment). Added "Visualization (Optional)" sections explaining multi-tab UI. Remaining: remediate and operate documentation. |
 | 2026-01-03 | Milestone 6 (version docs) complete: Created `mcp-version-guide.md` with system status documentation, visualization URL example, and troubleshooting section. Added to `mcp-tools-overview.md` as "System Status & Diagnostics". Updated `mcp-setup.md` with "Verify Your Setup" section referencing the guide. |
+| 2026-01-03 | Code fix: Updated `remediate.ts` and `operate.ts` to embed visualization URL in `message` field so agents display it to users. Added test validations in `remediate.test.ts` and `operate.test.ts` to verify URL embedding. |
+| 2026-01-03 | Milestone 6 (remediate docs) complete: Updated `mcp-remediate-guide.md` with visualization URL in Manual Mode Example, added "Visualization (Optional)" sections with screenshots (`remediate-example-01.png`, `remediate-example-02.png`), added Post-Remediation Visualization sections for both Option 1 and Option 2. |
 
 ## Dependencies
 

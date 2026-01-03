@@ -140,8 +140,18 @@ EOF
 1. **Execute automatically via MCP** - Run the kubectl commands automatically (LOW RISK)
 2. **Execute via agent** - Execute the kubectl commands using your Bash tool, then validate (LOW RISK)
 
-Choose 1 or 2 to proceed.
+📊 View visualization: http://localhost:3000/v/rem-1767465086590-11029192
 ```
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive analysis view in the Web UI:
+
+![Remediate Visualization Example](../img/remediate-example-01.png)
+
+> **Note**: Visualization URLs require additional setup:
+> - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
+> - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 **What happened behind the scenes:**
 - AI conducted 12-iteration investigation starting with vague "database problems"
@@ -208,6 +218,12 @@ Your postgres-demo namespace database is now working correctly!
 - AI verified PostgreSQL pod transition from Pending to Running state
 - Complete end-to-end resolution in single MCP call
 
+#### Post-Remediation Visualization
+
+After the remediation completes, click the **Reload** button in the Web UI to see the updated visualization with remediation steps and validation results:
+
+![Post-Remediation Visualization](../img/remediate-example-02.png)
+
 ---
 
 ### Option 2: Manual Agent Execution
@@ -247,15 +263,21 @@ Your PostgreSQL database is now operational and healthy!
 
 **What happened behind the scenes:**
 - Agent executed kubectl apply command via Bash tool
-- MCP tool returned instructions for validation call  
+- MCP tool returned instructions for validation call
 - Agent made fresh remediate call with `executedCommands` parameter for validation
 - AI performed 4-iteration validation investigation (6 data sources)
 - AI confirmed PVC binding and pod transition to Running state
 - Complete manual workflow with user control over execution timing
 
+#### Post-Remediation Visualization
+
+After the remediation completes, click the **Reload** button in the Web UI to see the updated visualization with remediation steps and validation results:
+
+![Post-Remediation Visualization](../img/remediate-example-02.png)
+
 ---
 
-<!-- 
+<!--
 Test Scenario Setup for Automatic Mode Example:
 Create a SQL custom resource with configuration issues to demonstrate automatic mode execution
 

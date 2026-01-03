@@ -851,24 +851,22 @@ export async function handleRemediateTool(args: any): Promise<any> {
       // PRD #320: Generate visualization URL for resolved issues
       const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-      // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
-      const content: Array<{ type: 'text'; text: string }> = [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          ...finalAnalysis,
-          ...(visualizationUrl && { visualizationUrl })
-        }, null, 2)
-      }];
+      // PRD #320: Append visualization URL to message so agents display it to users
+      const messageWithVisualization = visualizationUrl
+        ? `${finalAnalysis.message}\n\n📊 View visualization: ${visualizationUrl}`
+        : finalAnalysis.message;
 
-      if (visualizationUrl) {
-        content.push({
+      // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
+      return {
+        content: [{
           type: 'text' as const,
-          text: `📊 **View visualization**: ${visualizationUrl}`
-        });
-      }
-
-      // Return MCP-compliant response for resolved issues
-      return { content };
+          text: JSON.stringify({
+            ...finalAnalysis,
+            message: messageWithVisualization,
+            ...(visualizationUrl && { visualizationUrl })
+          }, null, 2)
+        }]
+      };
     }
 
     // Make execution decision based on mode and thresholds
@@ -933,24 +931,22 @@ export async function handleRemediateTool(args: any): Promise<any> {
     // PRD #320: Generate visualization URL for analysis response
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-    // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
-    const content: Array<{ type: 'text'; text: string }> = [{
-      type: 'text' as const,
-      text: JSON.stringify({
-        ...finalResult,
-        ...(visualizationUrl && { visualizationUrl })
-      }, null, 2)
-    }];
+    // PRD #320: Append visualization URL to message so agents display it to users
+    const messageWithVisualization = visualizationUrl
+      ? `${finalResult.message}\n\n📊 View visualization: ${visualizationUrl}`
+      : finalResult.message;
 
-    if (visualizationUrl) {
-      content.push({
+    // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
+    return {
+      content: [{
         type: 'text' as const,
-        text: `📊 **View visualization**: ${visualizationUrl}`
-      });
-    }
-
-    // Return MCP-compliant response
-    return { content };
+        text: JSON.stringify({
+          ...finalResult,
+          message: messageWithVisualization,
+          ...(visualizationUrl && { visualizationUrl })
+        }, null, 2)
+      }]
+    };
 
   } catch (error) {
 
