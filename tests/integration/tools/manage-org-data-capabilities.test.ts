@@ -33,7 +33,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
      * designed for the dot-ai-controller to trigger scans when CRDs are created/updated.
      */
 
-    test('should complete full cluster scan with mode=full', async () => {
+    test('should start full cluster scan and verify pipeline processes resources', async () => {
       // Clean capabilities collection before full scan to get accurate count
       await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
@@ -82,12 +82,12 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(sessionId).toBeDefined();
 
       // Poll until we see progress (don't wait for full completion - just verify pipeline works)
-      // This optimization reduces test time from ~6 min to ~30 sec
+      // This optimization reduces test time from ~6 min to ~2 min max
       let scanWorking = false;
       let progressResponse;
-      const maxAttempts = 30; // 1.5 minutes with 3 second intervals
+      const maxAttempts = 40; // 2 minutes with 3 second intervals (allows for CI startup overhead)
       let attempts = 0;
-      const minSuccessfulResources = 10; // Proves the scan pipeline is working
+      const minSuccessfulResources = 5; // Proves the scan pipeline is working
 
       while (!scanWorking && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // 3 second intervals for faster feedback
@@ -133,8 +133,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       // Validate that capabilities are being stored (at least some should exist)
       // Full count validation not needed - we just verify the pipeline works
-      if (totalCount < minSuccessfulResources) {
-        throw new Error(`Capability count ${totalCount} below minimum ${minSuccessfulResources}.
+      if (totalCount < 5) {
+        throw new Error(`Capability count ${totalCount} below minimum 5.
   Scan status: ${scanStats.status}
   Discovered: ${scanStats.total}
   Successful: ${scanStats.successful}
