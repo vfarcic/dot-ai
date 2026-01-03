@@ -100,11 +100,12 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         });
 
         // Check if scan has made progress - use optional chaining for transient errors
-        const successfulResources = progressResponse?.data?.result?.progress?.successfulResources ?? 0;
+        // Note: progress.current tracks processed resources; successfulResources only set at completion
+        const currentProcessed = progressResponse?.data?.result?.progress?.current ?? 0;
         const progressStatus = progressResponse?.data?.result?.progress?.status;
 
-        // Either scan completed OR we've seen enough successful resources
-        if (progressStatus === 'complete' || progressStatus === 'completed' || successfulResources >= minSuccessfulResources) {
+        // Either scan completed OR we've processed enough resources
+        if (progressStatus === 'complete' || progressStatus === 'completed' || currentProcessed >= minSuccessfulResources) {
           scanWorking = true;
         }
         attempts++;
