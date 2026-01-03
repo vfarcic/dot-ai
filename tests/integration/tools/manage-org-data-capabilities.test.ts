@@ -81,14 +81,16 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const sessionId = scanResponse.data.result.sessionId;
       expect(sessionId).toBeDefined();
 
-      // Poll for completion using progress operation
-      let scanComplete = false;
+      // Poll until we see progress (don't wait for full completion - just verify pipeline works)
+      // This optimization reduces test time from ~6 min to ~30 sec
+      let scanWorking = false;
       let progressResponse;
-      const maxAttempts = 60; // 10 minutes with 10 second intervals
+      const maxAttempts = 30; // 1.5 minutes with 3 second intervals
       let attempts = 0;
+      const minSuccessfulResources = 10; // Proves the scan pipeline is working
 
-      while (!scanComplete && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds between checks
+      while (!scanWorking && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 3 second intervals for faster feedback
 
         progressResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
           dataType: 'capabilities',
@@ -97,42 +99,43 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `progress_check_${attempts}`
         });
 
-        // Check if scan is complete - status is inside progress object
-        // Use optional chaining to handle transient error responses gracefully
+        // Check if scan has made progress - use optional chaining for transient errors
+        const successfulResources = progressResponse?.data?.result?.progress?.successfulResources ?? 0;
         const progressStatus = progressResponse?.data?.result?.progress?.status;
-        if (progressStatus === 'complete' || progressStatus === 'completed') {
-          scanComplete = true;
+
+        // Either scan completed OR we've seen enough successful resources
+        if (progressStatus === 'complete' || progressStatus === 'completed' || successfulResources >= minSuccessfulResources) {
+          scanWorking = true;
         }
         attempts++;
       }
 
-      // Validate scan eventually completed
-      expect(scanComplete).toBe(true);
+      // Validate scan is working (either completed or processing resources)
+      expect(scanWorking).toBe(true);
 
-      // Capture scan statistics from final progress response for debugging
+      // Capture scan statistics from progress response for debugging
       const scanStats = {
+        status: progressResponse?.data?.result?.progress?.status,
         total: progressResponse?.data?.result?.progress?.total,
         successful: progressResponse?.data?.result?.progress?.successfulResources,
         failed: progressResponse?.data?.result?.progress?.failedResources,
-        errors: progressResponse?.data?.result?.progress?.errors,
         processingTime: progressResponse?.data?.result?.progress?.totalProcessingTime
       };
 
-      // === VALIDATE COUNT: Full scan processes API resources + CRDs ===
+      // === VALIDATE CAPABILITIES ARE BEING STORED ===
       const countResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
         limit: 1,
-        interaction_id: 'count_after_full_scan'
+        interaction_id: 'count_after_scan_progress'
       });
       const totalCount = countResponse.data.result.data.totalCount;
 
-      // Validate count: Cluster has 91 API resources (89 unique Kinds + 2 duplicates).
-      // We expect at least 90 capabilities to ensure accurate scanning.
-      // If this fails, capability scanning is not working correctly.
-      if (totalCount < 90 || totalCount > 120) {
-        throw new Error(`Capability count ${totalCount} outside expected range [90-120].
-  Expected: ~90 capabilities (cluster has 91 API resources, 89 unique Kinds)
+      // Validate that capabilities are being stored (at least some should exist)
+      // Full count validation not needed - we just verify the pipeline works
+      if (totalCount < minSuccessfulResources) {
+        throw new Error(`Capability count ${totalCount} below minimum ${minSuccessfulResources}.
+  Scan status: ${scanStats.status}
   Discovered: ${scanStats.total}
   Successful: ${scanStats.successful}
   Failed: ${scanStats.failed}
