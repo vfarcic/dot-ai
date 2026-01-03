@@ -353,16 +353,20 @@ Test that everything is working:
 
 Once setup is complete, see [Tools Overview](../guides/mcp-tools-overview.md) for detailed information about available capabilities and usage examples.
 
-## Troubleshooting
+## Verify Your Setup
 
-If you encounter issues after setup, use the built-in diagnostics:
+After completing setup, verify everything is working correctly:
 
-```bash
-# In your MCP client, ask:
-"Show dot-ai status"
+```
+Show dot-ai status
 ```
 
-This will show the status of all system components and help identify any problems.
+This displays comprehensive diagnostics including:
+- **Component health**: Kubernetes, Vector DB, AI provider connectivity
+- **Collection status**: Capabilities, patterns, and policies
+- **Active features**: What capabilities are available
+
+A healthy setup shows all components as "Connected" or "Ready". See the **[System Status Guide](../guides/mcp-version-guide.md)** for detailed troubleshooting if any components show errors.
 
 
 ## Next Steps

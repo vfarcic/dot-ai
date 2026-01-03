@@ -403,6 +403,13 @@ Each tool follows the same validation pattern.
 - [ ] Update operate guide with visualization URL examples
 - [ ] Add visualization screenshots
 
+**version tool:**
+- [x] Create `mcp-version-guide.md` with system status documentation
+- [x] Add visualization URL example with screenshot (`version-example.png`)
+- [x] Add troubleshooting section for common setup issues
+- [x] Reference in `mcp-setup.md` as "Verify Your Setup" section
+- [x] Add to `mcp-tools-overview.md` as "System Status & Diagnostics"
+
 **General:**
 - [~] Document new visualization types *(deferred - covered in tool docs)*
 
@@ -424,6 +431,7 @@ Each tool follows the same validation pattern.
 | 2026-01-02 | Milestone 3 complete: remediate tool now returns `visualizationUrl` in analysis response. Added `toolName: 'remediate'` to session data, extended `RemediateSessionData` with `BaseVisualizationData`. **Architecture change**: Consolidated all tool-specific visualization prompts into unified `prompts/visualize.md` (deleted `visualize-query.md`, `visualize-recommend.md`). REST API uses switch statement to map tool-specific data fields to unified `{{{data}}}` variable. Integration tests verify URL returned, visualization endpoint works, and `validate_mermaid` in toolsUsed. Debug validation confirmed AI uses provided `finalAnalysis` data (rootCause, confidence, factors, actions) and enriches with kubectl tools. |
 | 2026-01-03 | Milestone 5 (version) complete: Added session storage with `VersionSessionData`, returns `visualizationUrl` in response. Added `case 'version'` to REST API switch statement. **Test optimization**: Consolidated ALL visualization endpoint tests to version.test.ts (fastest tool) - removed redundant endpoint tests from query/recommend/remediate/operate tests (keep URL expectation only). Version test now includes cache test and `?reload=true` test. Debug validation confirmed health/diagnostics data populated, AI uses provided data first, enriches with kubectl tools for pod counts. Session ID: `ver-1767397786102-8734f825`. Deferred: projectSetup/reportScan and Documentation (Milestone 6). |
 | 2026-01-03 | Milestone 6 (recommend docs) complete: Updated `mcp-recommendation-guide.md` with visualization URLs throughout workflow examples. Added 4 screenshots: `recommendation-example-01.png` (solutions), `recommendation-example-02.png` (generateManifests traffic flow), `recommendation-example-03.png` (Helm chart), `recommendation-example-04.png` (post-deployment). Added "Visualization (Optional)" sections explaining multi-tab UI. Remaining: remediate and operate documentation. |
+| 2026-01-03 | Milestone 6 (version docs) complete: Created `mcp-version-guide.md` with system status documentation, visualization URL example, and troubleshooting section. Added to `mcp-tools-overview.md` as "System Status & Diagnostics". Updated `mcp-setup.md` with "Verify Your Setup" section referencing the guide. |
 
 ## Dependencies
 
