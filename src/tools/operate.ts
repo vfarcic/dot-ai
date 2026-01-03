@@ -99,6 +99,7 @@ export interface ExecutionResult {
 export interface OperateOutput {
   status: 'success' | 'failed' | 'awaiting_user_approval';
   sessionId: string;
+  visualizationUrl?: string;  // PRD #320: URL to open visualization in Web UI
   analysis?: {
     summary: string;
     currentState: any;
@@ -323,10 +324,18 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 export async function handleOperateTool(args: any): Promise<any> {
   const result = await operate(args);
 
-  return {
-    content: [{
+  // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+  const content: Array<{ type: 'text'; text: string }> = [{
+    type: 'text',
+    text: JSON.stringify(result, null, 2)
+  }];
+
+  if (result.visualizationUrl) {
+    content.push({
       type: 'text',
-      text: JSON.stringify(result, null, 2)
-    }]
-  };
+      text: `📊 **View visualization**: ${result.visualizationUrl}`
+    });
+  }
+
+  return { content };
 }

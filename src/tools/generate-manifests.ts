@@ -536,12 +536,20 @@ async function handleHelmGeneration(
           ...(visualizationUrl && { visualizationUrl })
         };
 
-        return {
-          content: [{
+        // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+        const content: Array<{ type: 'text'; text: string }> = [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }];
+
+        if (visualizationUrl) {
+          content.push({
             type: 'text' as const,
-            text: JSON.stringify(response, null, 2)
-          }]
-        };
+            text: `📊 **View visualization**: ${visualizationUrl}`
+          });
+        }
+
+        return { content };
       }
 
       // Validation failed, prepare error context for next attempt
@@ -1010,12 +1018,20 @@ export async function handleGenerateManifestsTool(
                 ...(visualizationUrl && { visualizationUrl })
               };
 
-              return {
-                content: [{
+              // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+              const content: Array<{ type: 'text'; text: string }> = [{
+                type: 'text' as const,
+                text: JSON.stringify(response, null, 2)
+              }];
+
+              if (visualizationUrl) {
+                content.push({
                   type: 'text' as const,
-                  text: JSON.stringify(response, null, 2)
-                }]
-              };
+                  text: `📊 **View visualization**: ${visualizationUrl}`
+                });
+              }
+
+              return { content };
             }
 
             // PRD #320: Update session with generateManifests data for visualization (raw format)
@@ -1050,14 +1066,22 @@ export async function handleGenerateManifestsTool(
               ...(visualizationUrl && { visualizationUrl })
             };
 
-            return {
-              content: [{
+            // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+            const content: Array<{ type: 'text'; text: string }> = [{
+              type: 'text' as const,
+              text: JSON.stringify(response, null, 2)
+            }];
+
+            if (visualizationUrl) {
+              content.push({
                 type: 'text' as const,
-                text: JSON.stringify(response, null, 2)
-              }]
-            };
+                text: `📊 **View visualization**: ${visualizationUrl}`
+              });
+            }
+
+            return { content };
           }
-          
+
           // Validation failed, prepare error context for next attempt
           // Only pass AI-generated manifests to avoid duplicates on retry
           lastError = {

@@ -115,6 +115,8 @@ Organizational Context:
 - Policy enforced: Applications must never use the latest image tag
 - Database regions are standardized (us-east-1 for AWS, us-east1 for GCP, eastus for Azure)
 
+📊 **View visualization**: http://localhost:3000/v/sol-...
+
 Which solution would you like to proceed with? (1-5)
 ```
 
@@ -128,6 +130,17 @@ Which solution would you like to proceed with? (1-5)
 - Vector DB search found matching organizational patterns: DevOps Toolkit DB pattern, Azure ResourceGroup pattern
 - Generated 5 solution alternatives with different cloud provider options, scoring based on capability relevance and pattern alignment
 - Policy intents automatically enforced (e.g., no `latest` image tags, standardized regions)
+- Visualization URL generated for exploring solutions in Web UI (shows resources, patterns, and configuration details)
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive view in the Web UI showing all solution options with their resources, patterns, and scoring:
+
+![Recommendation Visualization Example](../img/recommendation-example-01.png)
+
+> **Note**: Visualization URLs require additional setup:
+> - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
+> - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 **Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
 
@@ -324,6 +337,8 @@ Edit `overlays/production/kustomization.yaml`:
 Deploy with:
 kubectl apply -k ./manifests
 
+📊 **View visualization**: http://localhost:3000/v/sol-...
+
 Would you like me to deploy this to your cluster now?
 ```
 
@@ -338,6 +353,13 @@ Would you like me to deploy this to your cluster now?
 - Agent writes files to user's chosen `outputPath` (./manifests)
 - Each resource includes dot-ai.io/ labels for tracking
 - README.md generated with deployment instructions and overlay examples
+- Visualization URL generated for exploring deployment configuration in Web UI
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive view with multiple tabs including resource allocation, autoscaling configuration, health monitoring, generated manifests, traffic flow, and more:
+
+![Recommendation Visualization - Traffic Flow](../img/recommendation-example-02.png)
 
 ```md
 User: Yes, deploy it!
@@ -398,6 +420,8 @@ Found a Prometheus Helm chart solution:
 
 This is the standard, recommended chart for installing Prometheus monitoring on Kubernetes.
 
+📊 **View visualization**: http://localhost:3000/v/sol-...
+
 Would you like me to proceed with this chart? I'll guide you through the configuration options.
 ```
 
@@ -406,6 +430,17 @@ Would you like me to proceed with this chart? I'll guide you through the configu
 - No Prometheus-related CRDs found in cluster capabilities, triggering Helm chart discovery
 - ArtifactHub API searched for "prometheus" charts
 - AI analyzed and scored charts based on official status, verified publisher, and popularity
+- Visualization URL generated for exploring Helm chart details in Web UI
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive view with multiple tabs including monitoring stack architecture, data collection flow, chart information, stack components, and more:
+
+![Recommendation Visualization - Helm Chart](../img/recommendation-example-03.png)
+
+> **Note**: Visualization URLs require additional setup:
+> - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
+> - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 ```md
 User: Yes, continue
@@ -491,6 +526,8 @@ prometheus-node-exporter:
 prometheus-pushgateway:
   enabled: false
 
+📊 **View visualization**: http://localhost:3000/v/sol-...
+
 Ready to install?
 ```
 
@@ -531,6 +568,12 @@ Then open http://localhost:9093
 - Helm repository added and `helm upgrade --install --wait` executed
 - Helm waited for all pods to become ready before reporting success
 - Access instructions provided based on installed components
+
+#### Post-Deployment Visualization
+
+After deployment, return to the Web UI visualization and click **Reload** to see updated runtime information including deployed components, pod status, and live cluster state:
+
+![Recommendation Visualization - Post-Deployment](../img/recommendation-example-04.png)
 
 ## See Also
 

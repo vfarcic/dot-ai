@@ -383,10 +383,28 @@ Each tool follows the same validation pattern.
 *Manual Web UI Test:*
 - [~] Open visualizationUrl in browser and confirm all visualizations render correctly
 
-### Milestone 6: Documentation *(Deferred)*
-- [~] Update tool documentation with visualization examples
-- [~] Document new visualization types
-- [~] Add visualization screenshots to docs
+### Milestone 6: Documentation
+**recommend tool:**
+- [x] Update `mcp-recommendation-guide.md` with visualization URLs in workflow examples
+- [x] Add visualization URL to Example 1 solutions response
+- [x] Add "Visualization (Optional)" section with screenshot (`recommendation-example-01.png`)
+- [x] Add visualization URL to generateManifests response
+- [x] Add second "Visualization (Optional)" section with screenshot (`recommendation-example-02.png`)
+- [x] Add visualization URL to Example 2 (Helm) initial response
+- [x] Add "Visualization (Optional)" section with screenshot (`recommendation-example-03.png`)
+- [x] Add second visualization URL to Helm generateManifests step
+- [x] Add "Post-Deployment Visualization" section with screenshot (`recommendation-example-04.png`)
+
+**remediate tool:**
+- [ ] Update remediate guide with visualization URL examples
+- [ ] Add visualization screenshots
+
+**operate tool:**
+- [ ] Update operate guide with visualization URL examples
+- [ ] Add visualization screenshots
+
+**General:**
+- [~] Document new visualization types *(deferred - covered in tool docs)*
 
 ## Progress Log
 
@@ -405,6 +423,7 @@ Each tool follows the same validation pattern.
 | 2026-01-02 | Milestone 2.8 complete: Added `?reload=true` query parameter to visualization endpoint. When set, bypasses cache and regenerates visualization from current session data. Generic implementation works for ALL tools. Integration test added to query.test.ts verifying: (1) cached response is fast (<1s), (2) reload response takes longer (AI regeneration), (3) reload response has valid structure. |
 | 2026-01-02 | Milestone 3 complete: remediate tool now returns `visualizationUrl` in analysis response. Added `toolName: 'remediate'` to session data, extended `RemediateSessionData` with `BaseVisualizationData`. **Architecture change**: Consolidated all tool-specific visualization prompts into unified `prompts/visualize.md` (deleted `visualize-query.md`, `visualize-recommend.md`). REST API uses switch statement to map tool-specific data fields to unified `{{{data}}}` variable. Integration tests verify URL returned, visualization endpoint works, and `validate_mermaid` in toolsUsed. Debug validation confirmed AI uses provided `finalAnalysis` data (rootCause, confidence, factors, actions) and enriches with kubectl tools. |
 | 2026-01-03 | Milestone 5 (version) complete: Added session storage with `VersionSessionData`, returns `visualizationUrl` in response. Added `case 'version'` to REST API switch statement. **Test optimization**: Consolidated ALL visualization endpoint tests to version.test.ts (fastest tool) - removed redundant endpoint tests from query/recommend/remediate/operate tests (keep URL expectation only). Version test now includes cache test and `?reload=true` test. Debug validation confirmed health/diagnostics data populated, AI uses provided data first, enriches with kubectl tools for pod counts. Session ID: `ver-1767397786102-8734f825`. Deferred: projectSetup/reportScan and Documentation (Milestone 6). |
+| 2026-01-03 | Milestone 6 (recommend docs) complete: Updated `mcp-recommendation-guide.md` with visualization URLs throughout workflow examples. Added 4 screenshots: `recommendation-example-01.png` (solutions), `recommendation-example-02.png` (generateManifests traffic flow), `recommendation-example-03.png` (Helm chart), `recommendation-example-04.png` (post-deployment). Added "Visualization (Optional)" sections explaining multi-tab UI. Remaining: remediate and operate documentation. |
 
 ## Dependencies
 

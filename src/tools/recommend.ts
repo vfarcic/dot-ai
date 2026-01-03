@@ -360,12 +360,20 @@ export async function handleRecommendTool(
           ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
         });
 
-        return {
-          content: [{
+        // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+        const content: Array<{ type: 'text'; text: string }> = [{
+          type: 'text' as const,
+          text: JSON.stringify(helmResponse, null, 2)
+        }];
+
+        if (helmVisualizationUrl) {
+          content.push({
             type: 'text' as const,
-            text: JSON.stringify(helmResponse, null, 2)
-          }]
-        };
+            text: `📊 **View visualization**: ${helmVisualizationUrl}`
+          });
+        }
+
+        return { content };
       }
 
       const solutions = solutionResult.solutions;
@@ -461,12 +469,20 @@ export async function handleRecommendTool(
         ...(visualizationUrl && { visualizationUrl })
       });
 
-      return {
-        content: [{
+      // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+      const content: Array<{ type: 'text'; text: string }> = [{
+        type: 'text' as const,
+        text: JSON.stringify(response, null, 2)
+      }];
+
+      if (visualizationUrl) {
+        content.push({
           type: 'text' as const,
-          text: JSON.stringify(response, null, 2)
-        }]
-      };
+          text: `📊 **View visualization**: ${visualizationUrl}`
+        });
+      }
+
+      return { content };
     },
     {
       operation: 'recommend_tool',

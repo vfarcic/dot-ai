@@ -788,19 +788,31 @@ export async function handleVersionTool(
     // PRD #320: Generate visualization URL if configured
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 'success',
-          system: systemStatus,
-          summary,
-          timestamp,
-          ...(feedbackMessage ? { message: feedbackMessage } : {}),
-          ...(visualizationUrl ? { visualizationUrl } : {})
-        }, null, 2)
-      }]
+    // PRD #320: Build response with visualization instruction for agents
+    const responseData = {
+      status: 'success',
+      system: systemStatus,
+      summary,
+      timestamp,
+      ...(feedbackMessage ? { message: feedbackMessage } : {}),
+      ...(visualizationUrl ? { visualizationUrl } : {})
     };
+
+    // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+    const content: Array<{ type: 'text'; text: string }> = [{
+      type: 'text' as const,
+      text: JSON.stringify(responseData, null, 2)
+    }];
+
+    // Add visualization instruction as second content block so agents display it to users
+    if (visualizationUrl) {
+      content.push({
+        type: 'text' as const,
+        text: `📊 **View visualization**: ${visualizationUrl}`
+      });
+    }
+
+    return { content };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Version tool request failed', error as Error, { requestId });
