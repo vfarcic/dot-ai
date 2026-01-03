@@ -18,8 +18,8 @@
   "shell": {
     "init_hook": [
       "export PATH=$PATH:$HOME/.npm-global/bin",
-      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\"",
-      "[ -f .env ] && source .env"
+      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\" || true",
+      "[ -f .env ] && source .env || true"
     ],
     "scripts": {}
   }
