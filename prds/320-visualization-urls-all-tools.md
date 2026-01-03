@@ -7,9 +7,9 @@
 | **PRD ID** | 320 |
 | **Feature Name** | Visualization URLs for All MCP Tools |
 | **Priority** | High |
-| **Status** | In Progress |
+| **Status** | Complete |
 | **Created** | 2026-01-02 |
-| **Last Updated** | 2026-01-02 |
+| **Last Updated** | 2026-01-03 |
 
 ## Problem Statement
 
@@ -400,8 +400,8 @@ Each tool follows the same validation pattern.
 - [x] Add visualization screenshots (`remediate-example-01.png`, `remediate-example-02.png`)
 
 **operate tool:**
-- [ ] Update operate guide with visualization URL examples
-- [ ] Add visualization screenshots
+- [x] Update operate guide with visualization URL examples
+- [x] Add visualization screenshots (`operate-example-01.png`)
 
 **version tool:**
 - [x] Create `mcp-version-guide.md` with system status documentation
@@ -434,6 +434,7 @@ Each tool follows the same validation pattern.
 | 2026-01-03 | Milestone 6 (version docs) complete: Created `mcp-version-guide.md` with system status documentation, visualization URL example, and troubleshooting section. Added to `mcp-tools-overview.md` as "System Status & Diagnostics". Updated `mcp-setup.md` with "Verify Your Setup" section referencing the guide. |
 | 2026-01-03 | Code fix: Updated `remediate.ts` and `operate.ts` to embed visualization URL in `message` field so agents display it to users. Added test validations in `remediate.test.ts` and `operate.test.ts` to verify URL embedding. |
 | 2026-01-03 | Milestone 6 (remediate docs) complete: Updated `mcp-remediate-guide.md` with visualization URL in Manual Mode Example, added "Visualization (Optional)" sections with screenshots (`remediate-example-01.png`, `remediate-example-02.png`), added Post-Remediation Visualization sections for both Option 1 and Option 2. |
+| 2026-01-03 | Milestone 6 (operate docs) complete: Updated `mcp-operate-guide.md` with visualization URL in Step 1 response, added "Visualization (Optional)" section with screenshot (`operate-example-01.png`). Fixed nested markdown code blocks using `~~~` fence syntax. PRD #320 complete. |
 
 ## Dependencies
 
