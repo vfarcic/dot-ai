@@ -144,80 +144,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
   Errors: ${JSON.stringify(scanStats.errors, null, 2)}`);
       }
 
-      // === FIELD VALIDATION: Verify stored capabilities have correct field values ===
-      // Test cluster has known resources with deterministic metadata
-      const allCapabilities = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 200,
-        interaction_id: 'field_validation_list'
-      });
-
-      const capabilities = allCapabilities.data.result.data.capabilities;
-
-      // Find specific known resources for field validation
-      const pod = capabilities.find((c: any) => c.resourceName === 'Pod');
-      const deployment = capabilities.find((c: any) => c.resourceName === 'Deployment');
-      const service = capabilities.find((c: any) => c.resourceName === 'Service');
-      const configMap = capabilities.find((c: any) => c.resourceName === 'ConfigMap');
-      const statefulSet = capabilities.find((c: any) => c.resourceName === 'StatefulSet');
-      const cnpgCluster = capabilities.find((c: any) => c.resourceName === 'clusters.postgresql.cnpg.io');
-
-      // Validate core resource: Pod (apiVersion: v1, no group)
-      expect(pod).toBeDefined();
-      expect(pod).toMatchObject({
-        resourceName: 'Pod',
-        apiVersion: 'v1',
-        version: 'v1',
-        group: ''
-      });
-
-      // Validate core resource: Service (apiVersion: v1, no group)
-      expect(service).toBeDefined();
-      expect(service).toMatchObject({
-        resourceName: 'Service',
-        apiVersion: 'v1',
-        version: 'v1',
-        group: ''
-      });
-
-      // Validate core resource: ConfigMap (apiVersion: v1, no group)
-      expect(configMap).toBeDefined();
-      expect(configMap).toMatchObject({
-        resourceName: 'ConfigMap',
-        apiVersion: 'v1',
-        version: 'v1',
-        group: ''
-      });
-
-      // Validate apps group resource: Deployment (apiVersion: apps/v1)
-      expect(deployment).toBeDefined();
-      expect(deployment).toMatchObject({
-        resourceName: 'Deployment',
-        apiVersion: 'apps/v1',
-        version: 'v1',
-        group: 'apps'
-      });
-
-      // Validate apps group resource: StatefulSet (apiVersion: apps/v1)
-      expect(statefulSet).toBeDefined();
-      expect(statefulSet).toMatchObject({
-        resourceName: 'StatefulSet',
-        apiVersion: 'apps/v1',
-        version: 'v1',
-        group: 'apps'
-      });
-
-      // Validate CRD: CNPG Cluster (apiVersion: postgresql.cnpg.io/v1)
-      expect(cnpgCluster).toBeDefined();
-      expect(cnpgCluster).toMatchObject({
-        resourceName: 'clusters.postgresql.cnpg.io',
-        apiVersion: 'postgresql.cnpg.io/v1',
-        version: 'v1',
-        group: 'postgresql.cnpg.io'
-      });
-
       // === READ: Verify capabilities were stored by listing them ===
+      // Note: Field validation (apiVersion, group, version) is covered by the specific resource scan test
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
