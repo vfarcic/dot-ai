@@ -15,6 +15,7 @@ import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
+import { getVisualizationUrl } from '../core/visualization';
 import { ArtifactHubService } from '../core/artifacthub';
 import { HelmChartInfo } from '../core/helm-types';
 
@@ -42,6 +43,8 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 // Solution data stored by GenericSessionManager
 // Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
+  toolName: 'recommend';  // PRD #320: Tool identifier for visualization endpoint
+  stage?: string;  // PRD #320: Workflow stage ('recommend', 'generateManifests', etc.)
   intent: string;
   type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
@@ -66,6 +69,24 @@ export interface SolutionData {
   answers: Record<string, any>;
   timestamp: string;
   appliedPatterns?: string[];  // Pattern descriptions that influenced this solution
+  // PRD #320: Generated manifests data for visualization
+  generatedManifests?: {
+    type: 'raw' | 'helm' | 'kustomize';
+    outputPath?: string;
+    files?: Array<{ relativePath: string; content: string }>;
+    valuesYaml?: string;  // For Helm charts
+    helmCommand?: string;  // For Helm charts
+    chart?: {
+      repository: string;
+      repositoryName: string;
+      chartName: string;
+      version: string;
+    };
+    releaseName?: string;
+    namespace?: string;
+    validationAttempts?: number;
+    packagingAttempts?: number;
+  };
 }
 
 /**
@@ -283,6 +304,7 @@ export async function handleRecommendTool(
           const originalChart = charts.find(c => c.name === aiSolution.chartName);
 
           const solutionData: SolutionData = {
+            toolName: 'recommend',
             intent: args.intent,
             type: 'helm',
             score: aiSolution.score,
@@ -316,6 +338,10 @@ export async function handleRecommendTool(
           });
         }
 
+        // PRD #320: Generate visualization URL with all solution session IDs
+        const helmSessionIds = helmSolutionSummaries.map(s => s.solutionId);
+        const helmVisualizationUrl = getVisualizationUrl(helmSessionIds);
+
         // Build Helm solutions response
         const helmResponse = {
           intent: args.intent,
@@ -323,21 +349,31 @@ export async function handleRecommendTool(
           helmInstallation: true,
           nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
           guidance: '🔴 CRITICAL: Present these Helm chart options to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Show the chart details (repository, version, official status) to help users decide.',
-          timestamp
+          timestamp,
+          ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
         };
 
         logger.info('Helm solutions prepared', {
           requestId,
           solutionCount: helmSolutionSummaries.length,
-          topScore: helmSolutionSummaries[0]?.score
+          topScore: helmSolutionSummaries[0]?.score,
+          ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
         });
 
-        return {
-          content: [{
+        // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+        const content: Array<{ type: 'text'; text: string }> = [{
+          type: 'text' as const,
+          text: JSON.stringify(helmResponse, null, 2)
+        }];
+
+        if (helmVisualizationUrl) {
+          content.push({
             type: 'text' as const,
-            text: JSON.stringify(helmResponse, null, 2)
-          }]
-        };
+            text: `📊 **View visualization**: ${helmVisualizationUrl}`
+          });
+        }
+
+        return { content };
       }
 
       const solutions = solutionResult.solutions;
@@ -358,6 +394,7 @@ export async function handleRecommendTool(
       for (const solution of topSolutions) {
         // Create complete solution data
         const solutionData: SolutionData = {
+          toolName: 'recommend',
           intent: args.intent,
           type: solution.type,
           score: solution.score,
@@ -404,6 +441,10 @@ export async function handleRecommendTool(
       const totalPatterns = solutionSummaries.reduce((count, s) => count + (s.appliedPatterns?.length || 0), 0);
       const totalPolicies = solutionSummaries.reduce((count, s) => count + (s.relevantPolicies?.length || 0), 0);
 
+      // PRD #320: Generate visualization URL with all solution session IDs
+      const sessionIds = solutionSummaries.map(s => s.solutionId);
+      const visualizationUrl = getVisualizationUrl(sessionIds);
+
       // Build new response format
       const response = {
         intent: args.intent,
@@ -418,21 +459,30 @@ export async function handleRecommendTool(
         },
         nextAction: "Call recommend tool with stage: chooseSolution and your preferred solutionId",
         guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
-        timestamp
+        timestamp,
+        ...(visualizationUrl && { visualizationUrl })
       };
 
       logger.info('Solution sessions created and response prepared', {
         requestId,
-        solutionCount: solutionSummaries.length
+        solutionCount: solutionSummaries.length,
+        ...(visualizationUrl && { visualizationUrl })
       });
 
+      // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+      const content: Array<{ type: 'text'; text: string }> = [{
+        type: 'text' as const,
+        text: JSON.stringify(response, null, 2)
+      }];
 
-      return {
-        content: [{
+      if (visualizationUrl) {
+        content.push({
           type: 'text' as const,
-          text: JSON.stringify(response, null, 2)
-        }]
-      };
+          text: `📊 **View visualization**: ${visualizationUrl}`
+        });
+      }
+
+      return { content };
     },
     {
       operation: 'recommend_tool',

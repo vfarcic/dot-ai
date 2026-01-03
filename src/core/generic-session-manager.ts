@@ -181,9 +181,16 @@ export class GenericSessionManager<T = any> {
 
   /**
    * Save session to file
+   *
+   * Note: Uses a custom replacer to convert undefined values to null.
+   * This is critical because JSON.stringify drops undefined values entirely,
+   * which would cause data loss in toolCallsExecuted arrays where tool
+   * outputs may have undefined fields. (PRD #320 Milestone 2.5)
    */
   private saveSession(session: GenericSession<T>): void {
     const sessionFile = path.join(this.sessionsPath, `${session.sessionId}.json`);
-    fs.writeFileSync(sessionFile, JSON.stringify(session, null, 2), 'utf8');
+    // Convert undefined to null to preserve structure during JSON serialization
+    const replacer = (_key: string, value: unknown) => value === undefined ? null : value;
+    fs.writeFileSync(sessionFile, JSON.stringify(session, replacer, 2), 'utf8');
   }
 }

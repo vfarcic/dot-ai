@@ -9,6 +9,7 @@ import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
 import { maybeGetFeedbackMessage } from '../core/index';
+import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -44,7 +45,9 @@ export interface RemediateInput {
 }
 
 // Session data stored by GenericSessionManager
-export interface RemediateSessionData {
+// PRD #320: Extends BaseVisualizationData for visualization support
+export interface RemediateSessionData extends BaseVisualizationData {
+  toolName: 'remediate';  // PRD #320: Tool identifier for visualization prompt selection
   issue: string;
   mode: 'manual' | 'automatic';
   interaction_id?: string;
@@ -804,7 +807,9 @@ export async function handleRemediateTool(args: any): Promise<any> {
     }
     
     // Create initial session using session manager
+    // PRD #320: Include toolName for visualization prompt selection
     const session = sessionManager.createSession({
+      toolName: 'remediate',
       issue: validatedInput.issue,
       mode: validatedInput.mode || 'manual',
       interaction_id: validatedInput.interaction_id,
@@ -842,15 +847,25 @@ export async function handleRemediateTool(args: any): Promise<any> {
         sessionId: session.sessionId,
         status: finalAnalysis.status
       });
-      
-      // Return MCP-compliant response for resolved issues
+
+      // PRD #320: Generate visualization URL for resolved issues
+      const visualizationUrl = getVisualizationUrl(session.sessionId);
+
+      // PRD #320: Append visualization URL to message so agents display it to users
+      const messageWithVisualization = visualizationUrl
+        ? `${finalAnalysis.message}\n\n📊 View visualization: ${visualizationUrl}`
+        : finalAnalysis.message;
+
+      // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(finalAnalysis, null, 2)
-          }
-        ]
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            ...finalAnalysis,
+            message: messageWithVisualization,
+            ...(visualizationUrl && { visualizationUrl })
+          }, null, 2)
+        }]
       };
     }
 
@@ -913,14 +928,24 @@ export async function handleRemediateTool(args: any): Promise<any> {
       );
     }
 
-    // Return MCP-compliant response
+    // PRD #320: Generate visualization URL for analysis response
+    const visualizationUrl = getVisualizationUrl(session.sessionId);
+
+    // PRD #320: Append visualization URL to message so agents display it to users
+    const messageWithVisualization = visualizationUrl
+      ? `${finalResult.message}\n\n📊 View visualization: ${visualizationUrl}`
+      : finalResult.message;
+
+    // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
     return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify(finalResult, null, 2)
-        }
-      ]
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          ...finalResult,
+          message: messageWithVisualization,
+          ...(visualizationUrl && { visualizationUrl })
+        }, null, 2)
+      }]
     };
 
   } catch (error) {

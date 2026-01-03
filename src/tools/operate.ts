@@ -10,6 +10,7 @@ import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
 import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
+import { BaseVisualizationData } from '../core/visualization';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
@@ -34,7 +35,9 @@ export interface OperateInput {
 }
 
 // Session data stored by GenericSessionManager
-export interface OperateSessionData {
+// PRD #320: Extends BaseVisualizationData for visualization support
+export interface OperateSessionData extends BaseVisualizationData {
+  toolName: 'operate';  // PRD #320: Tool identifier for visualization prompt selection
   intent: string;
   interaction_id?: string;
   context: EmbeddedContext;
@@ -96,6 +99,7 @@ export interface ExecutionResult {
 export interface OperateOutput {
   status: 'success' | 'failed' | 'awaiting_user_approval';
   sessionId: string;
+  visualizationUrl?: string;  // PRD #320: URL to open visualization in Web UI
   analysis?: {
     summary: string;
     currentState: any;
@@ -320,10 +324,19 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 export async function handleOperateTool(args: any): Promise<any> {
   const result = await operate(args);
 
+  // PRD #320: Embed visualization URL in message so agents display it to users
+  const messageWithVisualization = result.visualizationUrl
+    ? `${result.message}\n\n📊 View visualization: ${result.visualizationUrl}`
+    : result.message;
+
+  // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
   return {
     content: [{
-      type: 'text',
-      text: JSON.stringify(result, null, 2)
+      type: 'text' as const,
+      text: JSON.stringify({
+        ...result,
+        message: messageWithVisualization
+      }, null, 2)
     }]
   };
 }

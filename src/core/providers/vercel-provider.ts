@@ -380,6 +380,14 @@ export class VercelProvider implements AIProvider {
         // Convert AITool[] to Vercel AI SDK tool format
         const tools: Record<string, any> = {};
 
+        // PRD #320: Capture tool calls during execution (not reconstruction from steps)
+        // This ensures toolCallsExecuted has actual data for visualization
+        const toolCallsExecuted: Array<{
+          tool: string;
+          input: any;
+          output: any;
+        }> = [];
+
         for (let i = 0; i < config.tools.length; i++) {
           const aiTool = config.tools[i];
           const isLastTool = i === config.tools.length - 1;
@@ -388,7 +396,15 @@ export class VercelProvider implements AIProvider {
             description: aiTool.description,
             inputSchema: jsonSchema(aiTool.inputSchema),
             execute: async (input: any) => {
-              return await config.toolExecutor(aiTool.name, input);
+              // Execute and capture result
+              const output = await config.toolExecutor(aiTool.name, input);
+              // Capture for toolCallsExecuted array
+              toolCallsExecuted.push({
+                tool: aiTool.name,
+                input,
+                output,
+              });
+              return output;
             },
           });
 
@@ -574,26 +590,8 @@ export class VercelProvider implements AIProvider {
             );
           }
 
-          // Extract tool call history from steps
-          const toolCallsExecuted: Array<{
-            tool: string;
-            input: any;
-            output: any;
-          }> = [];
-
-          for (const step of result.steps || []) {
-            for (const toolCall of step.toolCalls || []) {
-              const toolResult = step.toolResults?.find(
-                (tr: any) => tr.toolCallId === toolCall.toolCallId
-              );
-
-              toolCallsExecuted.push({
-                tool: (toolCall as any).toolName,
-                input: (toolCall as any).args,
-                output: (toolResult as any)?.result,
-              });
-            }
-          }
+          // PRD #320: toolCallsExecuted is now captured during execution (see tool wrapper above)
+          // This replaces the old reconstruction from result.steps which lost input/output data
 
           // Normalize token metrics across providers
           // NOTE: Vercel AI SDK had token reporting bugs that were fixed in PR #8945 (merged Sept 26, 2025)

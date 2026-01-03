@@ -58,6 +58,53 @@ The DevOps AI Toolkit operate feature provides:
 
 ## Complete Workflow Example
 
+<!--
+Test Scenario Setup for Pattern-Driven Scaling with HPA Creation:
+Create a deployment with resource requests/limits to demonstrate pattern-driven operations
+
+kubectl create namespace operate-demo
+kubectl apply -n operate-demo -f - <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: demo-api
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.21
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        ports:
+        - containerPort: 80
+EOF
+
+This creates a deployment where:
+- 2 replicas running nginx:1.21
+- Resource requests/limits configured (required for HPA)
+- RollingUpdate strategy with 25% max unavailable/surge
+- Ready for scaling operations demonstration
+- Uses separate namespace to keep demo isolated
+-->
+
 ### Pattern-Driven Scaling with HPA Creation
 
 This example demonstrates how organizational patterns influence operational decisions. We'll scale a deployment twice:
@@ -78,7 +125,7 @@ First, let's see what AI recommends without any organizational patterns:
 User: scale demo-api deployment in operate-demo namespace to 4 replicas
 ```
 
-```md
+~~~md
 Agent: Let me analyze the current state and propose a scaling operation.
 
 [Uses mcp__dot-ai__operate with intent "scale demo-api deployment in operate-demo namespace to 4 replicas"]
@@ -119,8 +166,20 @@ kubectl scale deployment demo-api --replicas=4 -n operate-demo
 
 **Session ID:** opr-1763169767759-0c2a4bb7
 
+📊 **Visualization:** http://localhost:3000/v/opr-1763169767759-0c2a4bb7
+
 Would you like to execute this operation?
-```
+~~~
+
+#### Visualization (Optional)
+
+The visualization URL opens an interactive analysis view in the Web UI:
+
+![Operate Visualization Example](../img/operate-example-01.png)
+
+> **Note**: Visualization URLs require additional setup:
+> - Configure `webUI.baseUrl` in your Helm values (see [Kubernetes Setup - Web UI Visualization](../setup/kubernetes-setup.md#web-ui-visualization))
+> - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 **What happened behind the scenes:**
 - AI analyzed deployment and discovered current state: 2 replicas, properly configured resources
@@ -175,10 +234,10 @@ Agent: I'll help you create an organizational pattern. Let me start the workflow
 Now let's run the **exact same scaling intent** and see how the pattern changes the recommendation:
 
 ```md
-User: scale demo-api deployment in operate-demo namespace to 4 replicas
+User: scale demo-api deployment in operate-demo namespace to 4 replicas. Start the process again.
 ```
 
-```md
+~~~md
 Agent: Let me analyze the operation with organizational patterns applied.
 
 [Uses mcp__dot-ai__operate with intent "scale demo-api deployment in operate-demo namespace to 4 replicas"]
@@ -238,7 +297,7 @@ spec:
 **Session ID:** opr-1763170292295-0dbae152
 
 Would you like to execute this operation?
-```
+~~~
 
 **What happened behind the scenes:**
 - Vector search found relevant pattern: "Horizontal scaling with HPA" (semantic match on "scaling", "replicas")
@@ -260,7 +319,7 @@ Let's approve the operation and watch it execute:
 User: Yes, execute the operation
 ```
 
-```md
+~~~md
 Agent: Executing approved operation and validating results.
 
 [Uses mcp__dot-ai__operate with sessionId: "opr-1763170292295-0dbae152", executeChoice: 1]
@@ -289,7 +348,7 @@ HPA successfully created and reconciled. The controller scaled the deployment fr
 - ✅ Deployment scaled successfully from 2 to 4 replicas
 
 **Operation completed successfully!**
-```
+~~~
 
 **What happened behind the scenes:**
 - MCP server executed the approved kubectl command exactly as shown
@@ -424,4 +483,3 @@ If validation still fails after iterations, AI will report the specific issue fo
 - **[Pattern Management Guide](pattern-management-guide.md)** - Creating and managing organizational patterns
 - **[Policy Management Guide](policy-management-guide.md)** - Defining and enforcing governance policies
 - **[Capability Management Guide](mcp-capability-management-guide.md)** - Cluster resource discovery and semantic capabilities
-

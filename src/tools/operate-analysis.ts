@@ -3,6 +3,7 @@ import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubect
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import { getVisualizationUrl } from '../core/visualization';
 import {
   EmbeddedContext,
   OperateSessionData,
@@ -58,10 +59,14 @@ export async function analyzeIntent(
 
   logger.info('Operate analysis complete', { sessionId: session.sessionId });
 
+  // PRD #320: Generate visualization URL for analysis response
+  const visualizationUrl = getVisualizationUrl(session.sessionId);
+
   // 6. Return formatted output for user
   return {
     status: 'awaiting_user_approval',
     sessionId: session.sessionId,
+    ...(visualizationUrl && { visualizationUrl }),  // PRD #320: Include visualization URL if WEB_UI_BASE_URL is set
     analysis: {
       summary: proposedChanges.analysis,
       currentState: proposedChanges.currentState,
@@ -272,6 +277,7 @@ async function saveAnalysisSession(
   logger: Logger
 ): Promise<OperateSession> {
   const sessionData: OperateSessionData = {
+    toolName: 'operate',  // PRD #320: Tool identifier for visualization prompt selection
     intent,
     interaction_id,
     context,

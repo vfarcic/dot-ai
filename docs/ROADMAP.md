@@ -18,7 +18,6 @@ This roadmap is a living document and may change based on community feedback and
 - Flux support for GitOps tool (PRD #265)
 - GitOps integration in recommend workflow (PRD #266)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
-- Visualization URLs for all MCP tools - extend Web UI integration to recommend, remediate, operate, and more (PRD #320)
 
 ## Medium-term (3-6 Months)
 

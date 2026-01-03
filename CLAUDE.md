@@ -61,14 +61,23 @@
 
 ```bash
 # Development commands
-npm run test:integration                            # Run integration tests
 npm run build                                       # Build the project
 npm run start:mcp                                   # Start MCP server
+
+# Testing commands
+npm run test:unit                                   # Run unit tests (fast, no cluster needed)
+npm run test:integration                            # Run integration tests (creates Kind cluster)
+
+# Evaluation commands
 npm run eval:comparative                            # Run comparative evaluations (all datasets)
 npm run eval:comparative remediation                # Run comparative evaluations (remediation only)
 npm run eval:comparative capability                 # Run comparative evaluations (capability only)
 npm run eval:platform-synthesis                     # Generate platform-wide model analysis from evaluation results
 ```
+
+**Unit vs Integration Tests**:
+- **Unit tests** (`npm run test:unit`): Fast tests for pure functions, utilities, Helm templates. No cluster needed.
+- **Integration tests** (`npm run test:integration`): Full end-to-end tests requiring Kind cluster and AI providers.
 
 ## AI Prompt Management 🤖
 

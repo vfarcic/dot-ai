@@ -22,6 +22,7 @@ import {
   executeKubectlTools
 } from '../core/kubectl-tools';
 import { GenericSessionManager } from '../core/generic-session-manager';
+import { getVisualizationUrl } from '../core/visualization';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -41,8 +42,9 @@ export interface QueryInput {
   interaction_id?: string;
 }
 
-// Session data stored for visualization (PRD #317)
+// Session data stored for visualization (PRD #317, PRD #320)
 export interface QuerySessionData {
+  toolName: 'query';  // PRD #320: Tool identifier for visualization endpoint
   intent: string;
   summary: string;
   toolsUsed: string[];
@@ -58,7 +60,7 @@ export interface QuerySessionData {
     visualizations: Array<{
       id: string;
       label: string;
-      type: 'mermaid' | 'cards' | 'code' | 'table';
+      type: 'mermaid' | 'cards' | 'code' | 'table' | 'diff';  // PRD #320: Added diff type
       content: any;
     }>;
     insights: string[];
@@ -78,20 +80,6 @@ export interface QueryOutput {
     code: string;
     message: string;
   };
-}
-
-/**
- * Get visualization URL if WEB_UI_BASE_URL is configured
- * PRD #317: Feature toggle - only include URL when env var is set
- */
-function getVisualizationUrl(sessionId: string): string | undefined {
-  const baseUrl = process.env.WEB_UI_BASE_URL;
-  if (!baseUrl) {
-    return undefined;
-  }
-  // Remove trailing slash if present, then append /v/{sessionId}
-  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
-  return `${normalizedBaseUrl}/v/${sessionId}`;
 }
 
 /**
@@ -237,9 +225,10 @@ export async function handleQueryTool(args: any): Promise<any> {
       toolsUsed
     });
 
-    // Store session for visualization (PRD #317)
+    // Store session for visualization (PRD #317, PRD #320)
     const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
     const session = sessionManager.createSession({
+      toolName: 'query',  // PRD #320: Tool identifier for visualization endpoint
       intent,
       summary,
       toolsUsed,

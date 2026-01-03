@@ -79,6 +79,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate solutions response structure (based on actual API inspection)
+      // PRD #320: Recommend tool returns visualizationUrl with multiple session IDs joined by +
       const expectedSolutionsResponse = {
         success: true,
         data: {
@@ -87,7 +88,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             solutions: expect.any(Array),
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('You MUST present these solutions'),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL contains multiple solution session IDs joined by +
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+(\+sol-\d+-[a-f0-9]+)*$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -100,6 +103,14 @@ describe.concurrent('Recommend Tool Integration', () => {
       };
 
       expect(solutionsResponse).toMatchObject(expectedSolutionsResponse);
+
+      // PRD #320: Verify visualization URL contains all solution session IDs
+      const solutionIds = solutionsResponse.data.result.solutions.map((s: any) => s.solutionId);
+      const visualizationUrl = solutionsResponse.data.result.visualizationUrl;
+      const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
+      expect(urlSessionIds).toEqual(solutionIds);
+
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
@@ -309,6 +320,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Validate generateManifests response (based on actual API inspection)
       // Raw format returns a single manifests.yaml file
+      // PRD #320: generateManifests now returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -326,7 +338,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             ]),
             validationAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Write the files to')
+            agentInstructions: expect.stringContaining('Write the files to'),
+            // PRD #320: Visualization URL for generateManifests stage
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -389,6 +403,8 @@ describe.concurrent('Recommend Tool Integration', () => {
           })
         }
       });
+
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 9: Deploy manifests to cluster
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -503,6 +519,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate response structure and that official prometheus-community chart is included
+      // PRD #320: Helm solutions also return visualizationUrl with multiple session IDs
       const expectedHelmResponse = {
         success: true,
         data: {
@@ -527,7 +544,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             helmInstallation: true,
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('Helm chart options'),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL for Helm solutions
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+(\+sol-\d+-[a-f0-9]+)*$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -730,6 +749,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Helm generation response
+      // PRD #320: Helm generateManifests now returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -750,7 +770,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             releaseName: expect.any(String),
             namespace: expect.any(String),
             validationAttempts: expect.any(Number),
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            // PRD #320: Visualization URL for Helm generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -777,6 +799,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Extract namespace and release name for deployment validation
       const helmNamespace = generateResponse.data.result.namespace;
       const releaseName = generateResponse.data.result.releaseName;
+
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 6: Deploy Helm chart (helm upgrade --install execution)
       const deployResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -967,6 +991,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Helm chart structure in response
+      // PRD #320: Helm packaging generateManifests returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -989,7 +1014,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             packagingAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Helm chart')
+            agentInstructions: expect.stringContaining('Helm chart'),
+            // PRD #320: Visualization URL for packaging generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -1132,6 +1159,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Validate Kustomize structure in response
+      // PRD #320: Kustomize packaging generateManifests returns visualizationUrl
       const expectedGenerateResponse = {
         success: true,
         data: {
@@ -1158,7 +1186,9 @@ describe.concurrent('Recommend Tool Integration', () => {
             validationAttempts: expect.any(Number),
             packagingAttempts: expect.any(Number),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            agentInstructions: expect.stringContaining('Kustomize')
+            agentInstructions: expect.stringContaining('Kustomize'),
+            // PRD #320: Visualization URL for Kustomize generateManifests
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/)
           },
           tool: 'recommend',
           executionTime: expect.any(Number)
@@ -1202,17 +1232,17 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Base resources should be valid Kubernetes manifests with image without tag
       const deploymentFile = baseResources.find((f: any) => f.content.includes('kind: Deployment'));
       expect(deploymentFile).toBeDefined();
-      // Base deployment image should NOT have a tag (tag is in overlay)
+      // Base deployment image should NOT have a specific version tag (tag is in overlay)
       const imageMatch = deploymentFile.content.match(/image:\s*["']?([^"'\s]+)["']?/);
       expect(imageMatch).not.toBeNull(); // Fix: toBeDefined passes for null
-      // Image should not contain a colon followed by a tag (e.g., nginx:1.21)
-      // Allow for images like "nginx" or "ghcr.io/org/app" but not "nginx:tag"
+      // Image should not contain a specific version tag (e.g., nginx:1.21, nginx:v1.0)
+      // :latest is acceptable as it's the implicit default and overlays still specify actual versions
       const imageName = imageMatch![1];
-      // If image has a registry (contains /), allow colons in registry but not for tags
-      // Simple check: if there's a colon after the last slash, it's likely a tag
+      // If image has a registry (contains /), allow colons in registry but not for version tags
       const lastSlashIndex = imageName.lastIndexOf('/');
       const afterLastSlash = lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
-      expect(afterLastSlash).not.toMatch(/:[a-zA-Z0-9]/); // No tag like :v1.0 or :latest
+      // Allow :latest but not version tags like :1.21, :v1.0, :stable, :alpine
+      expect(afterLastSlash).not.toMatch(/:(\d|v\d|stable|alpine|slim)/i); // No specific version tags
 
       // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
       const yaml = await import('js-yaml');

@@ -11,11 +11,15 @@
     "kubectl-tree@0.4.6",
     "vals@0.42.5",
     "hadolint@2.14.0",
-    "gh@2.83.1"
+    "gh@2.83.1",
+    "jq@1.8.1",
+    "yq-go@4.50.1"
   ],
   "shell": {
     "init_hook": [
-      "export PATH=$PATH:$HOME/.npm-global/bin"
+      "export PATH=$PATH:$HOME/.npm-global/bin",
+      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\" || true",
+      "[ -f .env ] && source .env || true"
     ],
     "scripts": {}
   }

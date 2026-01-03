@@ -71,6 +71,12 @@ HTTP REST endpoints for all DevOps AI Toolkit capabilities, enabling integration
 - **Use when**: Integrating with automation scripts, CI/CD pipelines, Kubernetes controllers, or any non-MCP applications
 - **📖 Full Guide**: [REST API Gateway](rest-api-gateway-guide.md)
 
+### 🩺 System Status & Diagnostics
+Comprehensive health check and diagnostics for your DevOps AI Toolkit installation.
+- **What it does**: Shows version info, component health (Kubernetes, Vector DB, AI provider), collection statistics, and active capabilities
+- **Use when**: Troubleshooting setup issues, verifying installation, or checking what features are available
+- **📖 Full Guide**: [System Status](mcp-version-guide.md)
+
 ## Quick Start
 
 1. **Complete Setup**: Follow the [MCP Setup Guide](../setup/mcp-setup.md)
@@ -113,3 +119,5 @@ For troubleshooting, use the system status command:
 ```
 Show dot-ai status
 ```
+
+This provides comprehensive diagnostics including component health, connection status, and capability summary. See the [System Status Guide](mcp-version-guide.md) for detailed troubleshooting steps.

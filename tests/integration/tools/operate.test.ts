@@ -74,6 +74,8 @@ EOF`);
           result: {
             status: 'awaiting_user_approval',
             sessionId: expect.stringMatching(/^opr-\d+-[a-f0-9]{8}$/), // Session ID format: opr-{timestamp}-{uuid8}
+            // PRD #320: Operate tool returns visualizationUrl
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-\d+-[a-f0-9]+$/),
             analysis: {
               summary: expect.stringContaining('nginx'), // Should mention nginx in analysis
               proposedChanges: {
@@ -114,9 +116,15 @@ EOF`);
 
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
+      // PRD #320: Verify visualization URL is embedded in message for agent display
+      expect(analysisResponse.data.result.message).toContain('📊 View visualization:');
+      expect(analysisResponse.data.result.message).toContain(analysisResponse.data.result.visualizationUrl);
+
       // Extract session ID for next phase
       const sessionId = analysisResponse.data.result.sessionId;
       expect(sessionId).toBeTruthy();
+
+      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Verify original deployment unchanged (no execution yet)
       const unchangedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
@@ -294,6 +302,8 @@ EOF`);
       // Validate response structure
       expect(analysisResponse.success).toBe(true);
       expect(analysisResponse.data.result.status).toBe('awaiting_user_approval');
+      // PRD #320: Verify visualizationUrl is present (full visualization testing done in first test)
+      expect(analysisResponse.data.result.visualizationUrl).toMatch(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/);
 
       const analysis = analysisResponse.data.result.analysis;
 

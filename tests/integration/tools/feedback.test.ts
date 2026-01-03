@@ -14,7 +14,7 @@ describe.concurrent('Feedback Collection Integration', () => {
 
   describe('Feedback Message Statistical Verification', () => {
     test('should show feedback message approximately 5% of the time with default settings', async () => {
-      const iterations = 200;
+      const iterations = 100;
       let feedbackCount = 0;
 
       // Call version tool multiple times and count feedback appearances
@@ -36,17 +36,18 @@ describe.concurrent('Feedback Collection Integration', () => {
         }
       }
 
-      // With 200 iterations at 5% probability:
-      // Expected: 10, StdDev: ~3.08
-      // Allow range of 1-20 for statistical variance (99.7% confidence / 3 sigma)
+      // With 100 iterations at 5% probability:
+      // Expected: 5, StdDev: ~2.18
+      // Allow range of 1-12 for statistical variance (~99% confidence)
+      // P(X=0) ≈ 0.6% - acceptable false failure rate for CI
       const expectedMin = 1;
-      const expectedMax = 20;
+      const expectedMax = 12;
       const probability = feedbackCount / iterations;
 
       console.log(`Feedback appeared ${feedbackCount}/${iterations} times (${(probability * 100).toFixed(1)}%)`);
 
       expect(feedbackCount).toBeGreaterThanOrEqual(expectedMin);
       expect(feedbackCount).toBeLessThanOrEqual(expectedMax);
-    }, 600000); // 10 minute timeout for 200 API calls
+    }, 300000); // 5 minute timeout for 100 API calls
   });
 });

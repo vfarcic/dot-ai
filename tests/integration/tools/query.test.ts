@@ -165,72 +165,9 @@ spec:
     expect(response.data.result.summary).toContain('📊 **View visualization**:');
     expect(response.data.result.summary).toContain(response.data.result.visualizationUrl);
 
-    // Step 2: PRD #317 Milestone 4 - Call visualization endpoint and verify AI-generated visualization
-    const sessionId = response.data.result.sessionId;
-
-    const vizResponse = await integrationTest.httpClient.get(
-      `/api/v1/visualize/${sessionId}`
-    );
-
-    // AI generates dynamic visualizations - validate structure
-    const expectedVizResponse = {
-      success: true,
-      data: {
-        title: expect.any(String),
-        visualizations: expect.any(Array),
-        insights: expect.any(Array)
-      },
-      meta: {
-        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-        version: 'v1'
-      }
-    };
-
-    expect(vizResponse).toMatchObject(expectedVizResponse);
-
-    // Validate visualizations structure - AI should generate at least one visualization
-    const visualizations = vizResponse.data.visualizations;
-    expect(visualizations.length).toBeGreaterThan(0);
-
-    // Each visualization must have required fields and valid type
-    for (const viz of visualizations) {
-      expect(viz).toMatchObject({
-        id: expect.any(String),
-        label: expect.any(String),
-        type: expect.stringMatching(/^(mermaid|cards|code|table)$/),
-        content: expect.anything()
-      });
-    }
-
-    // Validate insights are non-empty strings
-    const insights = vizResponse.data.insights;
-    expect(insights.length).toBeGreaterThan(0);
-    for (const insight of insights) {
-      expect(typeof insight).toBe('string');
-      expect(insight.length).toBeGreaterThan(0);
-    }
-
-    // Verify title exists and has content (AI may generate custom title or fallback)
-    expect(vizResponse.data.title).toBeDefined();
-    expect(vizResponse.data.title.length).toBeGreaterThan(0);
-
-    // Step 3: Verify caching - second request should return cached data instantly
-    const startTime = Date.now();
-    const cachedVizResponse = await integrationTest.httpClient.get(
-      `/api/v1/visualize/${sessionId}`
-    );
-    const cachedResponseTime = Date.now() - startTime;
-
-    // Cached response should be fast (< 1 second vs ~40+ seconds for generation)
-    expect(cachedResponseTime).toBeLessThan(1000);
-
-    // Cached response should have same structure and content
-    expect(cachedVizResponse).toMatchObject(expectedVizResponse);
-    expect(cachedVizResponse.data.title).toBe(vizResponse.data.title);
-    expect(cachedVizResponse.data.visualizations.length).toBe(vizResponse.data.visualizations.length);
-    expect(cachedVizResponse.data.insights.length).toBe(vizResponse.data.insights.length);
-  }, 300000);
+    // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
+    // This test only verifies visualizationUrl is returned
+  }, 180000);
 
   test('should use query_capabilities for filter query and find low complexity capabilities', async () => {
     const response = await integrationTest.httpClient.post(
