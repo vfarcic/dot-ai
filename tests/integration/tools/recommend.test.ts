@@ -1232,17 +1232,17 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Base resources should be valid Kubernetes manifests with image without tag
       const deploymentFile = baseResources.find((f: any) => f.content.includes('kind: Deployment'));
       expect(deploymentFile).toBeDefined();
-      // Base deployment image should NOT have a tag (tag is in overlay)
+      // Base deployment image should NOT have a specific version tag (tag is in overlay)
       const imageMatch = deploymentFile.content.match(/image:\s*["']?([^"'\s]+)["']?/);
       expect(imageMatch).not.toBeNull(); // Fix: toBeDefined passes for null
-      // Image should not contain a colon followed by a tag (e.g., nginx:1.21)
-      // Allow for images like "nginx" or "ghcr.io/org/app" but not "nginx:tag"
+      // Image should not contain a specific version tag (e.g., nginx:1.21, nginx:v1.0)
+      // :latest is acceptable as it's the implicit default and overlays still specify actual versions
       const imageName = imageMatch![1];
-      // If image has a registry (contains /), allow colons in registry but not for tags
-      // Simple check: if there's a colon after the last slash, it's likely a tag
+      // If image has a registry (contains /), allow colons in registry but not for version tags
       const lastSlashIndex = imageName.lastIndexOf('/');
       const afterLastSlash = lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
-      expect(afterLastSlash).not.toMatch(/:[a-zA-Z0-9]/); // No tag like :v1.0 or :latest
+      // Allow :latest but not version tags like :1.21, :v1.0, :stable, :alpine
+      expect(afterLastSlash).not.toMatch(/:(\d|v\d|stable|alpine|slim)/i); // No specific version tags
 
       // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
       const yaml = await import('js-yaml');

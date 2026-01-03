@@ -98,7 +98,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         });
 
         // Check if scan is complete - status is inside progress object
-        const progressStatus = progressResponse.data.result.progress?.status;
+        // Use optional chaining to handle transient error responses gracefully
+        const progressStatus = progressResponse?.data?.result?.progress?.status;
         if (progressStatus === 'complete' || progressStatus === 'completed') {
           scanComplete = true;
         }
@@ -344,7 +345,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `specific_progress_${attempts}`
         });
 
-        const progressStatus = progressResponse.data.result.progress?.status;
+        // Use optional chaining to handle transient error responses gracefully
+        const progressStatus = progressResponse?.data?.result?.progress?.status;
         if (progressStatus === 'complete' || progressStatus === 'completed') {
           scanComplete = true;
         }
@@ -425,7 +427,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `list_progress_${attempts}`
         });
 
-        const progressStatus = progressResponse.data.result.progress?.status;
+        // Use optional chaining to handle transient error responses gracefully
+        const progressStatus = progressResponse?.data?.result?.progress?.status;
         if (progressStatus === 'complete' || progressStatus === 'completed') {
           scanComplete = true;
         }
@@ -574,7 +577,8 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
           interaction_id: `search_progress_${attempts}`
         });
 
-        const progressStatus = progressResponse.data.result.progress?.status;
+        // Use optional chaining to handle transient error responses gracefully
+        const progressStatus = progressResponse?.data?.result?.progress?.status;
         if (progressStatus === 'complete' || progressStatus === 'completed') {
           scanComplete = true;
         }
