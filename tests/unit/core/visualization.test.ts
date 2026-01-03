@@ -54,37 +54,16 @@ describe('Visualization Utilities', () => {
   });
 
   describe('getPromptForTool', () => {
-    test('should return correct prompt for query tool', () => {
-      expect(getPromptForTool('query')).toBe('visualize-query');
-    });
-
-    test('should return correct prompt for recommend tool', () => {
-      expect(getPromptForTool('recommend')).toBe('visualize-recommend');
-    });
-
-    test('should return correct prompt for remediate tool', () => {
-      expect(getPromptForTool('remediate')).toBe('visualize-remediate');
-    });
-
-    test('should return correct prompt for operate tool', () => {
-      expect(getPromptForTool('operate')).toBe('visualize-operate');
-    });
-
-    test('should return correct prompt for capabilities', () => {
-      expect(getPromptForTool('capabilities')).toBe('visualize-capabilities');
-    });
-
-    test('should return correct prompt for version tool', () => {
-      expect(getPromptForTool('version')).toBe('visualize-version');
-    });
-
-    test('should return correct prompt for projectSetup tool', () => {
-      expect(getPromptForTool('projectSetup')).toBe('visualize-project-setup');
-    });
-
-    test('should fallback to visualize-query for unknown tools', () => {
-      expect(getPromptForTool('unknown')).toBe('visualize-query');
-      expect(getPromptForTool('')).toBe('visualize-query');
+    // PRD #320 Decision 8: Unified visualization prompt for all tools
+    test('should return unified visualize prompt for all tools', () => {
+      expect(getPromptForTool('query')).toBe('visualize');
+      expect(getPromptForTool('recommend')).toBe('visualize');
+      expect(getPromptForTool('remediate')).toBe('visualize');
+      expect(getPromptForTool('operate')).toBe('visualize');
+      expect(getPromptForTool('version')).toBe('visualize');
+      expect(getPromptForTool('projectSetup')).toBe('visualize');
+      expect(getPromptForTool('unknown')).toBe('visualize');
+      expect(getPromptForTool('')).toBe('visualize');
     });
   });
 
@@ -143,10 +122,6 @@ describe('Visualization Utilities', () => {
       expect(getToolNameFromPrefix('opr')).toBe('operate');
     });
 
-    test('should return capabilities for cap prefix', () => {
-      expect(getToolNameFromPrefix('cap')).toBe('capabilities');
-    });
-
     test('should return version for ver prefix', () => {
       expect(getToolNameFromPrefix('ver')).toBe('version');
     });
@@ -167,7 +142,6 @@ describe('Visualization Utilities', () => {
       expect(TOOL_SESSION_PREFIXES.recommend).toBe('sol');
       expect(TOOL_SESSION_PREFIXES.remediate).toBe('rem');
       expect(TOOL_SESSION_PREFIXES.operate).toBe('opr');
-      expect(TOOL_SESSION_PREFIXES.capabilities).toBe('cap');
       expect(TOOL_SESSION_PREFIXES.version).toBe('ver');
       expect(TOOL_SESSION_PREFIXES.projectSetup).toBe('prj');
     });

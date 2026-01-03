@@ -60,7 +60,7 @@ Agent: [Uses mcp__dot-ai__version]
 - Checked tracing configuration
 - Visualization URL generated for exploring system status in Web UI
 
-#### Visualization (Optional)
+### Visualization (Optional)
 
 The visualization URL opens an interactive dashboard showing system health, component status, and configuration details:
 
@@ -74,7 +74,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 
 ### Kubernetes Not Connected
 
-```
+```text
 | Kubernetes | ❌ Not connected |
 ```
 
@@ -90,7 +90,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 
 ### Vector DB Not Connected
 
-```
+```text
 | Vector DB | ❌ Not connected |
 ```
 
@@ -106,7 +106,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 
 ### Collections Not Created
 
-```
+```text
 | capabilities | ⚠️ Not created |
 ```
 
@@ -121,7 +121,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 
 ### AI Provider Issues
 
-```
+```text
 | AI Provider | ❌ Not configured |
 ```
 

@@ -357,7 +357,7 @@ Once setup is complete, see [Tools Overview](../guides/mcp-tools-overview.md) fo
 
 After completing setup, verify everything is working correctly:
 
-```
+```text
 Show dot-ai status
 ```
 
