@@ -464,6 +464,14 @@ gateway:
     backendRequest: "3600s"
 ```
 
+> **Note:** GKE Gateway Controller and potentially other implementations do not support HTTPRoute `timeouts`. If you encounter error `GWCER104 "Timeouts are not supported"`, set timeouts to empty strings and configure them via [GCPBackendPolicy](https://cloud.google.com/kubernetes-engine/docs/how-to/configure-gateway-resources#configure_timeout) instead:
+> ```yaml
+> gateway:
+>   timeouts:
+>     request: ""
+>     backendRequest: ""
+> ```
+
 ### Creation Pattern Values (Development/Testing Only)
 
 ```yaml

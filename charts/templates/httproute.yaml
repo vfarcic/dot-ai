@@ -29,7 +29,7 @@ spec:
     backendRefs:
     - name: {{ include "dot-ai.backendServiceName" . }}
       port: 3456
-    {{- if .Values.gateway.timeouts }}
+    {{- if and .Values.gateway.timeouts (or .Values.gateway.timeouts.request .Values.gateway.timeouts.backendRequest) }}
     timeouts:
       {{- if .Values.gateway.timeouts.request }}
       request: {{ .Values.gateway.timeouts.request }}
