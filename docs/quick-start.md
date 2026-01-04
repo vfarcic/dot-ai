@@ -2,6 +2,10 @@
 
 **Get started with DevOps AI Toolkit in minutes - deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows through MCP.**
 
+> **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
+>
+> Continue below if you want to install components individually (for non-Kubernetes setups or granular control over configuration).
+
 ## Overview
 
 **What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows in your MCP-enabled coding agent.

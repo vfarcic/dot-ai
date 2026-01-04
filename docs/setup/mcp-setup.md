@@ -2,6 +2,10 @@
 
 **Complete setup guide for using DevOps AI Toolkit as an MCP (Model Context Protocol) server with AI development tools.**
 
+> **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
+>
+> Continue below if you want to install components individually (for non-Kubernetes setups or granular control over configuration).
+
 ## Overview
 
 The DevOps AI Toolkit provides main capabilities through MCP (Model Context Protocol):
@@ -48,7 +52,11 @@ Choose the method that best fits your environment and workflow:
 
 ### Decision Tree
 
-**🎯 Recommended setup** → [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning via controller, production-ready, HTTP transport with authentication
+**🎯 Recommended setup** → [Stack Installation](https://devopstoolkit.ai/docs/stack) - Complete dot-ai stack with all components pre-configured
+
+**Individual component installation:**
+
+**☸️ Kubernetes deployment** → [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning via controller, production-ready, HTTP transport with authentication
 
 **🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes management with built-in security
 
@@ -320,7 +328,8 @@ Each setup method provides an MCP configuration that works with any compatible c
 
 ### 1. Choose Your Setup Method
 
-- **Recommended**: [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning, production-ready
+- **Recommended**: [Stack Installation](https://devopstoolkit.ai/docs/stack) - Complete dot-ai stack with all components pre-configured
+- **Kubernetes**: [Kubernetes Setup](kubernetes-setup.md) - Individual component deployment with full features
 - **Operator-managed**: [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes deployment with built-in security
 - **Local development**: [Docker Setup](docker-setup.md) - Complete stack for local use (manual capability scanning only)
 - **Alternative**: [NPX Setup](npx-setup.md) - If you prefer Node.js over Docker  

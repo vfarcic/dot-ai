@@ -82,7 +82,9 @@ Works with Claude Code, Cursor, VS Code via Model Context Protocol. Supports mul
 
 ## Quick Start
 
-Get started in 3 steps:
+> **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
+
+For individual component installation:
 1. Deploy MCP server to Kubernetes (recommended) or run locally via Docker
 2. Connect your AI coding assistant (Claude Code, Cursor, VS Code)
 3. Start using conversational workflows
@@ -97,7 +99,8 @@ Get started in 3 steps:
 - **[Tools Overview](guides/mcp-tools-overview.md)** - All available tools and features
 
 ### Deployment Options
-- **[Kubernetes Setup](setup/kubernetes-setup.md)** - Recommended: Full features with autonomous capability scanning
+- **[Stack Installation](https://devopstoolkit.ai/docs/stack)** - Recommended: Complete dot-ai stack with all components pre-configured
+- **[Kubernetes Setup](setup/kubernetes-setup.md)** - Individual component deployment with full features
 - **[ToolHive Setup](setup/kubernetes-toolhive-setup.md)** - Operator-managed Kubernetes deployment
 - **[Docker Setup](setup/docker-setup.md)** - Local development (manual capability scanning only)
 - **[NPX Setup](setup/npx-setup.md)** - Quick trials with Node.js

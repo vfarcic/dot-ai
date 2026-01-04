@@ -42,7 +42,11 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 
 ## Deployment Options
 
-- **[Kubernetes Setup](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-setup/)** - Recommended: Full features with autonomous capability scanning
+> **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
+
+For individual component installation:
+
+- **[Kubernetes Setup](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-setup/)** - Individual component deployment with full features
 - **[ToolHive Setup](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-toolhive-setup/)** - Operator-managed Kubernetes deployment
 - **[Docker Setup](https://devopstoolkit.ai/docs/mcp/setup/docker-setup/)** - Local development (manual capability scanning only)
 - **[NPX Setup](https://devopstoolkit.ai/docs/mcp/setup/npx-setup/)** - Quick trials with Node.js

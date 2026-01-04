@@ -2,6 +2,10 @@
 
 **Deploy DevOps AI Toolkit MCP Server to Kubernetes using standard resources via Helm chart - production-ready deployment with HTTP transport.**
 
+> **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
+>
+> Continue below if you want to install components individually (for granular control over configuration).
+
 ## When to Use This Method
 
 ✅ **Perfect for:**
