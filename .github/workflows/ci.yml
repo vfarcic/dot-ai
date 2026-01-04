@@ -177,6 +177,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
     - name: Build project
       run: npm run build
 
@@ -245,11 +250,6 @@ jobs:
           org.opencontainers.image.version=${{ needs.version.outputs.new-version }}
         platforms: linux/amd64,linux/arm64
 
-    - name: Install Helm
-      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
-      with:
-        version: 'v3.14.0'
-
     - name: Update Chart.yaml and values.yaml versions
       run: |
         VERSION=${{ needs.version.outputs.new-version }}
@@ -270,7 +270,7 @@ jobs:
 
     - name: Log in to GitHub Container Registry for Helm
       run: |
-        helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
+        devbox run -- helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
       env:
         HELM_EXPERIMENTAL_OCI: 1
 
@@ -279,10 +279,10 @@ jobs:
         VERSION=${{ needs.version.outputs.new-version }}
 
         # Package the chart with coordinated version
-        helm package charts/ --version $VERSION --app-version $VERSION
+        devbox run -- helm package charts/ --version $VERSION --app-version $VERSION
 
         # Push versioned chart to GHCR as OCI artifact
-        helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
+        devbox run -- helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
 
         echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
 
@@ -394,3 +394,38 @@ jobs:
         repository: vfarcic/dot-ai-website
         event-type: upstream-release
         client-payload: '{"source": "dot-ai", "version": "${{ needs.version.outputs.new-version }}"}'
+
+  update-umbrella:
+    needs: [release, version]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.version.outputs.version-changed == 'true'
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout umbrella chart
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        repository: vfarcic/dot-ai-stack
+        token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
+    - name: Update dependency version
+      run: |
+        # Update dot-ai version in Chart.yaml
+        devbox run -- yq -i '(.dependencies[] | select(.name == "dot-ai")).version = "${{ needs.version.outputs.new-version }}"' Chart.yaml
+
+        echo "Updated Chart.yaml:"
+        cat Chart.yaml
+
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Chart.yaml
+        git diff --staged --quiet || git commit -m "chore: bump dot-ai to ${{ needs.version.outputs.new-version }}"
+        git push
