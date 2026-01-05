@@ -196,8 +196,8 @@ git commit -m "docs(prd-[number]): close PRD #[number] - [brief reason] [skip ci
 
 Closes #[number]"
 
-# Push to remote
-git push origin main
+# Pull latest and push to remote
+git pull --rebase origin main && git push origin main
 ```
 
 **Important**:

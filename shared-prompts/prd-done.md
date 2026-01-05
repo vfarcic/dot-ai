@@ -46,7 +46,7 @@ Complete the PRD implementation workflow including branch management, pull reque
 - [ ] **Use skip CI commit message**: Include CI skip pattern in commit message to avoid unnecessary CI runs
   - Common patterns: `[skip ci]`, `[ci skip]`, `***NO_CI***`, `[skip actions]`
   - Check project's CI configuration for the correct pattern
-- [ ] **Push to remote**: `git push origin main` to sync changes
+- [ ] **Push to remote**: `git pull --rebase origin main && git push origin main` to sync changes
 
 **For Code Implementation Completions:**
 - [ ] **Create feature branch**: `git checkout -b feature/prd-[issue-id]-[feature-name]`
