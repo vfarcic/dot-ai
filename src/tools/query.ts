@@ -76,6 +76,7 @@ export interface QueryOutput {
   iterations: number;
   sessionId?: string;
   visualizationUrl?: string;  // PRD #317: URL to open visualization in Web UI
+  guidance: string;  // Agent instructions for presenting the response
   error?: {
     code: string;
     message: string;
@@ -245,18 +246,18 @@ export async function handleQueryTool(args: any): Promise<any> {
       ...(visualizationUrl && { visualizationUrl })
     });
 
-    // Append visualization URL to summary so agents display it to users
-    const summaryWithUrl = visualizationUrl
-      ? `${summary}\n\n📊 **View visualization**: ${visualizationUrl}`
-      : summary;
+    const guidance = visualizationUrl
+      ? 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+      : 'Present the summary to the user.';
 
     const output: QueryOutput = {
       success: true,
-      summary: summaryWithUrl,
+      summary,
       toolsUsed,
       iterations: result.iterations,
       sessionId: session.sessionId,
-      ...(visualizationUrl && { visualizationUrl })
+      ...(visualizationUrl && { visualizationUrl }),
+      guidance
     };
 
     return {

@@ -148,7 +148,8 @@ spec:
           summary: expect.stringMatching(/postgres|cnpg|database/i),
           toolsUsed: expect.arrayContaining(['search_capabilities']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
@@ -160,10 +161,6 @@ spec:
 
     expect(response).toMatchObject(expectedResponse);
     expect(response.data.result.iterations).toBeGreaterThanOrEqual(2);
-
-    // Verify visualization URL is embedded in summary for agent display
-    expect(response.data.result.summary).toContain('📊 **View visualization**:');
-    expect(response.data.result.summary).toContain(response.data.result.visualizationUrl);
 
     // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
     // This test only verifies visualizationUrl is returned
@@ -189,7 +186,8 @@ spec:
           summary: expect.stringMatching(/low complexity|configmap|namespace/i),
           toolsUsed: expect.arrayContaining(['query_capabilities']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
@@ -224,7 +222,8 @@ spec:
           summary: expect.stringMatching(/test-pg-cluster|postgres/i),
           toolsUsed: expect.arrayContaining(['search_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
@@ -258,7 +257,8 @@ spec:
           summary: expect.stringMatching(/test-pg-cluster|team.*platform|platform/i),
           toolsUsed: expect.arrayContaining(['query_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
@@ -297,7 +297,8 @@ spec:
           summary: expect.stringMatching(/test-pg-cluster|postgres|database|cluster|status/i),
           toolsUsed: expect.any(Array),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
@@ -351,7 +352,8 @@ spec:
           summary: expect.any(String),
           toolsUsed: expect.arrayContaining(['kubectl_get']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
-          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/)
+          visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
+          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
         }
       },
       meta: {
