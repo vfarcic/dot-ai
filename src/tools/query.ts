@@ -208,7 +208,7 @@ export async function handleQueryTool(args: any): Promise<any> {
       userMessage: intent,
       tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
       toolExecutor: executeQueryTools,
-      maxIterations: 10,
+      maxIterations: 30,
       operation: 'query',
       evaluationContext: {
         user_intent: intent

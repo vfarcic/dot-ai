@@ -379,20 +379,61 @@ export class HostProvider implements AIProvider {
           }
         }
 
-        const lastMessage = messages[messages.length - 1];
-        const lastContent =
-          typeof lastMessage.content === 'string'
-            ? lastMessage.content
-            : (lastMessage.content?.text ?? '');
+        // Max iterations reached - make one final wrap-up call WITHOUT tools
+        // to force the AI to summarize findings rather than continue investigating
+        const wrapUpMessage = 'You have reached the maximum number of investigation steps. Please provide your final summary NOW in the required JSON format based on all findings gathered so far. Do not request any more tool calls.';
 
-        return {
-          finalMessage: lastContent,
-          iterations,
-          toolCallsExecuted,
-          totalTokens: { input: 0, output: 0 },
-          status: 'timeout',
-          completionReason: 'max_iterations',
-        };
+        messages.push({
+          role: 'user',
+          content: { type: 'text', text: wrapUpMessage },
+        });
+
+        try {
+          // Make final call WITHOUT tools in system prompt - use base system prompt only
+          const wrapUpResult = await HostProvider.samplingHandler!(
+            messages,
+            config.systemPrompt, // Original system prompt without tool definitions
+            {
+              operation: config.operation,
+              evaluationContext: config.evaluationContext,
+              interaction_id: config.interaction_id,
+            }
+          );
+
+          let wrapUpContent = '';
+          if (typeof wrapUpResult.content === 'object' && wrapUpResult.content.type === 'text') {
+            wrapUpContent = wrapUpResult.content.text;
+          } else if (typeof wrapUpResult.content === 'string') {
+            wrapUpContent = wrapUpResult.content;
+          } else {
+            wrapUpContent = JSON.stringify(wrapUpResult.content);
+          }
+
+          return {
+            finalMessage: wrapUpContent,
+            iterations: iterations + 1, // Include wrap-up iteration
+            toolCallsExecuted,
+            totalTokens: { input: 0, output: 0 },
+            status: 'timeout',
+            completionReason: 'max_iterations',
+          };
+        } catch (error) {
+          // If wrap-up call fails, fall back to last message
+          const lastMessage = messages[messages.length - 2]; // -2 because we added wrap-up message
+          const lastContent =
+            typeof lastMessage.content === 'string'
+              ? lastMessage.content
+              : (lastMessage.content?.text ?? '');
+
+          return {
+            finalMessage: lastContent,
+            iterations,
+            toolCallsExecuted,
+            totalTokens: { input: 0, output: 0 },
+            status: 'timeout',
+            completionReason: 'max_iterations',
+          };
+        }
       },
       (result: AgenticResult) => ({
         inputTokens: result.totalTokens.input,

@@ -639,6 +639,82 @@ export class VercelProvider implements AIProvider {
             }
           }
 
+          // Check if we hit max iterations without a proper summary
+          // If so, make one final wrap-up call WITHOUT tools to force summary generation
+          const stepsUsed = result.steps?.length || 0;
+          const hasProperSummary = finalText && finalText.includes('{') && finalText.includes('}');
+
+          if (stepsUsed >= maxIterations && !hasProperSummary) {
+            try {
+              // Build wrap-up messages with full conversation history
+              const wrapUpMessages: any[] = [];
+
+              // Add system message for Anthropic providers
+              if (
+                this.providerType === 'anthropic' ||
+                this.providerType === 'anthropic_opus' ||
+                this.providerType === 'anthropic_haiku'
+              ) {
+                wrapUpMessages.push({
+                  role: 'system',
+                  content: config.systemPrompt,
+                });
+              }
+
+              // Add original user message
+              wrapUpMessages.push({
+                role: 'user',
+                content: config.userMessage,
+              });
+
+              // Add conversation history from steps
+              for (const step of result.steps || []) {
+                if (step.text) {
+                  wrapUpMessages.push({
+                    role: 'assistant',
+                    content: step.text,
+                  });
+                }
+                // Add tool results as user messages
+                for (const toolResult of step.toolResults || []) {
+                  wrapUpMessages.push({
+                    role: 'user',
+                    content: `Tool result from ${(toolResult as any).toolName}: ${JSON.stringify((toolResult as any).output || toolResult)}`,
+                  });
+                }
+              }
+
+              // Add wrap-up instruction
+              wrapUpMessages.push({
+                role: 'user',
+                content:
+                  'You have reached the maximum number of investigation steps. Please provide your final summary NOW in the required JSON format based on all findings gathered so far. Do not request any more tool calls.',
+              });
+
+              // Make final call WITHOUT tools
+              const wrapUpConfig: any = {
+                model: this.modelInstance,
+                messages: wrapUpMessages,
+                // NO tools - forces text response
+              };
+
+              // Add system parameter for non-Anthropic providers
+              if (
+                this.providerType !== 'anthropic' &&
+                this.providerType !== 'anthropic_opus' &&
+                this.providerType !== 'anthropic_haiku'
+              ) {
+                wrapUpConfig.system = config.systemPrompt;
+              }
+
+              const wrapUpResult = await generateText(wrapUpConfig);
+              finalText = wrapUpResult.text || finalText;
+            } catch (wrapUpError) {
+              // If wrap-up fails, continue with whatever we have
+              console.warn('Wrap-up call failed, using existing response:', wrapUpError);
+            }
+          }
+
           // Log processed summary response (keep existing functionality)
           if (this.debugMode && debugFiles === null) {
             // Only log summary if we haven't already logged raw response
