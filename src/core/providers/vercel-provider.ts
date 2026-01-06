@@ -12,6 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { AI_SERVICE_ERROR_TEMPLATES } from '../constants';
 import {
   AIProvider,
   AIResponse,
@@ -57,12 +58,12 @@ export class VercelProvider implements AIProvider {
 
   private validateConfiguration(): void {
     if (!this.apiKey) {
-      throw new Error(`API key is required for ${this.providerType} provider`);
+      throw new Error(AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType));
     }
 
     if (!SUPPORTED_PROVIDERS.includes(this.providerType)) {
       throw new Error(
-        `Unsupported provider: ${this.providerType}. Must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`
+        AI_SERVICE_ERROR_TEMPLATES.UNSUPPORTED_PROVIDER(this.providerType, SUPPORTED_PROVIDERS)
       );
     }
   }

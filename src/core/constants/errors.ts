@@ -170,6 +170,58 @@ export const AI_SERVICE_ERRORS = {
 } as const;
 
 /**
+ * AI service error templates with dynamic content
+ */
+export const AI_SERVICE_ERROR_TEMPLATES = {
+  /**
+   * API key required error template
+   * @param providerType - The AI provider type requiring the API key
+   */
+  API_KEY_REQUIRED: (providerType: string) =>
+    `API key is required for ${providerType} provider`,
+
+  /**
+   * OpenAI API key required for specific service
+   * @param service - The service requiring OpenAI API key
+   */
+  OPENAI_KEY_REQUIRED: (service: string) =>
+    `OpenAI API key required for ${service}`,
+
+  /**
+   * AI provider not available error
+   */
+  PROVIDER_NOT_AVAILABLE:
+    'AI provider is not available. No API keys configured. Please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or another supported provider key.',
+
+  /**
+   * Embedding service unavailable error
+   */
+  EMBEDDING_SERVICE_UNAVAILABLE: 'embedding service unavailable',
+
+  /**
+   * AI provider not initialized for specific functionality
+   * @param functionality - The functionality requiring AI provider
+   */
+  PROVIDER_NOT_INITIALIZED: (functionality: string) =>
+    `AI provider not initialized. API key required for ${functionality}.`,
+
+  /**
+   * Unsupported provider error
+   * @param providerType - The unsupported provider type
+   * @param supportedProviders - List of supported providers
+   */
+  UNSUPPORTED_PROVIDER: (providerType: string, supportedProviders: string[]) =>
+    `Unsupported provider: ${providerType}. Must be one of: ${supportedProviders.join(', ')}`,
+
+  /**
+   * ResourceRanker not available error
+   * @param functionality - The specific functionality needing ResourceRanker
+   */
+  RESOURCE_RANKER_UNAVAILABLE: (functionality: string) =>
+    `ResourceRanker not available. AI provider API key is required for ${functionality}.`,
+} as const;
+
+/**
  * Generic error templates
  */
 export const ERROR_TEMPLATES = {

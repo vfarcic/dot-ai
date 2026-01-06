@@ -159,7 +159,7 @@ src/core/constants/
 - [x] Integrate constants with existing error-handling.ts
 - [x] Consolidate authentication and network error messages
 - [x] Standardize Kubernetes error message patterns
-- [ ] Update AI service error messages
+- [x] Update AI service error messages
 
 **Validation Criteria**:
 - Error handling system uses centralized messages

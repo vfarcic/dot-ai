@@ -11,6 +11,7 @@ import { AIProvider } from './ai-provider.interface';
 import { createAIProvider } from './ai-provider-factory';
 import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
 import { HelmChartInfo } from './helm-types';
+import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
@@ -86,7 +87,7 @@ export class DotAI {
       },
       rankResources: async (intent: string) => {
         if (!ranker) {
-          throw new Error('ResourceRanker not available. AI provider API key is required for AI-powered ranking.');
+          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('AI-powered ranking'));
         }
 
         // Create discovery function with proper binding
@@ -96,13 +97,13 @@ export class DotAI {
       },
       generateQuestionsForHelmChart: async (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => {
         if (!ranker) {
-          throw new Error('ResourceRanker not available. AI provider API key is required for question generation.');
+          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('question generation'));
         }
         return await ranker.generateQuestionsForHelmChart(intent, chart, description, interaction_id);
       },
       fetchHelmChartContent: async (chart: HelmChartInfo) => {
         if (!ranker) {
-          throw new Error('ResourceRanker not available for fetching Helm chart content.');
+          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('fetching Helm chart content'));
         }
         return await ranker.fetchHelmChartContent(chart);
       }

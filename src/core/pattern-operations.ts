@@ -8,6 +8,7 @@
 import { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
 import { randomUUID } from 'crypto';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-handling';
+import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
 import { VectorDBService, PatternVectorService, maybeGetFeedbackMessage } from './index';
 import { getAndValidateSessionDirectory } from './session-utils';
@@ -146,7 +147,7 @@ export async function handlePatternOperation(
         operation,
         dataType: 'pattern',
         error: embeddingCheck.error,
-        message: 'OpenAI API key required for pattern management'
+        message: AI_SERVICE_ERROR_TEMPLATES.OPENAI_KEY_REQUIRED('pattern management')
       };
     }
   }
