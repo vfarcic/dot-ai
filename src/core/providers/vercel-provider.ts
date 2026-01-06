@@ -28,6 +28,7 @@ import {
   EvaluationMetrics,
 } from './provider-debug-utils';
 import { CURRENT_MODELS } from '../model-config';
+import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
@@ -687,8 +688,7 @@ export class VercelProvider implements AIProvider {
               // Add wrap-up instruction
               wrapUpMessages.push({
                 role: 'user',
-                content:
-                  'You have reached the maximum number of investigation steps. Please provide your final summary NOW in the required JSON format based on all findings gathered so far. Do not request any more tool calls.',
+                content: INVESTIGATION_MESSAGES.WRAP_UP,
               });
 
               // Make final call WITHOUT tools

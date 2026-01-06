@@ -9,6 +9,7 @@
 
 import { AITool } from './ai-provider.interface';
 import { CapabilityVectorService } from './capability-vector-service';
+import { VALIDATION_MESSAGES } from './constants/validation';
 
 /**
  * Tool: search_capabilities
@@ -126,7 +127,7 @@ export async function executeCapabilityTools(toolName: string, input: any): Prom
         if (!query) {
           return {
             success: false,
-            error: 'Missing required parameter: query',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('query'),
             message: 'search_capabilities requires a query parameter'
           };
         }
@@ -162,7 +163,7 @@ export async function executeCapabilityTools(toolName: string, input: any): Prom
         if (!filter) {
           return {
             success: false,
-            error: 'Missing required parameter: filter',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('filter'),
             message: 'query_capabilities requires a filter parameter with Qdrant filter syntax'
           };
         }

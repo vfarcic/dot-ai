@@ -36,10 +36,10 @@ Eliminate code duplication by creating a centralized constants system that conso
 
 ### Success Criteria
 - [ ] All investigation messages use centralized constants
-- [ ] All validation error messages follow standardized templates  
+- [x] All validation error messages follow standardized templates  
 - [ ] All user-facing text consolidated into typed constants
 - [ ] No hardcoded strings for common operations (success/failure/loading states)
-- [ ] Template functions support dynamic message generation
+- [x] Template functions support dynamic message generation
 - [ ] Comprehensive test coverage for message generation
 
 ## Solution Overview
@@ -144,10 +144,10 @@ src/core/constants/
 
 ### Milestone 2: Validation Message Consolidation
 **Target**: Week 1-2
-- [ ] Consolidate all "Missing required parameter" messages
-- [ ] Create validation message templates with parameters
-- [ ] Update capability-tools.ts, kubectl-tools.ts, and related files
-- [ ] Implement error message template functions
+- [x] Consolidate all "Missing required parameter" messages
+- [x] Create validation message templates with parameters
+- [x] Update capability-tools.ts, kubectl-tools.ts, and related files
+- [x] Implement error message template functions
 
 **Validation Criteria**:
 - All validation messages use centralized templates

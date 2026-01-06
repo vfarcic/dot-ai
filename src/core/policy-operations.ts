@@ -11,6 +11,7 @@ import { VectorDBService } from './vector-db-service';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
 import { executeKubectl } from './kubernetes-utils';
 import { maybeGetFeedbackMessage } from './index';
+import { VALIDATION_MESSAGES } from './constants/validation';
 
 // Note: validateVectorDBConnection and validateEmbeddingService are shared utilities
 // that remain in the main organizational-data.ts file as they're used by multiple domains
@@ -580,7 +581,7 @@ export async function handlePolicyOperation(
           operation,
           dataType: 'policy',
           message: 'Policy intent ID is required for get operation',
-          error: 'Missing required parameter: id'
+          error: VALIDATION_MESSAGES.MISSING_PARAMETER('id')
         };
       }
 
@@ -612,7 +613,7 @@ export async function handlePolicyOperation(
           operation,
           dataType: 'policy',
           message: 'Search query is required (use id parameter)',
-          error: 'Missing required parameter: id (search query)'
+          error: VALIDATION_MESSAGES.MISSING_PARAMETER_WITH_CONTEXT('id', 'search query')
         };
       }
 
@@ -639,7 +640,7 @@ export async function handlePolicyOperation(
           operation,
           dataType: 'policy',
           message: 'Policy intent ID is required for delete operation',
-          error: 'Missing required parameter: id'
+          error: VALIDATION_MESSAGES.MISSING_PARAMETER('id')
         };
       }
 

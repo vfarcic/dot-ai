@@ -9,6 +9,7 @@ import { Logger } from './error-handling';
 import { CapabilityVectorService } from './capability-vector-service';
 import { CapabilityInferenceEngine } from './capabilities';
 import { getAndValidateSessionDirectory } from './session-utils';
+import { VALIDATION_MESSAGES } from './constants/validation';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -123,7 +124,7 @@ export async function handleCapabilityGet(
         operation: 'get',
         dataType: 'capabilities',
         error: {
-          message: 'Missing required parameter: id',
+          message: VALIDATION_MESSAGES.MISSING_PARAMETER('id'),
           details: 'Specify id to retrieve capability data',
           example: { id: 'capability-id-example' }
         }
@@ -212,7 +213,7 @@ export async function handleCapabilityDelete(
         operation: 'delete',
         dataType: 'capabilities',
         error: {
-          message: 'Missing required parameter: id',
+          message: VALIDATION_MESSAGES.MISSING_PARAMETER('id'),
           details: 'Specify id to delete capability data',
           example: { id: 'capability-id-example' }
         }
