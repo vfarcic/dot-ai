@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import { STAGE_MESSAGES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
@@ -90,18 +91,18 @@ function validateAnswer(answer: any, question: any): string | null {
 function getStageSpecificInstructions(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
-      return 'STAGE: REQUIRED - Present ALL questions to the user and collect answers. All questions must be answered before proceeding.';
+      return STAGE_MESSAGES.REQUIRED_INSTRUCTIONS;
     case 'basic':
-      return 'STAGE: BASIC - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to advanced stage.';
+      return STAGE_MESSAGES.BASIC_INSTRUCTIONS;
     case 'advanced':
       // For Helm, don't mention open stage since it's skipped
       return isHelm
-        ? 'STAGE: ADVANCED - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to manifest generation.'
-        : 'STAGE: ADVANCED - Present ALL questions to the user. Show defaults where available but ask user to confirm or change each one. User must review all questions before proceeding to open stage.';
+        ? STAGE_MESSAGES.ADVANCED_INSTRUCTIONS_HELM
+        : STAGE_MESSAGES.ADVANCED_INSTRUCTIONS;
     case 'open':
-      return 'STAGE: OPEN - Final configuration stage. Ask user for any additional requirements or constraints. User can say "N/A" if none.';
+      return STAGE_MESSAGES.OPEN_INSTRUCTIONS;
     default:
-      return 'STAGE: UNKNOWN - Present questions to the user and wait for their response.';
+      return STAGE_MESSAGES.UNKNOWN_INSTRUCTIONS;
   }
 }
 
@@ -313,15 +314,15 @@ function getQuestionsForStage(solution: any, stage: Stage): any[] {
 function getStageMessage(stage: Stage): string {
   switch (stage) {
     case 'required':
-      return 'Please answer the required configuration questions.';
+      return STAGE_MESSAGES.REQUIRED_MESSAGE;
     case 'basic':
-      return 'Would you like to configure basic settings?';
+      return STAGE_MESSAGES.BASIC_MESSAGE;
     case 'advanced':
-      return 'Would you like to configure advanced features?';
+      return STAGE_MESSAGES.ADVANCED_MESSAGE;
     case 'open':
-      return 'Any additional requirements or constraints?';
+      return STAGE_MESSAGES.OPEN_MESSAGE;
     default:
-      return 'Configuration stage unknown.';
+      return STAGE_MESSAGES.UNKNOWN_MESSAGE;
   }
 }
 
@@ -331,18 +332,18 @@ function getStageMessage(stage: Stage): string {
 function getStageGuidance(stage: Stage, isHelm: boolean = false): string {
   switch (stage) {
     case 'required':
-      return 'Present all required questions to the user. All must be answered to proceed.';
+      return STAGE_MESSAGES.REQUIRED_GUIDANCE;
     case 'basic':
-      return 'Present all basic questions to the user. Show default values as suggestions but ask user to confirm each one.';
+      return STAGE_MESSAGES.BASIC_GUIDANCE;
     case 'advanced':
       // For Helm, don't mention the open stage since it's skipped
       return isHelm
-        ? 'Present all advanced questions to the user. Show default values as suggestions but ask user to confirm each one. After this stage: manifest generation.'
-        : 'Present all advanced questions to the user. Show default values as suggestions but ask user to confirm each one. After this stage: open stage.';
+        ? STAGE_MESSAGES.ADVANCED_GUIDANCE_HELM
+        : STAGE_MESSAGES.ADVANCED_GUIDANCE;
     case 'open':
-      return 'Ask user for any additional requirements or constraints. User can say "N/A" if none.';
+      return STAGE_MESSAGES.OPEN_GUIDANCE;
     default:
-      return 'Present all questions to the user and collect their responses.';
+      return STAGE_MESSAGES.DEFAULT_GUIDANCE;
   }
 }
 

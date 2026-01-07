@@ -18,6 +18,7 @@ import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
 import { extractJsonFromAIResponse, execAsync } from './platform-utils';
+import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { HelmChartInfo } from './helm-types';
 import { sanitizeChartInfo } from './helm-utils';
 
@@ -491,7 +492,7 @@ export class ResourceRecommender {
     interaction_id?: string
   ): Promise<SolutionResult> {
     if (!this.aiProvider.isInitialized()) {
-      throw new Error('AI provider not initialized. API key required for AI-powered resource ranking.');
+      throw new Error(AI_SERVICE_ERROR_TEMPLATES.PROVIDER_NOT_INITIALIZED('AI-powered resource ranking'));
     }
 
     try {

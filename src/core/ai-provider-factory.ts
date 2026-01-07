@@ -15,6 +15,7 @@ import {
 import { VercelProvider } from './providers/vercel-provider';
 import { HostProvider } from './providers/host-provider';
 import { NoOpAIProvider } from './providers/noop-provider';
+import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { CURRENT_MODELS } from './model-config';
 
 /**
@@ -70,7 +71,7 @@ export class AIProviderFactory {
 
     // Validate configuration
     if (!config.apiKey) {
-      throw new Error(`API key is required for ${config.provider} provider`);
+      throw new Error(AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(config.provider));
     }
 
     if (!config.provider) {

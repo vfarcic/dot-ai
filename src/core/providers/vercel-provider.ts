@@ -12,6 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { AI_SERVICE_ERROR_TEMPLATES } from '../constants';
 import {
   AIProvider,
   AIResponse,
@@ -28,6 +29,7 @@ import {
   EvaluationMetrics,
 } from './provider-debug-utils';
 import { CURRENT_MODELS } from '../model-config';
+import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
@@ -56,12 +58,12 @@ export class VercelProvider implements AIProvider {
 
   private validateConfiguration(): void {
     if (!this.apiKey) {
-      throw new Error(`API key is required for ${this.providerType} provider`);
+      throw new Error(AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType));
     }
 
     if (!SUPPORTED_PROVIDERS.includes(this.providerType)) {
       throw new Error(
-        `Unsupported provider: ${this.providerType}. Must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`
+        AI_SERVICE_ERROR_TEMPLATES.UNSUPPORTED_PROVIDER(this.providerType, SUPPORTED_PROVIDERS)
       );
     }
   }
@@ -687,8 +689,7 @@ export class VercelProvider implements AIProvider {
               // Add wrap-up instruction
               wrapUpMessages.push({
                 role: 'user',
-                content:
-                  'You have reached the maximum number of investigation steps. Please provide your final summary NOW in the required JSON format based on all findings gathered so far. Do not request any more tool calls.',
+                content: INVESTIGATION_MESSAGES.WRAP_UP,
               });
 
               // Make final call WITHOUT tools

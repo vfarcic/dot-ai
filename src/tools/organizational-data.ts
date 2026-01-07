@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import { AI_SERVICE_ERROR_TEMPLATES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
@@ -125,7 +126,7 @@ async function validateEmbeddingService(
     return {
       success: false,
       error: {
-        message: 'OpenAI API key required for pattern management',
+        message: AI_SERVICE_ERROR_TEMPLATES.OPENAI_KEY_REQUIRED('pattern management'),
         details: 'Pattern management requires OpenAI embeddings for semantic search and storage. The system cannot proceed without proper configuration.',
         reason: status.reason,
         setup: {
@@ -139,7 +140,7 @@ async function validateEmbeddingService(
         currentConfig: {
           OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'set' : 'not set',
           QDRANT_URL: process.env.QDRANT_URL || 'http://localhost:6333',
-          status: 'embedding service unavailable'
+          status: AI_SERVICE_ERROR_TEMPLATES.EMBEDDING_SERVICE_UNAVAILABLE
         }
       }
     };
