@@ -17,13 +17,9 @@ source scripts/cnpg.nu
 def main [] {}
 
 def "main setup" [
-    --dot-ai-tag: string = "0.185.0",
-    --qdrant-run = false,
-    --qdrant-tag: string = "latest",
-    --dot-ai-kubernetes-enabled = true,
+    --stack-version: string = "0.9.0",
     --kyverno-enabled = true,
     --atlas-enabled = true,
-    --toolhive-enabled = false,
     --crossplane-enabled = true,
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
     --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
@@ -37,24 +33,6 @@ def "main setup" [
 
     let anthropic_data = main get anthropic
     let openai_data = main get openai
-
-    let dot_ai_image = $"ghcr.io/vfarcic/dot-ai:($dot_ai_tag)"
-
-    $"export DOT_AI_IMAGE=($dot_ai_image)\n" | save --append .env
-
-    docker image pull $dot_ai_image
-
-    let qdrant_image = $"ghcr.io/vfarcic/dot-ai-demo/qdrant:($qdrant_tag)"
-
-    $"export QDRANT_IMAGE=($qdrant_image)\n" | save --append .env
-
-    if $qdrant_run {
-
-        docker image pull $qdrant_image
-
-        docker container run --detach --name qdrant --publish 6333:6333 $qdrant_image
-
-    }
 
     main create kubernetes $kubernetes_provider
 
@@ -86,16 +64,14 @@ def "main setup" [
         main apply jaeger "nginx" "jaeger.127.0.0.1.nip.io"
     }
 
-    if $dot_ai_kubernetes_enabled {
-        (
-            main apply dot-ai
-                --anthropic-api-key $anthropic_data.token
-                --openai-api-key $openai_data.token
-                --enable-tracing true
-                --version $dot_ai_tag
-        )
-        main apply dot-ai-controller
-    }
+    (
+        main apply dot-ai
+            --anthropic-api-key $anthropic_data.token
+            --openai-api-key $openai_data.token
+            --enable-tracing true
+            --stack-version $stack_version
+            --enable-tracing true
+    )
 
     main print source
 
@@ -106,11 +82,6 @@ def "main destroy" [
 ] {
 
     main destroy kubernetes kind
-
-    if $qdrant_run {
-        docker container rm qdrant --force
-        docker volume rm qdrant-data
-    }
 
 }
 

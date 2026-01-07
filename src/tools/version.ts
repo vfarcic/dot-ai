@@ -12,6 +12,7 @@ import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage } from '../core/index';
+import { ResourceVectorService } from '../core/resource-vector-service';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
 import { getTracer, createTracedK8sClient } from '../core/tracing';
@@ -52,6 +53,12 @@ export interface SystemStatus {
       capabilities: {
         exists: boolean;
         documentsCount?: number;
+        error?: string;
+      };
+      resources: {
+        exists: boolean;
+        documentsCount?: number;
+        syncedTypes?: string[];
         error?: string;
       };
     };
@@ -143,7 +150,8 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
         collections: {
           patterns: { exists: false, error: 'Vector DB not accessible' },
           policies: { exists: false, error: 'Vector DB not accessible' },
-          capabilities: { exists: false, error: 'Vector DB not accessible' }
+          capabilities: { exists: false, error: 'Vector DB not accessible' },
+          resources: { exists: false, error: 'Vector DB not accessible' }
         }
       };
     }
@@ -171,13 +179,17 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
       return capabilityService.getCapabilitiesCount();
     });
 
+    // Test resources collection and get synced types
+    const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
+
     return {
       connected: true,
       url: config.url || 'unknown',
       collections: {
         patterns: patternsStatus,
         policies: policiesStatus,
-        capabilities: capabilitiesStatus
+        capabilities: capabilitiesStatus,
+        resources: resourcesStatus
       }
     };
   } catch (error) {
@@ -188,7 +200,8 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
       collections: {
         patterns: { exists: false, error: 'Vector DB connection failed' },
         policies: { exists: false, error: 'Vector DB connection failed' },
-        capabilities: { exists: false, error: 'Vector DB connection failed' }
+        capabilities: { exists: false, error: 'Vector DB connection failed' },
+        resources: { exists: false, error: 'Vector DB connection failed' }
       }
     };
   }
@@ -218,6 +231,47 @@ async function testCollectionStatus(
     return {
       exists: false,
       error: collectionNotExists ? `${collectionName} collection does not exist` : errorMessage
+    };
+  }
+}
+
+/**
+ * Test resources collection status and get unique synced resource types
+ */
+async function testResourcesCollectionStatus(
+  embeddingService: EmbeddingService
+): Promise<{ exists: boolean; documentsCount?: number; syncedTypes?: string[]; error?: string }> {
+  try {
+    const resourceVectorDB = new VectorDBService({ collectionName: 'resources' });
+    const resourceService = new ResourceVectorService('resources', resourceVectorDB, embeddingService);
+
+    const resources = await resourceService.listResources();
+    const documentsCount = resources.length;
+
+    // Extract unique resource types as "kind.group" (e.g., "Deployment.apps", "Service.")
+    const typeSet = new Set<string>();
+    for (const resource of resources) {
+      const group = resource.apiGroup || '';
+      const syncedType = group ? `${resource.kind}.${group}` : resource.kind;
+      typeSet.add(syncedType);
+    }
+    const syncedTypes = Array.from(typeSet).sort();
+
+    return {
+      exists: true,
+      documentsCount,
+      syncedTypes
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+      (errorMessage.toLowerCase().includes('not exist') ||
+       errorMessage.toLowerCase().includes('does not exist'));
+
+    return {
+      exists: false,
+      error: collectionNotExists ? 'resources collection does not exist' : errorMessage
     };
   }
 }
