@@ -70,6 +70,7 @@ def "main setup" [
             --openai-api-key $openai_data.token
             --enable-tracing true
             --stack-version $stack_version
+            --enable-tracing true
     )
 
     main print source
