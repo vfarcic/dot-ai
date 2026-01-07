@@ -7,6 +7,7 @@
 # > main apply dot-ai --provider openai --model gpt-4o
 # > main apply dot-ai --enable-tracing true
 def "main apply dot-ai" [
+    --stack-version = "0.10.0",
     --anthropic-api-key = "",
     --openai-api-key = "",
     --auth-token = "my-secret-token",
@@ -16,7 +17,6 @@ def "main apply dot-ai" [
     --ingress-class = "nginx",
     --host = "dot-ai.127.0.0.1.nip.io",
     --ui-host = "dot-ai-ui.127.0.0.1.nip.io",
-    --stack-version = "0.9.0",
     --enable-tracing = false
 ] {
 
@@ -37,7 +37,7 @@ def "main apply dot-ai" [
             --set 'dot-ai.extraEnv[0].name=OTEL_TRACING_ENABLED'
             --set-string 'dot-ai.extraEnv[0].value=true'
             --set 'dot-ai.extraEnv[1].name=OTEL_EXPORTER_OTLP_ENDPOINT'
-            --set 'dot-ai.extraEnv[1].value=http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces'
+            --set 'dot-ai.extraEnv[1].value=http://jaeger.observability.svc.cluster.local:4318/v1/traces'
             --set 'dot-ai.extraEnv[2].name=OTEL_SERVICE_NAME'
             --set 'dot-ai.extraEnv[2].value=dot-ai-mcp'
         ]
@@ -67,7 +67,7 @@ def "main apply dot-ai" [
     print $"DevOps AI UI is available at (ansi yellow_bold)http://($ui_host)(ansi reset)"
 
     # Update .env with auth token for MCP clients
-    $"DOT_AI_AUTH_TOKEN=($auth_token)\n" | save --append .env
+    $"export DOT_AI_AUTH_TOKEN=($auth_token)\n" | save --append .env
 
     if $enable_tracing {
         print $"Tracing enabled: Traces will be sent to (ansi yellow_bold)Jaeger in observability namespace(ansi reset)"
