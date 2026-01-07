@@ -9,6 +9,7 @@
 
 import { AITool } from './ai-provider.interface';
 import { ResourceVectorService } from './resource-vector-service';
+import { VALIDATION_MESSAGES } from './constants/validation';
 
 /**
  * Tool: search_resources
@@ -138,7 +139,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
         if (!query) {
           return {
             success: false,
-            error: 'Missing required parameter: query',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('query'),
             message: 'search_resources requires a query parameter'
           };
         }
@@ -175,7 +176,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
         if (!filter) {
           return {
             success: false,
-            error: 'Missing required parameter: filter',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('filter'),
             message: 'query_resources requires a filter parameter with Qdrant filter syntax'
           };
         }

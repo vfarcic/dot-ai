@@ -9,6 +9,7 @@
 
 import { AITool } from './ai-provider.interface';
 import { executeKubectl } from './kubernetes-utils';
+import { VALIDATION_MESSAGES } from './constants/validation';
 
 /**
  * Tool: kubectl_api_resources
@@ -245,7 +246,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!resource) {
           return {
             success: false,
-            error: 'Missing required parameter: resource',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
             message: 'kubectl_get requires a resource parameter'
           };
         }
@@ -287,7 +288,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!resource) {
           return {
             success: false,
-            error: 'Missing required parameter: resource',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
             message: 'kubectl_describe requires a resource parameter'
           };
         }
@@ -314,7 +315,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!resource) {
           return {
             success: false,
-            error: 'Missing required parameter: resource',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
             message: 'kubectl_logs requires a resource parameter'
           };
         }
@@ -322,7 +323,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!namespace) {
           return {
             success: false,
-            error: 'Missing required parameter: namespace',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('namespace'),
             message: 'kubectl_logs requires a namespace parameter'
           };
         }
@@ -373,7 +374,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!resource) {
           return {
             success: false,
-            error: 'Missing required parameter: resource',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
             message: 'kubectl_patch_dryrun requires a resource parameter'
           };
         }
@@ -381,7 +382,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!patch) {
           return {
             success: false,
-            error: 'Missing required parameter: patch',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('patch'),
             message: 'kubectl_patch_dryrun requires a patch parameter'
           };
         }
@@ -419,7 +420,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!manifest) {
           return {
             success: false,
-            error: 'Missing required parameter: manifest',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('manifest'),
             message: 'kubectl_apply_dryrun requires a manifest parameter'
           };
         }
@@ -447,7 +448,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!resource) {
           return {
             success: false,
-            error: 'Missing required parameter: resource',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
             message: 'kubectl_delete_dryrun requires a resource parameter'
           };
         }
@@ -474,7 +475,7 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         if (!crdName) {
           return {
             success: false,
-            error: 'Missing required parameter: crdName',
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('crdName'),
             message: 'kubectl_get_crd_schema requires a crdName parameter (e.g., "clusters.postgresql.cnpg.io")'
           };
         }

@@ -20,6 +20,7 @@ import {
   formatToolOutput,
   extractToolCalls,
 } from './tool-utils';
+import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 
 export interface SamplingMessage {
   role: 'user' | 'assistant';
@@ -381,7 +382,7 @@ export class HostProvider implements AIProvider {
 
         // Max iterations reached - make one final wrap-up call WITHOUT tools
         // to force the AI to summarize findings rather than continue investigating
-        const wrapUpMessage = 'You have reached the maximum number of investigation steps. Please provide your final summary NOW in the required JSON format based on all findings gathered so far. Do not request any more tool calls.';
+        const wrapUpMessage = INVESTIGATION_MESSAGES.WRAP_UP;
 
         messages.push({
           role: 'user',

@@ -10,6 +10,7 @@ import {
   ErrorCategory,
   ErrorSeverity,
 } from '../core/error-handling';
+import { VALIDATION_MESSAGES } from '../core/constants/validation';
 
 export interface PromptArgument {
   name: string;
@@ -319,7 +320,7 @@ export async function handlePromptsGetRequest(
     });
 
     if (!args.name) {
-      throw new Error('Missing required parameter: name');
+      throw new Error(VALIDATION_MESSAGES.MISSING_PARAMETER('name'));
     }
 
     const prompts = await loadAllPrompts(

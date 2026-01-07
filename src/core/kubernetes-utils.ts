@@ -7,6 +7,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { withKubectlTracing } from './tracing';
+import { KUBERNETES_ERROR_TEMPLATES } from './constants';
 
 const execAsync = promisify(exec);
 
@@ -241,53 +242,53 @@ export class ErrorClassifier {
 
   private static enhanceAuthenticationError(message: string): string {
     if (message.includes('invalid bearer token')) {
-      return `Token may be expired: Bearer token authentication failed.\n\nTroubleshooting steps:\n- Token may be expired - refresh credentials\n- Check token format in kubeconfig\n- Re-authenticate with cluster: kubectl auth login\n- Verify service account token if applicable\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.AUTHENTICATION.INVALID_TOKEN(message);
     }
 
     if (message.includes('certificate')) {
-      return `Certificate authentication failed: Client certificate validation error.\n\nTroubleshooting steps:\n- Verify certificate path in kubeconfig\n- Check certificate expiration date\n- Ensure certificate authority (CA) bundle is correct\n- Re-generate client certificates if needed\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.AUTHENTICATION.CERTIFICATE_FAILED(message);
     }
 
     if (message.includes('no Auth Provider found')) {
-      return `Authentication provider not available: Required auth plugin missing.\n\nTroubleshooting steps:\n- Install required authentication plugin (e.g., OIDC)\n- Check kubectl config for auth provider configuration\n- Verify authentication method compatibility\n- Consult cluster administrator for auth setup\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.AUTHENTICATION.PROVIDER_MISSING(message);
     }
 
-    return `Authentication failed: Invalid or missing credentials.\n\nTroubleshooting steps:\n- Verify credentials in kubeconfig\n- Re-authenticate with cluster\n- Check authentication method configuration\n- Contact cluster administrator if needed\n\nOriginal error: ${message}`;
+    return KUBERNETES_ERROR_TEMPLATES.AUTHENTICATION.GENERIC_FAILED(message);
   }
 
   private static enhanceAuthorizationError(message: string): string {
     if (message.includes('customresourcedefinitions')) {
-      return `CRD discovery requires cluster-level permissions: Insufficient RBAC permissions.\n\nTroubleshooting steps:\n- CRD discovery requires admin privileges\n- Request cluster-admin role or CRD read permissions\n- Contact cluster administrator for permission escalation\n- Use 'kubectl auth can-i list customresourcedefinitions' to check permissions\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.AUTHORIZATION.CRD_PERMISSIONS(message);
     }
 
     if (message.includes('forbidden')) {
-      return `Insufficient permissions: RBAC restrictions prevent this operation.\n\nTroubleshooting steps:\n- RBAC role required for resource access\n- Request appropriate permissions from cluster administrator\n- Check current permissions: kubectl auth can-i list <resource>\n- Consider using cluster-admin role for discovery operations\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.AUTHORIZATION.FORBIDDEN(message);
     }
 
-    return `Permission denied: Insufficient RBAC permissions for cluster access.\n\nTroubleshooting steps:\n- Request appropriate RBAC permissions\n- Check current access: kubectl auth can-i list <resource>\n- Contact cluster administrator for role assignment\n- Verify service account permissions if applicable\n\nOriginal error: ${message}`;
+    return KUBERNETES_ERROR_TEMPLATES.AUTHORIZATION.PERMISSION_DENIED(message);
   }
 
   private static enhanceAPIAvailabilityError(message: string): string {
     if (message.includes('apps/v1beta1')) {
-      return `API version not supported: Cluster doesn't support requested API version.\n\nTroubleshooting steps:\n- Try different API version (e.g., apps/v1 instead of apps/v1beta1)\n- Check available API versions: kubectl api-versions\n- Verify Kubernetes cluster version compatibility\n- Consult API migration guides for version changes\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.API.VERSION_UNSUPPORTED(message);
     }
 
-    return `API resource not available: Requested resource type not found in cluster.\n\nTroubleshooting steps:\n- Check available resources: kubectl api-resources\n- Verify cluster supports required resource types\n- Check Kubernetes version compatibility\n- Confirm cluster configuration and enabled APIs\n\nOriginal error: ${message}`;
+    return KUBERNETES_ERROR_TEMPLATES.API.RESOURCE_UNAVAILABLE(message);
   }
 
   private static enhanceKubeconfigError(message: string): string {
     if (message.includes('context') && message.includes('does not exist')) {
-      return `Context not found: Specified context doesn't exist in kubeconfig.\n\nTroubleshooting steps:\n- List available contexts: kubectl config get-contexts\n- Set correct context: kubectl config use-context <context-name>\n- Verify kubeconfig file contains required context\n- Check context name spelling and case sensitivity\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.KUBECONFIG.CONTEXT_NOT_FOUND(message);
     }
 
     if (message.includes('not found')) {
-      return `Kubeconfig file not found: Cannot locate configuration file.\n\nTroubleshooting steps:\n- Check file path exists and is accessible\n- Verify kubeconfig file permissions\n- Set KUBECONFIG environment variable if needed\n- Create kubeconfig file or copy from cluster administrator\n\nOriginal error: ${message}`;
+      return KUBERNETES_ERROR_TEMPLATES.KUBECONFIG.FILE_NOT_FOUND(message);
     }
 
-    return `Invalid kubeconfig format: Configuration file has syntax or format errors.\n\nTroubleshooting steps:\n- Validate YAML syntax in kubeconfig file\n- Check file structure: kubectl config view\n- Restore from backup or re-download from cluster\n- Verify all required sections (clusters, contexts, users)\n\nOriginal error: ${message}`;
+    return KUBERNETES_ERROR_TEMPLATES.KUBECONFIG.INVALID_FORMAT(message);
   }
 
   private static enhanceVersionCompatibilityError(message: string): string {
-    return `Kubernetes version compatibility issue: Version mismatch detected.\n\nTroubleshooting steps:\n- Check cluster and client versions: kubectl version\n- Verify supported Kubernetes versions for this tool\n- Update kubectl client if needed\n- Consult compatibility matrix for version support\n\nOriginal error: ${message}`;
+    return KUBERNETES_ERROR_TEMPLATES.VERSION_COMPATIBILITY(message);
   }
 } 

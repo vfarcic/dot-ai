@@ -10,6 +10,7 @@ import { join } from 'path';
 import { z } from 'zod';
 import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
+import { AI_SERVICE_ERRORS } from '../core/constants';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { KubernetesDiscovery } from '../core/discovery';
@@ -623,7 +624,7 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
         connected: false,
         keyConfigured: false,
         providerType: aiProvider.getProviderType(),
-        error: 'AI provider API key not configured'
+        error: AI_SERVICE_ERRORS.API_KEY_INVALID
       };
     }
 
