@@ -56,6 +56,7 @@ def "main apply dot-ai" [
             --set $"dot-ai.ingress.enabled=($ingress_enabled)"
             --set $"dot-ai.ingress.className=($ingress_class)"
             --set $"dot-ai.ingress.host=($host)"
+            --set $"dot-ai.webUI.baseUrl=http://($ui_host)"
             --set $"dot-ai-ui.ingress.enabled=($ingress_enabled)"
             --set $"dot-ai-ui.ingress.host=($ui_host)"
             ...$tracing_flags
