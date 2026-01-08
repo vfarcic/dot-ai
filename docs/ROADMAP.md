@@ -18,7 +18,6 @@ This roadmap is a living document and may change based on community feedback and
 - GitOps integration in recommend workflow (PRD #266)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
-- Fix feedback message display - move from JSON to separate content block (PRD #326)
 
 ## Medium-term (3-6 Months)
 

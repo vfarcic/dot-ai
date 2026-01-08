@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-handling';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
-import { VectorDBService, PatternVectorService, maybeGetFeedbackMessage } from './index';
+import { VectorDBService, PatternVectorService } from './index';
 import { getAndValidateSessionDirectory } from './session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -293,9 +293,6 @@ export async function handlePatternOperation(
       const storageSucceeded = storageInfo.stored === true;
       const operationSucceeded = !isComplete || storageSucceeded;
 
-      // Check if we should show feedback message (workflow completion point)
-      const feedbackMessage = (isComplete && storageSucceeded) ? maybeGetFeedbackMessage() : '';
-
       return {
         success: operationSucceeded,
         operation: 'create',
@@ -303,7 +300,7 @@ export async function handlePatternOperation(
         workflow: workflowStep,
         storage: storageInfo,
         message: isComplete ?
-          (storageSucceeded ? `Pattern created successfully${feedbackMessage}` : `Pattern creation failed: ${storageInfo.error}`) :
+          (storageSucceeded ? `Pattern created successfully` : `Pattern creation failed: ${storageInfo.error}`) :
           'Workflow step ready'
       };
     }

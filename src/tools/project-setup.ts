@@ -10,6 +10,7 @@ import { handleDiscovery } from './project-setup/discovery';
 import { handleReportScan } from './project-setup/report-scan';
 import { handleGenerateScope } from './project-setup/generate-scope';
 import { randomUUID } from 'crypto';
+import { maybeGetFeedbackMessage } from '../core/feedback';
 
 // Tool metadata for MCP registration
 export const PROJECT_SETUP_TOOL_NAME = 'projectSetup';
@@ -155,12 +156,23 @@ async function handleGenerateScopeStep(
     requestId
   );
 
-  return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(response, null, 2)
-    }]
-  };
+  const content: Array<{ type: string; text: string }> = [{
+    type: 'text',
+    text: JSON.stringify(response, null, 2)
+  }];
+
+  // PRD #326: Add feedback message as separate content block so agents display it to users
+  if (response.success) {
+    const feedbackMessage = maybeGetFeedbackMessage();
+    if (feedbackMessage) {
+      content.push({
+        type: 'text',
+        text: feedbackMessage
+      });
+    }
+  }
+
+  return { content };
 }
 
 /**
