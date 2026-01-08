@@ -1,5 +1,7 @@
 # PRD #326: Feedback Message Content Block Display
 
+**Status**: ✅ Complete (2026-01-08)
+
 ## Problem Statement
 
 The feedback message (shown approximately 5% of the time via `maybeGetFeedbackMessage()`) is currently embedded inside the JSON response object as a `message` property. AI agents typically parse JSON responses and extract/summarize the "important" parts, often choosing not to display embedded messages like feedback prompts to users.
