@@ -8,7 +8,7 @@ import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
-import { maybeGetFeedbackMessage } from '../core/index';
+import { maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -664,20 +664,24 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             }
           };
 
-          // PRD #326: Add feedback message as separate content block so agents display it to users
+          // Build response with optional feedback message in JSON
           const feedbackMessage = maybeGetFeedbackMessage();
+          const responseWithFeedback = {
+            ...successResponse,
+            ...(feedbackMessage ? { feedbackMessage } : {})
+          };
+
           const content: Array<{ type: 'text'; text: string }> = [
             {
               type: 'text' as const,
-              text: JSON.stringify(successResponse, null, 2)
+              text: JSON.stringify(responseWithFeedback, null, 2)
             }
           ];
 
-          if (feedbackMessage) {
-            content.push({
-              type: 'text' as const,
-              text: feedbackMessage
-            });
+          // Add agent instruction block if feedback message is present
+          const agentDisplayBlock = buildAgentDisplayBlock({ feedbackMessage });
+          if (agentDisplayBlock) {
+            content.push(agentDisplayBlock);
           }
 
           return { content };
@@ -756,22 +760,24 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     failedActions: results.filter(r => !r.success).length
   });
 
+  // Build response with optional feedback message in JSON (only on success)
+  const executionFeedbackMessage = overallSuccess ? maybeGetFeedbackMessage() : '';
+  const responseWithFeedback = {
+    ...response,
+    ...(executionFeedbackMessage ? { feedbackMessage: executionFeedbackMessage } : {})
+  };
+
   const content: Array<{ type: 'text'; text: string }> = [
     {
       type: 'text' as const,
-      text: JSON.stringify(response, null, 2)
+      text: JSON.stringify(responseWithFeedback, null, 2)
     }
   ];
 
-  // PRD #326: Add feedback message as separate content block so agents display it to users
-  if (overallSuccess) {
-    const executionFeedbackMessage = maybeGetFeedbackMessage();
-    if (executionFeedbackMessage) {
-      content.push({
-        type: 'text' as const,
-        text: executionFeedbackMessage
-      });
-    }
+  // Add agent instruction block if feedback message is present
+  const agentDisplayBlock = buildAgentDisplayBlock({ feedbackMessage: executionFeedbackMessage });
+  if (agentDisplayBlock) {
+    content.push(agentDisplayBlock);
   }
 
   return { content };
@@ -862,25 +868,25 @@ export async function handleRemediateTool(args: any): Promise<any> {
         status: finalAnalysis.status
       });
 
-      // PRD #320: Generate visualization URL for resolved issues
+      // Generate visualization URL for resolved issues
       const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-      // PRD #320: Append visualization URL to message so agents display it to users
-      const messageWithVisualization = visualizationUrl
-        ? `${finalAnalysis.message}\n\n📊 View visualization: ${visualizationUrl}`
-        : finalAnalysis.message;
+      // Build response with visualization URL in JSON
+      const content: Array<{ type: 'text'; text: string }> = [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          ...finalAnalysis,
+          ...(visualizationUrl ? { visualizationUrl } : {})
+        }, null, 2)
+      }];
 
-      // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            ...finalAnalysis,
-            message: messageWithVisualization,
-            ...(visualizationUrl && { visualizationUrl })
-          }, null, 2)
-        }]
-      };
+      // Add agent instruction block if visualization URL is present
+      const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+      if (agentDisplayBlock) {
+        content.push(agentDisplayBlock);
+      }
+
+      return { content };
     }
 
     // Make execution decision based on mode and thresholds
@@ -942,25 +948,25 @@ export async function handleRemediateTool(args: any): Promise<any> {
       );
     }
 
-    // PRD #320: Generate visualization URL for analysis response
+    // Generate visualization URL for analysis response
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-    // PRD #320: Append visualization URL to message so agents display it to users
-    const messageWithVisualization = visualizationUrl
-      ? `${finalResult.message}\n\n📊 View visualization: ${visualizationUrl}`
-      : finalResult.message;
+    // Build response with visualization URL in JSON
+    const content: Array<{ type: 'text'; text: string }> = [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        ...finalResult,
+        ...(visualizationUrl ? { visualizationUrl } : {})
+      }, null, 2)
+    }];
 
-    // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          ...finalResult,
-          message: messageWithVisualization,
-          ...(visualizationUrl && { visualizationUrl })
-        }, null, 2)
-      }]
-    };
+    // Add agent instruction block if visualization URL is present
+    const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+    if (agentDisplayBlock) {
+      content.push(agentDisplayBlock);
+    }
+
+    return { content };
 
   } catch (error) {
 

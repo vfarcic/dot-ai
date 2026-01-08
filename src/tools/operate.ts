@@ -11,7 +11,7 @@ import { CapabilityVectorService } from '../core/capability-vector-service';
 import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
-import { maybeGetFeedbackMessage } from '../core/feedback';
+import { maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
@@ -325,29 +325,28 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 export async function handleOperateTool(args: any): Promise<any> {
   const result = await operate(args);
 
-  // PRD #320: Embed visualization URL in message so agents display it to users
-  const messageWithVisualization = result.visualizationUrl
-    ? `${result.message}\n\n📊 View visualization: ${result.visualizationUrl}`
-    : result.message;
+  // Get feedback message for successful operations
+  const feedbackMessage = result.status === 'success' ? maybeGetFeedbackMessage() : '';
 
-  // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
+  // Build response with visualization URL and feedback message in JSON
+  const responseData = {
+    ...result,
+    ...(feedbackMessage ? { feedbackMessage } : {})
+  };
+
+  // Build content blocks - JSON for REST API, agent instruction for MCP agents
   const content: Array<{ type: 'text'; text: string }> = [{
     type: 'text' as const,
-    text: JSON.stringify({
-      ...result,
-      message: messageWithVisualization
-    }, null, 2)
+    text: JSON.stringify(responseData, null, 2)
   }];
 
-  // PRD #326: Add feedback message as separate content block so agents display it to users
-  if (result.status === 'success') {
-    const feedbackMessage = maybeGetFeedbackMessage();
-    if (feedbackMessage) {
-      content.push({
-        type: 'text' as const,
-        text: feedbackMessage
-      });
-    }
+  // Add agent instruction block if visualization URL or feedback message is present
+  const agentDisplayBlock = buildAgentDisplayBlock({
+    visualizationUrl: result.visualizationUrl,
+    feedbackMessage
+  });
+  if (agentDisplayBlock) {
+    content.push(agentDisplayBlock);
   }
 
   return { content };

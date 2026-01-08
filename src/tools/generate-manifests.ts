@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { DotAI, maybeGetFeedbackMessage } from '../core/index';
+import { DotAI, maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
 import { ManifestValidator, ValidationResult } from '../core/schema';
@@ -532,28 +532,20 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          ...(visualizationUrl && { visualizationUrl })
+          ...(visualizationUrl ? { visualizationUrl } : {}),
+          ...(feedbackMessage ? { feedbackMessage } : {})
         };
 
-        // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+        // Build content blocks - JSON for REST API, agent instruction for MCP agents
         const content: Array<{ type: 'text'; text: string }> = [{
           type: 'text' as const,
           text: JSON.stringify(response, null, 2)
         }];
 
-        if (visualizationUrl) {
-          content.push({
-            type: 'text' as const,
-            text: `📊 **View visualization**: ${visualizationUrl}`
-          });
-        }
-
-        // PRD #326: Add feedback message as separate content block so agents display it to users
-        if (feedbackMessage) {
-          content.push({
-            type: 'text' as const,
-            text: feedbackMessage
-          });
+        // Add agent instruction block if visualization URL or feedback message is present
+        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+        if (agentDisplayBlock) {
+          content.push(agentDisplayBlock);
         }
 
         return { content };
@@ -1021,28 +1013,20 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-                ...(visualizationUrl && { visualizationUrl })
+                ...(visualizationUrl ? { visualizationUrl } : {}),
+                ...(feedbackMessage ? { feedbackMessage } : {})
               };
 
-              // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+              // Build content blocks - JSON for REST API, agent instruction for MCP agents
               const content: Array<{ type: 'text'; text: string }> = [{
                 type: 'text' as const,
                 text: JSON.stringify(response, null, 2)
               }];
 
-              if (visualizationUrl) {
-                content.push({
-                  type: 'text' as const,
-                  text: `📊 **View visualization**: ${visualizationUrl}`
-                });
-              }
-
-              // PRD #326: Add feedback message as separate content block so agents display it to users
-              if (feedbackMessage) {
-                content.push({
-                  type: 'text' as const,
-                  text: feedbackMessage
-                });
+              // Add agent instruction block if visualization URL or feedback message is present
+              const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+              if (agentDisplayBlock) {
+                content.push(agentDisplayBlock);
               }
 
               return { content };
@@ -1076,28 +1060,20 @@ export async function handleGenerateManifestsTool(
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-              ...(visualizationUrl && { visualizationUrl })
+              ...(visualizationUrl ? { visualizationUrl } : {}),
+              ...(feedbackMessage ? { feedbackMessage } : {})
             };
 
-            // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+            // Build content blocks - JSON for REST API, agent instruction for MCP agents
             const content: Array<{ type: 'text'; text: string }> = [{
               type: 'text' as const,
               text: JSON.stringify(response, null, 2)
             }];
 
-            if (visualizationUrl) {
-              content.push({
-                type: 'text' as const,
-                text: `📊 **View visualization**: ${visualizationUrl}`
-              });
-            }
-
-            // PRD #326: Add feedback message as separate content block so agents display it to users
-            if (feedbackMessage) {
-              content.push({
-                type: 'text' as const,
-                text: feedbackMessage
-              });
+            // Add agent instruction block if visualization URL or feedback message is present
+            const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+            if (agentDisplayBlock) {
+              content.push(agentDisplayBlock);
             }
 
             return { content };

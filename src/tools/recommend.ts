@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { ErrorHandler } from '../core/error-handling';
 import { ResourceRecommender } from '../core/schema';
-import { DotAI } from '../core/index';
+import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
 import { GenericSessionManager } from '../core/generic-session-manager';
@@ -360,17 +360,16 @@ export async function handleRecommendTool(
           ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
         });
 
-        // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+        // Build content blocks - JSON for REST API, agent instruction for MCP agents
         const content: Array<{ type: 'text'; text: string }> = [{
           type: 'text' as const,
           text: JSON.stringify(helmResponse, null, 2)
         }];
 
-        if (helmVisualizationUrl) {
-          content.push({
-            type: 'text' as const,
-            text: `📊 **View visualization**: ${helmVisualizationUrl}`
-          });
+        // Add agent instruction block if visualization URL is present
+        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl: helmVisualizationUrl });
+        if (agentDisplayBlock) {
+          content.push(agentDisplayBlock);
         }
 
         return { content };
@@ -469,17 +468,16 @@ export async function handleRecommendTool(
         ...(visualizationUrl && { visualizationUrl })
       });
 
-      // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+      // Build content blocks - JSON for REST API, agent instruction for MCP agents
       const content: Array<{ type: 'text'; text: string }> = [{
         type: 'text' as const,
         text: JSON.stringify(response, null, 2)
       }];
 
-      if (visualizationUrl) {
-        content.push({
-          type: 'text' as const,
-          text: `📊 **View visualization**: ${visualizationUrl}`
-        });
+      // Add agent instruction block if visualization URL is present
+      const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+      if (agentDisplayBlock) {
+        content.push(agentDisplayBlock);
       }
 
       return { content };

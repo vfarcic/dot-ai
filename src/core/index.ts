@@ -164,6 +164,7 @@ export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
 export { FeedbackConfig, loadFeedbackConfig, shouldShowFeedback, getFeedbackMessage, maybeGetFeedbackMessage } from './feedback';
+export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
 
 // Default export
 export default DotAI; 

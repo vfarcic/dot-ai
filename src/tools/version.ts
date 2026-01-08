@@ -11,7 +11,7 @@ import { z } from 'zod';
 import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage } from '../core/index';
+import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
@@ -58,7 +58,6 @@ export interface SystemStatus {
       resources: {
         exists: boolean;
         documentsCount?: number;
-        syncedTypes?: string[];
         error?: string;
       };
     };
@@ -236,11 +235,11 @@ async function testCollectionStatus(
 }
 
 /**
- * Test resources collection status and get unique synced resource types
+ * Test resources collection status
  */
 async function testResourcesCollectionStatus(
   embeddingService: EmbeddingService
-): Promise<{ exists: boolean; documentsCount?: number; syncedTypes?: string[]; error?: string }> {
+): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
   try {
     const resourceVectorDB = new VectorDBService({ collectionName: 'resources' });
     const resourceService = new ResourceVectorService('resources', resourceVectorDB, embeddingService);
@@ -248,19 +247,9 @@ async function testResourcesCollectionStatus(
     const resources = await resourceService.listResources();
     const documentsCount = resources.length;
 
-    // Extract unique resource types as "kind.group" (e.g., "Deployment.apps", "Service.")
-    const typeSet = new Set<string>();
-    for (const resource of resources) {
-      const group = resource.apiGroup || '';
-      const syncedType = group ? `${resource.kind}.${group}` : resource.kind;
-      typeSet.add(syncedType);
-    }
-    const syncedTypes = Array.from(typeSet).sort();
-
     return {
       exists: true,
-      documentsCount,
-      syncedTypes
+      documentsCount
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -843,35 +832,26 @@ export async function handleVersionTool(
     // PRD #320: Generate visualization URL if configured
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-    // PRD #320: Build response with visualization instruction for agents
+    // Build response with optional visualization URL and feedback message in JSON
     const responseData = {
       status: 'success',
       system: systemStatus,
       summary,
       timestamp,
-      ...(visualizationUrl ? { visualizationUrl } : {})
+      ...(visualizationUrl ? { visualizationUrl } : {}),
+      ...(feedbackMessage ? { feedbackMessage } : {})
     };
 
-    // PRD #320: Return two content blocks - JSON for REST API, text instruction for MCP agents
+    // Build content blocks - JSON for REST API, agent instruction for MCP agents
     const content: Array<{ type: 'text'; text: string }> = [{
       type: 'text' as const,
       text: JSON.stringify(responseData, null, 2)
     }];
 
-    // Add visualization instruction as second content block so agents display it to users
-    if (visualizationUrl) {
-      content.push({
-        type: 'text' as const,
-        text: `📊 **View visualization**: ${visualizationUrl}`
-      });
-    }
-
-    // PRD #326: Add feedback message as separate content block so agents display it to users
-    if (feedbackMessage) {
-      content.push({
-        type: 'text' as const,
-        text: feedbackMessage
-      });
+    // Add agent instruction block if visualization URL or feedback message is present
+    const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+    if (agentDisplayBlock) {
+      content.push(agentDisplayBlock);
     }
 
     return { content };
