@@ -168,9 +168,9 @@ EOF`);
 
       expect(investigationResponse).toMatchObject(expectedInvestigationResponse);
 
-      // PRD #320: Verify visualization URL is embedded in message for agent display
-      expect(investigationResponse.data.result.message).toContain('📊 View visualization:');
-      expect(investigationResponse.data.result.message).toContain(investigationResponse.data.result.visualizationUrl);
+      // PRD #320: Verify visualization URL is present in response (not embedded in message)
+      expect(investigationResponse.data.result.visualizationUrl).toBeTruthy();
+      expect(investigationResponse.data.result.visualizationUrl).toMatch(/^https?:\/\//);
 
       // Extract sessionId for execution
       const sessionId = investigationResponse.data.result.sessionId;

@@ -25,7 +25,7 @@ import { handleResourceSelection as handleResourceSelectionCore, handleResourceS
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { maybeGetFeedbackMessage } from '../core/feedback';
+import { maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
@@ -858,22 +858,27 @@ export async function handleOrganizationalDataTool(
       success: result.success
     });
 
-    // Return consistent MCP response format
+    // Get feedback message when pattern/policy creation workflow is complete and successful
+    const feedbackMessage = (result.success && result.operation === 'create' && result.storage?.stored === true)
+      ? maybeGetFeedbackMessage()
+      : '';
+
+    // Build response with optional feedback message in JSON
+    const responseData = {
+      ...result,
+      ...(feedbackMessage ? { feedbackMessage } : {})
+    };
+
+    // Build content blocks - JSON for REST API, agent instruction for MCP agents
     const content: Array<{ type: 'text'; text: string }> = [{
       type: 'text' as const,
-      text: JSON.stringify(result, null, 2)
+      text: JSON.stringify(responseData, null, 2)
     }];
 
-    // PRD #326: Add feedback message as separate content block so agents display it to users
-    // Show feedback when pattern/policy creation workflow is complete and successful
-    if (result.success && result.operation === 'create' && result.storage?.stored === true) {
-      const feedbackMessage = maybeGetFeedbackMessage();
-      if (feedbackMessage) {
-        content.push({
-          type: 'text' as const,
-          text: feedbackMessage
-        });
-      }
+    // Add agent instruction block if feedback message is present
+    const agentDisplayBlock = buildAgentDisplayBlock({ feedbackMessage });
+    if (agentDisplayBlock) {
+      content.push(agentDisplayBlock);
     }
 
     return { content };
