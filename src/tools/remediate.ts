@@ -641,9 +641,6 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
           });
           
           // Create success response with execution context
-          // Check if we should show feedback message (workflow completion point)
-          const feedbackMessage = maybeGetFeedbackMessage();
-
           const successResponse = {
             status: 'success',
             sessionId: session.sessionId,
@@ -660,21 +657,30 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             validationIntent: validationData.validationIntent,
             guidance: `✅ REMEDIATION COMPLETE: Issue has been successfully resolved through executed commands.`,
             agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the actual kubectl commands that were executed (from remediation.actions[].command field)\n3. Show execution results with success/failure status for each command\n4. Show the validation results confirming the fix worked\n5. No further action required`,
-            message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.${feedbackMessage}`,
+            message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.`,
             validation: {
               success: true,
               summary: 'Validation confirmed issue resolution'
             }
           };
-          
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(successResponse, null, 2)
-              }
-            ]
-          };
+
+          // PRD #326: Add feedback message as separate content block so agents display it to users
+          const feedbackMessage = maybeGetFeedbackMessage();
+          const content: Array<{ type: 'text'; text: string }> = [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(successResponse, null, 2)
+            }
+          ];
+
+          if (feedbackMessage) {
+            content.push({
+              type: 'text' as const,
+              text: feedbackMessage
+            });
+          }
+
+          return { content };
 
         } catch (error) {
           logger.warn('Post-execution validation failed', { 
@@ -696,9 +702,6 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     executionResults: results
   });
 
-  // Check if we should show feedback message (workflow completion point)
-  const executionFeedbackMessage = overallSuccess ? maybeGetFeedbackMessage() : '';
-
   const response = {
     status: overallSuccess ? 'success' : 'failed',
     sessionId: session.sessionId,
@@ -706,17 +709,17 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     results: results,
     executedCommands: results.map(r => r.action),
     message: overallSuccess
-      ? `Successfully executed ${results.length} remediation actions${executionFeedbackMessage}`
+      ? `Successfully executed ${results.length} remediation actions`
       : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
     validation: validationResult,
     instructions: {
       showExecutedCommands: true,
       showActualKubectlCommands: true,
-      nextSteps: overallSuccess 
-        ? validationResult 
+      nextSteps: overallSuccess
+        ? validationResult
           ? [
               'The following kubectl commands were executed to remediate the issue:',
-              ...finalAnalysis.remediation.actions.map((action, index) => 
+              ...finalAnalysis.remediation.actions.map((action, index) =>
                 `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
               ),
               'Automatic validation has been completed - see validation results above',
@@ -724,7 +727,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             ]
           : [
               'The following kubectl commands were executed to remediate the issue:',
-              ...finalAnalysis.remediation.actions.map((action, index) => 
+              ...finalAnalysis.remediation.actions.map((action, index) =>
                 `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
               ),
               `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
@@ -732,7 +735,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             ]
         : [
             'The following kubectl commands were attempted:',
-            ...finalAnalysis.remediation.actions.map((action, index) => 
+            ...finalAnalysis.remediation.actions.map((action, index) =>
               `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
             ),
             'Some remediation commands failed - check the results above',
@@ -745,22 +748,33 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     remediation: finalAnalysis.remediation
   };
 
-  logger.info('Remediation execution completed', { 
-    requestId, 
+  logger.info('Remediation execution completed', {
+    requestId,
     sessionId: session.sessionId,
     overallSuccess,
     successfulActions: results.filter(r => r.success).length,
     failedActions: results.filter(r => !r.success).length
   });
 
-  return {
-    content: [
-      {
+  const content: Array<{ type: 'text'; text: string }> = [
+    {
+      type: 'text' as const,
+      text: JSON.stringify(response, null, 2)
+    }
+  ];
+
+  // PRD #326: Add feedback message as separate content block so agents display it to users
+  if (overallSuccess) {
+    const executionFeedbackMessage = maybeGetFeedbackMessage();
+    if (executionFeedbackMessage) {
+      content.push({
         type: 'text' as const,
-        text: JSON.stringify(response, null, 2)
-      }
-    ]
-  };
+        text: executionFeedbackMessage
+      });
+    }
+  }
+
+  return { content };
 }
 
 /**
