@@ -10,7 +10,6 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import { executeCommands } from '../core/command-executor';
 import { OperateSessionData, ExecutionResult, OperateOutput } from './operate';
 import { handleRemediateTool } from './remediate';
-import { maybeGetFeedbackMessage } from '../core/index';
 
 /**
  * Executes approved operational changes
@@ -126,9 +125,6 @@ export async function executeOperations(
     });
 
     // 5. Return execution results with validation
-    // Check if we should show feedback message (workflow completion point)
-    const feedbackMessage = overallSuccess ? maybeGetFeedbackMessage() : '';
-
     return {
       status: overallSuccess ? 'success' : 'failed',
       sessionId,
@@ -137,7 +133,7 @@ export async function executeOperations(
         validation: validationSummary
       },
       message: overallSuccess
-        ? `All ${executionResults.length} command(s) executed successfully. ${validationSummary}${feedbackMessage}`
+        ? `All ${executionResults.length} command(s) executed successfully. ${validationSummary}`
         : `${executionResults.filter(r => !r.success).length} of ${executionResults.length} command(s) failed. See execution results for details.`
     };
 

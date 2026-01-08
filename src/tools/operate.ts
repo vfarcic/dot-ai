@@ -11,6 +11,7 @@ import { CapabilityVectorService } from '../core/capability-vector-service';
 import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
+import { maybeGetFeedbackMessage } from '../core/feedback';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
@@ -330,13 +331,24 @@ export async function handleOperateTool(args: any): Promise<any> {
     : result.message;
 
   // PRD #320: Return JSON with visualization URL in message (for agents) and visualizationUrl field (for REST API)
-  return {
-    content: [{
-      type: 'text' as const,
-      text: JSON.stringify({
-        ...result,
-        message: messageWithVisualization
-      }, null, 2)
-    }]
-  };
+  const content: Array<{ type: 'text'; text: string }> = [{
+    type: 'text' as const,
+    text: JSON.stringify({
+      ...result,
+      message: messageWithVisualization
+    }, null, 2)
+  }];
+
+  // PRD #326: Add feedback message as separate content block so agents display it to users
+  if (result.status === 'success') {
+    const feedbackMessage = maybeGetFeedbackMessage();
+    if (feedbackMessage) {
+      content.push({
+        type: 'text' as const,
+        text: feedbackMessage
+      });
+    }
+  }
+
+  return { content };
 }

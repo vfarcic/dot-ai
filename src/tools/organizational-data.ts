@@ -25,6 +25,7 @@ import { handleResourceSelection as handleResourceSelectionCore, handleResourceS
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { maybeGetFeedbackMessage } from '../core/feedback';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
@@ -850,20 +851,32 @@ export async function handleOrganizationalDataTool(
         );
     }
 
-    logger.info('Organizational-data tool request completed successfully', { 
-      requestId, 
+    logger.info('Organizational-data tool request completed successfully', {
+      requestId,
       dataType: args.dataType,
       operation: args.operation,
       success: result.success
     });
 
     // Return consistent MCP response format
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
+    const content: Array<{ type: 'text'; text: string }> = [{
+      type: 'text' as const,
+      text: JSON.stringify(result, null, 2)
+    }];
+
+    // PRD #326: Add feedback message as separate content block so agents display it to users
+    // Show feedback when pattern/policy creation workflow is complete and successful
+    if (result.success && result.operation === 'create' && result.storage?.stored === true) {
+      const feedbackMessage = maybeGetFeedbackMessage();
+      if (feedbackMessage) {
+        content.push({
+          type: 'text' as const,
+          text: feedbackMessage
+        });
+      }
+    }
+
+    return { content };
 
   } catch (error) {
     logger.error('Organizational-data tool request failed', error as Error);

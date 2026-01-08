@@ -849,7 +849,6 @@ export async function handleVersionTool(
       system: systemStatus,
       summary,
       timestamp,
-      ...(feedbackMessage ? { message: feedbackMessage } : {}),
       ...(visualizationUrl ? { visualizationUrl } : {})
     };
 
@@ -864,6 +863,14 @@ export async function handleVersionTool(
       content.push({
         type: 'text' as const,
         text: `📊 **View visualization**: ${visualizationUrl}`
+      });
+    }
+
+    // PRD #326: Add feedback message as separate content block so agents display it to users
+    if (feedbackMessage) {
+      content.push({
+        type: 'text' as const,
+        text: feedbackMessage
       });
     }
 

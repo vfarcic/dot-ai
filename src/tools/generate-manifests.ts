@@ -532,7 +532,6 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          ...(feedbackMessage ? { message: feedbackMessage } : {}),
           ...(visualizationUrl && { visualizationUrl })
         };
 
@@ -546,6 +545,14 @@ async function handleHelmGeneration(
           content.push({
             type: 'text' as const,
             text: `📊 **View visualization**: ${visualizationUrl}`
+          });
+        }
+
+        // PRD #326: Add feedback message as separate content block so agents display it to users
+        if (feedbackMessage) {
+          content.push({
+            type: 'text' as const,
+            text: feedbackMessage
           });
         }
 
@@ -1014,7 +1021,6 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-                ...(feedbackMessage ? { message: feedbackMessage } : {}),
                 ...(visualizationUrl && { visualizationUrl })
               };
 
@@ -1028,6 +1034,14 @@ export async function handleGenerateManifestsTool(
                 content.push({
                   type: 'text' as const,
                   text: `📊 **View visualization**: ${visualizationUrl}`
+                });
+              }
+
+              // PRD #326: Add feedback message as separate content block so agents display it to users
+              if (feedbackMessage) {
+                content.push({
+                  type: 'text' as const,
+                  text: feedbackMessage
                 });
               }
 
@@ -1062,7 +1076,6 @@ export async function handleGenerateManifestsTool(
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-              ...(feedbackMessage ? { message: feedbackMessage } : {}),
               ...(visualizationUrl && { visualizationUrl })
             };
 
@@ -1076,6 +1089,14 @@ export async function handleGenerateManifestsTool(
               content.push({
                 type: 'text' as const,
                 text: `📊 **View visualization**: ${visualizationUrl}`
+              });
+            }
+
+            // PRD #326: Add feedback message as separate content block so agents display it to users
+            if (feedbackMessage) {
+              content.push({
+                type: 'text' as const,
+                text: feedbackMessage
               });
             }
 
