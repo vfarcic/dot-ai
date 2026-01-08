@@ -23,7 +23,13 @@ import {
 } from '../core/visualization';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
-import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
+import {
+  RESOURCE_TOOLS,
+  executeResourceTools,
+  getResourceKinds,
+  listResources,
+  getNamespaces
+} from '../core/resource-tools';
 import {
   KUBECTL_API_RESOURCES_TOOL,
   KUBECTL_GET_TOOL,
@@ -238,10 +244,24 @@ export class RestApiRouter {
         case 'resources':
           if (req.method === 'POST' && pathMatch.action === 'sync') {
             await this.handleResourceSyncRequest(req, res, requestId, body);
-          } else if (req.method !== 'POST') {
+          } else if (req.method === 'GET' && pathMatch.action === 'kinds') {
+            await this.handleGetResourceKinds(req, res, requestId, url.searchParams);
+          } else if (req.method === 'GET' && pathMatch.action === 'list') {
+            await this.handleListResources(req, res, requestId, url.searchParams);
+          } else if (pathMatch.action === 'sync' && req.method !== 'POST') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for resource sync');
+          } else if ((pathMatch.action === 'kinds' || pathMatch.action === 'list') && req.method !== 'GET') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for this endpoint');
           } else {
             await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown resources endpoint');
+          }
+          break;
+
+        case 'namespaces':
+          if (req.method === 'GET') {
+            await this.handleGetNamespaces(req, res, requestId);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for namespaces');
           }
           break;
 
@@ -302,6 +322,9 @@ export class RestApiRouter {
     // /api/v1/tools/{toolName} -> tool execution
     // /api/v1/openapi -> OpenAPI spec
     // /api/v1/resources/sync -> resource sync from controller
+    // /api/v1/resources/kinds -> list resource kinds (PRD #328)
+    // /api/v1/resources -> list resources with filtering (PRD #328)
+    // /api/v1/namespaces -> list namespaces (PRD #328)
     // /api/v1/prompts -> prompts list
     // /api/v1/prompts/{promptName} -> prompt get
 
@@ -331,9 +354,22 @@ export class RestApiRouter {
       }
     }
 
-    // Handle resources/sync endpoint
+    // Handle resources endpoints (PRD #328)
+    if (cleanPath === 'resources/kinds') {
+      return { endpoint: 'resources', action: 'kinds' };
+    }
+
     if (cleanPath === 'resources/sync') {
       return { endpoint: 'resources', action: 'sync' };
+    }
+
+    if (cleanPath === 'resources') {
+      return { endpoint: 'resources', action: 'list' };
+    }
+
+    // Handle namespaces endpoint (PRD #328)
+    if (cleanPath === 'namespaces') {
+      return { endpoint: 'namespaces' };
     }
 
     // Handle prompts endpoints
@@ -599,6 +635,215 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'SYNC_ERROR',
         'Resource sync failed',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resources/kinds (PRD #328)
+   * Returns all unique resource kinds with counts
+   * Supports optional namespace query parameter for filtering
+   */
+  private async handleGetResourceKinds(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const namespace = searchParams.get('namespace') || undefined;
+
+      this.logger.info('Processing get resource kinds request', { requestId, namespace });
+
+      const kinds = await getResourceKinds(namespace);
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          kinds
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get resource kinds request completed', {
+        requestId,
+        kindCount: kinds.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get resource kinds request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'RESOURCE_KINDS_ERROR',
+        'Failed to retrieve resource kinds',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resources (PRD #328)
+   * Returns filtered and paginated list of resources
+   */
+  private async handleListResources(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      // Extract query parameters
+      const kind = searchParams.get('kind');
+      const apiGroup = searchParams.get('apiGroup') || undefined;
+      const namespace = searchParams.get('namespace') || undefined;
+      const limitParam = searchParams.get('limit');
+      const offsetParam = searchParams.get('offset');
+
+      // Validate required parameter
+      if (!kind) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "kind" query parameter is required'
+        );
+        return;
+      }
+
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
+
+      // Validate numeric parameters
+      if (limitParam && (isNaN(limit!) || limit! < 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "limit" parameter must be a positive integer'
+        );
+        return;
+      }
+
+      if (offsetParam && (isNaN(offset!) || offset! < 0)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "offset" parameter must be a non-negative integer'
+        );
+        return;
+      }
+
+      this.logger.info('Processing list resources request', {
+        requestId,
+        kind,
+        apiGroup,
+        namespace,
+        limit,
+        offset
+      });
+
+      const result = await listResources({ kind, apiGroup, namespace, limit, offset });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('List resources request completed', {
+        requestId,
+        resourceCount: result.resources.length,
+        total: result.total
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('List resources request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'LIST_RESOURCES_ERROR',
+        'Failed to list resources',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/namespaces (PRD #328)
+   * Returns all unique namespaces
+   */
+  private async handleGetNamespaces(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing get namespaces request', { requestId });
+
+      const namespaces = await getNamespaces();
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          namespaces
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get namespaces request completed', {
+        requestId,
+        namespaceCount: namespaces.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get namespaces request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'NAMESPACES_ERROR',
+        'Failed to retrieve namespaces',
         { error: errorMessage }
       );
     }

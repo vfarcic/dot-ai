@@ -228,3 +228,182 @@ export async function executeResourceTools(toolName: string, input: any): Promis
 export function resetResourceService(): void {
   resourceService = null;
 }
+
+// ============================================================================
+// Dashboard Query Functions (PRD #328)
+// Interface-agnostic query operations for structured resource data
+// ============================================================================
+
+/**
+ * Resource kind information with count
+ */
+export interface ResourceKindInfo {
+  kind: string;
+  apiGroup: string;
+  apiVersion: string;
+  count: number;
+}
+
+/**
+ * Options for listing resources
+ */
+export interface ListResourcesOptions {
+  kind: string;           // Required: Resource kind to filter by
+  apiGroup?: string;      // Optional: API group filter
+  namespace?: string;     // Optional: Namespace filter
+  limit?: number;         // Optional: Max results (default: 100, max: 1000)
+  offset?: number;        // Optional: Skip N results for pagination (default: 0)
+}
+
+/**
+ * Resource item for list response
+ */
+export interface ResourceListItem {
+  name: string;
+  namespace: string;
+  kind: string;
+  apiGroup: string;
+  apiVersion: string;
+  labels: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Result of listing resources with pagination info
+ */
+export interface ListResourcesResult {
+  resources: ResourceListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Get all unique resource kinds with counts
+ * Groups resources by kind+apiGroup+apiVersion and counts each group
+ *
+ * @param namespace - Optional namespace to filter by
+ * @returns Array of resource kinds sorted by count descending
+ */
+export async function getResourceKinds(namespace?: string): Promise<ResourceKindInfo[]> {
+  const service = await getResourceService();
+  const allResources = await service.getAllData();
+
+  // Group by kind+apiGroup+apiVersion
+  const kindMap = new Map<string, ResourceKindInfo>();
+
+  for (const resource of allResources) {
+    // Filter by namespace if provided
+    if (namespace !== undefined && resource.namespace !== namespace) {
+      continue;
+    }
+
+    const apiGroup = resource.apiGroup || '';
+    const key = `${resource.kind}:${apiGroup}:${resource.apiVersion}`;
+
+    const existing = kindMap.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      kindMap.set(key, {
+        kind: resource.kind,
+        apiGroup,
+        apiVersion: resource.apiVersion,
+        count: 1
+      });
+    }
+  }
+
+  // Sort by count descending
+  return Array.from(kindMap.values()).sort((a, b) => b.count - a.count);
+}
+
+/**
+ * List resources with filtering and pagination
+ *
+ * @param options - Filter and pagination options
+ * @returns Paginated list of resources
+ */
+export async function listResources(options: ListResourcesOptions): Promise<ListResourcesResult> {
+  const { kind, apiGroup, namespace, limit = 100, offset = 0 } = options;
+
+  // Clamp limit to max 1000
+  const effectiveLimit = Math.min(Math.max(1, limit), 1000);
+  const effectiveOffset = Math.max(0, offset);
+
+  const service = await getResourceService();
+  const allResources = await service.getAllData();
+
+  // Filter resources
+  const filtered = allResources.filter(resource => {
+    // Kind filter (required)
+    if (resource.kind !== kind) {
+      return false;
+    }
+
+    // API group filter (optional)
+    if (apiGroup !== undefined) {
+      const resourceApiGroup = resource.apiGroup || '';
+      if (resourceApiGroup !== apiGroup) {
+        return false;
+      }
+    }
+
+    // Namespace filter (optional)
+    if (namespace !== undefined && resource.namespace !== namespace) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Get total count before pagination
+  const total = filtered.length;
+
+  // Apply pagination
+  const paginated = filtered.slice(effectiveOffset, effectiveOffset + effectiveLimit);
+
+  // Transform to response format
+  const resources: ResourceListItem[] = paginated.map(r => ({
+    name: r.name,
+    namespace: r.namespace,
+    kind: r.kind,
+    apiGroup: r.apiGroup || '',
+    apiVersion: r.apiVersion,
+    labels: r.labels || {},
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt
+  }));
+
+  return {
+    resources,
+    total,
+    limit: effectiveLimit,
+    offset: effectiveOffset
+  };
+}
+
+/**
+ * Get all unique namespaces from resources
+ * Filters out '_cluster' marker for cluster-scoped resources
+ *
+ * @returns Sorted array of namespace names
+ */
+export async function getNamespaces(): Promise<string[]> {
+  const service = await getResourceService();
+  const allResources = await service.getAllData();
+
+  // Extract unique namespaces
+  const namespaceSet = new Set<string>();
+
+  for (const resource of allResources) {
+    // Filter out '_cluster' marker for cluster-scoped resources
+    if (resource.namespace && resource.namespace !== '_cluster') {
+      namespaceSet.add(resource.namespace);
+    }
+  }
+
+  // Sort alphabetically
+  return Array.from(namespaceSet).sort();
+}

@@ -416,4 +416,168 @@ spec:
 
     expect(response).toMatchObject(expectedResponse);
   }, 30000);
+
+  // PRD #328: GET /api/v1/resources/kinds
+  test('GET /api/v1/resources/kinds should return resource kinds with counts', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources/kinds');
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        kinds: expect.arrayContaining([
+          { kind: 'Deployment', apiGroup: 'apps', apiVersion: 'apps/v1', count: 1 },
+          { kind: 'Cluster', apiGroup: 'postgresql.cnpg.io', apiVersion: 'postgresql.cnpg.io/v1', count: 1 }
+        ])
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Kinds should be sorted by count descending
+    const kinds = response.data.kinds as Array<{ count: number }>;
+    for (let i = 1; i < kinds.length; i++) {
+      expect(kinds[i - 1].count).toBeGreaterThanOrEqual(kinds[i].count);
+    }
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/kinds with namespace filter
+  test('GET /api/v1/resources/kinds?namespace=query-tool-test should return only kinds in that namespace', async () => {
+    const response = await integrationTest.httpClient.get(`/api/v1/resources/kinds?namespace=${testNamespace}`);
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        kinds: expect.arrayContaining([
+          { kind: 'Deployment', apiGroup: 'apps', apiVersion: 'apps/v1', count: 1 },
+          { kind: 'Cluster', apiGroup: 'postgresql.cnpg.io', apiVersion: 'postgresql.cnpg.io/v1', count: 1 }
+        ])
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Should only have 2 kinds in this namespace
+    expect(response.data.kinds.length).toBe(2);
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources with kind filter
+  test('GET /api/v1/resources?kind=Deployment should return test-web-deployment', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=Deployment');
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: [
+          {
+            name: 'test-web-deployment',
+            namespace: testNamespace,
+            kind: 'Deployment',
+            apiGroup: 'apps',
+            apiVersion: 'apps/v1',
+            labels: { app: 'nginx', tier: 'frontend', environment: 'test' }
+          }
+        ],
+        total: 1,
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources with kind and namespace filter
+  test('GET /api/v1/resources?kind=Cluster&namespace=query-tool-test should return test-pg-cluster', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resources?kind=Cluster&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: [
+          {
+            name: 'test-pg-cluster',
+            namespace: testNamespace,
+            kind: 'Cluster',
+            apiGroup: 'postgresql.cnpg.io',
+            apiVersion: 'postgresql.cnpg.io/v1',
+            labels: { app: 'postgresql', team: 'platform', environment: 'test' }
+          }
+        ],
+        total: 1,
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources without required kind parameter
+  test('GET /api/v1/resources without kind should return 400', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources');
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'The "kind" query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources with non-existent kind
+  test('GET /api/v1/resources?kind=NonExistent should return empty array', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=NonExistent');
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: [],
+        total: 0,
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/namespaces
+  test('GET /api/v1/namespaces should return query-tool-test namespace', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/namespaces');
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        namespaces: [testNamespace]
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
 });

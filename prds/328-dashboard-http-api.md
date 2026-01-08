@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 328 |
 | **Feature Name** | Dashboard HTTP API Endpoints |
-| **Status** | Draft |
+| **Status** | Complete |
 | **Priority** | Medium |
 | **Created** | 2026-01-08 |
 | **GitHub Issue** | [#328](https://github.com/vfarcic/dot-ai/issues/328) |
@@ -29,10 +29,7 @@ Add three HTTP-only REST API endpoints that directly query Qdrant's `resources` 
 2. **`GET /api/v1/resources`** - List resources with filtering and pagination
 3. **`GET /api/v1/namespaces`** - List all namespaces
 
-These endpoints are HTTP-only (not MCP tools) because:
-- AI agents work better with natural language (existing `query` tool)
-- Dashboards need deterministic, structured responses
-- Different use cases, different interfaces
+These endpoints provide structured query operations on the resource inventory, complementing the existing natural language `query` tool. Initially exposed via HTTP for dashboard use cases, but the underlying query functions are designed to be interface-agnostic and could be exposed via MCP in the future if needed.
 
 ## User Stories
 
@@ -50,7 +47,10 @@ These endpoints are HTTP-only (not MCP tools) because:
 
 #### 1. GET /api/v1/resources/kinds
 
-**Parameters:** None
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `namespace` | string | No | Filter kinds by namespace (omit for all namespaces) |
 
 **Response:**
 ```json
@@ -149,9 +149,9 @@ These endpoints are HTTP-only (not MCP tools) because:
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/interfaces/dashboard-api.ts` | Create | New handler for dashboard endpoints |
-| `src/interfaces/rest-api.ts` | Modify | Register new routes |
-| `tests/integration/api/dashboard.test.ts` | Create | Integration tests |
+| `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()` query functions |
+| `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all three endpoints |
+| `tests/integration/tools/query.test.ts` | Modified | Added integration tests (following "organize by function" principle) |
 
 ### Data Available (from Qdrant resources collection)
 
@@ -173,10 +173,10 @@ These fields are available for filtering/display:
 
 ## Milestones
 
-- [ ] Core endpoint handlers implemented (`src/interfaces/dashboard-api.ts`)
-- [ ] Routes registered in REST API (`src/interfaces/rest-api.ts`)
-- [ ] Integration tests passing for all three endpoints
-- [ ] Edge cases handled (empty cluster, invalid parameters, large result sets)
+- [x] Query functions added to `src/core/resource-tools.ts`
+- [x] HTTP routes registered in `src/interfaces/rest-api.ts`
+- [x] Integration tests passing for all three endpoints
+- [x] Edge cases handled (empty cluster, invalid parameters, large result sets)
 
 ## Risks and Mitigations
 
@@ -190,8 +190,13 @@ These fields are available for filtering/display:
 
 - Authentication/authorization (follow existing patterns)
 - Status fields from Kubernetes API (dashboard fetches directly)
-- MCP tool exposure (HTTP-only endpoints)
 - Caching (can be added later if needed)
+
+## Design Decisions
+
+| Date | Decision | Rationale | Impact |
+|------|----------|-----------|--------|
+| 2026-01-08 | Organize by function, not consumer | Query functions should live alongside existing resource operations in `resource-tools.ts` rather than in a separate `dashboard-api.ts`. This avoids organizing code by who uses it (dashboard vs AI) and instead organizes by what it does (query operations). The interface (HTTP vs MCP) is a transport concern, not a code organization concern. | Changed file structure: no new `dashboard-api.ts`, instead extend `resource-tools.ts`. Query functions are interface-agnostic and could be exposed via MCP later. |
 
 ## Dependencies
 
@@ -203,3 +208,7 @@ These fields are available for filtering/display:
 | Date | Update |
 |------|--------|
 | 2026-01-08 | PRD created |
+| 2026-01-08 | Architecture decision: organize by function not consumer; use `resource-tools.ts` instead of separate `dashboard-api.ts` |
+| 2026-01-08 | Implementation complete: all 3 endpoints implemented, 7 integration tests passing |
+| 2026-01-08 | Added namespace filter to `/api/v1/resources/kinds` endpoint (feature request from UI team) |
+| 2026-01-08 | PRD marked complete |
