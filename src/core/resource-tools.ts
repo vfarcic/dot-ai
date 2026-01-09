@@ -324,19 +324,21 @@ export async function getResourceKinds(namespace?: string): Promise<ResourceKind
 }
 
 /**
- * Fetch live status for a single resource from Kubernetes API
+ * Fetch a single resource from Kubernetes API
  *
  * @param name - Resource name
  * @param namespace - Resource namespace (or '_cluster' for cluster-scoped)
  * @param kind - Resource kind
  * @param apiGroup - API group (empty string for core resources)
- * @returns The status object or undefined if not available
+ * @param field - Optional: specific field to return (e.g., 'status', 'spec', 'metadata'). If omitted, returns full resource.
+ * @returns The resource (or specific field) or undefined if not available
  */
-async function fetchResourceStatus(
+export async function fetchResource(
   name: string,
   namespace: string,
   kind: string,
-  apiGroup: string
+  apiGroup: string,
+  field?: string
 ): Promise<object | undefined> {
   try {
     // Build resource identifier for kubectl
@@ -355,9 +357,10 @@ async function fetchResourceStatus(
     const output = await executeKubectl(cmdArgs);
     const parsed = JSON.parse(output);
 
-    return parsed.status;
+    // Return specific field or full resource
+    return field ? parsed[field] : parsed;
   } catch {
-    // Return undefined if we can't fetch status (resource may not exist or not accessible)
+    // Return undefined if we can't fetch resource (may not exist or not accessible)
     return undefined;
   }
 }
@@ -428,11 +431,12 @@ export async function listResources(options: ListResourcesOptions): Promise<List
   if (includeStatus && resources.length > 0) {
     // Fetch status for all resources in parallel
     const statusPromises = resources.map(async (resource) => {
-      const status = await fetchResourceStatus(
+      const status = await fetchResource(
         resource.name,
         resource.namespace,
         resource.kind,
-        resource.apiGroup
+        resource.apiGroup,
+        'status'
       );
       return { ...resource, status };
     });

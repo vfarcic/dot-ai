@@ -35,11 +35,19 @@ export interface EnhancedCRD {
   version: string;
   kind: string;
   scope: 'Namespaced' | 'Cluster';
+  resourcePlural: string;
   versions: Array<{
     name: string;
     served: boolean;
     storage: boolean;
     schema?: any;
+    additionalPrinterColumns?: Array<{
+      name: string;
+      type: string;
+      jsonPath: string;
+      description?: string;
+      priority?: number;
+    }>;
   }>;
   schema?: any;
 }
@@ -459,6 +467,51 @@ export class KubernetesDiscovery {
 
 
 
+  /**
+   * Parse a raw CRD object into EnhancedCRD format
+   */
+  private parseCRDItem(item: any): EnhancedCRD {
+    const versions = item.spec.versions || [{ name: item.spec.version, served: true, storage: true }];
+    const storageVersion = versions.find((v: any) => v.storage)?.name || versions[0]?.name;
+
+    return {
+      name: item.metadata.name,
+      group: item.spec.group,
+      version: item.spec.version || storageVersion,
+      kind: item.spec.names.kind,
+      scope: item.spec.scope,
+      resourcePlural: item.spec.names.plural,
+      versions: versions.map((v: any) => ({
+        name: v.name,
+        served: v.served,
+        storage: v.storage,
+        schema: undefined,
+        additionalPrinterColumns: v.additionalPrinterColumns?.map((col: any) => ({
+          name: col.name,
+          type: col.type || 'string',
+          jsonPath: col.jsonPath,
+          description: col.description,
+          priority: col.priority
+        }))
+      })),
+      schema: {}
+    };
+  }
+
+  /**
+   * Fetch a single CRD by name with all metadata including printer columns
+   * This is the single source of truth for CRD data - used by both full and targeted scans
+   */
+  async getCRDData(crdName: string): Promise<EnhancedCRD> {
+    if (!this.connected) {
+      throw new Error('Not connected to cluster');
+    }
+
+    const output = await this.executeKubectl(['get', 'crd', crdName, '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+    const item = JSON.parse(output);
+    return this.parseCRDItem(item);
+  }
+
   async discoverCRDs(options?: { group?: string }): Promise<EnhancedCRD[]> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
@@ -467,26 +520,8 @@ export class KubernetesDiscovery {
     try {
       const output = await this.executeKubectl(['get', 'crd', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
       const crdList = JSON.parse(output);
-      
-      const crds: EnhancedCRD[] = crdList.items.map((item: any) => {
-        const versions = item.spec.versions || [{ name: item.spec.version, served: true, storage: true }];
-        return {
-          name: item.metadata.name,
-          group: item.spec.group,
-          version: item.spec.version || versions.find((v: any) => v.storage)?.name || versions[0]?.name,
-          kind: item.spec.names.kind,
-          scope: item.spec.scope,
-          versions: versions.map((v: any) => ({
-            name: v.name,
-            served: v.served,
-            storage: v.storage,
-            // Don't load schema here - use lazy loading when needed
-            schema: undefined
-          })),
-          // Don't load schema here - use lazy loading when needed
-          schema: {}
-        };
-      });
+
+      const crds: EnhancedCRD[] = crdList.items.map((item: any) => this.parseCRDItem(item));
 
       if (options?.group) {
         return crds.filter(crd => crd.group === options.group);
@@ -648,6 +683,7 @@ export class KubernetesDiscovery {
   /**
    * Get printer columns for a resource type via Kubernetes Table API
    * Works for both CRDs and core Kubernetes resources
+   * For CRDs, also fetches jsonPath from the CRD spec (not available in Table API)
    *
    * @param resourcePlural - Plural name of the resource (e.g., 'deployments', 'pods', 'sqls')
    * @param apiVersion - Full API version (e.g., 'apps/v1', 'v1', 'devopstoolkit.live/v1beta1')
@@ -657,6 +693,7 @@ export class KubernetesDiscovery {
   async getPrinterColumns(resourcePlural: string, apiVersion: string): Promise<Array<{
     name: string;
     type: string;
+    jsonPath: string;
     description?: string;
     priority?: number;
   }>> {
@@ -668,6 +705,7 @@ export class KubernetesDiscovery {
     // Core resources (v1): /api/v1/{resource}
     // Other resources (group/version): /apis/{group}/{version}/{resource}
     let apiPath: string;
+
     if (apiVersion === 'v1' || !apiVersion.includes('/')) {
       apiPath = `/api/${apiVersion}/${resourcePlural}`;
     } else {
@@ -709,10 +747,15 @@ export class KubernetesDiscovery {
     // May be empty or minimal for resources without custom printer columns
     const columnDefinitions = tableData.columnDefinitions || [];
 
+    // Note: This method is now primarily used for core resources.
+    // CRDs get their printer columns (with jsonPath) directly from CRD metadata.
+    // Core resources don't have jsonPath in the Table API response.
+
     // Map to our PrinterColumn format
     return columnDefinitions.map((col: any) => ({
       name: col.name,
       type: col.type || 'string',
+      jsonPath: '',  // Core resources don't have jsonPath in Table API
       description: col.description,
       priority: col.priority
     }));

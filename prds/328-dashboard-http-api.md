@@ -147,10 +147,59 @@ These endpoints provide structured query operations on the resource inventory, c
 **Implementation:**
 - Fetch all resources from Qdrant
 - Extract unique `namespace` values
-- Filter out `_cluster` (cluster-scoped marker)
-- Sort alphabetically
 
-#### 4. Capability Schema with Printer Columns (via existing manageOrgData)
+#### 4. GET /api/v1/resource (Single Resource)
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `kind` | string | Yes | Resource kind (e.g., "Deployment") |
+| `apiVersion` | string | Yes | Full API version (e.g., "apps/v1", "v1") |
+| `name` | string | Yes | Resource name |
+| `namespace` | string | No | Namespace (omit for cluster-scoped resources) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "resource": {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "nginx",
+        "namespace": "default",
+        "labels": { "app": "nginx" },
+        "annotations": {},
+        "ownerReferences": [],
+        "uid": "abc-123",
+        "creationTimestamp": "2025-01-01T00:00:00Z"
+      },
+      "spec": {
+        "replicas": 3,
+        "selector": { "matchLabels": { "app": "nginx" } },
+        "template": { ... }
+      },
+      "status": {
+        "readyReplicas": 3,
+        "replicas": 3,
+        "conditions": [ ... ]
+      }
+    }
+  },
+  "meta": {
+    "timestamp": "2026-01-08T12:00:00Z",
+    "requestId": "req_123"
+  }
+}
+```
+
+**Implementation:**
+- Fetch resource directly from Kubernetes API via kubectl
+- Returns complete resource including metadata, spec, and status
+- Returns 404 if resource not found
+
+#### 5. Capability Schema with Printer Columns (via existing manageOrgData)
 
 **Request:** `POST /api/v1/tools/manageOrgData`
 ```json
@@ -249,12 +298,13 @@ These fields are available for filtering/display:
 
 ## Success Criteria
 
-1. All three endpoints return correct structured JSON
+1. All four endpoints return correct structured JSON
 2. Filtering by kind, apiGroup, namespace works correctly
 3. Pagination (limit/offset) works correctly
 4. Empty results return empty arrays (not errors)
-5. Performance: < 500ms response time for clusters with 1000 resources
-6. Integration tests pass
+5. Single resource endpoint returns complete metadata, spec, and status
+6. Performance: < 500ms response time for clusters with 1000 resources
+7. Integration tests pass
 
 ## Milestones
 
@@ -268,15 +318,22 @@ These fields are available for filtering/display:
 - [x] Update integration tests for new `apiVersion` and `includeStatus` parameters
 - [x] Build and deploy image to cluster for manual UI testing
 
-### Phase 2: Printer Columns Support (New)
+### Phase 2: Printer Columns Support (Complete)
 - [x] Add `printerColumns` field to `ResourceCapability` interface
 - [x] Update `CapabilityVectorService` to store/retrieve `printerColumns`
 - [x] Modify capability scan workflow to fetch printer columns via Kubernetes Table API
-- [ ] Extend `handleCapabilityGet` to support JSON-formatted `id` for kind/apiVersion lookup
-- [ ] Add integration tests for printer columns functionality
+- [x] Extend `handleCapabilityGet` to support JSON-formatted `id` for kind/apiVersion lookup
+- [x] Add integration tests for printer columns functionality
 - [x] Update existing capabilities in cluster (requires re-scan to populate printer columns)
 
-### Phase 3: Finalization
+### Phase 3: Single Resource Endpoint (Complete)
+- [x] Add `kubectl_get_resource_json` AI tool to `kubectl-tools.ts` for structured JSON access
+- [x] Refactor `fetchResourceStatus` to `fetchResource` with optional `field` parameter
+- [x] Add `GET /api/v1/resource` HTTP endpoint for single resource retrieval
+- [x] Add integration tests for single resource endpoint
+- [x] Build and deploy image to cluster for manual UI testing
+
+### Phase 4: Finalization
 - [ ] Review PRD completeness: verify all requirements implemented and no remaining work
 - [ ] Run full integration test suite (final step after all requirements complete)
 
@@ -360,4 +417,6 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-08 | PRD reopened for completeness review |
 | 2026-01-08 | Extended: Added `apiVersion` (required) and `includeStatus` parameters to `/api/v1/resources` endpoint per UI team request |
 | 2026-01-09 | New requirement: UI needs printer columns for dynamic table generation. Decided to store printer columns in capabilities collection (fetched via Table API during scan) and extend existing `get` operation with JSON-formatted `id` for kind/apiVersion lookup |
-| 2026-01-09 | Implemented printer columns: Added `PrinterColumn` interface, `getPrinterColumns()` method using Table API, integrated into scan workflow. Removed `jsonPath` field (empty in API response). Verified working for Pod (core) and CNPG Cluster (CRD). JSON-formatted `id` lookup still pending. |
+| 2026-01-09 | Implemented printer columns: Added `PrinterColumn` interface, `getPrinterColumns()` method using Table API, integrated into scan workflow. Verified working for Pod (core) and CNPG Cluster (CRD). JSON-formatted `id` lookup still pending. |
+| 2026-01-09 | Added `getCapabilityByKindApiVersion` method and JSON-formatted `id` support in `handleCapabilityGet`. Fixed `jsonPath` being empty for CRDs by fetching from CRD's `additionalPrinterColumns` instead of Table API. Major refactor: consolidated three separate metadata-building code paths into single `scanSingleResource()` function - both full scan and targeted scan now use the same code path for processing each resource. Tested via controller: deleted CapabilityScanConfig CR, cleared DB, reapplied CR, verified scan triggered successfully with correct `jsonPath` values for CRDs. |
+| 2026-01-09 | New requirement from UI team: ResourceDetailPage needs single resource endpoint. Added `GET /api/v1/resource` endpoint with kind, apiVersion, name, namespace parameters. Also added `kubectl_get_resource_json` AI tool to `KUBECTL_INVESTIGATION_TOOLS` for AI workflows. Refactored `fetchResourceStatus` to `fetchResource` with optional `field` parameter for code reuse. |

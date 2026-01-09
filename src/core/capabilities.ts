@@ -19,6 +19,7 @@ import { loadPrompt } from './shared-prompt-loader';
 export interface PrinterColumn {
   name: string;         // Column header (e.g., "Ready", "Age")
   type: string;         // Data type: "string", "integer", "date", "boolean"
+  jsonPath: string;     // JSONPath to extract value from resource (e.g., ".status.readyReplicas")
   description?: string; // Optional column description
   priority?: number;    // Display priority (0 = always show, higher = optional)
 }

@@ -28,7 +28,8 @@ import {
   executeResourceTools,
   getResourceKinds,
   listResources,
-  getNamespaces
+  getNamespaces,
+  fetchResource
 } from '../core/resource-tools';
 import {
   KUBECTL_API_RESOURCES_TOOL,
@@ -265,6 +266,14 @@ export class RestApiRouter {
           }
           break;
 
+        case 'resource':
+          if (req.method === 'GET') {
+            await this.handleGetResource(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for resource');
+          }
+          break;
+
         case 'prompts':
           if (req.method === 'GET') {
             await this.handlePromptsListRequest(req, res, requestId);
@@ -323,6 +332,7 @@ export class RestApiRouter {
     // /api/v1/openapi -> OpenAPI spec
     // /api/v1/resources/sync -> resource sync from controller
     // /api/v1/resources/kinds -> list resource kinds (PRD #328)
+    // /api/v1/resource -> get single resource with full details (PRD #328)
     // /api/v1/resources -> list resources with filtering (PRD #328)
     // /api/v1/namespaces -> list namespaces (PRD #328)
     // /api/v1/prompts -> prompts list
@@ -365,6 +375,11 @@ export class RestApiRouter {
 
     if (cleanPath === 'resources') {
       return { endpoint: 'resources', action: 'list' };
+    }
+
+    // Handle single resource endpoint (PRD #328)
+    if (cleanPath === 'resource') {
+      return { endpoint: 'resource' };
     }
 
     // Handle namespaces endpoint (PRD #328)
@@ -860,6 +875,98 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'NAMESPACES_ERROR',
         'Failed to retrieve namespaces',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resource (PRD #328)
+   * Returns a single resource with full metadata, spec, and status
+   */
+  private async handleGetResource(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const kind = searchParams.get('kind');
+      const apiVersion = searchParams.get('apiVersion');
+      const name = searchParams.get('name');
+      const namespace = searchParams.get('namespace') || undefined;
+
+      // Validate required parameters
+      if (!kind) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        return;
+      }
+      if (!apiVersion) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'apiVersion query parameter is required');
+        return;
+      }
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+
+      this.logger.info('Processing get resource request', { requestId, kind, apiVersion, name, namespace });
+
+      // Extract apiGroup from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
+      const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
+
+      const resource = await fetchResource(
+        name,
+        namespace || '_cluster',
+        kind,
+        apiGroup
+      );
+
+      if (!resource) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'NOT_FOUND',
+          `Resource ${kind}/${name} not found${namespace ? ` in namespace ${namespace}` : ''}`
+        );
+        return;
+      }
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          resource
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get resource request completed', {
+        requestId,
+        kind,
+        name,
+        namespace
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get resource request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'RESOURCE_ERROR',
+        'Failed to retrieve resource',
         { error: errorMessage }
       );
     }

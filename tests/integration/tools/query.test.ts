@@ -629,4 +629,118 @@ spec:
       }
     });
   }, 30000);
+
+  // PRD #328: GET /api/v1/resource - Single Resource Endpoint
+  test('GET /api/v1/resource should return full resource with metadata, spec, and status', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resource?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&name=test-pg-cluster&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resource: {
+          apiVersion: 'postgresql.cnpg.io/v1',
+          kind: 'Cluster',
+          metadata: {
+            name: 'test-pg-cluster',
+            namespace: testNamespace,
+            labels: { app: 'postgresql', team: 'platform', environment: 'test' }
+          },
+          spec: {
+            instances: 1,
+            storage: { size: '1Gi' }
+          }
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Verify status field is present (may have various conditions)
+    expect(response.data.resource).toHaveProperty('status');
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resource without required kind parameter
+  test('GET /api/v1/resource without kind should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resource?apiVersion=apps/v1&name=test&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'kind query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resource without required apiVersion parameter
+  test('GET /api/v1/resource without apiVersion should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resource?kind=Deployment&name=test&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'apiVersion query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resource without required name parameter
+  test('GET /api/v1/resource without name should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resource?kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'name query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resource for non-existent resource should return 404
+  test('GET /api/v1/resource for non-existent resource should return 404', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resource?kind=Deployment&apiVersion=apps/v1&name=non-existent-resource&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: expect.stringContaining('not found')
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
 });

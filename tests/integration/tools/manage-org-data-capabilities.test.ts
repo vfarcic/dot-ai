@@ -288,7 +288,29 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
       expect(scanComplete).toBe(true);
 
-      // Verify scanned capabilities have correct apiVersion
+      // Test JSON format lookup for Deployment (standard resource)
+      const deploymentResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'get',
+        id: JSON.stringify({ kind: 'Deployment', apiVersion: 'apps/v1' }),
+        interaction_id: 'json_lookup_deployment'
+      });
+
+      expect(deploymentResponse.data.result.success).toBe(true);
+      const deployment = deploymentResponse.data.result.data;
+
+      // Test JSON format lookup for CNPG Cluster (CRD)
+      const clusterResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'get',
+        id: JSON.stringify({ kind: 'Cluster', apiVersion: 'postgresql.cnpg.io/v1' }),
+        interaction_id: 'json_lookup_cluster'
+      });
+
+      expect(clusterResponse.data.result.success).toBe(true);
+      const cluster = clusterResponse.data.result.data;
+
+      // Use list to get Service (validates traditional lookup still works)
       const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
@@ -297,9 +319,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       });
 
       const capabilities = listResponse.data.result.data.capabilities;
-      const deployment = capabilities.find((c: any) => c.resourceName === 'Deployment');
       const service = capabilities.find((c: any) => c.resourceName === 'Service');
-      const cluster = capabilities.find((c: any) => c.resourceName === 'clusters.postgresql.cnpg.io');
 
       // All three resources must be found - no conditional validation
       expect(deployment).toBeDefined();
