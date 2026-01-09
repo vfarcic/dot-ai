@@ -8,10 +8,10 @@
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
-import { CapabilityInferenceEngine, ResourceCapability } from './capabilities';
+import { CapabilityInferenceEngine, ResourceCapability, PrinterColumn } from './capabilities';
 
 // Re-export for backward compatibility
-export type { ResourceCapability };
+export type { ResourceCapability, PrinterColumn };
 
 export interface CapabilitySearchOptions extends BaseSearchOptions {
   complexityFilter?: 'low' | 'medium' | 'high';
@@ -64,6 +64,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       complexity: capability.complexity,
       description: capability.description,
       useCase: capability.useCase,
+      printerColumns: capability.printerColumns,
       confidence: capability.confidence,
       analyzedAt: capability.analyzedAt
     };
@@ -84,6 +85,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       complexity: payload.complexity || 'medium',
       description: payload.description || '',
       useCase: payload.useCase || '',
+      printerColumns: payload.printerColumns,
       confidence: payload.confidence || 0,
       analyzedAt: payload.analyzedAt || new Date().toISOString()
     };

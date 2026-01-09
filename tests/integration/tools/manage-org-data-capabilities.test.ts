@@ -225,12 +225,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // NOTE: One capability was deleted, but the rest remain for recommendation tests
     }, 660000); // 11 minute timeout (10 min polling + buffer)
 
-    test('should scan specific resources with resourceList parameter', async () => {
+    test('should scan specific resources with resourceList parameter and include printerColumns', async () => {
       // Fire-and-forget targeted scan - specify resources directly, no workflow steps
+      // Using Cluster.postgresql.cnpg.io (CNPG) instead of SQL.devopstoolkit.live since CNPG is installed in test cluster
       const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'scan',
-        resourceList: 'Deployment.apps,Service,SQL.devopstoolkit.live',
+        resourceList: 'Deployment.apps,Service,Cluster.postgresql.cnpg.io',
         interaction_id: 'fire_forget_specific_scan'
       });
 
@@ -298,28 +299,59 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const capabilities = listResponse.data.result.data.capabilities;
       const deployment = capabilities.find((c: any) => c.resourceName === 'Deployment');
       const service = capabilities.find((c: any) => c.resourceName === 'Service');
-      const sql = capabilities.find((c: any) => c.resourceName === 'sqls.devopstoolkit.live');
+      const cluster = capabilities.find((c: any) => c.resourceName === 'clusters.postgresql.cnpg.io');
 
-      // Validate Deployment has correct apiVersion (apps/v1)
-      if (deployment) {
-        expect(deployment.apiVersion).toBe('apps/v1');
-        expect(deployment.version).toBe('v1');
-        expect(deployment.group).toBe('apps');
-      }
+      // All three resources must be found - no conditional validation
+      expect(deployment).toBeDefined();
+      expect(service).toBeDefined();
+      expect(cluster).toBeDefined();
 
-      // Validate Service has correct apiVersion (v1 - core resource)
-      if (service) {
-        expect(service.apiVersion).toBe('v1');
-        expect(service.version).toBe('v1');
-        expect(service.group).toBe('');
-      }
+      // Validate Deployment (apps/v1) - apiVersion, version, group, and printerColumns
+      expect(deployment.apiVersion).toBe('apps/v1');
+      expect(deployment.version).toBe('v1');
+      expect(deployment.group).toBe('apps');
+      expect(deployment.printerColumns).toBeDefined();
+      expect(Array.isArray(deployment.printerColumns)).toBe(true);
+      expect(deployment.printerColumns.length).toBeGreaterThan(0);
+      // Deployment has columns: Name, Ready, Up-to-date, Available, Age
+      const deploymentColNames = deployment.printerColumns.map((c: any) => c.name);
+      expect(deploymentColNames).toContain('Name');
+      expect(deploymentColNames).toContain('Ready');
+      expect(deploymentColNames).toContain('Up-to-date');
+      expect(deploymentColNames).toContain('Available');
+      expect(deploymentColNames).toContain('Age');
 
-      // Validate SQL CRD has correct apiVersion (devopstoolkit.live/v1beta1)
-      if (sql) {
-        expect(sql.apiVersion).toBe('devopstoolkit.live/v1beta1');
-        expect(sql.version).toBe('v1beta1');
-        expect(sql.group).toBe('devopstoolkit.live');
-      }
+      // Validate Service (v1 - core resource) - apiVersion, version, group, and printerColumns
+      expect(service.apiVersion).toBe('v1');
+      expect(service.version).toBe('v1');
+      expect(service.group).toBe('');
+      expect(service.printerColumns).toBeDefined();
+      expect(Array.isArray(service.printerColumns)).toBe(true);
+      expect(service.printerColumns.length).toBeGreaterThan(0);
+      // Service has columns: Name, Type, Cluster-IP, External-IP, Port(s), Age
+      const serviceColNames = service.printerColumns.map((c: any) => c.name);
+      expect(serviceColNames).toContain('Name');
+      expect(serviceColNames).toContain('Type');
+      expect(serviceColNames).toContain('Cluster-IP');
+      expect(serviceColNames).toContain('External-IP');
+      expect(serviceColNames).toContain('Port(s)');
+      expect(serviceColNames).toContain('Age');
+
+      // Validate CNPG Cluster CRD (postgresql.cnpg.io/v1) - apiVersion, version, group, and printerColumns
+      expect(cluster.apiVersion).toBe('postgresql.cnpg.io/v1');
+      expect(cluster.version).toBe('v1');
+      expect(cluster.group).toBe('postgresql.cnpg.io');
+      expect(cluster.printerColumns).toBeDefined();
+      expect(Array.isArray(cluster.printerColumns)).toBe(true);
+      expect(cluster.printerColumns.length).toBeGreaterThan(0);
+      // CNPG Cluster has columns: Name, Age, Instances, Ready, Status, Primary
+      const clusterColNames = cluster.printerColumns.map((c: any) => c.name);
+      expect(clusterColNames).toContain('Name');
+      expect(clusterColNames).toContain('Age');
+      expect(clusterColNames).toContain('Instances');
+      expect(clusterColNames).toContain('Ready');
+      expect(clusterColNames).toContain('Status');
+      expect(clusterColNames).toContain('Primary');
 
       // Note: No cleanup to avoid race conditions with parallel tests
     }, 300000); // 5 minute timeout for specific resource scan
