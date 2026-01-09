@@ -10,6 +10,7 @@
 import { AITool } from './ai-provider.interface';
 import { ResourceVectorService } from './resource-vector-service';
 import { VALIDATION_MESSAGES } from './constants/validation';
+import { executeKubectl } from './kubernetes-utils';
 
 /**
  * Tool: search_resources
@@ -250,9 +251,11 @@ export interface ResourceKindInfo {
 export interface ListResourcesOptions {
   kind: string;           // Required: Resource kind to filter by
   apiGroup?: string;      // Optional: API group filter
+  apiVersion?: string;    // Optional: Full apiVersion filter (e.g., "apps/v1")
   namespace?: string;     // Optional: Namespace filter
   limit?: number;         // Optional: Max results (default: 100, max: 1000)
   offset?: number;        // Optional: Skip N results for pagination (default: 0)
+  includeStatus?: boolean; // Optional: Fetch live status from K8s API
 }
 
 /**
@@ -267,6 +270,7 @@ export interface ResourceListItem {
   labels: Record<string, string>;
   createdAt: string;
   updatedAt: string;
+  status?: object;  // Raw K8s status object when includeStatus: true
 }
 
 /**
@@ -320,13 +324,52 @@ export async function getResourceKinds(namespace?: string): Promise<ResourceKind
 }
 
 /**
+ * Fetch live status for a single resource from Kubernetes API
+ *
+ * @param name - Resource name
+ * @param namespace - Resource namespace (or '_cluster' for cluster-scoped)
+ * @param kind - Resource kind
+ * @param apiGroup - API group (empty string for core resources)
+ * @returns The status object or undefined if not available
+ */
+async function fetchResourceStatus(
+  name: string,
+  namespace: string,
+  kind: string,
+  apiGroup: string
+): Promise<object | undefined> {
+  try {
+    // Build resource identifier for kubectl
+    // For core resources (empty apiGroup), use kind directly. For others, use kind.group format
+    const resourceType = apiGroup ? `${kind.toLowerCase()}.${apiGroup}` : kind.toLowerCase();
+    const resourceId = `${resourceType}/${name}`;
+
+    // Build kubectl command
+    const cmdArgs = ['get', resourceId, '-o', 'json'];
+
+    // Add namespace for namespaced resources
+    if (namespace && namespace !== '_cluster') {
+      cmdArgs.push('-n', namespace);
+    }
+
+    const output = await executeKubectl(cmdArgs);
+    const parsed = JSON.parse(output);
+
+    return parsed.status;
+  } catch {
+    // Return undefined if we can't fetch status (resource may not exist or not accessible)
+    return undefined;
+  }
+}
+
+/**
  * List resources with filtering and pagination
  *
  * @param options - Filter and pagination options
  * @returns Paginated list of resources
  */
 export async function listResources(options: ListResourcesOptions): Promise<ListResourcesResult> {
-  const { kind, apiGroup, namespace, limit = 100, offset = 0 } = options;
+  const { kind, apiGroup, apiVersion, namespace, limit = 100, offset = 0, includeStatus = false } = options;
 
   // Clamp limit to max 1000
   const effectiveLimit = Math.min(Math.max(1, limit), 1000);
@@ -350,6 +393,11 @@ export async function listResources(options: ListResourcesOptions): Promise<List
       }
     }
 
+    // API version filter (optional) - exact match
+    if (apiVersion !== undefined && resource.apiVersion !== apiVersion) {
+      return false;
+    }
+
     // Namespace filter (optional)
     if (namespace !== undefined && resource.namespace !== namespace) {
       return false;
@@ -365,7 +413,7 @@ export async function listResources(options: ListResourcesOptions): Promise<List
   const paginated = filtered.slice(effectiveOffset, effectiveOffset + effectiveLimit);
 
   // Transform to response format
-  const resources: ResourceListItem[] = paginated.map(r => ({
+  let resources: ResourceListItem[] = paginated.map(r => ({
     name: r.name,
     namespace: r.namespace,
     kind: r.kind,
@@ -375,6 +423,22 @@ export async function listResources(options: ListResourcesOptions): Promise<List
     createdAt: r.createdAt,
     updatedAt: r.updatedAt
   }));
+
+  // Enrich with live status if requested
+  if (includeStatus && resources.length > 0) {
+    // Fetch status for all resources in parallel
+    const statusPromises = resources.map(async (resource) => {
+      const status = await fetchResourceStatus(
+        resource.name,
+        resource.namespace,
+        resource.kind,
+        resource.apiGroup
+      );
+      return { ...resource, status };
+    });
+
+    resources = await Promise.all(statusPromises);
+  }
 
   return {
     resources,

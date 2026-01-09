@@ -44,7 +44,7 @@ interface CapabilityScanSession {
   progress?: any; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
-  resourceMetadata?: Record<string, { apiVersion: string; version: string; group: string }>; // Store apiVersion info
+  resourceMetadata?: Record<string, { apiVersion: string; version: string; group: string; resourcePlural: string }>; // Store apiVersion info and plural name for Table API
 }
 
 /**
@@ -342,7 +342,7 @@ export async function handleScanning(
 
         // Extract resource names AND preserve metadata for capability analysis
         const discoveredResourceNames: string[] = [];
-        const resourceMetadata: Record<string, { apiVersion: string; version: string; group: string }> = {};
+        const resourceMetadata: Record<string, { apiVersion: string; version: string; group: string; resourcePlural: string }> = {};
 
         for (const resource of allResources) {
           let resourceName = 'unknown-resource';
@@ -368,23 +368,28 @@ export async function handleScanning(
             let apiVersion = '';
             let version = '';
             let group = '';
+            let resourcePlural = '';
 
             if ('apiVersion' in resource) {
-              // EnhancedResource type
+              // EnhancedResource type - name is the plural (e.g., "deployments")
               apiVersion = resource.apiVersion || '';
               version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
               group = resource.group || '';
+              resourcePlural = resource.name || resourceName.toLowerCase() + 's';
             } else {
               // EnhancedCRD type - construct apiVersion from group and version
+              // Plural is first part of name (e.g., "sqls" from "sqls.devopstoolkit.live")
               group = resource.group || '';
               version = resource.version || '';
               apiVersion = group ? `${group}/${version}` : version;
+              resourcePlural = resource.name.includes('.') ? resource.name.split('.')[0] : resource.name;
             }
 
             resourceMetadata[resourceName] = {
               apiVersion,
               version,
-              group
+              group,
+              resourcePlural
             };
           }
         }
@@ -591,8 +596,11 @@ export async function handleScanning(
               const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
               const version = versionLine.replace('VERSION:', '').trim();
               const apiVersion = group ? `${group}/${version}` : version;
+              // resourcePlural should come from session metadata; leave empty if not available
+              // (printer columns fetch will be skipped rather than failing with wrong plural)
+              const resourcePlural = '';
 
-              metadata = { apiVersion, version, group };
+              metadata = { apiVersion, version, group, resourcePlural };
             }
           }
 
@@ -605,7 +613,26 @@ export async function handleScanning(
             metadata?.group
           );
           const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
-          
+
+          // Fetch printer columns via Table API
+          if (metadata?.apiVersion && metadata?.resourcePlural) {
+            try {
+              const printerColumns = await discovery.getPrinterColumns(
+                metadata.resourcePlural,
+                metadata.apiVersion
+              );
+              capability.printerColumns = printerColumns;
+            } catch (printerError) {
+              // Log but don't fail - printer columns are an enhancement
+              logger.warn(`Failed to fetch printer columns for ${currentResource}`, {
+                requestId,
+                sessionId: session.sessionId,
+                resource: currentResource,
+                error: printerError instanceof Error ? printerError.message : String(printerError)
+              });
+            }
+          }
+
           // Store capability in Vector DB
           await capabilityService.storeCapability(capability);
           

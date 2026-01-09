@@ -466,9 +466,9 @@ spec:
     expect(response.data.kinds.length).toBe(2);
   }, 30000);
 
-  // PRD #328: GET /api/v1/resources with kind filter
-  test('GET /api/v1/resources?kind=Deployment should return test-web-deployment', async () => {
-    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=Deployment');
+  // PRD #328: GET /api/v1/resources with kind and apiVersion filter
+  test('GET /api/v1/resources?kind=Deployment&apiVersion=apps/v1 should return test-web-deployment', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=Deployment&apiVersion=apps/v1');
 
     expect(response).toMatchObject({
       success: true,
@@ -495,10 +495,10 @@ spec:
     });
   }, 30000);
 
-  // PRD #328: GET /api/v1/resources with kind and namespace filter
-  test('GET /api/v1/resources?kind=Cluster&namespace=query-tool-test should return test-pg-cluster', async () => {
+  // PRD #328: GET /api/v1/resources with kind, apiVersion, and namespace filter
+  test('GET /api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=query-tool-test should return test-pg-cluster', async () => {
     const response = await integrationTest.httpClient.get(
-      `/api/v1/resources?kind=Cluster&namespace=${testNamespace}`
+      `/api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=${testNamespace}`
     );
 
     expect(response).toMatchObject({
@@ -528,7 +528,7 @@ spec:
 
   // PRD #328: GET /api/v1/resources without required kind parameter
   test('GET /api/v1/resources without kind should return 400', async () => {
-    const response = await integrationTest.httpClient.get('/api/v1/resources');
+    const response = await integrationTest.httpClient.get('/api/v1/resources?apiVersion=apps/v1');
 
     expect(response).toMatchObject({
       success: false,
@@ -544,15 +544,64 @@ spec:
     });
   }, 30000);
 
+  // PRD #328: GET /api/v1/resources without required apiVersion parameter
+  test('GET /api/v1/resources without apiVersion should return 400', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=Deployment');
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'The "apiVersion" query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
   // PRD #328: GET /api/v1/resources with non-existent kind
-  test('GET /api/v1/resources?kind=NonExistent should return empty array', async () => {
-    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=NonExistent');
+  test('GET /api/v1/resources?kind=NonExistent&apiVersion=v1 should return empty array', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=NonExistent&apiVersion=v1');
 
     expect(response).toMatchObject({
       success: true,
       data: {
         resources: [],
         total: 0,
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources with includeStatus=true should return resources with status field
+  test('GET /api/v1/resources with includeStatus=true should return resources with status', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=${testNamespace}&includeStatus=true`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: [
+          {
+            name: 'test-pg-cluster',
+            namespace: testNamespace,
+            kind: 'Cluster',
+            apiVersion: 'postgresql.cnpg.io/v1',
+            // status field should be present (may be undefined if resource doesn't exist in K8s)
+            status: expect.anything()
+          }
+        ],
+        total: 1,
         limit: 100,
         offset: 0
       },

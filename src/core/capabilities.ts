@@ -13,6 +13,17 @@ import { loadPrompt } from './shared-prompt-loader';
 
 
 /**
+ * Printer column definition from Kubernetes Table API
+ * Used for dynamic table column generation in UIs
+ */
+export interface PrinterColumn {
+  name: string;         // Column header (e.g., "Ready", "Age")
+  type: string;         // Data type: "string", "integer", "date", "boolean"
+  description?: string; // Optional column description
+  priority?: number;    // Display priority (0 = always show, higher = optional)
+}
+
+/**
  * Complete resource capability data structure for Vector DB storage
  */
 export interface ResourceCapability {
@@ -31,6 +42,9 @@ export interface ResourceCapability {
   // Metadata for AI understanding
   description: string;       // "Managed database solution supporting multiple engines"
   useCase: string;          // "Simple database deployment without infrastructure complexity"
+
+  // Display metadata (from Kubernetes Table API)
+  printerColumns?: PrinterColumn[];  // For dynamic UI table generation
 
   // Vector embedding for semantic search (generated separately)
   embedding?: number[];      // Generated from capability description

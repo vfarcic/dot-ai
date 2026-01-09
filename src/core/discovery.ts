@@ -645,6 +645,79 @@ export class KubernetesDiscovery {
     }
   }
 
+  /**
+   * Get printer columns for a resource type via Kubernetes Table API
+   * Works for both CRDs and core Kubernetes resources
+   *
+   * @param resourcePlural - Plural name of the resource (e.g., 'deployments', 'pods', 'sqls')
+   * @param apiVersion - Full API version (e.g., 'apps/v1', 'v1', 'devopstoolkit.live/v1beta1')
+   * @returns Array of printer column definitions (may be empty if resource has no custom columns)
+   * @throws Error on API/auth failures
+   */
+  async getPrinterColumns(resourcePlural: string, apiVersion: string): Promise<Array<{
+    name: string;
+    type: string;
+    description?: string;
+    priority?: number;
+  }>> {
+    if (!this.connected) {
+      throw new Error('Not connected to cluster');
+    }
+
+    // Build the API path based on apiVersion
+    // Core resources (v1): /api/v1/{resource}
+    // Other resources (group/version): /apis/{group}/{version}/{resource}
+    let apiPath: string;
+    if (apiVersion === 'v1' || !apiVersion.includes('/')) {
+      apiPath = `/api/${apiVersion}/${resourcePlural}`;
+    } else {
+      apiPath = `/apis/${apiVersion}/${resourcePlural}`;
+    }
+
+    // Get cluster info for building the URL
+    const cluster = this.kc.getCurrentCluster();
+    if (!cluster || !cluster.server) {
+      throw new Error('No cluster server configured');
+    }
+
+    // Build full URL with limit=1 (we only need column definitions, not data)
+    const url = `${cluster.server}${apiPath}?limit=1`;
+
+    // Prepare fetch options with Table API Accept header
+    const fetchOptions: any = {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json;as=Table;g=meta.k8s.io;v=v1'
+      }
+    };
+
+    // Apply kubeconfig auth (handles tokens, certs, etc.)
+    const authedOptions = await this.kc.applyToFetchOptions(fetchOptions);
+
+    // Make the request
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(url, authedOptions);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Table API request failed for ${resourcePlural} (${apiVersion}): ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const tableData = await response.json() as any;
+
+    // Extract column definitions from the Table API response
+    // May be empty or minimal for resources without custom printer columns
+    const columnDefinitions = tableData.columnDefinitions || [];
+
+    // Map to our PrinterColumn format
+    return columnDefinitions.map((col: any) => ({
+      name: col.name,
+      type: col.type || 'string',
+      description: col.description,
+      priority: col.priority
+    }));
+  }
+
   async fingerprintCluster(): Promise<ClusterFingerprint> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');

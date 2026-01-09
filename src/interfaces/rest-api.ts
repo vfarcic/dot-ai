@@ -698,6 +698,7 @@ export class RestApiRouter {
   /**
    * Handle GET /api/v1/resources (PRD #328)
    * Returns filtered and paginated list of resources
+   * Supports optional live status enrichment from K8s API
    */
   private async handleListResources(
     req: IncomingMessage,
@@ -708,12 +709,13 @@ export class RestApiRouter {
     try {
       // Extract query parameters
       const kind = searchParams.get('kind');
-      const apiGroup = searchParams.get('apiGroup') || undefined;
+      const apiVersion = searchParams.get('apiVersion');
       const namespace = searchParams.get('namespace') || undefined;
+      const includeStatusParam = searchParams.get('includeStatus');
       const limitParam = searchParams.get('limit');
       const offsetParam = searchParams.get('offset');
 
-      // Validate required parameter
+      // Validate required parameters
       if (!kind) {
         await this.sendErrorResponse(
           res,
@@ -725,8 +727,20 @@ export class RestApiRouter {
         return;
       }
 
+      if (!apiVersion) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "apiVersion" query parameter is required'
+        );
+        return;
+      }
+
       const limit = limitParam ? parseInt(limitParam, 10) : undefined;
       const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
+      const includeStatus = includeStatusParam === 'true';
 
       // Validate numeric parameters
       if (limitParam && (isNaN(limit!) || limit! < 1)) {
@@ -754,13 +768,14 @@ export class RestApiRouter {
       this.logger.info('Processing list resources request', {
         requestId,
         kind,
-        apiGroup,
+        apiVersion,
         namespace,
+        includeStatus,
         limit,
         offset
       });
 
-      const result = await listResources({ kind, apiGroup, namespace, limit, offset });
+      const result = await listResources({ kind, apiVersion, namespace, includeStatus, limit, offset });
 
       const response: RestApiResponse = {
         success: true,
@@ -777,7 +792,8 @@ export class RestApiRouter {
       this.logger.info('List resources request completed', {
         requestId,
         resourceCount: result.resources.length,
-        total: result.total
+        total: result.total,
+        includeStatus
       });
 
     } catch (error) {

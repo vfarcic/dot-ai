@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 328 |
 | **Feature Name** | Dashboard HTTP API Endpoints |
-| **Status** | Complete |
+| **Status** | In Progress |
 | **Priority** | Medium |
 | **Created** | 2026-01-08 |
 | **GitHub Issue** | [#328](https://github.com/vfarcic/dot-ai/issues/328) |
@@ -29,6 +29,8 @@ Add three HTTP-only REST API endpoints that directly query Qdrant's `resources` 
 2. **`GET /api/v1/resources`** - List resources with filtering and pagination
 3. **`GET /api/v1/namespaces`** - List all namespaces
 
+Additionally, extend the existing `manageOrgData` capabilities `get` operation to support retrieving resource schema information (including printer columns) for dynamic table column generation.
+
 These endpoints provide structured query operations on the resource inventory, complementing the existing natural language `query` tool. Initially exposed via HTTP for dashboard use cases, but the underlying query functions are designed to be interface-agnostic and could be exposed via MCP in the future if needed.
 
 ## User Stories
@@ -40,6 +42,8 @@ These endpoints provide structured query operations on the resource inventory, c
 3. **As a dashboard developer**, I want to paginate through resources so I can handle large clusters efficiently.
 
 4. **As a dashboard developer**, I want to list all namespaces so I can provide a namespace filter dropdown.
+
+5. **As a dashboard developer**, I want to get printer columns for a resource type so I can dynamically generate table columns that match `kubectl get` output.
 
 ## Technical Design
 
@@ -82,8 +86,9 @@ These endpoints provide structured query operations on the resource inventory, c
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `kind` | string | Yes | Resource kind (e.g., "Deployment") |
-| `apiGroup` | string | No | API group filter (e.g., "apps") |
+| `apiVersion` | string | Yes | Full API version (e.g., "apps/v1", "v1") |
 | `namespace` | string | No | Namespace filter (omit for all namespaces) |
+| `includeStatus` | boolean | No | When true, fetch live status from K8s API (default: false) |
 | `limit` | number | No | Max results (default: 100, max: 1000) |
 | `offset` | number | No | Skip N results for pagination (default: 0) |
 
@@ -97,11 +102,10 @@ These endpoints provide structured query operations on the resource inventory, c
         "name": "nginx",
         "namespace": "default",
         "kind": "Deployment",
-        "apiGroup": "apps",
         "apiVersion": "apps/v1",
         "labels": { "app": "nginx" },
         "createdAt": "2025-01-01T00:00:00Z",
-        "updatedAt": "2025-01-08T00:00:00Z"
+        "status": { "readyReplicas": 3, "replicas": 3 }
       }
     ],
     "total": 15,
@@ -120,6 +124,7 @@ These endpoints provide structured query operations on the resource inventory, c
 - Use `queryWithFilter()` for filtered queries
 - For pagination: fetch `limit + offset` items, slice, and count total separately
 - Note: Qdrant doesn't have native offset, so we fetch all matching and slice in-memory
+- When `includeStatus=true`, fetch each resource from K8s API and include raw `.status` field
 
 #### 3. GET /api/v1/namespaces
 
@@ -145,6 +150,58 @@ These endpoints provide structured query operations on the resource inventory, c
 - Filter out `_cluster` (cluster-scoped marker)
 - Sort alphabetically
 
+#### 4. Capability Schema with Printer Columns (via existing manageOrgData)
+
+**Request:** `POST /api/v1/tools/manageOrgData`
+```json
+{
+  "dataType": "capabilities",
+  "operation": "get",
+  "id": "{\"kind\":\"Deployment\",\"apiVersion\":\"apps/v1\"}"
+}
+```
+
+**Note:** The `id` parameter supports two formats:
+- **Hashed ID** (existing): `"a1b2c3d4e5"` - lookup by capability hash
+- **JSON format** (new): `'{"kind":"X","apiVersion":"Y"}'` - lookup by kind/apiVersion
+
+Detection: if `id` starts with `{`, parse as JSON and lookup by kind+apiVersion.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": true,
+      "operation": "get",
+      "dataType": "capabilities",
+      "data": {
+        "resourceName": "Deployment.apps",
+        "apiVersion": "apps/v1",
+        "capabilities": ["container-orchestration", "rolling-updates", "scaling"],
+        "description": "Manages replicated application deployments...",
+        "useCase": "Running stateless applications with rolling updates...",
+        "complexity": "medium",
+        "confidence": 0.95,
+        "printerColumns": [
+          { "name": "Ready", "type": "string" },
+          { "name": "Up-to-date", "type": "integer" },
+          { "name": "Available", "type": "integer" },
+          { "name": "Age", "type": "date" }
+        ]
+      }
+    }
+  }
+}
+```
+
+**Implementation:**
+- Extend `ResourceCapability` interface to include `printerColumns` field
+- During capability scan, fetch printer columns via Kubernetes Table API
+- Store printer columns in Qdrant alongside other capability data
+- Extend `get` operation to support JSON-formatted `id` for kind/apiVersion lookup
+
 ### Files to Modify/Create
 
 | File | Action | Description |
@@ -152,6 +209,34 @@ These endpoints provide structured query operations on the resource inventory, c
 | `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()` query functions |
 | `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all three endpoints |
 | `tests/integration/tools/query.test.ts` | Modified | Added integration tests (following "organize by function" principle) |
+| `src/core/capabilities.ts` | To Modify | Add `printerColumns` field to `ResourceCapability` interface |
+| `src/core/capability-vector-service.ts` | To Modify | Include `printerColumns` in payload storage/retrieval |
+| `src/core/capability-scan-workflow.ts` | To Modify | Fetch printer columns via Table API during scan |
+| `src/core/capability-operations.ts` | To Modify | Support JSON-formatted `id` for kind/apiVersion lookup |
+
+### Printer Columns Architecture
+
+**Data Flow:**
+```
+Controller triggers scan → MCP scans resource → kubectl explain (AI) + Table API (columns) → Store in Qdrant
+                                                                                                    ↓
+UI requests capability → manageOrgData get → Qdrant lookup → Return capability + printerColumns
+```
+
+**Key Points:**
+- Controller watches CRD events and triggers targeted scans for new/updated resources
+- MCP does all the work: fetches definitions, runs AI inference, fetches printer columns
+- Printer columns come from Kubernetes Table API (works for CRDs AND core resources)
+- AI inference continues to use `kubectl explain` (unchanged)
+- No live K8s API calls when UI requests capability data - everything is pre-stored
+
+**Table API Request:**
+```
+GET /apis/{group}/{version}/{resource}?limit=1
+Accept: application/json;as=Table;g=meta.k8s.io;v=v1
+```
+
+Response includes `columnDefinitions` with `name`, `type`, `description`, and `priority` for each column.
 
 ### Data Available (from Qdrant resources collection)
 
@@ -173,10 +258,29 @@ These fields are available for filtering/display:
 
 ## Milestones
 
+### Phase 1: Resource Listing Endpoints (Complete)
 - [x] Query functions added to `src/core/resource-tools.ts`
 - [x] HTTP routes registered in `src/interfaces/rest-api.ts`
 - [x] Integration tests passing for all three endpoints
 - [x] Edge cases handled (empty cluster, invalid parameters, large result sets)
+- [x] Extended `listResources` function with `apiVersion` and `includeStatus` support
+- [x] Update HTTP endpoint to use new `apiVersion` and `includeStatus` parameters
+- [x] Update integration tests for new `apiVersion` and `includeStatus` parameters
+- [x] Build and deploy image to cluster for manual UI testing
+
+### Phase 2: Printer Columns Support (New)
+- [x] Add `printerColumns` field to `ResourceCapability` interface
+- [x] Update `CapabilityVectorService` to store/retrieve `printerColumns`
+- [x] Modify capability scan workflow to fetch printer columns via Kubernetes Table API
+- [ ] Extend `handleCapabilityGet` to support JSON-formatted `id` for kind/apiVersion lookup
+- [ ] Add integration tests for printer columns functionality
+- [x] Update existing capabilities in cluster (requires re-scan to populate printer columns)
+
+### Phase 3: Finalization
+- [ ] Review PRD completeness: verify all requirements implemented and no remaining work
+- [ ] Run full integration test suite (final step after all requirements complete)
+
+**Note:** During active UI development, update tests but don't run them - the cluster is used for manual testing through the UI. Build image and apply to cluster instead. Additional requirements may come from the UI team during development. Run full test suite only as the final step once all requirements are confirmed complete.
 
 ## Risks and Mitigations
 
@@ -189,7 +293,6 @@ These fields are available for filtering/display:
 ## Out of Scope
 
 - Authentication/authorization (follow existing patterns)
-- Status fields from Kubernetes API (dashboard fetches directly)
 - Caching (can be added later if needed)
 
 ## Design Decisions
@@ -197,6 +300,49 @@ These fields are available for filtering/display:
 | Date | Decision | Rationale | Impact |
 |------|----------|-----------|--------|
 | 2026-01-08 | Organize by function, not consumer | Query functions should live alongside existing resource operations in `resource-tools.ts` rather than in a separate `dashboard-api.ts`. This avoids organizing code by who uses it (dashboard vs AI) and instead organizes by what it does (query operations). The interface (HTTP vs MCP) is a transport concern, not a code organization concern. | Changed file structure: no new `dashboard-api.ts`, instead extend `resource-tools.ts`. Query functions are interface-agnostic and could be exposed via MCP later. |
+| 2026-01-09 | Use Kubernetes Table API for printer columns | Table API (`Accept: application/json;as=Table;g=meta.k8s.io;v=v1`) provides printer columns for ALL resources (CRDs and core resources like Pod, Deployment). This is simpler than using `kubectl get crd -o json` for CRDs + separate logic for core resources. Keep existing `kubectl explain` for AI inference. | Uniform approach: single code path for all resource types. Two data sources during scan: `kubectl explain` for AI understanding, Table API for display columns. |
+| 2026-01-09 | Store printer columns in capabilities collection | Printer columns are captured during capability scan and stored in Qdrant alongside AI-enhanced fields. This allows the UI to get everything in one request without live K8s API calls. | Extended `ResourceCapability` schema with `printerColumns` field. Existing capabilities need re-scan to populate. Controller triggers targeted scans for new/updated CRDs, so staleness is minimal. |
+| 2026-01-09 | JSON format for kind/apiVersion lookup in `id` parameter | Instead of adding new parameters to the `get` operation, overload the `id` field: if it starts with `{`, parse as JSON `{"kind":"X","apiVersion":"Y"}` and lookup by those fields; otherwise treat as hashed capability ID. | No new parameters needed. Simple detection logic. UI can use either format. Maintains backward compatibility with existing ID-based lookups. |
+| 2026-01-09 | No new endpoint - extend existing manageOrgData | UI needs printer columns + AI-enhanced capability data. Instead of creating a new `/api/v1/resources/schema` endpoint, extend the existing `manageOrgData` capabilities `get` operation. Returns full capability record including new `printerColumns` field. | Reuse existing infrastructure. Single source of truth for capability data. Consistent API patterns. |
+
+## Manual Testing (Kind Cluster)
+
+**Prerequisites:**
+- Kind cluster named `dot-test` running
+- Image built and loaded: `npm run build && npm pack && docker build -t dot-ai:test . && kind load docker-image dot-ai:test --name dot-test`
+- Deployment restarted: `kubectl rollout restart deployment/dot-ai -n dot-ai`
+
+**Get auth token:**
+```bash
+# Save kubeconfig
+kind get kubeconfig --name dot-test > /tmp/dot-test-kubeconfig
+
+# Get token
+TOKEN=$(KUBECONFIG=/tmp/dot-test-kubeconfig kubectl get secret dot-ai-secrets -n dot-ai -o jsonpath='{.data.auth-token}' | base64 -d)
+```
+
+**Test endpoints (port 8180 for kind cluster):**
+```bash
+# List resource kinds
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/resources/kinds" | jq .
+
+# List resources with status
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/resources?kind=Deployment&apiVersion=apps/v1&includeStatus=true" | jq .
+
+# List resources in specific namespace
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/resources?kind=Deployment&apiVersion=apps/v1&namespace=dot-ai&includeStatus=true" | jq .
+
+# List namespaces
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/namespaces" | jq .
+
+# Test validation (missing apiVersion should return 400)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/resources?kind=Deployment" | jq .
+```
 
 ## Dependencies
 
@@ -211,4 +357,7 @@ These fields are available for filtering/display:
 | 2026-01-08 | Architecture decision: organize by function not consumer; use `resource-tools.ts` instead of separate `dashboard-api.ts` |
 | 2026-01-08 | Implementation complete: all 3 endpoints implemented, 7 integration tests passing |
 | 2026-01-08 | Added namespace filter to `/api/v1/resources/kinds` endpoint (feature request from UI team) |
-| 2026-01-08 | PRD marked complete |
+| 2026-01-08 | PRD reopened for completeness review |
+| 2026-01-08 | Extended: Added `apiVersion` (required) and `includeStatus` parameters to `/api/v1/resources` endpoint per UI team request |
+| 2026-01-09 | New requirement: UI needs printer columns for dynamic table generation. Decided to store printer columns in capabilities collection (fetched via Table API during scan) and extend existing `get` operation with JSON-formatted `id` for kind/apiVersion lookup |
+| 2026-01-09 | Implemented printer columns: Added `PrinterColumn` interface, `getPrinterColumns()` method using Table API, integrated into scan workflow. Removed `jsonPath` field (empty in API response). Verified working for Pod (core) and CNPG Cluster (CRD). JSON-formatted `id` lookup still pending. |
