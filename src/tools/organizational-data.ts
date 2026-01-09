@@ -260,72 +260,14 @@ async function handleFireAndForgetScan(
         }
       };
     }
+    // Just set the resource list - scanSingleResource will fetch metadata for each
     session.selectedResources = parsedResources;
 
-    // Fetch resource metadata (including plural names) from Kubernetes API
-    // This ensures we have correct plural for Table API calls
-    try {
-      const { KubernetesDiscovery } = await import('../core/discovery');
-      const discovery = new KubernetesDiscovery();
-      await discovery.connect();
-      const resourceMap = await discovery.discoverResources();
-      const allResources = [...resourceMap.resources, ...resourceMap.custom];
-
-      // Build lookup maps: kind -> resource data
-      const resourceMetadata: Record<string, { apiVersion: string; version: string; group: string; resourcePlural: string }> = {};
-
-      for (const resourceName of parsedResources) {
-        // Parse the resource name (format: Kind.group or Kind for core)
-        const parts = resourceName.split('.');
-        const kind = parts[0];
-        const resourceGroup = parts.length > 1 ? parts.slice(1).join('.') : '';
-
-        // Find matching resource in discovered resources
-        const matchedResource = allResources.find((r: any) => {
-          const rKind = r.kind;
-          const rGroup = r.group || '';
-          return rKind === kind && rGroup === resourceGroup;
-        });
-
-        if (matchedResource) {
-          // Get the plural from the matched resource
-          let resourcePlural: string;
-          let apiVersion: string;
-          let version: string;
-          let group: string;
-
-          if ('apiVersion' in matchedResource) {
-            // EnhancedResource - name is the plural
-            resourcePlural = matchedResource.name;
-            apiVersion = matchedResource.apiVersion || '';
-            version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
-            group = matchedResource.group || '';
-          } else {
-            // EnhancedCRD - plural is first part of name
-            resourcePlural = matchedResource.name.includes('.')
-              ? matchedResource.name.split('.')[0]
-              : matchedResource.name;
-            group = matchedResource.group || '';
-            version = matchedResource.version || '';
-            apiVersion = group ? `${group}/${version}` : version;
-          }
-
-          resourceMetadata[resourceName] = { apiVersion, version, group, resourcePlural };
-        }
-      }
-
-      session.resourceMetadata = resourceMetadata;
-      logger.info('Fetched resource metadata for targeted scan', {
-        requestId,
-        resourceCount: Object.keys(resourceMetadata).length,
-        resources: Object.keys(resourceMetadata)
-      });
-    } catch (metadataError) {
-      logger.warn('Failed to fetch resource metadata, falling back to derived plurals', {
-        requestId,
-        error: metadataError instanceof Error ? metadataError.message : String(metadataError)
-      });
-    }
+    logger.info('Targeted scan initiated', {
+      requestId,
+      resourceCount: parsedResources.length,
+      resources: parsedResources
+    });
   }
 
   // Save session for progress tracking

@@ -133,6 +133,40 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   }
 
   /**
+   * Get capability by kind and apiVersion
+   * Used for JSON format lookup from dashboard UI
+   *
+   * @param kind - Resource kind (e.g., "Deployment", "Cluster")
+   * @param apiVersion - Full apiVersion (e.g., "apps/v1", "postgresql.cnpg.io/v1")
+   * @returns Matching capability or null if not found
+   */
+  async getCapabilityByKindApiVersion(kind: string, apiVersion: string): Promise<ResourceCapability | null> {
+    // Build Qdrant filter for exact apiVersion match
+    const filter = {
+      must: [
+        { key: 'apiVersion', match: { value: apiVersion } }
+      ]
+    };
+
+    const results = await this.queryWithFilter(filter, 100);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    // Find matching capability by kind
+    // For standard resources: resourceName === kind (case insensitive)
+    // For CRDs: resourceName starts with lowercase kind (handles pluralization like "Cluster" -> "clusters.group")
+    const kindLower = kind.toLowerCase();
+    const match = results.find(cap => {
+      const resourceNameLower = cap.resourceName.toLowerCase();
+      return resourceNameLower === kindLower || resourceNameLower.startsWith(kindLower);
+    });
+
+    return match || null;
+  }
+
+  /**
    * Delete capability by resource name
    */
   async deleteCapability(resourceName: string): Promise<void> {
