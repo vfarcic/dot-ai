@@ -953,8 +953,8 @@ spec:
     });
   }, 30000);
 
-  // PRD #328: Query with [visualization] prefix returns visualization data directly
-  test('should return visualization data directly when [visualization] prefix is used', async () => {
+  // PRD #328: Query with [visualization] prefix returns visualization data with sessionId
+  test('should return visualization data with sessionId when [visualization] prefix is used', async () => {
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/query',
       {
@@ -963,14 +963,15 @@ spec:
       }
     );
 
-    // Visualization mode returns visualization format (title, visualizations, insights)
-    // instead of normal query output (summary, sessionId, etc.)
+    // Visualization mode returns visualization format (sessionId, title, visualizations, insights)
+    // sessionId enables URL caching/bookmarking for dashboard UIs
     expect(response).toMatchObject({
       success: true,
       data: {
         tool: 'query',
         executionTime: expect.any(Number),
         result: {
+          sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9-]+$/),
           title: expect.any(String),
           visualizations: expect.any(Array),
           insights: expect.any(Array),
@@ -1000,9 +1001,9 @@ spec:
       });
     }
 
-    // Should NOT have normal query output fields
+    // Should NOT have normal query output fields (summary, guidance)
+    // but SHOULD have sessionId for caching
     expect(result).not.toHaveProperty('summary');
-    expect(result).not.toHaveProperty('sessionId');
     expect(result).not.toHaveProperty('visualizationUrl');
     expect(result).not.toHaveProperty('guidance');
   }, 300000);
