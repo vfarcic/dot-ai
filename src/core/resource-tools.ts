@@ -475,3 +475,215 @@ export async function getNamespaces(): Promise<string[]> {
   // Sort alphabetically
   return Array.from(namespaceSet).sort();
 }
+
+// ============================================================================
+// Events Query Functions (PRD #328)
+// Fetch Kubernetes events for specific resources
+// ============================================================================
+
+/**
+ * Kubernetes event information
+ */
+export interface KubernetesEvent {
+  reason: string;
+  message: string;
+  type: 'Normal' | 'Warning';
+  count: number;
+  firstTimestamp: string | null;
+  lastTimestamp: string | null;
+  source: {
+    component: string;
+    host?: string;
+  };
+  involvedObject: {
+    kind: string;
+    name: string;
+    namespace?: string;
+    uid?: string;
+  };
+}
+
+/**
+ * Options for fetching resource events
+ */
+export interface GetResourceEventsOptions {
+  name: string;           // Required: Resource name
+  kind: string;           // Required: Resource kind
+  namespace?: string;     // Optional: Namespace (for namespaced resources)
+  uid?: string;           // Optional: Resource UID for precise filtering
+}
+
+/**
+ * Result of fetching resource events
+ */
+export interface GetResourceEventsResult {
+  events: KubernetesEvent[];
+  count: number;
+}
+
+/**
+ * Get Kubernetes events for a specific resource
+ * Queries the K8s API using field selectors on involvedObject fields
+ *
+ * @param options - Filter options for events
+ * @returns Array of events sorted by lastTimestamp descending
+ */
+export async function getResourceEvents(options: GetResourceEventsOptions): Promise<GetResourceEventsResult> {
+  const { name, kind, namespace, uid } = options;
+
+  // Build field selector for involvedObject filtering
+  const fieldSelectors: string[] = [
+    `involvedObject.name=${name}`,
+    `involvedObject.kind=${kind}`
+  ];
+
+  // Add UID filter if provided (more precise)
+  if (uid) {
+    fieldSelectors.push(`involvedObject.uid=${uid}`);
+  }
+
+  // Build kubectl command
+  const cmdArgs = ['get', 'events', '-o', 'json', `--field-selector=${fieldSelectors.join(',')}`];
+
+  // Add namespace flag for scoped query
+  if (namespace) {
+    cmdArgs.push('-n', namespace);
+  } else {
+    // For cluster-scoped resources, query all namespaces
+    cmdArgs.push('--all-namespaces');
+  }
+
+  try {
+    const output = await executeKubectl(cmdArgs);
+    const parsed = JSON.parse(output);
+
+    // Transform K8s event objects to our interface
+    const events: KubernetesEvent[] = (parsed.items || []).map((item: any) => ({
+      reason: item.reason || '',
+      message: item.message || '',
+      type: item.type || 'Normal',
+      count: item.count || 1,
+      firstTimestamp: item.firstTimestamp || item.eventTime || null,
+      lastTimestamp: item.lastTimestamp || item.eventTime || null,
+      source: {
+        component: item.source?.component || item.reportingComponent || '',
+        host: item.source?.host || item.reportingInstance || undefined
+      },
+      involvedObject: {
+        kind: item.involvedObject?.kind || '',
+        name: item.involvedObject?.name || '',
+        namespace: item.involvedObject?.namespace || undefined,
+        uid: item.involvedObject?.uid || undefined
+      }
+    }));
+
+    // Sort by lastTimestamp descending (most recent first)
+    events.sort((a, b) => {
+      const timeA = a.lastTimestamp ? new Date(a.lastTimestamp).getTime() : 0;
+      const timeB = b.lastTimestamp ? new Date(b.lastTimestamp).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return {
+      events,
+      count: events.length
+    };
+  } catch {
+    // Return empty array if we can't fetch events (resource may not exist or no events)
+    return {
+      events: [],
+      count: 0
+    };
+  }
+}
+
+// ============================================================================
+// Pod Logs Query Functions (PRD #328)
+// Fetch container logs from pods
+// ============================================================================
+
+/**
+ * Options for fetching pod logs
+ */
+export interface GetPodLogsOptions {
+  name: string;           // Required: Pod name
+  namespace: string;      // Required: Namespace (pods are always namespaced)
+  container?: string;     // Optional: Container name for multi-container pods
+  tailLines?: number;     // Optional: Number of lines to return (default: 100)
+}
+
+/**
+ * Result of fetching pod logs
+ */
+export interface GetPodLogsResult {
+  logs: string;
+  container: string;      // The container logs were fetched from
+  containerCount: number; // Total containers in pod (for UI to know if selection needed)
+}
+
+/**
+ * Error thrown when pod has multiple containers and none specified
+ */
+export class ContainerRequiredError extends Error {
+  containers: string[];
+
+  constructor(containers: string[]) {
+    super('Pod has multiple containers. Please specify a container.');
+    this.name = 'ContainerRequiredError';
+    this.containers = containers;
+  }
+}
+
+/**
+ * Get container logs from a pod
+ * Reuses executeKubectl infrastructure (same as AI kubectl_logs tool)
+ *
+ * @param options - Options for fetching logs
+ * @returns Log content and container information
+ * @throws ContainerRequiredError if pod has multiple containers and none specified
+ */
+export async function getPodLogs(options: GetPodLogsOptions): Promise<GetPodLogsResult> {
+  const { name, namespace, container, tailLines = 100 } = options;
+
+  // First, get pod spec to determine container count
+  const podCmdArgs = ['get', `pod/${name}`, '-n', namespace, '-o', 'json'];
+  const podOutput = await executeKubectl(podCmdArgs);
+  const pod = JSON.parse(podOutput);
+
+  // Get all container names (spec.containers + spec.initContainers)
+  const containers: string[] = [
+    ...(pod.spec?.containers || []).map((c: any) => c.name),
+    ...(pod.spec?.initContainers || []).map((c: any) => c.name)
+  ];
+  const containerCount = containers.length;
+
+  // Determine which container to fetch logs from
+  let targetContainer: string;
+
+  if (container) {
+    // Container explicitly specified
+    if (!containers.includes(container)) {
+      throw new Error(`Container '${container}' not found in pod. Available containers: ${containers.join(', ')}`);
+    }
+    targetContainer = container;
+  } else if (containerCount === 1) {
+    // Single container pod - use it
+    targetContainer = containers[0];
+  } else if (containerCount > 1) {
+    // Multiple containers - require explicit selection
+    throw new ContainerRequiredError(containers);
+  } else {
+    throw new Error('Pod has no containers');
+  }
+
+  // Build kubectl logs command
+  const cmdArgs = ['logs', name, '-n', namespace, '-c', targetContainer, `--tail=${tailLines}`];
+
+  const logs = await executeKubectl(cmdArgs);
+
+  return {
+    logs,
+    container: targetContainer,
+    containerCount
+  };
+}

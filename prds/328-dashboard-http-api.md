@@ -23,11 +23,13 @@ Building a Kubernetes dashboard UI requires structured, filterable queries again
 
 ## Solution
 
-Add three HTTP-only REST API endpoints that directly query Qdrant's `resources` collection and return structured JSON suitable for dashboard UIs:
+Add HTTP-only REST API endpoints that return structured JSON suitable for dashboard UIs:
 
 1. **`GET /api/v1/resources/kinds`** - List all unique resource kinds with counts
 2. **`GET /api/v1/resources`** - List resources with filtering and pagination
 3. **`GET /api/v1/namespaces`** - List all namespaces
+4. **`GET /api/v1/resource`** - Get single resource with full details
+5. **`GET /api/v1/events`** - Get Kubernetes events for a specific resource
 
 Additionally, extend the existing `manageOrgData` capabilities `get` operation to support retrieving resource schema information (including printer columns) for dynamic table column generation.
 
@@ -44,6 +46,10 @@ These endpoints provide structured query operations on the resource inventory, c
 4. **As a dashboard developer**, I want to list all namespaces so I can provide a namespace filter dropdown.
 
 5. **As a dashboard developer**, I want to get printer columns for a resource type so I can dynamically generate table columns that match `kubectl get` output.
+
+6. **As a dashboard developer**, I want to fetch Kubernetes events for a specific resource so I can display scheduling decisions, image pulls, failures, and restarts in the Events tab.
+
+7. **As a dashboard developer**, I want to fetch container logs for a Pod so I can display application output in the Logs tab for troubleshooting.
 
 ## Technical Design
 
@@ -199,7 +205,104 @@ These endpoints provide structured query operations on the resource inventory, c
 - Returns complete resource including metadata, spec, and status
 - Returns 404 if resource not found
 
-#### 5. Capability Schema with Printer Columns (via existing manageOrgData)
+#### 5. GET /api/v1/events (Resource Events)
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Resource name |
+| `kind` | string | Yes | Resource kind (e.g., "Pod", "Deployment") |
+| `namespace` | string | No | Namespace (omit for cluster-scoped resources) |
+| `uid` | string | No | Resource UID for precise filtering |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "reason": "Scheduled",
+        "message": "Successfully assigned default/my-pod to node-1",
+        "type": "Normal",
+        "count": 1,
+        "firstTimestamp": "2026-01-10T10:00:00Z",
+        "lastTimestamp": "2026-01-10T10:00:00Z",
+        "source": {
+          "component": "default-scheduler",
+          "host": "control-plane"
+        },
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "my-pod",
+          "namespace": "default",
+          "uid": "abc-123"
+        }
+      }
+    ],
+    "count": 1
+  },
+  "meta": {
+    "timestamp": "2026-01-10T12:00:00Z",
+    "requestId": "req_123"
+  }
+}
+```
+
+**Implementation:**
+- Fetch events from Kubernetes API via kubectl with field-selector on involvedObject
+- Filter by `involvedObject.name`, `involvedObject.kind`, and optionally `involvedObject.uid`
+- Returns events sorted by lastTimestamp descending (most recent first)
+- Returns empty array if no events found
+
+#### 6. GET /api/v1/logs (Pod Logs)
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Pod name |
+| `namespace` | string | Yes | Kubernetes namespace |
+| `container` | string | No | Container name (required for multi-container pods) |
+| `tailLines` | number | No | Number of lines to return (default: 100) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "logs": "2026-01-10T10:00:00Z INFO Starting server...\n2026-01-10T10:00:01Z INFO Ready",
+    "container": "server",
+    "containerCount": 2
+  },
+  "meta": {
+    "timestamp": "2026-01-10T12:00:00Z",
+    "requestId": "req_123"
+  }
+}
+```
+
+**Multi-Container Error Response (when container not specified):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CONTAINER_REQUIRED",
+    "message": "Pod has multiple containers. Please specify a container.",
+    "details": {
+      "containers": ["server", "sidecar", "init"]
+    }
+  }
+}
+```
+
+**Implementation:**
+- Fetch pod spec first to determine container count
+- If single container, use it automatically
+- If multiple containers and none specified, return CONTAINER_REQUIRED error with container list
+- Execute `kubectl logs` with `--tail` flag for line limiting
+- Returns raw log string and container metadata
+
+#### 7. Capability Schema with Printer Columns (via existing manageOrgData)
 
 **Request:** `POST /api/v1/tools/manageOrgData`
 ```json
@@ -255,13 +358,13 @@ Detection: if `id` starts with `{`, parse as JSON and lookup by kind+apiVersion.
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()` query functions |
-| `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all three endpoints |
+| `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()`, `getResourceEvents()`, `getPodLogs()` query functions |
+| `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all endpoints |
 | `tests/integration/tools/query.test.ts` | Modified | Added integration tests (following "organize by function" principle) |
-| `src/core/capabilities.ts` | To Modify | Add `printerColumns` field to `ResourceCapability` interface |
-| `src/core/capability-vector-service.ts` | To Modify | Include `printerColumns` in payload storage/retrieval |
-| `src/core/capability-scan-workflow.ts` | To Modify | Fetch printer columns via Table API during scan |
-| `src/core/capability-operations.ts` | To Modify | Support JSON-formatted `id` for kind/apiVersion lookup |
+| `src/core/capabilities.ts` | Modified | Add `printerColumns` field to `ResourceCapability` interface |
+| `src/core/capability-vector-service.ts` | Modified | Include `printerColumns` in payload storage/retrieval |
+| `src/core/capability-scan-workflow.ts` | Modified | Fetch printer columns via Table API during scan |
+| `src/core/capability-operations.ts` | Modified | Support JSON-formatted `id` for kind/apiVersion lookup |
 
 ### Printer Columns Architecture
 
@@ -333,7 +436,20 @@ These fields are available for filtering/display:
 - [x] Add integration tests for single resource endpoint
 - [x] Build and deploy image to cluster for manual UI testing
 
-### Phase 4: Finalization
+### Phase 4: Events Endpoint (Complete)
+- [x] Add `getResourceEvents()` function to `resource-tools.ts` using `executeKubectl` with field-selectors
+- [x] Add `GET /api/v1/events` HTTP endpoint with name, kind, namespace, uid parameters
+- [x] Add integration tests for events endpoint
+- [x] Build and deploy image to cluster for manual UI testing
+
+### Phase 5: Logs Endpoint (Complete)
+- [x] Add `GetPodLogsOptions`, `GetPodLogsResult` interfaces and `getPodLogs()` function to `resource-tools.ts`
+- [x] Add `GET /api/v1/logs` HTTP endpoint with name, namespace, container, tailLines parameters
+- [x] Handle multi-container pods with `ContainerRequiredError` that returns available container list
+- [x] Add integration tests for logs endpoint
+- [x] Build and deploy image to cluster for manual UI testing
+
+### Phase 6: Finalization
 - [ ] Review PRD completeness: verify all requirements implemented and no remaining work
 - [ ] Run full integration test suite (final step after all requirements complete)
 
@@ -367,15 +483,12 @@ These fields are available for filtering/display:
 **Prerequisites:**
 - Kind cluster named `dot-test` running
 - Image built and loaded: `npm run build && npm pack && docker build -t dot-ai:test . && kind load docker-image dot-ai:test --name dot-test`
-- Deployment restarted: `kubectl rollout restart deployment/dot-ai -n dot-ai`
+- Deployment restarted: `KUBECONFIG=./kubeconfig-test.yaml kubectl rollout restart deployment/dot-ai -n dot-ai`
 
 **Get auth token:**
 ```bash
-# Save kubeconfig
-kind get kubeconfig --name dot-test > /tmp/dot-test-kubeconfig
-
-# Get token
-TOKEN=$(KUBECONFIG=/tmp/dot-test-kubeconfig kubectl get secret dot-ai-secrets -n dot-ai -o jsonpath='{.data.auth-token}' | base64 -d)
+# Get token (using existing kubeconfig)
+TOKEN=$(KUBECONFIG=./kubeconfig-test.yaml kubectl get secret dot-ai-secrets -n dot-ai -o jsonpath='{.data.auth-token}' | base64 -d)
 ```
 
 **Test endpoints (port 8180 for kind cluster):**
@@ -399,6 +512,15 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 # Test validation (missing apiVersion should return 400)
 curl -s -H "Authorization: Bearer $TOKEN" \
   "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/resources?kind=Deployment" | jq .
+
+# Get events for a resource
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/events?name=dot-ai&kind=Deployment&namespace=dot-ai" | jq .
+
+# Get pod logs
+POD_NAME=$(KUBECONFIG=./kubeconfig-test.yaml kubectl get pods -n dot-ai -l app=dot-ai -o jsonpath='{.items[0].metadata.name}')
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://dot-ai.127.0.0.1.nip.io:8180/api/v1/logs?name=$POD_NAME&namespace=dot-ai&tailLines=50" | jq .
 ```
 
 ## Dependencies
@@ -420,3 +542,5 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-09 | Implemented printer columns: Added `PrinterColumn` interface, `getPrinterColumns()` method using Table API, integrated into scan workflow. Verified working for Pod (core) and CNPG Cluster (CRD). JSON-formatted `id` lookup still pending. |
 | 2026-01-09 | Added `getCapabilityByKindApiVersion` method and JSON-formatted `id` support in `handleCapabilityGet`. Fixed `jsonPath` being empty for CRDs by fetching from CRD's `additionalPrinterColumns` instead of Table API. Major refactor: consolidated three separate metadata-building code paths into single `scanSingleResource()` function - both full scan and targeted scan now use the same code path for processing each resource. Tested via controller: deleted CapabilityScanConfig CR, cleared DB, reapplied CR, verified scan triggered successfully with correct `jsonPath` values for CRDs. |
 | 2026-01-09 | New requirement from UI team: ResourceDetailPage needs single resource endpoint. Added `GET /api/v1/resource` endpoint with kind, apiVersion, name, namespace parameters. Also added `kubectl_get_resource_json` AI tool to `KUBECTL_INVESTIGATION_TOOLS` for AI workflows. Refactored `fetchResourceStatus` to `fetchResource` with optional `field` parameter for code reuse. |
+| 2026-01-10 | New requirement from UI team: Events tab in ResourceDetailPage needs events endpoint. Added `GET /api/v1/events` endpoint with name, kind, namespace, uid parameters. Reuses `executeKubectl` with field-selectors (same foundation as AI's `kubectl_events` tool). Returns structured JSON with events sorted by lastTimestamp descending. |
+| 2026-01-10 | New requirement from UI team: Logs tab in ResourceDetailPage needs logs endpoint. Added `GET /api/v1/logs` endpoint with name, namespace, container, tailLines parameters. Reuses `executeKubectl` infrastructure (same as AI's `kubectl_logs` tool). Multi-container pods return CONTAINER_REQUIRED error with available container list. |
