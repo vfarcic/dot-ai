@@ -743,4 +743,210 @@ spec:
       }
     });
   }, 30000);
+
+  // PRD #328: GET /api/v1/events - Events Endpoint
+  test('GET /api/v1/events should return events for a resource', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/events?name=test-pg-cluster&kind=Cluster&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        events: expect.any(Array),
+        count: expect.any(Number)
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // If there are events, verify the structure
+    if (response.data.events.length > 0) {
+      const event = response.data.events[0];
+      expect(event).toMatchObject({
+        reason: expect.any(String),
+        message: expect.any(String),
+        type: expect.stringMatching(/^(Normal|Warning)$/),
+        involvedObject: {
+          kind: 'Cluster',
+          name: 'test-pg-cluster'
+        }
+      });
+    }
+  }, 30000);
+
+  // PRD #328: GET /api/v1/events without required name parameter
+  test('GET /api/v1/events without name should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/events?kind=Cluster&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'name query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/events without required kind parameter
+  test('GET /api/v1/events without kind should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/events?name=test-pg-cluster&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'kind query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/events for non-existent resource returns empty array
+  test('GET /api/v1/events for non-existent resource should return empty array', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/events?name=non-existent-resource&kind=Pod&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        events: [],
+        count: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/logs - Pod Logs Endpoint
+  test('GET /api/v1/logs should return logs for a pod', async () => {
+    // Get dot-ai pod name first (the MCP server pod running the test)
+    const kubeconfig = process.env.KUBECONFIG;
+    const podsOutput = execSync(
+      `kubectl get pods -n dot-ai -l app=dot-ai -o jsonpath='{.items[0].metadata.name}'`,
+      { env: { ...process.env, KUBECONFIG: kubeconfig }, encoding: 'utf8' }
+    );
+    const podName = podsOutput.replace(/'/g, '').trim();
+
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/logs?name=${podName}&namespace=dot-ai&tailLines=10`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        logs: expect.any(String),
+        container: 'dot-ai',
+        containerCount: 1
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Logs should contain some content (MCP server produces logs)
+    expect(response.data.logs.length).toBeGreaterThan(0);
+  }, 30000);
+
+  // PRD #328: GET /api/v1/logs without required name parameter
+  test('GET /api/v1/logs without name should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      '/api/v1/logs?namespace=dot-ai'
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'name query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/logs without required namespace parameter
+  test('GET /api/v1/logs without namespace should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      '/api/v1/logs?name=some-pod'
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'namespace query parameter is required'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/logs with invalid tailLines
+  test('GET /api/v1/logs with invalid tailLines should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      '/api/v1/logs?name=some-pod&namespace=default&tailLines=invalid'
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'INVALID_PARAMETER',
+        message: 'tailLines must be a positive integer'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/logs for non-existent pod should return error
+  test('GET /api/v1/logs for non-existent pod should return error', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/logs?name=non-existent-pod-xyz&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'LOGS_ERROR',
+        message: 'Failed to retrieve logs'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
 });

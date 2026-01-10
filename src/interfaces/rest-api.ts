@@ -29,7 +29,10 @@ import {
   getResourceKinds,
   listResources,
   getNamespaces,
-  fetchResource
+  fetchResource,
+  getResourceEvents,
+  getPodLogs,
+  ContainerRequiredError
 } from '../core/resource-tools';
 import {
   KUBECTL_API_RESOURCES_TOOL,
@@ -274,6 +277,22 @@ export class RestApiRouter {
           }
           break;
 
+        case 'events':
+          if (req.method === 'GET') {
+            await this.handleGetEvents(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for events');
+          }
+          break;
+
+        case 'logs':
+          if (req.method === 'GET') {
+            await this.handleGetLogs(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for logs');
+          }
+          break;
+
         case 'prompts':
           if (req.method === 'GET') {
             await this.handlePromptsListRequest(req, res, requestId);
@@ -335,6 +354,8 @@ export class RestApiRouter {
     // /api/v1/resource -> get single resource with full details (PRD #328)
     // /api/v1/resources -> list resources with filtering (PRD #328)
     // /api/v1/namespaces -> list namespaces (PRD #328)
+    // /api/v1/events -> get events for a resource (PRD #328)
+    // /api/v1/logs -> get pod logs (PRD #328)
     // /api/v1/prompts -> prompts list
     // /api/v1/prompts/{promptName} -> prompt get
 
@@ -385,6 +406,16 @@ export class RestApiRouter {
     // Handle namespaces endpoint (PRD #328)
     if (cleanPath === 'namespaces') {
       return { endpoint: 'namespaces' };
+    }
+
+    // Handle events endpoint (PRD #328)
+    if (cleanPath === 'events') {
+      return { endpoint: 'events' };
+    }
+
+    // Handle logs endpoint (PRD #328)
+    if (cleanPath === 'logs') {
+      return { endpoint: 'logs' };
     }
 
     // Handle prompts endpoints
@@ -967,6 +998,181 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'RESOURCE_ERROR',
         'Failed to retrieve resource',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/events (PRD #328)
+   * Returns Kubernetes events for a specific resource
+   */
+  private async handleGetEvents(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const name = searchParams.get('name');
+      const kind = searchParams.get('kind');
+      const namespace = searchParams.get('namespace') || undefined;
+      const uid = searchParams.get('uid') || undefined;
+
+      // Validate required parameters
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+      if (!kind) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        return;
+      }
+
+      this.logger.info('Processing get events request', { requestId, name, kind, namespace, uid });
+
+      const result = await getResourceEvents({ name, kind, namespace, uid });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          events: result.events,
+          count: result.count
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get events request completed', {
+        requestId,
+        name,
+        kind,
+        namespace,
+        eventCount: result.count
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get events request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'EVENTS_ERROR',
+        'Failed to retrieve events',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/logs (PRD #328)
+   * Returns container logs for a pod
+   */
+  private async handleGetLogs(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const name = searchParams.get('name');
+      const namespace = searchParams.get('namespace');
+      const container = searchParams.get('container') || undefined;
+      const tailLinesParam = searchParams.get('tailLines');
+
+      // Validate required parameters
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+      if (!namespace) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'namespace query parameter is required');
+        return;
+      }
+
+      // Parse tailLines with validation
+      let tailLines: number | undefined;
+      if (tailLinesParam) {
+        tailLines = parseInt(tailLinesParam, 10);
+        if (isNaN(tailLines) || tailLines < 1) {
+          await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'INVALID_PARAMETER', 'tailLines must be a positive integer');
+          return;
+        }
+      }
+
+      this.logger.info('Processing get logs request', { requestId, name, namespace, container, tailLines });
+
+      const result = await getPodLogs({ name, namespace, container, tailLines });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          logs: result.logs,
+          container: result.container,
+          containerCount: result.containerCount
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get logs request completed', {
+        requestId,
+        name,
+        namespace,
+        container: result.container,
+        logLength: result.logs.length
+      });
+
+    } catch (error) {
+      // Handle ContainerRequiredError specially
+      if (error instanceof ContainerRequiredError) {
+        const response: RestApiResponse = {
+          success: false,
+          error: {
+            code: 'CONTAINER_REQUIRED',
+            message: error.message,
+            details: {
+              containers: error.containers
+            }
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            requestId,
+            version: this.config.version
+          }
+        };
+
+        await this.sendJsonResponse(res, HttpStatus.BAD_REQUEST, response);
+        return;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get logs request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'LOGS_ERROR',
+        'Failed to retrieve logs',
         { error: errorMessage }
       );
     }
