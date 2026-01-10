@@ -425,8 +425,9 @@ spec:
       success: true,
       data: {
         kinds: expect.arrayContaining([
-          { kind: 'Deployment', apiGroup: 'apps', apiVersion: 'apps/v1', count: 1 },
-          { kind: 'Cluster', apiGroup: 'postgresql.cnpg.io', apiVersion: 'postgresql.cnpg.io/v1', count: 1 }
+          // Use expect.objectContaining to match kind/apiVersion without strict count (other tests may create resources)
+          expect.objectContaining({ kind: 'Deployment', apiGroup: 'apps', apiVersion: 'apps/v1' }),
+          expect.objectContaining({ kind: 'Cluster', apiGroup: 'postgresql.cnpg.io', apiVersion: 'postgresql.cnpg.io/v1' })
         ])
       },
       meta: {
@@ -468,7 +469,8 @@ spec:
 
   // PRD #328: GET /api/v1/resources with kind and apiVersion filter
   test('GET /api/v1/resources?kind=Deployment&apiVersion=apps/v1 should return test-web-deployment', async () => {
-    const response = await integrationTest.httpClient.get('/api/v1/resources?kind=Deployment&apiVersion=apps/v1');
+    // Filter by namespace to avoid interference from other concurrent tests
+    const response = await integrationTest.httpClient.get(`/api/v1/resources?kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`);
 
     expect(response).toMatchObject({
       success: true,
@@ -620,7 +622,8 @@ spec:
     expect(response).toMatchObject({
       success: true,
       data: {
-        namespaces: [testNamespace]
+        // Use arrayContaining since other concurrent tests may create resources in other namespaces
+        namespaces: expect.arrayContaining([testNamespace])
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),

@@ -310,16 +310,16 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(clusterResponse.data.result.success).toBe(true);
       const cluster = clusterResponse.data.result.data;
 
-      // Use list to get Service (validates traditional lookup still works)
-      const listResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+      // Test JSON format lookup for Service (core resource with v1 apiVersion)
+      const serviceResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
-        operation: 'list',
-        limit: 20,
-        interaction_id: 'verify_scanned_resources'
+        operation: 'get',
+        id: JSON.stringify({ kind: 'Service', apiVersion: 'v1' }),
+        interaction_id: 'json_lookup_service'
       });
 
-      const capabilities = listResponse.data.result.data.capabilities;
-      const service = capabilities.find((c: any) => c.resourceName === 'Service');
+      expect(serviceResponse.data.result.success).toBe(true);
+      const service = serviceResponse.data.result.data;
 
       // All three resources must be found - no conditional validation
       expect(deployment).toBeDefined();
