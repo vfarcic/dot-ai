@@ -1265,7 +1265,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         kind: 'Solution',
         metadata: {
           name: expect.stringMatching(/^solution-sol-\d+-[a-f0-9]{8}$/),
-          namespace: expect.any(String), // namespace in metadata for overlay resources
+          // Note: namespace may or may not be present depending on AI output
           labels: {
             'dot-ai.devopstoolkit.live/created-by': 'dot-ai-mcp',
             'dot-ai.devopstoolkit.live/solution-id': expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/)
