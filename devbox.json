@@ -1,25 +1,15 @@
 {
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
-    "kind@0.30.0",
-    "git@2.51.0",
-    "kubernetes-helm@3.19.0",
-    "nushell@0.106.1",
-    "kubectl@1.33.4",
-    "awscli2@2.31.11",
-    "kubectl-tree@0.4.6",
-    "vals@0.42.5",
-    "hadolint@2.14.0",
-    "gh@2.83.1",
-    "jq@1.8.1",
-    "yq-go@4.50.1"
+    "nushell@0.108.0",
+    "kubernetes-helm@3.19.1",
+    "git@2.51.2",
+    "vals@0.42.6",
+    "yq-go@4.50.1",
+    "kubectl-tree@0.4.6"
   ],
   "shell": {
-    "init_hook": [
-      "export PATH=$PATH:$HOME/.npm-global/bin",
-      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\" || true",
-      "[ -f .env ] && source .env || true"
-    ],
-    "scripts": {}
+    "init_hook": [],
+    "scripts":   {}
   }
 }
