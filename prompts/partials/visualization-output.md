@@ -30,21 +30,24 @@ Each visualization:
 - Use `graph TD` or `graph LR` depending on relationship type
 - Use subgraphs to group related items
 - Arrows: `-->` for direct relationships, `-.->` for indirect/inferred
-- **Syntax rules**:
-  - Node names in `class` statements MUST be comma-separated: `class a,b,c style` (not space-separated)
-  - If using `classDef`, ALWAYS specify both `fill` AND `color` (text) with sufficient contrast
+- **Styling rules**:
+  - Only style nodes that represent errors or problems
+  - For error nodes: `style NodeId fill:#ef4444,stroke:#dc2626`
+  - Do NOT add colors or styling to healthy/normal nodes - use default Mermaid styling
   - Truncate UUIDs to first 8 characters (e.g., `pvc-508555a4...`)
   - Keep node labels under 30 characters when possible
 
 ### table
-- `content`: `{ "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]] }`
+- `content`: `{ "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]], "rowStatuses": ["error", null, "ok"] }`
 - Choose columns relevant to the data present
 - Include status/condition information when available
+- Optional `rowStatuses` array: Indicate row-level status. Values: `"error"`, `"warning"`, `"ok"`, or `null`. Array length should match rows.
 
 ### cards
-- `content`: `[{ "id": "unique", "title": "Name", "subtitle": "Type or status", "description": "Details", "tags": ["tag1"] }]`
+- `content`: `[{ "id": "unique", "title": "Name", "subtitle": "Type or status", "description": "Details", "tags": ["tag1"], "status": "error" }]`
 - Use for items where individual status or comparison matters
 - Tags should reflect actual state from the data
+- Optional `status` field: Indicate item status. Values: `"error"`, `"warning"`, `"ok"`. Omit for neutral items.
 
 ### code
 - `content`: `{ "language": "yaml" | "json" | "bash", "code": "..." }`

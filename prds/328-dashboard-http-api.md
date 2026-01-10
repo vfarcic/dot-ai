@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 328 |
 | **Feature Name** | Dashboard HTTP API Endpoints |
-| **Status** | In Progress |
+| **Status** | Complete |
 | **Priority** | Medium |
 | **Created** | 2026-01-08 |
 | **GitHub Issue** | [#328](https://github.com/vfarcic/dot-ai/issues/328) |
@@ -458,8 +458,8 @@ These fields are available for filtering/display:
 - [x] Build and deploy image to cluster for manual UI testing
 
 ### Phase 7: Finalization
-- [ ] Review PRD completeness: verify all requirements implemented and no remaining work
-- [ ] Run full integration test suite (final step after all requirements complete)
+- [x] Review PRD completeness: verify all requirements implemented and no remaining work
+- [x] Run full integration test suite (final step after all requirements complete)
 
 **Note:** During active UI development, update tests but don't run them - the cluster is used for manual testing through the UI. Build image and apply to cluster instead. Additional requirements may come from the UI team during development. Run full test suite only as the final step once all requirements are confirmed complete.
 
