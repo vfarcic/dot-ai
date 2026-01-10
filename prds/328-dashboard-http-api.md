@@ -51,6 +51,8 @@ These endpoints provide structured query operations on the resource inventory, c
 
 7. **As a dashboard developer**, I want to fetch container logs for a Pod so I can display application output in the Logs tab for troubleshooting.
 
+8. **As a dashboard developer**, I want the `[visualization]` mode query to return a sessionId so I can cache/bookmark dashboard URLs and avoid re-running expensive AI queries on page refresh.
+
 ## Technical Design
 
 ### Endpoint Specifications
@@ -449,7 +451,13 @@ These fields are available for filtering/display:
 - [x] Add integration tests for logs endpoint
 - [x] Build and deploy image to cluster for manual UI testing
 
-### Phase 6: Finalization
+### Phase 6: Visualization Mode Session Support (Complete)
+- [x] Update `handleQueryTool` visualization mode to create session with `cachedVisualization`
+- [x] Include `sessionId` in visualization mode response (alongside title, visualizations, insights, toolsUsed)
+- [x] Update integration test to expect `sessionId` in visualization response
+- [x] Build and deploy image to cluster for manual UI testing
+
+### Phase 7: Finalization
 - [ ] Review PRD completeness: verify all requirements implemented and no remaining work
 - [ ] Run full integration test suite (final step after all requirements complete)
 
@@ -544,3 +552,4 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-09 | New requirement from UI team: ResourceDetailPage needs single resource endpoint. Added `GET /api/v1/resource` endpoint with kind, apiVersion, name, namespace parameters. Also added `kubectl_get_resource_json` AI tool to `KUBECTL_INVESTIGATION_TOOLS` for AI workflows. Refactored `fetchResourceStatus` to `fetchResource` with optional `field` parameter for code reuse. |
 | 2026-01-10 | New requirement from UI team: Events tab in ResourceDetailPage needs events endpoint. Added `GET /api/v1/events` endpoint with name, kind, namespace, uid parameters. Reuses `executeKubectl` with field-selectors (same foundation as AI's `kubectl_events` tool). Returns structured JSON with events sorted by lastTimestamp descending. |
 | 2026-01-10 | New requirement from UI team: Logs tab in ResourceDetailPage needs logs endpoint. Added `GET /api/v1/logs` endpoint with name, namespace, container, tailLines parameters. Reuses `executeKubectl` infrastructure (same as AI's `kubectl_logs` tool). Multi-container pods return CONTAINER_REQUIRED error with available container list. |
+| 2026-01-10 | New requirement from UI team: `[visualization]` mode needs to return `sessionId` for URL caching/bookmarking. Currently visualization mode skips session creation entirely. Fix: create session with `cachedVisualization` and include `sessionId` in response. |

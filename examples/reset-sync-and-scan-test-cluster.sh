@@ -82,7 +82,7 @@ metadata:
   name: $RESOURCE_SYNC_NAME
   namespace: $NAMESPACE
 spec:
-  mcpEndpoint: http://dot-ai-mcp.$NAMESPACE.svc.cluster.local:3456/api/v1/resources/sync
+  mcpEndpoint: http://dot-ai.$NAMESPACE.svc.cluster.local:3456/api/v1/resources/sync
   mcpAuthSecretRef:
     name: dot-ai-secrets
     key: auth-token
@@ -101,7 +101,7 @@ metadata:
   namespace: $NAMESPACE
 spec:
   mcp:
-    endpoint: http://dot-ai-mcp.$NAMESPACE.svc.cluster.local:3456/api/v1/tools/manageOrgData
+    endpoint: http://dot-ai.$NAMESPACE.svc.cluster.local:3456/api/v1/tools/manageOrgData
     authSecretRef:
       name: dot-ai-secrets
       key: auth-token

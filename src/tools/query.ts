@@ -247,14 +247,40 @@ export async function handleQueryTool(args: any): Promise<any> {
       visualizationMode
     });
 
-    // Handle visualization mode - return visualization response directly
+    // Handle visualization mode - return visualization response with sessionId for caching
     if (visualizationMode) {
       const visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);
+
+      // Create session with cached visualization for URL caching/bookmarking (PRD #328)
+      const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
+      const session = sessionManager.createSession({
+        toolName: 'query',
+        intent,
+        summary: visualizationResponse.title, // Use title as summary for visualization sessions
+        toolsUsed,
+        iterations: result.iterations,
+        toolCallsExecuted: result.toolCallsExecuted,
+        cachedVisualization: {
+          title: visualizationResponse.title,
+          visualizations: visualizationResponse.visualizations,
+          insights: visualizationResponse.insights,
+          generatedAt: new Date().toISOString()
+        }
+      });
+
+      logger.info('Visualization session created', {
+        requestId,
+        sessionId: session.sessionId
+      });
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(visualizationResponse, null, 2)
+            text: JSON.stringify({
+              sessionId: session.sessionId,
+              ...visualizationResponse
+            }, null, 2)
           }
         ]
       };
