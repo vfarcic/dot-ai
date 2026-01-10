@@ -843,7 +843,7 @@ spec:
     // Get dot-ai pod name first (the MCP server pod running the test)
     const kubeconfig = process.env.KUBECONFIG;
     const podsOutput = execSync(
-      `kubectl get pods -n dot-ai -l app=dot-ai -o jsonpath='{.items[0].metadata.name}'`,
+      `kubectl get pods -n dot-ai -l app.kubernetes.io/name=dot-ai -o jsonpath='{.items[0].metadata.name}'`,
       { env: { ...process.env, KUBECONFIG: kubeconfig }, encoding: 'utf8' }
     );
     const podName = podsOutput.replace(/'/g, '').trim();
@@ -856,7 +856,7 @@ spec:
       success: true,
       data: {
         logs: expect.any(String),
-        container: 'dot-ai',
+        container: 'mcp-server',
         containerCount: 1
       },
       meta: {
@@ -949,4 +949,58 @@ spec:
       }
     });
   }, 30000);
+
+  // PRD #328: Query with [visualization] prefix returns visualization data directly
+  test('should return visualization data directly when [visualization] prefix is used', async () => {
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/query',
+      {
+        intent: '[visualization] Analyze the cluster health and show what resources are deployed',
+        interaction_id: 'query_visualization_mode'
+      }
+    );
+
+    // Visualization mode returns visualization format (title, visualizations, insights)
+    // instead of normal query output (summary, sessionId, etc.)
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        tool: 'query',
+        executionTime: expect.any(Number),
+        result: {
+          title: expect.any(String),
+          visualizations: expect.any(Array),
+          insights: expect.any(Array),
+          toolsUsed: expect.any(Array)
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Validate visualization structure
+    const result = response.data.result;
+    expect(result.title.length).toBeGreaterThan(0);
+    expect(result.visualizations.length).toBeGreaterThan(0);
+    expect(result.insights.length).toBeGreaterThan(0);
+
+    // Each visualization should have required fields
+    for (const viz of result.visualizations) {
+      expect(viz).toMatchObject({
+        id: expect.any(String),
+        label: expect.any(String),
+        type: expect.stringMatching(/^(mermaid|table|cards|code|diff)$/),
+        content: expect.anything()
+      });
+    }
+
+    // Should NOT have normal query output fields
+    expect(result).not.toHaveProperty('summary');
+    expect(result).not.toHaveProperty('sessionId');
+    expect(result).not.toHaveProperty('visualizationUrl');
+    expect(result).not.toHaveProperty('guidance');
+  }, 300000);
 });

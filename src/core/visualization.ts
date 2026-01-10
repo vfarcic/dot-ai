@@ -5,7 +5,13 @@
  * Provides session metadata interfaces, URL generation, and prompt selection.
  */
 
-import { VisualizationType } from '../interfaces/rest-api';
+import { VisualizationType, VisualizationResponse } from '../interfaces/rest-api';
+
+/**
+ * Visualization mode prefix - when present in intent, return visualization data directly
+ * Used by tools to detect when caller wants visualization output instead of summary
+ */
+export const VISUALIZATION_PREFIX = '[visualization]';
 
 /**
  * Cached visualization structure stored in sessions
@@ -118,4 +124,67 @@ export function getToolNameFromPrefix(prefix: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Parse AI response into VisualizationResponse
+ * Extracts JSON from AI response, validates structure, normalizes insights
+ *
+ * @param aiResponse - Raw AI response string
+ * @param toolsUsed - Optional array of tools used during generation
+ * @returns Parsed VisualizationResponse
+ * @throws Error if parsing or validation fails
+ */
+export function parseVisualizationResponse(aiResponse: string, toolsUsed?: string[]): VisualizationResponse {
+  // Extract JSON from response - it may have text before/after the JSON block
+  let jsonContent = aiResponse.trim();
+
+  // Find JSON block in markdown code fence
+  const jsonBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    jsonContent = jsonBlockMatch[1].trim();
+  } else if (!jsonContent.startsWith('{')) {
+    // Try to find raw JSON object if no code fence
+    const jsonStart = jsonContent.indexOf('{');
+    const jsonEnd = jsonContent.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
+    }
+  }
+
+  const parsed = JSON.parse(jsonContent);
+
+  // Validate required fields
+  if (!parsed.title || !Array.isArray(parsed.visualizations) || !Array.isArray(parsed.insights)) {
+    throw new Error('Invalid visualization response structure');
+  }
+
+  // Validate each visualization has required fields
+  for (const viz of parsed.visualizations) {
+    if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
+      throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
+    }
+    if (!['mermaid', 'cards', 'code', 'table', 'diff'].includes(viz.type)) {
+      throw new Error(`Invalid visualization type: ${viz.type}`);
+    }
+  }
+
+  // Normalize insights to strings if they are objects
+  const normalizedInsights = parsed.insights.map((insight: any) => {
+    if (typeof insight === 'string') {
+      return insight;
+    }
+    // Convert object insights to string format
+    if (insight.title && insight.description) {
+      const severity = insight.severity ? ` [${insight.severity}]` : '';
+      return `${insight.title}${severity}: ${insight.description}`;
+    }
+    return String(insight);
+  });
+
+  return {
+    ...parsed,
+    insights: normalizedInsights,
+    ...(toolsUsed && { toolsUsed })
+  } as VisualizationResponse;
 }
