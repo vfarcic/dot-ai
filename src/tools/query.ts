@@ -25,7 +25,8 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getVisualizationUrl,
   parseVisualizationResponse,
-  VISUALIZATION_PREFIX
+  VISUALIZATION_PREFIX,
+  CachedVisualization
 } from '../core/visualization';
 import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
 import { loadPrompt } from '../core/shared-prompt-loader';
@@ -59,17 +60,7 @@ export interface QuerySessionData {
     output: any;
   }>;
   // Cached visualization to avoid re-generation on subsequent requests
-  cachedVisualization?: {
-    title: string;
-    visualizations: Array<{
-      id: string;
-      label: string;
-      type: 'mermaid' | 'cards' | 'code' | 'table' | 'diff';  // PRD #320: Added diff type
-      content: any;
-    }>;
-    insights: string[];
-    generatedAt: string;
-  };
+  cachedVisualization?: CachedVisualization;
 }
 
 // Output interface

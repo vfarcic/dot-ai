@@ -102,8 +102,9 @@ export interface ToolDiscoveryResponse extends RestApiResponse {
 /**
  * Visualization types supported by the API
  * PRD #320: Added 'diff' type for before/after comparisons
+ * PRD #328: Added 'bar-chart' type for metrics visualization
  */
-export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff';
+export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff' | 'bar-chart';
 
 /**
  * Diff visualization content (PRD #320)
@@ -111,6 +112,25 @@ export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff';
 export interface DiffVisualizationContent {
   before: { language: string; code: string };
   after: { language: string; code: string };
+}
+
+/**
+ * Bar chart data item (PRD #328)
+ */
+export interface BarChartDataItem {
+  label: string;       // e.g., "node-1", "kube-system"
+  value: number;       // e.g., 8.5
+  max?: number;        // e.g., 10 (for percentage calculation)
+  status?: 'error' | 'warning' | 'ok';  // for color-coding
+}
+
+/**
+ * Bar chart visualization content (PRD #328)
+ */
+export interface BarChartVisualizationContent {
+  data: BarChartDataItem[];
+  unit?: string;       // e.g., "Gi", "cores", "%"
+  orientation?: 'horizontal' | 'vertical';  // default: horizontal
 }
 
 /**
@@ -125,7 +145,8 @@ export interface Visualization {
     | { language: string; code: string } // code
     | { headers: string[]; rows: string[][] } // table
     | Array<{ id: string; title: string; description?: string; tags?: string[] }> // cards
-    | DiffVisualizationContent; // diff
+    | DiffVisualizationContent // diff
+    | BarChartVisualizationContent; // bar-chart
 }
 
 /**

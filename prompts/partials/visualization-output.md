@@ -20,7 +20,7 @@ Each visualization:
 {
   "id": "unique-id",
   "label": "Tab Label",
-  "type": "mermaid" | "table" | "cards" | "code",
+  "type": "mermaid" | "table" | "cards" | "code" | "bar-chart",
   "content": <type-specific-content>
 }
 ```
@@ -52,6 +52,15 @@ Each visualization:
 ### code
 - `content`: `{ "language": "yaml" | "json" | "bash", "code": "..." }`
 - Use sparingly - only when raw output adds value
+
+### bar-chart
+- `content`: `{ "data": [{ "label": "...", "value": 8.5, "max": 10, "status": "ok" }], "unit": "Gi", "orientation": "horizontal" }`
+- `data[].label`: Category label
+- `data[].value`: Numeric value
+- `data[].max`: Optional maximum for percentage calculation
+- `data[].status`: Optional `"error"`, `"warning"`, `"ok"`. Omit for neutral items.
+- `unit`: Optional unit label
+- `orientation`: Optional `"horizontal"` (default) or `"vertical"`
 
 ## Insights
 

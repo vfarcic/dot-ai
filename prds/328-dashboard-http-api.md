@@ -6,7 +6,7 @@
 |-------|-------|
 | **PRD ID** | 328 |
 | **Feature Name** | Dashboard HTTP API Endpoints |
-| **Status** | Complete |
+| **Status** | In Progress |
 | **Priority** | Medium |
 | **Created** | 2026-01-08 |
 | **GitHub Issue** | [#328](https://github.com/vfarcic/dot-ai/issues/328) |
@@ -458,8 +458,9 @@ These fields are available for filtering/display:
 - [x] Build and deploy image to cluster for manual UI testing
 
 ### Phase 7: Finalization
-- [x] Review PRD completeness: verify all requirements implemented and no remaining work
-- [x] Run full integration test suite (final step after all requirements complete)
+- [ ] Confirm with UI team that all dashboard API requirements are complete
+- [ ] Review PRD completeness: verify all requirements implemented and no remaining work
+- [ ] Run full integration test suite (final step after all requirements complete)
 
 **Note:** During active UI development, update tests but don't run them - the cluster is used for manual testing through the UI. Build image and apply to cluster instead. Additional requirements may come from the UI team during development. Run full test suite only as the final step once all requirements are confirmed complete.
 
@@ -553,3 +554,4 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-10 | New requirement from UI team: Events tab in ResourceDetailPage needs events endpoint. Added `GET /api/v1/events` endpoint with name, kind, namespace, uid parameters. Reuses `executeKubectl` with field-selectors (same foundation as AI's `kubectl_events` tool). Returns structured JSON with events sorted by lastTimestamp descending. |
 | 2026-01-10 | New requirement from UI team: Logs tab in ResourceDetailPage needs logs endpoint. Added `GET /api/v1/logs` endpoint with name, namespace, container, tailLines parameters. Reuses `executeKubectl` infrastructure (same as AI's `kubectl_logs` tool). Multi-container pods return CONTAINER_REQUIRED error with available container list. |
 | 2026-01-10 | New requirement from UI team: `[visualization]` mode needs to return `sessionId` for URL caching/bookmarking. Currently visualization mode skips session creation entirely. Fix: create session with `cachedVisualization` and include `sessionId` in response. |
+| 2026-01-11 | New requirement from UI team: Add `bar-chart` visualization type for metrics data. Added `BarChartDataItem` and `BarChartVisualizationContent` interfaces to `rest-api.ts`, updated validation in `visualization.ts`, refactored `query.ts` to use shared `CachedVisualization` type, and documented in AI prompt. Deployed and verified working. |

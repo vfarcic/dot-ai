@@ -21,11 +21,12 @@ Read and process a feature request or response from another dot-ai project.
 1. Present the request to the user and confirm they want to proceed
 2. Implement the requested feature
 3. Write a response file to the requesting project (path specified in the request)
+4. **Delete the feature-request.md file** after implementation is complete
 
 ### For Response (feature-response.md)
 1. Read and present the response
 2. Use the information to continue integrating the feature
-3. No write-back needed
+3. **Delete the feature-response.md file** after integration is complete
 
 ## Response File Format (for incoming requests only)
 
