@@ -26,8 +26,9 @@ Write a feature request to a file in the target dot-ai project's tmp directory. 
 ## Process
 
 1. Determine the target project from the user's request
-2. Write the feature request to: `/Users/viktorfarcic/code/[target-project]/tmp/feature-request.md`
-3. Tell the user to open the target project and run `/process-feature-request`
+2. **Delete any existing feature-request.md** in the target project's tmp directory (so the diff only shows new content)
+3. Write the feature request to: `/Users/viktorfarcic/code/[target-project]/tmp/feature-request.md`
+4. Tell the user to open the target project and run `/process-feature-request`
 
 ## File Format
 

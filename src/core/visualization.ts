@@ -164,7 +164,7 @@ export function parseVisualizationResponse(aiResponse: string, toolsUsed?: strin
     if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
       throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
     }
-    if (!['mermaid', 'cards', 'code', 'table', 'diff'].includes(viz.type)) {
+    if (!['mermaid', 'cards', 'code', 'table', 'diff', 'bar-chart'].includes(viz.type)) {
       throw new Error(`Invalid visualization type: ${viz.type}`);
     }
   }
