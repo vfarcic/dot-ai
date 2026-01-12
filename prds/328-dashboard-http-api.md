@@ -460,7 +460,14 @@ These fields are available for filtering/display:
 ### Phase 7: Finalization
 - [ ] Confirm with UI team that all dashboard API requirements are complete
 - [ ] Review PRD completeness: verify all requirements implemented and no remaining work
-- [ ] Run full integration test suite (final step after all requirements complete)
+- [x] Run full integration test suite (final step after all requirements complete)
+
+### Bonus: Generic Session Retrieval Endpoint (Complete)
+- [x] Add `GET /api/v1/sessions/{sessionId}` endpoint for URL sharing/refresh support
+- [x] Extract session prefix (rem-, qry-, rec-, opr-) to determine tool type
+- [x] Return raw cached session data without transformation (fast, no AI call)
+- [x] Add integration test validating <1 second response time
+- [x] Fix collection initialization for read operations (prevents parallel request crashes)
 
 **Note:** During active UI development, update tests but don't run them - the cluster is used for manual testing through the UI. Build image and apply to cluster instead. Additional requirements may come from the UI team during development. Run full test suite only as the final step once all requirements are confirmed complete.
 
@@ -555,3 +562,4 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-10 | New requirement from UI team: Logs tab in ResourceDetailPage needs logs endpoint. Added `GET /api/v1/logs` endpoint with name, namespace, container, tailLines parameters. Reuses `executeKubectl` infrastructure (same as AI's `kubectl_logs` tool). Multi-container pods return CONTAINER_REQUIRED error with available container list. |
 | 2026-01-10 | New requirement from UI team: `[visualization]` mode needs to return `sessionId` for URL caching/bookmarking. Currently visualization mode skips session creation entirely. Fix: create session with `cachedVisualization` and include `sessionId` in response. |
 | 2026-01-11 | New requirement from UI team: Add `bar-chart` visualization type for metrics data. Added `BarChartDataItem` and `BarChartVisualizationContent` interfaces to `rest-api.ts`, updated validation in `visualization.ts`, refactored `query.ts` to use shared `CachedVisualization` type, and documented in AI prompt. Deployed and verified working. |
+| 2026-01-12 | Feature request from UI team: Generic session retrieval endpoint for URL sharing/refresh. Added `GET /api/v1/sessions/{sessionId}` that works for all tool types (remediate, query, recommend, operate). Returns cached session data without AI call for fast response. Also fixed visualization text contrast guidance in prompts and fixed parallel request crashes by skipping collection initialization for read operations. Integration tests passing (125/126). |

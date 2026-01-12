@@ -764,9 +764,11 @@ export async function handleCapabilityCRUD(
   logger: Logger,
   requestId: string
 ): Promise<any> {
-  // Create and initialize capability service for CRUD operations
+  // Create capability service for CRUD operations
   // Use collection from args if provided, otherwise defaults to 'capabilities'
   const capabilityService = new CapabilityVectorService(args.collection);
+  const isReadOperation = ['list', 'get', 'search'].includes(operation);
+
   try {
     const vectorDBHealthy = await capabilityService.healthCheck();
     if (!vectorDBHealthy) {
@@ -784,9 +786,42 @@ export async function handleCapabilityCRUD(
         }
       };
     }
-    
-    await capabilityService.initialize();
-    
+
+    // For read operations, check if collection exists without creating it
+    // For write operations, initialize (create if needed)
+    if (isReadOperation) {
+      const exists = await capabilityService.collectionExists();
+      if (!exists) {
+        // Return empty results for read operations on non-existent collection
+        if (operation === 'list') {
+          return {
+            success: true,
+            operation: 'list',
+            dataType: 'capabilities',
+            data: { capabilities: [], total: 0 },
+            message: 'No capabilities found (collection not initialized)'
+          };
+        } else if (operation === 'get') {
+          return {
+            success: false,
+            operation: 'get',
+            dataType: 'capabilities',
+            error: { message: 'Capability not found' }
+          };
+        } else if (operation === 'search') {
+          return {
+            success: true,
+            operation: 'search',
+            dataType: 'capabilities',
+            data: { query: args.id, results: [], resultCount: 0 },
+            message: 'No capabilities found (collection not initialized)'
+          };
+        }
+      }
+    } else {
+      await capabilityService.initialize();
+    }
+
     // Route to specific CRUD operation
     switch (operation) {
       case 'list':

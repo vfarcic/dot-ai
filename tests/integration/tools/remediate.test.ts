@@ -181,6 +181,51 @@ EOF`);
       expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThan(0.8);
       expect(remediationActions.length).toBeGreaterThan(0);
 
+      // SESSION RETRIEVAL: Test GET /api/v1/sessions/{sessionId} for URL sharing/refresh support
+      const sessionStartTime = Date.now();
+      const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${sessionId}`);
+      const sessionRetrievalTime = Date.now() - sessionStartTime;
+
+      // Should be fast (no AI call - just file read)
+      expect(sessionRetrievalTime).toBeLessThan(1000); // Under 1 second
+
+      // Validate session response structure
+      const expectedSessionResponse = {
+        success: true,
+        data: {
+          sessionId: sessionId,
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+          data: {
+            toolName: 'remediate',
+            issue: expect.stringContaining(testNamespace),
+            mode: 'manual',
+            status: 'analysis_complete',
+            finalAnalysis: {
+              status: 'awaiting_user_approval',
+              sessionId: sessionId,
+              analysis: {
+                rootCause: expect.any(String),
+                confidence: expect.any(Number),
+                factors: expect.any(Array)
+              },
+              remediation: {
+                summary: expect.stringContaining('memory'),
+                actions: expect.any(Array),
+                risk: expect.stringMatching(/^(low|medium|high)$/)
+              }
+            }
+          }
+        },
+        meta: {
+          timestamp: expect.any(String),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      };
+
+      expect(sessionResponse).toMatchObject(expectedSessionResponse);
+
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Execute remediation via MCP (choice 1)

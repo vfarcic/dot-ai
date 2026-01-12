@@ -45,10 +45,17 @@ export abstract class BaseVectorService<T> {
    */
   async initialize(): Promise<void> {
     // Use embedding dimensions if available, otherwise default to 1536 (OpenAI default)
-    const dimensions = this.embeddingService.isAvailable() ? 
-      this.embeddingService.getDimensions() : 
+    const dimensions = this.embeddingService.isAvailable() ?
+      this.embeddingService.getDimensions() :
       1536;
     await this.vectorDB.initializeCollection(dimensions);
+  }
+
+  /**
+   * Check if collection exists without creating it
+   */
+  async collectionExists(): Promise<boolean> {
+    return await this.vectorDB.collectionExists();
   }
 
   /**

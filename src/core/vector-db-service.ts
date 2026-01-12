@@ -75,6 +75,22 @@ export class VectorDBService {
   }
 
   /**
+   * Check if collection exists without creating it
+   */
+  async collectionExists(): Promise<boolean> {
+    if (!this.client) {
+      return false;
+    }
+
+    try {
+      const collections = await this.client.getCollections();
+      return collections.collections.some(col => col.name === this.collectionName);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Initialize the collection if it doesn't exist
    */
   async initializeCollection(vectorSize: number = 384): Promise<void> {

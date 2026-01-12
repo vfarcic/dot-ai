@@ -32,7 +32,11 @@ Each visualization:
 - Arrows: `-->` for direct relationships, `-.->` for indirect/inferred
 - **Styling rules**:
   - Only style nodes that represent errors or problems
-  - For error nodes: `style NodeId fill:#ef4444,stroke:#dc2626`
+  - For error nodes: `style NodeId fill:#ef4444,stroke:#dc2626,color:#ffffff` (white text on red background)
+  - **CRITICAL: Text contrast** - Always ensure text is readable against the background:
+    - Dark backgrounds (red, gray, etc.) → use `color:#ffffff` (white text)
+    - Light backgrounds → use `color:#ffffff` or `color:#000000` depending on shade
+    - NEVER use similar colors for text and background (e.g., red text on pink background)
   - Do NOT add colors or styling to healthy/normal nodes - use default Mermaid styling
   - Truncate UUIDs to first 8 characters (e.g., `pvc-508555a4...`)
   - Keep node labels under 30 characters when possible

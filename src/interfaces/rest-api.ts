@@ -343,6 +343,16 @@ export class RestApiRouter {
           }
           break;
 
+        case 'sessions':
+          if (req.method === 'GET' && pathMatch.sessionId) {
+            await this.handleSessionRetrieval(req, res, requestId, pathMatch.sessionId);
+          } else if (req.method !== 'GET') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for session retrieval');
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
+          }
+          break;
+
         default:
           await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown API endpoint');
       }
@@ -457,6 +467,14 @@ export class RestApiRouter {
       const sessionId = cleanPath.substring(10); // Remove 'visualize/'
       if (sessionId) {
         return { endpoint: 'visualize', sessionId };
+      }
+    }
+
+    // Handle generic session retrieval endpoint (works for any tool: remediate, query, recommend, etc.)
+    if (cleanPath.startsWith('sessions/')) {
+      const sessionId = cleanPath.substring(9); // Remove 'sessions/'
+      if (sessionId) {
+        return { endpoint: 'sessions', sessionId };
       }
     }
 
@@ -1575,6 +1593,76 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'VISUALIZATION_ERROR',
         'Failed to generate visualization',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle generic session retrieval requests
+   * Returns raw session data for any tool type (remediate, query, recommend, etc.)
+   * Session type is determined by the session ID prefix (rem-, qry-, rec-, opr-, etc.)
+   */
+  private async handleSessionRetrieval(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      const sessionPrefix = extractPrefixFromSessionId(sessionId);
+
+      this.logger.info('Processing session retrieval', {
+        requestId,
+        sessionId,
+        sessionPrefix
+      });
+
+      const sessionManager = new GenericSessionManager<Record<string, unknown>>(sessionPrefix);
+      const session = sessionManager.getSession(sessionId);
+
+      if (!session) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'SESSION_NOT_FOUND',
+          `Session '${sessionId}' not found or has expired`
+        );
+        return;
+      }
+
+      const response: RestApiResponse = {
+        success: true,
+        data: session,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Session retrieved successfully', {
+        requestId,
+        sessionId,
+        toolName: session.data?.toolName || 'unknown'
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Session retrieval failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        sessionId
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SESSION_RETRIEVAL_ERROR',
+        'Failed to retrieve session',
         { error: errorMessage }
       );
     }
