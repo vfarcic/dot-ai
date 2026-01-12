@@ -7,6 +7,42 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { withQdrantTracing } from './tracing/qdrant-tracing';
 
+/**
+ * Simple semaphore to limit concurrent Qdrant operations
+ * Prevents overwhelming Qdrant with too many parallel requests
+ */
+class QdrantSemaphore {
+  private maxConcurrent: number;
+  private currentCount: number = 0;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(maxConcurrent: number = 20) {
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.currentCount < this.maxConcurrent) {
+      this.currentCount++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift()!;
+      next();
+    } else {
+      this.currentCount--;
+    }
+  }
+}
+
+// Limit to 20 concurrent Qdrant operations
+const qdrantSemaphore = new QdrantSemaphore(20);
+
 export interface VectorDBConfig {
   url?: string;
   apiKey?: string;
@@ -444,82 +480,98 @@ export class VectorDBService {
    * Scroll documents with Qdrant filter
    * @param filter - Qdrant filter object (must/should/must_not conditions)
    * @param limit - Maximum documents to retrieve
+   * Uses semaphore to limit concurrent Qdrant operations
    */
   async scrollWithFilter(filter: any, limit: number = 100): Promise<VectorDocument[]> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
 
-    return withQdrantTracing(
-      {
-        operation: 'vector.scroll_filtered',
-        collectionName: this.collectionName,
-        limit,
-        serverUrl: this.config.url
-      },
-      async () => {
-        try {
-          const scrollResult = await this.client!.scroll(this.collectionName, {
-            filter,
-            limit,
-            with_payload: true,
-            with_vector: false
-          });
+    // Acquire semaphore slot before executing
+    await qdrantSemaphore.acquire();
 
-          return scrollResult.points.map(point => ({
-            id: point.id.toString(),
-            payload: point.payload || {}
-          }));
-        } catch (error) {
-          throw new Error(`Failed to scroll with filter: ${error}`);
+    try {
+      return await withQdrantTracing(
+        {
+          operation: 'vector.scroll_filtered',
+          collectionName: this.collectionName,
+          limit,
+          serverUrl: this.config.url
+        },
+        async () => {
+          try {
+            const scrollResult = await this.client!.scroll(this.collectionName, {
+              filter,
+              limit,
+              with_payload: true,
+              with_vector: false
+            });
+
+            return scrollResult.points.map(point => ({
+              id: point.id.toString(),
+              payload: point.payload || {}
+            }));
+          } catch (error) {
+            throw new Error(`Failed to scroll with filter: ${error}`);
+          }
         }
-      }
-    );
+      );
+    } finally {
+      qdrantSemaphore.release();
+    }
   }
 
   /**
    * Get all documents (for listing)
    * @param limit - Maximum number of documents to retrieve. Defaults to unlimited (10000).
+   * Uses semaphore to limit concurrent Qdrant operations
    */
   async getAllDocuments(limit: number = 10000): Promise<VectorDocument[]> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
 
-    return withQdrantTracing(
-      {
-        operation: 'vector.list',
-        collectionName: this.collectionName,
-        limit,
-        serverUrl: this.config.url
-      },
-      async () => {
-        try {
-          // Check if collection exists first
-          const collections = await this.client!.getCollections();
-          const collectionExists = collections.collections.some(
-            col => col.name === this.collectionName
-          );
+    // Acquire semaphore slot before executing
+    await qdrantSemaphore.acquire();
 
-          if (!collectionExists) {
-            throw new Error(`Collection '${this.collectionName}' does not exist. No data has been stored yet.`);
+    try {
+      return await withQdrantTracing(
+        {
+          operation: 'vector.list',
+          collectionName: this.collectionName,
+          limit,
+          serverUrl: this.config.url
+        },
+        async () => {
+          try {
+            // Check if collection exists first
+            const collections = await this.client!.getCollections();
+            const collectionExists = collections.collections.some(
+              col => col.name === this.collectionName
+            );
+
+            if (!collectionExists) {
+              throw new Error(`Collection '${this.collectionName}' does not exist. No data has been stored yet.`);
+            }
+
+            const scrollResult = await this.client!.scroll(this.collectionName, {
+              limit,
+              with_payload: true,
+              with_vector: false
+            });
+
+            return scrollResult.points.map(point => ({
+              id: point.id.toString(),
+              payload: point.payload || {}
+            }));
+          } catch (error) {
+            throw new Error(`Failed to get all documents: ${error}`);
           }
-
-          const scrollResult = await this.client!.scroll(this.collectionName, {
-            limit,
-            with_payload: true,
-            with_vector: false
-          });
-
-          return scrollResult.points.map(point => ({
-            id: point.id.toString(),
-            payload: point.payload || {}
-          }));
-        } catch (error) {
-          throw new Error(`Failed to get all documents: ${error}`);
         }
-      }
-    );
+      );
+    } finally {
+      qdrantSemaphore.release();
+    }
   }
 
   /**
