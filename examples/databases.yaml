@@ -1,0 +1,92 @@
+# Example databases using different approaches
+# Used for demonstrating the query tool's semantic understanding
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acme-corp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zebra-finance
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: phoenix-retail
+---
+# 1. StatefulSet-based PostgreSQL (traditional approach)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: orders-db
+  namespace: acme-corp
+  labels:
+    app: orders-db
+    tier: database
+spec:
+  serviceName: orders-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-db
+  template:
+    metadata:
+      labels:
+        app: orders-db
+        tier: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: orders
+        - name: POSTGRES_USER
+          value: admin
+        - name: POSTGRES_PASSWORD
+          value: secret123
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+---
+# 2. CNPG Cluster (cloud-native PostgreSQL operator)
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: inventory-db
+  namespace: zebra-finance
+  labels:
+    app: inventory-db
+    tier: database
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+---
+# 3. SQL via Crossplane composition (devopstoolkit.live)
+apiVersion: devopstoolkit.live/v1beta1
+kind: SQL
+metadata:
+  name: user-store
+  namespace: phoenix-retail
+  labels:
+    app: user-store
+    tier: database
+spec:
+  size: small
+  crossplane:
+    compositionRef:
+      name: aws-postgresql

@@ -20,6 +20,7 @@ def "main setup" [
     --stack-version: string = "0.18.0",
     --kyverno-enabled = true,
     --atlas-enabled = true,
+    --cnpg-enabled = false,
     --crossplane-enabled = true,
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
     --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
@@ -74,6 +75,8 @@ def "main setup" [
     )
 
     kubectl --namespace dot-ai apply --filename examples/solution-dot-ai.yaml
+
+    main apply cnpg
 
     main print source
 
