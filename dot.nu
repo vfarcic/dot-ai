@@ -17,7 +17,7 @@ source scripts/cnpg.nu
 def main [] {}
 
 def "main setup" [
-    --stack-version: string = "0.18.0",
+    --stack-version: string = "0.20.0",
     --kyverno-enabled = true,
     --atlas-enabled = true,
     --cnpg-enabled = false,
