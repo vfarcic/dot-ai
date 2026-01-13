@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qdrant
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: qdrant.127.0.0.1.nip.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: dot-ai-stack-qdrant
+            port:
+              number: 6333
+        path: /
+        pathType: Prefix
