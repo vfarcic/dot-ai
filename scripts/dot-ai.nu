@@ -7,7 +7,7 @@
 # > main apply dot-ai --provider openai --model gpt-4o
 # > main apply dot-ai --enable-tracing true
 def "main apply dot-ai" [
-    --stack-version = "0.10.0",
+    --stack-version = "0.18.0",
     --anthropic-api-key = "",
     --openai-api-key = "",
     --auth-token = "my-secret-token",

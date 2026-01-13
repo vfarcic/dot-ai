@@ -17,7 +17,7 @@ source scripts/cnpg.nu
 def main [] {}
 
 def "main setup" [
-    --stack-version: string = "0.9.0",
+    --stack-version: string = "0.18.0",
     --kyverno-enabled = true,
     --atlas-enabled = true,
     --crossplane-enabled = true,
@@ -72,6 +72,8 @@ def "main setup" [
             --stack-version $stack_version
             --enable-tracing true
     )
+
+    kubectl --namespace dot-ai apply --filename examples/solution-dot-ai.yaml
 
     main print source
 

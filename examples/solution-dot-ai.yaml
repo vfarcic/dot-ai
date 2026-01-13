@@ -4,7 +4,6 @@ apiVersion: dot-ai.devopstoolkit.live/v1alpha1
 kind: Solution
 metadata:
   name: dot-ai
-  namespace: dot-ai
   labels:
     app.kubernetes.io/name: dot-ai
     app.kubernetes.io/instance: dot-ai
@@ -17,16 +16,30 @@ spec:
       kind: ServiceAccount
       name: dot-ai
       namespace: dot-ai
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: dot-ai-controller-manager
+      namespace: dot-ai
+    - apiVersion: v1
+      kind: ServiceAccount
+      name: dot-ai-stack-qdrant
+      namespace: dot-ai
 
     # ClusterRole
     - apiVersion: rbac.authorization.k8s.io/v1
       kind: ClusterRole
       name: dot-ai
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      name: dot-ai-controller-manager-role
 
     # ClusterRoleBinding
     - apiVersion: rbac.authorization.k8s.io/v1
       kind: ClusterRoleBinding
       name: dot-ai
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      name: dot-ai-controller-manager-rolebinding
 
     # Secret
     - apiVersion: v1
@@ -34,23 +47,47 @@ spec:
       name: dot-ai-secrets
       namespace: dot-ai
 
-    # Deployment (standard mode)
+    # Deployment
     - apiVersion: apps/v1
       kind: Deployment
       name: dot-ai
       namespace: dot-ai
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dot-ai-controller-manager
+      namespace: dot-ai
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dot-ai-ui
+      namespace: dot-ai
 
-    # Service (standard mode)
+    # Service
     - apiVersion: v1
       kind: Service
       name: dot-ai
       namespace: dot-ai
+    - apiVersion: v1
+      kind: Service
+      name: dot-ai-stack-qdrant
+      namespace: dot-ai
+    - apiVersion: v1
+      kind: Service
+      name: dot-ai-stack-qdrant-headless
+      namespace: dot-ai
+    - apiVersion: v1
+      kind: Service
+      name: dot-ai-ui
+      namespace: dot-ai
 
-    # Note: Add Ingress if enabled
-    # - apiVersion: networking.k8s.io/v1
-    #   kind: Ingress
-    #   name: dot-ai
-    #   namespace: dot-ai
+    # Ingress
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      name: dot-ai
+      namespace: dot-ai
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      name: dot-ai-ui
+      namespace: dot-ai
 
   context:
     createdBy: "user"
