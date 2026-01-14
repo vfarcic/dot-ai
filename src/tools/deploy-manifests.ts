@@ -143,7 +143,8 @@ export async function handleDeployManifestsTool(
             : `Helm deployment failed: ${result.error}`,
           helmOutput: result.output || result.error,
           deploymentComplete: result.success,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          agentInstructions: 'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.'
         };
 
         return {
@@ -201,7 +202,8 @@ export async function handleDeployManifestsTool(
         // Additional deployment status info
         deploymentComplete: result.success && !result.readinessTimeout,
         requiresStatusCheck: result.success && result.readinessTimeout,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        agentInstructions: 'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.'
       };
 
       return {
