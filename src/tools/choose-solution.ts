@@ -113,13 +113,35 @@ export async function handleChooseSolutionTool(
         }
       });
 
+      // Determine next stage based on what questions exist
+      const hasBasic = solution.questions?.basic && solution.questions.basic.length > 0;
+      const hasAdvanced = solution.questions?.advanced && solution.questions.advanced.length > 0;
+      const hasOpen = !!solution.questions?.open;
+      const isHelm = solution.type === 'helm';
+
+      let nextStage: string | null = null;
+      if (hasBasic) {
+        nextStage = 'basic';
+      } else if (hasAdvanced) {
+        nextStage = 'advanced';
+      } else if (!isHelm && hasOpen) {
+        nextStage = 'open';
+      }
+
+      // Update session with workflow state for UI page refresh support
+      sessionManager.updateSession(args.solutionId, {
+        stage: 'questions',
+        currentQuestionStage: 'required',
+        nextQuestionStage: nextStage
+      });
+
       // Prepare response with solution details and questions
       const response = {
         status: 'stage_questions',
         solutionId: args.solutionId,
         currentStage: 'required',
         questions: solution.questions.required || [],
-        nextStage: 'basic',
+        nextStage: nextStage || 'complete',
         message: 'Please provide the required configuration for your application.',
         nextAction: 'Call recommend tool with stage: answerQuestion:required',
         guidance: 'Present ALL required questions to the user. All must be answered before proceeding.',

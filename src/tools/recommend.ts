@@ -44,7 +44,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 // Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
   toolName: 'recommend';  // PRD #320: Tool identifier for visualization endpoint
-  stage?: string;  // PRD #320: Workflow stage ('recommend', 'generateManifests', etc.)
+  stage?: 'solutions' | 'questions' | 'manifests' | 'deployed';  // UI workflow stage for page refresh support
   intent: string;
   type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
@@ -86,6 +86,24 @@ export interface SolutionData {
     namespace?: string;
     validationAttempts?: number;
     packagingAttempts?: number;
+  };
+  // Workflow state tracking for UI page refresh support (dot-ai-ui feature request)
+  currentQuestionStage?: 'required' | 'basic' | 'advanced' | 'open';
+  nextQuestionStage?: string | null;
+  allSolutions?: Array<{  // Context: all solutions that were available
+    solutionId: string;
+    type: string;
+    score: number;
+    description: string;
+    reasons: string[];
+  }>;
+  organizationalContext?: {  // Pattern/policy usage context across all solutions
+    solutionsUsingPatterns: number;
+    totalSolutions: number;
+    totalPatterns: number;
+    totalPolicies: number;
+    patternsAvailable: string;
+    policiesAvailable: string;
   };
 }
 
@@ -321,7 +339,8 @@ export async function handleRecommendTool(
             },
             questions: { required: [], basic: [], advanced: [] }, // Will be generated from chart values later
             answers: {},
-            timestamp
+            timestamp,
+            stage: 'solutions' // UI page refresh support
           };
 
           const session = sessionManager.createSession(solutionData);
@@ -335,6 +354,19 @@ export async function handleRecommendTool(
             description: aiSolution.description,
             chart: solutionData.chart,
             reasons: aiSolution.reasons
+          });
+        }
+
+        // Update all sessions with allSolutions context for UI page refresh
+        for (const summary of helmSolutionSummaries) {
+          sessionManager.updateSession(summary.solutionId, {
+            allSolutions: helmSolutionSummaries.map(s => ({
+              solutionId: s.solutionId,
+              type: s.type,
+              score: s.score,
+              description: s.description,
+              reasons: s.reasons
+            }))
           });
         }
 
@@ -408,7 +440,8 @@ export async function handleRecommendTool(
           questions: solution.questions, // Includes relevantPolicies from question generation
           answers: {}, // Empty initially - will be filled by answerQuestion tool
           timestamp,
-          appliedPatterns: solution.appliedPatterns || []
+          appliedPatterns: solution.appliedPatterns || [],
+          stage: 'solutions' // UI page refresh support
         };
 
         // Create solution session
@@ -435,10 +468,40 @@ export async function handleRecommendTool(
         });
       }
 
+      // Update all sessions with allSolutions context for UI page refresh
+      for (const summary of solutionSummaries) {
+        sessionManager.updateSession(summary.solutionId, {
+          allSolutions: solutionSummaries.map(s => ({
+            solutionId: s.solutionId,
+            type: s.type,
+            score: s.score,
+            description: s.description,
+            reasons: s.reasons
+          }))
+        });
+      }
+
       // Analyze pattern/policy usage across all solutions
       const patternsUsedCount = solutionSummaries.filter(s => s.appliedPatterns && s.appliedPatterns.length > 0).length;
       const totalPatterns = solutionSummaries.reduce((count, s) => count + (s.appliedPatterns?.length || 0), 0);
       const totalPolicies = solutionSummaries.reduce((count, s) => count + (s.relevantPolicies?.length || 0), 0);
+
+      // Build organizational context for storage and response
+      const organizationalContext = {
+        solutionsUsingPatterns: patternsUsedCount,
+        totalSolutions: solutionSummaries.length,
+        totalPatterns: totalPatterns,
+        totalPolicies: totalPolicies,
+        patternsAvailable: totalPatterns > 0 ? "Yes" : "None found or pattern search failed",
+        policiesAvailable: totalPolicies > 0 ? "Yes" : "None found or policy search failed"
+      };
+
+      // Update all sessions with organizationalContext for UI page refresh
+      for (const summary of solutionSummaries) {
+        sessionManager.updateSession(summary.solutionId, {
+          organizationalContext
+        });
+      }
 
       // PRD #320: Generate visualization URL with all solution session IDs
       const sessionIds = solutionSummaries.map(s => s.solutionId);
@@ -448,14 +511,7 @@ export async function handleRecommendTool(
       const response = {
         intent: args.intent,
         solutions: solutionSummaries,
-        organizationalContext: {
-          solutionsUsingPatterns: patternsUsedCount,
-          totalSolutions: solutionSummaries.length,
-          totalPatterns: totalPatterns,
-          totalPolicies: totalPolicies,
-          patternsAvailable: totalPatterns > 0 ? "Yes" : "None found or pattern search failed",
-          policiesAvailable: totalPolicies > 0 ? "Yes" : "None found or policy search failed"
-        },
+        organizationalContext,
         nextAction: "Call recommend tool with stage: chooseSolution and your preferred solutionId",
         guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
         timestamp,

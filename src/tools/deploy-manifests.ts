@@ -119,6 +119,13 @@ export async function handleDeployManifestsTool(
           requestId
         });
 
+        // Update session with deployed stage for UI page refresh support
+        if (result.success) {
+          sessionManager.updateSession(args.solutionId, {
+            stage: 'deployed'
+          });
+        }
+
         const response = {
           success: result.success,
           solutionId: args.solutionId,
@@ -174,6 +181,13 @@ export async function handleDeployManifestsTool(
         readinessTimeout: result.readinessTimeout,
         requestId
       });
+
+      // Update session with deployed stage for UI page refresh support
+      if (result.success) {
+        sessionManager.updateSession(args.solutionId, {
+          stage: 'deployed'
+        });
+      }
 
       // Prepare response with deployment status
       const response = {

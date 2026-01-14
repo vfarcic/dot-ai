@@ -213,9 +213,6 @@ describe.concurrent('Version Tool Integration', () => {
       // Verify reload actually regenerated - toolsUsed should be populated (AI called tools)
       expect(reloadVizResponse.data.toolsUsed).toBeDefined();
       expect(Array.isArray(reloadVizResponse.data.toolsUsed)).toBe(true);
-
-      // Output session ID for manual Web UI verification
-      console.log(`\n📊 Version visualization session ID: ${visualizationUrl.split('/v/')[1]}`);
     }, 300000); // Increased timeout for visualization generation + cache + reload tests
 
     test('should handle POST method requirement', async () => {
