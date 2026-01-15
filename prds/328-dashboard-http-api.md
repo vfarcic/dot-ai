@@ -27,9 +27,10 @@ Add HTTP-only REST API endpoints that return structured JSON suitable for dashbo
 
 1. **`GET /api/v1/resources/kinds`** - List all unique resource kinds with counts
 2. **`GET /api/v1/resources`** - List resources with filtering and pagination
-3. **`GET /api/v1/namespaces`** - List all namespaces
-4. **`GET /api/v1/resource`** - Get single resource with full details
-5. **`GET /api/v1/events`** - Get Kubernetes events for a specific resource
+3. **`GET /api/v1/resources/search`** - Semantic search across all resources
+4. **`GET /api/v1/namespaces`** - List all namespaces
+5. **`GET /api/v1/resource`** - Get single resource with full details
+6. **`GET /api/v1/events`** - Get Kubernetes events for a specific resource
 
 Additionally, extend the existing `manageOrgData` capabilities `get` operation to support retrieving resource schema information (including printer columns) for dynamic table column generation.
 
@@ -134,7 +135,56 @@ These endpoints provide structured query operations on the resource inventory, c
 - Note: Qdrant doesn't have native offset, so we fetch all matching and slice in-memory
 - When `includeStatus=true`, fetch each resource from K8s API and include raw `.status` field
 
-#### 3. GET /api/v1/namespaces
+#### 3. GET /api/v1/resources/search
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Semantic search query (searches names, kinds, labels, annotations) |
+| `namespace` | string | No | Exact filter by namespace |
+| `kind` | string | No | Exact filter by resource kind |
+| `apiVersion` | string | No | Exact filter by API version |
+| `minScore` | number | No | Minimum similarity score (0.0-1.0) to filter low-relevance results |
+| `limit` | number | No | Max results (default: 100) |
+| `offset` | number | No | Skip N results for pagination (default: 0) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "resources": [
+      {
+        "name": "nginx-deployment",
+        "namespace": "production",
+        "kind": "Deployment",
+        "apiVersion": "apps/v1",
+        "labels": { "app": "nginx" },
+        "createdAt": "2025-01-01T00:00:00Z",
+        "score": 0.85
+      }
+    ],
+    "total": 15,
+    "limit": 100,
+    "offset": 0
+  },
+  "meta": {
+    "timestamp": "2026-01-14T12:00:00Z",
+    "requestId": "req_123"
+  }
+}
+```
+
+**Implementation:**
+- Semantic search using Qdrant vector similarity via `searchResources()`
+- Each resource includes `score` (0.0-1.0) indicating similarity/relevance
+- Results sorted by score descending (most relevant first)
+- `minScore` parameter filters out results below the threshold
+- Exact filters (namespace, kind, apiVersion) passed to Qdrant as `must` conditions
+- Response format matches existing `/api/v1/resources` endpoint (plus score)
+- Returns empty array (not error) when no matches found
+
+#### 4. GET /api/v1/namespaces
 
 **Parameters:** None
 
@@ -156,7 +206,7 @@ These endpoints provide structured query operations on the resource inventory, c
 - Fetch all resources from Qdrant
 - Extract unique `namespace` values
 
-#### 4. GET /api/v1/resource (Single Resource)
+#### 5. GET /api/v1/resource (Single Resource)
 
 **Parameters:**
 | Parameter | Type | Required | Description |
@@ -207,7 +257,7 @@ These endpoints provide structured query operations on the resource inventory, c
 - Returns complete resource including metadata, spec, and status
 - Returns 404 if resource not found
 
-#### 5. GET /api/v1/events (Resource Events)
+#### 6. GET /api/v1/events (Resource Events)
 
 **Parameters:**
 | Parameter | Type | Required | Description |
@@ -257,7 +307,7 @@ These endpoints provide structured query operations on the resource inventory, c
 - Returns events sorted by lastTimestamp descending (most recent first)
 - Returns empty array if no events found
 
-#### 6. GET /api/v1/logs (Pod Logs)
+#### 7. GET /api/v1/logs (Pod Logs)
 
 **Parameters:**
 | Parameter | Type | Required | Description |
@@ -304,7 +354,7 @@ These endpoints provide structured query operations on the resource inventory, c
 - Execute `kubectl logs` with `--tail` flag for line limiting
 - Returns raw log string and container metadata
 
-#### 7. Capability Schema with Printer Columns (via existing manageOrgData)
+#### 8. Capability Schema with Printer Columns (via existing manageOrgData)
 
 **Request:** `POST /api/v1/tools/manageOrgData`
 ```json
@@ -360,8 +410,11 @@ Detection: if `id` starts with `{`, parse as JSON and lookup by kind+apiVersion.
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()`, `getResourceEvents()`, `getPodLogs()` query functions |
-| `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all endpoints |
+| `src/core/resource-tools.ts` | Modified | Added `getResourceKinds()`, `listResources()`, `getNamespaces()`, `getResourceEvents()`, `getPodLogs()` query functions, updated `SEARCH_RESOURCES_TOOL` with filter params |
+| `src/core/resource-vector-service.ts` | Modified | Added `searchResources()` method with filter support, enhanced `buildEmbeddingText()` with meaningful annotations |
+| `src/core/vector-db-service.ts` | Modified | Added `filter` to `SearchOptions` interface, updated `searchSimilar()` and `searchByKeywords()` |
+| `src/core/base-vector-service.ts` | Modified | Added `filter` to `BaseSearchOptions`, updated `searchData()` and `hybridSearch()` |
+| `src/interfaces/rest-api.ts` | Modified | Registered HTTP routes and handlers for all endpoints including `/resources/search` |
 | `tests/integration/tools/query.test.ts` | Modified | Added integration tests (following "organize by function" principle) |
 | `src/core/capabilities.ts` | Modified | Add `printerColumns` field to `ResourceCapability` interface |
 | `src/core/capability-vector-service.ts` | Modified | Include `printerColumns` in payload storage/retrieval |
@@ -457,7 +510,23 @@ These fields are available for filtering/display:
 - [x] Update integration test to expect `sessionId` in visualization response
 - [x] Build and deploy image to cluster for manual UI testing
 
-### Phase 7: Finalization
+### Phase 7: Semantic Search Endpoint (Complete)
+- [x] Add meaningful annotations to embedding text in `buildEmbeddingText()` for better searchability
+- [x] Extend `BaseSearchOptions` and `SearchOptions` with `filter` field for Qdrant exact filtering
+- [x] Add `searchResources()` method to `ResourceVectorService` with namespace/kind/apiVersion filters
+- [x] Update `SEARCH_RESOURCES_TOOL` AI tool schema with filter parameters
+- [x] Add `GET /api/v1/resources/search` HTTP endpoint with `q`, `namespace`, `kind`, `apiVersion`, `limit`, `offset` parameters
+- [x] Add integration tests for search endpoint (4 tests: basic search, kind filter, missing q validation, empty results)
+- [x] Create feature response file for UI team (`tmp/feature-response.md`)
+- [x] Add `score` field to search results for relevance ranking (0.0-1.0)
+- [x] Add `minScore` parameter to filter low-relevance results
+- [x] Update `search_resources` AI tool to include score in results
+- [x] Add integration tests for score validation and minScore filtering
+- [x] Fix hybrid search keyword matching to search `searchText` field (was only searching `triggers`)
+- [x] Add exact word boundary match bonus (+30%) for better relevance ranking
+- [x] Improve hybrid score combination: ADD scores instead of MAX (nginx: 69-72% vs unrelated: 17-19%)
+
+### Phase 8: Finalization
 - [ ] Confirm with UI team that all dashboard API requirements are complete
 - [ ] Review PRD completeness: verify all requirements implemented and no remaining work
 - [x] Run full integration test suite (final step after all requirements complete)
@@ -564,3 +633,6 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-11 | New requirement from UI team: Add `bar-chart` visualization type for metrics data. Added `BarChartDataItem` and `BarChartVisualizationContent` interfaces to `rest-api.ts`, updated validation in `visualization.ts`, refactored `query.ts` to use shared `CachedVisualization` type, and documented in AI prompt. Deployed and verified working. |
 | 2026-01-12 | Feature request from UI team: Generic session retrieval endpoint for URL sharing/refresh. Added `GET /api/v1/sessions/{sessionId}` that works for all tool types (remediate, query, recommend, operate). Returns cached session data without AI call for fast response. Also fixed visualization text contrast guidance in prompts and fixed parallel request crashes by skipping collection initialization for read operations. Integration tests passing (125/126). |
 | 2026-01-14 | Enhanced recommend workflow session state: Added `organizationalContext` field (patterns/policies usage statistics), typed `stage` field (`'solutions' | 'questions' | 'manifests' | 'deployed'`) for UI state tracking, updated all workflow tools to persist stage transitions. Extended integration tests with session persistence validation (<100ms response time). Deployed to test cluster for UI team testing. |
+| 2026-01-14 | Feature request from UI team: Semantic search endpoint for dashboard search bar. Added `GET /api/v1/resources/search` with semantic query (`q`) and exact filters (`namespace`, `kind`, `apiVersion`). Extended `search_resources` AI tool with filter support. Enhanced embedding text to include meaningful annotations. All 130 integration tests passing. |
+| 2026-01-14 | Enhanced search endpoint: Added `score` field (0.0-1.0) to each search result for relevance ranking, and `minScore` parameter to filter low-relevance results. Updated `search_resources` AI tool to include scores. Deployed and verified working. |
+| 2026-01-15 | Fixed search relevance scoring: Keyword search was only looking at `triggers` field (for patterns/policies) but resources have `searchText`. Fixed `searchByKeywords()` to search `searchText`, added exact word boundary match bonus (+30%), and changed hybrid scoring from MAX to ADD. Result: nginx resources now score 69-72% vs unrelated resources at 17-19% (was 31% vs 26%). |

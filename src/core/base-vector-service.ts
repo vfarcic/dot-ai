@@ -12,6 +12,7 @@ export interface BaseSearchOptions {
   limit?: number;
   scoreThreshold?: number;
   keywordWeight?: number; // Weight for keyword vs semantic search
+  filter?: Record<string, any>;  // Qdrant filter object for exact filtering
 }
 
 export interface BaseSearchResult<T> {
@@ -123,7 +124,7 @@ export abstract class BaseVectorService<T> {
     
     // Perform hybrid search (semantic + keyword)
     try {
-      return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold });
+      return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold, filter: options.filter });
     } catch (error) {
       // Fail immediately - no fallback to keyword-only search
       throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -225,9 +226,9 @@ export abstract class BaseVectorService<T> {
    * Hybrid search combining semantic and keyword matching
    */
   private async hybridSearch(
-    query: string, 
+    query: string,
     queryKeywords: string[],
-    options: { limit: number; scoreThreshold: number }
+    options: { limit: number; scoreThreshold: number; filter?: Record<string, any> }
   ): Promise<BaseSearchResult<T>[]> {
     // Generate query embedding - required for semantic search
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
@@ -240,7 +241,8 @@ export abstract class BaseVectorService<T> {
       queryEmbedding,
       {
         limit: options.limit * 2, // Get more candidates for hybrid ranking
-        scoreThreshold: 0.1 // Very permissive threshold for single-word queries
+        scoreThreshold: 0.1, // Very permissive threshold for single-word queries
+        filter: options.filter
       }
     );
 
@@ -249,7 +251,8 @@ export abstract class BaseVectorService<T> {
       queryKeywords,
       {
         limit: options.limit * 2,
-        scoreThreshold: 0.1
+        scoreThreshold: 0.1,
+        filter: options.filter
       }
     );
 
@@ -260,6 +263,7 @@ export abstract class BaseVectorService<T> {
 
   /**
    * Combine semantic and keyword results with hybrid ranking
+   * Keyword matches are prioritized for exact term matches
    */
   private combineHybridResults(
     semanticResults: any[],
@@ -268,36 +272,37 @@ export abstract class BaseVectorService<T> {
     options: { limit: number; scoreThreshold: number }
   ): BaseSearchResult<T>[] {
     const combinedResults = new Map<string, BaseSearchResult<T>>();
-    
-    // Add semantic results
+
+    // Add semantic results with weighted score
     for (const result of semanticResults) {
       const data = this.payloadToData(result.payload);
       (data as any).id = result.id;
       combinedResults.set(result.id, {
         data,
-        score: result.score * 0.7, // Weight semantic similarity
+        score: result.score * 0.5, // Semantic gets 50% weight
         matchType: 'semantic'
       });
     }
-    
+
     // Add or boost keyword results
     for (const result of keywordResults) {
       const existing = combinedResults.get(result.id);
       if (existing) {
-        // Boost score for hybrid match
-        existing.score = Math.max(existing.score, result.score * 0.8);
+        // Hybrid match: ADD keyword score to semantic score (capped at 1.0)
+        // This ensures exact keyword matches rank higher
+        existing.score = Math.min(1.0, existing.score + result.score * 0.5);
         existing.matchType = 'hybrid';
       } else {
         const data = this.payloadToData(result.payload);
         (data as any).id = result.id;
         combinedResults.set(result.id, {
           data,
-          score: result.score * 0.6, // Weight keyword matching
+          score: result.score * 0.5, // Keyword-only gets 50% weight
           matchType: 'keyword'
         });
       }
     }
-    
+
     // Sort by score and apply limits
     return Array.from(combinedResults.values())
       .filter(result => result.score >= options.scoreThreshold)

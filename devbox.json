@@ -10,7 +10,10 @@
     "kind@0.31.0"
   ],
   "shell": {
-    "init_hook": [],
+    "init_hook": [
+      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\"",
+      "[ -f .env ] && source .env"
+    ],
     "scripts":   {}
   }
 }

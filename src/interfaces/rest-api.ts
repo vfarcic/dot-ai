@@ -272,11 +272,13 @@ export class RestApiRouter {
             await this.handleResourceSyncRequest(req, res, requestId, body);
           } else if (req.method === 'GET' && pathMatch.action === 'kinds') {
             await this.handleGetResourceKinds(req, res, requestId, url.searchParams);
+          } else if (req.method === 'GET' && pathMatch.action === 'search') {
+            await this.handleSearchResources(req, res, requestId, url.searchParams);
           } else if (req.method === 'GET' && pathMatch.action === 'list') {
             await this.handleListResources(req, res, requestId, url.searchParams);
           } else if (pathMatch.action === 'sync' && req.method !== 'POST') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for resource sync');
-          } else if ((pathMatch.action === 'kinds' || pathMatch.action === 'list') && req.method !== 'GET') {
+          } else if ((pathMatch.action === 'kinds' || pathMatch.action === 'list' || pathMatch.action === 'search') && req.method !== 'GET') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for this endpoint');
           } else {
             await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown resources endpoint');
@@ -383,6 +385,7 @@ export class RestApiRouter {
     // /api/v1/openapi -> OpenAPI spec
     // /api/v1/resources/sync -> resource sync from controller
     // /api/v1/resources/kinds -> list resource kinds (PRD #328)
+    // /api/v1/resources/search -> semantic search for resources (PRD #328)
     // /api/v1/resource -> get single resource with full details (PRD #328)
     // /api/v1/resources -> list resources with filtering (PRD #328)
     // /api/v1/namespaces -> list namespaces (PRD #328)
@@ -420,6 +423,10 @@ export class RestApiRouter {
     // Handle resources endpoints (PRD #328)
     if (cleanPath === 'resources/kinds') {
       return { endpoint: 'resources', action: 'kinds' };
+    }
+
+    if (cleanPath === 'resources/search') {
+      return { endpoint: 'resources', action: 'search' };
     }
 
     if (cleanPath === 'resources/sync') {
@@ -776,6 +783,162 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'RESOURCE_KINDS_ERROR',
         'Failed to retrieve resource kinds',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resources/search (PRD #328)
+   * Semantic search for resources with optional exact filters
+   */
+  private async handleSearchResources(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      // Extract query parameters
+      const q = searchParams.get('q');
+      const namespace = searchParams.get('namespace') || undefined;
+      const kind = searchParams.get('kind') || undefined;
+      const apiVersion = searchParams.get('apiVersion') || undefined;
+      const limitParam = searchParams.get('limit');
+      const offsetParam = searchParams.get('offset');
+      const minScoreParam = searchParams.get('minScore');
+
+      // Validate required parameters
+      if (!q) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "q" query parameter is required for search'
+        );
+        return;
+      }
+
+      const limit = limitParam ? parseInt(limitParam, 10) : 100;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+      const minScore = minScoreParam ? parseFloat(minScoreParam) : undefined;
+
+      // Validate numeric parameters
+      if (limitParam && (isNaN(limit) || limit < 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "limit" parameter must be a positive integer'
+        );
+        return;
+      }
+
+      if (offsetParam && (isNaN(offset) || offset < 0)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "offset" parameter must be a non-negative integer'
+        );
+        return;
+      }
+
+      if (minScoreParam && (isNaN(minScore!) || minScore! < 0 || minScore! > 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "minScore" parameter must be a number between 0 and 1'
+        );
+        return;
+      }
+
+      this.logger.info('Processing search resources request', {
+        requestId,
+        query: q,
+        namespace,
+        kind,
+        apiVersion,
+        limit,
+        offset,
+        minScore
+      });
+
+      // Build filters
+      const filters: { namespace?: string; kind?: string; apiVersion?: string } = {};
+      if (namespace) filters.namespace = namespace;
+      if (kind) filters.kind = kind;
+      if (apiVersion) filters.apiVersion = apiVersion;
+
+      // Perform search using ResourceVectorService
+      const { ResourceVectorService } = await import('../core/resource-vector-service');
+      const service = new ResourceVectorService();
+
+      // Request more results than needed for offset pagination
+      const searchLimit = limit + offset;
+      const results = await service.searchResources(
+        q,
+        Object.keys(filters).length > 0 ? filters : undefined,
+        searchLimit,
+        minScore
+      );
+
+      // Apply offset pagination
+      const paginatedResults = results.slice(offset, offset + limit);
+
+      // Transform results to include score for relevance ranking
+      const resources = paginatedResults.map(r => ({
+        name: r.resource.name,
+        namespace: r.resource.namespace,
+        kind: r.resource.kind,
+        apiVersion: r.resource.apiVersion,
+        labels: r.resource.labels || {},
+        createdAt: r.resource.createdAt,
+        score: r.score
+      }));
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          resources,
+          total: results.length,
+          limit,
+          offset
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Search resources request completed', {
+        requestId,
+        query: q,
+        resultCount: resources.length,
+        totalMatches: results.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Search resources request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SEARCH_ERROR',
+        'Failed to search resources',
         { error: errorMessage }
       );
     }

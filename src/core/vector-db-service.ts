@@ -64,6 +64,7 @@ export interface SearchResult {
 export interface SearchOptions {
   limit?: number;
   scoreThreshold?: number;
+  filter?: Record<string, any>;  // Qdrant filter object for exact filtering
 }
 
 export class VectorDBService {
@@ -283,7 +284,8 @@ export class VectorDBService {
             vector,
             limit,
             score_threshold: scoreThreshold,
-            with_payload: true
+            with_payload: true,
+            ...(options.filter && { filter: options.filter })
           });
 
           return searchResult.map(result => ({
@@ -326,30 +328,65 @@ export class VectorDBService {
           const scrollResult = await this.client!.scroll(this.collectionName, {
             limit: 1000, // Get all documents for filtering
             with_payload: true,
-            with_vector: false
+            with_vector: false,
+            ...(options.filter && { filter: options.filter })
           });
 
-          // Filter documents by checking if any keyword matches any trigger
-          const matchedPoints = scrollResult.points.filter(point => {
-            if (!point.payload || !point.payload.triggers || !Array.isArray(point.payload.triggers)) {
-              return false;
-            }
+          // Filter documents by checking if any keyword matches searchText or triggers
+          const scoredPoints = scrollResult.points
+            .map(point => {
+              if (!point.payload) return null;
 
-            const triggers = point.payload.triggers.map((t: string) => t.toLowerCase());
-            return keywords.some(keyword =>
-              triggers.some(trigger =>
-                trigger.includes(keyword.toLowerCase()) ||
-                keyword.toLowerCase().includes(trigger)
-              )
-            );
-          });
+              const searchText = (point.payload.searchText as string || '').toLowerCase();
+              const triggers = Array.isArray(point.payload.triggers)
+                ? (point.payload.triggers as string[]).map(t => t.toLowerCase())
+                : [];
+
+              // Count keyword matches for scoring
+              let matchCount = 0;
+              let exactMatch = false;
+
+              for (const keyword of keywords) {
+                const kw = keyword.toLowerCase();
+
+                // Check searchText (name, kind, namespace, labels, etc.)
+                if (searchText.includes(kw)) {
+                  matchCount++;
+                  // Bonus for exact word match (surrounded by spaces/punctuation)
+                  const wordPattern = new RegExp(`\\b${kw}\\b`, 'i');
+                  if (wordPattern.test(searchText)) {
+                    exactMatch = true;
+                  }
+                }
+
+                // Check triggers (for patterns/policies)
+                if (triggers.some(t => t.includes(kw) || kw.includes(t))) {
+                  matchCount++;
+                }
+              }
+
+              if (matchCount === 0) return null;
+
+              // Score based on match quality
+              // - Base score from match ratio
+              // - Bonus for exact word matches
+              const baseScore = matchCount / keywords.length;
+              const score = exactMatch ? Math.min(1.0, baseScore + 0.3) : baseScore;
+
+              return {
+                point,
+                score
+              };
+            })
+            .filter((item): item is { point: any; score: number } => item !== null)
+            .sort((a, b) => b.score - a.score);
 
           // Apply limit after filtering
-          const limitedResults = matchedPoints.slice(0, limit);
+          const limitedResults = scoredPoints.slice(0, limit);
 
-          return limitedResults.map(point => ({
+          return limitedResults.map(({ point, score }) => ({
             id: point.id.toString(),
-            score: 1.0, // Keyword matches get full score
+            score,
             payload: point.payload || {}
           }));
         } catch (error) {

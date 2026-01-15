@@ -14,20 +14,24 @@ import { executeKubectl } from './kubernetes-utils';
 
 /**
  * Tool: search_resources
- * Semantic search for cluster resources by name, kind, and labels
+ * Semantic search for cluster resources by name, kind, labels, and annotations
  */
 export const SEARCH_RESOURCES_TOOL: AITool = {
   name: 'search_resources',
-  description: `Search for Kubernetes resources in the cluster inventory by name, kind, or labels. This searches the resource metadata stored in Vector DB.
+  description: `Search for Kubernetes resources in the cluster inventory using semantic search. Searches resource names, kinds, labels, and annotations stored in Vector DB.
 
 This tool is useful for:
 - Finding resources by partial name match (e.g., "nginx" finds nginx-deployment, nginx-service)
 - Finding resources by kind (e.g., "deployments" finds all Deployment resources)
 - Finding resources by label values (e.g., "frontend" finds resources with tier=frontend label)
+- Finding resources by annotation content (e.g., "team platform" finds resources with team=platform annotation)
 
-Note: This does NOT provide rich semantic understanding like search_capabilities. It matches against resource names, kinds, and label values - not conceptual descriptions. For example, searching "database" will NOT find a StatefulSet unless it has "database" in its name or labels.
+You can optionally filter results by namespace, kind, or apiVersion to narrow the search scope:
+- Search "nginx" within namespace "production": query="nginx", namespace="production"
+- Search "database" within Deployments only: query="database", kind="Deployment", apiVersion="apps/v1"
+- Search across all resources: query="nginx" (no filters)
 
-For conceptual queries like "what databases are running", use the semantic bridge pattern:
+Note: For conceptual queries like "what databases are running", use the semantic bridge pattern:
 1. Use search_capabilities to find what KINDS relate to "database"
 2. Then use query_resources to find instances of those kinds
 
@@ -37,7 +41,19 @@ For live cluster status, use kubectl tools after finding resources.`,
     properties: {
       query: {
         type: 'string',
-        description: 'Search query matching resource names, kinds, or label values (e.g., "nginx", "Deployment", "frontend")'
+        description: 'Search query matching resource names, kinds, labels, or annotations (e.g., "nginx", "frontend", "team platform")'
+      },
+      namespace: {
+        type: 'string',
+        description: 'Optional: Filter results to this namespace only (exact match)'
+      },
+      kind: {
+        type: 'string',
+        description: 'Optional: Filter results to this resource kind only (exact match, e.g., "Deployment", "Service")'
+      },
+      apiVersion: {
+        type: 'string',
+        description: 'Optional: Filter results to this API version only (exact match, e.g., "apps/v1", "v1")'
       },
       limit: {
         type: 'number',
@@ -135,7 +151,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
   try {
     switch (toolName) {
       case 'search_resources': {
-        const { query, limit = 10 } = input;
+        const { query, namespace, kind, apiVersion, limit = 10 } = input;
 
         if (!query) {
           return {
@@ -146,28 +162,44 @@ export async function executeResourceTools(toolName: string, input: any): Promis
         }
 
         const service = await getResourceService();
-        const results = await service.searchData(query, { limit });
+
+        // Build filters from optional parameters
+        const filters: { namespace?: string; kind?: string; apiVersion?: string } = {};
+        if (namespace) filters.namespace = namespace;
+        if (kind) filters.kind = kind;
+        if (apiVersion) filters.apiVersion = apiVersion;
+
+        // Use searchResources with filters
+        const results = await service.searchResources(
+          query,
+          Object.keys(filters).length > 0 ? filters : undefined,
+          limit
+        );
 
         // Transform results to a clean format for AI consumption
-        const resources = results.map(r => ({
-          id: (r.data as any).id,
-          namespace: r.data.namespace,
-          name: r.data.name,
-          kind: r.data.kind,
-          apiVersion: r.data.apiVersion,
-          apiGroup: r.data.apiGroup,
-          labels: r.data.labels,
-          createdAt: r.data.createdAt,
-          updatedAt: r.data.updatedAt,
-          score: r.score,
-          matchType: r.matchType
+        const formattedResources = results.map(({ resource: r, score }) => ({
+          id: (r as any).id,
+          namespace: r.namespace,
+          name: r.name,
+          kind: r.kind,
+          apiVersion: r.apiVersion,
+          apiGroup: r.apiGroup,
+          labels: r.labels,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          score
         }));
+
+        // Build message with filter info
+        const filterInfo = Object.keys(filters).length > 0
+          ? ` (filtered by ${Object.entries(filters).map(([k, v]) => `${k}=${v}`).join(', ')})`
+          : '';
 
         return {
           success: true,
-          data: resources,
-          count: resources.length,
-          message: `Found ${resources.length} resources matching "${query}"`
+          data: formattedResources,
+          count: formattedResources.length,
+          message: `Found ${formattedResources.length} resources matching "${query}"${filterInfo}`
         };
       }
 

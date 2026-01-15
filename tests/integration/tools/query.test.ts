@@ -615,6 +615,183 @@ spec:
     });
   }, 30000);
 
+  // PRD #328: GET /api/v1/resources/search - Semantic Search Endpoint
+  test('GET /api/v1/resources/search?q=nginx should return test-web-deployment with score', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'test-web-deployment',
+            namespace: testNamespace,
+            kind: 'Deployment',
+            apiVersion: 'apps/v1',
+            labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+            score: expect.any(Number)
+          })
+        ]),
+        total: expect.any(Number),
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Verify scores are between 0 and 1 and sorted in descending order
+    const resources = response.data.resources as Array<{ score: number }>;
+    for (let i = 0; i < resources.length; i++) {
+      expect(resources[i].score).toBeGreaterThanOrEqual(0);
+      expect(resources[i].score).toBeLessThanOrEqual(1);
+      if (i > 0) {
+        expect(resources[i].score).toBeLessThanOrEqual(resources[i - 1].score);
+      }
+    }
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/search with kind filter
+  test('GET /api/v1/resources/search?q=test&kind=Deployment should return only Deployments', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resources/search?q=test&kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'test-web-deployment',
+            namespace: testNamespace,
+            kind: 'Deployment',
+            score: expect.any(Number)
+          })
+        ]),
+        total: expect.any(Number),
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Verify all returned resources are Deployments (exact filter)
+    const resources = response.data.resources as Array<{ kind: string; score: number }>;
+    for (const resource of resources) {
+      expect(resource.kind).toBe('Deployment');
+      expect(resource.score).toBeGreaterThanOrEqual(0);
+      expect(resource.score).toBeLessThanOrEqual(1);
+    }
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/search with minScore filter
+  test('GET /api/v1/resources/search with minScore should filter low-relevance results', async () => {
+    // First get results without minScore to see all scores
+    const allResults = await integrationTest.httpClient.get(
+      `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
+    );
+    expect(allResults.success).toBe(true);
+    const allResourceCount = allResults.data.total;
+
+    // Now get results with high minScore threshold
+    const filteredResults = await integrationTest.httpClient.get(
+      `/api/v1/resources/search?q=nginx&namespace=${testNamespace}&minScore=0.5`
+    );
+
+    expect(filteredResults).toMatchObject({
+      success: true,
+      data: {
+        resources: expect.any(Array),
+        total: expect.any(Number),
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Verify all returned resources have score >= minScore
+    const resources = filteredResults.data.resources as Array<{ score: number }>;
+    for (const resource of resources) {
+      expect(resource.score).toBeGreaterThanOrEqual(0.5);
+    }
+
+    // Filtered results should be <= all results
+    expect(filteredResults.data.total).toBeLessThanOrEqual(allResourceCount);
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/search with invalid minScore should return 400
+  test('GET /api/v1/resources/search with invalid minScore should return 400', async () => {
+    const response = await integrationTest.httpClient.get(
+      `/api/v1/resources/search?q=test&minScore=1.5`
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'INVALID_PARAMETER',
+        message: 'The "minScore" parameter must be a number between 0 and 1'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/search without q parameter should return 400
+  test('GET /api/v1/resources/search without q should return 400', async () => {
+    const response = await integrationTest.httpClient.get('/api/v1/resources/search?namespace=default');
+
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'The "q" query parameter is required for search'
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
+  // PRD #328: GET /api/v1/resources/search with no matches (non-existent namespace guarantees no results)
+  test('GET /api/v1/resources/search with non-existent namespace should return empty array', async () => {
+    const response = await integrationTest.httpClient.get(
+      '/api/v1/resources/search?q=test&namespace=nonexistent-namespace-xyz-123'
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        resources: [],
+        total: 0,
+        limit: 100,
+        offset: 0
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+  }, 30000);
+
   // PRD #328: GET /api/v1/namespaces
   test('GET /api/v1/namespaces should return query-tool-test namespace', async () => {
     const response = await integrationTest.httpClient.get('/api/v1/namespaces');
@@ -996,7 +1173,7 @@ spec:
       expect(viz).toMatchObject({
         id: expect.any(String),
         label: expect.any(String),
-        type: expect.stringMatching(/^(mermaid|table|cards|code|diff)$/),
+        type: expect.stringMatching(/^(mermaid|table|cards|code|diff|bar-chart)$/),
         content: expect.anything()
       });
     }
