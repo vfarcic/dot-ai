@@ -130,7 +130,7 @@ let resourceService: ResourceVectorService | null = null;
  * Uses lazy initialization to avoid startup errors when Qdrant isn't ready
  * Respects QDRANT_RESOURCES_COLLECTION env var for collection name
  */
-async function getResourceService(): Promise<ResourceVectorService> {
+export async function getResourceService(): Promise<ResourceVectorService> {
   if (!resourceService) {
     const collectionName = process.env.QDRANT_RESOURCES_COLLECTION || 'resources';
     resourceService = new ResourceVectorService(collectionName);

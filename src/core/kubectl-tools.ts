@@ -538,10 +538,30 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         }
 
         const output = await executeKubectl(cmdArgs);
-        const parsed = JSON.parse(output);
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(output);
+        } catch (parseError) {
+          return {
+            success: false,
+            error: `Failed to parse kubectl output as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            message: `Raw output: ${output.slice(0, 500)}${output.length > 500 ? '...' : ''}`
+          };
+        }
 
         // Return specific field or full resource
-        const data = field ? parsed[field] : parsed;
+        let data = parsed;
+        if (field) {
+          if (!(field in parsed)) {
+            return {
+              success: false,
+              error: `Field '${field}' not found in resource`,
+              message: `Available top-level fields: ${Object.keys(parsed).join(', ')}`
+            };
+          }
+          data = parsed[field];
+        }
 
         return {
           success: true,

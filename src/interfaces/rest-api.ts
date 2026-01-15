@@ -875,9 +875,9 @@ export class RestApiRouter {
       if (kind) filters.kind = kind;
       if (apiVersion) filters.apiVersion = apiVersion;
 
-      // Perform search using ResourceVectorService
-      const { ResourceVectorService } = await import('../core/resource-vector-service');
-      const service = new ResourceVectorService();
+      // Perform search using ResourceVectorService singleton
+      const { getResourceService } = await import('../core/resource-tools');
+      const service = await getResourceService();
 
       // Request more results than needed for offset pagination
       const searchLimit = limit + offset;
