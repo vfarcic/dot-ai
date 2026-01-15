@@ -38,12 +38,11 @@ Choose the type that best matches the PRD based on those descriptions.
 
 ### Step 4: Write the Fragment
 
-Create file: `changelog.d/[type]/[issue-id]-[short-description].md`
+Create file: `changelog.d/[type]/[issue-id].md`
 
 **Naming convention:**
 - `type`: Subdirectory from step 3 (e.g., `feature`, `bugfix`, `misc`)
-- `issue-id`: GitHub issue number from PRD (e.g., `142`)
-- `short-description`: 2-4 word kebab-case summary (e.g., `multi-cluster-support`)
+- `issue-id`: GitHub issue number from PRD (e.g., `320`)
 
 **Content format:**
 ```markdown
@@ -64,7 +63,7 @@ If the PRD includes documentation updates, link to the relevant page on devopsto
 - Where `{project}` is: `mcp` (dot-ai), `controller` (dot-ai-controller), `ui` (dot-ai-ui), or `stack` (dot-ai-stack)
 - And `{path}` maps from the docs folder (e.g., `docs/guides/mcp-recommendation-guide.md` → `guides/mcp-recommendation-guide`)
 
-**Example (fictional PRD #142 - Multi-Cluster Support):**
+**Example: `changelog.d/feature/142.md`**
 ```markdown
 **Multi-Cluster Management**
 
