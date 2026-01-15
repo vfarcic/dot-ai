@@ -70,6 +70,52 @@ There are many ways to contribute:
 
 6. **Open a Pull Request** on GitHub
 
+## Changelog Fragments
+
+This project uses [towncrier](https://github.com/twisted/towncrier) for release notes. When making changes, create a changelog fragment file to describe your contribution.
+
+### Creating a Fragment
+
+Create a file in `changelog.d/` with this naming pattern:
+
+```
+changelog.d/<issue-number>-<short-description>.<type>.md
+```
+
+**Examples**:
+- `331-towncrier-release-notes.feature.md`
+- `328-dashboard-http-api.feature.md`
+- `456-fix-query-timeout.bugfix.md`
+
+**Types**:
+- `feature` - New features
+- `bugfix` - Bug fixes
+- `breaking` - Breaking changes
+- `doc` - Documentation improvements
+- `misc` - Other changes
+
+### Fragment Content
+
+Describe what the feature or fix IS (not "added X" diary-style). Use a title and description format. Length should match the complexity of the change.
+
+When applicable, link to relevant documentation at https://devopstoolkit.ai.
+
+**Example** (`changelog.d/331-towncrier-release-notes.feature.md`):
+```markdown
+**Towncrier-based release notes system**
+
+Contributors create changelog fragments that get combined into rich
+release notes at release time, replacing the previous empty release notes.
+```
+
+### When to Create Fragments
+
+- **PRD completions**: The `/prd-done` workflow creates fragments automatically
+- **Bug fixes**: Create manually when fixing bugs
+- **Other changes**: Create for any user-visible change
+
+Fragments are combined into `CHANGELOG.md` when a release is created.
+
 ## Pull Request Process
 
 ### Before Submitting
