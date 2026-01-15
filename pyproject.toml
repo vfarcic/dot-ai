@@ -1,29 +1,34 @@
 [tool.towncrier]
 directory = "changelog.d"
-filename = "CHANGELOG.md"
+filename = "docs/CHANGELOG.md"
 title_format = "## [{version}] - {project_date}"
 issue_format = "[#{issue}](https://github.com/vfarcic/dot-ai/issues/{issue})"
 
+# feature: New user-facing functionality (users directly interact with or benefit from this)
 [[tool.towncrier.type]]
 directory = "feature"
 name = "Features"
 showcontent = true
 
+# bugfix: Bug fixes
 [[tool.towncrier.type]]
 directory = "bugfix"
 name = "Bug Fixes"
 showcontent = true
 
+# breaking: Breaking changes that require user action
 [[tool.towncrier.type]]
 directory = "breaking"
 name = "Breaking Changes"
 showcontent = true
 
+# doc: Documentation improvements only
 [[tool.towncrier.type]]
 directory = "doc"
 name = "Documentation"
 showcontent = true
 
+# misc: Internal improvements, CI/CD, tooling, refactoring (improves the project but users don't directly see it)
 [[tool.towncrier.type]]
 directory = "misc"
 name = "Other Changes"
