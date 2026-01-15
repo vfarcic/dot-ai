@@ -1,7 +1,7 @@
 # PRD: Towncrier-based Release Notes System
 
 **GitHub Issue**: [#331](https://github.com/vfarcic/dot-ai/issues/331)
-**Status**: Draft
+**Status**: Complete (2026-01-15)
 **Priority**: High
 **Created**: 2026-01-15
 **Owner**: TBD
@@ -49,13 +49,13 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 
 ### Success Criteria
 
-- [ ] Releases have descriptive notes explaining what changed and why
-- [ ] Release timing is controlled (not automatic on every merge)
-- [ ] `/prd-done` workflow automatically creates changelog fragments
-- [ ] Multiple features can be batched into a single release
-- [ ] Works across all dot-ai projects (language-agnostic)
-- [ ] Existing releases cleaned up with meaningful notes for significant versions
-- [ ] Release workflow supports both tag-triggered and manual modes
+- [x] Releases have descriptive notes explaining what changed and why
+- [x] Release timing is controlled (not automatic on every merge)
+- [x] `/prd-done` workflow automatically creates changelog fragments (via `/changelog-fragment` skill)
+- [x] Multiple features can be batched into a single release
+- [x] Works across all dot-ai projects (language-agnostic)
+- [ ] Existing releases cleaned up with meaningful notes for significant versions (Milestone 0 - future work)
+- [x] Release workflow supports both tag-triggered and manual modes
 
 ---
 
@@ -407,18 +407,18 @@ v0.1.0 → v0.2.0 → ... → v0.50.0 (meaningful) → v0.51.0 → ... → v0.75
 
 ---
 
-### Milestone 3: /prd-done Integration [Status: Pending]
+### Milestone 3: /prd-done Integration [Status: Complete]
 
 **Target**: Automatic fragment creation when completing PRDs
 
 **Completion Criteria:**
-- [ ] Update `shared-prompts/prd-done.md` with changelog fragment step
-- [ ] Add conditional check for `changelog.d/` directory existence
-- [ ] Implement PRD-to-release-notes extraction logic
-- [ ] Test with a real PRD completion
-- [ ] Verify fragments are included in PR commits
+- [x] Create `/changelog-fragment` skill for fragment generation
+- [x] Add conditional check for `changelog.d/` directory existence
+- [x] Implement PRD-to-release-notes extraction logic
+- [x] Test with a real PRD completion (PRD-331 itself)
+- [x] Verify fragments are included in PR commits
 
-**Estimated Effort**: 1-2 hours
+**Implementation Note**: Rather than embedding the logic in `prd-done.md`, a dedicated `/changelog-fragment` skill was created. This skill is invoked during the `/prd-done` workflow and provides guided fragment creation based on PRD content.
 
 ---
 
