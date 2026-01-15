@@ -54,6 +54,8 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 - [ ] `/prd-done` workflow automatically creates changelog fragments
 - [ ] Multiple features can be batched into a single release
 - [ ] Works across all dot-ai projects (language-agnostic)
+- [ ] Existing releases cleaned up with meaningful notes for significant versions
+- [ ] Release workflow supports both tag-triggered and manual modes
 
 ---
 
@@ -90,7 +92,7 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 1. Finish feature implementation
 2. Run `/prd-done` which:
    - Creates PR and merges
-   - Auto-generates `changelog.d/prd-328.feature.md` with release notes from PRD
+   - Auto-generates `changelog.d/328-dashboard-http-api.feature.md` with release notes from PRD
 3. Fragment accumulates (no release yet)
 4. When maintainer releases, rich notes appear automatically
 
@@ -127,7 +129,7 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 │  │    - Problem statement (1-2 sentences)                 │ │
 │  │    - Solution summary (2-3 sentences)                  │ │
 │  │    - User impact highlights                            │ │
-│  │ 3. Create changelog.d/prd-[id].[type].md              │ │
+│  │ 3. Create changelog.d/[id]-[description].[type].md    │ │
 │  │ 4. Commit with PR                                      │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                              │
@@ -139,9 +141,9 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  changelog.d/                                                │
-│  ├── prd-328.feature.md    # Dashboard HTTP API             │
-│  ├── prd-330.feature.md    # Semantic search                │
-│  ├── fix-timeout.bugfix.md # Bug fix (non-PRD)              │
+│  ├── 328-dashboard-http-api.feature.md  # Dashboard HTTP API│
+│  ├── 330-semantic-search.feature.md     # Semantic search   │
+│  ├── 456-fix-timeout.bugfix.md          # Bug fix           │
 │  └── .gitkeep                                                │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -205,14 +207,13 @@ showcontent = true
 
 ```
 changelog.d/
-  [identifier].[type].md
+  <issue-number>-<short-description>.<type>.md
 
 Examples:
-  prd-328.feature.md     # Feature from PRD #328
-  prd-201.feature.md     # Feature from PRD #201
-  fix-timeout.bugfix.md  # Bug fix (no PRD)
-  456.bugfix.md          # Bug fix for issue #456
-  update-deps.misc.md    # Miscellaneous change
+  328-dashboard-http-api.feature.md    # Feature from PRD #328
+  330-semantic-search.feature.md       # Feature from PRD #330
+  456-fix-query-timeout.bugfix.md      # Bug fix for issue #456
+  update-deps.misc.md                  # Miscellaneous change (no issue)
 ```
 
 **Types:**
@@ -229,24 +230,29 @@ Examples:
 
 **New behavior:**
 - Push to main → run tests only (no release)
-- Manual trigger → run release with towncrier
+- Tag push (`v*`) → full release with artifacts and notes
+- Manual trigger → release with optional `notes_only` mode
 
-**New `release.yml` workflow:**
+**New `release.yml` workflow (dual-trigger):**
 ```yaml
 name: Release
 
 on:
+  # Trigger 1: Manual (for retroactive cleanup or special cases)
   workflow_dispatch:
     inputs:
-      version_bump:
-        description: 'Version bump type'
+      version:
+        description: 'Version to release (e.g., 0.193.0)'
         required: true
-        default: 'minor'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+      notes_only:
+        description: 'Only create/update release notes (skip artifact publishing)'
+        type: boolean
+        default: false
+
+  # Trigger 2: Tag push (normal release flow)
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   release:
@@ -256,6 +262,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine version and mode
+        id: config
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Tag trigger: extract version from tag, full release
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            NOTES_ONLY="false"
+          else
+            # Manual trigger: use inputs
+            VERSION="${{ inputs.version }}"
+            NOTES_ONLY="${{ inputs.notes_only }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "notes_only=$NOTES_ONLY" >> $GITHUB_OUTPUT
+
       - name: Setup Python (for towncrier)
         uses: actions/setup-python@v5
         with:
@@ -264,21 +285,30 @@ jobs:
       - name: Install towncrier
         run: pip install towncrier
 
-      - name: Calculate version
-        id: version
-        run: |
-          # Calculate next version based on input
-
       - name: Build changelog
-        run: towncrier build --version ${{ steps.version.outputs.new_version }} --yes
+        run: towncrier build --version ${{ steps.config.outputs.version }} --yes
 
       - name: Extract release notes
         id: notes
         run: |
           # Extract latest version section from CHANGELOG.md
 
-      # ... rest of release steps (npm, Docker, Helm, GitHub release)
+      - name: Publish artifacts
+        if: steps.config.outputs.notes_only != 'true'
+        run: |
+          # npm publish, docker push, helm push
+
+      # ... rest of release steps (GitHub release creation)
 ```
+
+**Trigger behavior:**
+
+| Trigger | Version source | `notes_only` | Use case |
+|---------|---------------|--------------|----------|
+| Tag push (`v0.193.0`) | From tag | Always `false` | Normal releases |
+| Manual | `inputs.version` (required) | `inputs.notes_only` | Retroactive cleanup, re-runs |
+
+Note: `workflow_dispatch.inputs` only apply to manual triggers. Tag pushes ignore inputs entirely and extract version from `GITHUB_REF`.
 
 ### /prd-done Integration
 
@@ -292,18 +322,17 @@ jobs:
 - [ ] **Check for changelog.d/ directory**: If directory doesn't exist, skip this section
 - [ ] **Extract release notes from PRD**:
   - Read the PRD file being completed
-  - Extract key information:
-    - Problem statement (1-2 sentences)
-    - Solution summary (2-3 sentences)
-    - Key user benefits
-  - Compose concise release notes (4-8 sentences max)
+  - Create title/description format (not diary-style "Added X"):
+    - **Title**: Feature name in bold
+    - **Description**: What it IS, not what was done
+  - Link to docs at https://devopstoolkit.ai when applicable
 - [ ] **Determine fragment type**:
   - `feature` - New functionality
   - `bugfix` - Bug fix
   - `breaking` - Breaking change
   - `doc` - Documentation only
   - `misc` - Other
-- [ ] **Create fragment file**: `changelog.d/prd-[issue-id].[type].md`
+- [ ] **Create fragment file**: `changelog.d/[issue-id]-[short-description].[type].md`
 - [ ] **Include in commit**: Add fragment file to the PR commit
 ```
 
@@ -311,16 +340,47 @@ jobs:
 
 ## Implementation Milestones
 
-### Milestone 1: Towncrier Setup [Status: Pending]
+### Milestone 0: Retroactive Release Cleanup [Status: Pending]
+
+**Target**: Clean up existing ~192 releases, consolidating into meaningful versions with proper release notes
+
+**Background**: The project has accumulated many releases with empty/minimal notes. This milestone consolidates them into fewer, meaningful releases with proper descriptions.
+
+**Process:**
+1. Review releases from oldest to newest
+2. Identify meaningful versions (significant features, breaking changes)
+3. Delete tags and GitHub releases for versions between meaningful ones
+4. Create changelog fragments for meaningful versions
+5. Run release workflow with `notes_only: true` to generate proper notes
+
+**Completion Criteria:**
+- [ ] All existing releases reviewed and categorized
+- [ ] Non-meaningful tags and GitHub releases deleted (images remain published)
+- [ ] Changelog fragments created for each meaningful version
+- [ ] Release notes regenerated for kept versions using `notes_only` mode
+- [ ] Release history is clean and informative
+
+**Cleanup approach:**
+```
+v0.1.0 → v0.2.0 → ... → v0.50.0 (meaningful) → v0.51.0 → ... → v0.75.0 (meaningful)
+         └─────────────────┘                    └─────────────────┘
+              DELETE these                           DELETE these
+              Keep v0.50.0                           Keep v0.75.0
+              Update its notes                       Update its notes
+```
+
+---
+
+### Milestone 1: Towncrier Setup [Status: Complete]
 
 **Target**: Basic towncrier configuration working locally
 
 **Completion Criteria:**
-- [ ] Create `changelog.d/` directory with `.gitkeep`
-- [ ] Add towncrier configuration to `pyproject.toml`
-- [ ] Create sample fragment file for testing
-- [ ] Verify `towncrier build` works locally
-- [ ] Document fragment creation process in README or CONTRIBUTING
+- [x] Create `changelog.d/` directory with `.gitkeep`
+- [x] Add towncrier configuration to `pyproject.toml`
+- [x] Create sample fragment file for testing
+- [x] Verify `towncrier build` works locally
+- [x] Document fragment creation process in README or CONTRIBUTING
 
 **Estimated Effort**: 1-2 hours
 
@@ -328,17 +388,22 @@ jobs:
 
 ### Milestone 2: CI Workflow Changes [Status: Pending]
 
-**Target**: Split release from regular CI, add manual release trigger
+**Target**: Split release from regular CI, add dual-trigger release workflow
 
 **Completion Criteria:**
 - [ ] Modify `ci.yml` to remove auto-release on push to main
-- [ ] Create new `release.yml` with manual trigger (workflow_dispatch)
+- [ ] Create new `release.yml` with dual triggers:
+  - [ ] Tag push trigger (`v*`) for normal releases
+  - [ ] Manual trigger (`workflow_dispatch`) with `version` and `notes_only` inputs
+- [ ] Implement version/mode detection logic based on trigger type
 - [ ] Add towncrier build step to release workflow
+- [ ] Add conditional artifact publishing (skip when `notes_only: true`)
 - [ ] Extract release notes from CHANGELOG for GitHub release
-- [ ] Maintain existing artifact publishing (npm, Docker, Helm)
-- [ ] Test full release workflow
-
-**Estimated Effort**: 2-3 hours
+- [ ] Maintain existing artifact publishing (npm, Docker, Helm) for full releases
+- [ ] Test both trigger modes:
+  - [ ] Tag push triggers full release
+  - [ ] Manual with `notes_only: false` triggers full release
+  - [ ] Manual with `notes_only: true` only updates release notes
 
 ---
 
@@ -357,7 +422,7 @@ jobs:
 
 ---
 
-### Milestone 4: Documentation & Cross-Project Guide [Status: Pending]
+### Milestone 4: Documentation & Cross-Project Guide [Status: In Progress]
 
 **Target**: Enable adoption across all dot-ai projects
 
@@ -365,7 +430,7 @@ jobs:
 - [ ] Document towncrier setup for other projects
 - [ ] Create template configuration that can be copied
 - [ ] Document fragment creation for non-PRD changes (bug fixes, etc.)
-- [ ] Add CONTRIBUTING.md section about changelog fragments
+- [x] Add CONTRIBUTING.md section about changelog fragments
 
 **Estimated Effort**: 1-2 hours
 
@@ -442,6 +507,55 @@ jobs:
 
 ---
 
+### Decision 5: Dual-Trigger Release Workflow
+**Date**: 2026-01-15
+**Decision**: Support both tag push and manual workflow_dispatch triggers for releases
+
+**Rationale**:
+- Tag push (`v*`) provides natural release flow: create tag → release happens
+- Manual trigger enables retroactive cleanup and special cases
+- `workflow_dispatch.inputs` only apply to manual triggers (tag pushes ignore them)
+- Cleaner than "release on every push to main" approach
+- Maintainer explicitly controls when releases happen
+
+**Trigger behavior:**
+| Trigger | Version source | `notes_only` | Use case |
+|---------|---------------|--------------|----------|
+| Tag push | From `GITHUB_REF` | Always `false` | Normal releases |
+| Manual | `inputs.version` | `inputs.notes_only` | Cleanup, re-runs |
+
+---
+
+### Decision 6: Notes-Only Mode for Retroactive Cleanup
+**Date**: 2026-01-15
+**Decision**: Add `notes_only` parameter to skip artifact publishing
+
+**Rationale**:
+- Enables retroactive release notes without republishing artifacts
+- Artifacts (npm, Docker, Helm) already published and potentially in use
+- Only updates GitHub Release with proper notes
+- Essential for cleaning up ~192 existing releases
+- Can also be used to fix/update release notes after the fact
+
+---
+
+### Decision 7: Delete Both Tags and Releases for Cleanup
+**Date**: 2026-01-15
+**Decision**: Aggressively delete both git tags and GitHub Release objects for non-meaningful versions
+
+**Rationale**:
+- Reduces noise in release history
+- Makes meaningful releases easier to find
+- Published artifacts (Docker images, npm packages) remain available
+- Tags for non-meaningful versions serve no purpose
+- Clean history is more valuable than preserving empty releases
+
+**Alternatives Considered**:
+- Delete only GitHub Releases (keep tags): Less clean, tags still clutter history
+- Keep everything, just update notes: Doesn't solve the "too many releases" problem
+
+---
+
 ## Risk Management
 
 ### Identified Risks
@@ -483,39 +597,18 @@ jobs:
 
 ---
 
-## Work Log
-
-### 2026-01-15: PRD Creation
-**Duration**: ~1 hour
-**Primary Focus**: Design towncrier-based release notes system
-
-**Completed Work**:
-- Analyzed current release notes problem (empty/minimal)
-- Researched changelog generation tools (Changesets, Release Please, git-cliff, towncrier)
-- Chose towncrier for fragment-based, language-agnostic approach
-- Designed integration with existing `/prd-done` workflow
-- Created comprehensive PRD with 4 milestones
-
-**Key Decisions**:
-- Use towncrier (battle-tested, language-agnostic)
-- Fragment files over conventional commits (richer content)
-- On-demand releases (control timing, batch features)
-- Conditional fragment creation (portable across projects)
-
-**Next Steps**: Begin Milestone 1 (towncrier setup)
-
----
-
 ## Appendix
 
 ### Example Fragment File
 
-**File: `changelog.d/prd-328.feature.md`**
+**File: `changelog.d/328-dashboard-http-api.feature.md`**
 ```markdown
-Added HTTP API endpoints for the dashboard, enabling web UIs to interact
-with dot-ai without MCP protocol support. Includes semantic search for
-capabilities and patterns, session state persistence for page refresh
-handling, and all existing MCP tool functionality exposed via REST.
+**Dashboard HTTP API**
+
+HTTP API endpoints enabling web UIs to interact with dot-ai without MCP
+protocol support. Includes semantic search for capabilities and patterns,
+session state persistence for page refresh handling, and all existing MCP
+tool functionality exposed via REST.
 ```
 
 ### Example Generated Release Notes
@@ -525,19 +618,24 @@ handling, and all existing MCP tool functionality exposed via REST.
 
 ### Features
 
-- Added HTTP API endpoints for the dashboard, enabling web UIs to interact
-  with dot-ai without MCP protocol support. Includes semantic search for
-  capabilities and patterns, session state persistence for page refresh
-  handling, and all existing MCP tool functionality exposed via REST.
+- **Dashboard HTTP API**
+
+  HTTP API endpoints enabling web UIs to interact with dot-ai without MCP
+  protocol support. Includes semantic search for capabilities and patterns,
+  session state persistence for page refresh handling, and all existing MCP
+  tool functionality exposed via REST.
   ([#328](https://github.com/vfarcic/dot-ai/issues/328))
 
-- Implemented semantic search endpoint with configurable score thresholds
-  for more precise capability and pattern matching.
+- **Semantic Search Endpoint**
+
+  Configurable score thresholds for more precise capability and pattern matching.
   ([#330](https://github.com/vfarcic/dot-ai/issues/330))
 
 ### Bug Fixes
 
-- Fixed query timeout issue when searching large capability collections.
+- **Query Timeout Fix**
+
+  Resolved timeout issue when searching large capability collections.
   ([#325](https://github.com/vfarcic/dot-ai/issues/325))
 ```
 
