@@ -6,7 +6,8 @@
 |-------|-------|
 | **PRD ID** | 328 |
 | **Feature Name** | Dashboard HTTP API Endpoints |
-| **Status** | In Progress |
+| **Status** | Complete |
+| **Completed** | 2026-01-15 |
 | **Priority** | Medium |
 | **Created** | 2026-01-08 |
 | **GitHub Issue** | [#328](https://github.com/vfarcic/dot-ai/issues/328) |
@@ -527,8 +528,8 @@ These fields are available for filtering/display:
 - [x] Improve hybrid score combination: ADD scores instead of MAX (nginx: 69-72% vs unrelated: 17-19%)
 
 ### Phase 8: Finalization
-- [ ] Confirm with UI team that all dashboard API requirements are complete
-- [ ] Review PRD completeness: verify all requirements implemented and no remaining work
+- [x] Confirm with UI team that all dashboard API requirements are complete
+- [x] Review PRD completeness: verify all requirements implemented and no remaining work
 - [x] Run full integration test suite (final step after all requirements complete)
 
 ### Bonus: Generic Session Retrieval Endpoint (Complete)
@@ -636,3 +637,4 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 2026-01-14 | Feature request from UI team: Semantic search endpoint for dashboard search bar. Added `GET /api/v1/resources/search` with semantic query (`q`) and exact filters (`namespace`, `kind`, `apiVersion`). Extended `search_resources` AI tool with filter support. Enhanced embedding text to include meaningful annotations. All 130 integration tests passing. |
 | 2026-01-14 | Enhanced search endpoint: Added `score` field (0.0-1.0) to each search result for relevance ranking, and `minScore` parameter to filter low-relevance results. Updated `search_resources` AI tool to include scores. Deployed and verified working. |
 | 2026-01-15 | Fixed search relevance scoring: Keyword search was only looking at `triggers` field (for patterns/policies) but resources have `searchText`. Fixed `searchByKeywords()` to search `searchText`, added exact word boundary match bonus (+30%), and changed hybrid scoring from MAX to ADD. Result: nginx resources now score 69-72% vs unrelated resources at 17-19% (was 31% vs 26%). |
+| 2026-01-15 | PRD complete: All phases finalized, UI team confirmed requirements met. Archived to `prds/done/`. |
