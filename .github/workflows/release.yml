@@ -1,0 +1,378 @@
+name: Release
+
+on:
+  # Trigger 1: Tag push (normal release flow)
+  push:
+    tags:
+      - 'v*'
+
+  # Trigger 2: Manual (for retroactive cleanup or special cases)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.193.0)'
+        required: true
+      notes_only:
+        description: 'Only update release notes (skip artifact publishing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write  # Required for MCP Registry OIDC authentication
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Determine version and mode
+      id: config
+      run: |
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          # Tag trigger: extract version from tag, full release
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          NOTES_ONLY="false"
+        else
+          # Manual trigger: use inputs
+          VERSION="${{ inputs.version }}"
+          NOTES_ONLY="${{ inputs.notes_only }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "notes_only=$NOTES_ONLY" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION"
+        echo "Notes only mode: $NOTES_ONLY"
+
+    - name: Setup git config
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Setup Python (for towncrier)
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5
+      with:
+        python-version: '3.x'
+
+    - name: Install towncrier
+      run: pip install towncrier
+
+    - name: Build changelog with towncrier
+      id: towncrier
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+
+        # Check if there are any changelog fragments
+        FRAGMENT_COUNT=$(find changelog.d -name "*.md" ! -name ".gitkeep" 2>/dev/null | wc -l)
+
+        if [ "$FRAGMENT_COUNT" -gt 0 ]; then
+          echo "Found $FRAGMENT_COUNT changelog fragments"
+          towncrier build --version $VERSION --yes
+          echo "has_fragments=true" >> $GITHUB_OUTPUT
+        else
+          echo "No changelog fragments found, skipping towncrier build"
+          echo "has_fragments=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Extract release notes from CHANGELOG
+      id: notes
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+
+        # Extract the section for this version from CHANGELOG.md
+        # Look for the version header and extract until the next version header or end
+        if [ -f "docs/CHANGELOG.md" ]; then
+          # Extract content between this version's header and the next header (or end)
+          NOTES=$(awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" docs/CHANGELOG.md)
+
+          if [ -n "$NOTES" ]; then
+            echo "Extracted release notes for version $VERSION"
+            # Save to file for later use
+            echo "$NOTES" > release_notes_content.md
+            echo "has_notes=true" >> $GITHUB_OUTPUT
+          else
+            echo "No release notes found for version $VERSION in CHANGELOG"
+            echo "has_notes=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "docs/CHANGELOG.md not found"
+          echo "has_notes=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Node.js
+      if: steps.config.outputs.notes_only != 'true'
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        registry-url: 'https://registry.npmjs.org'
+        cache: 'npm'
+
+    - name: Install dependencies
+      if: steps.config.outputs.notes_only != 'true'
+      run: npm ci
+
+    - name: Install Devbox
+      if: steps.config.outputs.notes_only != 'true'
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
+    - name: Build project
+      if: steps.config.outputs.notes_only != 'true'
+      run: npm run build
+
+    - name: Update package.json version
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+        if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+          echo "Updating package.json from $CURRENT_VERSION to $VERSION"
+          npm version $VERSION --no-git-tag-version
+        else
+          echo "Package.json already at correct version: $VERSION"
+        fi
+
+    - name: Update server.json version
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+        if [ ! -f "server.json" ]; then
+          echo "ERROR: server.json file not found!"
+          echo "The server.json file is required for MCP registry publication."
+          exit 1
+        fi
+
+        echo "Updating server.json to version $VERSION"
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/g" server.json
+        echo "Updated server.json:"
+        cat server.json
+
+    - name: Publish to npm
+      if: steps.config.outputs.notes_only != 'true'
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    - name: Create npm package tarball for Docker build
+      if: steps.config.outputs.notes_only != 'true'
+      run: npm pack
+
+    - name: Set up QEMU
+      if: steps.config.outputs.notes_only != 'true'
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+    - name: Set up Docker Buildx
+      if: steps.config.outputs.notes_only != 'true'
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Log in to GitHub Container Registry
+      if: steps.config.outputs.notes_only != 'true'
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Build and push Docker image
+      if: steps.config.outputs.notes_only != 'true'
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: .
+        push: true
+        build-args: |
+          PACKAGE_VERSION=${{ steps.config.outputs.version }}
+        tags: |
+          ghcr.io/vfarcic/dot-ai:${{ steps.config.outputs.version }}
+          ghcr.io/vfarcic/dot-ai:latest
+        labels: |
+          org.opencontainers.image.source=https://github.com/vfarcic/dot-ai
+          org.opencontainers.image.description=AI-powered development productivity platform that enhances software development workflows through intelligent automation and AI-driven assistance
+          org.opencontainers.image.licenses=MIT
+          org.opencontainers.image.version=${{ steps.config.outputs.version }}
+        platforms: linux/amd64,linux/arm64
+
+    - name: Update Chart.yaml and values.yaml versions
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+
+        # Update Chart.yaml versions to match the coordinated release
+        sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
+        sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
+
+        # Update values.yaml image tag
+        sed -i "s/tag: \".*\"/tag: \"$VERSION\"/" charts/values.yaml
+
+        # Update dot.nu --dot-ai-tag default value
+        sed -i "s/--dot-ai-tag: string = \".*\"/--dot-ai-tag: string = \"$VERSION\"/" dot.nu
+
+        echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
+
+    - name: Log in to GitHub Container Registry for Helm
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        devbox run -- helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
+      env:
+        HELM_EXPERIMENTAL_OCI: 1
+
+    - name: Package and push Helm chart
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+        devbox run -- helm package charts/ --version $VERSION --app-version $VERSION
+        devbox run -- helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
+        echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
+
+    - name: Commit version and changelog changes
+      if: steps.config.outputs.notes_only != 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+
+        # Add all version-related changes and changelog
+        git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
+        git add docs/CHANGELOG.md changelog.d/
+
+        git commit -m "chore: coordinated release v$VERSION
+
+        - npm package: v$VERSION
+        - docker image: ghcr.io/vfarcic/dot-ai:$VERSION
+        - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
+
+        [skip ci]" || echo "No changes to commit"
+
+        git push origin HEAD:main
+
+        echo "Released coordinated version: $VERSION"
+
+    - name: Commit changelog changes (notes-only mode)
+      if: steps.config.outputs.notes_only == 'true' && steps.towncrier.outputs.has_fragments == 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+
+        git add docs/CHANGELOG.md changelog.d/
+
+        git commit -m "docs: update release notes for v$VERSION
+
+        [skip ci]" || echo "No changes to commit"
+
+        git push origin HEAD:main
+
+    - name: Create GitHub Release
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+        NOTES_ONLY=${{ steps.config.outputs.notes_only }}
+
+        # Build release notes content
+        cat > release_body.md << 'HEADER'
+        ## Coordinated Release Artifacts
+        HEADER
+
+        if [ "$NOTES_ONLY" != "true" ]; then
+          cat >> release_body.md << ARTIFACTS
+        - **npm package**: \`@vfarcic/dot-ai@$VERSION\`
+        - **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)
+        - **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`
+
+        ARTIFACTS
+        else
+          echo "*Release notes update only - artifacts were published previously*" >> release_body.md
+          echo "" >> release_body.md
+        fi
+
+        # Append towncrier-generated notes if available
+        if [ -f "release_notes_content.md" ]; then
+          echo "## What's Changed" >> release_body.md
+          echo "" >> release_body.md
+          cat release_notes_content.md >> release_body.md
+        fi
+
+        # Create or update GitHub release
+        if gh release view "v$VERSION" > /dev/null 2>&1; then
+          echo "Updating existing release v$VERSION"
+          gh release edit "v$VERSION" --notes-file release_body.md
+        else
+          echo "Creating new release v$VERSION"
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes-file release_body.md
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if docs changed since last release
+      if: steps.config.outputs.notes_only != 'true'
+      id: docs-check
+      run: |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        if [ -n "$PREV_TAG" ]; then
+          DOCS_CHANGED=$(git diff --name-only $PREV_TAG HEAD -- README.md docs/ | wc -l)
+          echo "Checking for doc changes between $PREV_TAG and HEAD"
+        else
+          DOCS_CHANGED=1
+          echo "No previous tag found, will trigger website rebuild"
+        fi
+        if [ "$DOCS_CHANGED" -gt 0 ]; then
+          echo "docs-changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "docs-changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Trigger Website Rebuild
+      if: steps.config.outputs.notes_only != 'true' && steps.docs-check.outputs.docs-changed == 'true'
+      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      with:
+        token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        repository: vfarcic/dot-ai-website
+        event-type: upstream-release
+        client-payload: '{"source": "dot-ai", "version": "${{ steps.config.outputs.version }}"}'
+
+  update-umbrella:
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.notes_only }}
+    permissions:
+      contents: read
+
+    steps:
+    - name: Determine version
+      id: config
+      run: |
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+        else
+          VERSION="${{ inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Checkout umbrella chart
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        repository: vfarcic/dot-ai-stack
+        token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
+    - name: Update dependency version
+      run: |
+        devbox run -- yq -i '(.dependencies[] | select(.name == "dot-ai")).version = "${{ steps.config.outputs.version }}"' Chart.yaml
+        echo "Updated Chart.yaml:"
+        cat Chart.yaml
+
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Chart.yaml
+        git diff --staged --quiet || git commit -m "chore: bump dot-ai to ${{ steps.config.outputs.version }}"
+        git push
