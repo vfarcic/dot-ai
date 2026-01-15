@@ -32,17 +32,17 @@ Read the entire PRD file to extract:
 
 Read `pyproject.toml` to see the available fragment types. Each `[[tool.towncrier.type]]` section has:
 - A comment above it describing when to use that type
-- A `directory` field (the subdirectory name, e.g., `feature` means `changelog.d/feature/`)
+- A `directory` field (the type identifier used in the filename, e.g., `feature` for `.feature.md`)
 
 Choose the type that best matches the PRD based on those descriptions.
 
 ### Step 4: Write the Fragment
 
-Create file: `changelog.d/[type]/[issue-id].md`
+Create file: `changelog.d/[issue-id].[type].md`
 
 **Naming convention:**
-- `type`: Subdirectory from step 3 (e.g., `feature`, `bugfix`, `misc`)
 - `issue-id`: GitHub issue number from PRD (e.g., `320`)
+- `type`: Type identifier from step 3 (e.g., `feature`, `bugfix`, `misc`)
 
 **Content format:**
 ```markdown
@@ -63,7 +63,7 @@ If the PRD includes documentation updates, link to the relevant page on devopsto
 - Where `{project}` is: `mcp` (dot-ai), `controller` (dot-ai-controller), `ui` (dot-ai-ui), or `stack` (dot-ai-stack)
 - And `{path}` maps from the docs folder (e.g., `docs/guides/mcp-recommendation-guide.md` → `guides/mcp-recommendation-guide`)
 
-**Example: `changelog.d/feature/142.md`**
+**Example: `changelog.d/142.feature.md`**
 ```markdown
 **Multi-Cluster Management**
 
