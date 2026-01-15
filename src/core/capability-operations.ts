@@ -798,7 +798,7 @@ export async function handleCapabilityCRUD(
             success: true,
             operation: 'list',
             dataType: 'capabilities',
-            data: { capabilities: [], total: 0 },
+            data: { capabilities: [], totalCount: 0, returnedCount: 0 },
             message: 'No capabilities found (collection not initialized)'
           };
         } else if (operation === 'get') {

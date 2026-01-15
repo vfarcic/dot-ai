@@ -8,16 +8,14 @@ When you have gathered sufficient information, respond with ONLY a JSON object (
   "insights": [...]
 }
 
-**If you cannot fulfill the user's request**, return:
+**If you cannot fulfill the user's request**, return (still as raw JSON, no code fences):
 
-```json
 {
   "title": "Unable to Perform Operation",
   "visualizations": [],
   "insights": ["Explanation of why the request cannot be fulfilled and what tool or action should be used instead."],
   "status": "error"
 }
-```
 
 ## Visualization Types
 

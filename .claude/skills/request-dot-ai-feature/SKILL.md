@@ -15,11 +15,11 @@ Write a feature request to a file in the target dot-ai project's tmp directory. 
 
 | Project | Directory | Description |
 |---------|-----------|-------------|
-| dot-ai | `/Users/viktorfarcic/code/dot-ai` | Main MCP server (API endpoints, tools, handlers) |
-| dot-ai-ui | `/Users/viktorfarcic/code/dot-ai-ui` | Web UI for visualizations and dashboard |
-| dot-ai-controller | `/Users/viktorfarcic/code/dot-ai-controller` | Kubernetes controller |
-| dot-ai-stack | `/Users/viktorfarcic/code/dot-ai-stack` | Stack deployment configs |
-| dot-ai-website | `/Users/viktorfarcic/code/dot-ai-website` | Documentation website |
+| dot-ai | `../dot-ai` | Main MCP server (API endpoints, tools, handlers) |
+| dot-ai-ui | `../dot-ai-ui` | Web UI for visualizations and dashboard |
+| dot-ai-controller | `../dot-ai-controller` | Kubernetes controller |
+| dot-ai-stack | `../dot-ai-stack` | Stack deployment configs |
+| dot-ai-website | `../dot-ai-website` | Documentation website |
 
 **Important:** Do NOT use this skill to request features in the project you're currently working in. Just implement them directly.
 
@@ -27,7 +27,7 @@ Write a feature request to a file in the target dot-ai project's tmp directory. 
 
 1. Determine the target project from the user's request
 2. **Delete any existing feature-request.md** in the target project's tmp directory (so the diff only shows new content)
-3. Write the feature request to: `/Users/viktorfarcic/code/[target-project]/tmp/feature-request.md`
+3. Write the feature request to: `../[target-project]/tmp/feature-request.md`
 4. Tell the user to open the target project and run `/process-feature-request`
 
 ## File Format
@@ -37,7 +37,7 @@ Write the feature request file with this content:
 ```markdown
 # Feature Request from [CURRENT_PROJECT]
 
-**Requesting project directory:** /Users/viktorfarcic/code/[current-project]
+**Requesting project directory:** ../[current-project]
 
 ## What We Need
 
@@ -61,7 +61,7 @@ You're the expert on this codebase. Feel free to implement this differently if t
 
 After implementing this feature, write a response file to help the requesting project integrate:
 
-1. Write to: `/Users/viktorfarcic/code/[requesting-project]/tmp/feature-response.md`
+1. Write to: `../[requesting-project]/tmp/feature-response.md`
 2. Include: what was implemented, how to use it (API signatures, endpoints, types), and any usage examples
 ```
 

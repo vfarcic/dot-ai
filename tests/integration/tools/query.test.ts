@@ -598,9 +598,7 @@ spec:
             name: 'test-pg-cluster',
             namespace: testNamespace,
             kind: 'Cluster',
-            apiVersion: 'postgresql.cnpg.io/v1',
-            // status field should be present (may be undefined if resource doesn't exist in K8s)
-            status: expect.anything()
+            apiVersion: 'postgresql.cnpg.io/v1'
           }
         ],
         total: 1,
@@ -613,6 +611,9 @@ spec:
         version: 'v1'
       }
     });
+
+    // Verify status field is present (value may be null/undefined if resource not found in K8s)
+    expect(response.data.resources[0]).toHaveProperty('status');
   }, 30000);
 
   // PRD #328: GET /api/v1/resources/search - Semantic Search Endpoint

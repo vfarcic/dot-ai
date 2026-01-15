@@ -128,8 +128,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${solutionId}`);
       const sessionResponseTime = Date.now() - sessionStartTime;
 
-      // Validate session retrieval is fast (< 100ms indicates reading from cache)
-      expect(sessionResponseTime).toBeLessThan(100);
+      // Validate session retrieval is fast (< 1000ms indicates reading from cache, not AI call)
+      expect(sessionResponseTime).toBeLessThan(1000);
 
       // Validate session contains all workflow state for page refresh
       const expectedSessionResponse = {

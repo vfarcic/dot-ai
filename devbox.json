@@ -7,13 +7,19 @@
     "vals@0.42.6",
     "yq-go@4.50.1",
     "kubectl-tree@0.4.6",
-    "kind@0.31.0"
+    "kind@0.31.0",
+    "kubectl@1.33.4",
+    "awscli2@2.31.11",
+    "hadolint@2.14.0",
+    "gh@2.83.1",
+    "jq@1.8.1"
   ],
   "shell": {
     "init_hook": [
-      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\"",
-      "[ -f .env ] && source .env"
+      "export PATH=$PATH:$HOME/.npm-global/bin",
+      "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\" || true",
+      "[ -f .env ] && source .env || true"
     ],
-    "scripts":   {}
+    "scripts": {}
   }
 }

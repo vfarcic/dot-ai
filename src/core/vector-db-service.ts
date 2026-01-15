@@ -8,6 +8,13 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { withQdrantTracing } from './tracing/qdrant-tracing';
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Simple semaphore to limit concurrent Qdrant operations
  * Prevents overwhelming Qdrant with too many parallel requests
  */
@@ -353,7 +360,7 @@ export class VectorDBService {
                 if (searchText.includes(kw)) {
                   matchCount++;
                   // Bonus for exact word match (surrounded by spaces/punctuation)
-                  const wordPattern = new RegExp(`\\b${kw}\\b`, 'i');
+                  const wordPattern = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
                   if (wordPattern.test(searchText)) {
                     exactMatch = true;
                   }

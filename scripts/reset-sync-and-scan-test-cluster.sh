@@ -7,7 +7,7 @@
 # 3. Re-applies the CRs in the dot-ai namespace
 #
 # Usage:
-#   ./examples/reset-sync-and-scan-test-cluster.sh
+#   ./scripts/reset-sync-and-scan-test-cluster.sh
 
 set -e
 
