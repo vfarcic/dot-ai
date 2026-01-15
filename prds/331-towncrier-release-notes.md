@@ -157,7 +157,7 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │ 1. Calculate next version                              │ │
 │  │ 2. Run: towncrier build --version X.Y.Z                │ │
-│  │    - Combines all fragments into CHANGELOG.md          │ │
+│  │    - Combines all fragments into docs/CHANGELOG.md     │ │
 │  │    - Deletes fragment files                            │ │
 │  │ 3. Publish artifacts (npm, Docker, Helm)               │ │
 │  │ 4. Create GitHub release with CHANGELOG content        │ │
@@ -173,7 +173,7 @@ Implement [towncrier](https://github.com/twisted/towncrier) for fragment-based r
 ```toml
 [tool.towncrier]
 directory = "changelog.d"
-filename = "CHANGELOG.md"
+filename = "docs/CHANGELOG.md"
 title_format = "## [{version}] - {project_date}"
 issue_format = "[#{issue}](https://github.com/vfarcic/dot-ai/issues/{issue})"
 
@@ -386,20 +386,20 @@ v0.1.0 → v0.2.0 → ... → v0.50.0 (meaningful) → v0.51.0 → ... → v0.75
 
 ---
 
-### Milestone 2: CI Workflow Changes [Status: Pending]
+### Milestone 2: CI Workflow Changes [Status: Complete]
 
 **Target**: Split release from regular CI, add dual-trigger release workflow
 
 **Completion Criteria:**
-- [ ] Modify `ci.yml` to remove auto-release on push to main
-- [ ] Create new `release.yml` with dual triggers:
-  - [ ] Tag push trigger (`v*`) for normal releases
-  - [ ] Manual trigger (`workflow_dispatch`) with `version` and `notes_only` inputs
-- [ ] Implement version/mode detection logic based on trigger type
-- [ ] Add towncrier build step to release workflow
-- [ ] Add conditional artifact publishing (skip when `notes_only: true`)
-- [ ] Extract release notes from CHANGELOG for GitHub release
-- [ ] Maintain existing artifact publishing (npm, Docker, Helm) for full releases
+- [x] Modify `ci.yml` to remove auto-release on push to main
+- [x] Create new `release.yml` with dual triggers:
+  - [x] Tag push trigger (`v*`) for normal releases
+  - [x] Manual trigger (`workflow_dispatch`) with `version` and `notes_only` inputs
+- [x] Implement version/mode detection logic based on trigger type
+- [x] Add towncrier build step to release workflow
+- [x] Add conditional artifact publishing (skip when `notes_only: true`)
+- [x] Extract release notes from CHANGELOG for GitHub release
+- [x] Maintain existing artifact publishing (npm, Docker, Helm) for full releases
 - [ ] Test both trigger modes:
   - [ ] Tag push triggers full release
   - [ ] Manual with `notes_only: false` triggers full release
