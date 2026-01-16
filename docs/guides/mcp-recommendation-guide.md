@@ -10,6 +10,10 @@
 
 This video explains the platform engineering problem and demonstrates the Kubernetes deployment recommendation workflow from intent to running applications.
 
+## Using via Web UI
+
+These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:

@@ -4,6 +4,10 @@
 
 ![Day 2 Operations Infographic](../img/operations.jpeg)
 
+## Using via Web UI
+
+These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:

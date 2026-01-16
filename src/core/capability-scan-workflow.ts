@@ -34,6 +34,24 @@ interface ProgressData {
   errors: any[];
 }
 
+// Printer column definition (matches EnhancedCRD structure)
+interface PrinterColumnDef {
+  name: string;
+  type: string;
+  jsonPath: string;
+  description?: string;
+  priority?: number;
+}
+
+// Resource metadata for capability scanning
+interface ResourceMetadata {
+  apiVersion: string;
+  version: string;
+  group: string;
+  resourcePlural: string;
+  printerColumns?: PrinterColumnDef[];
+}
+
 // Session interface (should be imported from shared types, but defining here for now)
 interface CapabilityScanSession {
   sessionId: string;
@@ -44,27 +62,169 @@ interface CapabilityScanSession {
   progress?: any; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
-  resourceMetadata?: Record<string, { apiVersion: string; version: string; group: string }>; // Store apiVersion info
+  resourceMetadata?: Record<string, ResourceMetadata>;
 }
 
 /**
- * Create user-friendly error message for resource definition failures
+ * Result of scanning a single resource
  */
-function createResourceDefinitionErrorMessage(resourceName: string, error: unknown): string {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  let userFriendlyMessage = `Cannot analyze resource '${resourceName}': `;
-  
-  if (errorMessage.includes('not found') || errorMessage.includes('NotFound')) {
-    userFriendlyMessage += `Resource does not exist in cluster. Please ensure the CRD is installed.`;
-  } else if (errorMessage.includes('connection refused') || errorMessage.includes('timeout')) {
-    userFriendlyMessage += `Cannot connect to Kubernetes cluster. Please check cluster connectivity.`;
-  } else if (errorMessage.includes('forbidden') || errorMessage.includes('Forbidden')) {
-    userFriendlyMessage += `Insufficient permissions to read resource definitions. Please check RBAC settings.`;
-  } else {
-    userFriendlyMessage += `${errorMessage}`;
+interface ScanResourceResult {
+  success: boolean;
+  resource: string;
+  id?: string;
+  capabilities?: string[];
+  providers?: string[];
+  complexity?: string;
+  confidence?: number;
+  error?: string;
+}
+
+/**
+ * Scan a single resource - fetches all data, runs AI inference, stores to DB
+ * This is the core function that both full scan and targeted scan call for each resource.
+ */
+export async function scanSingleResource(
+  resourceName: string,
+  discovery: KubernetesDiscovery,
+  engine: CapabilityInferenceEngine,
+  capabilityService: CapabilityVectorService,
+  logger: Logger,
+  requestId: string,
+  interactionId?: string
+): Promise<ScanResourceResult> {
+  try {
+    // Step 1: Get resource metadata (including printerColumns for CRDs)
+    let metadata: ResourceMetadata | undefined;
+
+    if (resourceName.includes('.')) {
+      // This is a CRD - fetch CRD data to get metadata including printerColumns
+      const dotIndex = resourceName.indexOf('.');
+      const kind = resourceName.substring(0, dotIndex);
+      const group = resourceName.substring(dotIndex + 1);
+
+      // Try common plural patterns to find CRD
+      const pluralGuesses = [
+        kind.toLowerCase() + 's',
+        kind.toLowerCase().endsWith('y') ? kind.toLowerCase().slice(0, -1) + 'ies' : null,
+        kind.toLowerCase().endsWith('s') ? kind.toLowerCase() + 'es' : null
+      ].filter(Boolean) as string[];
+
+      for (const plural of pluralGuesses) {
+        try {
+          const crdName = `${plural}.${group}`;
+          const crdData = await discovery.getCRDData(crdName);
+          const storageVersion = crdData.versions.find(v => v.storage) || crdData.versions[0];
+
+          metadata = {
+            apiVersion: `${crdData.group}/${crdData.version}`,
+            version: crdData.version,
+            group: crdData.group,
+            resourcePlural: crdData.resourcePlural,
+            printerColumns: storageVersion?.additionalPrinterColumns
+          };
+          break;
+        } catch {
+          // Try next plural form
+        }
+      }
+    }
+
+    // Step 2: Get resource definition via kubectl explain
+    let resourceDefinition: string | undefined;
+    try {
+      resourceDefinition = await discovery.explainResource(resourceName);
+    } catch (explainError) {
+      // If explain fails and resource has a dot, try with just the Kind
+      if (resourceName.includes('.')) {
+        const resourceKind = resourceName.split('.')[0];
+        resourceDefinition = await discovery.explainResource(resourceKind);
+      } else {
+        throw explainError;
+      }
+    }
+
+    // If no CRD metadata, parse from kubectl explain output
+    if (!metadata && resourceDefinition) {
+      const lines = resourceDefinition.split('\n');
+      const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
+      const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
+
+      if (versionLine) {
+        const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
+        const version = versionLine.replace('VERSION:', '').trim();
+        const apiVersion = group ? `${group}/${version}` : version;
+        // For core resources, derive plural from kind
+        const kind = resourceName.includes('.') ? resourceName.split('.')[0] : resourceName;
+        const resourcePlural = kind.toLowerCase() + 's';
+
+        metadata = { apiVersion, version, group, resourcePlural };
+      }
+    }
+
+    // Step 3: Run AI inference
+    const capability = await engine.inferCapabilities(
+      resourceName,
+      resourceDefinition,
+      interactionId,
+      metadata?.apiVersion,
+      metadata?.version,
+      metadata?.group
+    );
+    const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+
+    // Step 4: Set printer columns
+    const nameColumn: PrinterColumnDef = {
+      name: 'Name',
+      type: 'string',
+      jsonPath: '.metadata.name',
+      description: 'Resource name',
+      priority: 0
+    };
+
+    if (metadata?.printerColumns && metadata.printerColumns.length > 0) {
+      // Use printer columns from CRD metadata (includes jsonPath)
+      capability.printerColumns = [nameColumn, ...metadata.printerColumns];
+    } else if (metadata?.apiVersion && metadata?.resourcePlural) {
+      // Fall back to Table API for core resources
+      try {
+        const printerColumns = await discovery.getPrinterColumns(
+          metadata.resourcePlural,
+          metadata.apiVersion
+        );
+        capability.printerColumns = printerColumns;
+      } catch (printerError) {
+        logger.warn(`Failed to fetch printer columns for ${resourceName}`, {
+          requestId,
+          resource: resourceName,
+          error: printerError instanceof Error ? printerError.message : String(printerError)
+        });
+      }
+    }
+
+    // Step 5: Store to DB
+    await capabilityService.storeCapability(capability);
+
+    return {
+      success: true,
+      resource: resourceName,
+      id: capabilityId,
+      capabilities: capability.capabilities,
+      providers: capability.providers,
+      complexity: capability.complexity,
+      confidence: capability.confidence
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to scan resource ${resourceName}`, error as Error, {
+      requestId,
+      resource: resourceName
+    });
+    return {
+      success: false,
+      resource: resourceName,
+      error: errorMessage
+    };
   }
-  
-  return userFriendlyMessage;
 }
 
 /**
@@ -270,12 +430,19 @@ export async function handleResourceSpecification(
       }
     };
   }
-  
-  // Transition directly to scanning (auto mode only - manual mode removed)
+
+  logger.info('Resource specification received', {
+    requestId,
+    sessionId: session.sessionId,
+    resourceCount: resources.length,
+    resources
+  });
+
+  // Transition directly to scanning - scanSingleResource will fetch metadata for each
   transitionCapabilitySession(session, 'scanning', {
     selectedResources: resources,
     resourceList: args.resourceList,
-    currentResourceIndex: 0  // Start with first resource
+    currentResourceIndex: 0
   }, args);
 
   // Begin actual capability scanning and return completion summary
@@ -331,24 +498,26 @@ export async function handleScanning(
       // For 'all' mode, discover actual cluster resources first
       try {
         logger.info('Discovering all cluster resources for capability scanning', { requestId, sessionId: session.sessionId });
-        
-        // Import discovery engine
+
         const discovery = new KubernetesDiscovery();
         await discovery.connect();
-        
+
         // Discover all available resources
         const resourceMap = await discovery.discoverResources();
         const allResources = [...resourceMap.resources, ...resourceMap.custom];
 
-        // Extract resource names AND preserve metadata for capability analysis
+        // Extract resource names only - scanSingleResource will fetch metadata for each
         const discoveredResourceNames: string[] = [];
-        const resourceMetadata: Record<string, { apiVersion: string; version: string; group: string }> = {};
 
         for (const resource of allResources) {
           let resourceName = 'unknown-resource';
 
-          // For CRDs (custom resources), prioritize full name format
-          if (resource.name && resource.name.includes('.')) {
+          // For CRDs (custom resources), use Kind.group format
+          if ('kind' in resource && resource.kind && 'group' in resource && resource.group) {
+            resourceName = `${resource.kind}.${resource.group}`;
+          }
+          // For CRDs with name format "plural.group"
+          else if (resource.name && resource.name.includes('.')) {
             resourceName = resource.name;
           }
           // For standard resources, use kind
@@ -362,30 +531,6 @@ export async function handleScanning(
 
           if (resourceName !== 'unknown-resource') {
             discoveredResourceNames.push(resourceName);
-
-            // Store apiVersion metadata for later use
-            // Handle both EnhancedResource (has apiVersion) and EnhancedCRD (has group+version)
-            let apiVersion = '';
-            let version = '';
-            let group = '';
-
-            if ('apiVersion' in resource) {
-              // EnhancedResource type
-              apiVersion = resource.apiVersion || '';
-              version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
-              group = resource.group || '';
-            } else {
-              // EnhancedCRD type - construct apiVersion from group and version
-              group = resource.group || '';
-              version = resource.version || '';
-              apiVersion = group ? `${group}/${version}` : version;
-            }
-
-            resourceMetadata[resourceName] = {
-              apiVersion,
-              version,
-              group
-            };
           }
         }
 
@@ -393,8 +538,7 @@ export async function handleScanning(
           requestId,
           sessionId: session.sessionId,
           totalDiscovered: discoveredResourceNames.length,
-          sampleResources: discoveredResourceNames.slice(0, 5),
-          metadataPreserved: Object.keys(resourceMetadata).length
+          sampleResources: discoveredResourceNames.slice(0, 5)
         });
 
         if (discoveredResourceNames.length === 0) {
@@ -410,21 +554,20 @@ export async function handleScanning(
           };
         }
 
-        // Update session with discovered resources AND metadata
+        // Update session with discovered resources
         transitionCapabilitySession(session, 'scanning', {
           selectedResources: discoveredResourceNames,
-          resourceMetadata: resourceMetadata,
           currentResourceIndex: 0
         }, args);
 
         // Fall through to batch processing with discovered resources
-        
+
       } catch (error) {
         logger.error('Failed to discover cluster resources', error as Error, {
           requestId,
           sessionId: session.sessionId
         });
-        
+
         return {
           success: false,
           operation: 'scan',
@@ -501,148 +644,76 @@ export async function handleScanning(
         }, args);
       };
       
-      // Setup kubectl access for getting complete resource definitions
-      let discovery: any;
+      // Setup kubectl access
+      const discovery = new KubernetesDiscovery();
       try {
-        discovery = new KubernetesDiscovery();
         await discovery.connect();
-        
-        logger.info('Connected to Kubernetes for batch resource definition retrieval', {
+        logger.info('Connected to Kubernetes for capability scanning', {
           requestId,
           sessionId: session.sessionId
         });
       } catch (error) {
-        logger.warn('Could not connect to Kubernetes for batch processing, falling back to name-based inference', {
-          requestId,
-          sessionId: session.sessionId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        return {
+          success: false,
+          operation: 'scan',
+          dataType: 'capabilities',
+          error: {
+            message: 'Could not connect to Kubernetes cluster',
+            details: error instanceof Error ? error.message : String(error),
+            sessionId: session.sessionId
+          }
+        };
       }
-      
-      // Process each resource in the batch with progress tracking
+
+      // Process each resource using scanSingleResource
       for (let i = 0; i < resources.length; i++) {
         const currentResource = resources[i];
-        
-        // Get complete resource definition for this resource
-        let currentResourceDefinition: string | undefined;
-        
-        if (discovery) {
-          try {
-            // Try kubectl explain with full name first (works for CRDs and core resources)
-            try {
-              currentResourceDefinition = await discovery.explainResource(currentResource);
-            } catch (explainError) {
-              // If explain fails and resource has a dot (like Deployment.apps), try with just the Kind
-              if (currentResource.includes('.')) {
-                const resourceKind = currentResource.split('.')[0];
-                logger.info(`kubectl explain failed for ${currentResource}, attempting with Kind only: ${resourceKind}`, {
-                  requestId,
-                  sessionId: session.sessionId,
-                  resource: currentResource,
-                  resourceKind
-                });
-                currentResourceDefinition = await discovery.explainResource(resourceKind);
-              } else {
-                // Re-throw explain error for resources without dots
-                throw explainError;
-              }
-            }
-          } catch (error) {
-            logger.error(`Failed to get resource definition for ${currentResource}`, error as Error, {
-              requestId,
-              sessionId: session.sessionId,
-              resource: currentResource
-            });
 
-            // Add to errors array and skip processing this resource
-            errors.push({
-              resource: currentResource,
-              error: createResourceDefinitionErrorMessage(currentResource, error),
-              timestamp: new Date().toISOString()
-            });
-
-            // Skip processing this resource
-            continue;
-          }
-        }
-        
         // Update progress before processing
         updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
 
-        try {
-          logger.info(`Processing resource ${i + 1}/${totalResources}`, {
-            requestId,
-            sessionId: session.sessionId,
-            resource: currentResource,
-            percentage: Math.round(((i + 1) / totalResources) * 100)
-          });
+        logger.info(`Processing resource ${i + 1}/${totalResources}`, {
+          requestId,
+          sessionId: session.sessionId,
+          resource: currentResource,
+          percentage: Math.round(((i + 1) / totalResources) * 100)
+        });
 
-          // Get metadata for this resource - first try session metadata, then parse from kubectl explain
-          let metadata = session.resourceMetadata?.[currentResource];
+        // Call the shared single-resource scan function
+        const result = await scanSingleResource(
+          currentResource,
+          discovery,
+          engine,
+          capabilityService,
+          logger,
+          requestId,
+          args.interaction_id
+        );
 
-          // If no session metadata and we have resource definition, parse from kubectl explain output
-          if (!metadata && currentResourceDefinition) {
-            const lines = currentResourceDefinition.split('\n');
-            const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
-            const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
-
-            // Extract metadata if version is found (group is optional for core resources)
-            if (versionLine) {
-              const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
-              const version = versionLine.replace('VERSION:', '').trim();
-              const apiVersion = group ? `${group}/${version}` : version;
-
-              metadata = { apiVersion, version, group };
-            }
-          }
-
-          const capability = await engine.inferCapabilities(
-            currentResource,
-            currentResourceDefinition,
-            args.interaction_id,
-            metadata?.apiVersion,
-            metadata?.version,
-            metadata?.group
-          );
-          const capabilityId = CapabilityInferenceEngine.generateCapabilityId(currentResource);
-          
-          // Store capability in Vector DB
-          await capabilityService.storeCapability(capability);
-          
+        if (result.success) {
           processedResults.push({
-            resource: currentResource,
-            id: capabilityId,
-            capabilities: capability.capabilities,
-            providers: capability.providers,
-            complexity: capability.complexity,
-            confidence: capability.confidence
+            resource: result.resource,
+            id: result.id,
+            capabilities: result.capabilities,
+            providers: result.providers,
+            complexity: result.complexity,
+            confidence: result.confidence
           });
-          
+
           logger.info(`Successfully processed resource ${i + 1}/${totalResources}`, {
             requestId,
             sessionId: session.sessionId,
             resource: currentResource,
-            capabilitiesFound: capability.capabilities.length,
+            capabilitiesFound: result.capabilities?.length || 0,
             percentage: Math.round(((i + 1) / totalResources) * 100)
           });
-          
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const errorDetail = {
-            resource: currentResource,
-            error: errorMessage,
+        } else {
+          errors.push({
+            resource: result.resource,
+            error: result.error,
             index: i + 1,
             timestamp: new Date().toISOString()
-          };
-          
-          logger.error(`Failed to process resource ${i + 1}/${totalResources}`, error as Error, {
-            requestId,
-            sessionId: session.sessionId,
-            resource: currentResource,
-            percentage: Math.round(((i + 1) / totalResources) * 100)
           });
-          
-          errors.push(errorDetail);
         }
       }
       

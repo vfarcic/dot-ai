@@ -243,12 +243,12 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
 
       expect(createdByResponse).toMatchObject(expectedCreatedByResponse);
 
-      // Step 7: Provide namespace scope (cluster-wide) - now goes directly to complete
+      // Step 7: Provide namespace scope - use 'policy-test' to match intent and avoid affecting other tests
       const namespaceScopeResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
         operation: 'create',
         sessionId,
-        response: 'all',
+        response: 'policy-test',
         interaction_id: 'namespace_scope_step'
       });
 

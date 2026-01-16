@@ -4,6 +4,10 @@
 
 ![Cluster Query Infographic](../img/query.jpeg)
 
+## Using via Web UI
+
+These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+
 ## Prerequisites
 
 Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md).

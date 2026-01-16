@@ -8,10 +8,10 @@
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
-import { CapabilityInferenceEngine, ResourceCapability } from './capabilities';
+import { CapabilityInferenceEngine, ResourceCapability, PrinterColumn } from './capabilities';
 
 // Re-export for backward compatibility
-export type { ResourceCapability };
+export type { ResourceCapability, PrinterColumn };
 
 export interface CapabilitySearchOptions extends BaseSearchOptions {
   complexityFilter?: 'low' | 'medium' | 'high';
@@ -64,6 +64,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       complexity: capability.complexity,
       description: capability.description,
       useCase: capability.useCase,
+      printerColumns: capability.printerColumns,
       confidence: capability.confidence,
       analyzedAt: capability.analyzedAt
     };
@@ -84,6 +85,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       complexity: payload.complexity || 'medium',
       description: payload.description || '',
       useCase: payload.useCase || '',
+      printerColumns: payload.printerColumns,
       confidence: payload.confidence || 0,
       analyzedAt: payload.analyzedAt || new Date().toISOString()
     };
@@ -128,6 +130,54 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    */
   async getCapability(id: string): Promise<ResourceCapability | null> {
     return await this.getData(id);
+  }
+
+  /**
+   * Get capability by kind and apiVersion
+   * Used for JSON format lookup from dashboard UI
+   *
+   * @param kind - Resource kind (e.g., "Deployment", "Cluster")
+   * @param apiVersion - Full apiVersion (e.g., "apps/v1", "postgresql.cnpg.io/v1")
+   * @returns Matching capability or null if not found
+   */
+  async getCapabilityByKindApiVersion(kind: string, apiVersion: string): Promise<ResourceCapability | null> {
+    // Build Qdrant filter for exact apiVersion match
+    const filter = {
+      must: [
+        { key: 'apiVersion', match: { value: apiVersion } }
+      ]
+    };
+
+    const results = await this.queryWithFilter(filter, 100);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    // Find matching capability by kind
+    // For standard resources: resourceName === kind (case insensitive)
+    // For CRDs: resourceName matches Kind.group or plural.group pattern
+    const kindLower = kind.toLowerCase();
+    const match = results.find(cap => {
+      const resourceNameLower = cap.resourceName.toLowerCase();
+      // Exact match
+      if (resourceNameLower === kindLower) return true;
+      // Pluralized exact match (e.g., "deployment" -> "deployments")
+      if (resourceNameLower === kindLower + 's' || resourceNameLower === kindLower + 'es') return true;
+      // CRD format: Kind.group (e.g., "deployment" -> "deployment.apps")
+      // Must match kind followed by a dot to avoid false positives like "cluster" matching "clusterroles"
+      if (resourceNameLower.startsWith(kindLower + '.')) return true;
+      // CRD format: plural.group (e.g., "cluster" -> "clusters.devopstoolkit.live")
+      if (resourceNameLower.startsWith(kindLower + 's.') || resourceNameLower.startsWith(kindLower + 'es.')) return true;
+      // Handle -y -> -ies pluralization (e.g., "policy" -> "policies.group")
+      if (kindLower.endsWith('y')) {
+        const stem = kindLower.slice(0, -1);
+        if (resourceNameLower === stem + 'ies' || resourceNameLower.startsWith(stem + 'ies.')) return true;
+      }
+      return false;
+    });
+
+    return match || null;
   }
 
   /**

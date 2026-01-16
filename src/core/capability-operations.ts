@@ -109,6 +109,9 @@ export async function handleCapabilityList(
 
 /**
  * Handle capability get operation
+ * Supports two ID formats:
+ * - Hashed ID: "a1b2c3d4-..." (existing format)
+ * - JSON format: '{"kind":"Deployment","apiVersion":"apps/v1"}' (new format for dashboard UI)
  */
 export async function handleCapabilityGet(
   args: any,
@@ -126,13 +129,57 @@ export async function handleCapabilityGet(
         error: {
           message: VALIDATION_MESSAGES.MISSING_PARAMETER('id'),
           details: 'Specify id to retrieve capability data',
-          example: { id: 'capability-id-example' }
+          example: { id: 'capability-id-example' },
+          alternativeFormat: {
+            description: 'You can also use JSON format for kind/apiVersion lookup',
+            example: '{"kind":"Deployment","apiVersion":"apps/v1"}'
+          }
         }
       };
     }
-    
-    // Get capability by ID
-    const capability = await capabilityService.getCapability(args.id);
+
+    let capability = null;
+
+    // Check if id is JSON format for kind/apiVersion lookup
+    if (typeof args.id === 'string' && args.id.trim().startsWith('{')) {
+      try {
+        const lookup = JSON.parse(args.id);
+        if (!lookup.kind || !lookup.apiVersion) {
+          return {
+            success: false,
+            operation: 'get',
+            dataType: 'capabilities',
+            error: {
+              message: 'Invalid JSON lookup format',
+              details: 'JSON format requires both "kind" and "apiVersion" fields',
+              example: { id: '{"kind":"Deployment","apiVersion":"apps/v1"}' }
+            }
+          };
+        }
+
+        logger.info('Looking up capability by kind/apiVersion', {
+          requestId,
+          kind: lookup.kind,
+          apiVersion: lookup.apiVersion
+        });
+
+        capability = await capabilityService.getCapabilityByKindApiVersion(lookup.kind, lookup.apiVersion);
+      } catch (parseError) {
+        return {
+          success: false,
+          operation: 'get',
+          dataType: 'capabilities',
+          error: {
+            message: 'Invalid JSON format in id parameter',
+            details: parseError instanceof Error ? parseError.message : String(parseError),
+            example: { id: '{"kind":"Deployment","apiVersion":"apps/v1"}' }
+          }
+        };
+      }
+    } else {
+      // Existing hashed ID lookup
+      capability = await capabilityService.getCapability(args.id);
+    }
     
     if (!capability) {
       logger.warn('Capability not found', {
@@ -717,9 +764,11 @@ export async function handleCapabilityCRUD(
   logger: Logger,
   requestId: string
 ): Promise<any> {
-  // Create and initialize capability service for CRUD operations
+  // Create capability service for CRUD operations
   // Use collection from args if provided, otherwise defaults to 'capabilities'
   const capabilityService = new CapabilityVectorService(args.collection);
+  const isReadOperation = ['list', 'get', 'search'].includes(operation);
+
   try {
     const vectorDBHealthy = await capabilityService.healthCheck();
     if (!vectorDBHealthy) {
@@ -737,9 +786,42 @@ export async function handleCapabilityCRUD(
         }
       };
     }
-    
-    await capabilityService.initialize();
-    
+
+    // For read operations, check if collection exists without creating it
+    // For write operations, initialize (create if needed)
+    if (isReadOperation) {
+      const exists = await capabilityService.collectionExists();
+      if (!exists) {
+        // Return empty results for read operations on non-existent collection
+        if (operation === 'list') {
+          return {
+            success: true,
+            operation: 'list',
+            dataType: 'capabilities',
+            data: { capabilities: [], totalCount: 0, returnedCount: 0 },
+            message: 'No capabilities found (collection not initialized)'
+          };
+        } else if (operation === 'get') {
+          return {
+            success: false,
+            operation: 'get',
+            dataType: 'capabilities',
+            error: { message: 'Capability not found' }
+          };
+        } else if (operation === 'search') {
+          return {
+            success: true,
+            operation: 'search',
+            dataType: 'capabilities',
+            data: { query: args.id, results: [], resultCount: 0 },
+            message: 'No capabilities found (collection not initialized)'
+          };
+        }
+      }
+    } else {
+      await capabilityService.initialize();
+    }
+
     // Route to specific CRUD operation
     switch (operation) {
       case 'list':

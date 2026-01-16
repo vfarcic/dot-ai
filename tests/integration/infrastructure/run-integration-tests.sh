@@ -96,10 +96,10 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main
     exit 1
 }
 
-# Install dot-ai-controller (v0.17.0+) for Solution CR tracking
+# Install dot-ai-controller (latest) for Solution CR tracking and resource sync
 log_info "Starting dot-ai-controller installation..."
 helm upgrade --install dot-ai-controller \
-    oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:0.17.0 \
+    oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller \
     --namespace dot-ai \
     --create-namespace || {
     log_error "Failed to install dot-ai-controller"

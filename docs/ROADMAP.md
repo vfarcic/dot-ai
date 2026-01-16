@@ -21,7 +21,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
-- Dashboard HTTP API endpoints for structured resource queries (PRD #328)
+- PostHog telemetry for anonymous usage analytics across all dot-ai projects (PRD #329)
 - Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
 - Skills distribution via MCP - install-skills prompt and enhanced skill format (PRD #290)
 - Multi-step workflow distributed tracing (PRD #197)

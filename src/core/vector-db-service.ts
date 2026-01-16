@@ -7,6 +7,49 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { withQdrantTracing } from './tracing/qdrant-tracing';
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Simple semaphore to limit concurrent Qdrant operations
+ * Prevents overwhelming Qdrant with too many parallel requests
+ */
+class QdrantSemaphore {
+  private maxConcurrent: number;
+  private currentCount: number = 0;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(maxConcurrent: number = 20) {
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.currentCount < this.maxConcurrent) {
+      this.currentCount++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift()!;
+      next();
+    } else {
+      this.currentCount--;
+    }
+  }
+}
+
+// Limit to 20 concurrent Qdrant operations
+const qdrantSemaphore = new QdrantSemaphore(20);
+
 export interface VectorDBConfig {
   url?: string;
   apiKey?: string;
@@ -28,6 +71,7 @@ export interface SearchResult {
 export interface SearchOptions {
   limit?: number;
   scoreThreshold?: number;
+  filter?: Record<string, any>;  // Qdrant filter object for exact filtering
 }
 
 export class VectorDBService {
@@ -72,6 +116,22 @@ export class VectorDBService {
     // Don't initialize for test configurations
     const testUrls = ['test-url', 'mock-url'];
     return !testUrls.includes(this.config.url || '');
+  }
+
+  /**
+   * Check if collection exists without creating it
+   */
+  async collectionExists(): Promise<boolean> {
+    if (!this.client) {
+      return false;
+    }
+
+    try {
+      const collections = await this.client.getCollections();
+      return collections.collections.some(col => col.name === this.collectionName);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -231,7 +291,8 @@ export class VectorDBService {
             vector,
             limit,
             score_threshold: scoreThreshold,
-            with_payload: true
+            with_payload: true,
+            ...(options.filter && { filter: options.filter })
           });
 
           return searchResult.map(result => ({
@@ -274,30 +335,65 @@ export class VectorDBService {
           const scrollResult = await this.client!.scroll(this.collectionName, {
             limit: 1000, // Get all documents for filtering
             with_payload: true,
-            with_vector: false
+            with_vector: false,
+            ...(options.filter && { filter: options.filter })
           });
 
-          // Filter documents by checking if any keyword matches any trigger
-          const matchedPoints = scrollResult.points.filter(point => {
-            if (!point.payload || !point.payload.triggers || !Array.isArray(point.payload.triggers)) {
-              return false;
-            }
+          // Filter documents by checking if any keyword matches searchText or triggers
+          const scoredPoints = scrollResult.points
+            .map(point => {
+              if (!point.payload) return null;
 
-            const triggers = point.payload.triggers.map((t: string) => t.toLowerCase());
-            return keywords.some(keyword =>
-              triggers.some(trigger =>
-                trigger.includes(keyword.toLowerCase()) ||
-                keyword.toLowerCase().includes(trigger)
-              )
-            );
-          });
+              const searchText = (point.payload.searchText as string || '').toLowerCase();
+              const triggers = Array.isArray(point.payload.triggers)
+                ? (point.payload.triggers as string[]).map(t => t.toLowerCase())
+                : [];
+
+              // Count keyword matches for scoring
+              let matchCount = 0;
+              let exactMatch = false;
+
+              for (const keyword of keywords) {
+                const kw = keyword.toLowerCase();
+
+                // Check searchText (name, kind, namespace, labels, etc.)
+                if (searchText.includes(kw)) {
+                  matchCount++;
+                  // Bonus for exact word match (surrounded by spaces/punctuation)
+                  const wordPattern = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
+                  if (wordPattern.test(searchText)) {
+                    exactMatch = true;
+                  }
+                }
+
+                // Check triggers (for patterns/policies)
+                if (triggers.some(t => t.includes(kw) || kw.includes(t))) {
+                  matchCount++;
+                }
+              }
+
+              if (matchCount === 0) return null;
+
+              // Score based on match quality
+              // - Base score from match ratio
+              // - Bonus for exact word matches
+              const baseScore = matchCount / keywords.length;
+              const score = exactMatch ? Math.min(1.0, baseScore + 0.3) : baseScore;
+
+              return {
+                point,
+                score
+              };
+            })
+            .filter((item): item is { point: any; score: number } => item !== null)
+            .sort((a, b) => b.score - a.score);
 
           // Apply limit after filtering
-          const limitedResults = matchedPoints.slice(0, limit);
+          const limitedResults = scoredPoints.slice(0, limit);
 
-          return limitedResults.map(point => ({
+          return limitedResults.map(({ point, score }) => ({
             id: point.id.toString(),
-            score: 1.0, // Keyword matches get full score
+            score,
             payload: point.payload || {}
           }));
         } catch (error) {
@@ -428,82 +524,98 @@ export class VectorDBService {
    * Scroll documents with Qdrant filter
    * @param filter - Qdrant filter object (must/should/must_not conditions)
    * @param limit - Maximum documents to retrieve
+   * Uses semaphore to limit concurrent Qdrant operations
    */
   async scrollWithFilter(filter: any, limit: number = 100): Promise<VectorDocument[]> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
 
-    return withQdrantTracing(
-      {
-        operation: 'vector.scroll_filtered',
-        collectionName: this.collectionName,
-        limit,
-        serverUrl: this.config.url
-      },
-      async () => {
-        try {
-          const scrollResult = await this.client!.scroll(this.collectionName, {
-            filter,
-            limit,
-            with_payload: true,
-            with_vector: false
-          });
+    // Acquire semaphore slot before executing
+    await qdrantSemaphore.acquire();
 
-          return scrollResult.points.map(point => ({
-            id: point.id.toString(),
-            payload: point.payload || {}
-          }));
-        } catch (error) {
-          throw new Error(`Failed to scroll with filter: ${error}`);
+    try {
+      return await withQdrantTracing(
+        {
+          operation: 'vector.scroll_filtered',
+          collectionName: this.collectionName,
+          limit,
+          serverUrl: this.config.url
+        },
+        async () => {
+          try {
+            const scrollResult = await this.client!.scroll(this.collectionName, {
+              filter,
+              limit,
+              with_payload: true,
+              with_vector: false
+            });
+
+            return scrollResult.points.map(point => ({
+              id: point.id.toString(),
+              payload: point.payload || {}
+            }));
+          } catch (error) {
+            throw new Error(`Failed to scroll with filter: ${error}`);
+          }
         }
-      }
-    );
+      );
+    } finally {
+      qdrantSemaphore.release();
+    }
   }
 
   /**
    * Get all documents (for listing)
    * @param limit - Maximum number of documents to retrieve. Defaults to unlimited (10000).
+   * Uses semaphore to limit concurrent Qdrant operations
    */
   async getAllDocuments(limit: number = 10000): Promise<VectorDocument[]> {
     if (!this.client) {
       throw new Error('Vector DB client not initialized');
     }
 
-    return withQdrantTracing(
-      {
-        operation: 'vector.list',
-        collectionName: this.collectionName,
-        limit,
-        serverUrl: this.config.url
-      },
-      async () => {
-        try {
-          // Check if collection exists first
-          const collections = await this.client!.getCollections();
-          const collectionExists = collections.collections.some(
-            col => col.name === this.collectionName
-          );
+    // Acquire semaphore slot before executing
+    await qdrantSemaphore.acquire();
 
-          if (!collectionExists) {
-            throw new Error(`Collection '${this.collectionName}' does not exist. No data has been stored yet.`);
+    try {
+      return await withQdrantTracing(
+        {
+          operation: 'vector.list',
+          collectionName: this.collectionName,
+          limit,
+          serverUrl: this.config.url
+        },
+        async () => {
+          try {
+            // Check if collection exists first
+            const collections = await this.client!.getCollections();
+            const collectionExists = collections.collections.some(
+              col => col.name === this.collectionName
+            );
+
+            if (!collectionExists) {
+              throw new Error(`Collection '${this.collectionName}' does not exist. No data has been stored yet.`);
+            }
+
+            const scrollResult = await this.client!.scroll(this.collectionName, {
+              limit,
+              with_payload: true,
+              with_vector: false
+            });
+
+            return scrollResult.points.map(point => ({
+              id: point.id.toString(),
+              payload: point.payload || {}
+            }));
+          } catch (error) {
+            throw new Error(`Failed to get all documents: ${error}`);
           }
-
-          const scrollResult = await this.client!.scroll(this.collectionName, {
-            limit,
-            with_payload: true,
-            with_vector: false
-          });
-
-          return scrollResult.points.map(point => ({
-            id: point.id.toString(),
-            payload: point.payload || {}
-          }));
-        } catch (error) {
-          throw new Error(`Failed to get all documents: ${error}`);
         }
-      }
-    );
+      );
+    } finally {
+      qdrantSemaphore.release();
+    }
   }
 
   /**

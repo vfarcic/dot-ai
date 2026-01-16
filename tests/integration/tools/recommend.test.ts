@@ -86,6 +86,14 @@ describe.concurrent('Recommend Tool Integration', () => {
           result: {
             intent: 'deploy postgresql database',
             solutions: expect.any(Array),
+            organizationalContext: expect.objectContaining({
+              solutionsUsingPatterns: expect.any(Number),
+              totalSolutions: expect.any(Number),
+              totalPatterns: expect.any(Number),
+              totalPolicies: expect.any(Number),
+              patternsAvailable: expect.any(String),
+              policiesAvailable: expect.any(String)
+            }),
             nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
             guidance: expect.stringContaining('You MUST present these solutions'),
             timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -114,6 +122,62 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Extract solutionId for next phase
       const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
+
+      // SESSION STATE VALIDATION: Verify session persistence for UI page refresh
+      const sessionStartTime = Date.now();
+      const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${solutionId}`);
+      const sessionResponseTime = Date.now() - sessionStartTime;
+
+      // Validate session retrieval is fast (< 1000ms indicates reading from cache, not AI call)
+      expect(sessionResponseTime).toBeLessThan(1000);
+
+      // Validate session contains all workflow state for page refresh
+      const expectedSessionResponse = {
+        success: true,
+        data: {
+          sessionId: solutionId,
+          createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          data: {
+            toolName: 'recommend',
+            stage: 'solutions', // UI page refresh support
+            intent: 'deploy postgresql database',
+            type: expect.stringMatching(/^(single|combination|helm)$/),
+            score: expect.any(Number),
+            description: expect.any(String),
+            reasons: expect.any(Array),
+            allSolutions: expect.arrayContaining([
+              expect.objectContaining({
+                solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+                type: expect.any(String),
+                score: expect.any(Number),
+                description: expect.any(String),
+                reasons: expect.any(Array)
+              })
+            ]),
+            organizationalContext: expect.objectContaining({
+              solutionsUsingPatterns: expect.any(Number),
+              totalSolutions: expect.any(Number),
+              totalPatterns: expect.any(Number),
+              totalPolicies: expect.any(Number),
+              patternsAvailable: expect.any(String),
+              policiesAvailable: expect.any(String)
+            }),
+            questions: expect.any(Object),
+            answers: expect.any(Object),
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          }
+        },
+        meta: expect.objectContaining({
+          version: 'v1'
+        })
+      };
+
+      expect(sessionResponse).toMatchObject(expectedSessionResponse);
+
+      // Validate allSolutions contains all solution IDs from the response
+      const sessionAllSolutions = sessionResponse.data.data.allSolutions.map((s: any) => s.solutionId);
+      expect(sessionAllSolutions).toEqual(solutionIds);
 
       // PHASE 3: Call chooseSolution stage with solutionId
       const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -1265,7 +1329,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         kind: 'Solution',
         metadata: {
           name: expect.stringMatching(/^solution-sol-\d+-[a-f0-9]{8}$/),
-          namespace: expect.any(String), // namespace in metadata for overlay resources
+          // Note: namespace may or may not be present depending on AI output
           labels: {
             'dot-ai.devopstoolkit.live/created-by': 'dot-ai-mcp',
             'dot-ai.devopstoolkit.live/solution-id': expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/)

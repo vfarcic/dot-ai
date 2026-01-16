@@ -22,9 +22,14 @@ import {
   executeKubectlTools
 } from '../core/kubectl-tools';
 import { GenericSessionManager } from '../core/generic-session-manager';
-import { getVisualizationUrl } from '../core/visualization';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  getVisualizationUrl,
+  parseVisualizationResponse,
+  VISUALIZATION_PREFIX,
+  CachedVisualization
+} from '../core/visualization';
+import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
+import { loadPrompt } from '../core/shared-prompt-loader';
 
 // Tool metadata for MCP registration
 export const QUERY_TOOL_NAME = 'query';
@@ -55,17 +60,7 @@ export interface QuerySessionData {
     output: any;
   }>;
   // Cached visualization to avoid re-generation on subsequent requests
-  cachedVisualization?: {
-    title: string;
-    visualizations: Array<{
-      id: string;
-      label: string;
-      type: 'mermaid' | 'cards' | 'code' | 'table' | 'diff';  // PRD #320: Added diff type
-      content: any;
-    }>;
-    insights: string[];
-    generatedAt: string;
-  };
+  cachedVisualization?: CachedVisualization;
 }
 
 // Output interface
@@ -154,7 +149,7 @@ export async function handleQueryTool(args: any): Promise<any> {
 
   try {
     // Validate input
-    const intent = args.intent;
+    let intent = args.intent;
     if (!intent || typeof intent !== 'string') {
       throw ErrorHandler.createError(
         ErrorCategory.VALIDATION,
@@ -164,16 +159,25 @@ export async function handleQueryTool(args: any): Promise<any> {
       );
     }
 
-    logger.info('Processing query', { requestId, intent });
+    // Detect visualization mode and strip prefix
+    const visualizationMode = intent.startsWith(VISUALIZATION_PREFIX);
+    if (visualizationMode) {
+      intent = intent.slice(VISUALIZATION_PREFIX.length).trim();
+    }
+
+    logger.info('Processing query', { requestId, intent, visualizationMode });
 
     // Initialize AI provider
     const aiProvider = createAIProvider();
 
-    // Load system prompt
-    const promptPath = path.join(__dirname, '..', '..', 'prompts', 'query-system.md');
-    const systemPrompt = fs.readFileSync(promptPath, 'utf8');
+    // Load system prompt with appropriate output instructions
+    const systemPrompt = loadPrompt('query-system', {
+      outputInstructions: visualizationMode
+        ? loadPrompt('partials/visualization-output')
+        : loadPrompt('partials/query-simple-output')
+    });
 
-    // Combined tool executor for capability, resource, and kubectl tools
+    // Combined tool executor for capability, resource, kubectl, and mermaid tools
     const executeQueryTools = async (toolName: string, input: any): Promise<any> => {
       // Route to appropriate executor based on tool name
       if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
@@ -184,6 +188,9 @@ export async function handleQueryTool(args: any): Promise<any> {
       }
       if (toolName.startsWith('kubectl_')) {
         return executeKubectlTools(toolName, input);
+      }
+      if (toolName === 'validate_mermaid') {
+        return executeMermaidTools(toolName, input);
       }
       return {
         success: false,
@@ -202,11 +209,16 @@ export async function handleQueryTool(args: any): Promise<any> {
       KUBECTL_GET_CRD_SCHEMA_TOOL
     ];
 
+    // Build tool list - add mermaid tools when in visualization mode
+    const tools = visualizationMode
+      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS, ...MERMAID_TOOLS]
+      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS];
+
     // Execute tool loop with capability, resource, and kubectl tools
     const result = await aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,
-      tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS],
+      tools,
       toolExecutor: executeQueryTools,
       maxIterations: 30,
       operation: 'query',
@@ -218,13 +230,55 @@ export async function handleQueryTool(args: any): Promise<any> {
 
     // Extract data from execution record (reliable, not AI self-reporting)
     const toolsUsed = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
-    const summary = parseSummary(result.finalMessage);
 
     logger.info('Query completed', {
       requestId,
       iterations: result.iterations,
-      toolsUsed
+      toolsUsed,
+      visualizationMode
     });
+
+    // Handle visualization mode - return visualization response with sessionId for caching
+    if (visualizationMode) {
+      const visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);
+
+      // Create session with cached visualization for URL caching/bookmarking (PRD #328)
+      const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
+      const session = sessionManager.createSession({
+        toolName: 'query',
+        intent,
+        summary: visualizationResponse.title, // Use title as summary for visualization sessions
+        toolsUsed,
+        iterations: result.iterations,
+        toolCallsExecuted: result.toolCallsExecuted,
+        cachedVisualization: {
+          title: visualizationResponse.title,
+          visualizations: visualizationResponse.visualizations,
+          insights: visualizationResponse.insights,
+          generatedAt: new Date().toISOString()
+        }
+      });
+
+      logger.info('Visualization session created', {
+        requestId,
+        sessionId: session.sessionId
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              sessionId: session.sessionId,
+              ...visualizationResponse
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    // Normal mode - return summary with session for later visualization
+    const summary = parseSummary(result.finalMessage);
 
     // Store session for visualization (PRD #317, PRD #320)
     const sessionManager = new GenericSessionManager<QuerySessionData>('qry');

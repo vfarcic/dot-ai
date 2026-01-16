@@ -124,9 +124,29 @@ export function buildEmbeddingText(resource: ClusterResource): string {
     }
   }
 
-  // Add description from annotations if present
-  if (resource.annotations?.description) {
-    parts.push(`description: ${resource.annotations.description}`);
+  // Add meaningful annotations (skip standard Kubernetes/system annotations)
+  if (resource.annotations && Object.keys(resource.annotations).length > 0) {
+    const meaningfulAnnotations = Object.entries(resource.annotations)
+      .filter(([k, v]) => {
+        // Skip system annotations that don't add semantic value
+        const skipPrefixes = [
+          'kubectl.kubernetes.io/',
+          'kubernetes.io/',
+          'k8s.io/',
+          'helm.sh/',
+          'deployment.kubernetes.io/',
+          'meta.helm.sh/',
+          'argocd.argoproj.io/',
+          'checksum/',
+        ];
+        // Also skip very long values (likely JSON blobs)
+        return !skipPrefixes.some(prefix => k.startsWith(prefix)) && v.length < 500;
+      })
+      .map(([k, v]) => `${k}=${v}`);
+
+    if (meaningfulAnnotations.length > 0) {
+      parts.push(`annotations: ${meaningfulAnnotations.join(', ')}`);
+    }
   }
 
   return parts.join(' | ');
@@ -317,6 +337,64 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
    */
   async listResources(): Promise<ClusterResource[]> {
     return await this.getAllData();
+  }
+
+  /**
+   * Semantic search for resources with optional exact filters
+   * Combines semantic/keyword search with exact field filtering
+   * Returns resources with their similarity scores for relevance ranking
+   */
+  async searchResources(
+    query: string,
+    filters?: { namespace?: string; kind?: string; apiVersion?: string },
+    limit: number = 10,
+    minScore?: number
+  ): Promise<Array<{ resource: ClusterResource; score: number }>> {
+    // Build Qdrant filter from simple parameters
+    const qdrantFilter = this.buildQdrantFilter(filters);
+
+    // Perform semantic search with filter and optional score threshold
+    const results = await this.searchData(query, {
+      limit,
+      filter: qdrantFilter,
+      scoreThreshold: minScore
+    });
+
+    return results.map(r => ({ resource: r.data, score: r.score }));
+  }
+
+  /**
+   * Build Qdrant filter object from simple filter parameters
+   */
+  private buildQdrantFilter(filters?: { namespace?: string; kind?: string; apiVersion?: string }): Record<string, any> | undefined {
+    if (!filters) return undefined;
+
+    const conditions: any[] = [];
+
+    if (filters.namespace) {
+      conditions.push({
+        key: 'namespace',
+        match: { value: filters.namespace }
+      });
+    }
+
+    if (filters.kind) {
+      conditions.push({
+        key: 'kind',
+        match: { value: filters.kind }
+      });
+    }
+
+    if (filters.apiVersion) {
+      conditions.push({
+        key: 'apiVersion',
+        match: { value: filters.apiVersion }
+      });
+    }
+
+    if (conditions.length === 0) return undefined;
+
+    return { must: conditions };
   }
 
   /**

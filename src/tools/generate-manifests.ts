@@ -495,7 +495,7 @@ async function handleHelmGeneration(
         // PRD #320: Update session with generateManifests data for visualization
         sessionManager.updateSession(solutionId, {
           ...solution,
-          stage: 'generateManifests',
+          stage: 'manifests',
           generatedManifests: {
             type: 'helm',
             valuesYaml: valuesYaml,
@@ -989,7 +989,7 @@ export async function handleGenerateManifestsTool(
               // PRD #320: Update session with generateManifests data for visualization
               sessionManager.updateSession(args.solutionId, {
                 ...solution,
-                stage: 'generateManifests',
+                stage: 'manifests',
                 generatedManifests: {
                   type: outputFormat,
                   outputPath,
@@ -1035,7 +1035,7 @@ export async function handleGenerateManifestsTool(
             // PRD #320: Update session with generateManifests data for visualization (raw format)
             sessionManager.updateSession(args.solutionId, {
               ...solution,
-              stage: 'generateManifests',
+              stage: 'manifests',
               generatedManifests: {
                 type: 'raw',
                 outputPath,
