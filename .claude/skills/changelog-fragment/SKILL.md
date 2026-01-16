@@ -1,11 +1,11 @@
 ---
 name: changelog-fragment
-description: Create changelog fragment for release notes. Invoke during /prd-done workflow after PR is merged.
+description: Create changelog fragment for release notes. Invoke during /prd-done workflow during the first push to the PR.
 ---
 
 # Create Changelog Fragment
 
-Create a towncrier changelog fragment for release notes when completing PRD work.
+Create a towncrier changelog fragment for release notes when completing PRD work. This should be included in the PR so the fragment is reviewed along with the code changes.
 
 ## Workflow
 
@@ -81,25 +81,7 @@ See the [Multi-Cluster Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/mult
 Show the user:
 1. The fragment file path created
 2. The content written
-
-### Step 6: Ask About Release Tag
-
-After showing the fragment, ask the user: "Would you like to create a release tag?"
-
-If yes:
-1. **Get latest tag**: Run `git tag --sort=-v:refname | head -1` to find the current version
-2. **Analyze all fragments**: List all files in `changelog.d/` to determine the highest-impact change type:
-   - Priority order: `breaking` > `feature` > `bugfix` > `doc` = `misc`
-   - The highest-priority fragment type determines the version bump
-3. **Determine next version**: Based on the highest-impact fragment type found:
-   - Any `.breaking.md` exists → bump major (e.g., v1.2.3 → v2.0.0)
-   - Any `.feature.md` exists → bump minor (e.g., v1.2.3 → v1.3.0)
-   - Only `.bugfix.md`, `.doc.md`, or `.misc.md` → bump patch (e.g., v1.2.3 → v1.2.4)
-4. **Propose version**: Show the suggested next version and ask for confirmation
-5. **Create tag**: Run `git tag -a [version] -m "[Brief description based on fragments]"`
-6. **Push tag**: Run `git push origin [version]`
-
-If no, skip tagging and finish.
+3. Reminder to commit and push with the PR
 
 ## Guidelines
 
