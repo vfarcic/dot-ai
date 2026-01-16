@@ -134,6 +134,7 @@ Generate a production-ready Kustomize structure with base/ and overlays/ directo
    - Place resources with namespace-specific internal references here (e.g., Solution CRD with spec.resources[].namespace)
    - These resources contain namespace values that kustomize won't transform
    - This allows different overlays (staging, dev) to have their own versions
+   - **CRITICAL for Solution CRD**: Copy the Solution resource EXACTLY as provided in the input - preserve the original \`metadata.name\`, \`metadata.labels\`, and all other fields unchanged. Only \`metadata.namespace\` may be set to the user-specified namespace.
 
 5. **kustomization.yaml** (root) - Points to production overlay for easy deployment
    - Simple file that references the production overlay: \`resources: [overlays/production]\`

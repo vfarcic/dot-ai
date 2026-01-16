@@ -225,6 +225,33 @@ export const KUBECTL_GET_CRD_SCHEMA_TOOL: AITool = {
 };
 
 /**
+ * Tool: kubectl_get_resource_json
+ * Get a single Kubernetes resource as structured JSON
+ */
+export const KUBECTL_GET_RESOURCE_JSON_TOOL: AITool = {
+  name: 'kubectl_get_resource_json',
+  description: 'Get a single Kubernetes resource as structured JSON with full metadata, spec, and status. Use this when you need programmatic access to resource configuration and state, such as analyzing ownerReferences, checking exact spec values, or examining detailed status conditions. Returns the complete resource object.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      resource: {
+        type: 'string',
+        description: 'Resource to get in kind/name format (e.g., "deployment/my-app", "pod/my-pod", "cluster.postgresql.cnpg.io/my-db"). Must include the resource name.'
+      },
+      namespace: {
+        type: 'string',
+        description: 'Kubernetes namespace. Required for namespaced resources, omit for cluster-scoped resources.'
+      },
+      field: {
+        type: 'string',
+        description: 'Optional: Return only a specific top-level field (e.g., "spec", "status", "metadata"). Omit to return the complete resource.'
+      }
+    },
+    required: ['resource']
+  }
+};
+
+/**
  * Tool executor for kubectl-based tools
  * Handles execution and error handling for all kubectl tool calls
  */
@@ -491,6 +518,58 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
         };
       }
 
+      case 'kubectl_get_resource_json': {
+        const { resource, namespace, field } = input;
+
+        if (!resource) {
+          return {
+            success: false,
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('resource'),
+            message: 'kubectl_get_resource_json requires a resource parameter (e.g., "deployment/my-app")'
+          };
+        }
+
+        // Build kubectl command to get resource as JSON
+        const cmdArgs = ['get', resource, '-o', 'json'];
+
+        // Add namespace if provided
+        if (namespace) {
+          cmdArgs.push('-n', namespace);
+        }
+
+        const output = await executeKubectl(cmdArgs);
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(output);
+        } catch (parseError) {
+          return {
+            success: false,
+            error: `Failed to parse kubectl output as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            message: `Raw output: ${output.slice(0, 500)}${output.length > 500 ? '...' : ''}`
+          };
+        }
+
+        // Return specific field or full resource
+        let data = parsed;
+        if (field) {
+          if (!(field in parsed)) {
+            return {
+              success: false,
+              error: `Field '${field}' not found in resource`,
+              message: `Available top-level fields: ${Object.keys(parsed).join(', ')}`
+            };
+          }
+          data = parsed[field];
+        }
+
+        return {
+          success: true,
+          data: JSON.stringify(data, null, 2),
+          message: `Successfully retrieved ${field ? field + ' for ' : ''}${resource}${namespace ? ` in namespace ${namespace}` : ''}`
+        };
+      }
+
       default:
         return {
           success: false,
@@ -522,5 +601,6 @@ export const KUBECTL_INVESTIGATION_TOOLS: AITool[] = [
   KUBECTL_PATCH_DRYRUN_TOOL,
   KUBECTL_APPLY_DRYRUN_TOOL,
   KUBECTL_DELETE_DRYRUN_TOOL,
-  KUBECTL_GET_CRD_SCHEMA_TOOL
+  KUBECTL_GET_CRD_SCHEMA_TOOL,
+  KUBECTL_GET_RESOURCE_JSON_TOOL
 ];

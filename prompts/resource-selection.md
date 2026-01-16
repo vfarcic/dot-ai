@@ -86,6 +86,10 @@ Respond with ONLY a JSON object. The format depends on whether capabilities can 
 
 Return solutions with resources. Include the `resourceName` field for each resource (extract from Available Resources list).
 
+**Solution type field (REQUIRED):**
+- `"type": "single"` - when the solution uses exactly ONE resource
+- `"type": "combination"` - when the solution uses TWO OR MORE resources together
+
 ```json
 {
   "solutions": [

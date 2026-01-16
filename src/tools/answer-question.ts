@@ -791,7 +791,14 @@ export async function handleAnswerQuestionTool(
         
         // Extract all user answers for handoff
         const userAnswers = extractUserAnswers(solution);
-        
+
+        // Update session with workflow state - all questions complete
+        sessionManager.updateSession(args.solutionId, {
+          stage: 'questions',
+          currentQuestionStage: 'open',
+          nextQuestionStage: null
+        });
+
         const response = {
           status: 'ready_for_manifest_generation',
           solutionId: args.solutionId,
@@ -808,7 +815,7 @@ export async function handleAnswerQuestionTool(
           agentInstructions: 'All configuration stages are now complete. You may proceed to generate Kubernetes manifests using the generateManifests tool.',
           timestamp: new Date().toISOString()
         };
-        
+
         return {
           content: [
             {
@@ -826,6 +833,13 @@ export async function handleAnswerQuestionTool(
       // This happens when advanced stage is completed (open stage is skipped for Helm)
       if (newStageState.isComplete && isHelmSolution(solution)) {
         const userAnswers = extractUserAnswers(solution);
+
+        // Update session with workflow state - all questions complete (Helm)
+        sessionManager.updateSession(args.solutionId, {
+          stage: 'questions',
+          currentQuestionStage: 'advanced',
+          nextQuestionStage: null
+        });
 
         const completionResponse = {
           status: 'ready_for_manifest_generation',
@@ -857,6 +871,13 @@ export async function handleAnswerQuestionTool(
       // If stage is complete, move to next stage
       const nextStageQuestions = getQuestionsForStage(solution, newStageState.currentStage);
 
+      // Update session with workflow state - moving to next question stage
+      sessionManager.updateSession(args.solutionId, {
+        stage: 'questions',
+        currentQuestionStage: newStageState.currentStage,
+        nextQuestionStage: newStageState.nextStage
+      });
+
       const response = {
         status: 'stage_questions',
         solutionId: args.solutionId,
@@ -869,7 +890,7 @@ export async function handleAnswerQuestionTool(
         nextAction: `Call recommend tool with stage: answerQuestion:${newStageState.currentStage}`,
         timestamp: new Date().toISOString()
       };
-      
+
       return {
         content: [
           {

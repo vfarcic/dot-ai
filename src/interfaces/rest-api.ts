@@ -19,11 +19,22 @@ import { loadPrompt } from '../core/shared-prompt-loader';
 import {
   extractPrefixFromSessionId,
   getPromptForTool,
-  BaseVisualizationData
+  BaseVisualizationData,
+  parseVisualizationResponse
 } from '../core/visualization';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
-import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
+import {
+  RESOURCE_TOOLS,
+  executeResourceTools,
+  getResourceKinds,
+  listResources,
+  getNamespaces,
+  fetchResource,
+  getResourceEvents,
+  getPodLogs,
+  ContainerRequiredError
+} from '../core/resource-tools';
 import {
   KUBECTL_API_RESOURCES_TOOL,
   KUBECTL_GET_TOOL,
@@ -91,8 +102,9 @@ export interface ToolDiscoveryResponse extends RestApiResponse {
 /**
  * Visualization types supported by the API
  * PRD #320: Added 'diff' type for before/after comparisons
+ * PRD #328: Added 'bar-chart' type for metrics visualization
  */
-export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff';
+export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff' | 'bar-chart';
 
 /**
  * Diff visualization content (PRD #320)
@@ -100,6 +112,25 @@ export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff';
 export interface DiffVisualizationContent {
   before: { language: string; code: string };
   after: { language: string; code: string };
+}
+
+/**
+ * Bar chart data item (PRD #328)
+ */
+export interface BarChartDataItem {
+  label: string;       // e.g., "node-1", "kube-system"
+  value: number;       // e.g., 8.5
+  max?: number;        // e.g., 10 (for percentage calculation)
+  status?: 'error' | 'warning' | 'ok';  // for color-coding
+}
+
+/**
+ * Bar chart visualization content (PRD #328)
+ */
+export interface BarChartVisualizationContent {
+  data: BarChartDataItem[];
+  unit?: string;       // e.g., "Gi", "cores", "%"
+  orientation?: 'horizontal' | 'vertical';  // default: horizontal
 }
 
 /**
@@ -114,7 +145,8 @@ export interface Visualization {
     | { language: string; code: string } // code
     | { headers: string[]; rows: string[][] } // table
     | Array<{ id: string; title: string; description?: string; tags?: string[] }> // cards
-    | DiffVisualizationContent; // diff
+    | DiffVisualizationContent // diff
+    | BarChartVisualizationContent; // bar-chart
 }
 
 /**
@@ -238,10 +270,50 @@ export class RestApiRouter {
         case 'resources':
           if (req.method === 'POST' && pathMatch.action === 'sync') {
             await this.handleResourceSyncRequest(req, res, requestId, body);
-          } else if (req.method !== 'POST') {
+          } else if (req.method === 'GET' && pathMatch.action === 'kinds') {
+            await this.handleGetResourceKinds(req, res, requestId, url.searchParams);
+          } else if (req.method === 'GET' && pathMatch.action === 'search') {
+            await this.handleSearchResources(req, res, requestId, url.searchParams);
+          } else if (req.method === 'GET' && pathMatch.action === 'list') {
+            await this.handleListResources(req, res, requestId, url.searchParams);
+          } else if (pathMatch.action === 'sync' && req.method !== 'POST') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for resource sync');
+          } else if ((pathMatch.action === 'kinds' || pathMatch.action === 'list' || pathMatch.action === 'search') && req.method !== 'GET') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for this endpoint');
           } else {
             await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown resources endpoint');
+          }
+          break;
+
+        case 'namespaces':
+          if (req.method === 'GET') {
+            await this.handleGetNamespaces(req, res, requestId);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for namespaces');
+          }
+          break;
+
+        case 'resource':
+          if (req.method === 'GET') {
+            await this.handleGetResource(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for resource');
+          }
+          break;
+
+        case 'events':
+          if (req.method === 'GET') {
+            await this.handleGetEvents(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for events');
+          }
+          break;
+
+        case 'logs':
+          if (req.method === 'GET') {
+            await this.handleGetLogs(req, res, requestId, url.searchParams);
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for logs');
           }
           break;
 
@@ -268,6 +340,16 @@ export class RestApiRouter {
             await this.handleVisualize(req, res, requestId, pathMatch.sessionId, url.searchParams);
           } else if (req.method !== 'GET') {
             await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for visualization');
+          } else {
+            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
+          }
+          break;
+
+        case 'sessions':
+          if (req.method === 'GET' && pathMatch.sessionId) {
+            await this.handleSessionRetrieval(req, res, requestId, pathMatch.sessionId);
+          } else if (req.method !== 'GET') {
+            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for session retrieval');
           } else {
             await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
           }
@@ -302,6 +384,13 @@ export class RestApiRouter {
     // /api/v1/tools/{toolName} -> tool execution
     // /api/v1/openapi -> OpenAPI spec
     // /api/v1/resources/sync -> resource sync from controller
+    // /api/v1/resources/kinds -> list resource kinds (PRD #328)
+    // /api/v1/resources/search -> semantic search for resources (PRD #328)
+    // /api/v1/resource -> get single resource with full details (PRD #328)
+    // /api/v1/resources -> list resources with filtering (PRD #328)
+    // /api/v1/namespaces -> list namespaces (PRD #328)
+    // /api/v1/events -> get events for a resource (PRD #328)
+    // /api/v1/logs -> get pod logs (PRD #328)
     // /api/v1/prompts -> prompts list
     // /api/v1/prompts/{promptName} -> prompt get
 
@@ -331,9 +420,41 @@ export class RestApiRouter {
       }
     }
 
-    // Handle resources/sync endpoint
+    // Handle resources endpoints (PRD #328)
+    if (cleanPath === 'resources/kinds') {
+      return { endpoint: 'resources', action: 'kinds' };
+    }
+
+    if (cleanPath === 'resources/search') {
+      return { endpoint: 'resources', action: 'search' };
+    }
+
     if (cleanPath === 'resources/sync') {
       return { endpoint: 'resources', action: 'sync' };
+    }
+
+    if (cleanPath === 'resources') {
+      return { endpoint: 'resources', action: 'list' };
+    }
+
+    // Handle single resource endpoint (PRD #328)
+    if (cleanPath === 'resource') {
+      return { endpoint: 'resource' };
+    }
+
+    // Handle namespaces endpoint (PRD #328)
+    if (cleanPath === 'namespaces') {
+      return { endpoint: 'namespaces' };
+    }
+
+    // Handle events endpoint (PRD #328)
+    if (cleanPath === 'events') {
+      return { endpoint: 'events' };
+    }
+
+    // Handle logs endpoint (PRD #328)
+    if (cleanPath === 'logs') {
+      return { endpoint: 'logs' };
     }
 
     // Handle prompts endpoints
@@ -353,6 +474,14 @@ export class RestApiRouter {
       const sessionId = cleanPath.substring(10); // Remove 'visualize/'
       if (sessionId) {
         return { endpoint: 'visualize', sessionId };
+      }
+    }
+
+    // Handle generic session retrieval endpoint (works for any tool: remediate, query, recommend, etc.)
+    if (cleanPath.startsWith('sessions/')) {
+      const sessionId = cleanPath.substring(9); // Remove 'sessions/'
+      if (sessionId) {
+        return { endpoint: 'sessions', sessionId };
       }
     }
 
@@ -605,6 +734,654 @@ export class RestApiRouter {
   }
 
   /**
+   * Handle GET /api/v1/resources/kinds (PRD #328)
+   * Returns all unique resource kinds with counts
+   * Supports optional namespace query parameter for filtering
+   */
+  private async handleGetResourceKinds(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const namespace = searchParams.get('namespace') || undefined;
+
+      this.logger.info('Processing get resource kinds request', { requestId, namespace });
+
+      const kinds = await getResourceKinds(namespace);
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          kinds
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get resource kinds request completed', {
+        requestId,
+        kindCount: kinds.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get resource kinds request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'RESOURCE_KINDS_ERROR',
+        'Failed to retrieve resource kinds',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resources/search (PRD #328)
+   * Semantic search for resources with optional exact filters
+   */
+  private async handleSearchResources(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      // Extract query parameters
+      const q = searchParams.get('q');
+      const namespace = searchParams.get('namespace') || undefined;
+      const kind = searchParams.get('kind') || undefined;
+      const apiVersion = searchParams.get('apiVersion') || undefined;
+      const limitParam = searchParams.get('limit');
+      const offsetParam = searchParams.get('offset');
+      const minScoreParam = searchParams.get('minScore');
+
+      // Validate required parameters
+      if (!q) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "q" query parameter is required for search'
+        );
+        return;
+      }
+
+      const limit = limitParam ? parseInt(limitParam, 10) : 100;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+      const minScore = minScoreParam ? parseFloat(minScoreParam) : undefined;
+
+      // Validate numeric parameters
+      if (limitParam && (isNaN(limit) || limit < 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "limit" parameter must be a positive integer'
+        );
+        return;
+      }
+
+      if (offsetParam && (isNaN(offset) || offset < 0)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "offset" parameter must be a non-negative integer'
+        );
+        return;
+      }
+
+      if (minScoreParam && (isNaN(minScore!) || minScore! < 0 || minScore! > 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "minScore" parameter must be a number between 0 and 1'
+        );
+        return;
+      }
+
+      this.logger.info('Processing search resources request', {
+        requestId,
+        query: q,
+        namespace,
+        kind,
+        apiVersion,
+        limit,
+        offset,
+        minScore
+      });
+
+      // Build filters
+      const filters: { namespace?: string; kind?: string; apiVersion?: string } = {};
+      if (namespace) filters.namespace = namespace;
+      if (kind) filters.kind = kind;
+      if (apiVersion) filters.apiVersion = apiVersion;
+
+      // Perform search using ResourceVectorService singleton
+      const { getResourceService } = await import('../core/resource-tools');
+      const service = await getResourceService();
+
+      // Request more results than needed for offset pagination
+      const searchLimit = limit + offset;
+      const results = await service.searchResources(
+        q,
+        Object.keys(filters).length > 0 ? filters : undefined,
+        searchLimit,
+        minScore
+      );
+
+      // Apply offset pagination
+      const paginatedResults = results.slice(offset, offset + limit);
+
+      // Transform results to include score for relevance ranking
+      const resources = paginatedResults.map(r => ({
+        name: r.resource.name,
+        namespace: r.resource.namespace,
+        kind: r.resource.kind,
+        apiVersion: r.resource.apiVersion,
+        labels: r.resource.labels || {},
+        createdAt: r.resource.createdAt,
+        score: r.score
+      }));
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          resources,
+          total: results.length,
+          limit,
+          offset
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Search resources request completed', {
+        requestId,
+        query: q,
+        resultCount: resources.length,
+        totalMatches: results.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Search resources request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SEARCH_ERROR',
+        'Failed to search resources',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resources (PRD #328)
+   * Returns filtered and paginated list of resources
+   * Supports optional live status enrichment from K8s API
+   */
+  private async handleListResources(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      // Extract query parameters
+      const kind = searchParams.get('kind');
+      const apiVersion = searchParams.get('apiVersion');
+      const namespace = searchParams.get('namespace') || undefined;
+      const includeStatusParam = searchParams.get('includeStatus');
+      const limitParam = searchParams.get('limit');
+      const offsetParam = searchParams.get('offset');
+
+      // Validate required parameters
+      if (!kind) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "kind" query parameter is required'
+        );
+        return;
+      }
+
+      if (!apiVersion) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'MISSING_PARAMETER',
+          'The "apiVersion" query parameter is required'
+        );
+        return;
+      }
+
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
+      const includeStatus = includeStatusParam === 'true';
+
+      // Validate numeric parameters
+      if (limitParam && (isNaN(limit!) || limit! < 1)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "limit" parameter must be a positive integer'
+        );
+        return;
+      }
+
+      if (offsetParam && (isNaN(offset!) || offset! < 0)) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "offset" parameter must be a non-negative integer'
+        );
+        return;
+      }
+
+      this.logger.info('Processing list resources request', {
+        requestId,
+        kind,
+        apiVersion,
+        namespace,
+        includeStatus,
+        limit,
+        offset
+      });
+
+      const result = await listResources({ kind, apiVersion, namespace, includeStatus, limit, offset });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('List resources request completed', {
+        requestId,
+        resourceCount: result.resources.length,
+        total: result.total,
+        includeStatus
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('List resources request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'LIST_RESOURCES_ERROR',
+        'Failed to list resources',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/namespaces (PRD #328)
+   * Returns all unique namespaces
+   */
+  private async handleGetNamespaces(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing get namespaces request', { requestId });
+
+      const namespaces = await getNamespaces();
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          namespaces
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get namespaces request completed', {
+        requestId,
+        namespaceCount: namespaces.length
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get namespaces request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'NAMESPACES_ERROR',
+        'Failed to retrieve namespaces',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/resource (PRD #328)
+   * Returns a single resource with full metadata, spec, and status
+   */
+  private async handleGetResource(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const kind = searchParams.get('kind');
+      const apiVersion = searchParams.get('apiVersion');
+      const name = searchParams.get('name');
+      const namespace = searchParams.get('namespace') || undefined;
+
+      // Validate required parameters
+      if (!kind) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        return;
+      }
+      if (!apiVersion) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'apiVersion query parameter is required');
+        return;
+      }
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+
+      this.logger.info('Processing get resource request', { requestId, kind, apiVersion, name, namespace });
+
+      // Extract apiGroup from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
+      const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
+
+      const resource = await fetchResource(
+        name,
+        namespace || '_cluster',
+        kind,
+        apiGroup
+      );
+
+      if (!resource) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'NOT_FOUND',
+          `Resource ${kind}/${name} not found${namespace ? ` in namespace ${namespace}` : ''}`
+        );
+        return;
+      }
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          resource
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get resource request completed', {
+        requestId,
+        kind,
+        name,
+        namespace
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get resource request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'RESOURCE_ERROR',
+        'Failed to retrieve resource',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/events (PRD #328)
+   * Returns Kubernetes events for a specific resource
+   */
+  private async handleGetEvents(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const name = searchParams.get('name');
+      const kind = searchParams.get('kind');
+      const namespace = searchParams.get('namespace') || undefined;
+      const uid = searchParams.get('uid') || undefined;
+
+      // Validate required parameters
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+      if (!kind) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        return;
+      }
+
+      this.logger.info('Processing get events request', { requestId, name, kind, namespace, uid });
+
+      const result = await getResourceEvents({ name, kind, namespace, uid });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          events: result.events,
+          count: result.count
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get events request completed', {
+        requestId,
+        name,
+        kind,
+        namespace,
+        eventCount: result.count
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get events request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'EVENTS_ERROR',
+        'Failed to retrieve events',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/logs (PRD #328)
+   * Returns container logs for a pod
+   */
+  private async handleGetLogs(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const name = searchParams.get('name');
+      const namespace = searchParams.get('namespace');
+      const container = searchParams.get('container') || undefined;
+      const tailLinesParam = searchParams.get('tailLines');
+
+      // Validate required parameters
+      if (!name) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        return;
+      }
+      if (!namespace) {
+        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'namespace query parameter is required');
+        return;
+      }
+
+      // Parse tailLines with validation
+      let tailLines: number | undefined;
+      if (tailLinesParam) {
+        tailLines = parseInt(tailLinesParam, 10);
+        if (isNaN(tailLines) || tailLines < 1) {
+          await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'INVALID_PARAMETER', 'tailLines must be a positive integer');
+          return;
+        }
+      }
+
+      this.logger.info('Processing get logs request', { requestId, name, namespace, container, tailLines });
+
+      const result = await getPodLogs({ name, namespace, container, tailLines });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          logs: result.logs,
+          container: result.container,
+          containerCount: result.containerCount
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Get logs request completed', {
+        requestId,
+        name,
+        namespace,
+        container: result.container,
+        logLength: result.logs.length
+      });
+
+    } catch (error) {
+      // Handle ContainerRequiredError specially
+      if (error instanceof ContainerRequiredError) {
+        const response: RestApiResponse = {
+          success: false,
+          error: {
+            code: 'CONTAINER_REQUIRED',
+            message: error.message,
+            details: {
+              containers: error.containers
+            }
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            requestId,
+            version: this.config.version
+          }
+        };
+
+        await this.sendJsonResponse(res, HttpStatus.BAD_REQUEST, response);
+        return;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Get logs request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        errorMessage
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'LOGS_ERROR',
+        'Failed to retrieve logs',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
    * Handle prompts list requests
    */
   private async handlePromptsListRequest(
@@ -833,7 +1610,8 @@ export class RestApiRouter {
 
       const promptData = {
         intent,
-        data: JSON.stringify(data, null, 2)
+        data: JSON.stringify(data, null, 2),
+        visualizationOutput: loadPrompt('partials/visualization-output')
       };
 
       const systemPrompt = loadPrompt(promptName, promptData);
@@ -891,63 +1669,12 @@ export class RestApiRouter {
         toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
       });
 
-      // Parse AI response as JSON
+      // Parse AI response as JSON using shared function
       let visualizationResponse: VisualizationResponse;
       let isFallbackResponse = false;
       try {
-        // Extract JSON from response - it may have text before/after the JSON block
-        let jsonContent = result.finalMessage.trim();
-
-        // Find JSON block in markdown code fence
-        const jsonBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (jsonBlockMatch) {
-          jsonContent = jsonBlockMatch[1].trim();
-        } else if (!jsonContent.startsWith('{')) {
-          // Try to find raw JSON object if no code fence
-          const jsonStart = jsonContent.indexOf('{');
-          const jsonEnd = jsonContent.lastIndexOf('}');
-          if (jsonStart !== -1 && jsonEnd !== -1) {
-            jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
-          }
-        }
-
-        const parsed = JSON.parse(jsonContent);
-
-        // Validate required fields
-        if (!parsed.title || !Array.isArray(parsed.visualizations) || !Array.isArray(parsed.insights)) {
-          throw new Error('Invalid visualization response structure');
-        }
-
-        // Validate each visualization has required fields
-        for (const viz of parsed.visualizations) {
-          if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
-            throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
-          }
-          if (!['mermaid', 'cards', 'code', 'table', 'diff'].includes(viz.type)) {
-            throw new Error(`Invalid visualization type: ${viz.type}`);
-          }
-        }
-
-        // Normalize insights to strings if they are objects
-        const normalizedInsights = parsed.insights.map((insight: any) => {
-          if (typeof insight === 'string') {
-            return insight;
-          }
-          // Convert object insights to string format
-          if (insight.title && insight.description) {
-            const severity = insight.severity ? ` [${insight.severity}]` : '';
-            return `${insight.title}${severity}: ${insight.description}`;
-          }
-          return String(insight);
-        });
-
-        // PRD #320: Include toolsUsed for test validation
         const toolsUsed = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
-        visualizationResponse = {
-          ...parsed,
-          insights: normalizedInsights,
-          toolsUsed
-        } as VisualizationResponse;
+        visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);
       } catch (parseError) {
         this.logger.error('Failed to parse AI visualization response', parseError instanceof Error ? parseError : new Error(String(parseError)), {
           requestId,
@@ -1029,6 +1756,76 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'VISUALIZATION_ERROR',
         'Failed to generate visualization',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle generic session retrieval requests
+   * Returns raw session data for any tool type (remediate, query, recommend, etc.)
+   * Session type is determined by the session ID prefix (rem-, qry-, rec-, opr-, etc.)
+   */
+  private async handleSessionRetrieval(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      const sessionPrefix = extractPrefixFromSessionId(sessionId);
+
+      this.logger.info('Processing session retrieval', {
+        requestId,
+        sessionId,
+        sessionPrefix
+      });
+
+      const sessionManager = new GenericSessionManager<Record<string, unknown>>(sessionPrefix);
+      const session = sessionManager.getSession(sessionId);
+
+      if (!session) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'SESSION_NOT_FOUND',
+          `Session '${sessionId}' not found or has expired`
+        );
+        return;
+      }
+
+      const response: RestApiResponse = {
+        success: true,
+        data: session,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version
+        }
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Session retrieved successfully', {
+        requestId,
+        sessionId,
+        toolName: session.data?.toolName || 'unknown'
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Session retrieval failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        sessionId
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SESSION_RETRIEVAL_ERROR',
+        'Failed to retrieve session',
         { error: errorMessage }
       );
     }

@@ -11,6 +11,45 @@ import { KUBERNETES_ERROR_TEMPLATES } from './constants';
 
 const execAsync = promisify(exec);
 
+/**
+ * Simple semaphore to limit concurrent kubectl executions
+ * Prevents overwhelming the Kubernetes API with too many parallel requests
+ */
+class KubectlSemaphore {
+  private maxConcurrent: number;
+  private currentCount: number = 0;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(maxConcurrent: number = 10) {
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.currentCount < this.maxConcurrent) {
+      this.currentCount++;
+      return;
+    }
+
+    // Wait for a slot to become available
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      // Give slot to next waiting request
+      const next = this.waitQueue.shift()!;
+      next();
+    } else {
+      this.currentCount--;
+    }
+  }
+}
+
+// Limit to 10 concurrent kubectl calls to prevent K8s API rate limiting
+const kubectlSemaphore = new KubectlSemaphore(10);
+
 // Enhanced interfaces for kubectl-based discovery
 export interface KubectlConfig {
   context?: string;
@@ -23,14 +62,19 @@ export interface KubectlConfig {
 /**
  * Execute kubectl command with proper configuration
  * Automatically traced with OpenTelemetry
+ * Uses semaphore to limit concurrent executions and prevent K8s API rate limiting
  */
 export async function executeKubectl(args: string[], config?: KubectlConfig): Promise<string> {
-  // Wrap entire execution with tracing
-  return withKubectlTracing(args, config, async () => {
-    const command = buildKubectlCommand(args, config);
-    const timeout = config?.timeout || 30000;
+  // Acquire semaphore slot before executing
+  await kubectlSemaphore.acquire();
 
-    try {
+  try {
+    // Wrap entire execution with tracing
+    return await withKubectlTracing(args, config, async () => {
+      const command = buildKubectlCommand(args, config);
+      const timeout = config?.timeout || 30000;
+
+      try {
       // If stdin is provided, use spawn for proper stdin piping
       if (config?.stdin) {
         const { spawn } = require('child_process');
@@ -81,7 +125,11 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
       const classified = ErrorClassifier.classifyError(error);
       throw new Error(classified.enhancedMessage);
     }
-  });
+    });
+  } finally {
+    // Always release the semaphore slot
+    kubectlSemaphore.release();
+  }
 }
 
 /**

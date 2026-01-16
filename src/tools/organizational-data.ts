@@ -260,7 +260,14 @@ async function handleFireAndForgetScan(
         }
       };
     }
+    // Just set the resource list - scanSingleResource will fetch metadata for each
     session.selectedResources = parsedResources;
+
+    logger.info('Targeted scan initiated', {
+      requestId,
+      resourceCount: parsedResources.length,
+      resources: parsedResources
+    });
   }
 
   // Save session for progress tracking
@@ -399,6 +406,7 @@ interface CapabilityScanSession {
   progress?: ProgressData; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
+  resourceMetadata?: Record<string, { apiVersion: string; version: string; group: string; resourcePlural: string }>; // Store apiVersion info and plural name for Table API
 }
 
 /**
