@@ -418,17 +418,15 @@ spec:
   }, 30000);
 
   // PRD #328: GET /api/v1/resources/kinds
+  // Note: This test validates API contract and sorting. Specific kind assertions are in the
+  // namespace-filtered test below, since concurrent tests using isResync:true can delete resources.
   test('GET /api/v1/resources/kinds should return resource kinds with counts', async () => {
     const response = await integrationTest.httpClient.get('/api/v1/resources/kinds');
 
     expect(response).toMatchObject({
       success: true,
       data: {
-        kinds: expect.arrayContaining([
-          // Use expect.objectContaining to match kind/apiVersion without strict count (other tests may create resources)
-          expect.objectContaining({ kind: 'Deployment', apiGroup: 'apps', apiVersion: 'apps/v1' }),
-          expect.objectContaining({ kind: 'Cluster', apiGroup: 'postgresql.cnpg.io', apiVersion: 'postgresql.cnpg.io/v1' })
-        ])
+        kinds: expect.any(Array)
       },
       meta: {
         timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -437,8 +435,19 @@ spec:
       }
     });
 
+    // Validate each kind has required structure
+    const kinds = response.data.kinds as Array<{ kind: string; apiGroup: string; apiVersion: string; count: number }>;
+    expect(kinds.length).toBeGreaterThan(0);
+    for (const k of kinds) {
+      expect(k).toHaveProperty('kind');
+      expect(k).toHaveProperty('apiGroup');
+      expect(k).toHaveProperty('apiVersion');
+      expect(k).toHaveProperty('count');
+      expect(typeof k.count).toBe('number');
+      expect(k.count).toBeGreaterThan(0);
+    }
+
     // Kinds should be sorted by count descending
-    const kinds = response.data.kinds as Array<{ count: number }>;
     for (let i = 1; i < kinds.length; i++) {
       expect(kinds[i - 1].count).toBeGreaterThanOrEqual(kinds[i].count);
     }
@@ -586,6 +595,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources with includeStatus=true should return resources with status field
   test('GET /api/v1/resources with includeStatus=true should return resources with status', async () => {
+    // Re-sync the test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-pg-cluster',
+          kind: 'Cluster',
+          apiVersion: 'postgresql.cnpg.io/v1',
+          apiGroup: 'postgresql.cnpg.io',
+          labels: { app: 'postgresql', team: 'platform', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=${testNamespace}&includeStatus=true`
     );

@@ -156,7 +156,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
 
     // Find matching capability by kind
     // For standard resources: resourceName === kind (case insensitive)
-    // For CRDs: resourceName matches plural.group pattern (e.g., "Cluster" -> "clusters.devopstoolkit.live")
+    // For CRDs: resourceName matches Kind.group or plural.group pattern
     const kindLower = kind.toLowerCase();
     const match = results.find(cap => {
       const resourceNameLower = cap.resourceName.toLowerCase();
@@ -164,8 +164,10 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       if (resourceNameLower === kindLower) return true;
       // Pluralized exact match (e.g., "deployment" -> "deployments")
       if (resourceNameLower === kindLower + 's' || resourceNameLower === kindLower + 'es') return true;
+      // CRD format: Kind.group (e.g., "deployment" -> "deployment.apps")
+      // Must match kind followed by a dot to avoid false positives like "cluster" matching "clusterroles"
+      if (resourceNameLower.startsWith(kindLower + '.')) return true;
       // CRD format: plural.group (e.g., "cluster" -> "clusters.devopstoolkit.live")
-      // Must match kind+plural followed by a dot to avoid false positives like "cluster" matching "clusterroles"
       if (resourceNameLower.startsWith(kindLower + 's.') || resourceNameLower.startsWith(kindLower + 'es.')) return true;
       // Handle -y -> -ies pluralization (e.g., "policy" -> "policies.group")
       if (kindLower.endsWith('y')) {
