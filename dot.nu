@@ -109,7 +109,7 @@ def "main build qdrant-image" [
 
     # Verify the data was extracted successfully
     if (ls . | where name == "qdrant_storage" and type == "dir" | length) == 0 {
-        error "Failed to extract qdrant_storage from container"
+        error make { msg: "Failed to extract qdrant_storage from container" }
     }
 
     print $"Building multi-arch qdrant image with version ($version)..."
