@@ -1,4 +1,6 @@
-# DevOps AI Toolkit Project - Claude Code Integration Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## ⚠️ MANDATORY TASK COMPLETION CHECKLIST ⚠️
 
@@ -7,7 +9,6 @@
 □ **Integration Tests Written**: Write integration tests for new functionality
 □ **All Tests Pass**: Run `npm run test:integration` - ALL tests must pass
 □ **No Test Failures**: Fix any failing tests before proceeding
-□ **CLAUDE.md Updated**: Update this file if new features/commands/structure added
 
 **❌ TASK IS NOT COMPLETE IF:**
 - Any integration tests are failing
@@ -16,167 +17,54 @@
 
 ## PERMANENT INSTRUCTIONS
 
-**CRITICAL DEVELOPMENT RULES - NEVER OVERRIDE:**
+1. **Always Write Integration Tests**: When making code changes, you MUST write or update integration tests
+2. **Always Run All Tests**: Before marking any task complete, run `npm run test:integration`
+3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing
+4. **Always Check for Reusability**: Search codebase for existing functions before implementing new ones
+5. **Never Hardcode AI Prompts**: All prompts go in `prompts/` directory, loaded dynamically (see existing code for pattern)
 
-1. **Always Write Integration Tests**: When making code changes, you MUST write or update integration tests to validate the changes
-2. **Always Run All Tests**: Before marking any task as complete, run `npm run test:integration` to ensure all tests pass
-3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing - fix all test failures first
-4. **Test-Driven Validation**: Changes are only considered successful when validated by passing integration tests
-5. **Always Check for Reusability**: Before implementing new functionality, ALWAYS search the codebase for existing similar functions or utilities that can be reused or extended. Never duplicate code - create shared utilities instead.
-6. **CLAUDE.md Updates**: Only update CLAUDE.md for fundamental changes to development workflow, new architectural patterns, or structural changes that future developers need to know. Do NOT add recent updates, change logs, or temporary information - use git commits and PR descriptions for those.
-
-## 🛑 TESTING WORKFLOW
-
-- **Implementation flow**: Code → Integration Tests → `npm run test:integration` → Cleanup → Mark complete
-- **Integration testing standards**: See `tests/integration/CLAUDE.md` for comprehensive integration testing patterns
-- **Long-running tests**: Output to file to avoid truncation: `npm run test:integration 2>&1 | tee ./tmp/test-output.log`
-- **Run specific tests**: Filter by test name pattern: `npm run test:integration version`
-- **Cleanup after successful tests**: After integration tests pass, run the teardown script to clean up resources:
-  - `./tests/integration/infrastructure/teardown-cluster.sh`
-  - This deletes the Kind cluster, removes test kubeconfig, and cleans up Qdrant container
-  - **Only run cleanup if tests passed** - keep resources available for debugging if tests fail
-
-## 📁 DIRECTORY-SPECIFIC INSTRUCTIONS
-
-**IMPORTANT**: Some directories have their own CLAUDE.md with specialized workflows. **ALWAYS read and follow these before working in that directory:**
-
-| Directory | Instructions | Key Requirement |
-|-----------|--------------|-----------------|
-| `docs/` | `docs/CLAUDE.md` | **Execute-then-document**: Run each command/example, capture real output, then document. Never write fabricated examples. |
-| `tests/integration/` | `tests/integration/CLAUDE.md` | Comprehensive workflow tests, `toMatchObject` validation pattern, race condition prevention. |
-
-**Why this matters**: Directory-specific CLAUDE.md files contain critical workflows that prevent common mistakes (e.g., writing documentation with made-up outputs instead of validated real outputs).
-
-## Project Overview
-
-**DevOps AI Toolkit** is an intelligent Kubernetes application deployment agent that discovers cluster capabilities and provides AI-powered recommendations for deploying applications using available resources.
-
-### Core Features
-- **Cluster Discovery**: Automatically discovers Kubernetes resources and custom operators
-- **AI Recommendations**: Get intelligent deployment recommendations based on your intent
-- **Solution Enhancement**: Process open-ended user requirements to enhance configurations
-- **Operator Integration**: Leverages custom operators like Crossplane, ArgoCD when available
-
-### Key Commands
+## Testing Workflow
 
 ```bash
-# Development commands
-npm run build                                       # Build the project
-npm run start:mcp                                   # Start MCP server
-
-# Testing commands
-npm run test:unit                                   # Run unit tests (fast, no cluster needed)
-npm run test:integration                            # Run integration tests (creates Kind cluster)
-
-# Evaluation commands
-npm run eval:comparative                            # Run comparative evaluations (all datasets)
-npm run eval:comparative remediation                # Run comparative evaluations (remediation only)
-npm run eval:comparative capability                 # Run comparative evaluations (capability only)
-npm run eval:platform-synthesis                     # Generate platform-wide model analysis from evaluation results
+npm run test:unit                    # Fast unit tests (no cluster)
+npm run test:integration             # Full e2e tests (creates Kind cluster)
+npm run test:integration version     # Run specific test by pattern
 ```
 
-**Unit vs Integration Tests**:
-- **Unit tests** (`npm run test:unit`): Fast tests for pure functions, utilities, Helm templates. No cluster needed.
-- **Integration tests** (`npm run test:integration`): Full end-to-end tests requiring Kind cluster and AI providers.
+- **Long-running tests**: `npm run test:integration 2>&1 | tee ./tmp/test-output.log`
+- **Cleanup after success**: `./tests/integration/infrastructure/teardown-cluster.sh`
+- **Keep resources on failure** for debugging
 
-## AI Prompt Management 🤖
+## Directory-Specific Instructions
 
-**CRITICAL DEVELOPMENT RULE: NEVER hard-code AI prompts in source code**
+**ALWAYS check for and follow CLAUDE.md files in subdirectories:**
 
-All AI prompts are stored as markdown files in the `prompts/` directory and loaded dynamically:
+| Directory | Key Requirement |
+|-----------|-----------------|
+| `docs/` | Execute-then-document: Run commands, capture real output, then document |
+| `tests/integration/` | Use `toMatchObject` pattern, `beforeAll` cleanup, `describe.concurrent` |
 
-### Prompt File Structure
-```
-prompts/                        # MCP internal AI instructions (loaded by MCP server)
-shared-prompts/                 # MCP prompt templates (exposed to users via prompts interaction)
-```
+## Project Conventions
 
-### Loading Pattern (ALWAYS USE THIS)
-```typescript
-// Load prompt template from file
-const fs = await import('fs');
-const path = await import('path');
+**AI Prompts**: Store in `prompts/` (internal) or `shared-prompts/` (user-facing). Never hardcode.
 
-const promptPath = path.join(process.cwd(), 'prompts', 'your-prompt.md');
-const template = fs.readFileSync(promptPath, 'utf8');
+**Temporary Files**: Always use `./tmp`, never `/tmp`
 
-// Replace template variables
-const finalPrompt = template
-  .replace('{variable1}', value1)
-  .replace('{variable2}', value2);
+**Test Clusters**: Store kubeconfig in `./tmp/kubeconfig.yaml`
 
-// Send to AI
-const response = await claudeIntegration.sendMessage(finalPrompt);
-```
+**Git Commits**: Add `[skip ci]` when user requests to skip CI
 
-### Template Variables
-- Use `{variableName}` format in markdown files
-- Replace with `.replace('{variableName}', actualValue)`
-- Keep prompts readable and maintainable
+**New MCP Tools**: Remind user to update feedback form: https://forms.gle/dJcDXtsxhCCwgxtT6
 
-### Why File-Based Prompts?
-- **Version control**: Track prompt changes in git
-- **Collaboration**: Non-technical team members can edit prompts  
-- **Testing**: Easy to test different prompt variations
-- **Maintainability**: Separate concerns (logic vs. prompts)
-- **Consistency**: Standardized approach across all AI features
-
-### Adding New AI Features
-1. **Create prompt file**: `prompts/your-feature.md`
-2. **Use template variables**: `{intent}`, `{context}`, etc.
-3. **Load in code**: Follow the standard loading pattern above
-4. **Never hardcode**: Always load from file system
-
-### Project Structure
-
-```
-src/
-├── core/
-│   ├── discovery.ts      # Cluster discovery engine
-│   ├── schema.ts         # Resource schema parsing & AI recommendations
-│   ├── claude.ts         # Claude AI integration
-│   └── ...
-├── interfaces/
-│   └── mcp.ts           # MCP server interface
-└── ...
-
-docs/                    # All documentation
-tests/integration/       # Integration test suite
-prompts/                 # AI prompt templates
-```
-
-### Development Commands
-
-**Essential Commands:**
-- **Run integration tests**: `npm run test:integration`
-- **Build**: `npm run build`
-
-**Testing:** See @tests/integration/CLAUDE.md for detailed integration testing standards and workflows.
-**MCP Usage:** Always test MCP functionality through Claude Code or other MCP clients, never run server directly.
-
-**Git Commit Guidelines:**
-- **Skip CI**: When user requests to skip CI, avoid triggering CI, or mentions bypassing CI/builds, automatically add `[skip ci]` to the commit message to prevent GitHub Actions from running
-
-**User Feedback Form:**
-- When adding new MCP tools (in `src/tools/`) or prompts (in `shared-prompts/`), remind the user to update the Google Forms feedback survey with the new tool/prompt option
-- Feedback form: https://forms.gle/dJcDXtsxhCCwgxtT6
-
-**Temporary File Storage:**
-- **Always use `./tmp`**: Never use `/tmp` for temporary files or outputs - always use the project's `./tmp` directory
-- This ensures temporary files stay within the project boundary and follow .gitignore rules
-
-**Kubernetes Cluster Creation:**
-- **Always use kubeconfig in `./tmp`**: When creating Kind or other test clusters, store the kubeconfig in `./tmp/kubeconfig.yaml`
-- Set `KUBECONFIG=./tmp/kubeconfig.yaml` before cluster creation to keep cluster configs isolated
-- This prevents polluting the user's `~/.kube/config` and ensures clean teardown
-
-### Environment Setup
+## Environment
 
 ```bash
-# Required for AI features
-export ANTHROPIC_API_KEY=your_api_key_here
-export OPENAI_API_KEY=your_openai_key_here
+# Required for AI features (only need one)
+export ANTHROPIC_API_KEY=your_key
+export OPENAI_API_KEY=your_key
 
-# Optional: Custom kubeconfig
-export KUBECONFIG=/path/to/kubeconfig.yaml
+# Optional
+export AI_PROVIDER=anthropic          # anthropic, openai, google, xai, amazon_bedrock
+export DEBUG_DOT_AI=true              # Debug logging to tmp/
+export KUBECONFIG=/path/to/kubeconfig
 ```
