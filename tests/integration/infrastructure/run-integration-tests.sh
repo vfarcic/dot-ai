@@ -275,7 +275,7 @@ kubectl create namespace dot-ai 2>/dev/null || true
 # Create secret with API keys and auth token
 kubectl create secret generic dot-ai-secrets \
     --namespace dot-ai \
-    --from-literal=anthropic-api-key="${ANTHROPIC_API_KEY}" \
+    --from-literal=anthropic-api-key="${DOT_AI_ANTHROPIC_API_KEY:-$ANTHROPIC_API_KEY}" \
     --from-literal=openai-api-key="${OPENAI_API_KEY}" \
     --from-literal=google-api-key="${GOOGLE_GENERATIVE_AI_API_KEY:-$GOOGLE_API_KEY}" \
     --from-literal=xai-api-key="${XAI_API_KEY}" \
