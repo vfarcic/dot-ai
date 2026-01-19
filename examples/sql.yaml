@@ -1,0 +1,10 @@
+apiVersion: devopstoolkit.live/v1beta1
+kind: SQL
+metadata:
+  name: my-db
+  namespace: a-team
+spec:
+  size: small
+  crossplane:
+    compositionRef:
+      name: aws-postgresql
