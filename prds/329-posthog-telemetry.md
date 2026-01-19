@@ -97,7 +97,7 @@ telemetry:
 
 ## Implementation Milestones
 
-- [ ] **M1: PostHog integration foundation** - Create telemetry module with PostHog SDK, instance ID generation, and opt-out support
+- [x] **M1: PostHog integration foundation** - Create telemetry module with PostHog SDK, instance ID generation, and opt-out support
 - [ ] **M2: Tool execution tracking** - Instrument REST API router to capture tool invocations with success/error status
 - [ ] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
 - [ ] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
@@ -105,6 +105,7 @@ telemetry:
 - [ ] **M6: Integration tests** - Verify telemetry events are sent correctly and opt-out works
 - [ ] **M7: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
 - [ ] **M8: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
+- [ ] **M9: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
 
 ## Dependencies
 
@@ -134,6 +135,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | Date | Update |
 |------|--------|
 | 2026-01-11 | PRD created |
+| 2026-01-20 | M1 complete: Created telemetry module with PostHog SDK, instance ID generation from cluster UID, opt-out support. Added M9 for website visualization. Disabled telemetry in test cluster. |
 
 ---
 
