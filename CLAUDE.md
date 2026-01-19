@@ -54,8 +54,6 @@ npm run test:integration version     # Run specific test by pattern
 
 **Git Commits**: Add `[skip ci]` when user requests to skip CI
 
-**New MCP Tools**: Remind user to update feedback form: https://forms.gle/dJcDXtsxhCCwgxtT6
-
 ## Environment
 
 ```bash

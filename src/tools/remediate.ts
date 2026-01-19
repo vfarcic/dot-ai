@@ -8,7 +8,7 @@ import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
-import { maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
+import { buildAgentDisplayBlock } from '../core/index';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -664,25 +664,12 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             }
           };
 
-          // Build response with optional feedback message in JSON
-          const feedbackMessage = maybeGetFeedbackMessage();
-          const responseWithFeedback = {
-            ...successResponse,
-            ...(feedbackMessage ? { feedbackMessage } : {})
-          };
-
           const content: Array<{ type: 'text'; text: string }> = [
             {
               type: 'text' as const,
-              text: JSON.stringify(responseWithFeedback, null, 2)
+              text: JSON.stringify(successResponse, null, 2)
             }
           ];
-
-          // Add agent instruction block if feedback message is present
-          const agentDisplayBlock = buildAgentDisplayBlock({ feedbackMessage });
-          if (agentDisplayBlock) {
-            content.push(agentDisplayBlock);
-          }
 
           return { content };
 
@@ -760,25 +747,12 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     failedActions: results.filter(r => !r.success).length
   });
 
-  // Build response with optional feedback message in JSON (only on success)
-  const executionFeedbackMessage = overallSuccess ? maybeGetFeedbackMessage() : '';
-  const responseWithFeedback = {
-    ...response,
-    ...(executionFeedbackMessage ? { feedbackMessage: executionFeedbackMessage } : {})
-  };
-
   const content: Array<{ type: 'text'; text: string }> = [
     {
       type: 'text' as const,
-      text: JSON.stringify(responseWithFeedback, null, 2)
+      text: JSON.stringify(response, null, 2)
     }
   ];
-
-  // Add agent instruction block if feedback message is present
-  const agentDisplayBlock = buildAgentDisplayBlock({ feedbackMessage: executionFeedbackMessage });
-  if (agentDisplayBlock) {
-    content.push(agentDisplayBlock);
-  }
 
   return { content };
 }

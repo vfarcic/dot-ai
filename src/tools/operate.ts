@@ -11,7 +11,7 @@ import { CapabilityVectorService } from '../core/capability-vector-service';
 import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
-import { maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
+import { buildAgentDisplayBlock } from '../core/index';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
@@ -325,25 +325,15 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 export async function handleOperateTool(args: any): Promise<any> {
   const result = await operate(args);
 
-  // Get feedback message for successful operations
-  const feedbackMessage = result.status === 'success' ? maybeGetFeedbackMessage() : '';
-
-  // Build response with visualization URL and feedback message in JSON
-  const responseData = {
-    ...result,
-    ...(feedbackMessage ? { feedbackMessage } : {})
-  };
-
   // Build content blocks - JSON for REST API, agent instruction for MCP agents
   const content: Array<{ type: 'text'; text: string }> = [{
     type: 'text' as const,
-    text: JSON.stringify(responseData, null, 2)
+    text: JSON.stringify(result, null, 2)
   }];
 
-  // Add agent instruction block if visualization URL or feedback message is present
+  // Add agent instruction block if visualization URL is present
   const agentDisplayBlock = buildAgentDisplayBlock({
-    visualizationUrl: result.visualizationUrl,
-    feedbackMessage
+    visualizationUrl: result.visualizationUrl
   });
   if (agentDisplayBlock) {
     content.push(agentDisplayBlock);
