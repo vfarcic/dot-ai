@@ -1,9 +1,10 @@
 # PRD: Native Visualization in AI Agents
 
 **Issue**: [#322](https://github.com/vfarcic/dot-ai/issues/322)
-**Status**: Research Complete - Awaiting Decision
+**Status**: Closed - Superseded
 **Priority**: Low
 **Created**: 2025-01-05
+**Closed**: 2026-01-19
 
 ## Problem Statement
 
@@ -175,6 +176,7 @@ Until agents support this, MCP servers can only provide:
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2025-01-05 | PRD created for future evaluation | Research complete, solution depends on agent ecosystem evolution |
+| 2026-01-19 | PRD closed - Superseded | Web UI links remain the solution, complemented by a dedicated UI dashboard that integrates all tools with additional features. The dashboard provides a better visualization experience than attempting inline agent rendering. |
 
 ## References
 

@@ -32,7 +32,6 @@ This roadmap is a living document and may change based on community feedback and
 ## Long-term (6-12 Months)
 
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
-- Native visualization in AI agents - inline rendering without browser navigation (PRD #322)
 
 
 ## How to Contribute
