@@ -163,7 +163,6 @@ export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from 
 export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './policy-vector-service';
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
-export { FeedbackConfig, loadFeedbackConfig, shouldShowFeedback, getFeedbackMessage, maybeGetFeedbackMessage } from './feedback';
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
 
 // Default export

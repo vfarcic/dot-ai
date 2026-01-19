@@ -11,7 +11,7 @@ import { z } from 'zod';
 import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
+import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { KubernetesDiscovery } from '../core/discovery';
 import { ErrorClassifier } from '../core/kubernetes-utils';
@@ -793,9 +793,6 @@ export async function handleVersionTool(
       kyvernoReady: kyvernoStatus.policyGenerationReady
     });
     
-    // Check if we should show feedback message
-    const feedbackMessage = maybeGetFeedbackMessage();
-
     // Build summary object
     const summary = {
       overall: (vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
@@ -832,14 +829,13 @@ export async function handleVersionTool(
     // PRD #320: Generate visualization URL if configured
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
-    // Build response with optional visualization URL and feedback message in JSON
+    // Build response with optional visualization URL in JSON
     const responseData = {
       status: 'success',
       system: systemStatus,
       summary,
       timestamp,
-      ...(visualizationUrl ? { visualizationUrl } : {}),
-      ...(feedbackMessage ? { feedbackMessage } : {})
+      ...(visualizationUrl ? { visualizationUrl } : {})
     };
 
     // Build content blocks - JSON for REST API, agent instruction for MCP agents
@@ -848,8 +844,8 @@ export async function handleVersionTool(
       text: JSON.stringify(responseData, null, 2)
     }];
 
-    // Add agent instruction block if visualization URL or feedback message is present
-    const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+    // Add agent instruction block if visualization URL is present
+    const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
     if (agentDisplayBlock) {
       content.push(agentDisplayBlock);
     }

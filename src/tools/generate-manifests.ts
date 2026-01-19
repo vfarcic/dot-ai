@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { DotAI, maybeGetFeedbackMessage, buildAgentDisplayBlock } from '../core/index';
+import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ensureClusterConnection } from '../core/cluster-utils';
 import { ManifestValidator, ValidationResult } from '../core/schema';
@@ -489,9 +489,6 @@ async function handleHelmGeneration(
         // (internal valuesPath is used for actual execution, not shown to user)
         const helmCommand = buildHelmCommand(chart, releaseName, namespace, 'values.yaml');
 
-        // Check if we should show feedback message
-        const feedbackMessage = maybeGetFeedbackMessage();
-
         // PRD #320: Update session with generateManifests data for visualization
         sessionManager.updateSession(solutionId, {
           ...solution,
@@ -532,8 +529,7 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          ...(visualizationUrl ? { visualizationUrl } : {}),
-          ...(feedbackMessage ? { feedbackMessage } : {})
+          ...(visualizationUrl ? { visualizationUrl } : {})
         };
 
         // Build content blocks - JSON for REST API, agent instruction for MCP agents
@@ -542,8 +538,8 @@ async function handleHelmGeneration(
           text: JSON.stringify(response, null, 2)
         }];
 
-        // Add agent instruction block if visualization URL or feedback message is present
-        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+        // Add agent instruction block if visualization URL is present
+        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
         if (agentDisplayBlock) {
           content.push(agentDisplayBlock);
         }
@@ -971,7 +967,6 @@ export async function handleGenerateManifestsTool(
             // Extract packaging options from user answers (with defaults)
             const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
             const outputPath = userAnswers.outputPath || './manifests';
-            const feedbackMessage = maybeGetFeedbackMessage();
 
             // Handle packaging based on outputFormat
             if (outputFormat === 'helm' || outputFormat === 'kustomize') {
@@ -1013,8 +1008,7 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-                ...(visualizationUrl ? { visualizationUrl } : {}),
-                ...(feedbackMessage ? { feedbackMessage } : {})
+                ...(visualizationUrl ? { visualizationUrl } : {})
               };
 
               // Build content blocks - JSON for REST API, agent instruction for MCP agents
@@ -1023,8 +1017,8 @@ export async function handleGenerateManifestsTool(
                 text: JSON.stringify(response, null, 2)
               }];
 
-              // Add agent instruction block if visualization URL or feedback message is present
-              const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+              // Add agent instruction block if visualization URL is present
+              const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
               if (agentDisplayBlock) {
                 content.push(agentDisplayBlock);
               }
@@ -1060,8 +1054,7 @@ export async function handleGenerateManifestsTool(
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-              ...(visualizationUrl ? { visualizationUrl } : {}),
-              ...(feedbackMessage ? { feedbackMessage } : {})
+              ...(visualizationUrl ? { visualizationUrl } : {})
             };
 
             // Build content blocks - JSON for REST API, agent instruction for MCP agents
@@ -1070,8 +1063,8 @@ export async function handleGenerateManifestsTool(
               text: JSON.stringify(response, null, 2)
             }];
 
-            // Add agent instruction block if visualization URL or feedback message is present
-            const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl, feedbackMessage });
+            // Add agent instruction block if visualization URL is present
+            const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
             if (agentDisplayBlock) {
               content.push(agentDisplayBlock);
             }
