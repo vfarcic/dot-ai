@@ -59,6 +59,7 @@ def "main apply dot-ai" [
             --set $"dot-ai.webUI.baseUrl=http://($ui_host)"
             --set $"dot-ai-ui.ingress.enabled=($ingress_enabled)"
             --set $"dot-ai-ui.ingress.host=($ui_host)"
+            --set $"dot-ai-ui.uiAuth.token=($auth_token)"
             ...$tracing_flags
             --namespace dot-ai --create-namespace
             --wait
