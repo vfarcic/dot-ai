@@ -117,3 +117,5 @@ eval/results/*.jsonl
 
 # Build artifacts
 *.tgz
+
+/aws-creds.conf
