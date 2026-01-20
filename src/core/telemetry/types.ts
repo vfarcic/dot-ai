@@ -30,6 +30,8 @@ export interface BaseEventProperties {
   dot_ai_version: string;
   /** AI provider (anthropic, openai, etc.) */
   ai_provider: string;
+  /** Whether this is an internal/test instance (for PostHog filtering) */
+  is_internal: boolean;
 }
 
 /**

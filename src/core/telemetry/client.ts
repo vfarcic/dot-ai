@@ -134,12 +134,27 @@ class PostHogTelemetry implements TelemetryService {
   }
 
   /**
+   * Detect if this is an internal/test instance
+   * Used by PostHog to filter out internal users from analytics
+   */
+  private isInternalInstance(): boolean {
+    // Test environments
+    if (process.env.NODE_ENV === 'test') return true;
+
+    // CI environments
+    if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS) return true;
+
+    return false;
+  }
+
+  /**
    * Get base properties included in all events
    */
   private getBaseProperties(): BaseEventProperties {
     return {
       dot_ai_version: this.config.dotAiVersion,
       ai_provider: this.config.aiProvider,
+      is_internal: this.isInternalInstance(),
     };
   }
 
