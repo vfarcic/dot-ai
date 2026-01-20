@@ -57,6 +57,8 @@ After successful implementation in dot-ai MCP, extend the same telemetry pattern
 | `server_stopped` | uptime_seconds | Session duration |
 | `client_connected` | mcp_client, mcp_client_version, transport | Agent tracking |
 
+*Note: All events include `dot_ai_version`, `ai_provider`, and `is_internal`. When available, `mcp_client_version` is included alongside `mcp_client`.*
+
 ### What We Will NOT Track
 
 - User queries or intents

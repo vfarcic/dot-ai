@@ -243,6 +243,10 @@ describe('Tool Tracing with Telemetry', () => {
 
   it('should track successful tool execution via withToolTracing', async () => {
     const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+
+    const telemetry = getTelemetry();
+    const trackSpy = vi.spyOn(telemetry, 'trackToolExecution');
 
     const mockHandler = vi.fn().mockResolvedValue({ success: true });
 
@@ -250,10 +254,15 @@ describe('Tool Tracing with Telemetry', () => {
 
     expect(result).toEqual({ success: true });
     expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
+    expect(trackSpy).toHaveBeenCalledWith('test-tool', true, expect.any(Number), undefined);
   });
 
   it('should track failed tool execution via withToolTracing', async () => {
     const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+
+    const telemetry = getTelemetry();
+    const trackErrorSpy = vi.spyOn(telemetry, 'trackToolError');
 
     const testError = new Error('Test error');
     const mockHandler = vi.fn().mockRejectedValue(testError);
@@ -262,6 +271,7 @@ describe('Tool Tracing with Telemetry', () => {
       'Test error'
     );
     expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
+    expect(trackErrorSpy).toHaveBeenCalledWith('test-tool', 'Error', undefined);
   });
 
   it('should not break tool execution when telemetry is disabled', async () => {
@@ -278,6 +288,10 @@ describe('Tool Tracing with Telemetry', () => {
 
   it('should pass MCP client info to telemetry via options', async () => {
     const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+
+    const telemetry = getTelemetry();
+    const trackSpy = vi.spyOn(telemetry, 'trackToolExecution');
 
     const mockHandler = vi.fn().mockResolvedValue({ success: true });
     const mcpClient = { name: 'claude-code', version: '1.0.0' };
@@ -286,6 +300,7 @@ describe('Tool Tracing with Telemetry', () => {
 
     expect(result).toEqual({ success: true });
     expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
+    expect(trackSpy).toHaveBeenCalledWith('test-tool', true, expect.any(Number), mcpClient);
   });
 
   it('should work without MCP client info (undefined options)', async () => {

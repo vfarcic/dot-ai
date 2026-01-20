@@ -40,7 +40,7 @@ async function generateInstanceId(): Promise<string> {
     kc.loadFromDefault();
     const coreApi = kc.makeApiClient(k8s.CoreV1Api);
 
-    const response = await coreApi.readNamespace({ name: 'kube-system' });
+    const response = await coreApi.readNamespace('kube-system');
     const namespaceUid = response.metadata?.uid;
 
     if (namespaceUid) {
@@ -141,8 +141,8 @@ class PostHogTelemetry implements TelemetryService {
     // Test environments
     if (process.env.NODE_ENV === 'test') return true;
 
-    // CI environments
-    if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS) return true;
+    // CI environments (CI can be 'true', '1', or any truthy value)
+    if ((process.env.CI && process.env.CI !== 'false') || process.env.GITHUB_ACTIONS) return true;
 
     return false;
   }

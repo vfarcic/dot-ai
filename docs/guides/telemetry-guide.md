@@ -6,7 +6,19 @@
 
 ## Overview
 
-DevOps AI Toolkit collects anonymous telemetry to understand how the product is used. This data helps us:
+### What it does
+
+Collects anonymous telemetry to understand product usage patterns.
+
+### Use when
+
+- You want to help improve DevOps AI Toolkit through anonymous usage data
+- You need to configure telemetry settings for your organization
+- You want to route telemetry to a self-hosted PostHog instance
+
+### Why we collect telemetry
+
+This data helps us:
 
 - Identify which tools are most valuable
 - Discover errors users encounter in the wild

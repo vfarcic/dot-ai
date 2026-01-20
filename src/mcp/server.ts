@@ -150,6 +150,8 @@ async function main() {
     const deploymentMethod = detectDeploymentMethod();
     getK8sVersion().then((k8sVersion) => {
       getTelemetry().trackServerStart(k8sVersion, deploymentMethod);
+    }).catch(() => {
+      // Telemetry errors are non-fatal - silently ignore
     });
 
     // Handle graceful shutdown
