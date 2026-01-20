@@ -103,7 +103,7 @@ telemetry:
 - [x] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
 - [x] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
 - [x] **M5: Documentation and transparency** - Document what's collected, add privacy notice to README, update CHANGELOG
-- [ ] **M6: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
+- [x] **M6: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
 - [ ] **M7: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
 - [ ] **M8: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
 
@@ -148,6 +148,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | 2026-01-20 | M3 enhancements: Added `is_internal` flag (detects CI/test environments for PostHog filtering). Made telemetry configurable in integration tests (`DOT_AI_TELEMETRY` env var). REST API calls now show `mcp_client: "http"` to distinguish from MCP clients. Verified with integration tests. |
 | 2026-01-20 | M4 complete: Helm chart telemetry configuration via `extraEnv` mechanism. Added documented examples for `DOT_AI_TELEMETRY` and `DOT_AI_POSTHOG_HOST` in values.yaml comments. Verified with `helm template`. |
 | 2026-01-20 | M5 complete: Added Telemetry section to README with link to docs site. Created `docs/guides/telemetry-guide.md` with full transparency (what's collected, what's NOT, opt-out, self-hosted option). Created changelog fragment. Requested dot-ai-website to publish the guide. |
+| 2026-01-20 | M6 complete: Created PostHog dashboard "dot-ai MCP Usage Analytics" with insights: Tool Usage Distribution (bar chart), Tool Error Rate (table), AI Provider Distribution (pie), MCP Client Distribution (pie), Kubernetes Versions (table), Daily Active Instances (line), Tool Execution Duration (line), Session Duration (bar), Events Over Time (stacked area). Configured `is_internal` filter to exclude CI/test traffic. |
 
 ---
 
