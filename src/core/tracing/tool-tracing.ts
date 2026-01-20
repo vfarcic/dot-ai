@@ -8,7 +8,15 @@
  */
 
 import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
-import { getTelemetry } from '../telemetry';
+import { getTelemetry, McpClientInfo } from '../telemetry';
+
+/**
+ * Options for tool tracing
+ */
+export interface ToolTracingOptions {
+  /** MCP client info for telemetry attribution */
+  mcpClient?: McpClientInfo;
+}
 
 /**
  * Wraps a tool handler with OpenTelemetry tracing
@@ -22,19 +30,21 @@ import { getTelemetry } from '../telemetry';
  * @param toolName - Name of the MCP tool being executed
  * @param args - Tool input arguments (will be serialized to JSON)
  * @param handler - Async function that implements the tool logic
+ * @param options - Optional tracing options (e.g., MCP client info)
  * @returns Promise resolving to the tool handler result
  *
  * @example
  * ```typescript
  * const result = await withToolTracing('recommend', { intent: 'deploy postgres' }, async (args) => {
  *   return await handleRecommendTool(args);
- * });
+ * }, { mcpClient: { name: 'claude-code', version: '1.0.0' } });
  * ```
  */
 export async function withToolTracing<T>(
   toolName: string,
   args: any,
-  handler: (args: any) => Promise<T>
+  handler: (args: any) => Promise<T>,
+  options?: ToolTracingOptions
 ): Promise<T> {
   const tracer = trace.getTracer('dot-ai-mcp');
 
@@ -48,6 +58,11 @@ export async function withToolTracing<T>(
         // GenAI semantic conventions for tool execution
         'gen_ai.tool.name': toolName,
         'gen_ai.tool.input': JSON.stringify(args, null, 2),
+        // MCP client info (if available)
+        ...(options?.mcpClient && {
+          'mcp.client.name': options.mcpClient.name,
+          'mcp.client.version': options.mcpClient.version,
+        }),
       },
     }
   );
@@ -68,7 +83,7 @@ export async function withToolTracing<T>(
       span.setStatus({ code: SpanStatusCode.OK });
 
       // Track telemetry (fire-and-forget, async)
-      getTelemetry().trackToolExecution(toolName, true, duration);
+      getTelemetry().trackToolExecution(toolName, true, duration, options?.mcpClient);
 
       return result;
     } catch (error) {
@@ -83,8 +98,8 @@ export async function withToolTracing<T>(
       });
 
       // Track telemetry for failed execution (fire-and-forget, async)
-      getTelemetry().trackToolExecution(toolName, false, duration);
-      getTelemetry().trackToolError(toolName, errorType);
+      getTelemetry().trackToolExecution(toolName, false, duration, options?.mcpClient);
+      getTelemetry().trackToolError(toolName, errorType, options?.mcpClient);
 
       // Re-throw to preserve original error handling behavior
       throw error;

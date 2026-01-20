@@ -42,6 +42,10 @@ export interface ToolExecutedEventProperties extends BaseEventProperties {
   success: boolean;
   /** Execution duration in milliseconds */
   duration_ms: number;
+  /** MCP client name (e.g., "claude-code", "cursor") */
+  mcp_client?: string;
+  /** MCP client version */
+  mcp_client_version?: string;
 }
 
 /**
@@ -52,6 +56,22 @@ export interface ToolErrorEventProperties extends BaseEventProperties {
   tool: string;
   /** Error type/class name (not the message, for privacy) */
   error_type: string;
+  /** MCP client name (e.g., "claude-code", "cursor") */
+  mcp_client?: string;
+  /** MCP client version */
+  mcp_client_version?: string;
+}
+
+/**
+ * Properties for client_connected event
+ */
+export interface ClientConnectedEventProperties extends BaseEventProperties {
+  /** MCP client name (e.g., "claude-code", "cursor", "windsurf") */
+  mcp_client: string;
+  /** MCP client version */
+  mcp_client_version: string;
+  /** Transport type (stdio, http) */
+  transport: string;
 }
 
 /**
@@ -79,7 +99,8 @@ export type TelemetryEventProperties =
   | ToolExecutedEventProperties
   | ToolErrorEventProperties
   | ServerStartedEventProperties
-  | ServerStoppedEventProperties;
+  | ServerStoppedEventProperties
+  | ClientConnectedEventProperties;
 
 /**
  * Telemetry event names
@@ -88,7 +109,16 @@ export type TelemetryEventName =
   | 'tool_executed'
   | 'tool_error'
   | 'server_started'
-  | 'server_stopped';
+  | 'server_stopped'
+  | 'client_connected';
+
+/**
+ * MCP client info for telemetry
+ */
+export interface McpClientInfo {
+  name: string;
+  version: string;
+}
 
 /**
  * Telemetry service interface
@@ -101,16 +131,19 @@ export interface TelemetryService {
   trackEvent(event: TelemetryEventName, properties: TelemetryEventProperties): void;
 
   /** Track tool execution */
-  trackToolExecution(tool: string, success: boolean, durationMs: number): void;
+  trackToolExecution(tool: string, success: boolean, durationMs: number, mcpClient?: McpClientInfo): void;
 
   /** Track tool error */
-  trackToolError(tool: string, errorType: string): void;
+  trackToolError(tool: string, errorType: string, mcpClient?: McpClientInfo): void;
 
   /** Track server start */
   trackServerStart(k8sVersion?: string, deploymentMethod?: string): void;
 
   /** Track server stop */
   trackServerStop(uptimeSeconds: number): void;
+
+  /** Track MCP client connection */
+  trackClientConnected(mcpClient: McpClientInfo, transport: string): void;
 
   /** Flush pending events and shutdown */
   shutdown(): Promise<void>;

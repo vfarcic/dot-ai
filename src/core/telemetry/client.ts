@@ -17,7 +17,9 @@ import {
   ToolErrorEventProperties,
   ServerStartedEventProperties,
   ServerStoppedEventProperties,
-  BaseEventProperties
+  ClientConnectedEventProperties,
+  BaseEventProperties,
+  McpClientInfo
 } from './types';
 import { loadTelemetryConfig } from './config';
 
@@ -175,12 +177,16 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track tool execution
    */
-  trackToolExecution(tool: string, success: boolean, durationMs: number): void {
+  trackToolExecution(tool: string, success: boolean, durationMs: number, mcpClient?: McpClientInfo): void {
     const properties: ToolExecutedEventProperties = {
       ...this.getBaseProperties(),
       tool,
       success,
       duration_ms: durationMs,
+      ...(mcpClient && {
+        mcp_client: mcpClient.name,
+        mcp_client_version: mcpClient.version,
+      }),
     };
     this.trackEvent('tool_executed', properties);
   }
@@ -188,13 +194,30 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track tool error
    */
-  trackToolError(tool: string, errorType: string): void {
+  trackToolError(tool: string, errorType: string, mcpClient?: McpClientInfo): void {
     const properties: ToolErrorEventProperties = {
       ...this.getBaseProperties(),
       tool,
       error_type: errorType,
+      ...(mcpClient && {
+        mcp_client: mcpClient.name,
+        mcp_client_version: mcpClient.version,
+      }),
     };
     this.trackEvent('tool_error', properties);
+  }
+
+  /**
+   * Track MCP client connection
+   */
+  trackClientConnected(mcpClient: McpClientInfo, transport: string): void {
+    const properties: ClientConnectedEventProperties = {
+      ...this.getBaseProperties(),
+      mcp_client: mcpClient.name,
+      mcp_client_version: mcpClient.version,
+      transport,
+    };
+    this.trackEvent('client_connected', properties);
   }
 
   /**

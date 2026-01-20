@@ -10,8 +10,51 @@
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
-import { readFileSync } from 'fs';
+import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
+import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+
+// Track server start time for uptime calculation
+const serverStartTime = Date.now();
+
+/**
+ * Detect deployment method from environment
+ */
+function detectDeploymentMethod(): string {
+  // Check for Helm deployment (set by Helm chart)
+  if (process.env.HELM_RELEASE_NAME || process.env.HELM_CHART_NAME) {
+    return 'helm';
+  }
+
+  // Check for Kubernetes environment (service account or env vars set by k8s)
+  if (process.env.KUBERNETES_SERVICE_HOST || process.env.KUBERNETES_PORT) {
+    return 'kubernetes';
+  }
+
+  // Check for Docker container (/.dockerenv file exists in containers)
+  if (existsSync('/.dockerenv') || process.env.DOCKER_CONTAINER === 'true') {
+    return 'docker';
+  }
+
+  // Default to local development
+  return 'local';
+}
+
+/**
+ * Get Kubernetes version (non-blocking, returns undefined if unavailable)
+ */
+async function getK8sVersion(): Promise<string | undefined> {
+  try {
+    const { KubernetesDiscovery } = await import('../core/discovery.js');
+    const discovery = new KubernetesDiscovery({});
+    await discovery.connect();
+    const result = await discovery.testConnection();
+    return result.version;
+  } catch {
+    // K8s version is optional - don't fail startup
+    return undefined;
+  }
+}
 
 async function main() {
   try {
@@ -103,20 +146,31 @@ async function main() {
     await mcpServer.start();
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
-    // Handle graceful shutdown
-    process.on('SIGINT', async () => {
-      process.stderr.write('Shutting down DevOps AI Toolkit MCP server...\n');
-      await mcpServer.stop();
-      await shutdownTracer();
-      process.exit(0);
+    // Track server start telemetry (non-blocking)
+    const deploymentMethod = detectDeploymentMethod();
+    getK8sVersion().then((k8sVersion) => {
+      getTelemetry().trackServerStart(k8sVersion, deploymentMethod);
     });
 
-    process.on('SIGTERM', async () => {
-      process.stderr.write('Shutting down DevOps AI Toolkit MCP server...\n');
+    // Handle graceful shutdown
+    const gracefulShutdown = async (signal: string) => {
+      process.stderr.write(`Shutting down DevOps AI Toolkit MCP server (${signal})...\n`);
+
+      // Track server stop telemetry
+      const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
+      getTelemetry().trackServerStop(uptimeSeconds);
+
       await mcpServer.stop();
       await shutdownTracer();
+
+      // Flush telemetry events before exit
+      await shutdownTelemetry();
+
       process.exit(0);
-    });
+    };
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // Keep the process alive for HTTP transport
     if (transportType === 'http') {

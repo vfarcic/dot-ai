@@ -195,6 +195,38 @@ describe('Telemetry Service', () => {
     expect(() => telemetry.trackServerStart('1.29.0', 'helm')).not.toThrow();
     expect(() => telemetry.trackServerStop(3600)).not.toThrow();
   });
+
+  it('should have trackClientConnected method', async () => {
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+    const telemetry = getTelemetry();
+
+    expect(typeof telemetry.trackClientConnected).toBe('function');
+  });
+
+  it('should not throw when tracking client connection with telemetry disabled', async () => {
+    process.env.DOT_AI_TELEMETRY = 'false';
+
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+    const telemetry = getTelemetry();
+
+    expect(() => telemetry.trackClientConnected({ name: 'test-client', version: '1.0.0' }, 'stdio')).not.toThrow();
+  });
+
+  it('should accept MCP client info in trackToolExecution', async () => {
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+    const telemetry = getTelemetry();
+
+    // Should not throw when passing MCP client info
+    expect(() => telemetry.trackToolExecution('test-tool', true, 100, { name: 'claude-code', version: '1.0.0' })).not.toThrow();
+  });
+
+  it('should accept MCP client info in trackToolError', async () => {
+    const { getTelemetry } = await import('../../../../src/core/telemetry/client');
+    const telemetry = getTelemetry();
+
+    // Should not throw when passing MCP client info
+    expect(() => telemetry.trackToolError('test-tool', 'TestError', { name: 'cursor', version: '2.0.0' })).not.toThrow();
+  });
 });
 
 describe('Tool Tracing with Telemetry', () => {
@@ -242,5 +274,39 @@ describe('Tool Tracing with Telemetry', () => {
     const result = await withToolTracing('test-tool', {}, mockHandler);
 
     expect(result).toEqual({ data: 'test' });
+  });
+
+  it('should pass MCP client info to telemetry via options', async () => {
+    const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+
+    const mockHandler = vi.fn().mockResolvedValue({ success: true });
+    const mcpClient = { name: 'claude-code', version: '1.0.0' };
+
+    const result = await withToolTracing('test-tool', { arg: 'value' }, mockHandler, { mcpClient });
+
+    expect(result).toEqual({ success: true });
+    expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
+  });
+
+  it('should work without MCP client info (undefined options)', async () => {
+    const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+
+    const mockHandler = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await withToolTracing('test-tool', { arg: 'value' }, mockHandler, undefined);
+
+    expect(result).toEqual({ success: true });
+    expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
+  });
+
+  it('should work with empty options object', async () => {
+    const { withToolTracing } = await import('../../../../src/core/tracing/tool-tracing');
+
+    const mockHandler = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await withToolTracing('test-tool', { arg: 'value' }, mockHandler, {});
+
+    expect(result).toEqual({ success: true });
+    expect(mockHandler).toHaveBeenCalledWith({ arg: 'value' });
   });
 });

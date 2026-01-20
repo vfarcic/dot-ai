@@ -51,10 +51,11 @@ After successful implementation in dot-ai MCP, extend the same telemetry pattern
 
 | Event | Properties | Purpose |
 |-------|------------|---------|
-| `tool_executed` | tool name, success, duration_ms, ai_provider | Feature usage |
-| `tool_error` | tool name, error_type (not message) | Pain points |
-| `server_started` | k8s_version, dot_ai_version, ai_provider | Environment context |
+| `tool_executed` | tool name, success, duration_ms, ai_provider, mcp_client | Feature usage |
+| `tool_error` | tool name, error_type (not message), mcp_client | Pain points |
+| `server_started` | k8s_version, dot_ai_version, ai_provider, deployment_method | Environment context |
 | `server_stopped` | uptime_seconds | Session duration |
+| `client_connected` | mcp_client, mcp_client_version, transport | Agent tracking |
 
 ### What We Will NOT Track
 
@@ -99,13 +100,12 @@ telemetry:
 
 - [x] **M1: PostHog integration foundation** - Create telemetry module with PostHog SDK, instance ID generation, and opt-out support
 - [x] **M2: Tool execution tracking** - Instrument tool tracing wrapper to capture tool invocations with success/error status for both MCP and HTTP
-- [ ] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
+- [x] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
 - [ ] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
 - [ ] **M5: Documentation and transparency** - Document what's collected, add privacy notice to README, update CHANGELOG
-- [ ] **M6: Integration tests** - Verify telemetry events are sent correctly and opt-out works
-- [ ] **M7: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
-- [ ] **M8: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
-- [ ] **M9: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
+- [ ] **M6: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
+- [ ] **M7: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
+- [ ] **M8: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
 
 ## Dependencies
 
@@ -130,6 +130,12 @@ telemetry:
 
 PostHog chosen for: generous free tier, no infrastructure to manage, privacy features built-in, good SDK.
 
+## Design Decisions
+
+| Date | Decision | Rationale | Impact |
+|------|----------|-----------|--------|
+| 2026-01-20 | No integration tests for PostHog telemetry | Telemetry is fire-and-forget analytics with no business logic dependencies. Unit tests with mocked PostHog SDK are sufficient to verify correct payloads and opt-out behavior. Integration tests would add complexity (mock PostHog server, subprocess management) with minimal additional confidence. | Removed M6 (integration tests milestone). Unit tests in `tests/unit/core/telemetry/` provide coverage for configuration, opt-out, and event payload structure. |
+
 ## Progress Log
 
 | Date | Update |
@@ -137,6 +143,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | 2026-01-11 | PRD created |
 | 2026-01-20 | M1 complete: Created telemetry module with PostHog SDK, instance ID generation from cluster UID, opt-out support. Added M9 for website visualization. Disabled telemetry in test cluster. |
 | 2026-01-20 | M2 complete: Added telemetry to `withToolTracing` wrapper (`src/core/tracing/tool-tracing.ts`) - covers both MCP and HTTP transports. Unit tests added (19 tests). Verified events appearing in PostHog Activity. |
+| 2026-01-20 | M3 complete: Added server lifecycle events (`server_started`, `server_stopped`) with k8s_version, deployment_method, uptime tracking. Added bonus `client_connected` event to track MCP agent (Claude Code, Cursor, etc.). Enhanced `tool_executed`/`tool_error` with `mcp_client` attribution. 26 unit tests passing. |
 
 ---
 
@@ -152,7 +159,9 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
     "success": true,
     "duration_ms": 1250,
     "ai_provider": "anthropic",
-    "dot_ai_version": "0.190.0"
+    "dot_ai_version": "0.190.0",
+    "mcp_client": "claude-code",
+    "mcp_client_version": "1.0.0"
   }
 }
 ```
@@ -179,6 +188,23 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
   "properties": {
     "tool": "deploy-manifests",
     "error_type": "KubernetesAPIError",
+    "dot_ai_version": "0.190.0",
+    "mcp_client": "cursor",
+    "mcp_client_version": "0.45.0"
+  }
+}
+```
+
+### Client Connected Event
+```json
+{
+  "event": "client_connected",
+  "distinctId": "sha256:abc123...",
+  "properties": {
+    "mcp_client": "claude-code",
+    "mcp_client_version": "1.0.0",
+    "transport": "stdio",
+    "ai_provider": "anthropic",
     "dot_ai_version": "0.190.0"
   }
 }
