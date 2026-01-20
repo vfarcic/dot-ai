@@ -1,7 +1,7 @@
 # PRD #329: Add PostHog Telemetry for Usage Analytics
 
 **GitHub Issue**: [#329](https://github.com/vfarcic/dot-ai/issues/329)
-**Status**: Draft
+**Status**: Complete
 **Priority**: Medium
 **Created**: 2026-01-11
 
@@ -104,8 +104,8 @@ telemetry:
 - [x] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
 - [x] **M5: Documentation and transparency** - Document what's collected, add privacy notice to README, update CHANGELOG
 - [x] **M6: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
-- [ ] **M7: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
-- [ ] **M8: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
+- [~] **M7: Extend to other dot-ai projects** - Not needed: controller and UI are clients of MCP/HTTP server, their usage is already captured
+- [x] **M8: Website telemetry visualization PRD** - Create PRD in dot-ai-website repo to visualize PostHog data publicly on the project website
 
 ## Dependencies
 
@@ -136,6 +136,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 |------|----------|-----------|--------|
 | 2026-01-20 | No integration tests for PostHog telemetry | Telemetry is fire-and-forget analytics with no business logic dependencies. Unit tests with mocked PostHog SDK are sufficient to verify correct payloads and opt-out behavior. Integration tests would add complexity (mock PostHog server, subprocess management) with minimal additional confidence. | Removed M6 (integration tests milestone). Unit tests in `tests/unit/core/telemetry/` provide coverage for configuration, opt-out, and event payload structure. |
 | 2026-01-20 | Use extraEnv for Helm telemetry config | Telemetry has sensible defaults baked in (enabled=true, PostHog key/host). Adding a dedicated `telemetry` section to values.yaml adds complexity without benefit. Users can customize via existing `extraEnv` mechanism which is well-understood. | Simpler values.yaml. No template changes needed. Documented env vars (`DOT_AI_TELEMETRY`, `DOT_AI_POSTHOG_HOST`) in extraEnv comments. |
+| 2026-01-20 | Skip extending telemetry to other dot-ai projects | dot-ai-controller and dot-ai-ui are clients of the MCP/HTTP server. Their tool usage is already captured by MCP server telemetry (`mcp_client: "http"` for REST calls). Adding separate telemetry to these projects would only capture internal behavior (reconciliation loops, page views) which isn't needed for product decisions. | M7 marked as not needed. Reduces complexity and maintenance burden across projects. |
 
 ## Progress Log
 
@@ -149,6 +150,8 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | 2026-01-20 | M4 complete: Helm chart telemetry configuration via `extraEnv` mechanism. Added documented examples for `DOT_AI_TELEMETRY` and `DOT_AI_POSTHOG_HOST` in values.yaml comments. Verified with `helm template`. |
 | 2026-01-20 | M5 complete: Added Telemetry section to README with link to docs site. Created `docs/guides/telemetry-guide.md` with full transparency (what's collected, what's NOT, opt-out, self-hosted option). Created changelog fragment. Requested dot-ai-website to publish the guide. |
 | 2026-01-20 | M6 complete: Created PostHog dashboard "dot-ai MCP Usage Analytics" with insights: Tool Usage Distribution (bar chart), Tool Error Rate (table), AI Provider Distribution (pie), MCP Client Distribution (pie), Kubernetes Versions (table), Daily Active Instances (line), Tool Execution Duration (line), Session Duration (bar), Events Over Time (stacked area). Configured `is_internal` filter to exclude CI/test traffic. |
+| 2026-01-20 | M7 deferred: Controller and UI are clients of MCP/HTTP server - their usage is already captured by existing telemetry. No need for separate telemetry packages. |
+| 2026-01-20 | M8 complete: Created PRD #5 in dot-ai-website repo for public telemetry dashboard visualization. PRD defines 6 milestones for displaying aggregated usage metrics on the project website. |
 
 ---
 
