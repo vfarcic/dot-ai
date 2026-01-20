@@ -8,6 +8,7 @@
  */
 
 import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
+import { getTelemetry } from '../telemetry';
 
 /**
  * Wraps a tool handler with OpenTelemetry tracing
@@ -54,8 +55,8 @@ export async function withToolTracing<T>(
   // Execute handler within active span context
   // This ensures any child spans (AI calls, K8s operations) become children of this span
   return await context.with(trace.setSpan(context.active(), span), async () => {
+    const startTime = Date.now();
     try {
-      const startTime = Date.now();
       const result = await handler(args);
       const duration = Date.now() - startTime;
 
@@ -66,14 +67,24 @@ export async function withToolTracing<T>(
       });
       span.setStatus({ code: SpanStatusCode.OK });
 
+      // Track telemetry (fire-and-forget, async)
+      getTelemetry().trackToolExecution(toolName, true, duration);
+
       return result;
     } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorType = (error as Error).constructor?.name || 'Error';
+
       // Record error details without disrupting original error flow
       span.recordException(error as Error);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: (error as Error).message,
       });
+
+      // Track telemetry for failed execution (fire-and-forget, async)
+      getTelemetry().trackToolExecution(toolName, false, duration);
+      getTelemetry().trackToolError(toolName, errorType);
 
       // Re-throw to preserve original error handling behavior
       throw error;

@@ -72,7 +72,7 @@ Generate a stable anonymous instance ID using a hash of:
 
 ### Integration Points
 
-1. **REST API router** (`src/interfaces/rest-api.ts`): Capture tool executions
+1. **Tool tracing wrapper** (`src/core/tracing/tool-tracing.ts`): Capture tool executions for both MCP and HTTP
 2. **MCP server startup** (`src/mcp/server.ts`): Server lifecycle events
 3. **Error handling** (`src/core/error-handling.ts`): Error type tracking
 4. **New telemetry module** (`src/core/telemetry/`): Centralized telemetry logic
@@ -98,7 +98,7 @@ telemetry:
 ## Implementation Milestones
 
 - [x] **M1: PostHog integration foundation** - Create telemetry module with PostHog SDK, instance ID generation, and opt-out support
-- [ ] **M2: Tool execution tracking** - Instrument REST API router to capture tool invocations with success/error status
+- [x] **M2: Tool execution tracking** - Instrument tool tracing wrapper to capture tool invocations with success/error status for both MCP and HTTP
 - [ ] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
 - [ ] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
 - [ ] **M5: Documentation and transparency** - Document what's collected, add privacy notice to README, update CHANGELOG
@@ -136,6 +136,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 |------|--------|
 | 2026-01-11 | PRD created |
 | 2026-01-20 | M1 complete: Created telemetry module with PostHog SDK, instance ID generation from cluster UID, opt-out support. Added M9 for website visualization. Disabled telemetry in test cluster. |
+| 2026-01-20 | M2 complete: Added telemetry to `withToolTracing` wrapper (`src/core/tracing/tool-tracing.ts`) - covers both MCP and HTTP transports. Unit tests added (19 tests). Verified events appearing in PostHog Activity. |
 
 ---
 
