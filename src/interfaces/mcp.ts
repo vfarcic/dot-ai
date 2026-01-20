@@ -69,6 +69,7 @@ import { checkBearerAuth } from './auth';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
+import { getTelemetry, McpClientInfo } from '../core/telemetry';
 
 export interface MCPServerConfig {
   name: string;
@@ -92,6 +93,7 @@ export class MCPServer {
   private httpTransport?: StreamableHTTPServerTransport;
   private restRegistry: RestToolRegistry;
   private restApiRouter: RestApiRouter;
+  private mcpClientInfo: McpClientInfo | undefined;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
@@ -111,6 +113,24 @@ export class MCPServer {
         },
       }
     );
+
+    // Set up telemetry tracking for client connection
+    // oninitialized fires when the MCP client has completed initialization handshake
+    this.server.server.oninitialized = () => {
+      const clientVersion = this.server.server.getClientVersion();
+      if (clientVersion) {
+        this.mcpClientInfo = {
+          name: clientVersion.name,
+          version: clientVersion.version,
+        };
+        const transportType = process.env.TRANSPORT_TYPE || this.config.transport || 'stdio';
+        getTelemetry().trackClientConnected(this.mcpClientInfo, transportType);
+        this.logger.info('MCP client connected', {
+          client: clientVersion.name,
+          version: clientVersion.version,
+        });
+      }
+    };
 
     // Configure HostProvider if active
     this.configureHostProvider();
@@ -135,6 +155,13 @@ export class MCPServer {
   }
 
   /**
+   * Get the current MCP client info (available after client connects)
+   */
+  getMcpClientInfo(): McpClientInfo | undefined {
+    return this.mcpClientInfo;
+  }
+
+  /**
    * Helper method to register a tool with both MCP server and REST registry
    */
   private registerTool(
@@ -145,23 +172,28 @@ export class MCPServer {
     category?: string,
     tags?: string[]
   ): void {
-    // Wrap handler with tracing for both STDIO (MCP) and HTTP (REST) transports
-    const tracedHandler = async (args: any) => {
-      return await withToolTracing(name, args, handler);
+    // MCP handler: uses actual client info from MCP handshake (e.g., "claude-code", "cursor")
+    const mcpTracedHandler = async (args: any) => {
+      return await withToolTracing(name, args, handler, { mcpClient: this.mcpClientInfo });
     };
 
-    // Register traced handler with MCP server
+    // REST handler: uses "http" as client identifier for REST API calls
+    const restTracedHandler = async (args: any) => {
+      return await withToolTracing(name, args, handler, { mcpClient: { name: 'http', version: 'rest-api' } });
+    };
+
+    // Register MCP handler with MCP server
     this.server.registerTool(name, {
       description,
       inputSchema
-    }, tracedHandler);
+    }, mcpTracedHandler);
 
-    // Register traced handler with REST registry
+    // Register REST handler with REST registry
     this.restRegistry.registerTool({
       name,
       description,
       inputSchema,
-      handler: tracedHandler,
+      handler: restTracedHandler,
       category,
       tags
     });

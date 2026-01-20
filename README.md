@@ -76,6 +76,10 @@ We welcome contributions from the community! Please review:
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+## Telemetry
+
+This project collects anonymous usage analytics to improve the product. [Learn more or opt out](https://devopstoolkit.ai/docs/mcp/guides/telemetry-guide/).
+
 ## Acknowledgments
 
 DevOps AI Toolkit is built on:
