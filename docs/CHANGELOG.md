@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [0.194.0] - 2026-01-20
+
+No significant changes.
+
+
 ## [0.193.0] - 2026-01-16
 
 ### Features
