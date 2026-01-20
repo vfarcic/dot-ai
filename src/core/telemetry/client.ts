@@ -40,7 +40,7 @@ async function generateInstanceId(): Promise<string> {
     kc.loadFromDefault();
     const coreApi = kc.makeApiClient(k8s.CoreV1Api);
 
-    const response = await coreApi.readNamespace('kube-system');
+    const response = await coreApi.readNamespace({ name: 'kube-system' });
     const namespaceUid = response.metadata?.uid;
 
     if (namespaceUid) {
