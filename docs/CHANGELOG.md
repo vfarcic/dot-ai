@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.194.0] - 2026-01-20
 
-No significant changes.
+### Features
+
+- **PostHog Telemetry for Usage Analytics**
+
+  Anonymous usage telemetry helps improve dot-ai by tracking which tools are used, what errors occur, and which AI providers are popular. No personally identifiable information, queries, or cluster data is collected.
+
+  Telemetry is enabled by default. Set `DOT_AI_TELEMETRY=false` to opt out. See the [Telemetry Guide](https://devopstoolkit.ai/docs/mcp/guides/telemetry-guide/) for full details on what's collected and privacy controls. ([#329](https://github.com/vfarcic/dot-ai/issues/329))
 
 
 ## [0.193.0] - 2026-01-16

@@ -40,6 +40,10 @@ Choose the type that best matches the PRD based on those descriptions.
 
 Create file: `changelog.d/[issue-id].[type].md`
 
+**IMPORTANT: Use flat structure, NOT subdirectories!**
+- ✅ Correct: `changelog.d/329.feature.md`
+- ❌ Wrong: `changelog.d/feature/329.md`
+
 **Naming convention:**
 - `issue-id`: GitHub issue number from PRD (e.g., `320`)
 - `type`: Type identifier from step 3 (e.g., `feature`, `bugfix`, `misc`)
