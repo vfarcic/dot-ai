@@ -144,6 +144,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | 2026-01-20 | M1 complete: Created telemetry module with PostHog SDK, instance ID generation from cluster UID, opt-out support. Added M9 for website visualization. Disabled telemetry in test cluster. |
 | 2026-01-20 | M2 complete: Added telemetry to `withToolTracing` wrapper (`src/core/tracing/tool-tracing.ts`) - covers both MCP and HTTP transports. Unit tests added (19 tests). Verified events appearing in PostHog Activity. |
 | 2026-01-20 | M3 complete: Added server lifecycle events (`server_started`, `server_stopped`) with k8s_version, deployment_method, uptime tracking. Added bonus `client_connected` event to track MCP agent (Claude Code, Cursor, etc.). Enhanced `tool_executed`/`tool_error` with `mcp_client` attribution. 26 unit tests passing. |
+| 2026-01-20 | M3 enhancements: Added `is_internal` flag (detects CI/test environments for PostHog filtering). Made telemetry configurable in integration tests (`DOT_AI_TELEMETRY` env var). REST API calls now show `mcp_client: "http"` to distinguish from MCP clients. Verified with integration tests. |
 
 ---
 
