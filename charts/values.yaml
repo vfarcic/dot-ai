@@ -187,14 +187,21 @@ webUI:
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
-# Example use cases: tracing configuration, custom integrations, feature flags
+# Example use cases: tracing configuration, custom integrations, feature flags, telemetry
 extraEnv: []
+  # OpenTelemetry tracing:
   # - name: OTEL_TRACING_ENABLED
   #   value: "true"
   # - name: OTEL_EXPORTER_OTLP_ENDPOINT
   #   value: "http://jaeger-collector:4318/v1/traces"
   # - name: OTEL_SERVICE_NAME
   #   value: "dot-ai-mcp-production"
+  #
+  # Telemetry (PRD #329): Anonymous usage analytics, enabled by default
+  # - name: DOT_AI_TELEMETRY
+  #   value: "false"                   # Set to "false" to disable telemetry
+  # - name: DOT_AI_POSTHOG_HOST
+  #   value: "https://your-posthog.example.com"  # Self-hosted PostHog (optional)
 
 # Qdrant Vector Database
 qdrant:
