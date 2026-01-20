@@ -172,24 +172,28 @@ export class MCPServer {
     category?: string,
     tags?: string[]
   ): void {
-    // Wrap handler with tracing for both STDIO (MCP) and HTTP (REST) transports
-    // Note: mcpClientInfo is captured at connection time via oninitialized callback
-    const tracedHandler = async (args: any) => {
+    // MCP handler: uses actual client info from MCP handshake (e.g., "claude-code", "cursor")
+    const mcpTracedHandler = async (args: any) => {
       return await withToolTracing(name, args, handler, { mcpClient: this.mcpClientInfo });
     };
 
-    // Register traced handler with MCP server
+    // REST handler: uses "http" as client identifier for REST API calls
+    const restTracedHandler = async (args: any) => {
+      return await withToolTracing(name, args, handler, { mcpClient: { name: 'http', version: 'rest-api' } });
+    };
+
+    // Register MCP handler with MCP server
     this.server.registerTool(name, {
       description,
       inputSchema
-    }, tracedHandler);
+    }, mcpTracedHandler);
 
-    // Register traced handler with REST registry
+    // Register REST handler with REST registry
     this.restRegistry.registerTool({
       name,
       description,
       inputSchema,
-      handler: tracedHandler,
+      handler: restTracedHandler,
       category,
       tags
     });
