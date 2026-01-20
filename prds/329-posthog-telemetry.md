@@ -101,7 +101,7 @@ telemetry:
 - [x] **M1: PostHog integration foundation** - Create telemetry module with PostHog SDK, instance ID generation, and opt-out support
 - [x] **M2: Tool execution tracking** - Instrument tool tracing wrapper to capture tool invocations with success/error status for both MCP and HTTP
 - [x] **M3: Server lifecycle events** - Track server start/stop with environment context (k8s version, ai provider)
-- [ ] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
+- [x] **M4: Helm chart configuration** - Add telemetry configuration to Helm values with sensible defaults
 - [ ] **M5: Documentation and transparency** - Document what's collected, add privacy notice to README, update CHANGELOG
 - [ ] **M6: PostHog dashboard setup** - Create dashboard with key metrics (tool usage, errors, providers)
 - [ ] **M7: Extend to other dot-ai projects** - Create reusable telemetry package, integrate into dot-ai-controller, dot-ai-ui
@@ -135,6 +135,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | Date | Decision | Rationale | Impact |
 |------|----------|-----------|--------|
 | 2026-01-20 | No integration tests for PostHog telemetry | Telemetry is fire-and-forget analytics with no business logic dependencies. Unit tests with mocked PostHog SDK are sufficient to verify correct payloads and opt-out behavior. Integration tests would add complexity (mock PostHog server, subprocess management) with minimal additional confidence. | Removed M6 (integration tests milestone). Unit tests in `tests/unit/core/telemetry/` provide coverage for configuration, opt-out, and event payload structure. |
+| 2026-01-20 | Use extraEnv for Helm telemetry config | Telemetry has sensible defaults baked in (enabled=true, PostHog key/host). Adding a dedicated `telemetry` section to values.yaml adds complexity without benefit. Users can customize via existing `extraEnv` mechanism which is well-understood. | Simpler values.yaml. No template changes needed. Documented env vars (`DOT_AI_TELEMETRY`, `DOT_AI_POSTHOG_HOST`) in extraEnv comments. |
 
 ## Progress Log
 
@@ -145,6 +146,7 @@ PostHog chosen for: generous free tier, no infrastructure to manage, privacy fea
 | 2026-01-20 | M2 complete: Added telemetry to `withToolTracing` wrapper (`src/core/tracing/tool-tracing.ts`) - covers both MCP and HTTP transports. Unit tests added (19 tests). Verified events appearing in PostHog Activity. |
 | 2026-01-20 | M3 complete: Added server lifecycle events (`server_started`, `server_stopped`) with k8s_version, deployment_method, uptime tracking. Added bonus `client_connected` event to track MCP agent (Claude Code, Cursor, etc.). Enhanced `tool_executed`/`tool_error` with `mcp_client` attribution. 26 unit tests passing. |
 | 2026-01-20 | M3 enhancements: Added `is_internal` flag (detects CI/test environments for PostHog filtering). Made telemetry configurable in integration tests (`DOT_AI_TELEMETRY` env var). REST API calls now show `mcp_client: "http"` to distinguish from MCP clients. Verified with integration tests. |
+| 2026-01-20 | M4 complete: Helm chart telemetry configuration via `extraEnv` mechanism. Added documented examples for `DOT_AI_TELEMETRY` and `DOT_AI_POSTHOG_HOST` in values.yaml comments. Verified with `helm template`. |
 
 ---
 
