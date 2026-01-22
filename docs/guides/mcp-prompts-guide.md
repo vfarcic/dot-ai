@@ -177,6 +177,12 @@ The prompt content executes exactly as if it were a local command file, but with
 
 ### Workflow 2: Containerization
 
+#### Video: Production Dockerfile Generation
+
+[![My Production Dockerfile Rules: How I Build Docker Images](https://img.youtube.com/vi/ueTe-VQaD7c/maxresdefault.jpg)](https://youtu.be/ueTe-VQaD7c)
+
+This video demonstrates how to use the `generate-dockerfile` prompt to create production-ready, secure, multi-stage Dockerfiles. Watch how the prompt analyzes your project structure and generates optimized Docker configurations following best practices.
+
 - **Containerize project**: Use `generate-dockerfile` prompt to create production-ready Docker configuration
   1. Project structure analyzed (language, framework, dependencies)
   2. Multi-stage Dockerfile generated with security best practices
