@@ -5,6 +5,11 @@ metadata:
   name: {{ include "dot-ai.fullname" . }}
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
 spec:
   replicas: 1
   selector:
@@ -14,6 +19,11 @@ spec:
     metadata:
       labels:
         {{- include "dot-ai.selectorLabels" . | nindent 8 }}
+      {{- $podAnnotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+      {{- if $podAnnotations }}
+      annotations:
+        {{- $podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
       containers:

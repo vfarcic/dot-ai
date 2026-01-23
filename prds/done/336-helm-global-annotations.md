@@ -1,7 +1,7 @@
 # PRD: Global Annotations Support in Helm Chart
 
 **Issue**: [#336](https://github.com/vfarcic/dot-ai/issues/336)
-**Status**: Draft
+**Status**: Complete
 **Priority**: Low
 **Created**: 2026-01-21
 
@@ -207,8 +207,8 @@ The same pattern should be implemented consistently across all projects.
 
 ## Milestones
 
-- [ ] Create helper function for annotation merging in `_helpers.tpl`
-- [ ] Add `annotations: {}` to `values.yaml` with documentation comments
-- [ ] Update all templates to include global annotations
-- [ ] Add unit tests for annotation rendering (following existing `gateway-api.test.ts` pattern)
-- [ ] Update chart documentation with examples (Reloader, compliance)
+- [x] Create helper function for annotation merging in `_helpers.tpl`
+- [x] Add `annotations: {}` to `values.yaml` with documentation comments
+- [x] Update all templates to include global annotations
+- [~] ~~Add unit tests for annotation rendering~~ (deferred - not the right case to introduce Helm testing)
+- [x] Update chart documentation with examples (Reloader, compliance)

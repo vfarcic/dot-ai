@@ -14,9 +14,10 @@ metadata:
   name: {{ include "dot-ai.fullname" . }}-http
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
-  {{- with .Values.gateway.annotations }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" .Values.gateway.annotations) -}}
+  {{- if $annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- $annotations | nindent 4 }}
   {{- end }}
 spec:
   gatewayClassName: {{ .Values.gateway.className }}
