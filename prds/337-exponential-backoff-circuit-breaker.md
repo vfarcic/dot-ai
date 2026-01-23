@@ -26,9 +26,9 @@ Current issues:
 
 Implement a resilience layer with three components:
 
-1. **Exponential Backoff**: Add increasing delays between retry attempts (1s → 2s → 4s → 8s)
-2. **Circuit Breaker**: After consecutive failures, block requests for a cooldown period before allowing new attempts
-3. **Rate Limit Detection**: Specifically detect 429/quota errors and apply appropriate backoff strategies
+1. **Exponential Backoff**: Leverage Vercel AI SDK's built-in retry with backoff (configurable via `maxRetries`). SDK provides 2 retries with 2s base delay and 2x multiplier by default, and automatically respects `Retry-After` headers.
+2. **Circuit Breaker**: After consecutive failures, block requests for a cooldown period before allowing new attempts. This prevents cascading failures when SDK retries are exhausted.
+3. **Rate Limit Detection**: Specifically detect 429/quota errors to inform circuit breaker behavior and enable smarter failure handling.
 
 ## Technical Context
 
@@ -44,9 +44,10 @@ Implement a resilience layer with three components:
 ### Files to Modify
 
 - **New**: `src/core/circuit-breaker.ts` - Circuit breaker implementation
-- **Modify**: `src/core/error-handling.ts` - Add exponential backoff to `withErrorHandling()`
-- **Modify**: `src/core/embedding-service.ts` - Wrap with retry + circuit breaker
+- **New**: `src/core/rate-limit-detector.ts` - Rate limit detection for circuit breaker
+- **Modify**: `src/core/embedding-service.ts` - Wrap with circuit breaker (SDK handles retry internally)
 - **Modify**: `src/core/providers/vercel-provider.ts` - Add provider-level circuit breaker
+- **Note**: Vercel SDK handles retry/backoff internally via `maxRetries` config in `generateText()`, `embed()`
 
 ## Success Criteria
 
@@ -79,12 +80,12 @@ Implement a resilience layer with three components:
 ## Milestones
 
 - [x] **Milestone 1**: Create circuit breaker module with open/half-open/closed states
-- [x] **Milestone 2**: Add exponential backoff to ErrorHandler retry logic
-- [ ] **Milestone 3**: Implement rate limit detection (429 status, quota error messages)
+- [~] **Milestone 2**: ~~Add exponential backoff to ErrorHandler retry logic~~ (Reverted - Vercel SDK provides built-in retry)
+- [ ] **Milestone 3**: Implement rate limit detection (429 status, quota error messages) for circuit breaker
 - [ ] **Milestone 4**: Integrate circuit breaker with embedding service
 - [ ] **Milestone 5**: Integrate circuit breaker with Vercel AI provider layer
 - [ ] **Milestone 6**: Add configuration options (env vars for thresholds, delays)
-- [ ] **Milestone 7**: Integration tests for retry, backoff, and circuit breaker scenarios
+- [ ] **Milestone 7**: Integration tests for circuit breaker scenarios
 - [ ] **Milestone 8**: Documentation for configuration and behavior
 
 ---
@@ -93,7 +94,8 @@ Implement a resilience layer with three components:
 
 | Date | Update |
 |------|--------|
-| 2025-01-23 | Milestone 2 complete: Added exponential backoff to ErrorHandler.withErrorHandling() with BackoffConfig interface, 15 unit tests passing |
+| 2025-01-23 | Design pivot: Reverting Milestone 2 (ErrorHandler backoff) - Vercel SDK provides built-in retry with backoff. Circuit breaker (Milestone 1) retained as it provides unique value SDK lacks. |
+| 2025-01-23 | Milestone 2 implemented then reverted: Added exponential backoff to ErrorHandler but found Vercel SDK already provides this |
 | 2025-01-23 | Milestone 1 complete: Created circuit breaker module with state machine, unit tests (37 passing), exported from core |
 | 2025-01-21 | PRD created based on issue #334 analysis |
 
@@ -104,8 +106,11 @@ Implement a resilience layer with three components:
 | Decision | Date | Rationale |
 |----------|------|-----------|
 | Per-instance circuit breaker | 2025-01-21 | Multi-instance coordination adds complexity; per-instance is sufficient for most deployments |
-| Exponential backoff 1s base | 2025-01-21 | Balances quick recovery with API protection; 1s → 2s → 4s → 8s provides reasonable progression |
+| ~~Exponential backoff 1s base~~ | 2025-01-21 | ~~Balances quick recovery with API protection~~ → Superseded by SDK built-in |
 | Circuit breaker 30-60s cooldown | 2025-01-21 | Matches typical rate limit reset windows; configurable for different providers |
+| Use Vercel SDK built-in retry | 2025-01-23 | SDK already has exponential backoff (2s base, 2x multiplier), `Retry-After` support; avoids redundant double-retry |
+| Revert ErrorHandler backoff | 2025-01-23 | Redundant with SDK; only circuit breaker provides unique value not in SDK |
+| Circuit breaker wraps SDK calls | 2025-01-23 | Circuit breaker prevents cascading failures across requests; SDK handles individual call retry internally |
 
 ---
 
@@ -113,5 +118,5 @@ Implement a resilience layer with three components:
 
 1. Should circuit breaker state be shared via Redis for multi-instance deployments?
 2. What are the specific rate limit windows for each supported provider (OpenAI, Anthropic, Google)?
-3. Should we parse `Retry-After` headers when available?
+3. ~~Should we parse `Retry-After` headers when available?~~ → **Resolved**: Vercel SDK automatically parses and respects `Retry-After` and `Retry-After-Ms` headers
 4. Should circuit breaker metrics be exposed via OpenTelemetry?
