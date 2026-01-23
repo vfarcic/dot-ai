@@ -222,6 +222,7 @@ export class VectorDBService {
         if (process.env.DEBUG_DOT_AI) {
           console.debug(`Collection ${this.collectionName} already exists, skipping creation`);
         }
+        await this.ensureTextIndex();
         return;
       }
       throw error;
@@ -370,6 +371,10 @@ export class VectorDBService {
     }
 
     const limit = options.limit || 10;
+
+    if (keywords.length === 0) {
+      return [];
+    }
 
     return withQdrantTracing(
       {
