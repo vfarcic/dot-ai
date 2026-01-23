@@ -9,7 +9,19 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed } from 'ai';
+import { CircuitBreaker, CircuitBreakerStats, CircuitOpenError } from './circuit-breaker';
 import { withAITracing } from './tracing';
+
+/**
+ * Module-level circuit breaker for embedding API calls.
+ * Shared across all EmbeddingService instances since they hit the same API.
+ * Opens after 3 consecutive failures, blocks for 30s before testing recovery.
+ */
+const embeddingCircuitBreaker = new CircuitBreaker('embedding-api', {
+  failureThreshold: 3,      // Open after 3 consecutive failures
+  cooldownPeriodMs: 30000,  // 30s cooldown before half-open
+  halfOpenMaxAttempts: 1    // Allow 1 test request in half-open
+});
 
 /**
  * Supported embedding providers - single source of truth
@@ -126,24 +138,31 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       },
       async () => {
         try {
-          const embedOptions: any = {
-            model: this.modelInstance,
-            value: text.trim()
-          };
-
-          // Add Google-specific options
-          if (this.providerType === 'google') {
-            embedOptions.providerOptions = {
-              google: {
-                outputDimensionality: this.dimensions,
-                taskType: 'SEMANTIC_SIMILARITY'
-              }
+          // Execute through circuit breaker to prevent cascading failures
+          return await embeddingCircuitBreaker.execute(async () => {
+            const embedOptions: any = {
+              model: this.modelInstance,
+              value: text.trim()
             };
-          }
 
-          const result = await embed(embedOptions);
-          return result.embedding;
+            // Add Google-specific options
+            if (this.providerType === 'google') {
+              embedOptions.providerOptions = {
+                google: {
+                  outputDimensionality: this.dimensions,
+                  taskType: 'SEMANTIC_SIMILARITY'
+                }
+              };
+            }
+
+            const result = await embed(embedOptions);
+            return result.embedding;
+          });
         } catch (error) {
+          // Convert CircuitOpenError to descriptive message
+          if (error instanceof CircuitOpenError) {
+            throw new Error(`Embedding API circuit open: ${error.message}`);
+          }
           if (error instanceof Error) {
             throw new Error(`${this.providerType} embedding failed: ${error.message}`);
           }
@@ -183,29 +202,36 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       },
       async () => {
         try {
-          const results = await Promise.all(
-            validTexts.map(text => {
-              const embedOptions: any = {
-                model: this.modelInstance,
-                value: text
-              };
-
-              // Add Google-specific options
-              if (this.providerType === 'google') {
-                embedOptions.providerOptions = {
-                  google: {
-                    outputDimensionality: this.dimensions,
-                    taskType: 'SEMANTIC_SIMILARITY'
-                  }
+          // Execute through circuit breaker to prevent cascading failures
+          return await embeddingCircuitBreaker.execute(async () => {
+            const results = await Promise.all(
+              validTexts.map(text => {
+                const embedOptions: any = {
+                  model: this.modelInstance,
+                  value: text
                 };
-              }
 
-              return embed(embedOptions);
-            })
-          );
+                // Add Google-specific options
+                if (this.providerType === 'google') {
+                  embedOptions.providerOptions = {
+                    google: {
+                      outputDimensionality: this.dimensions,
+                      taskType: 'SEMANTIC_SIMILARITY'
+                    }
+                  };
+                }
 
-          return results.map(result => result.embedding);
+                return embed(embedOptions);
+              })
+            );
+
+            return results.map(result => result.embedding);
+          });
         } catch (error) {
+          // Convert CircuitOpenError to descriptive message
+          if (error instanceof CircuitOpenError) {
+            throw new Error(`Embedding API circuit open: ${error.message}`);
+          }
           if (error instanceof Error) {
             throw new Error(`${this.providerType} batch embedding failed: ${error.message}`);
           }
@@ -374,5 +400,13 @@ export class EmbeddingService {
       // Include resource types for better semantic matching
       ...pattern.suggestedResources.map(r => `kubernetes ${r.toLowerCase()}`)
     ].join(' ').trim();
+  }
+
+  /**
+   * Get circuit breaker statistics for monitoring
+   * Returns null if embedding service is not available
+   */
+  getCircuitBreakerStats(): CircuitBreakerStats | null {
+    return embeddingCircuitBreaker.getStats();
   }
 }
