@@ -13,9 +13,7 @@ import mermaid from 'mermaid';
 // Initialize mermaid with strict validation
 mermaid.initialize({
   securityLevel: 'strict',
-  startOnLoad: false,
-  // Disable rendering, we only want parsing/validation
-  suppressErrorRendering: true
+  startOnLoad: false
 });
 
 /**

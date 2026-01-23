@@ -258,10 +258,16 @@ export class VectorDBService {
         console.debug(`Created text index on searchText field for collection ${this.collectionName}`);
       }
     } catch (error) {
-      // Log but don't fail - keyword search will still work via fallback
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (process.env.DEBUG_DOT_AI) {
-        console.debug(`Failed to create text index (may already exist): ${errorMessage}`);
+      const isAlreadyExists = errorMessage.toLowerCase().includes('already exists') ||
+                              errorMessage.toLowerCase().includes('conflict');
+      if (isAlreadyExists) {
+        if (process.env.DEBUG_DOT_AI) {
+          console.debug(`Text index already exists for collection ${this.collectionName}`);
+        }
+      } else {
+        // Unexpected error - log at warn level for visibility
+        console.warn(`Failed to create text index on ${this.collectionName}: ${errorMessage}`);
       }
     }
   }
@@ -398,9 +404,22 @@ export class VectorDBService {
             should: keywordConditions
           };
 
-          // If user provided additional filters, combine with must
+          // If user provided additional filters, merge them properly
           if (options.filter) {
-            filter.must = options.filter.must || [options.filter];
+            // Merge must conditions
+            if (options.filter.must) {
+              filter.must = Array.isArray(options.filter.must)
+                ? options.filter.must
+                : [options.filter.must];
+            }
+            // Preserve must_not conditions
+            if (options.filter.must_not) {
+              filter.must_not = options.filter.must_not;
+            }
+            // If user filter has should conditions, wrap in must to AND with keyword should
+            if (options.filter.should) {
+              filter.must = [...(filter.must || []), { should: options.filter.should }];
+            }
           }
 
           // Use scroll with native Qdrant filtering - much faster than client-side
