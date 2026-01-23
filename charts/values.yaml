@@ -1,10 +1,10 @@
 # Global annotations applied to ALL Kubernetes resources
 # Use for tools like Reloader, compliance requirements, or consistent metadata
 annotations: {}
-  # Example: Reloader integration
-  # reloader.stakater.com/auto: "true"
-  # Example: Compliance/audit
-  # company.com/managed-by: "platform-team"
+# Example - uncomment and modify:
+# annotations:
+#   reloader.stakater.com/auto: "true"
+#   company.com/managed-by: "platform-team"
 
 # Deployment method configuration
 deployment:

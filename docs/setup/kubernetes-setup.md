@@ -99,7 +99,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key`, `openai-api-key`, and `auth-token` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
-- **Global annotations**: Add annotations to all Kubernetes resources using `annotations` in your values file (e.g., for [Reloader](https://github.com/stakater/Reloader) integration: `annotations.reloader\.stakater\.com/auto: "true"`).
+- **Global annotations**: Add annotations to all Kubernetes resources using `annotations` in your values file (e.g., for [Reloader](https://github.com/stakater/Reloader) integration: `reloader.stakater.com/auto: "true"`).
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](mcp-setup.md#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
 - **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../guides/mcp-prompts-guide.md#user-defined-prompts) for configuration.

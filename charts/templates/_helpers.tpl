@@ -80,7 +80,7 @@ Usage: include "dot-ai.annotations" (dict "global" .Values.annotations "local" .
 {{- define "dot-ai.annotations" -}}
 {{- $global := .global | default dict -}}
 {{- $local := .local | default dict -}}
-{{- $merged := merge $local $global -}}
+{{- $merged := merge (deepCopy $local) $global -}}
 {{- if $merged -}}
 {{- toYaml $merged -}}
 {{- end -}}
