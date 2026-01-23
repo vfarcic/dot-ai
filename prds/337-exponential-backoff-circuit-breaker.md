@@ -1,6 +1,6 @@
 # PRD 337: Exponential Backoff and Circuit Breaker for LLM API Rate Limits
 
-## Status: Draft
+## Status: In Progress
 ## Priority: Medium
 ## GitHub Issue: #337
 ## Related Issue: #334
@@ -78,7 +78,7 @@ Implement a resilience layer with three components:
 
 ## Milestones
 
-- [ ] **Milestone 1**: Create circuit breaker module with open/half-open/closed states
+- [x] **Milestone 1**: Create circuit breaker module with open/half-open/closed states
 - [ ] **Milestone 2**: Add exponential backoff to ErrorHandler retry logic
 - [ ] **Milestone 3**: Implement rate limit detection (429 status, quota error messages)
 - [ ] **Milestone 4**: Integrate circuit breaker with embedding service
@@ -93,6 +93,7 @@ Implement a resilience layer with three components:
 
 | Date | Update |
 |------|--------|
+| 2025-01-23 | Milestone 1 complete: Created circuit breaker module with state machine, unit tests (37 passing), exported from core |
 | 2025-01-21 | PRD created based on issue #334 analysis |
 
 ---
