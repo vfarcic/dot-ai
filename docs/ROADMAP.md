@@ -31,7 +31,6 @@ This roadmap is a living document and may change based on community feedback and
 ## Long-term (6-12 Months)
 
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
-- Global annotations support in Helm chart for Reloader, compliance, and audit use cases (PRD #336)
 
 
 ## How to Contribute
