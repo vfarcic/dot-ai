@@ -47,8 +47,8 @@ class QdrantSemaphore {
   }
 }
 
-// Limit to 20 concurrent Qdrant operations
-const qdrantSemaphore = new QdrantSemaphore(20);
+// Limit concurrent Qdrant bulk operations (scroll, getAllDocuments)
+const qdrantSemaphore = new QdrantSemaphore(100);
 
 export interface VectorDBConfig {
   url?: string;
@@ -96,7 +96,8 @@ export class VectorDBService {
     if (this.shouldInitializeClient()) {
       this.client = new QdrantClient({
         url: this.config.url!,
-        apiKey: this.config.apiKey
+        apiKey: this.config.apiKey,
+        maxConnections: 100,  // HTTP keep-alive pool for connection reuse
       });
     }
   }
@@ -168,6 +169,9 @@ export class VectorDBService {
                 console.warn(`Vector dimension mismatch: existing collection has ${existingVectorSize} dimensions, but ${vectorSize} expected. Recreating collection.`);
                 await this.client!.deleteCollection(this.collectionName);
                 await this.createCollection(vectorSize);
+              } else {
+                // Ensure text index exists for existing collections (transparent upgrade)
+                await this.ensureTextIndex();
               }
             } catch (error) {
               // If we can't get collection info, assume it's corrupted and recreate
@@ -202,11 +206,13 @@ export class VectorDBService {
           distance: 'Cosine',
           on_disk: true // Enable on-disk storage for better performance with large collections
         },
-        // Enable payload indexing for better keyword search performance
         optimizers_config: {
           default_segment_number: 2
         }
       });
+
+      // Create text index on searchText field for efficient keyword search
+      await this.ensureTextIndex();
     } catch (error) {
       // Handle race condition where collection was created between check and create
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -219,6 +225,44 @@ export class VectorDBService {
         return;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Ensure text index exists on searchText field for efficient keyword search
+   * This is idempotent - safe to call multiple times
+   */
+  private async ensureTextIndex(): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+
+    try {
+      // Check if index already exists
+      const collectionInfo = await this.client.getCollection(this.collectionName);
+      const payloadSchema = collectionInfo.payload_schema || {};
+
+      // Check if searchText already has a text index
+      const searchTextIndex = payloadSchema['searchText'];
+      if (searchTextIndex && searchTextIndex.data_type === 'text') {
+        return; // Index already exists
+      }
+
+      // Create text index on searchText field
+      await this.client.createPayloadIndex(this.collectionName, {
+        field_name: 'searchText',
+        field_schema: 'text',
+      });
+
+      if (process.env.DEBUG_DOT_AI) {
+        console.debug(`Created text index on searchText field for collection ${this.collectionName}`);
+      }
+    } catch (error) {
+      // Log but don't fail - keyword search will still work via fallback
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (process.env.DEBUG_DOT_AI) {
+        console.debug(`Failed to create text index (may already exist): ${errorMessage}`);
+      }
     }
   }
 
@@ -309,6 +353,7 @@ export class VectorDBService {
 
   /**
    * Search for documents using payload filtering (keyword search)
+   * Uses Qdrant's native text index for efficient server-side filtering
    */
   async searchByKeywords(
     keywords: string[],
@@ -330,16 +375,43 @@ export class VectorDBService {
       },
       async () => {
         try {
-          // Fallback to JavaScript-based filtering due to Qdrant filter syntax issues
-          // Get all documents and filter in JavaScript for keyword matching
+          // Build Qdrant filter for text search
+          // Use "should" (OR) to match any keyword in searchText or triggers
+          const keywordConditions: any[] = [];
+
+          for (const keyword of keywords) {
+            // Text match on searchText field (uses text index)
+            keywordConditions.push({
+              key: 'searchText',
+              match: { text: keyword }
+            });
+
+            // Match on triggers array (for patterns/policies)
+            keywordConditions.push({
+              key: 'triggers',
+              match: { any: [keyword, keyword.toLowerCase()] }
+            });
+          }
+
+          // Combine keyword conditions with any user-provided filter
+          const filter: any = {
+            should: keywordConditions
+          };
+
+          // If user provided additional filters, combine with must
+          if (options.filter) {
+            filter.must = options.filter.must || [options.filter];
+          }
+
+          // Use scroll with native Qdrant filtering - much faster than client-side
           const scrollResult = await this.client!.scroll(this.collectionName, {
-            limit: 1000, // Get all documents for filtering
+            limit: limit * 10, // Get more candidates for scoring, but not 1000
             with_payload: true,
             with_vector: false,
-            ...(options.filter && { filter: options.filter })
+            filter
           });
 
-          // Filter documents by checking if any keyword matches searchText or triggers
+          // Score the filtered results (small set now)
           const scoredPoints = scrollResult.points
             .map(point => {
               if (!point.payload) return null;
@@ -356,17 +428,16 @@ export class VectorDBService {
               for (const keyword of keywords) {
                 const kw = keyword.toLowerCase();
 
-                // Check searchText (name, kind, namespace, labels, etc.)
+                // Check searchText
                 if (searchText.includes(kw)) {
                   matchCount++;
-                  // Bonus for exact word match (surrounded by spaces/punctuation)
                   const wordPattern = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
                   if (wordPattern.test(searchText)) {
                     exactMatch = true;
                   }
                 }
 
-                // Check triggers (for patterns/policies)
+                // Check triggers
                 if (triggers.some(t => t.includes(kw) || kw.includes(t))) {
                   matchCount++;
                 }
@@ -374,21 +445,14 @@ export class VectorDBService {
 
               if (matchCount === 0) return null;
 
-              // Score based on match quality
-              // - Base score from match ratio
-              // - Bonus for exact word matches
               const baseScore = matchCount / keywords.length;
               const score = exactMatch ? Math.min(1.0, baseScore + 0.3) : baseScore;
 
-              return {
-                point,
-                score
-              };
+              return { point, score };
             })
             .filter((item): item is { point: any; score: number } => item !== null)
             .sort((a, b) => b.score - a.score);
 
-          // Apply limit after filtering
           const limitedResults = scoredPoints.slice(0, limit);
 
           return limitedResults.map(({ point, score }) => ({
