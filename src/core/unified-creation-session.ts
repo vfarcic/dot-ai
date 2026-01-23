@@ -126,6 +126,12 @@ export class UnifiedCreationSessionManager {
         } else if (scopeChoice.startsWith('exclude:')) {
           const namespaces = scopeChoice.replace('exclude:', '').split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
           session.data.namespaceScope = { type: 'exclude', namespaces };
+        } else {
+          // Treat any other input as namespace names to include (e.g., "policy-test" or "ns1, ns2")
+          const namespaces = scopeChoice.split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
+          if (namespaces.length > 0) {
+            session.data.namespaceScope = { type: 'include', namespaces };
+          }
         }
         session.data.currentStep = getNextStep('namespace-scope', this.config)!;
         break;
