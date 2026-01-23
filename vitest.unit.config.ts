@@ -6,6 +6,7 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',
     reporters: ['verbose'],
+    testTimeout: 30000, // 30s for tests that run external commands (helm template)
   },
   esbuild: {
     target: 'node18'
