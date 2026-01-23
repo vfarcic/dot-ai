@@ -53,15 +53,34 @@ Show the user:
 3. Proposed next version based on the analysis
 4. Ask for confirmation or allow override
 
-### Step 5: Create and Push Tag
+### Step 5: Check for [skip ci] in HEAD
 
-If confirmed:
+**IMPORTANT**: Tags pointing to commits with `[skip ci]` in the message will NOT trigger the release workflow.
+
+Check the HEAD commit message:
+```bash
+git log -1 --format="%s" HEAD
+```
+
+If the message contains `[skip ci]`, `[ci skip]`, or `[no ci]`:
+1. Inform the user that tagging this commit would prevent the release workflow from running
+2. Create a release preparation commit:
+```bash
+git commit --allow-empty -m "chore: prepare release [version]"
+git push origin HEAD
+```
+
+This empty commit gives us a clean commit to tag that will trigger CI.
+
+### Step 6: Create and Push Tag
+
+If confirmed (and after Step 5 if needed):
 ```bash
 git tag -a [version] -m "[Brief description summarizing the fragments]"
 git push origin [version]
 ```
 
-### Step 6: Confirm Success
+### Step 7: Confirm Success
 
 Show the user:
 1. The tag created
@@ -74,3 +93,4 @@ Show the user:
 - **Review fragments first**: Make sure all fragments are accurate before tagging
 - **Use semantic versioning**: Follow semver strictly based on fragment types
 - **Brief tag message**: Summarize the release in 1-2 sentences
+- **Never tag [skip ci] commits**: Tags on commits with `[skip ci]` won't trigger CI - always create a preparation commit first
