@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [0.194.1] - 2026-01-23
+
+### Other Changes
+
+- **Qdrant Query Performance Optimizations**
+
+  Search operations in the Web UI are now significantly faster. Previously, keyword searches fetched up to 1000 documents from Qdrant and filtered them client-side in JavaScript, causing intermittent slowness as collections grew.
+
+  Searches now use Qdrant's native text indexing for server-side filtering, reducing the data transferred and processed. Connection pooling (100 connections) eliminates connection recreation overhead, and increased concurrent operation limits (20 to 100) improve throughput for parallel requests. Existing collections automatically receive text indexes on upgrade without data loss or manual intervention. ([#338](https://github.com/vfarcic/dot-ai/issues/338))
+
+
 ## [0.194.0] - 2026-01-20
 
 ### Features
