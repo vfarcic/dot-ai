@@ -254,6 +254,20 @@ export class ConsoleLogger implements Logger {
 }
 
 /**
+ * Configuration for exponential backoff between retry attempts
+ */
+export interface BackoffConfig {
+  /** Initial delay in ms before first retry (default: 1000) */
+  initialDelayMs?: number;
+  /** Multiplier for each subsequent retry (default: 2) */
+  multiplier?: number;
+  /** Maximum delay cap in ms (default: 30000) */
+  maxDelayMs?: number;
+  /** Optional jitter factor 0-1 to randomize delays (default: 0) */
+  jitter?: number;
+}
+
+/**
  * Error handler factory and utilities
  */
 export class ErrorHandler {
@@ -272,6 +286,36 @@ export class ErrorHandler {
    */
   static generateRequestId(): string {
     return `req_${Date.now()}_${++this.requestIdCounter}`;
+  }
+
+  /**
+   * Sleep for a specified duration
+   */
+  private static sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Calculate exponential backoff delay for a given retry attempt
+   * @param attempt The retry attempt number (0-indexed, where 0 is the first retry)
+   * @param config The backoff configuration with defaults applied
+   * @returns The delay in milliseconds
+   */
+  static calculateBackoffDelay(
+    attempt: number,
+    config: Required<BackoffConfig>
+  ): number {
+    // delay = initialDelayMs * multiplier^attempt
+    const delay = config.initialDelayMs * Math.pow(config.multiplier, attempt);
+    const cappedDelay = Math.min(delay, config.maxDelayMs);
+
+    if (config.jitter > 0) {
+      // Apply jitter: random value in range [cappedDelay - jitterRange, cappedDelay + jitterRange]
+      const jitterRange = cappedDelay * config.jitter;
+      return Math.max(0, cappedDelay - jitterRange + (Math.random() * jitterRange * 2));
+    }
+
+    return cappedDelay;
   }
 
   /**
@@ -385,7 +429,7 @@ export class ErrorHandler {
   }
 
   /**
-   * Wrap operation with error handling
+   * Wrap operation with error handling and optional exponential backoff
    */
   static async withErrorHandling<T>(
     operation: () => Promise<T>,
@@ -393,6 +437,7 @@ export class ErrorHandler {
     options: {
       retryCount?: number;
       convertToMcp?: boolean;
+      backoff?: BackoffConfig;
     } = {}
   ): Promise<T> {
     const maxRetries = options.retryCount || 0;
@@ -400,6 +445,25 @@ export class ErrorHandler {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
+        // Apply exponential backoff delay before retry attempts (not before first attempt)
+        if (attempt > 0 && options.backoff) {
+          const backoffConfig: Required<BackoffConfig> = {
+            initialDelayMs: options.backoff.initialDelayMs ?? 1000,
+            multiplier: options.backoff.multiplier ?? 2,
+            maxDelayMs: options.backoff.maxDelayMs ?? 30000,
+            jitter: options.backoff.jitter ?? 0
+          };
+
+          const delayMs = this.calculateBackoffDelay(attempt - 1, backoffConfig);
+          this.logger.info(`Backing off for ${Math.round(delayMs)}ms before retry ${attempt}/${maxRetries}`, {
+            operation: context.operation,
+            delayMs: Math.round(delayMs),
+            attempt,
+            maxRetries
+          });
+          await this.sleep(delayMs);
+        }
+
         this.logger.debug(`Executing operation: ${context.operation}`, {
           attempt: attempt + 1,
           maxRetries: maxRetries + 1
@@ -408,7 +472,7 @@ export class ErrorHandler {
         return await operation();
       } catch (error) {
         lastError = error as Error;
-        
+
         const enhancedContext = {
           ...context,
           retryCount: attempt,
@@ -422,7 +486,7 @@ export class ErrorHandler {
         // Retry if we haven't exceeded max retries and the error is retryable
         // For retry logic, we consider errors retryable by default unless explicitly marked as not retryable
         const shouldRetry = attempt < maxRetries && (appError.isRetryable || enhancedContext.isRetryable);
-        
+
         if (shouldRetry) {
           this.logger.info(`Retrying operation: ${context.operation}`, {
             attempt: attempt + 1,
