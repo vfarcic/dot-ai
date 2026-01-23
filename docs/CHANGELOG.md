@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [0.195.0] - 2026-01-23
+
+### Features
+
+- **Global Annotations Support in Helm Chart**
+
+  Apply custom annotations to all Kubernetes resources deployed by the Helm chart through a single `annotations` entry in values.yaml. Previously, adding annotations for tools like Reloader or compliance requirements meant manually editing manifests after deployment, using post-render hooks, or maintaining kustomize overlays—all of which added maintenance burden and were lost on chart upgrades.
+
+  The chart now supports a top-level `annotations` map that propagates to all rendered resources including Deployments, Services, ServiceAccounts, Secrets, RBAC resources, and pod templates. Pod template annotations are particularly important for Reloader integration, which watches for annotation changes to trigger rolling updates when ConfigMaps or Secrets change. For resources that already support their own annotations (Ingress, Gateway), global annotations merge with resource-specific ones, with resource-specific taking precedence on key conflicts.
+
+  Configure global annotations in your values file:
+  ```yaml
+  annotations:
+    reloader.stakater.com/auto: "true"
+    company.com/managed-by: "platform-team"
+  ```
+
+  See the [Kubernetes Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-setup) for configuration details. ([#336](https://github.com/vfarcic/dot-ai/issues/336))
+- **Circuit Breaker for LLM API Rate Limits**
+
+  Embedding operations now include circuit breaker protection to gracefully handle rate limits and API quota errors. Previously, when rate limits hit, dot-ai would retry rapidly without backoff, generating hundreds of identical errors and wasting API budget before failing.
+
+  The circuit breaker monitors consecutive failures and temporarily blocks requests after 3 failures, giving the API time to recover. After a 30-second cooldown, it enters a half-open state to test if the service has recovered. Combined with the Vercel AI SDK's built-in exponential backoff (2s base delay with automatic `Retry-After` header support), this prevents cascading failures during sustained rate limit periods. Users see clear error messages when the circuit is open rather than repeated timeout errors.
+
+  The circuit breaker works automatically with no configuration required. Monitor circuit breaker state using the `getCircuitBreakerStats()` function exposed from the embedding service. ([#337](https://github.com/vfarcic/dot-ai/issues/337))
+
+
 ## [0.194.1] - 2026-01-23
 
 ### Other Changes
