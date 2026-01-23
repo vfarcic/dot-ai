@@ -455,6 +455,34 @@ spec:
 
   // PRD #328: GET /api/v1/resources/kinds with namespace filter
   test('GET /api/v1/resources/kinds?namespace=query-tool-test should return only kinds in that namespace', async () => {
+    // Re-sync test resources to ensure they exist (concurrent tests with isResync:true may delete them)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-pg-cluster',
+          kind: 'Cluster',
+          apiVersion: 'postgresql.cnpg.io/v1',
+          apiGroup: 'postgresql.cnpg.io',
+          labels: { app: 'postgresql', team: 'platform', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(`/api/v1/resources/kinds?namespace=${testNamespace}`);
 
     expect(response).toMatchObject({
@@ -478,6 +506,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources with kind and apiVersion filter
   test('GET /api/v1/resources?kind=Deployment&apiVersion=apps/v1 should return test-web-deployment', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     // Filter by namespace to avoid interference from other concurrent tests
     const response = await integrationTest.httpClient.get(`/api/v1/resources?kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`);
 
@@ -508,6 +554,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources with kind, apiVersion, and namespace filter
   test('GET /api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=query-tool-test should return test-pg-cluster', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-pg-cluster',
+          kind: 'Cluster',
+          apiVersion: 'postgresql.cnpg.io/v1',
+          apiGroup: 'postgresql.cnpg.io',
+          labels: { app: 'postgresql', team: 'platform', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources?kind=Cluster&apiVersion=postgresql.cnpg.io/v1&namespace=${testNamespace}`
     );
@@ -645,6 +709,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search - Semantic Search Endpoint
   test('GET /api/v1/resources/search?q=nginx should return test-web-deployment with score', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
     );
@@ -686,6 +768,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search with kind filter
   test('GET /api/v1/resources/search?q=test&kind=Deployment should return only Deployments', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=test&kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`
     );
@@ -723,6 +823,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search with minScore filter
   test('GET /api/v1/resources/search with minScore should filter low-relevance results', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     // First get results without minScore to see all scores
     const allResults = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
@@ -822,6 +940,24 @@ spec:
 
   // PRD #328: GET /api/v1/namespaces
   test('GET /api/v1/namespaces should return query-tool-test namespace', async () => {
+    // Re-sync test resource to ensure it exists (concurrent tests with isResync:true may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get('/api/v1/namespaces');
 
     expect(response).toMatchObject({
