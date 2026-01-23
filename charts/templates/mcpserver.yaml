@@ -6,6 +6,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
 spec:
   # Container image configuration
   image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
@@ -42,6 +47,12 @@ spec:
   
   # Pod template specification for the MCP server container
   podTemplateSpec:
+    metadata:
+      {{- $podAnnotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+      {{- if $podAnnotations }}
+      annotations:
+        {{- $podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}

@@ -71,3 +71,17 @@ Get the backend service name based on deployment method
 {{- include "dot-ai.fullname" . }}
 {{- end }}
 {{- end }}
+
+{{/*
+Merge global annotations with resource-specific annotations.
+Resource-specific annotations take precedence over global annotations.
+Usage: include "dot-ai.annotations" (dict "global" .Values.annotations "local" .Values.ingress.annotations)
+*/}}
+{{- define "dot-ai.annotations" -}}
+{{- $global := .global | default dict -}}
+{{- $local := .local | default dict -}}
+{{- $merged := merge (deepCopy $local) $global -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}

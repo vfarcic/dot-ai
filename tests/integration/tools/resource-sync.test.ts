@@ -11,7 +11,9 @@
 import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe.concurrent('Resource Sync Endpoint Integration', () => {
+// Note: This test suite must NOT run concurrently because isResync:true
+// deletes all resources not in its list, which would break other tests
+describe('Resource Sync Endpoint Integration', () => {
   const integrationTest = new IntegrationTest();
   const testId = Date.now();
 

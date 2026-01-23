@@ -5,6 +5,11 @@ metadata:
   name: {{ include "dot-ai.fullname" . }}
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   selector:

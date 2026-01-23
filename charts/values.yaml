@@ -1,3 +1,11 @@
+# Global annotations applied to ALL Kubernetes resources
+# Use for tools like Reloader, compliance requirements, or consistent metadata
+annotations: {}
+# Example - uncomment and modify:
+# annotations:
+#   reloader.stakater.com/auto: "true"
+#   company.com/managed-by: "platform-team"
+
 # Deployment method configuration
 deployment:
   method: standard                  # Deployment method: "standard" (K8s resources) or "toolhive" (MCPServer CRD)
