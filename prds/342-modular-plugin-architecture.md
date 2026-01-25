@@ -123,6 +123,7 @@ Tools registered with MCP, called by users via MCP protocol.
 - [ ] **TBD** - search/query tools migration (add to agentic-tools)
 - [ ] **TBD** - mermaid tools migration (add to agentic-tools)
 - [ ] **TBD** - MCP tools as plugins
+- [ ] **TBD** - Plugin scaffolding tool (MCP tool to help users create their own plugins) - *after #343 complete*
 
 ---
 
