@@ -2,7 +2,7 @@
 
 **GitHub Issue**: [#343](https://github.com/vfarcic/dot-ai/issues/343)
 **Parent PRD**: [#342 - Modular Plugin Architecture](./342-modular-plugin-architecture.md)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: High
 **Created**: 2025-01-25
 
@@ -114,25 +114,27 @@ kubectl tools (`kubectl_get`, `kubectl_apply`, etc.) are embedded in dot-ai core
 ```
 packages/agentic-tools/
 ├── Dockerfile
+├── .dockerignore
 ├── package.json
 ├── tsconfig.json
+├── vitest.config.ts
 ├── src/
 │   ├── index.ts          # HTTP server, /execute endpoint
+│   ├── types.ts          # Shared types for HTTP interface
 │   ├── hooks/
 │   │   ├── describe.ts   # Returns tool definitions
 │   │   └── invoke.ts     # Routes to tool handlers
-│   ├── tools/
-│   │   ├── kubectl-get.ts
-│   │   ├── kubectl-apply.ts
-│   │   ├── kubectl-describe.ts
-│   │   ├── kubectl-logs.ts
-│   │   ├── kubectl-events.ts
-│   │   ├── kubectl-api-resources.ts
-│   │   └── kubectl-get-crd-schema.ts
-│   └── utils/
-│       └── kubectl-executor.ts
+│   └── tools/
+│       ├── index.ts      # Tool registry
+│       ├── kubectl-get.ts
+│       ├── kubectl-apply.ts
+│       ├── kubectl-describe.ts
+│       ├── kubectl-logs.ts
+│       ├── kubectl-events.ts
+│       ├── kubectl-api-resources.ts
+│       └── kubectl-get-crd-schema.ts
 └── tests/
-    └── integration/
+    └── unit/             # Fast tests, no cluster needed
 ```
 
 ### dot-ai Integration
@@ -194,7 +196,7 @@ plugins:
 
 ## Milestones
 
-- [ ] **M1: Package structure and HTTP server**
+- [x] **M1: Package structure and HTTP server**
   - Create `packages/agentic-tools/` with basic structure
   - Implement HTTP server with `/execute` endpoint
   - Implement `describe` hook (empty tools list initially)
