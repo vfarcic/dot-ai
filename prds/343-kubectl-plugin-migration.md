@@ -338,7 +338,7 @@ Files currently using Kubernetes interactions that need migration to plugin:
   - Integration test: Verify plugin Deployment, Service, and ConfigMap created
   - **Done when**: Plugin deploys as separate Deployment, `/health` and `/ready` respond, MCP server connects via Service
 
-- [ ] **M4b: `version` tool plugin integration** (prove direct invocation)
+- [x] **M4b: `version` tool plugin integration** (prove direct invocation)
   - Add `kubectl_version` tool to agentic-tools plugin
   - `version.ts` calls plugin via `PluginManager.invokeTool()` for K8s version
   - Add registered agentic tools list to `version` output

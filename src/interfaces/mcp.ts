@@ -240,7 +240,7 @@ export class MCPServer {
         this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, {
           requestId,
         });
-        return await handleVersionTool(args, this.logger, requestId);
+        return await handleVersionTool(args, this.logger, requestId, this.pluginManager);
       },
       'System',
       ['version', 'diagnostics', 'status']

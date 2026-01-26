@@ -32,10 +32,11 @@ describe('Tool Definitions', () => {
     expect(toolNames).toContain('kubectl_delete_dryrun');
     expect(toolNames).toContain('kubectl_get_crd_schema');
     expect(toolNames).toContain('kubectl_get_resource_json');
+    expect(toolNames).toContain('kubectl_version');
   });
 
-  it('should have exactly 10 tools', () => {
-    expect(TOOLS).toHaveLength(10);
+  it('should have exactly 11 tools', () => {
+    expect(TOOLS).toHaveLength(11);
   });
 
   it('should have matching handlers for all tools', () => {
@@ -429,6 +430,25 @@ describe('Tool Handlers', () => {
       expect(result).toMatchObject({
         success: false,
         error: expect.stringContaining('nonexistent'),
+      });
+    });
+  });
+
+  describe('kubectl_version', () => {
+    it('should call kubectl version with json output', async () => {
+      const mockVersion = {
+        clientVersion: { gitVersion: 'v1.29.0' },
+        serverVersion: { gitVersion: 'v1.28.0' },
+      };
+      mockExecuteKubectl.mockResolvedValue(JSON.stringify(mockVersion));
+
+      const handler = TOOL_HANDLERS['kubectl_version'];
+      const result = await handler({});
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(['version', '--output=json']);
+      expect(result).toMatchObject({
+        success: true,
+        data: expect.stringContaining('serverVersion'),
       });
     });
   });

@@ -24,6 +24,20 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install kubectl for Kubernetes operations
+# Using curl to download the stable release binary, detecting architecture
+RUN apk add --no-cache curl && \
+    KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt) && \
+    ARCH=$(uname -m) && \
+    case $ARCH in \
+      x86_64) ARCH="amd64" ;; \
+      aarch64) ARCH="arm64" ;; \
+    esac && \
+    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/ && \
+    apk del curl
+
 # Create non-root user for security
 RUN addgroup -g 10001 -S appgroup && \
     adduser -u 10001 -S appuser -G appgroup

@@ -18,6 +18,7 @@ import { kubectlApplyDryrun } from './kubectl-apply-dryrun';
 import { kubectlDeleteDryrun } from './kubectl-delete-dryrun';
 import { kubectlGetCrdSchema } from './kubectl-get-crd-schema';
 import { kubectlGetResourceJson } from './kubectl-get-resource-json';
+import { kubectlVersion } from './kubectl-version';
 
 /**
  * All kubectl tools in a single array
@@ -34,6 +35,7 @@ const ALL_TOOLS: KubectlTool[] = [
   kubectlDeleteDryrun,
   kubectlGetCrdSchema,
   kubectlGetResourceJson,
+  kubectlVersion,
 ];
 
 /**

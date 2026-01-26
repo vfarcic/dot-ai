@@ -135,58 +135,83 @@ export class PluginManager {
   }
 
   /**
-   * Discover a single plugin
+   * Discover a single plugin with retry logic
+   *
+   * Retries with exponential backoff to handle Kubernetes startup ordering
+   * where plugin service may not be ready when MCP server starts.
    */
   private async discoverPlugin(config: PluginConfig): Promise<void> {
     const client = new PluginClient(config, this.logger);
+    const maxRetries = 5;
+    const baseDelayMs = 1000;
 
-    try {
-      const response = await client.describe();
+    let lastError: Error | undefined;
 
-      // Store client for later invocation
-      this.plugins.set(config.name, client);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await client.describe();
 
-      // Store discovered plugin metadata
-      this.discoveredPlugins.set(config.name, {
-        name: config.name,
-        url: config.url,
-        version: response.version,
-        tools: response.tools,
-        discoveredAt: new Date(),
-      });
+        // Store client for later invocation
+        this.plugins.set(config.name, client);
 
-      // Map tools to plugin
-      for (const tool of response.tools) {
-        if (this.toolToPlugin.has(tool.name)) {
-          this.logger.warn('Tool name conflict - overwriting', {
-            tool: tool.name,
-            existingPlugin: this.toolToPlugin.get(tool.name),
-            newPlugin: config.name,
-          });
+        // Store discovered plugin metadata
+        this.discoveredPlugins.set(config.name, {
+          name: config.name,
+          url: config.url,
+          version: response.version,
+          tools: response.tools,
+          discoveredAt: new Date(),
+        });
+
+        // Map tools to plugin
+        for (const tool of response.tools) {
+          if (this.toolToPlugin.has(tool.name)) {
+            this.logger.warn('Tool name conflict - overwriting', {
+              tool: tool.name,
+              existingPlugin: this.toolToPlugin.get(tool.name),
+              newPlugin: config.name,
+            });
+          }
+          this.toolToPlugin.set(tool.name, config.name);
         }
-        this.toolToPlugin.set(tool.name, config.name);
+
+        this.logger.info('Plugin discovered', {
+          name: config.name,
+          version: response.version,
+          tools: response.tools.map((t) => t.name),
+          attempts: attempt,
+        });
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (attempt < maxRetries) {
+          const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+          this.logger.warn('Plugin discovery failed, retrying', {
+            plugin: config.name,
+            attempt,
+            maxRetries,
+            delayMs,
+            error: lastError.message,
+          });
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
       }
-
-      this.logger.info('Plugin discovered', {
-        name: config.name,
-        version: response.version,
-        tools: response.tools.map((t) => t.name),
-      });
-    } catch (error) {
-      const message =
-        error instanceof PluginClientError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : String(error);
-
-      this.logger.error('Failed to discover plugin', new Error(message), {
-        plugin: config.name,
-        url: config.url,
-      });
-
-      throw error;
     }
+
+    // All retries exhausted - throw the last error
+    const message =
+      lastError instanceof PluginClientError
+        ? lastError.message
+        : lastError?.message || 'Unknown error';
+
+    this.logger.error('Failed to discover plugin after retries', new Error(message), {
+      plugin: config.name,
+      url: config.url,
+      attempts: maxRetries,
+    });
+
+    throw lastError;
   }
 
   /**
