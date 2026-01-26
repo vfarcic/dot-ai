@@ -85,3 +85,27 @@ Usage: include "dot-ai.annotations" (dict "global" .Values.annotations "local" .
 {{- toYaml $merged -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Build DOT_AI_PLUGINS_CONFIG JSON from enabled plugins.
+Supports two modes:
+  - Deployed: image + port → auto-generates endpoint URL
+  - External: endpoint → uses provided URL
+*/}}
+{{- define "dot-ai.pluginsConfig" -}}
+{{- $plugins := list -}}
+{{- range $name, $config := .Values.plugins -}}
+{{- if $config.enabled -}}
+{{- $endpoint := "" -}}
+{{- if $config.endpoint -}}
+{{- $endpoint = $config.endpoint -}}
+{{- else if $config.image -}}
+{{- $endpoint = printf "http://%s-%s:%d" $.Release.Name $name (int $config.port) -}}
+{{- end -}}
+{{- if $endpoint -}}
+{{- $plugins = append $plugins (dict "name" $name "url" $endpoint) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $plugins | toJson -}}
+{{- end -}}

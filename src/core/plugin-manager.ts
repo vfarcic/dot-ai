@@ -7,6 +7,7 @@
  * PRD #343: kubectl Plugin Migration
  */
 
+import { existsSync, readFileSync } from 'node:fs';
 import {
   PluginConfig,
   PluginToolDefinition,
@@ -16,6 +17,9 @@ import {
 import { PluginClient, PluginClientError } from './plugin-client';
 import { Logger } from './error-handling';
 import { AITool } from './ai-provider.interface';
+
+/** Path for plugins config file (mounted from ConfigMap in K8s) */
+const PLUGINS_CONFIG_PATH = '/etc/dot-ai/plugins.json';
 
 /**
  * Error thrown when plugin discovery fails
@@ -44,45 +48,33 @@ export class PluginManager {
   }
 
   /**
-   * Parse plugin configuration from environment variable
+   * Parse plugin configuration from file
    *
-   * Supports two formats:
-   * 1. Simple URL list: DOT_AI_PLUGINS=http://localhost:8080,http://other:8080
-   * 2. JSON config: DOT_AI_PLUGINS_CONFIG=[{"name":"agentic-tools","url":"http://localhost:8080"}]
+   * Reads from /etc/dot-ai/plugins.json (mounted from ConfigMap in K8s).
+   * Returns empty array if file doesn't exist (plugins only work in-cluster).
    */
   static parsePluginConfig(): PluginConfig[] {
-    // Try JSON config first
-    const jsonConfig = process.env.DOT_AI_PLUGINS_CONFIG;
-    if (jsonConfig) {
-      try {
-        const parsed = JSON.parse(jsonConfig);
-        if (Array.isArray(parsed)) {
-          return parsed.map((p, index) => ({
-            name: p.name || `plugin-${index}`,
-            url: p.url,
-            timeout: p.timeout,
-            required: p.required,
-          }));
-        }
-      } catch {
-        // Fall through to URL parsing
+    if (!existsSync(PLUGINS_CONFIG_PATH)) {
+      return [];
+    }
+
+    try {
+      const content = readFileSync(PLUGINS_CONFIG_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+
+      if (!Array.isArray(parsed)) {
+        return [];
       }
-    }
 
-    // Try simple URL list
-    const urlList = process.env.DOT_AI_PLUGINS;
-    if (urlList) {
-      return urlList
-        .split(',')
-        .map((url) => url.trim())
-        .filter((url) => url.length > 0)
-        .map((url, index) => ({
-          name: `plugin-${index}`,
-          url,
-        }));
+      return parsed.map((p, index) => ({
+        name: p.name || `plugin-${index}`,
+        url: p.url,
+        timeout: p.timeout,
+        required: p.required,
+      }));
+    } catch {
+      return [];
     }
-
-    return [];
   }
 
   /**
