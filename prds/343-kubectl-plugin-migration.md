@@ -202,7 +202,7 @@ plugins:
   - Implement `describe` hook (empty tools list initially)
   - Dockerfile builds and runs
 
-- [ ] **M2: kubectl tools implementation**
+- [x] **M2: kubectl tools implementation**
   - Migrate all kubectl_* tools to new package
   - Implement `invoke` hook with routing
   - Tools work when called directly via HTTP
@@ -267,6 +267,7 @@ plugins:
 | 2025-01-25 | Two hooks: describe + invoke | Minimal surface to start; expand when needed |
 | 2025-01-25 | HTTP interface | Language-agnostic, standard, easy to test |
 | 2025-01-25 | Monorepo package | Can split later; easier to develop together initially |
+| 2026-01-26 | Self-contained tool modules with `KubectlTool` interface | Combines definition+handler; eliminates switch statement; enables isolated testing |
 
 ---
 

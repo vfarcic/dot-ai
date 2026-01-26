@@ -141,12 +141,21 @@ describe('agentic-tools server', () => {
       });
     });
 
-    it('should return empty tools array for M1', async () => {
+    it('should return all kubectl tools', async () => {
       const { data } = await request(baseUrl, 'POST', '/execute', {
         hook: 'describe'
       });
 
-      expect((data as { tools: unknown[] }).tools).toHaveLength(0);
+      const tools = (data as { tools: unknown[] }).tools;
+      expect(tools.length).toBeGreaterThanOrEqual(10);
+
+      // Verify expected tools are present
+      const toolNames = tools.map((t: { name: string }) => t.name);
+      expect(toolNames).toContain('kubectl_get');
+      expect(toolNames).toContain('kubectl_describe');
+      expect(toolNames).toContain('kubectl_logs');
+      expect(toolNames).toContain('kubectl_events');
+      expect(toolNames).toContain('kubectl_api_resources');
     });
   });
 
