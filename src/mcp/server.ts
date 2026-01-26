@@ -13,6 +13,8 @@ import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+import { PluginManager } from '../core/plugin-manager.js';
+import { ConsoleLogger } from '../core/error-handling.js';
 
 // Track server start time for uptime calculation
 const serverStartTime = Date.now();
@@ -131,13 +133,37 @@ async function main() {
 
     // Load version dynamically from package.json
     const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
-    
+
+    // Initialize plugin discovery (PRD #343)
+    const pluginLogger = new ConsoleLogger('PluginManager');
+    const pluginManager = new PluginManager(pluginLogger);
+    const pluginConfigs = PluginManager.parsePluginConfig();
+
+    if (pluginConfigs.length > 0) {
+      process.stderr.write(`Discovering ${pluginConfigs.length} plugin(s)...\n`);
+      try {
+        await pluginManager.discoverPlugins(pluginConfigs);
+        const stats = pluginManager.getStats();
+        process.stderr.write(`Plugin discovery complete: ${stats.pluginCount} plugin(s), ${stats.toolCount} tool(s)\n`);
+      } catch (error) {
+        // Non-required plugin failures are warnings, required failures throw
+        if (error instanceof Error && error.name === 'PluginDiscoveryError') {
+          process.stderr.write(`FATAL: Required plugin discovery failed: ${error.message}\n`);
+          process.exit(1);
+        }
+        process.stderr.write(`Plugin discovery warning: ${error}\n`);
+      }
+    } else {
+      process.stderr.write('No plugins configured (set DOT_AI_PLUGINS or DOT_AI_PLUGINS_CONFIG to enable)\n');
+    }
+
     // Create and configure MCP server
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
       version: packageJson.version,
       description: 'Universal Kubernetes application deployment agent with AI-powered orchestration',
-      author: 'Viktor Farcic'
+      author: 'Viktor Farcic',
+      pluginManager: pluginConfigs.length > 0 ? pluginManager : undefined
     });
 
     // Start the MCP server

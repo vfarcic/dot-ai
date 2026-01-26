@@ -207,7 +207,7 @@ plugins:
   - Implement `invoke` hook with routing
   - Tools work when called directly via HTTP
 
-- [ ] **M3: dot-ai plugin discovery**
+- [x] **M3: dot-ai plugin discovery**
   - dot-ai reads plugin configuration
   - dot-ai calls `describe` on plugins at startup
   - dot-ai registers tools from plugin responses

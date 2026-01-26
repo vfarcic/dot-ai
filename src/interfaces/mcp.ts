@@ -70,6 +70,7 @@ import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
 import { getTelemetry, McpClientInfo } from '../core/telemetry';
+import { PluginManager } from '../core/plugin-manager';
 
 export interface MCPServerConfig {
   name: string;
@@ -80,6 +81,8 @@ export interface MCPServerConfig {
   port?: number;
   host?: string;
   sessionMode?: 'stateful' | 'stateless';
+  /** Optional PluginManager for plugin-based tools (PRD #343) */
+  pluginManager?: PluginManager;
 }
 
 export class MCPServer {
@@ -94,11 +97,13 @@ export class MCPServer {
   private restRegistry: RestToolRegistry;
   private restApiRouter: RestApiRouter;
   private mcpClientInfo: McpClientInfo | undefined;
+  private pluginManager?: PluginManager;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
     this.config = config;
     this.logger = new ConsoleLogger('MCPServer');
+    this.pluginManager = config.pluginManager;
 
     // Create McpServer instance
     this.server = new McpServer(
@@ -331,18 +336,82 @@ export class MCPServer {
       ['query', 'search', 'discover', 'capabilities', 'cluster']
     );
 
+    // Register plugin tools (PRD #343)
+    const pluginTools = this.registerPluginTools();
+
+    const builtInTools = [
+      RECOMMEND_TOOL_NAME,
+      VERSION_TOOL_NAME,
+      ORGANIZATIONAL_DATA_TOOL_NAME,
+      REMEDIATE_TOOL_NAME,
+      OPERATE_TOOL_NAME,
+      PROJECT_SETUP_TOOL_NAME,
+      QUERY_TOOL_NAME
+    ];
+
     this.logger.info('Registered all tools with McpServer', {
-      tools: [
-        RECOMMEND_TOOL_NAME,
-        VERSION_TOOL_NAME,
-        ORGANIZATIONAL_DATA_TOOL_NAME,
-        REMEDIATE_TOOL_NAME,
-        OPERATE_TOOL_NAME,
-        PROJECT_SETUP_TOOL_NAME,
-        QUERY_TOOL_NAME
-      ],
-      totalTools: 7,
+      builtInTools,
+      pluginTools,
+      totalTools: builtInTools.length + pluginTools.length,
     });
+  }
+
+  /**
+   * Register tools from discovered plugins (PRD #343)
+   */
+  private registerPluginTools(): string[] {
+    if (!this.pluginManager) {
+      return [];
+    }
+
+    const tools = this.pluginManager.getDiscoveredTools();
+    const registeredTools: string[] = [];
+
+    for (const tool of tools) {
+      // Create handler that routes to plugin
+      const pluginHandler = async (args: any) => {
+        const response = await this.pluginManager!.invokeTool(
+          tool.name,
+          args,
+          {},
+          undefined
+        );
+
+        if (response.success) {
+          return {
+            success: true,
+            data: response.result,
+            state: response.state,
+          };
+        } else {
+          return {
+            success: false,
+            error: response.error.message,
+            code: response.error.code,
+          };
+        }
+      };
+
+      this.registerTool(
+        tool.name,
+        tool.description,
+        tool.inputSchema,
+        pluginHandler,
+        'Plugin',
+        ['plugin', 'kubectl', 'kubernetes']
+      );
+
+      registeredTools.push(tool.name);
+    }
+
+    if (registeredTools.length > 0) {
+      this.logger.info('Registered plugin tools', {
+        tools: registeredTools,
+        count: registeredTools.length,
+      });
+    }
+
+    return registeredTools;
   }
 
   /**

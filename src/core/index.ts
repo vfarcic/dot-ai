@@ -166,5 +166,18 @@ export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingPr
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
 export { CircuitBreaker, CircuitBreakerFactory, CircuitBreakerConfig, CircuitBreakerStats, CircuitState, CircuitOpenError } from './circuit-breaker';
 
+// Plugin system (PRD #343)
+export { PluginManager, PluginDiscoveryError } from './plugin-manager';
+export { PluginClient, PluginClientError } from './plugin-client';
+export {
+  PluginConfig,
+  PluginToolDefinition,
+  DescribeResponse,
+  InvokeResponse,
+  InvokeSuccessResponse,
+  InvokeErrorResponse,
+  DiscoveredPlugin,
+} from './plugin-types';
+
 // Default export
 export default DotAI; 
