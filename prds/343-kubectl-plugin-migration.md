@@ -370,11 +370,11 @@ Files currently using Kubernetes interactions that need migration to plugin:
   - Fixed Helm 4 dry-run behavior (`--dry-run=client`)
   - Fixed plugin client timeout (30s → 5m for Helm operations)
 
-- [ ] **M7: Cleanup**
+- [x] **M7: Cleanup**
   - Remove old `src/core/kubectl-tools.ts`
-  - Remove `KubernetesDiscovery.executeKubectl()` method
-  - Remove related old code (imports, etc.)
+  - Remove `src/core/kubernetes-utils.ts` (standalone executeKubectl)
   - Remove unused functions from `resource-tools.ts` (`fetchResource`, `getPodLogs`, `getResourceEvents`)
+  - Note: `KubernetesDiscovery.executeKubectl()` kept as internal method - already migrated to use plugin in M5/M6
 
 - [ ] **M8: CI/CD updates**
   - Add workflow to build and publish `dot-ai-agentic-tools` Docker image
