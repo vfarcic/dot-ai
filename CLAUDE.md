@@ -54,6 +54,26 @@ npm run test:integration version     # Run specific test by pattern
 
 **Git Commits**: Add `[skip ci]` when user requests to skip CI
 
+## Git Worktrees for Feature Work
+
+Use git worktrees when starting work on any feature branch to maintain isolated agent context:
+
+**Starting feature work:**
+```bash
+git worktree add ../dot-ai-[branch-name] -b [branch-name] main
+# Or for existing branch:
+git worktree add ../dot-ai-[branch-name] [branch-name]
+```
+Then start a new Claude Code session in the worktree directory.
+
+**Finishing feature work:**
+After merging, clean up from the main directory:
+```bash
+git worktree remove ../dot-ai-[branch-name]
+```
+
+**Why:** Keeps main directory on `main` branch, enables parallel work on multiple features, and ensures each agent session has consistent context for its branch.
+
 ## Environment
 
 ```bash
