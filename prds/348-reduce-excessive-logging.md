@@ -113,13 +113,13 @@ Remove INFO logs at lines 675-680 and 703-709. Progress is tracked via `progress
 
 ## Milestones
 
-- [ ] Circuit breaker log suppression implemented and tested
+- [x] Circuit breaker log suppression implemented and tested
 - [ ] Resource sync handler batches circuit breaker failures with summary logging
 - [ ] Per-item success debug logs removed from resource sync
 - [ ] Per-resource progress logs removed from capability scan
 - [ ] Command executor uses summary logging instead of per-command
 - [ ] All existing tests pass
-- [ ] New unit tests added for log suppression behavior
+- [x] New unit tests added for log suppression behavior
 
 ## Testing
 

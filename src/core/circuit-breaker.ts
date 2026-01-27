@@ -93,6 +93,7 @@ export class CircuitBreaker {
   private lastSuccessTime?: Date;
   private openedAt?: Date;
   private halfOpenAttempts: number = 0;
+  private lastCircuitOpenLogTime?: Date;
 
   constructor(name: string, config?: CircuitBreakerConfig, logger?: Logger) {
     this.name = name;
@@ -114,9 +115,17 @@ export class CircuitBreaker {
     // Check if we should allow the request
     if (!this.canExecute()) {
       const remainingCooldown = this.getRemainingCooldown();
-      this.logger.warn(`Circuit '${this.name}' is open, blocking request`, {
-        remainingCooldownMs: remainingCooldown
-      });
+
+      // Only log once per circuit open period to prevent log spam
+      if (!this.lastCircuitOpenLogTime ||
+          this.lastCircuitOpenLogTime < this.openedAt!) {
+        this.logger.warn(`Circuit '${this.name}' is open, blocking requests`, {
+          remainingCooldownMs: remainingCooldown,
+          willRetryAt: new Date(Date.now() + remainingCooldown).toISOString()
+        });
+        this.lastCircuitOpenLogTime = new Date();
+      }
+
       throw new CircuitOpenError(this.name, remainingCooldown);
     }
 
