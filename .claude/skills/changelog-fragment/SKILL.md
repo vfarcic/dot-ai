@@ -1,6 +1,6 @@
 ---
 name: changelog-fragment
-description: Create changelog fragment for release notes. Invoke during /prd-done workflow during the first push to the PR.
+description: "[CHAIN: /prd-done] REQUIRED: Invoke this skill FIRST when /prd-done is triggered, before any other prd-done actions. Creates changelog fragment for release notes."
 ---
 
 # Create Changelog Fragment
