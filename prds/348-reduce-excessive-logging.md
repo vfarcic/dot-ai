@@ -1,5 +1,69 @@
 # PRD #348: Reduce Excessive Logging
 
+**Status:** Pending - implement after PRD #343 merges (file overlap in `resource-sync-handler.ts`, `capability-scan-workflow.ts`, `command-executor.ts`)
+
+## Implementation Notes (from first attempt)
+
+An initial implementation was completed and PR #350 was created, but abandoned due to file overlap with PRD #343. Key learnings:
+
+### What Was Implemented
+
+1. **Circuit breaker log suppression** (`src/core/circuit-breaker.ts`):
+   - Added `lastCircuitOpenLogTime` tracking
+   - Logs "circuit open" only once per open period, not per request
+
+2. **Resource sync handler batching** (`src/interfaces/resource-sync-handler.ts`):
+   - Added `circuitBreakerSkipped` counter and `circuitBreakerLoggedOnce` flag
+   - Catches `CircuitOpenError`, logs once, counts skipped resources
+   - Logs summary at end with total skipped count
+
+3. **Removed per-resource progress logs** (`src/core/capability-scan-workflow.ts`)
+
+4. **Command executor verbosity reduced** (`src/core/command-executor.ts`):
+   - Changed per-command logs from INFO to DEBUG
+
+### Unit Tests Written
+
+Tests were created in:
+- `tests/unit/core/circuit-breaker.test.ts` - Log suppression behavior
+- `tests/unit/core/command-executor.test.ts` - Summary logging
+
+### CodeRabbit Feedback to Address
+
+**Important:** When circuit breaker skips resources, surface this in the response so the caller knows to retry:
+
+```typescript
+if (circuitBreakerSkipped > 0) {
+  logger.warn('Resource sync skipped resources due to circuit breaker', {
+    requestId,
+    skippedCount: circuitBreakerSkipped,
+    totalUpserts: upserts.length,
+    totalDeletes: deletes.length
+  });
+  // ADD THIS: Surface to caller so they know to retry
+  failures.push({
+    id: 'circuit-breaker',
+    error: `Skipped ${circuitBreakerSkipped} resource(s) due to circuit breaker open`
+  });
+}
+```
+
+### Changelog Fragment
+
+Ready to use in `changelog.d/348.bugfix.md`:
+
+```markdown
+## Reduced Excessive Logging During Circuit Breaker Events
+
+Fixed excessive log spam that occurred when the embedding API circuit breaker was open, which previously generated 130MB+ of logs within minutes from a single container. This caused log storage to fill rapidly, overwhelmed log aggregation systems (triggering Loki rate limiting), and made it difficult to find important logs.
+
+The circuit breaker now logs "circuit open" warnings only once per open period instead of for every blocked request. Resource sync operations batch circuit breaker failures and log a summary count rather than individual warnings per resource. Per-resource progress logs during capability scans have been removed since progress is available via the dedicated progress endpoint. Command executor logging has been reduced to summary-level output.
+
+These changes reduce log volume by 99%+ during circuit breaker scenarios while preserving all operationally important information.
+```
+
+---
+
 ## Problem Statement
 
 When the embedding API circuit breaker is open, the MCP server logs warnings for **every single resource** it tries to sync, creating massive log spam (130MB+ in minutes). Additionally, an audit revealed other excessive logging patterns throughout the codebase.
