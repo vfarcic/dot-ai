@@ -45,18 +45,6 @@ function detectDeploymentMethod(): string {
 /**
  * Get Kubernetes version (non-blocking, returns undefined if unavailable)
  */
-async function getK8sVersion(): Promise<string | undefined> {
-  try {
-    const { KubernetesDiscovery } = await import('../core/discovery.js');
-    const discovery = new KubernetesDiscovery({});
-    await discovery.connect();
-    const result = await discovery.testConnection();
-    return result.version;
-  } catch {
-    // K8s version is optional - don't fail startup
-    return undefined;
-  }
-}
 
 async function main() {
   try {
@@ -173,12 +161,9 @@ async function main() {
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
     // Track server start telemetry (non-blocking)
+    // PRD #343: K8s version obtained via plugin at runtime, not at startup
     const deploymentMethod = detectDeploymentMethod();
-    getK8sVersion().then((k8sVersion) => {
-      getTelemetry().trackServerStart(k8sVersion, deploymentMethod);
-    }).catch(() => {
-      // Telemetry errors are non-fatal - silently ignore
-    });
+    getTelemetry().trackServerStart(undefined, deploymentMethod);
 
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {

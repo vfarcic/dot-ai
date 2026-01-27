@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger, ConsoleLogger } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
+import { PluginManager } from '../core/plugin-manager';
 import { PatternVectorService } from '../core/pattern-vector-service';
 import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
@@ -272,28 +273,30 @@ export function formatCapabilities(capabilities: ResourceCapability[]): string {
 
 /**
  * Main operate tool entry point
+ *
+ * PRD #343: pluginManager is required - all kubectl operations go through plugin.
  */
-export async function operate(args: OperateInput): Promise<OperateOutput> {
+export async function operate(args: OperateInput, pluginManager: PluginManager): Promise<OperateOutput> {
   try {
     // Route 1: Execute approved operation
     if (args.sessionId && args.executeChoice) {
       // Import and delegate to execution workflow
       const { executeOperations } = await import('./operate-execution');
-      return await executeOperations(args.sessionId, logger, sessionManager);
+      return await executeOperations(args.sessionId, logger, sessionManager, pluginManager);
     }
 
     // Route 2: Refine intent with more context
     if (args.sessionId && args.refinedIntent) {
       // Import and delegate to analysis workflow with refined intent
       const { analyzeIntent } = await import('./operate-analysis');
-      return await analyzeIntent(args.refinedIntent, logger, sessionManager, args.sessionId, args.interaction_id);
+      return await analyzeIntent(args.refinedIntent, logger, sessionManager, pluginManager, args.sessionId, args.interaction_id);
     }
 
     // Route 3: New operation analysis
     if (args.intent) {
       // Import and delegate to analysis workflow
       const { analyzeIntent } = await import('./operate-analysis');
-      return await analyzeIntent(args.intent, logger, sessionManager, undefined, args.interaction_id);
+      return await analyzeIntent(args.intent, logger, sessionManager, pluginManager, undefined, args.interaction_id);
     }
 
     // Invalid input
@@ -321,9 +324,11 @@ export async function operate(args: OperateInput): Promise<OperateOutput> {
 /**
  * MCP handler for operate tool
  * Wraps the main operate function with consistent return format
+ *
+ * PRD #343: pluginManager is required - all kubectl operations go through plugin.
  */
-export async function handleOperateTool(args: any): Promise<any> {
-  const result = await operate(args);
+export async function handleOperateTool(args: any, pluginManager: PluginManager): Promise<any> {
+  const result = await operate(args, pluginManager);
 
   // Build content blocks - JSON for REST API, agent instruction for MCP agents
   const content: Array<{ type: 'text'; text: string }> = [{

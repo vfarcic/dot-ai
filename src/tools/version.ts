@@ -10,13 +10,11 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
-import * as k8s from '@kubernetes/client-node';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
 import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
-import { KubernetesDiscovery } from '../core/discovery';
-import { getTracer, createTracedK8sClient } from '../core/tracing';
+import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
@@ -425,143 +423,6 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
 }
 
 /**
- * Test Kyverno installation and readiness for policy generation using shared client
- */
-export async function getKyvernoStatus(): Promise<SystemStatus['kyverno']> {
-  try {
-    // Create discovery instance and establish connection
-    const discovery = new KubernetesDiscovery({});
-    await discovery.connect();
-    
-    // First test if we can connect to Kubernetes at all
-    const testResult = await discovery.testConnection();
-    if (!testResult.connected) {
-      return {
-        installed: false,
-        policyGenerationReady: false,
-        error: 'Cannot detect Kyverno - Kubernetes cluster is not accessible'
-      };
-    }
-    
-    // Check if Kyverno CRDs are installed using the original approach
-    const crdOutput = await discovery.executeKubectl(['get', 'crd', '--no-headers']);
-    
-    const kyvernoCRDs = crdOutput.split('\n').filter(line => 
-      line.includes('kyverno.io') && (
-        line.includes('clusterpolicies') || 
-        line.includes('policies') ||
-        line.includes('policyreports')
-      )
-    );
-    
-    if (kyvernoCRDs.length === 0) {
-      return {
-        installed: false,
-        policyGenerationReady: false,
-        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
-      };
-    }
-    
-    // Check if Kyverno deployment is ready using the client
-    let deploymentReady = false;
-    let webhookReady = false;
-    let version: string | undefined;
-    
-    try {
-      // Get client and check deployment status
-      const client = discovery.getClient();
-      const appsV1Api = createTracedK8sClient(
-        client.makeApiClient(k8s.AppsV1Api),
-        'AppsV1Api'
-      );
-      
-      const deploymentResponse = await appsV1Api.listNamespacedDeployment({
-        namespace: 'kyverno'
-      });
-      const kyvernoDeployments = deploymentResponse.items.filter((deployment: any) => 
-        deployment.metadata?.name?.startsWith('kyverno-')
-      );
-      
-      if (kyvernoDeployments.length > 0) {
-        // Check if all Kyverno deployments are ready
-        deploymentReady = kyvernoDeployments.every((deployment: any) => {
-          const readyReplicas = deployment.status?.readyReplicas || 0;
-          const replicas = deployment.status?.replicas || 0;
-          return readyReplicas > 0 && readyReplicas === replicas;
-        });
-        
-        // Try to get version from image tag of the first deployment (usually admission controller)
-        const firstDeployment = kyvernoDeployments[0];
-        const container = firstDeployment.spec?.template.spec?.containers?.[0];
-        if (container?.image) {
-          const imageMatch = container.image.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
-          if (imageMatch) {
-            version = imageMatch[1];
-          }
-        }
-      }
-    } catch (error) {
-      // Kyverno might be in a different namespace or not exist
-      deploymentReady = false;
-    }
-    
-    // Check admission controller webhook
-    try {
-      const client = discovery.getClient();
-      const admissionApi = createTracedK8sClient(
-        client.makeApiClient(k8s.AdmissionregistrationV1Api),
-        'AdmissionregistrationV1Api'
-      );
-      
-      const webhookResponse = await admissionApi.listValidatingWebhookConfiguration();
-      webhookReady = webhookResponse.items.some((webhook: any) => 
-        webhook.metadata?.name?.includes('kyverno')
-      );
-    } catch (error) {
-      webhookReady = false;
-    }
-    
-    // Determine if policy generation is ready
-    const policyGenerationReady = deploymentReady && webhookReady;
-    
-    if (!policyGenerationReady) {
-      let reason = 'Kyverno is partially installed but not fully operational';
-      if (!deploymentReady && !webhookReady) {
-        reason = 'Kyverno deployment and admission webhook are not ready';
-      } else if (!deploymentReady) {
-        reason = 'Kyverno deployment is not ready';
-      } else if (!webhookReady) {
-        reason = 'Kyverno admission webhook is not ready';
-      }
-      
-      return {
-        installed: true,
-        version,
-        webhookReady,
-        policyGenerationReady,
-        reason
-      };
-    }
-    
-    return {
-      installed: true,
-      version,
-      webhookReady: true,
-      policyGenerationReady: true
-    };
-    
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    return {
-      installed: false,
-      policyGenerationReady: false,
-      error: `Kyverno detection failed: ${errorMessage}`
-    };
-  }
-}
-
-/**
  * Test AI provider connectivity
  */
 async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatus['aiProvider']> {
@@ -718,8 +579,18 @@ async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promi
       };
     }
 
+    // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+    const result = response.result as { success?: boolean; data?: string; error?: string; message?: string };
+    if (result.success === false) {
+      return {
+        connected: false,
+        kubeconfig: 'in-cluster',
+        error: result.error || result.message || 'kubectl version failed',
+        errorType: 'KUBECTL_ERROR'
+      };
+    }
+
     // Parse the kubectl version JSON output
-    const result = response.result as { data?: string; message?: string };
     const versionData = JSON.parse(result.data || '{}');
 
     return {
@@ -746,7 +617,7 @@ async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promi
  * Get Kyverno status via plugin (PRD #343)
  * Uses kubectl_get_resource_json plugin tool for Kyverno resource checks
  */
-async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kyverno']> {
+export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kyverno']> {
   try {
     // Check if Kyverno CRD exists (clusterpolicies.kyverno.io)
     const crdResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
@@ -773,19 +644,22 @@ async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): Promise<
     });
 
     if (deploymentResponse.success) {
-      const result = deploymentResponse.result as { data?: string };
-      const deployment = JSON.parse(result.data || '{}');
+      const result = deploymentResponse.result as { success?: boolean; data?: string; error?: string };
+      // Check for nested error
+      if (result.success !== false) {
+        const deployment = JSON.parse(result.data || '{}');
 
-      const readyReplicas = deployment.status?.readyReplicas || 0;
-      const replicas = deployment.status?.replicas || 0;
-      deploymentReady = readyReplicas > 0 && readyReplicas === replicas;
+        const readyReplicas = deployment.status?.readyReplicas || 0;
+        const replicas = deployment.status?.replicas || 0;
+        deploymentReady = readyReplicas > 0 && readyReplicas === replicas;
 
-      // Extract version from image tag
-      const container = deployment.spec?.template?.spec?.containers?.[0];
-      if (container?.image) {
-        const imageMatch = container.image.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
-        if (imageMatch) {
-          version = imageMatch[1];
+        // Extract version from image tag
+        const container = deployment.spec?.template?.spec?.containers?.[0];
+        if (container?.image) {
+          const imageMatch = container.image.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
+          if (imageMatch) {
+            version = imageMatch[1];
+          }
         }
       }
     }

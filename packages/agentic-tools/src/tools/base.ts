@@ -255,3 +255,121 @@ export function stripOutputFormatArgs(args: string[]): string[] {
     );
   });
 }
+
+/**
+ * Configuration for helm command execution
+ */
+export interface HelmConfig {
+  kubeconfig?: string;
+  context?: string;
+  namespace?: string;
+  timeout?: number;
+  stdin?: string;
+}
+
+/**
+ * Build helm command string with proper flags
+ */
+export function buildHelmCommand(args: string[], config?: HelmConfig): string {
+  const cmdParts = ['helm'];
+
+  if (config?.kubeconfig) {
+    cmdParts.push('--kubeconfig', escapeShellArg(config.kubeconfig));
+  }
+
+  if (config?.context) {
+    cmdParts.push('--kube-context', escapeShellArg(config.context));
+  }
+
+  if (config?.namespace) {
+    cmdParts.push('--namespace', escapeShellArg(config.namespace));
+  }
+
+  args.forEach(arg => cmdParts.push(escapeShellArg(arg)));
+
+  return cmdParts.join(' ');
+}
+
+/**
+ * Execute a helm command
+ *
+ * @param args - Array of helm arguments (e.g., ['install', 'my-release', 'repo/chart'])
+ * @param config - Optional configuration (kubeconfig, context, namespace, timeout, stdin)
+ * @returns Command output as string
+ * @throws Error if command fails
+ */
+export async function executeHelm(args: string[], config?: HelmConfig): Promise<string> {
+  const command = buildHelmCommand(args, config);
+  const timeout = config?.timeout || 60000; // 60s default for helm operations
+
+  // If stdin is provided (for values), use spawn for proper stdin piping
+  if (config?.stdin) {
+    return new Promise((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+
+      const proc = spawn('sh', ['-c', command], {
+        timeout,
+      });
+
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (error: Error) => reject(error));
+
+      proc.on('close', (code: number) => {
+        if (code !== 0) {
+          reject(new Error(`helm command failed: ${stderr || stdout}`));
+        } else if (stderr && !isIgnorableHelmStderr(stderr)) {
+          reject(new Error(`helm command failed: ${stderr}`));
+        } else {
+          resolve(stdout.trim());
+        }
+      });
+
+      // Write stdin and close
+      proc.stdin.write(config.stdin);
+      proc.stdin.end();
+    });
+  }
+
+  // No stdin - use regular execAsync
+  try {
+    const { stdout, stderr } = await execAsync(command, {
+      timeout,
+      maxBuffer: 100 * 1024 * 1024, // 100MB buffer
+    });
+
+    if (stderr && !isIgnorableHelmStderr(stderr)) {
+      throw new Error(`helm command failed: ${stderr}`);
+    }
+
+    return stdout.trim();
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error('helm binary not found. Please install helm and ensure it\'s in your PATH.');
+      }
+      throw error;
+    }
+    throw new Error(String(error));
+  }
+}
+
+/**
+ * Check if stderr output from helm can be safely ignored
+ */
+function isIgnorableHelmStderr(stderr: string): boolean {
+  const ignorable = [
+    'Warning',
+    'has been deprecated',
+    'coalesce.go', // Helm internal warnings
+    '"helm repo add" is not needed', // When repo already exists
+  ];
+  return ignorable.some(s => stderr.includes(s));
+}

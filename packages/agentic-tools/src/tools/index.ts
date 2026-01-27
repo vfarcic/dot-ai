@@ -1,7 +1,7 @@
 /**
  * Tool Registry
  *
- * Aggregates all kubectl tools and exports them for the describe and invoke hooks.
+ * Aggregates all kubectl and helm tools and exports them for the describe and invoke hooks.
  */
 
 import { ToolDefinition } from '../types';
@@ -18,10 +18,23 @@ import { kubectlApplyDryrun } from './kubectl-apply-dryrun';
 import { kubectlDeleteDryrun } from './kubectl-delete-dryrun';
 import { kubectlGetCrdSchema } from './kubectl-get-crd-schema';
 import { kubectlGetResourceJson } from './kubectl-get-resource-json';
+import { kubectlGetPrinterColumns } from './kubectl-get-printer-columns';
 import { kubectlVersion } from './kubectl-version';
+// PRD #343: Actual execution tools (not dry-run) for remediation actions
+import { kubectlApply } from './kubectl-apply';
+import { kubectlDelete } from './kubectl-delete';
+import { kubectlPatch } from './kubectl-patch';
+import { kubectlExec } from './kubectl-exec';
+import { shellExec } from './shell-exec';
+
+// PRD #343: Helm tools via plugin system
+import { helmRepoAdd } from './helm-repo-add';
+import { helmInstall } from './helm-install';
+import { helmTemplate } from './helm-template';
+import { helmUninstall } from './helm-uninstall';
 
 /**
- * All kubectl tools in a single array
+ * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
  */
 const ALL_TOOLS: KubectlTool[] = [
@@ -35,7 +48,19 @@ const ALL_TOOLS: KubectlTool[] = [
   kubectlDeleteDryrun,
   kubectlGetCrdSchema,
   kubectlGetResourceJson,
+  kubectlGetPrinterColumns,
   kubectlVersion,
+  // PRD #343: Actual execution tools for remediation actions
+  kubectlApply,
+  kubectlDelete,
+  kubectlPatch,
+  kubectlExec,
+  shellExec,
+  // PRD #343: Helm tools
+  helmRepoAdd,
+  helmInstall,
+  helmTemplate,
+  helmUninstall,
 ];
 
 /**

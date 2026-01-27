@@ -105,6 +105,11 @@ export class MCPServer {
     this.logger = new ConsoleLogger('MCPServer');
     this.pluginManager = config.pluginManager;
 
+    // PRD #343: Connect pluginManager to dotAI for routing all kubectl operations through plugin
+    if (this.pluginManager) {
+      this.dotAI.setPluginManager(this.pluginManager);
+    }
+
     // Create McpServer instance
     this.server = new McpServer(
       {
@@ -151,7 +156,8 @@ export class MCPServer {
     this.restApiRouter = new RestApiRouter(
       this.restRegistry,
       this.dotAI,
-      this.logger
+      this.logger,
+      this.pluginManager
     );
 
     // Register all tools and prompts directly with McpServer
@@ -210,6 +216,7 @@ export class MCPServer {
   private registerTools(): void {
     // Register unified recommend tool with stage-based routing
     // Handles all deployment workflow stages: recommend, chooseSolution, answerQuestion, generateManifests, deployManifests
+    // PRD #343: pluginManager required for kubectl operations in deploy stage
     this.registerTool(
       RECOMMEND_TOOL_NAME,
       RECOMMEND_TOOL_DESCRIPTION,
@@ -219,11 +226,15 @@ export class MCPServer {
         this.logger.info(`Processing ${RECOMMEND_TOOL_NAME} tool request`, {
           requestId,
         });
+        if (!this.pluginManager) {
+          throw new Error('Plugin system not available. Recommend tool requires agentic-tools plugin.');
+        }
         return await handleRecommendTool(
           args,
           this.dotAI,
           this.logger,
-          requestId
+          requestId,
+          this.pluginManager
         );
       },
       'Deployment',
@@ -247,6 +258,7 @@ export class MCPServer {
     );
 
     // Register organizational-data tool
+    // PRD #343: pluginManager needed for capability scanning kubectl operations
     this.registerTool(
       ORGANIZATIONAL_DATA_TOOL_NAME,
       ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
@@ -261,7 +273,8 @@ export class MCPServer {
           args,
           this.dotAI,
           this.logger,
-          requestId
+          requestId,
+          this.pluginManager
         );
       },
       'Management',
@@ -269,6 +282,7 @@ export class MCPServer {
     );
 
     // Register remediate tool
+    // PRD #343: pluginManager is required - all kubectl operations go through plugin
     this.registerTool(
       REMEDIATE_TOOL_NAME,
       REMEDIATE_TOOL_DESCRIPTION,
@@ -279,13 +293,17 @@ export class MCPServer {
           `Processing ${REMEDIATE_TOOL_NAME} tool request`,
           { requestId }
         );
-        return await handleRemediateTool(args);
+        if (!this.pluginManager) {
+          throw new Error('Plugin system not available. Remediate tool requires agentic-tools plugin for kubectl operations.');
+        }
+        return await handleRemediateTool(args, this.pluginManager);
       },
       'Troubleshooting',
       ['remediation', 'troubleshooting', 'kubernetes', 'analysis']
     );
 
     // Register operate tool
+    // PRD #343: pluginManager is required - all kubectl operations go through plugin
     this.registerTool(
       OPERATE_TOOL_NAME,
       OPERATE_TOOL_DESCRIPTION,
@@ -296,7 +314,10 @@ export class MCPServer {
           `Processing ${OPERATE_TOOL_NAME} tool request`,
           { requestId }
         );
-        return await handleOperateTool(args);
+        if (!this.pluginManager) {
+          throw new Error('Plugin system not available. Operate tool requires agentic-tools plugin for kubectl operations.');
+        }
+        return await handleOperateTool(args, this.pluginManager);
       },
       'Operations',
       ['operate', 'operations', 'kubernetes', 'day2', 'update', 'scale']
@@ -330,7 +351,7 @@ export class MCPServer {
           `Processing ${QUERY_TOOL_NAME} tool request`,
           { requestId }
         );
-        return await handleQueryTool(args);
+        return await handleQueryTool(args, this.pluginManager);
       },
       'Intelligence',
       ['query', 'search', 'discover', 'capabilities', 'cluster']

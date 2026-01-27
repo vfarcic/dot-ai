@@ -13,6 +13,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { AI_SERVICE_ERROR_TEMPLATES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
+import type { PluginManager } from '../core/plugin-manager';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternVectorService, CapabilityVectorService } from '../core/index';
 import { PolicyVectorService } from '../core/policy-vector-service';
@@ -219,7 +220,8 @@ async function handleFireAndForgetScan(
   args: any,
   logger: Logger,
   requestId: string,
-  capabilityService: CapabilityVectorService
+  capabilityService: CapabilityVectorService,
+  pluginManager?: PluginManager
 ): Promise<any> {
   const isFullScan = args.mode === 'full';
   const isTargetedScan = !!args.resourceList;
@@ -282,7 +284,8 @@ async function handleFireAndForgetScan(
     parseNumericResponse,
     transitionCapabilitySession,
     cleanupCapabilitySession,
-    createCapabilityScanCompletionResponse
+    createCapabilityScanCompletionResponse,
+    pluginManager
   ).catch(error => {
     logger.error('Background fire-and-forget scan failed', error as Error, {
       requestId,
@@ -315,29 +318,31 @@ async function handleFireAndForgetScan(
 
 /**
  * Handle capabilities operations - PRD #48 Implementation
+ * PRD #343: pluginManager required for kubectl operations via plugin system
  */
 async function handleCapabilitiesOperation(
   operation: string,
   args: any,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager?: PluginManager
 ): Promise<any> {
   logger.info('Capabilities operation requested', { requestId, operation });
-  
+
   switch (operation) {
     case 'scan':
-      return await handleCapabilityScan(args, logger, requestId);
-    
+      return await handleCapabilityScan(args, logger, requestId, pluginManager);
+
     case 'progress':
       return await handleCapabilityProgress(args, logger, requestId);
-    
+
     case 'list':
     case 'get':
     case 'search':
     case 'delete':
     case 'deleteAll':
       return await handleCapabilityCRUD(operation, args, logger, requestId);
-    
+
     default:
       return createUnsupportedOperationError(operation, 'capabilities', ['scan', 'progress', 'list', 'get', 'search', 'delete', 'deleteAll']);
   }
@@ -555,11 +560,13 @@ function cleanupCapabilitySession(session: CapabilityScanSession, args: any, log
 
 /**
  * Handle capability scanning workflow with step-based state management
+ * PRD #343: pluginManager required for kubectl operations via plugin system
  */
 async function handleCapabilityScan(
   args: any,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager?: PluginManager
 ): Promise<any> {
   // Validate Vector DB and embedding service dependencies upfront
   // This prevents users from going through the entire workflow only to fail at storage
@@ -679,7 +686,7 @@ async function handleCapabilityScan(
   const isFireAndForget = !args.sessionId && (args.mode === 'full' || args.resourceList);
 
   if (isFireAndForget) {
-    return await handleFireAndForgetScan(args, logger, requestId, capabilityService);
+    return await handleFireAndForgetScan(args, logger, requestId, capabilityService, pluginManager);
   }
 
   // ============================================================================
@@ -723,7 +730,8 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore
+        handleScanningCore,
+        pluginManager
       );
 
     case 'resource-specification':
@@ -737,7 +745,8 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore
+        handleScanningCore,
+        pluginManager
       );
 
     case 'scanning':
@@ -750,9 +759,10 @@ async function handleCapabilityScan(
         parseNumericResponse,
         transitionCapabilitySession,
         cleanupCapabilitySession,
-        createCapabilityScanCompletionResponse
+        createCapabilityScanCompletionResponse,
+        pluginManager
       );
-    
+
     case 'complete':
       return {
         success: false,
@@ -791,7 +801,8 @@ export async function handleOrganizationalDataTool(
   args: any,
   _dotAI: DotAI | null,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager?: PluginManager
 ): Promise<any> {
   try {
     logger.info('Processing organizational-data tool request', { 
@@ -833,15 +844,15 @@ export async function handleOrganizationalDataTool(
     let result;
     switch (args.dataType) {
       case 'pattern':
-        result = await handlePatternOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService);
+        result = await handlePatternOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
         break;
-      
+
       case 'policy':
-        result = await handlePolicyOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService);
+        result = await handlePolicyOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
         break;
       
       case 'capabilities':
-        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
+        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId, pluginManager);
         break;
       
       default:

@@ -7,7 +7,6 @@ import { ErrorHandler } from '../core/error-handling';
 import { ResourceRecommender } from '../core/schema';
 import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
-import { ensureClusterConnection } from '../core/cluster-utils';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { handleChooseSolutionTool } from './choose-solution';
 import { handleAnswerQuestionTool } from './answer-question';
@@ -18,6 +17,7 @@ import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { getVisualizationUrl } from '../core/visualization';
 import { ArtifactHubService } from '../core/artifacthub';
 import { HelmChartInfo } from '../core/helm-types';
+import type { PluginManager } from '../core/plugin-manager';
 
 // Intent refinement heuristic constants
 const VAGUE_INTENT_THRESHOLD = 100; // Characters - intents below this trigger guidance
@@ -140,12 +140,14 @@ function generateIntentRefinementGuidance(intent: string): object {
 
 /**
  * Direct MCP tool handler for recommend functionality (unified with stage routing)
+ * PRD #343: pluginManager required for kubectl operations
  */
 export async function handleRecommendTool(
   args: any,
   dotAI: DotAI,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager: PluginManager
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -171,11 +173,12 @@ export async function handleRecommendTool(
       }
 
       if (stage === 'generateManifests') {
-        return await handleGenerateManifestsTool(args, dotAI, logger, requestId);
+        // PRD #343: Pass pluginManager for kubectl operations
+        return await handleGenerateManifestsTool(args, dotAI, logger, requestId, pluginManager);
       }
 
       if (stage === 'deployManifests') {
-        return await handleDeployManifestsTool(args, dotAI, logger, requestId);
+        return await handleDeployManifestsTool(args, dotAI, logger, requestId, pluginManager);
       }
 
       // Default: recommend stage (original recommend logic)
@@ -224,11 +227,9 @@ export async function handleRecommendTool(
         });
       }
 
-      // Ensure cluster connectivity before proceeding with recommendations
-      await ensureClusterConnection(dotAI, logger, requestId, 'RecommendTool');
-
       // Initialize AI-powered ResourceRecommender with provider
-      const recommender = new ResourceRecommender(dotAI.ai);
+      // PRD #343: Pass pluginManager for kubectl operations
+      const recommender = new ResourceRecommender(dotAI.ai, pluginManager);
 
       // Create discovery function
       const explainResourceFn = async (resource: string) => {

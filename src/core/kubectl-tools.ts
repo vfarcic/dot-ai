@@ -183,6 +183,30 @@ export const KUBECTL_APPLY_DRYRUN_TOOL: AITool = {
 };
 
 /**
+ * Tool: kubectl_apply
+ * Apply manifests to the cluster (not for AI - internal use only)
+ * PRD #343: Used by deploy-operation.ts for actual deployments
+ */
+export const KUBECTL_APPLY_TOOL: AITool = {
+  name: 'kubectl_apply',
+  description: 'Apply YAML manifests to the cluster. INTERNAL USE ONLY - not for AI investigation. Use kubectl_apply_dryrun to validate manifests during investigation.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      manifest: {
+        type: 'string',
+        description: 'The YAML manifest content to apply'
+      },
+      namespace: {
+        type: 'string',
+        description: 'Kubernetes namespace for the resource. Omit for cluster-scoped resources or if namespace is specified in manifest.'
+      }
+    },
+    required: ['manifest']
+  }
+};
+
+/**
  * Tool: kubectl_delete_dryrun
  * Validate delete commands with dry-run before execution
  */
@@ -466,6 +490,35 @@ export async function executeKubectlTools(toolName: string, input: any): Promise
           success: true,
           data: output,
           message: `Dry-run validation successful for apply${namespace ? ` in namespace ${namespace}` : ''}`
+        };
+      }
+
+      case 'kubectl_apply': {
+        // PRD #343: Internal tool for actual deployments (not for AI investigation)
+        const { manifest, namespace } = input;
+
+        if (!manifest) {
+          return {
+            success: false,
+            error: VALIDATION_MESSAGES.MISSING_PARAMETER('manifest'),
+            message: 'kubectl_apply requires a manifest parameter'
+          };
+        }
+
+        // Build kubectl command (no --dry-run flag)
+        const cmdArgs = ['apply', '-f', '-'];
+
+        // Add namespace if provided
+        if (namespace) {
+          cmdArgs.push('-n', namespace);
+        }
+
+        // Execute with manifest as stdin
+        const output = await executeKubectl(cmdArgs, { stdin: manifest });
+        return {
+          success: true,
+          data: output,
+          message: `Successfully applied manifest${namespace ? ` in namespace ${namespace}` : ''}`
         };
       }
 

@@ -10,6 +10,7 @@ import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { CapabilityInferenceEngine } from './capabilities';
 import { createAIProvider } from './ai-provider-factory';
+import type { PluginManager } from './plugin-manager';
 
 // Types for shared utility functions (dependency injection)
 export type TransitionCapabilitySessionFn = (session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: any) => void;
@@ -240,7 +241,8 @@ export async function handleResourceSelection(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
+  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn, pluginManager?: PluginManager) => Promise<any>,
+  pluginManager?: PluginManager
 ): Promise<any> {
   if (!args.response) {
     // Show initial resource selection prompt
@@ -299,7 +301,7 @@ export async function handleResourceSelection(
     }, args);
 
     // Start scanning in background (don't await) to avoid MCP timeout
-    handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse)
+    handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse, pluginManager)
       .catch(error => {
         logger.error('Background capability scan failed', error as Error, {
           requestId,
@@ -400,7 +402,8 @@ export async function handleResourceSpecification(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
+  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn, pluginManager?: PluginManager) => Promise<any>,
+  pluginManager?: PluginManager
 ): Promise<any> {
   if (!args.resourceList) {
     return {
@@ -446,7 +449,7 @@ export async function handleResourceSpecification(
   }, args);
 
   // Begin actual capability scanning and return completion summary
-  return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
+  return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse, pluginManager);
 }
 
 /**
@@ -461,7 +464,8 @@ export async function handleScanning(
   parseNumericResponse: ParseNumericResponseFn,
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
-  createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn
+  createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
+  pluginManager?: PluginManager
 ): Promise<any> {
   try {
     // Validate and initialize AI provider
@@ -499,8 +503,12 @@ export async function handleScanning(
       try {
         logger.info('Discovering all cluster resources for capability scanning', { requestId, sessionId: session.sessionId });
 
+        // PRD #343: pluginManager required for all kubectl operations
+        if (!pluginManager) {
+          throw new Error('Plugin system not available. Capability scanning requires agentic-tools plugin.');
+        }
         const discovery = new KubernetesDiscovery();
-        await discovery.connect();
+        discovery.setPluginManager(pluginManager);
 
         // Discover all available resources
         const resourceMap = await discovery.discoverResources();
@@ -644,26 +652,17 @@ export async function handleScanning(
         }, args);
       };
       
-      // Setup kubectl access
-      const discovery = new KubernetesDiscovery();
-      try {
-        await discovery.connect();
-        logger.info('Connected to Kubernetes for capability scanning', {
-          requestId,
-          sessionId: session.sessionId
-        });
-      } catch (error) {
-        return {
-          success: false,
-          operation: 'scan',
-          dataType: 'capabilities',
-          error: {
-            message: 'Could not connect to Kubernetes cluster',
-            details: error instanceof Error ? error.message : String(error),
-            sessionId: session.sessionId
-          }
-        };
+      // PRD #343: pluginManager required for all kubectl operations
+      if (!pluginManager) {
+        throw new Error('Plugin system not available. Capability scanning requires agentic-tools plugin.');
       }
+      // Setup kubectl access via plugin
+      const discovery = new KubernetesDiscovery();
+      discovery.setPluginManager(pluginManager);
+      logger.info('Ready for capability scanning via plugin', {
+        requestId,
+        sessionId: session.sessionId
+      });
 
       // Process each resource using scanSingleResource
       for (let i = 0; i < resources.length; i++) {

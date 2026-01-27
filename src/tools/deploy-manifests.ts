@@ -8,16 +8,30 @@ import { ErrorHandler } from '../core/error-handling';
 import { DeployOperation } from '../core/deploy-operation';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import { ensureClusterConnection } from '../core/cluster-utils';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
 import { extractUserAnswers } from '../core/solution-utils';
-import {
-  deployHelmRelease,
-  getHelmValuesPath,
-  helmValuesExist
-} from '../core/helm-utils';
 import { HelmChartInfo } from '../core/helm-types';
+import type { PluginManager } from '../core/plugin-manager';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
+
+/**
+ * Get the path for Helm values file
+ */
+function getHelmValuesPath(solutionId: string): string {
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  return path.join(tmpDir, `${solutionId}-values.yaml`);
+}
+
+/**
+ * Check if Helm values file exists for a solution
+ */
+function helmValuesExist(solutionId: string): boolean {
+  return fs.existsSync(getHelmValuesPath(solutionId));
+}
 
 // Tool metadata for direct MCP registration
 export const DEPLOYMANIFESTS_TOOL_NAME = 'deployManifests';
@@ -31,12 +45,14 @@ export const DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA = {
 
 /**
  * Direct MCP tool handler for deployManifests functionality
+ * PRD #343: pluginManager required for kubectl operations
  */
 export async function handleDeployManifestsTool(
   args: { solutionId: string; timeout?: number },
   dotAI: DotAI,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager: PluginManager
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -48,9 +64,6 @@ export async function handleDeployManifestsTool(
 
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
-
-      // Ensure cluster connectivity before proceeding
-      await ensureClusterConnection(dotAI, logger, requestId, 'DeployManifestsTool');
 
       // Load solution session to determine solution type
       const sessionManager = new GenericSessionManager<SolutionData>('sol');
@@ -88,28 +101,77 @@ export async function handleDeployManifestsTool(
           throw new Error('Release name (name) is required for Helm deployment');
         }
 
-        // Get values path if values file exists
-        const valuesPath = helmValuesExist(args.solutionId)
-          ? getHelmValuesPath(args.solutionId)
-          : undefined;
+        // Get values content if values file exists
+        // PRD #343: Read values and pass to plugin (no file path to plugin)
+        let valuesYaml: string | undefined;
+        if (helmValuesExist(args.solutionId)) {
+          valuesYaml = fs.readFileSync(getHelmValuesPath(args.solutionId), 'utf8');
+        }
 
-        logger.info('Starting Helm deployment', {
+        logger.info('Starting Helm deployment via plugin', {
           solutionId: args.solutionId,
           chart: `${chart.repositoryName}/${chart.chartName}`,
           releaseName,
           namespace,
-          hasValuesFile: !!valuesPath,
+          hasValuesFile: !!valuesYaml,
           timeout,
           requestId
         });
 
-        const result = await deployHelmRelease(
-          chart,
+        // PRD #343: All Helm operations go through plugin system
+        // First, add/update the Helm repository
+        const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+          name: chart.repositoryName,
+          url: chart.repository
+        });
+
+        if (!repoResult.success) {
+          logger.warn('Helm repo add failed', { error: repoResult.error?.message });
+        }
+
+        // Deploy using helm_install with wait
+        const installResult = await pluginManager.invokeTool('helm_install', {
           releaseName,
+          chart: `${chart.repositoryName}/${chart.chartName}`,
           namespace,
-          valuesPath,
-          timeout
-        );
+          values: valuesYaml,
+          version: chart.version,
+          dryRun: false,
+          wait: true,
+          timeout: `${timeout}s`,
+          createNamespace: true
+        });
+
+        // Check for nested error in result
+        let nestedError: string | undefined;
+        if (installResult.success && typeof installResult.result === 'object' && installResult.result !== null) {
+          const nestedResult = installResult.result as any;
+          if (nestedResult.success === false) {
+            nestedError = nestedResult.error || nestedResult.message || 'Helm install failed';
+          }
+        }
+
+        // Extract only the data field - never pass JSON wrapper
+        let output = '';
+        if (installResult.success && !nestedError) {
+          if (typeof installResult.result === 'object' && installResult.result !== null) {
+            const resultData = installResult.result as any;
+            if (resultData.data !== undefined) {
+              output = String(resultData.data);
+            } else if (typeof resultData === 'string') {
+              output = resultData;
+            }
+            // Don't throw error here - empty output is acceptable for Helm
+          } else {
+            output = String(installResult.result || '');
+          }
+        }
+
+        const result = {
+          success: installResult.success && !nestedError,
+          output,
+          error: nestedError || (!installResult.success ? installResult.error?.message : undefined)
+        };
 
         logger.info('Helm deployment completed', {
           success: result.success,
@@ -156,11 +218,12 @@ export async function handleDeployManifestsTool(
       }
 
       // Capability-based solution: Use existing DeployOperation
+      // PRD #343: Pass pluginManager for kubectl operations
       logger.info('Using capability-based deployment flow', {
         solutionId: args.solutionId
       });
 
-      const deployOp = new DeployOperation();
+      const deployOp = new DeployOperation(pluginManager);
 
       const deployOptions = {
         solutionId: args.solutionId,

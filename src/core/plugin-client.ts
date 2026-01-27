@@ -42,7 +42,9 @@ export class PluginClient {
   constructor(config: PluginConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
-    this.timeout = config.timeout ?? 30000;
+    // PRD #343: Increased default timeout from 30s to 5m for Helm operations
+    // Helm install/upgrade with --wait can take several minutes for complex charts
+    this.timeout = config.timeout ?? 300000;
   }
 
   /**

@@ -16,7 +16,7 @@ import {
 } from './plugin-types';
 import { PluginClient, PluginClientError } from './plugin-client';
 import { Logger } from './error-handling';
-import { AITool } from './ai-provider.interface';
+import { AITool, ToolExecutor } from './ai-provider.interface';
 
 /** Path for plugins config file (mounted from ConfigMap in K8s) */
 const PLUGINS_CONFIG_PATH = '/etc/dot-ai/plugins.json';
@@ -290,6 +290,59 @@ export class PluginManager {
     }
 
     return client.invoke(toolName, args, state, sessionId);
+  }
+
+  /**
+   * Create a ToolExecutor that routes plugin tools to plugins
+   *
+   * Returns a function compatible with toolLoop's toolExecutor parameter.
+   * Plugin tools are routed to their plugins via HTTP; non-plugin tools
+   * are routed to the optional fallback executor.
+   *
+   * @param fallbackExecutor Optional executor for non-plugin tools
+   * @returns ToolExecutor function for use in agentic tool loops
+   */
+  createToolExecutor(fallbackExecutor?: ToolExecutor): ToolExecutor {
+    return async (toolName: string, input: unknown): Promise<unknown> => {
+      // Route to plugin if this is a plugin tool
+      if (this.isPluginTool(toolName)) {
+        this.logger.debug('Routing tool to plugin', {
+          tool: toolName,
+          plugin: this.getToolPlugin(toolName),
+        });
+
+        const response = await this.invokeTool(
+          toolName,
+          input as Record<string, unknown>
+        );
+
+        if (response.success) {
+          // PRD #343: Return only the data field to AI, not the full JSON wrapper
+          // This saves tokens and provides cleaner output matching raw command output
+          if (typeof response.result === 'object' && response.result !== null) {
+            const result = response.result as any;
+            if ('success' in result && 'data' in result) {
+              // Return just the data (raw command output) for successful results
+              // Return error message string for failed results
+              return result.success ? result.data : `Error: ${result.message || result.error || 'Command failed'}`;
+            }
+          }
+          // Fallback for non-standard responses - return result directly
+          return response.result;
+        } else {
+          // Return error as simple string, not JSON
+          return `Error: ${response.error?.message || 'Unknown error'}`;
+        }
+      }
+
+      // Fall back to provided executor for non-plugin tools
+      if (fallbackExecutor) {
+        return fallbackExecutor(toolName, input);
+      }
+
+      // No handler for this tool
+      return `Error: Tool '${toolName}' not found in plugins or fallback executor`;
+    };
   }
 
   /**

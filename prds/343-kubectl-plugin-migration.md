@@ -347,22 +347,40 @@ Files currently using Kubernetes interactions that need migration to plugin:
     - New test validates registered tools list is included
   - **Done when**: `version` MCP tool returns K8s version from plugin + lists discovered tools
 
-- [ ] **M5: `query` tool plugin integration** (prove agentic invocation)
+- [x] **M5: `query` tool + REST API plugin integration** (prove agentic invocation)
   - Add `createToolExecutor()` to PluginManager for agentic loop routing
   - `query.ts` uses plugin executor in its toolLoop
-  - **Done when**: `query` tool works end-to-end through plugin
+  - Remove direct `executeKubectlTools` import from `query.ts`
+  - Migrate REST API endpoints to use plugin (no fallback):
+    - `GET /api/v1/resource` → uses `kubectl_get_resource_json` via plugin
+    - `GET /api/v1/logs` → uses `kubectl_logs` via plugin
+    - `GET /api/v1/events` → uses `kubectl_events` via plugin
+    - `GET /api/v1/resources?includeStatus=true` → fetches status via plugin
+  - Remove direct kubectl imports from `rest-api.ts`
+  - **Testing strategy**:
+    - Existing `query.test.ts` tests cover kubectl tool usage (kubectl_get, semantic bridge pattern)
+    - Since MCP server passes `pluginManager` to query tool, existing tests implicitly validate plugin routing
+    - Existing REST API tests validate endpoint functionality through plugin
+  - **Done when**: `query` tool and REST API endpoints work end-to-end through plugin, existing tests pass
 
-- [ ] **M6: Remaining agentic consumers**
+- [x] **M6: Remaining agentic consumers**
   - Migrate `remediate.ts` to use plugin executor
   - Migrate `operate-analysis.ts` to use plugin executor
   - Audit and migrate other `KubernetesDiscovery.executeKubectl()` usages
+  - Fixed Helm 4 dry-run behavior (`--dry-run=client`)
+  - Fixed plugin client timeout (30s → 5m for Helm operations)
 
-- [ ] **M7: Cleanup and integration tests**
+- [ ] **M7: Cleanup**
   - Remove old `src/core/kubectl-tools.ts`
   - Remove `KubernetesDiscovery.executeKubectl()` method
   - Remove related old code (imports, etc.)
-  - Integration tests pass
-  - Helm chart updated
+  - Remove unused functions from `resource-tools.ts` (`fetchResource`, `getPodLogs`, `getResourceEvents`)
+
+- [ ] **M8: CI/CD updates**
+  - Add workflow to build and publish `dot-ai-agentic-tools` Docker image
+  - Update release workflow to publish plugin image alongside main image
+  - Ensure Helm chart references correct image tags on release
+  - **Done when**: CI builds plugin image, release publishes both images
 
 ---
 
@@ -427,6 +445,9 @@ Files currently using Kubernetes interactions that need migration to plugin:
 | 2026-01-26 | Plugin config via ConfigMap file, not env var | Cleaner K8s-native approach; ConfigMap mounted at `/etc/dot-ai/plugins.json`; no env var fallback since plugins only work in-cluster anyway |
 | 2026-01-26 | Plugin reuses existing ServiceAccount | No separate RBAC for plugin; agentic-tools uses dot-ai ServiceAccount; simpler than duplicating RBAC rules |
 | 2026-01-26 | Plugin name `agentic-tools` (not `dot-ai-agentic-tools`) | Avoids duplicate prefix in resource names (`dot-ai-dot-ai-agentic-tools`); deployment becomes `dot-ai-agentic-tools` |
+| 2026-01-26 | REST API endpoints must use plugin for kubectl ops | MCP server has no RBAC; REST endpoints (`/api/v1/resource`, `/logs`, `/events`) were failing; expanded M5 scope to include REST API migration |
+| 2026-01-26 | No fallback to direct kubectl execution | MCP server intentionally has no RBAC; fallback would never work; cleaner to fail with "plugin unavailable" error than silent failure |
+| 2026-01-26 | Add M8 for CI/CD updates | Need workflow to build/publish `dot-ai-agentic-tools` image; release workflow must publish both images |
 
 ---
 

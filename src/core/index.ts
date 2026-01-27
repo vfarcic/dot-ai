@@ -12,6 +12,7 @@ import { createAIProvider } from './ai-provider-factory';
 import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
 import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
+import type { PluginManager } from './plugin-manager';
 
 export interface CoreConfig {
   kubernetesConfig?: string;
@@ -113,10 +114,10 @@ export class DotAI {
   async initialize(): Promise<void> {
     try {
       // Initialize all modules
-      await this.discovery.connect();
+      // PRD #343: K8s access via plugin - no connect() needed
       await this.memory.initialize();
       await this.workflow.initialize();
-      
+
       this.initialized = true;
     } catch (error) {
       this.initialized = false;
@@ -143,6 +144,14 @@ export class DotAI {
 
   getVersion(): string {
     return '0.1.0';
+  }
+
+  /**
+   * PRD #343: Set plugin manager for routing kubectl operations through plugin
+   * Must be called before any Kubernetes operations are performed
+   */
+  setPluginManager(pluginManager: PluginManager): void {
+    this.discovery.setPluginManager(pluginManager);
   }
 }
 

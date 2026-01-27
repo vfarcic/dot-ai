@@ -41,6 +41,12 @@ Generate a values.yaml file for Helm chart installation based on the user's conf
    - Strings: use quotes only when necessary (values with special chars)
    - Arrays/Lists: proper YAML list format
    - Nested objects: proper YAML indentation
+   - **Enum/constrained values**: Many charts define fields with limited valid values
+     * Look for comments like "# Valid values: 'soft', 'hard', ''" or "# Options: ClusterIP, NodePort, LoadBalancer"
+     * Look for fields with empty string defaults like `podAntiAffinity: ""` - these often have schema constraints
+     * Common constrained fields: `podAntiAffinity` (soft/hard/""), `service.type`, `pullPolicy`, `strategy.type`
+     * ONLY use values explicitly listed as valid in the chart's values.yaml or comments
+     * When in doubt, use the default value from the chart rather than inventing a value
 
 4. **Include Only Values That Differ From Defaults**:
    - Compare each user answer to the chart's default values above
@@ -62,6 +68,9 @@ If this is a retry (previous attempt and error details provided above):
   * Non-existent value path in the chart
   * Invalid YAML syntax
   * Template rendering errors from invalid combinations
+  * **Schema validation errors** - "value must be one of X, Y, Z" means you used an invalid enum value
+    - For schema errors, check the chart's values.yaml comments for valid options
+    - Use the exact valid value from the error message (e.g., if error says "must be one of '', 'soft', 'hard'", use one of those exact values)
 - Make targeted corrections to fix the identified issues
 
 ### Response Requirements:
