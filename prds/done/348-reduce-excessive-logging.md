@@ -1,5 +1,7 @@
 # PRD #348: Reduce Excessive Logging
 
+**Status:** Complete (2026-01-28)
+
 ## Problem Statement
 
 When the embedding API circuit breaker is open, the MCP server logs warnings for **every single resource** it tries to sync, creating massive log spam (130MB+ in minutes). Additionally, an audit revealed other excessive logging patterns throughout the codebase.
