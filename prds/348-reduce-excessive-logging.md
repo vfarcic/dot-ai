@@ -117,8 +117,8 @@ Remove INFO logs at lines 675-680 and 703-709. Progress is tracked via `progress
 - [x] Resource sync handler batches circuit breaker failures with summary logging
 - [x] Per-item success debug logs removed from resource sync
 - [x] Per-resource progress logs removed from capability scan
-- [ ] Command executor uses summary logging instead of per-command
-- [ ] All existing tests pass
+- [x] Command executor uses summary logging instead of per-command
+- [~] All existing tests pass (verified via CI)
 - [x] New unit tests added for log suppression behavior
 
 ## Testing

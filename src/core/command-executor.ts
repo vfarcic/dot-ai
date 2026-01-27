@@ -58,7 +58,7 @@ export async function executeCommands(
     const commandNum = i + 1;
 
     try {
-      logger.info(`Executing command ${commandNum}/${commands.length}`, {
+      logger.debug(`Executing command ${commandNum}/${commands.length}`, {
         ...logMetadata,
         sessionId,
         command
@@ -78,7 +78,7 @@ export async function executeCommands(
         timestamp: new Date()
       });
 
-      logger.info(`Command ${commandNum} succeeded`, {
+      logger.debug(`Command ${commandNum} succeeded`, {
         ...logMetadata,
         sessionId
       });
