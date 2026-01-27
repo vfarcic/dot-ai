@@ -62,13 +62,27 @@ Single package/container for all tools called by LLM during agentic loops.
 
 | Tool | Status | PRD |
 |------|--------|-----|
-| kubectl_get | Not Started | #343 |
-| kubectl_apply | Not Started | #343 |
-| kubectl_describe | Not Started | #343 |
-| kubectl_logs | Not Started | #343 |
-| kubectl_events | Not Started | #343 |
-| kubectl_api_resources | Not Started | #343 |
-| kubectl_get_crd_schema | Not Started | #343 |
+| kubectl_get | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_apply | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_describe | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_logs | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_events | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_api_resources | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_get_crd_schema | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_version | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_get_resource_json | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_get_printer_columns | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_apply_dryrun | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_delete | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_delete_dryrun | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_patch | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_patch_dryrun | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| kubectl_exec | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| helm_install | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| helm_uninstall | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| helm_template | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| helm_repo_add | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
+| shell_exec | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
 | search_capabilities | Pending | TBD |
 | search_resources | Pending | TBD |
 | query_capabilities | Pending | TBD |
@@ -110,7 +124,13 @@ Tools registered with MCP, called by users via MCP protocol.
 *(Updated as child PRDs progress)*
 
 ### From #343 (kubectl Plugin Migration)
-- TBD
+- **Separate Deployments > Sidecars**: Independent scaling/lifecycle, plugin updates don't restart MCP server, cleaner separation
+- **Plugin config via ConfigMap file**: Cleaner than env var, K8s-native approach at `/etc/dot-ai/plugins.json`
+- **RBAC removal from MCP server validates migration**: If something breaks, you know code was missed
+- **Two invocation paths needed**: Agentic (LLM-driven via toolLoop) and Direct (code-driven via `PluginManager.invokeTool()`)
+- **Incremental migration reduces risk**: Prove direct invocation (version tool) before agentic (query tool)
+- **Parallel CI jobs**: `build-dot-ai` and `build-agentic-tools` run concurrently, cutting release time
+- **Plugin timeout matters**: Helm operations need 5min timeout vs 30s default
 
 ### From MCP Tool Plugins (future)
 - TBD
@@ -119,11 +139,11 @@ Tools registered with MCP, called by users via MCP protocol.
 
 ## Child PRDs
 
-- [ ] **#343** - kubectl Plugin Migration (agentic-tools package + kubectl_* tools)
+- [x] **#343** - kubectl Plugin Migration (agentic-tools package + kubectl_* tools) - ✅ Complete
 - [ ] **TBD** - search/query tools migration (add to agentic-tools)
 - [ ] **TBD** - mermaid tools migration (add to agentic-tools)
 - [ ] **TBD** - MCP tools as plugins
-- [ ] **TBD** - Plugin scaffolding tool (MCP tool to help users create their own plugins) - *after #343 complete*
+- [ ] **TBD** - Plugin scaffolding tool (MCP tool to help users create their own plugins)
 
 ---
 
