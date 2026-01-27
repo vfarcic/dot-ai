@@ -28,6 +28,7 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 
 - Remove Docker Compose configuration and related code
 - Remove local/standalone deployment code paths (if any)
+- Remove stdio MCP transport (keep HTTP only)
 - Update documentation to reflect Kubernetes-only deployment
 - Update README with clear Kubernetes prerequisites
 - Clean up any environment handling for non-K8s scenarios
@@ -45,6 +46,7 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 - [ ] **M1: Identify non-K8s code and config**
   - Audit codebase for Docker Compose files
   - Identify code paths that assume non-K8s deployment
+  - Identify stdio transport usage (`StdioServerTransport`, `TRANSPORT_TYPE`)
   - List documentation referencing alternative deployments
 
 - [ ] **M2: Remove non-K8s deployment code**
@@ -52,12 +54,18 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
   - Remove code paths for non-K8s scenarios
   - Clean up environment variable handling
 
-- [ ] **M3: Update documentation**
+- [ ] **M3: Remove stdio transport**
+  - Remove `StdioServerTransport` import and code from `src/interfaces/mcp.ts`
+  - Remove stdio transport handling from `src/mcp/server.ts`
+  - Make HTTP the only transport (remove `TRANSPORT_TYPE` env var, hardcode HTTP)
+  - Update any documentation referencing stdio transport
+
+- [ ] **M4: Update documentation**
   - Update README with Kubernetes prerequisites
   - Remove/update docs referencing alternative deployments
   - Ensure getting started guide is Kubernetes-focused
 
-- [ ] **M4: Verify and test**
+- [ ] **M5: Verify and test**
   - Ensure Kubernetes deployment still works
   - No broken references to removed files
   - Integration tests pass
@@ -67,9 +75,10 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 ## Success Criteria
 
 1. **No non-K8s deployment options**: Docker Compose and local deployment files removed
-2. **Documentation clarity**: Clear that Kubernetes is required
-3. **No broken functionality**: Kubernetes deployment works as before
-4. **Clean codebase**: No dead code for non-K8s paths
+2. **HTTP-only transport**: stdio transport removed, HTTP is the only MCP transport
+3. **Documentation clarity**: Clear that Kubernetes is required
+4. **No broken functionality**: Kubernetes deployment works as before
+5. **Clean codebase**: No dead code for non-K8s paths
 
 ---
 
@@ -79,6 +88,7 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 |------|------------|
 | Users relying on Docker Compose | Document in changelog; provide migration path if needed |
 | Local development workflow impacted | Ensure Kind/minikube workflow documented |
+| Users expecting stdio transport for local MCP clients | Document that K8s cluster is required; use port-forward for local testing |
 
 ---
 
@@ -87,3 +97,4 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2025-01-25 | Kubernetes-only | dot-ai is useless without K8s; simplifies maintenance |
+| 2026-01-27 | Remove stdio transport | K8s uses HTTP transport; stdio only used for local MCP clients which require K8s anyway; simplifies codebase |
