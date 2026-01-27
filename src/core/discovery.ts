@@ -4,9 +4,6 @@
  * Handles cluster connection, resource discovery, and capability detection
  */
 
-import * as k8s from '@kubernetes/client-node';
-import * as path from 'path';
-import * as os from 'os';
 import * as yaml from 'yaml';
 import type { PluginManager } from './plugin-manager';
 
@@ -102,125 +99,23 @@ export interface ClusterFingerprint {
   };
 }
 
-export interface KubernetesDiscoveryConfig {
-  kubeconfigPath?: string;
-}
-
+/**
+ * PRD #343: KubernetesDiscovery simplified - all K8s operations go through plugin
+ * No longer uses @kubernetes/client-node or kubeconfig directly.
+ */
 export class KubernetesDiscovery {
-  private kc: k8s.KubeConfig;
   private connected: boolean = false;
-  private kubeconfigPath: string;
   // PRD #343: Plugin manager for routing kubectl operations through plugin
   private pluginManager?: PluginManager;
 
-  constructor(config?: KubernetesDiscoveryConfig) {
-    this.kc = new k8s.KubeConfig();
-    this.kubeconfigPath = this.resolveKubeconfigPath(config?.kubeconfigPath);
-  }
-
-  /**
-   * Resolves kubeconfig path following priority order:
-   * 1. Custom path provided in constructor
-   * 2. KUBECONFIG environment variable (first path if multiple)
-   * 3. Default ~/.kube/config
-   */
-  private resolveKubeconfigPath(customPath?: string): string {
-    // Priority 1: Custom path provided
-    if (customPath) {
-      return path.isAbsolute(customPath) ? customPath : path.resolve(customPath);
-    }
-
-    // Priority 2: KUBECONFIG environment variable
-    const envPath = process.env.KUBECONFIG;
-    if (envPath) {
-      // Handle multiple paths separated by colons (use first one)
-      const kubeconfigPath = envPath.split(':')[0];
-      // Resolve relative paths against process.cwd()
-      return path.isAbsolute(kubeconfigPath) ? kubeconfigPath : path.resolve(kubeconfigPath);
-    }
-
-    // Priority 3: Default location (only when not in cluster)
-    // When KUBERNETES_SERVICE_HOST is set, we should use in-cluster config instead
-    if (process.env.KUBERNETES_SERVICE_HOST) {
-      return ''; // Empty string indicates in-cluster should be used
-    }
-
-    return path.join(os.homedir(), '.kube', 'config');
-  }
-
-  /**
-   * Get the current kubeconfig path being used
-   */
-  getKubeconfigPath(): string {
-    return this.kubeconfigPath;
-  }
-
   /**
    * PRD #343: Set plugin manager for routing kubectl operations through plugin
-   * When set, executeKubectl will route through the plugin instead of direct shell execution
-   * Also sets connected=true since plugin handles all K8s operations (no native client needed)
+   * When set, all K8s operations route through the plugin
    */
   setPluginManager(pluginManager: PluginManager): void {
     this.pluginManager = pluginManager;
     // PRD #343: Mark as connected since all K8s operations go through plugin
-    // No need for native K8s client connection when plugin is available
     this.connected = true;
-  }
-
-  /**
-   * Set a new kubeconfig path (will require reconnection)
-   */
-  setKubeconfigPath(newPath: string): void {
-    this.kubeconfigPath = newPath;
-    this.connected = false; // Force reconnection with new path
-  }
-
-  /**
-   * Get connection status and configuration info for diagnostics
-   */
-  getConnectionInfo(): {
-    connected: boolean;
-    kubeconfig: string;
-    mode: 'file' | 'in-cluster' | 'default';
-    server?: string;
-    context?: string;
-  } {
-    const isInCluster = process.env.KUBERNETES_SERVICE_HOST && (!this.kubeconfigPath || this.kubeconfigPath === '');
-    
-    if (isInCluster) {
-      return {
-        connected: this.connected,
-        kubeconfig: 'in-cluster',
-        mode: 'in-cluster',
-        server: `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`,
-        context: 'in-cluster'
-      };
-    }
-
-    // For file-based or default configs
-    const mode = this.kubeconfigPath ? 'file' : 'default';
-    const kubeconfig = this.kubeconfigPath || '~/.kube/config';
-    
-    let server: string | undefined;
-    let context: string | undefined;
-    
-    if (this.connected && this.kc) {
-      try {
-        context = this.kc.getCurrentContext();
-        const cluster = this.kc.getCurrentCluster();
-        server = cluster?.server;
-      } catch (error) {
-        // Ignore errors getting context/cluster info
-      }
-    }
-
-    return {
-      connected: this.connected,
-      kubeconfig,
-      mode,
-      server,
-      context
-    };
   }
 
   /**
@@ -240,25 +135,12 @@ export class KubernetesDiscovery {
     return { connected: false, error: 'Plugin system not available' };
   }
 
-  /**
-   * Get the Kubernetes client for direct API access (used by other tools)
-   */
-  getClient(): k8s.KubeConfig {
-    if (!this.kc) {
-      throw new Error('Kubernetes client not initialized. Call connect() first.');
-    }
-    return this.kc;
-  }
-
-
   async getClusterInfo(): Promise<ClusterInfo> {
     if (!this.connected) {
       throw new Error('Not connected to cluster');
     }
 
     try {
-      // Get version info from server (available but not used in current implementation)
-      
       return {
         type: this.detectClusterType(),
         version: 'v1.0.0', // Simplified for now
@@ -269,37 +151,24 @@ export class KubernetesDiscovery {
     }
   }
 
+  /**
+   * PRD #343: Simplified cluster type detection
+   * Returns 'in-cluster' when running in K8s, 'vanilla-k8s' otherwise
+   */
   private detectClusterType(): string {
-    try {
-      // Simple detection based on context or API endpoints
-      const context = this.kc.getCurrentContext();
-      const contextName = context?.toLowerCase() || '';
-      
-      // Check for managed cloud platforms
-      if (contextName.includes('gke') || contextName.includes('gcp')) return 'gke';
-      if (contextName.includes('eks') || contextName.includes('aws')) return 'eks';
-      if (contextName.includes('aks') || contextName.includes('azure')) return 'aks';
-      
-      // Check for local development environments
-      if (contextName.includes('kind')) return 'kind';
-      if (contextName.includes('minikube')) return 'minikube';
-      if (contextName.includes('k3s') || contextName.includes('k3d')) return 'k3s';
-      if (contextName.includes('docker-desktop')) return 'docker-desktop';
-      
-      // Check for enterprise platforms
-      if (contextName.includes('openshift')) return 'openshift';
-      if (contextName.includes('rancher')) return 'rancher';
-      
-      // For test environments, return vanilla-k8s to match test expectations
-      if (process.env.NODE_ENV === 'test' || contextName.includes('test')) {
-        return 'vanilla-k8s';
-      }
-      
-      // Default to vanilla Kubernetes
-      return 'vanilla';
-    } catch (error) {
+    // Check if running in-cluster
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      return 'in-cluster';
+    }
+
+    // For test environments, return vanilla-k8s to match test expectations
+    if (process.env.NODE_ENV === 'test') {
       return 'vanilla-k8s';
     }
+
+    // PRD #343: Without K8s client, we can't read context from kubeconfig
+    // Default to vanilla Kubernetes
+    return 'vanilla-k8s';
   }
 
   private async detectCapabilities(): Promise<string[]> {

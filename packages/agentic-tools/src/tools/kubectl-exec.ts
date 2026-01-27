@@ -54,11 +54,22 @@ export const kubectlExec: KubectlTool = {
     }
 
     // Security: Block potentially dangerous commands
+    // Scan all args to find the first non-flag token (the actual command)
+    // This prevents bypass via flags before the command (e.g., "-n default exec")
     const blockedCommands = ['exec', 'port-forward', 'proxy', 'cp'];
-    const firstArg = cmdArgs[0]?.toLowerCase();
-    if (blockedCommands.includes(firstArg)) {
+    let foundCommand: string | undefined;
+    for (const arg of cmdArgs) {
+      // Stop scanning at '--' (end of flags marker)
+      if (arg === '--') break;
+      // Skip flags (start with '-')
+      if (arg.startsWith('-')) continue;
+      // First non-flag token is the command
+      foundCommand = arg.toLowerCase();
+      break;
+    }
+    if (foundCommand && blockedCommands.includes(foundCommand)) {
       return errorResult(
-        `Command '${firstArg}' is not allowed`,
+        `Command '${foundCommand}' is not allowed`,
         `kubectl_exec_command blocks interactive/dangerous commands: ${blockedCommands.join(', ')}`
       );
     }

@@ -294,6 +294,20 @@ export async function handleResourceSelection(
   const normalizedResponse = parseNumericResponse(args.response, ['all', 'specific']);
   
   if (normalizedResponse === 'all') {
+    // Guard: Verify plugin is available before starting background scan
+    if (!pluginManager) {
+      logger.error('Cannot start capability scan: plugin system not available', undefined, { requestId, sessionId: session.sessionId });
+      return {
+        success: false,
+        operation: 'scan',
+        dataType: 'capabilities',
+        error: {
+          message: 'Plugin system not available',
+          details: 'Capability scanning requires the agentic-tools plugin for kubectl operations. Ensure the plugin is deployed and configured.'
+        }
+      };
+    }
+
     // Transition directly to scanning (auto mode only - manual mode removed)
     transitionCapabilitySession(session, 'scanning', {
       selectedResources: 'all',

@@ -624,7 +624,17 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
       resource: 'crd/clusterpolicies.kyverno.io'
     });
 
+    // Check both outer success and nested result.success
     if (!crdResponse.success) {
+      // CRD doesn't exist - Kyverno not installed
+      return {
+        installed: false,
+        policyGenerationReady: false,
+        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+      };
+    }
+    const crdResult = crdResponse.result as { success?: boolean; data?: string; error?: string } | undefined;
+    if (crdResult?.success === false) {
       // CRD doesn't exist - Kyverno not installed
       return {
         installed: false,
@@ -670,8 +680,12 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
       resource: 'validatingwebhookconfiguration/kyverno-resource-validating-webhook-cfg'
     });
 
+    // Check both outer success and nested result.success
     if (webhookResponse.success) {
-      webhookReady = true;
+      const webhookResult = webhookResponse.result as { success?: boolean; data?: string; error?: string } | undefined;
+      if (webhookResult?.success !== false) {
+        webhookReady = true;
+      }
     }
 
     const policyGenerationReady = deploymentReady && webhookReady;

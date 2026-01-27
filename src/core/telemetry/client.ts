@@ -3,10 +3,10 @@
  *
  * Provides anonymous usage telemetry using PostHog.
  * Follows a singleton pattern with lazy initialization.
+ * PRD #343: Uses plugin system for K8s operations instead of direct @kubernetes/client-node.
  */
 
 import { PostHog } from 'posthog-node';
-import * as k8s from '@kubernetes/client-node';
 import { createHash } from 'crypto';
 import {
   TelemetryConfig,
@@ -22,6 +22,7 @@ import {
   McpClientInfo
 } from './types';
 import { loadTelemetryConfig } from './config';
+import type { PluginManager } from '../plugin-manager';
 
 /**
  * Global telemetry instance (singleton pattern with lazy initialization)
@@ -29,31 +30,63 @@ import { loadTelemetryConfig } from './config';
 let telemetryInstance: PostHogTelemetry | null = null;
 
 /**
+ * PRD #343: Plugin manager for K8s operations (set before first telemetry use)
+ */
+let telemetryPluginManager: PluginManager | null = null;
+
+/**
+ * Set plugin manager for telemetry K8s operations
+ * Must be called before first getTelemetry() use for cluster ID generation
+ */
+export function setTelemetryPluginManager(pluginManager: PluginManager): void {
+  telemetryPluginManager = pluginManager;
+}
+
+/**
  * Generate anonymous instance ID from Kubernetes cluster UID
  *
  * Uses SHA-256 hash of the kube-system namespace UID to create a stable,
  * anonymous identifier that's unique per cluster but doesn't reveal cluster identity.
+ * PRD #343: Uses plugin system for kubectl operations.
  */
 async function generateInstanceId(): Promise<string> {
-  try {
-    const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
-    const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+  // PRD #343: Use plugin to get namespace UID instead of direct K8s client
+  if (telemetryPluginManager) {
+    try {
+      const response = await telemetryPluginManager.invokeTool('kubectl_get_resource_json', {
+        resource: 'namespace/kube-system',
+        field: 'metadata'
+      });
 
-    const response = await coreApi.readNamespace({ name: 'kube-system' });
-    const namespaceUid = response.metadata?.uid;
+      if (response.success && response.result) {
+        // Parse the metadata to get UID
+        let metadata: { uid?: string };
+        if (typeof response.result === 'string') {
+          metadata = JSON.parse(response.result);
+        } else if (typeof response.result === 'object') {
+          const result = response.result as { data?: string; uid?: string };
+          // Handle nested {success, data} format
+          if (result.data) {
+            metadata = JSON.parse(result.data);
+          } else {
+            metadata = result as { uid?: string };
+          }
+        } else {
+          metadata = {};
+        }
 
-    if (namespaceUid) {
-      // Hash the UID for anonymity
-      const hash = createHash('sha256').update(namespaceUid).digest('hex');
-      return `cluster_${hash.substring(0, 16)}`;
+        if (metadata.uid) {
+          // Hash the UID for anonymity
+          const hash = createHash('sha256').update(metadata.uid).digest('hex');
+          return `cluster_${hash.substring(0, 16)}`;
+        }
+      }
+    } catch (error) {
+      // Plugin not available or failed - fall through to random ID
     }
-  } catch (error) {
-    // Cluster not available - generate a random ID for this session
-    // This handles local development without a cluster
   }
 
-  // Fallback: generate random ID for non-cluster environments
+  // Fallback: generate random ID for non-cluster environments or when plugin unavailable
   const randomId = createHash('sha256')
     .update(`${Date.now()}-${Math.random()}`)
     .digest('hex');

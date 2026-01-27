@@ -12,7 +12,6 @@ export interface DeployOptions {
   solutionId: string;
   sessionDir?: string;
   timeout?: number;
-  kubeconfig?: string;
 }
 
 export interface DeployResult {

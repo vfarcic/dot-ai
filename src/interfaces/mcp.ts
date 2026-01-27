@@ -398,17 +398,21 @@ export class MCPServer {
           undefined
         );
 
+        // Return proper MCP CallToolResult format
         if (response.success) {
           return {
-            success: true,
-            data: response.result,
-            state: response.state,
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify(response.result)
+            }]
           };
         } else {
           return {
-            success: false,
-            error: response.error.message,
-            code: response.error.code,
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({ error: response.error?.message || 'Plugin invocation failed' })
+            }],
+            isError: true
           };
         }
       };

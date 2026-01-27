@@ -423,7 +423,7 @@ export class ManifestValidator {
    * This uses the actual Kubernetes API server validation for accuracy
    * PRD #343: Routes through plugin system when pluginManager is available
    */
-  async validateManifest(manifestPath: string, config?: { kubeconfig?: string; dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
+  async validateManifest(manifestPath: string, config?: { dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 

@@ -43,6 +43,7 @@ export enum HttpStatus {
   NOT_FOUND = 404,
   METHOD_NOT_ALLOWED = 405,
   INTERNAL_SERVER_ERROR = 500,
+  BAD_GATEWAY = 502,
   SERVICE_UNAVAILABLE = 503
 }
 
@@ -1194,16 +1195,45 @@ export class RestApiRouter {
         namespace: namespace
       });
 
+      // Check for plugin-level failures first
+      if (!pluginResponse.success) {
+        const errorMsg = pluginResponse.error?.message || 'Plugin invocation failed';
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PLUGIN_ERROR',
+          `Kubernetes plugin error: ${errorMsg}`
+        );
+        return;
+      }
+
       let resource: object | undefined;
-      if (pluginResponse.success && pluginResponse.result) {
-        const result = pluginResponse.result as { success: boolean; data: string };
+      let pluginError: string | undefined;
+      if (pluginResponse.result) {
+        const result = pluginResponse.result as { success: boolean; data: string; error?: string };
         if (result.success && result.data) {
           try {
             resource = JSON.parse(result.data);
-          } catch {
-            resource = undefined;
+          } catch (parseError) {
+            pluginError = `Failed to parse resource JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`;
           }
+        } else if (!result.success) {
+          // kubectl command failed - check if it's a "not found" error
+          pluginError = result.error || 'kubectl command failed';
         }
+      }
+
+      // Handle parse errors
+      if (pluginError && !pluginError.toLowerCase().includes('not found')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'KUBECTL_ERROR',
+          pluginError
+        );
+        return;
       }
 
       if (!resource) {

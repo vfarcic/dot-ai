@@ -14,8 +14,9 @@ import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import type { PluginManager } from './plugin-manager';
 
+// PRD #343: CoreConfig simplified - kubernetesConfig removed since all K8s ops go through plugin
 export interface CoreConfig {
-  kubernetesConfig?: string;
+  // Reserved for future configuration options
 }
 
 export class DotAI {
@@ -36,15 +37,12 @@ export class DotAI {
     fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
   };
 
-  constructor(config: CoreConfig = {}) {
-    this.config = {
-      kubernetesConfig: config.kubernetesConfig || process.env.KUBECONFIG
-    };
-    
+  constructor() {
+    this.config = {};
+
     // Initialize modules
-    this.discovery = new KubernetesDiscovery({
-      kubeconfigPath: this.config.kubernetesConfig
-    });
+    // PRD #343: KubernetesDiscovery no longer needs kubeconfig - all K8s ops go through plugin
+    this.discovery = new KubernetesDiscovery();
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
     this.ai = createAIProvider();

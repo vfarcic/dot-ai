@@ -100,7 +100,8 @@ Supports two modes:
 {{- if $config.endpoint -}}
 {{- $endpoint = $config.endpoint -}}
 {{- else if $config.image -}}
-{{- $endpoint = printf "http://%s-%s:%d" $.Release.Name $name (int $config.port) -}}
+{{- $port := required (printf "plugins.%s.port is required when image is set" $name) $config.port -}}
+{{- $endpoint = printf "http://%s-%s:%d" $.Release.Name $name (int $port) -}}
 {{- end -}}
 {{- if $endpoint -}}
 {{- $plugins = append $plugins (dict "name" $name "url" $endpoint) -}}

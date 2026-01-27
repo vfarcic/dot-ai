@@ -52,29 +52,45 @@ export class PluginManager {
    *
    * Reads from /etc/dot-ai/plugins.json (mounted from ConfigMap in K8s).
    * Returns empty array if file doesn't exist (plugins only work in-cluster).
+   * Throws on invalid JSON or malformed plugin configuration.
    */
   static parsePluginConfig(): PluginConfig[] {
     if (!existsSync(PLUGINS_CONFIG_PATH)) {
       return [];
     }
 
+    let content: string;
     try {
-      const content = readFileSync(PLUGINS_CONFIG_PATH, 'utf-8');
-      const parsed = JSON.parse(content);
+      content = readFileSync(PLUGINS_CONFIG_PATH, 'utf-8');
+    } catch (err) {
+      throw new Error(`Failed to read plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
-      if (!Array.isArray(parsed)) {
-        return [];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (err) {
+      throw new Error(`Invalid JSON in plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new Error(`Plugin config at ${PLUGINS_CONFIG_PATH} must be an array, got ${typeof parsed}`);
+    }
+
+    return parsed.map((p, index) => {
+      if (!p || typeof p !== 'object') {
+        throw new Error(`Plugin at index ${index} must be an object`);
       }
-
-      return parsed.map((p, index) => ({
+      if (!p.url || typeof p.url !== 'string') {
+        throw new Error(`Plugin at index ${index} (${p.name || 'unnamed'}) is missing required 'url' field`);
+      }
+      return {
         name: p.name || `plugin-${index}`,
         url: p.url,
         timeout: p.timeout,
         required: p.required,
-      }));
-    } catch {
-      return [];
-    }
+      };
+    });
   }
 
   /**
@@ -216,13 +232,20 @@ export class PluginManager {
 
   /**
    * Get all discovered tools as AITool format for registration
+   *
+   * Only returns tools where the tool-to-plugin mapping is canonical.
+   * This filters out duplicate tools when multiple plugins define the same tool name.
    */
   getDiscoveredTools(): AITool[] {
     const tools: AITool[] = [];
 
     for (const plugin of this.discoveredPlugins.values()) {
       for (const tool of plugin.tools) {
-        tools.push(this.convertToAITool(tool));
+        // Only include tool if this plugin owns it in the routing map
+        // This handles conflicts where multiple plugins define the same tool
+        if (this.toolToPlugin.get(tool.name) === plugin.name) {
+          tools.push(this.convertToAITool(tool));
+        }
       }
     }
 
@@ -311,27 +334,37 @@ export class PluginManager {
           plugin: this.getToolPlugin(toolName),
         });
 
-        const response = await this.invokeTool(
-          toolName,
-          input as Record<string, unknown>
-        );
+        try {
+          const response = await this.invokeTool(
+            toolName,
+            input as Record<string, unknown>
+          );
 
-        if (response.success) {
-          // PRD #343: Return only the data field to AI, not the full JSON wrapper
-          // This saves tokens and provides cleaner output matching raw command output
-          if (typeof response.result === 'object' && response.result !== null) {
-            const result = response.result as any;
-            if ('success' in result && 'data' in result) {
-              // Return just the data (raw command output) for successful results
-              // Return error message string for failed results
-              return result.success ? result.data : `Error: ${result.message || result.error || 'Command failed'}`;
+          if (response.success) {
+            // PRD #343: Return only the data field to AI, not the full JSON wrapper
+            // This saves tokens and provides cleaner output matching raw command output
+            if (typeof response.result === 'object' && response.result !== null) {
+              const result = response.result as any;
+              if ('success' in result && 'data' in result) {
+                // Return just the data (raw command output) for successful results
+                // Return error message string for failed results
+                return result.success ? result.data : `Error: ${result.message || result.error || 'Command failed'}`;
+              }
             }
+            // Fallback for non-standard responses - return result directly
+            return response.result;
+          } else {
+            // Return error as simple string, not JSON
+            return `Error: ${response.error?.message || 'Unknown error'}`;
           }
-          // Fallback for non-standard responses - return result directly
-          return response.result;
-        } else {
-          // Return error as simple string, not JSON
-          return `Error: ${response.error?.message || 'Unknown error'}`;
+        } catch (err) {
+          // Catch invoke exceptions to prevent tool-loop crashes
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error('Plugin invokeTool failed with exception', new Error(message), {
+            tool: toolName,
+            plugin: this.getToolPlugin(toolName),
+          });
+          return `Error: ${message}`;
         }
       }
 
