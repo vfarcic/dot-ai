@@ -102,6 +102,8 @@ Supports two modes:
 {{- else if $config.image -}}
 {{- $port := required (printf "plugins.%s.port is required when image is set" $name) $config.port -}}
 {{- $endpoint = printf "http://%s-%s:%d" $.Release.Name $name (int $port) -}}
+{{- else -}}
+{{- fail (printf "plugins.%s is enabled but has neither endpoint nor image configured" $name) -}}
 {{- end -}}
 {{- if $endpoint -}}
 {{- $plugins = append $plugins (dict "name" $name "url" $endpoint) -}}
