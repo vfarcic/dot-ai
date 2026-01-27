@@ -23,8 +23,15 @@ permissions:
   id-token: write  # Required for MCP Registry OIDC authentication
 
 jobs:
-  release:
+  # =============================================================================
+  # PREPARE: Extract version, build changelog, setup for parallel builds
+  # =============================================================================
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.config.outputs.version }}
+      notes_only: ${{ steps.config.outputs.notes_only }}
+      has_notes: ${{ steps.notes.outputs.has_notes }}
 
     steps:
     - name: Checkout code
@@ -105,8 +112,31 @@ jobs:
           echo "has_notes=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Upload changelog artifacts
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: changelog-artifacts
+        path: |
+          docs/CHANGELOG.md
+          changelog.d/
+          release_notes_content.md
+        if-no-files-found: ignore
+
+  # =============================================================================
+  # BUILD DOT-AI: npm publish + main Docker image (runs in parallel with plugin)
+  # =============================================================================
+  build-dot-ai:
+    needs: prepare
+    if: needs.prepare.outputs.notes_only != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+
     - name: Setup Node.js
-      if: steps.config.outputs.notes_only != 'true'
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: '22.x'
@@ -114,23 +144,14 @@ jobs:
         cache: 'npm'
 
     - name: Install dependencies
-      if: steps.config.outputs.notes_only != 'true'
       run: npm ci
 
-    - name: Install Devbox
-      if: steps.config.outputs.notes_only != 'true'
-      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
-      with:
-        enable-cache: true
-
     - name: Build project
-      if: steps.config.outputs.notes_only != 'true'
       run: npm run build
 
     - name: Update package.json version
-      if: steps.config.outputs.notes_only != 'true'
       run: |
-        VERSION=${{ steps.config.outputs.version }}
+        VERSION=${{ needs.prepare.outputs.version }}
         CURRENT_VERSION=$(node -p "require('./package.json').version")
 
         if [ "$CURRENT_VERSION" != "$VERSION" ]; then
@@ -141,9 +162,8 @@ jobs:
         fi
 
     - name: Update server.json version
-      if: steps.config.outputs.notes_only != 'true'
       run: |
-        VERSION=${{ steps.config.outputs.version }}
+        VERSION=${{ needs.prepare.outputs.version }}
         if [ ! -f "server.json" ]; then
           echo "ERROR: server.json file not found!"
           echo "The server.json file is required for MCP registry publication."
@@ -156,25 +176,20 @@ jobs:
         cat server.json
 
     - name: Publish to npm
-      if: steps.config.outputs.notes_only != 'true'
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     - name: Create npm package tarball for Docker build
-      if: steps.config.outputs.notes_only != 'true'
       run: npm pack
 
     - name: Set up QEMU
-      if: steps.config.outputs.notes_only != 'true'
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
     - name: Set up Docker Buildx
-      if: steps.config.outputs.notes_only != 'true'
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
     - name: Log in to GitHub Container Registry
-      if: steps.config.outputs.notes_only != 'true'
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
       with:
         registry: ghcr.io
@@ -182,59 +197,142 @@ jobs:
         password: ${{ secrets.GHCR_TOKEN }}
 
     - name: Build and push Docker image
-      if: steps.config.outputs.notes_only != 'true'
       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
       with:
         context: .
         push: true
         build-args: |
-          PACKAGE_VERSION=${{ steps.config.outputs.version }}
+          PACKAGE_VERSION=${{ needs.prepare.outputs.version }}
         tags: |
-          ghcr.io/vfarcic/dot-ai:${{ steps.config.outputs.version }}
+          ghcr.io/vfarcic/dot-ai:${{ needs.prepare.outputs.version }}
           ghcr.io/vfarcic/dot-ai:latest
         labels: |
           org.opencontainers.image.source=https://github.com/vfarcic/dot-ai
           org.opencontainers.image.description=AI-powered development productivity platform that enhances software development workflows through intelligent automation and AI-driven assistance
           org.opencontainers.image.licenses=MIT
-          org.opencontainers.image.version=${{ steps.config.outputs.version }}
+          org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
         platforms: linux/amd64,linux/arm64
 
-    - name: Update Chart.yaml and values.yaml versions
-      if: steps.config.outputs.notes_only != 'true'
+  # =============================================================================
+  # BUILD AGENTIC-TOOLS: Plugin Docker image (runs in parallel with main)
+  # =============================================================================
+  build-agentic-tools:
+    needs: prepare
+    if: needs.prepare.outputs.notes_only != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Build and push agentic-tools plugin image
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: packages/agentic-tools
+        file: packages/agentic-tools/Dockerfile
+        push: true
+        tags: |
+          ghcr.io/vfarcic/dot-ai-agentic-tools:${{ needs.prepare.outputs.version }}
+          ghcr.io/vfarcic/dot-ai-agentic-tools:latest
+        labels: |
+          org.opencontainers.image.source=https://github.com/vfarcic/dot-ai
+          org.opencontainers.image.description=dot-ai agentic-tools plugin providing kubectl operations
+          org.opencontainers.image.licenses=MIT
+          org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+        platforms: linux/amd64,linux/arm64
+
+  # =============================================================================
+  # FINALIZE: Helm chart, commit, GitHub release (after both images built)
+  # =============================================================================
+  finalize:
+    needs: [prepare, build-dot-ai, build-agentic-tools]
+    if: needs.prepare.outputs.notes_only != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup git config
       run: |
-        VERSION=${{ steps.config.outputs.version }}
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Download changelog artifacts
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+      with:
+        name: changelog-artifacts
+        path: .
+
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      with:
+        enable-cache: true
+
+    - name: Update package.json version
+      run: |
+        VERSION=${{ needs.prepare.outputs.version }}
+        npm version $VERSION --no-git-tag-version
+
+    - name: Update server.json version
+      run: |
+        VERSION=${{ needs.prepare.outputs.version }}
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/g" server.json
+
+    - name: Update Chart.yaml and values.yaml versions
+      run: |
+        VERSION=${{ needs.prepare.outputs.version }}
 
         # Update Chart.yaml versions to match the coordinated release
         sed -i "s/^version: .*/version: \"$VERSION\"/" charts/Chart.yaml
         sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/Chart.yaml
 
-        # Update values.yaml image tag
-        sed -i "s/tag: \".*\"/tag: \"$VERSION\"/" charts/values.yaml
+        # Update main image tag in values.yaml
+        sed -i "0,/tag: \"[^\"]*\"/s/tag: \"[^\"]*\"/tag: \"$VERSION\"/" charts/values.yaml
+
+        # Update agentic-tools plugin image tag in values.yaml
+        # This targets the tag under the agentic-tools section
+        sed -i "/agentic-tools:/,/^  [a-zA-Z]/{s/tag: \"[^\"]*\"/tag: \"$VERSION\"/}" charts/values.yaml
 
         # Update dot.nu --dot-ai-tag default value
         sed -i "s/--dot-ai-tag: string = \".*\"/--dot-ai-tag: string = \"$VERSION\"/" dot.nu
 
-        echo "Updated chart to reference Docker image: ghcr.io/vfarcic/dot-ai:$VERSION"
+        echo "Updated chart to reference Docker images:"
+        echo "  - ghcr.io/vfarcic/dot-ai:$VERSION"
+        echo "  - ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION"
 
     - name: Log in to GitHub Container Registry for Helm
-      if: steps.config.outputs.notes_only != 'true'
       run: |
         devbox run -- helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
       env:
         HELM_EXPERIMENTAL_OCI: 1
 
     - name: Package and push Helm chart
-      if: steps.config.outputs.notes_only != 'true'
       run: |
-        VERSION=${{ steps.config.outputs.version }}
+        VERSION=${{ needs.prepare.outputs.version }}
         devbox run -- helm package charts/ --version $VERSION --app-version $VERSION
         devbox run -- helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
         echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
 
     - name: Commit version and changelog changes
-      if: steps.config.outputs.notes_only != 'true'
       run: |
-        VERSION=${{ steps.config.outputs.version }}
+        VERSION=${{ needs.prepare.outputs.version }}
 
         # Add all version-related changes and changelog
         git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
@@ -244,6 +342,7 @@ jobs:
 
         - npm package: v$VERSION
         - docker image: ghcr.io/vfarcic/dot-ai:$VERSION
+        - docker image: ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION
         - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
 
         [skip ci]" || echo "No changes to commit"
@@ -252,40 +351,22 @@ jobs:
 
         echo "Released coordinated version: $VERSION"
 
-    - name: Commit changelog changes (notes-only mode)
-      if: steps.config.outputs.notes_only == 'true' && steps.towncrier.outputs.has_fragments == 'true'
-      run: |
-        VERSION=${{ steps.config.outputs.version }}
-
-        git add docs/CHANGELOG.md changelog.d/
-
-        git commit -m "docs: update release notes for v$VERSION
-
-        [skip ci]" || echo "No changes to commit"
-
-        git push origin HEAD:main
-
     - name: Create GitHub Release
       run: |
-        VERSION=${{ steps.config.outputs.version }}
-        NOTES_ONLY=${{ steps.config.outputs.notes_only }}
+        VERSION=${{ needs.prepare.outputs.version }}
 
         # Build release notes content
         cat > release_body.md << 'HEADER'
         ## Coordinated Release Artifacts
         HEADER
 
-        if [ "$NOTES_ONLY" != "true" ]; then
-          cat >> release_body.md << ARTIFACTS
+        cat >> release_body.md << ARTIFACTS
         - **npm package**: \`@vfarcic/dot-ai@$VERSION\`
         - **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)
+        - **Docker image**: \`ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION\` (plugin)
         - **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`
 
         ARTIFACTS
-        else
-          echo "*Release notes update only - artifacts were published previously*" >> release_body.md
-          echo "" >> release_body.md
-        fi
 
         # Append towncrier-generated notes if available
         if [ -f "release_notes_content.md" ]; then
@@ -308,7 +389,6 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Check if docs changed since last release
-      if: steps.config.outputs.notes_only != 'true'
       id: docs-check
       run: |
         PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
@@ -326,32 +406,95 @@ jobs:
         fi
 
     - name: Trigger Website Rebuild
-      if: steps.config.outputs.notes_only != 'true' && steps.docs-check.outputs.docs-changed == 'true'
+      if: steps.docs-check.outputs.docs-changed == 'true'
       uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
       with:
         token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
         repository: vfarcic/dot-ai-website
         event-type: upstream-release
-        client-payload: '{"source": "dot-ai", "version": "${{ steps.config.outputs.version }}"}'
+        client-payload: '{"source": "dot-ai", "version": "${{ needs.prepare.outputs.version }}"}'
 
-  update-umbrella:
-    needs: [release]
+  # =============================================================================
+  # FINALIZE (NOTES-ONLY): Just commit changelog changes
+  # =============================================================================
+  finalize-notes-only:
+    needs: prepare
+    if: needs.prepare.outputs.notes_only == 'true'
     runs-on: ubuntu-latest
-    if: ${{ !inputs.notes_only }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup git config
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Download changelog artifacts
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+      with:
+        name: changelog-artifacts
+        path: .
+
+    - name: Commit changelog changes
+      run: |
+        VERSION=${{ needs.prepare.outputs.version }}
+
+        git add docs/CHANGELOG.md changelog.d/
+
+        git commit -m "docs: update release notes for v$VERSION
+
+        [skip ci]" || echo "No changes to commit"
+
+        git push origin HEAD:main
+
+    - name: Create GitHub Release
+      run: |
+        VERSION=${{ needs.prepare.outputs.version }}
+
+        # Build release notes content
+        cat > release_body.md << 'HEADER'
+        ## Coordinated Release Artifacts
+        HEADER
+
+        echo "*Release notes update only - artifacts were published previously*" >> release_body.md
+        echo "" >> release_body.md
+
+        # Append towncrier-generated notes if available
+        if [ -f "release_notes_content.md" ]; then
+          echo "## What's Changed" >> release_body.md
+          echo "" >> release_body.md
+          cat release_notes_content.md >> release_body.md
+        fi
+
+        # Create or update GitHub release
+        if gh release view "v$VERSION" > /dev/null 2>&1; then
+          echo "Updating existing release v$VERSION"
+          gh release edit "v$VERSION" --notes-file release_body.md
+        else
+          echo "Creating new release v$VERSION"
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes-file release_body.md
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =============================================================================
+  # UPDATE UMBRELLA: Update dot-ai-stack umbrella chart
+  # =============================================================================
+  update-umbrella:
+    needs: [prepare, finalize]
+    runs-on: ubuntu-latest
+    if: needs.prepare.outputs.notes_only != 'true'
     permissions:
       contents: read
 
     steps:
-    - name: Determine version
-      id: config
-      run: |
-        if [[ "${{ github.event_name }}" == "push" ]]; then
-          VERSION="${GITHUB_REF#refs/tags/v}"
-        else
-          VERSION="${{ inputs.version }}"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-
     - name: Checkout umbrella chart
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -365,7 +508,7 @@ jobs:
 
     - name: Update dependency version
       run: |
-        devbox run -- yq -i '(.dependencies[] | select(.name == "dot-ai")).version = "${{ steps.config.outputs.version }}"' Chart.yaml
+        devbox run -- yq -i '(.dependencies[] | select(.name == "dot-ai")).version = "${{ needs.prepare.outputs.version }}"' Chart.yaml
         echo "Updated Chart.yaml:"
         cat Chart.yaml
 
@@ -374,5 +517,5 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add Chart.yaml
-        git diff --staged --quiet || git commit -m "chore: bump dot-ai to ${{ steps.config.outputs.version }}"
+        git diff --staged --quiet || git commit -m "chore: bump dot-ai to ${{ needs.prepare.outputs.version }}"
         git push

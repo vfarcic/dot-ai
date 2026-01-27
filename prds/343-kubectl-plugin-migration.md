@@ -2,7 +2,7 @@
 
 **GitHub Issue**: [#343](https://github.com/vfarcic/dot-ai/issues/343)
 **Parent PRD**: [#342 - Modular Plugin Architecture](./342-modular-plugin-architecture.md)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2025-01-25
 
@@ -376,10 +376,12 @@ Files currently using Kubernetes interactions that need migration to plugin:
   - Remove unused functions from `resource-tools.ts` (`fetchResource`, `getPodLogs`, `getResourceEvents`)
   - Note: `KubernetesDiscovery.executeKubectl()` kept as internal method - already migrated to use plugin in M5/M6
 
-- [ ] **M8: CI/CD updates**
-  - Add workflow to build and publish `dot-ai-agentic-tools` Docker image
-  - Update release workflow to publish plugin image alongside main image
-  - Ensure Helm chart references correct image tags on release
+- [x] **M8: CI/CD updates**
+  - Restructured release.yml into parallel jobs: `prepare`, `build-dot-ai`, `build-agentic-tools`, `finalize`
+  - `build-dot-ai` and `build-agentic-tools` jobs run in parallel after `prepare`
+  - Both images use same version tags and are published to ghcr.io
+  - Helm chart values.yaml updated during release to sync both image tags
+  - GitHub release notes include both Docker images
   - **Done when**: CI builds plugin image, release publishes both images
 
 ---
