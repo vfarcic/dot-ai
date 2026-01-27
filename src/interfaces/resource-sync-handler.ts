@@ -8,6 +8,7 @@
 import { Logger } from '../core/error-handling';
 import { ResourceVectorService, ClusterResource, ResourceSyncRequest, generateResourceId } from '../core/resource-vector-service';
 import { RestApiResponse } from './rest-api';
+import { CircuitOpenError } from '../core/circuit-breaker';
 
 // Global flag to track if resources collection has been initialized
 let resourcesCollectionInitialized = false;
@@ -309,6 +310,10 @@ export async function handleResourceSync(
   let deleted = 0;
   const failures: Array<{ id: string; error: string }> = [];
 
+  // Track circuit breaker failures separately to avoid log spam
+  let circuitBreakerSkipped = 0;
+  let circuitBreakerLoggedOnce = false;
+
   // Handle resync mode - use diffAndSync for full reconciliation
   if (isResync && upserts.length > 0) {
     logger.info('Processing resync with diff', {
@@ -372,14 +377,21 @@ export async function handleResourceSync(
     try {
       await resourceService.upsertResource(resource);
       upserted++;
-
-      logger.debug('Resource upserted', {
-        requestId,
-        resourceId,
-        kind: resource.kind,
-        namespace: resource.namespace
-      });
     } catch (error) {
+      // Batch circuit breaker errors to avoid log spam
+      if (error instanceof CircuitOpenError) {
+        circuitBreakerSkipped++;
+        if (!circuitBreakerLoggedOnce) {
+          logger.warn('Circuit breaker open, skipping resource upserts', {
+            requestId,
+            circuitName: error.circuitName,
+            remainingCooldownMs: error.remainingCooldownMs
+          });
+          circuitBreakerLoggedOnce = true;
+        }
+        continue; // Don't add to failures - this is a temporary condition
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       failures.push({ id: resourceId, error: errorMessage });
 
@@ -396,12 +408,21 @@ export async function handleResourceSync(
     try {
       await resourceService.deleteResource(id);
       deleted++;
-
-      logger.debug('Resource deleted', {
-        requestId,
-        resourceId: id
-      });
     } catch (error) {
+      // Batch circuit breaker errors to avoid log spam
+      if (error instanceof CircuitOpenError) {
+        circuitBreakerSkipped++;
+        if (!circuitBreakerLoggedOnce) {
+          logger.warn('Circuit breaker open, skipping resource deletes', {
+            requestId,
+            circuitName: error.circuitName,
+            remainingCooldownMs: error.remainingCooldownMs
+          });
+          circuitBreakerLoggedOnce = true;
+        }
+        continue; // Don't add to failures - this is a temporary condition
+      }
+
       // deleteResource is already idempotent, but handle any other errors
       const errorMessage = error instanceof Error ? error.message : String(error);
       failures.push({ id, error: errorMessage });
@@ -412,6 +433,16 @@ export async function handleResourceSync(
         error: errorMessage
       });
     }
+  }
+
+  // Log summary of circuit breaker skipped resources
+  if (circuitBreakerSkipped > 0) {
+    logger.warn('Resource sync skipped resources due to circuit breaker', {
+      requestId,
+      skippedCount: circuitBreakerSkipped,
+      totalUpserts: upserts.length,
+      totalDeletes: deletes.length
+    });
   }
 
   const executionTime = Date.now() - startTime;
