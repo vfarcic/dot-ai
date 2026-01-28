@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "error": {
+    "code": "TOOL_NOT_FOUND",
+    "message": "Tool 'nonexistent-tool' not found",
+    "details": {
+      "availableTools": ["query", "recommend", "remediate", "kubectl_get"]
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

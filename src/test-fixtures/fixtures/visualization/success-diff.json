@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "data": {
+    "title": "Configuration Changes",
+    "visualizations": [
+      {
+        "id": "viz-1",
+        "label": "Deployment Update Diff",
+        "type": "diff",
+        "content": {
+          "before": {
+            "language": "yaml",
+            "code": "spec:\n  replicas: 2\n  template:\n    spec:\n      containers:\n      - name: api\n        image: api-server:v1.0.0\n        resources:\n          limits:\n            cpu: 250m\n            memory: 128Mi"
+          },
+          "after": {
+            "language": "yaml",
+            "code": "spec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n      - name: api\n        image: api-server:v1.1.0\n        resources:\n          limits:\n            cpu: 500m\n            memory: 256Mi"
+          }
+        }
+      }
+    ],
+    "insights": [
+      "Replicas increased from 2 to 3 for better load handling",
+      "Image updated from v1.0.0 to v1.1.0",
+      "Resource limits doubled to accommodate new features"
+    ],
+    "toolsUsed": ["operate"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "viz-req-202",
+    "version": "1.0.0"
+  }
+}

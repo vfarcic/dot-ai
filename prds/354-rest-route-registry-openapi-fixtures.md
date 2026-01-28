@@ -302,8 +302,8 @@ Update `package.json` exports:
 - [x] M2: Define Zod schemas for all existing REST endpoint responses
 - [x] M3: Migrate existing endpoints to registry-based routing
 - [x] M4: Update OpenAPI generator to include registry routes
-- [ ] M5: Create fixture files with realistic scenarios for all endpoints
-- [ ] M6: Add fixture validation script and CI integration
+- [x] M5: Create fixture files with realistic scenarios for all endpoints
+- [x] M6: Add fixture validation script and CI integration
 - [ ] M7: Export fixtures and types from package
 - [ ] M8: Notify dot-ai-ui project (write `../dot-ai-ui/tmp/feature-response.md` with usage instructions)
 

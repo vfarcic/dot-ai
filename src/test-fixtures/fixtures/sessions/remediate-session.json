@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "data": {
+    "id": "session-remediate-def456",
+    "data": {
+      "toolName": "remediate",
+      "intent": "Pod nginx-deployment-7d9c67b5f-abc12 is in CrashLoopBackOff",
+      "issue": "Pod nginx-deployment-7d9c67b5f-abc12 is in CrashLoopBackOff",
+      "diagnosis": {
+        "rootCause": "Container is failing health checks due to misconfigured readiness probe",
+        "evidence": [
+          "Pod events show repeated FailedLivenessProbe",
+          "Container logs show application listening on port 8080, but probe is configured for port 80"
+        ],
+        "confidence": 0.92
+      },
+      "remediation": {
+        "steps": [
+          {
+            "description": "Update the readiness probe port from 80 to 8080",
+            "command": "kubectl patch deployment nginx-deployment -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"readinessProbe\":{\"httpGet\":{\"port\":8080}}}]}}}}'",
+            "risk": "low"
+          }
+        ],
+        "estimatedTime": "2 minutes"
+      },
+      "toolsUsed": ["kubectl_describe", "kubectl_logs", "kubectl_events"]
+    },
+    "createdAt": "2024-01-15T10:25:00.000Z",
+    "expiresAt": "2024-01-16T10:25:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

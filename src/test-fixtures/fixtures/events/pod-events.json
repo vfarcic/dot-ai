@@ -1,0 +1,68 @@
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "lastTimestamp": "2024-01-15T10:25:00Z",
+        "type": "Normal",
+        "reason": "Scheduled",
+        "message": "Successfully assigned default/nginx-deployment-7d9c67b5f-abc12 to node-1",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "nginx-deployment-7d9c67b5f-abc12",
+          "namespace": "default",
+          "uid": "pod-uid-123"
+        },
+        "count": 1,
+        "firstTimestamp": "2024-01-15T10:25:00Z"
+      },
+      {
+        "lastTimestamp": "2024-01-15T10:25:15Z",
+        "type": "Normal",
+        "reason": "Pulled",
+        "message": "Container image \"nginx:1.25.3\" already present on machine",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "nginx-deployment-7d9c67b5f-abc12",
+          "namespace": "default",
+          "uid": "pod-uid-123"
+        },
+        "count": 1,
+        "firstTimestamp": "2024-01-15T10:25:15Z"
+      },
+      {
+        "lastTimestamp": "2024-01-15T10:25:20Z",
+        "type": "Normal",
+        "reason": "Created",
+        "message": "Created container nginx",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "nginx-deployment-7d9c67b5f-abc12",
+          "namespace": "default",
+          "uid": "pod-uid-123"
+        },
+        "count": 1,
+        "firstTimestamp": "2024-01-15T10:25:20Z"
+      },
+      {
+        "lastTimestamp": "2024-01-15T10:25:25Z",
+        "type": "Normal",
+        "reason": "Started",
+        "message": "Started container nginx",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "nginx-deployment-7d9c67b5f-abc12",
+          "namespace": "default",
+          "uid": "pod-uid-123"
+        },
+        "count": 1,
+        "firstTimestamp": "2024-01-15T10:25:25Z"
+      }
+    ],
+    "count": 4
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

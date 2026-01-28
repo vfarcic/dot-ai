@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "error": {
+    "code": "SESSION_NOT_FOUND",
+    "message": "Session not found: nonexistent-session-id",
+    "details": {
+      "sessionId": "nonexistent-session-id",
+      "hint": "Sessions expire after 24 hours"
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

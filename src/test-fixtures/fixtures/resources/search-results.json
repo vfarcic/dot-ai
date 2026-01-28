@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "data": {
+    "resources": [
+      {
+        "name": "nginx-deployment",
+        "namespace": "default",
+        "kind": "Deployment",
+        "apiVersion": "apps/v1",
+        "apiGroup": "apps",
+        "labels": {
+          "app": "nginx"
+        },
+        "createdAt": "2024-01-10T08:00:00Z",
+        "score": 0.95
+      },
+      {
+        "name": "nginx-config",
+        "namespace": "default",
+        "kind": "ConfigMap",
+        "apiVersion": "v1",
+        "labels": {
+          "app": "nginx"
+        },
+        "createdAt": "2024-01-10T07:55:00Z",
+        "score": 0.87
+      },
+      {
+        "name": "nginx-service",
+        "namespace": "default",
+        "kind": "Service",
+        "apiVersion": "v1",
+        "labels": {
+          "app": "nginx"
+        },
+        "createdAt": "2024-01-10T08:05:00Z",
+        "score": 0.82
+      }
+    ],
+    "total": 3,
+    "limit": 20,
+    "offset": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

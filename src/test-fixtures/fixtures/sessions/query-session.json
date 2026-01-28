@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "data": {
+    "id": "session-query-abc123",
+    "data": {
+      "toolName": "query",
+      "intent": "What pods are running in the default namespace?",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Found 5 pods running in the default namespace:\n\n| NAME | STATUS | READY |\n|------|--------|-------|\n| nginx-deployment-7d9c67b5f-abc12 | Running | 1/1 |\n| nginx-deployment-7d9c67b5f-def34 | Running | 1/1 |\n| redis-master-xyz789 | Running | 1/1 |\n| postgres-0 | Running | 1/1 |\n| api-gateway-qrs456 | Running | 1/1 |"
+          }
+        ],
+        "isError": false
+      },
+      "toolsUsed": ["kubectl_get"]
+    },
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "expiresAt": "2024-01-16T10:30:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

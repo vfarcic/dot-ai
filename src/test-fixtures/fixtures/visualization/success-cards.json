@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "data": {
+    "title": "Deployment Recommendations",
+    "visualizations": [
+      {
+        "id": "viz-1",
+        "label": "Recommended Solutions",
+        "type": "cards",
+        "content": [
+          {
+            "id": "sol-1",
+            "title": "CNPG PostgreSQL Cluster",
+            "description": "Cloud Native PostgreSQL with high availability, automated backups, and point-in-time recovery",
+            "tags": ["database", "postgresql", "production-ready"]
+          },
+          {
+            "id": "sol-2",
+            "title": "Bitnami PostgreSQL Helm Chart",
+            "description": "Simple PostgreSQL deployment using Helm, good for development environments",
+            "tags": ["database", "postgresql", "helm", "development"]
+          },
+          {
+            "id": "sol-3",
+            "title": "CrunchyData PGO",
+            "description": "Enterprise-grade PostgreSQL Operator with advanced features",
+            "tags": ["database", "postgresql", "enterprise", "operator"]
+          }
+        ]
+      }
+    ],
+    "insights": [
+      "CNPG is recommended for production workloads due to its HA capabilities",
+      "Consider your backup requirements when choosing between options",
+      "Bitnami chart is suitable for development and testing"
+    ],
+    "toolsUsed": ["recommend"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "viz-req-456",
+    "version": "1.0.0"
+  }
+}

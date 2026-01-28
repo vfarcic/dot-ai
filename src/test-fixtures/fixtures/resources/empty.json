@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "data": {
+    "resources": [],
+    "total": 0,
+    "limit": 20,
+    "offset": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

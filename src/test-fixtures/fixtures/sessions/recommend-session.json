@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "data": {
+    "id": "session-recommend-ghi789",
+    "data": {
+      "toolName": "recommend",
+      "intent": "Deploy a PostgreSQL database with high availability",
+      "stage": "chooseSolution",
+      "solutions": [
+        {
+          "id": "sol-1",
+          "name": "CNPG PostgreSQL Cluster",
+          "description": "Cloud Native PostgreSQL with HA, backups, and PITR",
+          "score": 0.95,
+          "pros": ["Production-ready", "Automated failover", "Built-in backups"],
+          "cons": ["Requires operator installation"]
+        },
+        {
+          "id": "sol-2",
+          "name": "Bitnami PostgreSQL",
+          "description": "Simple Helm-based PostgreSQL deployment",
+          "score": 0.78,
+          "pros": ["Easy to deploy", "Good for development"],
+          "cons": ["No built-in HA", "Manual backup setup"]
+        }
+      ],
+      "selectedSolutionId": null,
+      "toolsUsed": ["recommend"]
+    },
+    "createdAt": "2024-01-15T10:20:00.000Z",
+    "expiresAt": "2024-01-16T10:20:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

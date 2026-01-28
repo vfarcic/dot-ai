@@ -1,0 +1,59 @@
+{
+  "success": true,
+  "data": {
+    "kinds": [
+      {
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "count": 42,
+        "apiGroup": ""
+      },
+      {
+        "kind": "Deployment",
+        "apiVersion": "apps/v1",
+        "count": 15,
+        "apiGroup": "apps"
+      },
+      {
+        "kind": "Service",
+        "apiVersion": "v1",
+        "count": 23,
+        "apiGroup": ""
+      },
+      {
+        "kind": "ConfigMap",
+        "apiVersion": "v1",
+        "count": 31,
+        "apiGroup": ""
+      },
+      {
+        "kind": "Secret",
+        "apiVersion": "v1",
+        "count": 18,
+        "apiGroup": ""
+      },
+      {
+        "kind": "StatefulSet",
+        "apiVersion": "apps/v1",
+        "count": 5,
+        "apiGroup": "apps"
+      },
+      {
+        "kind": "Ingress",
+        "apiVersion": "networking.k8s.io/v1",
+        "count": 8,
+        "apiGroup": "networking.k8s.io"
+      },
+      {
+        "kind": "Cluster",
+        "apiVersion": "postgresql.cnpg.io/v1",
+        "count": 2,
+        "apiGroup": "postgresql.cnpg.io"
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}
