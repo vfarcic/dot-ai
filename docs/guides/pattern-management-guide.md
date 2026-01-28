@@ -43,7 +43,7 @@ Before using Pattern Management, ensure you have:
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
 - **Vector DB service** (Qdrant) for pattern storage
-- **API keys** for AI models and embedding providers (see [Configuration Guide](../setup/mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration)) can be set as environment variables or in `.mcp.json`
 
 For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
 

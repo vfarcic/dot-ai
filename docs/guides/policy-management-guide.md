@@ -51,7 +51,7 @@ Before using Policy Management, ensure you have:
 ### Required Setup
 - **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
 - **Vector DB service** (Qdrant) for policy storage
-- **API keys** for AI models and embedding providers (see [Configuration Guide](../setup/mcp-setup.md#configuration-components)) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration)) can be set as environment variables or in `.mcp.json`
 
 ### Optional (for Kyverno enforcement)
 - **[Kyverno](https://kyverno.io/)** installed in your cluster for optional policy enforcement
@@ -464,7 +464,7 @@ The recommendation system automatically:
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   See [Complete Configuration Guide](../setup/mcp-setup.md#configuration-components) for AI model and embedding provider setup with all available options.
+   See [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for AI model and embedding provider setup with all available options.
 
 #### Kyverno Policy Generation Fails
 
