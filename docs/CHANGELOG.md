@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.0.1] - 2026-01-28
+
+### Bug Fixes
+
+- **Reduced Excessive Logging During Circuit Breaker Events**
+
+  Fixed excessive log spam that occurred when the embedding API circuit breaker was open, which previously generated 130MB+ of logs within minutes from a single container. This caused log storage to fill rapidly, overwhelmed log aggregation systems (triggering Loki rate limiting), and made it difficult to find important logs.
+
+  The circuit breaker now logs "circuit open" warnings only once per open period instead of for every blocked request. Resource sync operations batch circuit breaker failures and log a summary count rather than individual warnings per resource. Per-resource progress logs during capability scans have been removed since progress is available via the dedicated progress endpoint. Command executor logging has been reduced to summary-level output.
+
+  These changes reduce log volume by 99%+ during circuit breaker scenarios while preserving all operationally important information. ([#348](https://github.com/vfarcic/dot-ai/issues/348))
+
+### Breaking Changes
+
+- ## Kubernetes-Only Deployment
+
+  dot-ai now requires Kubernetes for deployment. Docker Compose, npx, and local standalone deployment options have been removed, along with ToolHive and kagent integration. This simplifies the codebase and documentation by establishing a single, consistent deployment model.
+
+  The MCP server now uses HTTP transport exclusively—stdio transport has been removed. Users who previously ran dot-ai locally with stdio must now deploy to a Kubernetes cluster and connect via HTTP. The `TRANSPORT_TYPE` environment variable is no longer supported.
+
+  All setup documentation has been consolidated into a single guide. Users should follow the [MCP Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/mcp-setup) for installation and configuration. The guide covers Helm deployment, AI provider configuration, embedding setup, and MCP client configuration for Claude Code, Cursor, and other clients. ([#345](https://github.com/vfarcic/dot-ai/issues/345))
+
+### Other Changes
+
+- **Modular Plugin Architecture for kubectl Tools**
+
+  Kubernetes operations now run through a modular plugin system instead of being embedded in the MCP server core. This architectural change separates concerns, enables independent testing and deployment of kubectl tools, and lays the groundwork for user-provided plugins.
+
+  The `agentic-tools` plugin package contains all kubectl tools (kubectl_get, kubectl_apply, kubectl_describe, kubectl_logs, kubectl_events, kubectl_api_resources, kubectl_exec_command, and more) running as an HTTP service. The plugin communicates with the MCP server via describe/invoke hooks, allowing tools to be discovered at startup and invoked during agentic loops or direct API calls. The version tool now shows discovered plugin information including tool counts.
+
+  Plugin deployment is handled through the Helm chart. Plugins can be deployed by the chart (provide `image` + `port`) or registered externally (provide `endpoint` only). The MCP server itself no longer requires Kubernetes RBAC permissions since all cluster operations route through the plugin, which has its own ServiceAccount with appropriate permissions. ([#343](https://github.com/vfarcic/dot-ai/issues/343))
+
+
 ## [0.195.0] - 2026-01-23
 
 ### Features
