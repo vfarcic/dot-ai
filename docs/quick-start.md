@@ -160,7 +160,7 @@ You should see a status report showing all components are healthy.
 - ✅ **Automatic Capability Discovery**: Controller watches for CRD changes and scans automatically
 - ✅ **Team Collaboration**: Shared MCP server accessible by multiple developers
 
-**Alternative Methods**: See the [MCP Setup Guide](setup/mcp-setup.md) for Docker (local development) and NPX options.
+**Full Configuration**: See the [MCP Setup Guide](setup/mcp-setup.md) for advanced configuration options.
 
 ### Step 5: Start Using Conversational Workflows
 
