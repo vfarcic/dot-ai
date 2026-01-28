@@ -1,4 +1,16 @@
 {
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/prd-done-changelog-reminder.sh"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "WebFetch(domain:modelcontextprotocol.io)",
