@@ -1,3 +1,7 @@
+# DEPRECATED: This file is maintained for legacy blog post references only.
+# dot-ai requires Kubernetes - use Helm chart deployment instead.
+# See: https://github.com/vfarcic/dot-ai for Kubernetes setup instructions.
+#
 # Docker Compose configuration for DevOps AI Toolkit MCP Server
 # Development and testing deployment with MCP server + Qdrant
 

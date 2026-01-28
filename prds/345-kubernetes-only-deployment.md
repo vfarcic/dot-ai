@@ -49,10 +49,10 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
   - [x] Identify stdio transport usage (`StdioServerTransport`, `TRANSPORT_TYPE`)
   - [x] List documentation referencing alternative deployments
 
-- [ ] **M2: Remove non-K8s deployment code**
-  - Delete Docker Compose files
-  - Remove code paths for non-K8s scenarios
-  - Clean up environment variable handling
+- [x] **M2: Remove non-K8s deployment code**
+  - [x] Delete Docker Compose files
+  - [x] Remove code paths for non-K8s scenarios
+  - [x] Clean up environment variable handling
 
 - [ ] **M3: Remove stdio transport**
   - Remove `StdioServerTransport` import and code from `src/interfaces/mcp.ts`
@@ -146,3 +146,24 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 | `.github/labeler.yml` | Remove docker-compose label rule |
 | `assets/project-setup/templates/.github/labeler.yml.hbs` | Remove docker-compose pattern |
 | `package.json` | Update test:integration:server script |
+
+### M2 Implementation (2026-01-28)
+
+#### Files Deleted
+| File | Reason |
+|------|--------|
+| `.mcp-node.json` | Local node execution config - non-K8s |
+| `.mcp-npx.json` | NPX execution config - non-K8s |
+
+#### Files Modified
+| File | Change |
+|------|--------|
+| `docker-compose-dot-ai.yaml` | Added deprecation notice (kept for blog post references) |
+| `src/mcp/server.ts` | Removed `detectDeploymentMethod()` function entirely (deployment method tracking was non-functional - Helm env vars never set); simplified telemetry to not track deployment method; removed unused `existsSync` import |
+
+#### Files Kept
+| File | Reason |
+|------|--------|
+| `.mcp-docker.json` | Docker MCP config - kept for blog post references |
+| `.mcp-kubernetes.json` | HTTP transport for K8s deployment |
+| `.mcp.json` | HTTP transport for production |

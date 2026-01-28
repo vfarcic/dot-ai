@@ -11,34 +11,11 @@ import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import path from 'path';
 
 // Track server start time for uptime calculation
 const serverStartTime = Date.now();
-
-/**
- * Detect deployment method from environment
- */
-function detectDeploymentMethod(): string {
-  // Check for Helm deployment (set by Helm chart)
-  if (process.env.HELM_RELEASE_NAME || process.env.HELM_CHART_NAME) {
-    return 'helm';
-  }
-
-  // Check for Kubernetes environment (service account or env vars set by k8s)
-  if (process.env.KUBERNETES_SERVICE_HOST || process.env.KUBERNETES_PORT) {
-    return 'kubernetes';
-  }
-
-  // Check for Docker container (/.dockerenv file exists in containers)
-  if (existsSync('/.dockerenv') || process.env.DOCKER_CONTAINER === 'true') {
-    return 'docker';
-  }
-
-  // Default to local development
-  return 'local';
-}
 
 /**
  * Get Kubernetes version (non-blocking, returns undefined if unavailable)
@@ -147,9 +124,8 @@ async function main() {
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
     // Track server start telemetry (non-blocking)
-    const deploymentMethod = detectDeploymentMethod();
     getK8sVersion().then((k8sVersion) => {
-      getTelemetry().trackServerStart(k8sVersion, deploymentMethod);
+      getTelemetry().trackServerStart(k8sVersion);
     }).catch(() => {
       // Telemetry errors are non-fatal - silently ignore
     });
