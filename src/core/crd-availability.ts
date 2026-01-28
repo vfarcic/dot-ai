@@ -3,9 +3,11 @@
  *
  * Checks once per MCP server lifecycle if Solution CRD is available,
  * then caches the result globally to avoid repeated cluster queries.
+ *
+ * PRD #343: Uses plugin system for K8s operations (MCP server has no RBAC)
  */
 
-import * as k8s from '@kubernetes/client-node';
+import type { PluginManager } from './plugin-manager';
 
 /**
  * Singleton cache for CRD availability check
@@ -14,6 +16,7 @@ import * as k8s from '@kubernetes/client-node';
 class CRDAvailabilityCache {
   private static instance: CRDAvailabilityCache;
   private crdAvailable: boolean | null = null;
+  private pluginManager: PluginManager | null = null;
 
   private constructor() {}
 
@@ -24,34 +27,71 @@ class CRDAvailabilityCache {
     return CRDAvailabilityCache.instance;
   }
 
+  /**
+   * Set plugin manager for K8s operations
+   */
+  setPluginManager(pluginManager: PluginManager): void {
+    this.pluginManager = pluginManager;
+  }
+
   async isSolutionCRDAvailable(): Promise<boolean> {
     // Return cached result if available
     if (this.crdAvailable !== null) {
       return this.crdAvailable;
     }
 
-    // Check cluster for Solution CRD
+    // PRD #343: All K8s operations go through plugin
+    if (!this.pluginManager) {
+      console.log('ℹ️  Plugin system not available - Solution CR generation disabled');
+      this.crdAvailable = false;
+      return false;
+    }
+
+    // Check cluster for Solution CRD via plugin
+    const crdName = 'solutions.dot-ai.devopstoolkit.live';
+
     try {
-      const kc = new k8s.KubeConfig();
-      kc.loadFromDefault();
-      const k8sApi = kc.makeApiClient(k8s.ApiextensionsV1Api);
-      const crdName = 'solutions.dot-ai.devopstoolkit.live';
+      const response = await this.pluginManager.invokeTool('kubectl_get_resource_json', {
+        resource: `crd/${crdName}`
+      });
 
-      await k8sApi.readCustomResourceDefinition({ name: crdName });
-
-      // CRD exists, cache result
-      this.crdAvailable = true;
-      console.log('✅ Solution CRD available - Solution CR generation enabled');
-      return true;
+      if (response.success) {
+        // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+        const result = response.result as { success?: boolean; error?: string } | undefined;
+        if (result && result.success === false) {
+          const errorMsg = result.error || '';
+          if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
+            this.crdAvailable = false;
+            console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
+            return false;
+          }
+          throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
+        }
+        // CRD exists, cache result
+        this.crdAvailable = true;
+        console.log('✅ Solution CRD available - Solution CR generation enabled');
+        return true;
+      } else {
+        // CRD not found or error
+        const errorMsg = response.error?.message || '';
+        if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
+          this.crdAvailable = false;
+          console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
+          return false;
+        }
+        // Other errors - don't cache, throw
+        throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
+      }
     } catch (error: any) {
-      if (error.statusCode === 404 || error.response?.statusCode === 404) {
-        // CRD not found, cache result
+      // Check if it's a "not found" error
+      const errorMsg = error.message || String(error);
+      if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
         this.crdAvailable = false;
         console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
         return false;
       }
-      // Other errors (cluster unreachable, etc.) - don't cache, throw
-      throw new Error(`Failed to check Solution CRD availability: ${error.message || error}`);
+      // Other errors - don't cache, throw
+      throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
     }
   }
 
@@ -66,9 +106,14 @@ class CRDAvailabilityCache {
 /**
  * Helper function for checking CRD availability
  * Use this function throughout the codebase
+ *
+ * @param pluginManager - Optional plugin manager. If provided on first call, will be cached.
  */
-export async function isSolutionCRDAvailable(): Promise<boolean> {
+export async function isSolutionCRDAvailable(pluginManager?: PluginManager): Promise<boolean> {
   const cache = CRDAvailabilityCache.getInstance();
+  if (pluginManager) {
+    cache.setPluginManager(pluginManager);
+  }
   return cache.isSolutionCRDAvailable();
 }
 

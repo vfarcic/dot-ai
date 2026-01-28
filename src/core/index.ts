@@ -12,9 +12,11 @@ import { createAIProvider } from './ai-provider-factory';
 import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
 import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
+import type { PluginManager } from './plugin-manager';
 
+// PRD #343: CoreConfig simplified - kubernetesConfig removed since all K8s ops go through plugin
 export interface CoreConfig {
-  kubernetesConfig?: string;
+  // Reserved for future configuration options
 }
 
 export class DotAI {
@@ -35,15 +37,12 @@ export class DotAI {
     fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
   };
 
-  constructor(config: CoreConfig = {}) {
-    this.config = {
-      kubernetesConfig: config.kubernetesConfig || process.env.KUBECONFIG
-    };
-    
+  constructor() {
+    this.config = {};
+
     // Initialize modules
-    this.discovery = new KubernetesDiscovery({
-      kubeconfigPath: this.config.kubernetesConfig
-    });
+    // PRD #343: KubernetesDiscovery no longer needs kubeconfig - all K8s ops go through plugin
+    this.discovery = new KubernetesDiscovery();
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
     this.ai = createAIProvider();
@@ -113,10 +112,10 @@ export class DotAI {
   async initialize(): Promise<void> {
     try {
       // Initialize all modules
-      await this.discovery.connect();
+      // PRD #343: K8s access via plugin - no connect() needed
       await this.memory.initialize();
       await this.workflow.initialize();
-      
+
       this.initialized = true;
     } catch (error) {
       this.initialized = false;
@@ -144,6 +143,14 @@ export class DotAI {
   getVersion(): string {
     return '0.1.0';
   }
+
+  /**
+   * PRD #343: Set plugin manager for routing kubectl operations through plugin
+   * Must be called before any Kubernetes operations are performed
+   */
+  setPluginManager(pluginManager: PluginManager): void {
+    this.discovery.setPluginManager(pluginManager);
+  }
 }
 
 // Re-export all modules for convenience
@@ -165,6 +172,19 @@ export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } 
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
 export { CircuitBreaker, CircuitBreakerFactory, CircuitBreakerConfig, CircuitBreakerStats, CircuitState, CircuitOpenError } from './circuit-breaker';
+
+// Plugin system (PRD #343)
+export { PluginManager, PluginDiscoveryError } from './plugin-manager';
+export { PluginClient, PluginClientError } from './plugin-client';
+export {
+  PluginConfig,
+  PluginToolDefinition,
+  DescribeResponse,
+  InvokeResponse,
+  InvokeSuccessResponse,
+  InvokeErrorResponse,
+  DiscoveredPlugin,
+} from './plugin-types';
 
 // Default export
 export default DotAI; 

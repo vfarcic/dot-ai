@@ -9,7 +9,6 @@ import { promisify } from 'util';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
-import { ensureClusterConnection } from '../core/cluster-utils';
 import { ManifestValidator, ValidationResult } from '../core/schema';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,14 +21,58 @@ import { extractContentFromMarkdownCodeBlocks } from '../core/platform-utils';
 import { isSolutionCRDAvailable } from '../core/crd-availability';
 import { generateSolutionCR } from '../core/solution-cr';
 import { HelmChartInfo } from '../core/helm-types';
-import {
-  buildHelmCommand,
-  validateHelmDryRun,
-  getHelmValuesPath,
-  ensureTmpDir
-} from '../core/helm-utils';
 import { packageManifests, OutputFormat } from '../core/packaging';
 import { getVisualizationUrl } from '../core/visualization';
+import type { PluginManager } from '../core/plugin-manager';
+
+// PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
+
+/**
+ * Ensure tmp directory exists
+ */
+function ensureTmpDir(): string {
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  if (!fs.existsSync(tmpDir)) {
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
+  return tmpDir;
+}
+
+/**
+ * Get the path for Helm values file
+ */
+function getHelmValuesPath(solutionId: string): string {
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  return path.join(tmpDir, `${solutionId}-values.yaml`);
+}
+
+/**
+ * Build Helm command string for display to users
+ */
+function buildHelmCommandForDisplay(
+  chart: HelmChartInfo,
+  releaseName: string,
+  namespace: string,
+  valuesPath?: string
+): string {
+  const parts = [
+    'helm upgrade --install',
+    releaseName,
+    `${chart.repositoryName}/${chart.chartName}`,
+    `--namespace ${namespace}`,
+    '--create-namespace'
+  ];
+
+  if (chart.version) {
+    parts.push(`--version ${chart.version}`);
+  }
+
+  if (valuesPath) {
+    parts.push(`-f ${valuesPath}`);
+  }
+
+  return parts.join(' ');
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -188,8 +231,9 @@ async function helmLint(
 
 /**
  * Validate manifests using multi-layer approach
+ * PRD #343: pluginManager required for kubectl operations
  */
-async function validateManifests(yamlPath: string): Promise<ValidationResult> {
+async function validateManifests(yamlPath: string, pluginManager: PluginManager): Promise<ValidationResult> {
   // First check if file exists
   if (!fs.existsSync(yamlPath)) {
     return {
@@ -198,10 +242,10 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
       warnings: []
     };
   }
-  
+
   // Read YAML content for syntax validation
   const yamlContent = fs.readFileSync(yamlPath, 'utf8');
-  
+
   // 1. YAML syntax validation
   const syntaxCheck = validateYamlSyntax(yamlContent);
   if (!syntaxCheck.valid) {
@@ -211,9 +255,10 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
       warnings: []
     };
   }
-  
+
   // 2. kubectl dry-run validation using ManifestValidator
-  const validator = new ManifestValidator();
+  // PRD #343: Pass pluginManager for kubectl operations
+  const validator = new ManifestValidator(pluginManager);
   return await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
 }
 
@@ -366,42 +411,79 @@ ${errorContext.previousValues}
 }
 
 /**
- * Validate Helm installation using dry-run (wrapper around shared utility)
+ * Validate Helm installation using dry-run via plugin
+ * PRD #343: All Helm operations go through plugin system
  */
 async function validateHelmInstallation(
   chart: HelmChartInfo,
   releaseName: string,
   namespace: string,
-  valuesPath: string,
-  logger: Logger
+  valuesYaml: string,
+  logger: Logger,
+  pluginManager: PluginManager
 ): Promise<ValidationResult> {
-  logger.info('Running Helm dry-run validation', {
+  logger.info('Running Helm dry-run validation via plugin', {
     chart: `${chart.repositoryName}/${chart.chartName}`,
     releaseName,
     namespace
   });
 
-  const result = await validateHelmDryRun(chart, releaseName, namespace, valuesPath);
+  try {
+    // First, add/update the Helm repository
+    const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+      name: chart.repositoryName,
+      url: chart.repository
+    });
 
-  if (result.success) {
-    logger.info('Helm dry-run validation successful');
+    if (!repoResult.success) {
+      logger.warn('Helm repo add failed', { error: repoResult.error?.message });
+      return {
+        valid: false,
+        errors: [repoResult.error?.message || 'Failed to add Helm repository'],
+        warnings: []
+      };
+    }
+
+    // Run helm install with dry-run
+    const installResult = await pluginManager.invokeTool('helm_install', {
+      releaseName,
+      chart: `${chart.repositoryName}/${chart.chartName}`,
+      namespace,
+      values: valuesYaml,
+      version: chart.version,
+      dryRun: true,
+      createNamespace: true
+    });
+
+    if (installResult.success) {
+      logger.info('Helm dry-run validation successful');
+      return {
+        valid: true,
+        errors: [],
+        warnings: []
+      };
+    }
+
+    logger.warn('Helm dry-run validation failed', { error: installResult.error?.message });
     return {
-      valid: true,
-      errors: [],
+      valid: false,
+      errors: [installResult.error?.message || 'Unknown Helm validation error'],
+      warnings: []
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Helm validation error', error as Error);
+    return {
+      valid: false,
+      errors: [errorMessage],
       warnings: []
     };
   }
-
-  logger.warn('Helm dry-run validation failed', { error: result.error });
-  return {
-    valid: false,
-    errors: [result.error || 'Unknown Helm validation error'],
-    warnings: []
-  };
 }
 
 /**
  * Handle Helm solution generation
+ * PRD #343: pluginManager required for Helm operations
  */
 async function handleHelmGeneration(
   solution: any,
@@ -410,6 +492,7 @@ async function handleHelmGeneration(
   logger: Logger,
   requestId: string,
   sessionManager: GenericSessionManager<SolutionData>,
+  pluginManager: PluginManager,
   interaction_id?: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   const maxAttempts = 10;
@@ -469,13 +552,15 @@ async function handleHelmGeneration(
       const attemptPath = valuesPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
       fs.writeFileSync(attemptPath, valuesYaml, 'utf8');
 
-      // Validate with helm dry-run
+      // Validate with helm dry-run via plugin
+      // PRD #343: Pass values content directly to plugin (no file path needed)
       const validation = await validateHelmInstallation(
         chart,
         releaseName,
         namespace,
-        valuesPath,
-        logger
+        valuesYaml,
+        logger,
+        pluginManager
       );
 
       if (validation.valid) {
@@ -487,7 +572,7 @@ async function handleHelmGeneration(
 
         // Build user-friendly helm command with generic values file path
         // (internal valuesPath is used for actual execution, not shown to user)
-        const helmCommand = buildHelmCommand(chart, releaseName, namespace, 'values.yaml');
+        const helmCommand = buildHelmCommandForDisplay(chart, releaseName, namespace, 'values.yaml');
 
         // PRD #320: Update session with generateManifests data for visualization
         sessionManager.updateSession(solutionId, {
@@ -664,6 +749,7 @@ function writePackageFiles(
 
 /**
  * Package manifests and validate the output
+ * PRD #343: pluginManager required for kubectl operations
  */
 async function packageAndValidate(
   rawManifests: string,
@@ -673,6 +759,7 @@ async function packageAndValidate(
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
+  pluginManager: PluginManager,
   interaction_id?: string
 ): Promise<{ files: { relativePath: string; content: string }[]; attempts: number }> {
   const maxAttempts = 5;
@@ -760,7 +847,7 @@ async function packageAndValidate(
       }
       fs.writeFileSync(renderedYamlPath, renderResult.yaml, 'utf8');
 
-      const validation = await validateManifests(renderedYamlPath);
+      const validation = await validateManifests(renderedYamlPath, pluginManager);
       if (validation.valid) {
         logger.info('Package validation successful', { format: outputFormat, attempt });
         cleanupPackageDir();
@@ -797,12 +884,14 @@ async function packageAndValidate(
 
 /**
  * Direct MCP tool handler for generateManifests functionality
+ * PRD #343: pluginManager required for kubectl operations
  */
 export async function handleGenerateManifestsTool(
   args: { solutionId: string; interaction_id?: string },
   dotAI: DotAI,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  pluginManager: PluginManager
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -819,9 +908,6 @@ export async function handleGenerateManifestsTool(
       // Initialize session manager
       const sessionManager = new GenericSessionManager<SolutionData>('sol');
       logger.debug('Session manager initialized', { requestId });
-
-      // Ensure cluster connectivity before proceeding
-      await ensureClusterConnection(dotAI, logger, requestId, 'GenerateManifestsTool');
 
       // Load solution session
       const session = sessionManager.getSession(args.solutionId);
@@ -867,6 +953,7 @@ export async function handleGenerateManifestsTool(
           logger,
           requestId,
           sessionManager,
+          pluginManager,
           args.interaction_id
         );
       }
@@ -913,7 +1000,7 @@ export async function handleGenerateManifestsTool(
           // Check if Solution CRD is available and generate Solution CR if present
           let solutionCR = '';
           try {
-            const crdAvailable = await isSolutionCRDAvailable();
+            const crdAvailable = await isSolutionCRDAvailable(pluginManager);
             if (crdAvailable) {
               solutionCR = generateSolutionCR({
                 solutionId: args.solutionId,
@@ -955,7 +1042,8 @@ export async function handleGenerateManifestsTool(
           });
           
           // Validate manifests
-          const validation = await validateManifests(yamlPath);
+          // PRD #343: Pass pluginManager for kubectl operations
+          const validation = await validateManifests(yamlPath, pluginManager);
           
           if (validation.valid) {
             logger.info('Manifest validation successful', {
@@ -978,6 +1066,7 @@ export async function handleGenerateManifestsTool(
                 args.solutionId,
                 dotAI,
                 logger,
+                pluginManager,
                 args.interaction_id
               );
 

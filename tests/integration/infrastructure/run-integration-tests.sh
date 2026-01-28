@@ -169,9 +169,21 @@ docker build -t dot-ai:test . || {
 # Clean up package tarball
 rm -f vfarcic-dot-ai-*.tgz
 
+log_info "Building agentic-tools plugin Docker image (PRD #343)..."
+docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools || {
+    log_error "Failed to build agentic-tools image"
+    exit 1
+}
+
 log_info "Loading dot-ai image into Kind cluster..."
 kind load docker-image dot-ai:test --name dot-test || {
     log_error "Failed to load dot-ai image into Kind"
+    exit 1
+}
+
+log_info "Loading agentic-tools plugin image into Kind cluster..."
+kind load docker-image dot-ai-agentic-tools:test --name dot-test || {
+    log_error "Failed to load agentic-tools image into Kind"
     exit 1
 }
 
@@ -297,6 +309,9 @@ helm upgrade --install dot-ai ./charts \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
+    --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
+    --set plugins.agentic-tools.image.tag=test \
+    --set plugins.agentic-tools.image.pullPolicy=Never \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_USER_PROMPTS_CACHE_TTL\",\"value\":\"0\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"
@@ -313,6 +328,16 @@ kubectl wait --namespace dot-ai \
     log_error "dot-ai deployment failed to become ready"
     kubectl get pods -n dot-ai
     kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+    exit 1
+}
+
+log_info "Waiting for agentic-tools plugin deployment to be ready (PRD #343)..."
+kubectl wait --namespace dot-ai \
+    --for=condition=available deployment/dot-ai-agentic-tools \
+    --timeout=120s || {
+    log_error "agentic-tools plugin deployment failed to become ready"
+    kubectl get pods -n dot-ai
+    kubectl logs -n dot-ai -l app.kubernetes.io/name=agentic-tools --tail=50
     exit 1
 }
 

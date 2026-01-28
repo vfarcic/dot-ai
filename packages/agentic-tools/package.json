@@ -1,0 +1,35 @@
+{
+  "name": "@vfarcic/dot-ai-agentic-tools",
+  "version": "1.0.0",
+  "description": "Agentic tools plugin for dot-ai - kubectl and other LLM-callable tools",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "kubernetes",
+    "kubectl",
+    "dot-ai",
+    "plugin",
+    "agentic"
+  ],
+  "author": "Viktor Farcic",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4",
+    "ts-node": "^10.9.0"
+  }
+}

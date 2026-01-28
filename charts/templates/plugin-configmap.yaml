@@ -1,0 +1,22 @@
+{{/*
+Plugin Configuration ConfigMap (PRD #343)
+Contains JSON array of enabled plugins for discovery by MCP server.
+Mounted at /etc/dot-ai/plugins.json
+*/}}
+{{- $pluginsConfig := include "dot-ai.pluginsConfig" . -}}
+{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dot-ai.fullname" . }}-plugins
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+data:
+  plugins.json: |
+    {{ $pluginsConfig | nindent 4 | trim }}
+{{- end }}

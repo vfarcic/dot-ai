@@ -6,10 +6,8 @@
  */
 
 import { ResourceExplanation } from './discovery';
-import {
-  executeKubectl
-} from './kubernetes-utils';
 import { AIProvider } from './ai-provider.interface';
+import type { PluginManager } from './plugin-manager';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
@@ -20,7 +18,28 @@ import { loadPrompt } from './shared-prompt-loader';
 import { extractJsonFromAIResponse, execAsync } from './platform-utils';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { HelmChartInfo } from './helm-types';
-import { sanitizeChartInfo } from './helm-utils';
+
+// PRD #343: Inline sanitization (helm-utils.ts removed)
+function sanitizeShellArg(arg: string, fieldName: string = 'argument'): string {
+  if (!/^[a-zA-Z0-9\-_./:\\@]+$/.test(arg)) {
+    throw new Error(`Invalid characters in ${fieldName}: "${arg}". Only alphanumeric characters, dashes, underscores, dots, forward slashes, colons, and @ are allowed.`);
+  }
+  return arg;
+}
+
+function sanitizeChartInfo(chart: HelmChartInfo): {
+  repositoryName: string;
+  repository: string;
+  chartName: string;
+  version?: string;
+} {
+  return {
+    repositoryName: sanitizeShellArg(chart.repositoryName, 'repository name'),
+    repository: sanitizeShellArg(chart.repository, 'repository URL'),
+    chartName: sanitizeShellArg(chart.chartName, 'chart name'),
+    version: chart.version ? sanitizeShellArg(chart.version, 'version') : undefined
+  };
+}
 
 // Core type definitions for schema structure
 export interface FieldConstraints {
@@ -359,46 +378,106 @@ export class SchemaParser {
 
 /**
  * ManifestValidator validates Kubernetes manifests using kubectl dry-run
+ * PRD #343: Supports plugin system for kubectl operations
  */
 export class ManifestValidator {
+  private pluginManager?: PluginManager;
+
+  constructor(pluginManager?: PluginManager) {
+    this.pluginManager = pluginManager;
+  }
+
+  /**
+   * Execute kubectl via plugin system
+   * PRD #343: ALL Kubernetes operations go through plugin
+   */
+  private async executeKubectlViaPlugin(args: string[]): Promise<string> {
+    if (!this.pluginManager) {
+      throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
+    }
+    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    if (response.success) {
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'kubectl command failed');
+        }
+        // Return only the data field - never pass JSON wrapper to consumers
+        if (result.data !== undefined) {
+          return String(result.data);
+        }
+        if (typeof result === 'string') {
+          return result;
+        }
+        throw new Error('Plugin returned unexpected response format - missing data field');
+      }
+      return String(response.result || '');
+    } else {
+      throw new Error(response.error?.message || 'kubectl command failed via plugin');
+    }
+  }
+
   /**
    * Validate a manifest using kubectl dry-run
    * This uses the actual Kubernetes API server validation for accuracy
+   * PRD #343: Routes through plugin system when pluginManager is available
    */
-  async validateManifest(manifestPath: string, config?: { kubeconfig?: string; dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
+  async validateManifest(manifestPath: string, config?: { dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     try {
       const dryRunMode = config?.dryRunMode || 'server';
-      const args = ['apply', '--dry-run=' + dryRunMode, '-f', manifestPath];
-      
-      await executeKubectl(args, { kubeconfig: config?.kubeconfig });
-      
-      // If we get here, validation passed
-      // kubectl dry-run will throw an error if validation fails
-      
-      // Add best practice warnings by reading the manifest
+
+      // PRD #343: Read manifest content and use kubectl_apply_dryrun tool
+      // File paths don't work across containers, so we pass content via plugin tool
       const fs = await import('fs');
       const yaml = await import('yaml');
-      const documents = yaml.parseAllDocuments(fs.readFileSync(manifestPath, 'utf8'));
+      const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+
+      if (!this.pluginManager) {
+        throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
+      }
+
+      // Use kubectl_apply_dryrun tool which accepts manifest content
+      const response = await this.pluginManager.invokeTool('kubectl_apply_dryrun', {
+        manifest: manifestContent,
+        dryRunMode: dryRunMode
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'kubectl dry-run validation failed');
+      }
+
+      // Check for nested error
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'kubectl dry-run validation failed');
+        }
+      }
+
+      // If we get here, validation passed
+      // Add best practice warnings by parsing the manifest
+      const documents = yaml.parseAllDocuments(manifestContent);
       // Process all documents for best practice warnings
       documents.forEach(doc => {
         if (doc.contents) {
           this.addBestPracticeWarnings(doc.toJS(), warnings);
         }
       });
-      
+
       return {
         valid: true,
         errors,
         warnings
       };
-      
+
     } catch (error: any) {
       // Parse kubectl error output for validation issues
       const errorMessage = error.message || '';
-      
+
       if (errorMessage.includes('validation failed')) {
         errors.push('Kubernetes validation failed: ' + errorMessage);
       } else if (errorMessage.includes('unknown field')) {
@@ -408,7 +487,7 @@ export class ManifestValidator {
       } else {
         errors.push('Validation error: ' + errorMessage);
       }
-      
+
       return {
         valid: false,
         errors,
@@ -441,8 +520,11 @@ export class ResourceRecommender {
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
   private policyService?: PolicyVectorService;
+  // PRD #343: Plugin manager for K8s operations
+  private pluginManager?: PluginManager;
 
-  constructor(aiProvider?: AIProvider) {
+  constructor(aiProvider?: AIProvider, pluginManager?: PluginManager) {
+    this.pluginManager = pluginManager;
     // Use provided AI provider or create from environment
     this.aiProvider = aiProvider || (() => {
       // Lazy import to avoid circular dependencies
@@ -480,6 +562,37 @@ export class ResourceRecommender {
     } catch (error) {
       console.warn('⚠️ Vector DB not available, policies disabled:', error);
       this.policyService = undefined;
+    }
+  }
+
+  /**
+   * Execute kubectl via plugin system
+   * PRD #343: ALL Kubernetes operations go through plugin
+   */
+  private async executeKubectlViaPlugin(args: string[]): Promise<string> {
+    if (!this.pluginManager) {
+      throw new Error('Plugin system not available. ResourceRecommender requires agentic-tools plugin for kubectl operations.');
+    }
+    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    if (response.success) {
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'kubectl command failed');
+        }
+        // Return only the data field - never pass JSON wrapper to consumers
+        if (result.data !== undefined) {
+          return String(result.data);
+        }
+        if (typeof result === 'string') {
+          return result;
+        }
+        throw new Error('Plugin returned unexpected response format - missing data field');
+      }
+      return String(response.result || '');
+    } else {
+      throw new Error(response.error?.message || 'kubectl command failed via plugin');
     }
   }
 
@@ -907,19 +1020,18 @@ export class ResourceRecommender {
 
   /**
    * Discover cluster options for dynamic question generation
+   * PRD #343: ALL kubectl operations go through plugin
    */
   private async discoverClusterOptions(): Promise<ClusterOptions> {
     try {
-      const { executeKubectl } = await import('./kubernetes-utils');
-
-      // Discover namespaces
-      const namespacesResult = await executeKubectl(['get', 'namespaces', '-o', 'jsonpath={.items[*].metadata.name}']);
+      // Discover namespaces via plugin
+      const namespacesResult = await this.executeKubectlViaPlugin(['get', 'namespaces', '-o', 'jsonpath={.items[*].metadata.name}']);
       const namespaces = namespacesResult.split(/\s+/).filter(Boolean);
 
       // Discover storage classes with default marking
       let storageClasses: ClusterResourceInfo[] = [];
       try {
-        const storageResult = await executeKubectl(['get', 'storageclass', '-o', 'json']);
+        const storageResult = await this.executeKubectlViaPlugin(['get', 'storageclass', '-o', 'json']);
         const storageData = JSON.parse(storageResult);
         storageClasses = (storageData.items || []).map((item: any) => ({
           name: item.metadata?.name || '',
@@ -933,7 +1045,7 @@ export class ResourceRecommender {
       // Discover ingress classes with default marking
       let ingressClasses: ClusterResourceInfo[] = [];
       try {
-        const ingressResult = await executeKubectl(['get', 'ingressclass', '-o', 'json']);
+        const ingressResult = await this.executeKubectlViaPlugin(['get', 'ingressclass', '-o', 'json']);
         const ingressData = JSON.parse(ingressResult);
         ingressClasses = (ingressData.items || []).map((item: any) => ({
           name: item.metadata?.name || '',
@@ -947,7 +1059,7 @@ export class ResourceRecommender {
       // Get common node labels
       let nodeLabels: string[] = [];
       try {
-        const nodesResult = await executeKubectl(['get', 'nodes', '-o', 'json']);
+        const nodesResult = await this.executeKubectlViaPlugin(['get', 'nodes', '-o', 'json']);
         const nodes = JSON.parse(nodesResult);
         const labelSet = new Set<string>();
 
