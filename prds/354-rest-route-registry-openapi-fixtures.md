@@ -301,7 +301,7 @@ Update `package.json` exports:
 - [x] M1: Create RestRouteRegistry class with route registration and matching
 - [x] M2: Define Zod schemas for all existing REST endpoint responses
 - [x] M3: Migrate existing endpoints to registry-based routing
-- [ ] M4: Update OpenAPI generator to include registry routes
+- [x] M4: Update OpenAPI generator to include registry routes
 - [ ] M5: Create fixture files with realistic scenarios for all endpoints
 - [ ] M6: Add fixture validation script and CI integration
 - [ ] M7: Export fixtures and types from package

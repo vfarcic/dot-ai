@@ -201,11 +201,16 @@ export class RestApiRouter {
       tags: this.routeRegistry.getTags(),
     });
 
-    // Initialize OpenAPI generator
-    this.openApiGenerator = new OpenApiGenerator(registry, logger, {
-      basePath: this.config.basePath,
-      apiVersion: this.config.version
-    });
+    // Initialize OpenAPI generator with route registry (PRD #354)
+    this.openApiGenerator = new OpenApiGenerator(
+      registry,
+      logger,
+      {
+        basePath: this.config.basePath,
+        apiVersion: this.config.version,
+      },
+      this.routeRegistry
+    );
   }
 
   /**

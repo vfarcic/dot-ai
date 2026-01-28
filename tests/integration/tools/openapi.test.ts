@@ -231,4 +231,43 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       });
     });
   });
+
+  /**
+   * PRD #354: Route Registry Integration
+   * Validates that OpenAPI generator correctly integrates with RestRouteRegistry.
+   * Uses minimal representative examples - individual endpoint functionality is
+   * tested in their respective integration tests.
+   */
+  describe('Route Registry Integration (PRD #354)', () => {
+    test('should generate OpenAPI paths from route registry with proper structure', async () => {
+      const response = await unauthenticatedClient.get('/api/v1/openapi');
+      const spec = getOpenApiSpec(response);
+      const paths = spec.paths as Record<string, any>;
+
+      // Verify parameterized route converts :param to {param} format
+      expect(paths).toHaveProperty('/api/v1/visualize/{sessionId}');
+      const vizEndpoint = paths['/api/v1/visualize/{sessionId}']?.get;
+      expect(vizEndpoint).toBeDefined();
+
+      // Verify path parameter is documented
+      expect(vizEndpoint.parameters).toBeDefined();
+      const sessionIdParam = vizEndpoint.parameters.find(
+        (p: any) => p.name === 'sessionId' && p.in === 'path'
+      );
+      expect(sessionIdParam).toMatchObject({
+        name: 'sessionId',
+        in: 'path',
+        required: true,
+      });
+
+      // Verify response schema reference exists
+      expect(vizEndpoint.responses['200'].content['application/json'].schema.$ref).toBeDefined();
+
+      // Verify error responses are documented
+      expect(vizEndpoint.responses).toHaveProperty('404');
+
+      // Verify tags from route registry are included
+      expect(vizEndpoint.tags).toContain('Visualization');
+    });
+  });
 });
