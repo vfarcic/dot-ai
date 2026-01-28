@@ -18,7 +18,7 @@ import {
   DiscoveredPlugin,
   InvokeResponse,
 } from './plugin-types';
-import { PluginClient, PluginClientError } from './plugin-client';
+import { PluginClient } from './plugin-client';
 import { Logger } from './error-handling';
 import { AITool, ToolExecutor } from './ai-provider.interface';
 
@@ -62,7 +62,7 @@ export class PluginManager {
   private pendingPlugins: PluginConfig[] = [];
 
   /** Background retry timer */
-  private backgroundRetryTimer: NodeJS.Timeout | null = null;
+  private backgroundRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** When background retry started */
   private backgroundRetryStartTime: number | null = null;
