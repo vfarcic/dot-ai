@@ -15,8 +15,9 @@ import { loadPrompt } from './shared-prompt-loader';
 import { CapabilityVectorService } from './capability-vector-service';
 import { KubernetesDiscovery } from './discovery';
 import { ManifestValidator } from './schema';
-import { getKyvernoStatus } from '../tools/version';
+import { getKyvernoStatusViaPlugin } from '../tools/version';
 import { extractContentFromMarkdownCodeBlocks } from './platform-utils';
+import type { PluginManager } from './plugin-manager';
 import * as yaml from 'js-yaml';
 import {
   UnifiedCreationSession,
@@ -36,11 +37,23 @@ export class UnifiedCreationSessionManager {
   private config: WorkflowConfig;
   private discovery: KubernetesDiscovery;
   private sessionManager: GenericSessionManager<UnifiedCreationSessionData>;
+  private pluginManager: PluginManager;
 
-  constructor(entityType: EntityType, discovery?: KubernetesDiscovery) {
+  /**
+   * PRD #343: pluginManager required for kubectl operations via plugin system
+   */
+  constructor(entityType: EntityType, discovery?: KubernetesDiscovery, pluginManager?: PluginManager) {
+    if (!pluginManager) {
+      throw new Error('Plugin system not available. UnifiedCreationSessionManager requires agentic-tools plugin for kubectl operations.');
+    }
+
     this.config = WORKFLOW_CONFIGS[entityType];
     this.discovery = discovery || new KubernetesDiscovery();
     this.sessionManager = new GenericSessionManager(entityType);
+    this.pluginManager = pluginManager;
+
+    // PRD #343: Set pluginManager on discovery for kubectl operations
+    this.discovery.setPluginManager(pluginManager);
   }
   
   /**
@@ -241,17 +254,14 @@ export class UnifiedCreationSessionManager {
         
       case 'namespace-scope': {
         // Check if Kyverno is installed - only show namespace options if it is
-        const kyvernoStatus = await getKyvernoStatus();
+        const kyvernoStatus = await getKyvernoStatusViaPlugin(this.pluginManager);
         if (!kyvernoStatus.installed) {
           // Skip namespace-scope if Kyverno not installed, go to next step
           session.data.currentStep = getNextStep('namespace-scope', this.config)!;
           return this.getNextWorkflowStep(session, args);
         }
         
-        // Ensure discovery service is connected to cluster before retrieving namespaces
-        await this.discovery.connect();
-        
-        // Get actual namespaces from cluster
+        // Get actual namespaces from cluster via plugin
         const namespaces = await this.discovery.getNamespaces();
         
         const prompt = loadPrompt('policy-namespace-scope', {
@@ -577,9 +587,10 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
       fs.writeFileSync(kyvernoFilePath, generatedKyvernoPolicy!, 'utf8');
       
       // Apply to cluster using existing DeployOperation
+      // PRD #343: Pass pluginManager for kubectl operations
       try {
         const { DeployOperation } = await import('./deploy-operation');
-        const deployOp = new DeployOperation();
+        const deployOp = new DeployOperation(this.pluginManager);
         
         const deployResult = await deployOp.deploy({
           solutionId: `${policy.id}-kyverno`,
@@ -704,8 +715,9 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
     }
     
     // 2. kubectl dry-run validation using ManifestValidator
+    // PRD #343: Pass pluginManager for kubectl operations
     try {
-      const validator = new ManifestValidator();
+      const validator = new ManifestValidator(this.pluginManager);
       const result = await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
       return result;
     } catch (error) {
@@ -722,7 +734,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
    */
   private async generateKyvernoStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse> {
     // Check if Kyverno is available before attempting policy generation
-    const kyvernoStatus = await getKyvernoStatus();
+    const kyvernoStatus = await getKyvernoStatusViaPlugin(this.pluginManager);
     if (!kyvernoStatus.policyGenerationReady) {
       // Skip Kyverno generation and go directly to review with intent-only option
       session.data.currentStep = getNextStep('kyverno-generation', this.config)!;
@@ -745,10 +757,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
     let lastError: { attempt: number; previousPolicy: string; validationResult: { valid: boolean; errors: string[]; warnings: string[] } } | undefined;
     
     try {
-      // Ensure discovery service is connected to cluster before retrieving schemas
-      await this.discovery.connect();
-
-      // Retrieve actual resource schemas using semantic search and discovery
+      // Retrieve actual resource schemas using semantic search and discovery via plugin
       // Use capabilities collection from session data if provided (for testing with pre-populated data)
       const resourceSchemas = await this.retrieveRelevantSchemas(
         data.description || '',

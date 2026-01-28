@@ -220,3 +220,49 @@ qdrant:
   external:
     url: ""                         # External Qdrant URL (required when enabled=false)
     apiKey: ""                      # External Qdrant API key (optional)
+
+# Plugin configuration (PRD #343)
+# Plugins are configured as a map, allowing users to customize defaults or add their own.
+# Two modes:
+#   - Deployed: Provide `image` + `port` → chart creates Deployment + Service
+#   - External: Provide `endpoint` → chart just registers it (you deploy separately)
+plugins:
+  # Built-in agentic-tools plugin - deployed by chart
+  agentic-tools:
+    enabled: true
+    image:
+      repository: ghcr.io/vfarcic/dot-ai-agentic-tools
+      tag: "0.1.0"
+    port: 8080
+    # RBAC created automatically by chart (hardcoded for agentic-tools)
+    env: []                         # Additional environment variables
+    envFrom: []                     # Environment from ConfigMaps/Secrets
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+  # Example: User plugin deployed by chart
+  # my-company-tools:
+  #   enabled: true
+  #   image:
+  #     repository: myregistry/my-tools
+  #     tag: "v1.0.0"
+  #   port: 8082
+  #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
+  #   env:
+  #     - name: API_KEY
+  #       valueFrom:
+  #         secretKeyRef:
+  #           name: my-tools-secrets
+  #           key: api-key
+
+  # Example: External plugin (you deploy separately)
+  # my-external-plugin:
+  #   enabled: true
+  #   endpoint: "http://my-plugin.other-namespace.svc:8080"
+  #   # NOTE: You are responsible for deploying this plugin and
+  #   # ensuring it has appropriate Kubernetes RBAC permissions.

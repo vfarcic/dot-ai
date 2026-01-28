@@ -10,7 +10,6 @@
 import { AITool } from './ai-provider.interface';
 import { ResourceVectorService } from './resource-vector-service';
 import { VALIDATION_MESSAGES } from './constants/validation';
-import { executeKubectl } from './kubernetes-utils';
 
 /**
  * Tool: search_resources
@@ -279,6 +278,7 @@ export interface ResourceKindInfo {
 
 /**
  * Options for listing resources
+ * PRD #343: Status fetching moved to REST API layer via plugin
  */
 export interface ListResourcesOptions {
   kind: string;           // Required: Resource kind to filter by
@@ -287,7 +287,6 @@ export interface ListResourcesOptions {
   namespace?: string;     // Optional: Namespace filter
   limit?: number;         // Optional: Max results (default: 100, max: 1000)
   offset?: number;        // Optional: Skip N results for pagination (default: 0)
-  includeStatus?: boolean; // Optional: Fetch live status from K8s API
 }
 
 /**
@@ -356,55 +355,14 @@ export async function getResourceKinds(namespace?: string): Promise<ResourceKind
 }
 
 /**
- * Fetch a single resource from Kubernetes API
- *
- * @param name - Resource name
- * @param namespace - Resource namespace (or '_cluster' for cluster-scoped)
- * @param kind - Resource kind
- * @param apiGroup - API group (empty string for core resources)
- * @param field - Optional: specific field to return (e.g., 'status', 'spec', 'metadata'). If omitted, returns full resource.
- * @returns The resource (or specific field) or undefined if not available
- */
-export async function fetchResource(
-  name: string,
-  namespace: string,
-  kind: string,
-  apiGroup: string,
-  field?: string
-): Promise<object | undefined> {
-  try {
-    // Build resource identifier for kubectl
-    // For core resources (empty apiGroup), use kind directly. For others, use kind.group format
-    const resourceType = apiGroup ? `${kind.toLowerCase()}.${apiGroup}` : kind.toLowerCase();
-    const resourceId = `${resourceType}/${name}`;
-
-    // Build kubectl command
-    const cmdArgs = ['get', resourceId, '-o', 'json'];
-
-    // Add namespace for namespaced resources
-    if (namespace && namespace !== '_cluster') {
-      cmdArgs.push('-n', namespace);
-    }
-
-    const output = await executeKubectl(cmdArgs);
-    const parsed = JSON.parse(output);
-
-    // Return specific field or full resource
-    return field ? parsed[field] : parsed;
-  } catch {
-    // Return undefined if we can't fetch resource (may not exist or not accessible)
-    return undefined;
-  }
-}
-
-/**
  * List resources with filtering and pagination
+ * PRD #343: Status fetching moved to REST API layer via plugin
  *
  * @param options - Filter and pagination options
  * @returns Paginated list of resources
  */
 export async function listResources(options: ListResourcesOptions): Promise<ListResourcesResult> {
-  const { kind, apiGroup, apiVersion, namespace, limit = 100, offset = 0, includeStatus = false } = options;
+  const { kind, apiGroup, apiVersion, namespace, limit = 100, offset = 0 } = options;
 
   // Clamp limit to max 1000
   const effectiveLimit = Math.min(Math.max(1, limit), 1000);
@@ -448,7 +406,7 @@ export async function listResources(options: ListResourcesOptions): Promise<List
   const paginated = filtered.slice(effectiveOffset, effectiveOffset + effectiveLimit);
 
   // Transform to response format
-  let resources: ResourceListItem[] = paginated.map(r => ({
+  const resources: ResourceListItem[] = paginated.map(r => ({
     name: r.name,
     namespace: r.namespace,
     kind: r.kind,
@@ -458,23 +416,6 @@ export async function listResources(options: ListResourcesOptions): Promise<List
     createdAt: r.createdAt,
     updatedAt: r.updatedAt
   }));
-
-  // Enrich with live status if requested
-  if (includeStatus && resources.length > 0) {
-    // Fetch status for all resources in parallel
-    const statusPromises = resources.map(async (resource) => {
-      const status = await fetchResource(
-        resource.name,
-        resource.namespace,
-        resource.kind,
-        resource.apiGroup,
-        'status'
-      );
-      return { ...resource, status };
-    });
-
-    resources = await Promise.all(statusPromises);
-  }
 
   return {
     resources,
@@ -506,216 +447,4 @@ export async function getNamespaces(): Promise<string[]> {
 
   // Sort alphabetically
   return Array.from(namespaceSet).sort();
-}
-
-// ============================================================================
-// Events Query Functions (PRD #328)
-// Fetch Kubernetes events for specific resources
-// ============================================================================
-
-/**
- * Kubernetes event information
- */
-export interface KubernetesEvent {
-  reason: string;
-  message: string;
-  type: 'Normal' | 'Warning';
-  count: number;
-  firstTimestamp: string | null;
-  lastTimestamp: string | null;
-  source: {
-    component: string;
-    host?: string;
-  };
-  involvedObject: {
-    kind: string;
-    name: string;
-    namespace?: string;
-    uid?: string;
-  };
-}
-
-/**
- * Options for fetching resource events
- */
-export interface GetResourceEventsOptions {
-  name: string;           // Required: Resource name
-  kind: string;           // Required: Resource kind
-  namespace?: string;     // Optional: Namespace (for namespaced resources)
-  uid?: string;           // Optional: Resource UID for precise filtering
-}
-
-/**
- * Result of fetching resource events
- */
-export interface GetResourceEventsResult {
-  events: KubernetesEvent[];
-  count: number;
-}
-
-/**
- * Get Kubernetes events for a specific resource
- * Queries the K8s API using field selectors on involvedObject fields
- *
- * @param options - Filter options for events
- * @returns Array of events sorted by lastTimestamp descending
- */
-export async function getResourceEvents(options: GetResourceEventsOptions): Promise<GetResourceEventsResult> {
-  const { name, kind, namespace, uid } = options;
-
-  // Build field selector for involvedObject filtering
-  const fieldSelectors: string[] = [
-    `involvedObject.name=${name}`,
-    `involvedObject.kind=${kind}`
-  ];
-
-  // Add UID filter if provided (more precise)
-  if (uid) {
-    fieldSelectors.push(`involvedObject.uid=${uid}`);
-  }
-
-  // Build kubectl command
-  const cmdArgs = ['get', 'events', '-o', 'json', `--field-selector=${fieldSelectors.join(',')}`];
-
-  // Add namespace flag for scoped query
-  if (namespace) {
-    cmdArgs.push('-n', namespace);
-  } else {
-    // For cluster-scoped resources, query all namespaces
-    cmdArgs.push('--all-namespaces');
-  }
-
-  try {
-    const output = await executeKubectl(cmdArgs);
-    const parsed = JSON.parse(output);
-
-    // Transform K8s event objects to our interface
-    const events: KubernetesEvent[] = (parsed.items || []).map((item: any) => ({
-      reason: item.reason || '',
-      message: item.message || '',
-      type: item.type || 'Normal',
-      count: item.count || 1,
-      firstTimestamp: item.firstTimestamp || item.eventTime || null,
-      lastTimestamp: item.lastTimestamp || item.eventTime || null,
-      source: {
-        component: item.source?.component || item.reportingComponent || '',
-        host: item.source?.host || item.reportingInstance || undefined
-      },
-      involvedObject: {
-        kind: item.involvedObject?.kind || '',
-        name: item.involvedObject?.name || '',
-        namespace: item.involvedObject?.namespace || undefined,
-        uid: item.involvedObject?.uid || undefined
-      }
-    }));
-
-    // Sort by lastTimestamp descending (most recent first)
-    events.sort((a, b) => {
-      const timeA = a.lastTimestamp ? new Date(a.lastTimestamp).getTime() : 0;
-      const timeB = b.lastTimestamp ? new Date(b.lastTimestamp).getTime() : 0;
-      return timeB - timeA;
-    });
-
-    return {
-      events,
-      count: events.length
-    };
-  } catch {
-    // Return empty array if we can't fetch events (resource may not exist or no events)
-    return {
-      events: [],
-      count: 0
-    };
-  }
-}
-
-// ============================================================================
-// Pod Logs Query Functions (PRD #328)
-// Fetch container logs from pods
-// ============================================================================
-
-/**
- * Options for fetching pod logs
- */
-export interface GetPodLogsOptions {
-  name: string;           // Required: Pod name
-  namespace: string;      // Required: Namespace (pods are always namespaced)
-  container?: string;     // Optional: Container name for multi-container pods
-  tailLines?: number;     // Optional: Number of lines to return (default: 100)
-}
-
-/**
- * Result of fetching pod logs
- */
-export interface GetPodLogsResult {
-  logs: string;
-  container: string;      // The container logs were fetched from
-  containerCount: number; // Total containers in pod (for UI to know if selection needed)
-}
-
-/**
- * Error thrown when pod has multiple containers and none specified
- */
-export class ContainerRequiredError extends Error {
-  containers: string[];
-
-  constructor(containers: string[]) {
-    super('Pod has multiple containers. Please specify a container.');
-    this.name = 'ContainerRequiredError';
-    this.containers = containers;
-  }
-}
-
-/**
- * Get container logs from a pod
- * Reuses executeKubectl infrastructure (same as AI kubectl_logs tool)
- *
- * @param options - Options for fetching logs
- * @returns Log content and container information
- * @throws ContainerRequiredError if pod has multiple containers and none specified
- */
-export async function getPodLogs(options: GetPodLogsOptions): Promise<GetPodLogsResult> {
-  const { name, namespace, container, tailLines = 100 } = options;
-
-  // First, get pod spec to determine container count
-  const podCmdArgs = ['get', `pod/${name}`, '-n', namespace, '-o', 'json'];
-  const podOutput = await executeKubectl(podCmdArgs);
-  const pod = JSON.parse(podOutput);
-
-  // Get all container names (spec.containers + spec.initContainers)
-  const containers: string[] = [
-    ...(pod.spec?.containers || []).map((c: any) => c.name),
-    ...(pod.spec?.initContainers || []).map((c: any) => c.name)
-  ];
-  const containerCount = containers.length;
-
-  // Determine which container to fetch logs from
-  let targetContainer: string;
-
-  if (container) {
-    // Container explicitly specified
-    if (!containers.includes(container)) {
-      throw new Error(`Container '${container}' not found in pod. Available containers: ${containers.join(', ')}`);
-    }
-    targetContainer = container;
-  } else if (containerCount === 1) {
-    // Single container pod - use it
-    targetContainer = containers[0];
-  } else if (containerCount > 1) {
-    // Multiple containers - require explicit selection
-    throw new ContainerRequiredError(containers);
-  } else {
-    throw new Error('Pod has no containers');
-  }
-
-  // Build kubectl logs command
-  const cmdArgs = ['logs', name, '-n', namespace, '-c', targetContainer, `--tail=${tailLines}`];
-
-  const logs = await executeKubectl(cmdArgs);
-
-  return {
-    logs,
-    container: targetContainer,
-    containerCount
-  };
 }

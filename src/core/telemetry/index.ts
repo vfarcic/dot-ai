@@ -27,4 +27,4 @@
 
 export * from './types';
 export { loadTelemetryConfig } from './config';
-export { getTelemetry, shutdownTelemetry } from './client';
+export { getTelemetry, shutdownTelemetry, setTelemetryPluginManager } from './client';

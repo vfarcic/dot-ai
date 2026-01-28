@@ -8,6 +8,7 @@
 import { Logger, ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { executeCommands } from '../core/command-executor';
+import { PluginManager } from '../core/plugin-manager';
 import { OperateSessionData, ExecutionResult, OperateOutput } from './operate';
 import { handleRemediateTool } from './remediate';
 
@@ -16,12 +17,14 @@ import { handleRemediateTool } from './remediate';
  * @param sessionId - Session ID with approved changes
  * @param logger - Logger instance
  * @param sessionManager - Session manager instance
+ * @param pluginManager - Plugin manager for kubectl operations (PRD #343)
  * @returns Operation output with execution results
  */
 export async function executeOperations(
   sessionId: string,
   logger: Logger,
-  sessionManager: GenericSessionManager<OperateSessionData>
+  sessionManager: GenericSessionManager<OperateSessionData>,
+  pluginManager: PluginManager
 ): Promise<OperateOutput> {
   logger.info('Starting operation execution', { sessionId });
 
@@ -56,10 +59,11 @@ export async function executeOperations(
       intent: session.data.intent
     });
 
-    // 2. Execute commands using shared executor
+    // 2. Execute commands using shared executor (PRD #343: via plugin)
     const { results, overallSuccess } = await executeCommands(
       session.data.commands,
       logger,
+      pluginManager,
       {
         sessionId,
         context: 'operation',
@@ -87,11 +91,12 @@ export async function executeOperations(
 
       try {
         // Call remediate tool internally with validation intent
+        // PRD #343: Pass pluginManager for kubectl operations
         const validationResponse = await handleRemediateTool({
           issue: session.data.validationIntent,
           executedCommands: session.data.commands,
           interaction_id: session.data.interaction_id
-        });
+        }, pluginManager);
 
         // Extract validation result from remediate response
         const validationData = JSON.parse(validationResponse.content[0].text);
