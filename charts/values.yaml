@@ -6,10 +6,6 @@ annotations: {}
 #   reloader.stakater.com/auto: "true"
 #   company.com/managed-by: "platform-team"
 
-# Deployment method configuration
-deployment:
-  method: standard                  # Deployment method: "standard" (K8s resources) or "toolhive" (MCPServer CRD)
-
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository

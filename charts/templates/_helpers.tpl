@@ -62,17 +62,6 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Get the backend service name based on deployment method
-*/}}
-{{- define "dot-ai.backendServiceName" -}}
-{{- if eq .Values.deployment.method "toolhive" }}
-{{- printf "mcp-%s-proxy" (include "dot-ai.fullname" .) }}
-{{- else }}
-{{- include "dot-ai.fullname" . }}
-{{- end }}
-{{- end }}
-
-{{/*
 Merge global annotations with resource-specific annotations.
 Resource-specific annotations take precedence over global annotations.
 Usage: include "dot-ai.annotations" (dict "global" .Values.annotations "local" .Values.ingress.annotations)

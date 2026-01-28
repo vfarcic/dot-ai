@@ -1,10 +1,10 @@
 # MCP Server Setup Guide
 
-**Complete setup guide for using DevOps AI Toolkit as an MCP (Model Context Protocol) server with AI development tools.**
+**Deploy DevOps AI Toolkit MCP Server to Kubernetes using Helm chart - production-ready deployment with HTTP transport.**
 
 > **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
 >
-> Continue below if you want to install components individually (for non-Kubernetes setups or granular control over configuration).
+> Continue below if you want to install components individually (for granular control over configuration).
 
 ## Overview
 
@@ -19,86 +19,153 @@ The DevOps AI Toolkit provides main capabilities through MCP (Model Context Prot
 7. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
 8. **REST API Gateway** - HTTP endpoints for all toolkit capabilities
 
-This guide helps you choose the right setup method and get started quickly.
+## What You Get
 
-## See MCP Deployment Options in Action
+- **HTTP Transport MCP Server** - Direct HTTP/SSE access for MCP clients
+- **Production Kubernetes Deployment** - Scalable deployment with proper resource management
+- **Integrated Qdrant Database** - Vector database for capability and pattern management
+- **External Access** - Ingress configuration for team collaboration
+- **Resource Management** - Proper CPU/memory limits and requests
+- **Security** - RBAC and ServiceAccount configuration
 
-[![How to Deploy and Run MCP Servers (NPX, Docker, Kubernetes, ToolHive)](https://img.youtube.com/vi/MHf-M8qOogY/maxresdefault.jpg)](https://youtu.be/MHf-M8qOogY)
+## Prerequisites
 
-This video demonstrates four different ways to deploy MCP servers, from local NPX execution to production-ready Kubernetes deployments. Watch a comprehensive comparison of deployment methods including security implications, isolation patterns, dependency management, and multi-user scenarios. See hands-on demonstrations of NPX, Docker, Kubernetes with standard resources, Kubernetes with ToolHive operator, plus coverage of cloud alternatives like Fly.io, Cloudflare Workers, AWS Lambda, Vercel, Railway, and Podman.
+- Kubernetes cluster (1.19+) with kubectl access
+- Helm 3.x installed
+- AI model API key (default: Anthropic). See [AI Model Configuration](#ai-model-configuration) for available model options.
+- OpenAI API key (required for vector embeddings)
+- Ingress controller (any standard controller)
 
-## Setup Methods
+## Quick Start (5 Minutes)
 
-Choose the method that best fits your environment and workflow:
+### Step 1: Set Environment Variables
 
-### Method Comparison
+Export your API keys and auth token:
 
-| Method | Pros | Cons | Best For |
-|--------|------|------|----------|
-| **[Kubernetes](kubernetes-setup.md)** | Full features, autonomous capability scanning via controller, production-ready, HTTP transport with authentication | Requires K8s cluster + Helm | Production deployments, teams wanting full autonomous experience |
-| **[ToolHive](kubernetes-toolhive-setup.md)** | Simplified management, built-in security, operator-managed, autonomous capability scanning | Requires K8s cluster + Helm + ToolHive operator | Teams preferring operator-managed Kubernetes deployments |
-| **[Docker](docker-setup.md)** | Complete stack, no external dependencies, quick setup | Manual capability scanning only (controller unavailable) | Local development, individual developers |
-| **[NPX](npx-setup.md)** | Simple single-command start | Requires Node.js + manual Qdrant setup, manual capability scanning only | Quick trials, environments with Node.js |
+```bash
+# Required
+export ANTHROPIC_API_KEY="sk-ant-api03-..."
+export OPENAI_API_KEY="sk-proj-..."
+export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
-### Infrastructure Dependencies
+# Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
+export INGRESS_CLASS_NAME="nginx"
+```
 
-| Method | Qdrant Vector Database | Impact |
-|--------|----------------------|---------|
-| **NPX** | Must setup separately | Requires manual Qdrant setup |
-| **Docker** | Included automatically | All features work out-of-the-box |  
-| **Kubernetes** | Included automatically | All features work out-of-the-box via Helm chart |
-| **ToolHive** | Included automatically | All features work out-of-the-box via Helm chart |
-| **Development** | Must setup separately | Requires manual Qdrant setup |
+### Step 2: Install the Controller
 
-### Decision Tree
+Install the dot-ai-controller to enable autonomous cluster operations:
 
-**🎯 Recommended setup** → [Stack Installation](https://devopstoolkit.ai/docs/stack) - Complete dot-ai stack with all components pre-configured
+```bash
+# Set the controller version from https://github.com/vfarcic/dot-ai-controller/pkgs/container/dot-ai-controller%2Fcharts%2Fdot-ai-controller
+export DOT_AI_CONTROLLER_VERSION="..."
 
-**Individual component installation:**
+# Install controller (includes CRDs for Solution and RemediationPolicy)
+helm install dot-ai-controller \
+  oci://ghcr.io/vfarcic/dot-ai-controller/charts/dot-ai-controller:$DOT_AI_CONTROLLER_VERSION \
+  --namespace dot-ai \
+  --create-namespace \
+  --wait
+```
 
-**☸️ Kubernetes deployment** → [Kubernetes Setup](kubernetes-setup.md) - Full features including autonomous capability scanning via controller, production-ready, HTTP transport with authentication
+The controller provides CRDs for autonomous cluster operations. Create Custom Resources like CapabilityScanConfig, Solution, RemediationPolicy, or ResourceSyncConfig to enable features such as capability scanning, solution tracking, and more. See the [Controller Setup Guide](https://devopstoolkit.ai/docs/controller/setup-guide) for complete details.
 
-**🔧 Operator-managed deployment** → [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes management with built-in security
+### Step 3: Install the MCP Server
 
-**🐳 Local development** → [Docker Setup](docker-setup.md) - Complete stack for local use (manual capability scanning only)
+Install the MCP server using the published Helm chart:
 
-**🔧 Don't like Docker?** → [NPX Setup](npx-setup.md) - Uses Node.js, requires manual Qdrant setup
+```bash
+# Set the version from https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai%2Fcharts%2Fdot-ai
+export DOT_AI_VERSION="..."
 
-## Configuration Overview
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
+  --set ingress.host="dot-ai.127.0.0.1.nip.io" \
+  --set controller.enabled=true \
+  --namespace dot-ai \
+  --wait
+```
 
-All setup methods need the same core configuration, but handle it differently:
+**Notes**:
+- Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
+- For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key`, `openai-api-key`, and `auth-token` instead of using `--set` arguments.
+- For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
+- **Global annotations**: Add annotations to all Kubernetes resources using `annotations` in your values file (e.g., for [Reloader](https://github.com/stakater/Reloader) integration: `reloader.stakater.com/auto: "true"`).
+- **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
+- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
+- **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../guides/mcp-prompts-guide.md#user-defined-prompts) for configuration.
 
-### Configuration Components
+### Step 4: Configure MCP Client
 
-| Component | Purpose | Example |
-|----------|---------|---------|
-| `AI_PROVIDER` | AI model selection (defaults to anthropic) | [See AI Model Configuration](#ai-model-configuration) |
-| `EMBEDDINGS_PROVIDER` | Embedding provider selection (defaults to openai) | [See Embedding Provider Configuration](#embedding-provider-configuration) |
-| `DOT_AI_SESSION_DIR` | Directory for session storage | `./tmp/sessions` |
-| `KUBECONFIG` | Path to Kubernetes configuration | `~/.kube/config` |
-| `QDRANT_URL` | Qdrant vector database connection | `http://localhost:6333` |
-| `QDRANT_API_KEY` | Qdrant API key (for cloud instances) | `your-qdrant-api-key` |
-| **AI Model API Keys** | **Corresponding API key for your chosen provider** | [See AI Model Configuration](#ai-model-configuration) |
-| **Embedding Provider API Keys** | **Corresponding API key for your chosen embedding provider** | [See Embedding Provider Configuration](#embedding-provider-configuration) |
-| **User Prompts (Optional)** | **Load custom prompts from git repository** | [See User-Defined Prompts](../guides/mcp-prompts-guide.md#user-defined-prompts) |
-| **Tracing (Optional)** | OpenTelemetry distributed tracing | [See Observability Guide](../guides/observability-guide.md) |
+Create an `.mcp.json` file in your project root:
 
-**Note**: How you configure these depends on your chosen setup method. See the individual setup guides for specific configuration instructions.
+```json
+{
+  "mcpServers": {
+    "dot-ai": {
+      "type": "http",
+      "url": "http://dot-ai.127.0.0.1.nip.io",
+      "headers": {
+        "Authorization": "Bearer <your-auth-token>"
+      }
+    }
+  }
+}
+```
 
-**AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
+Replace `<your-auth-token>` with the token from Step 1 (run `echo $DOT_AI_AUTH_TOKEN` to view it).
 
-### AI Model Configuration
+**Save this configuration:**
+- **Claude Code**: Save as `.mcp.json` in your project directory
+- **Other clients**: See [MCP Client Compatibility](#mcp-client-compatibility) for filename and location
+
+**Notes**:
+- Replace the URL with your actual hostname if you changed `ingress.host`.
+- For production deployments with TLS, see [TLS Configuration](#tls-configuration) below.
+
+### Step 5: Start Your MCP Client
+
+Start your MCP client (e.g., `claude` for Claude Code). The client will automatically connect to your Kubernetes-deployed MCP server.
+
+### Step 6: Verify Everything Works
+
+In your MCP client, ask:
+```
+Show dot-ai status
+```
+
+You should see comprehensive system status including Kubernetes connectivity, vector database, and all available features.
+
+## Capability Scanning for AI Recommendations
+
+Many MCP tools depend on **capability data** to function:
+
+- **recommend**: Uses capabilities to find resources matching your deployment intent
+- **manageOrgData** (patterns): References capabilities when applying organizational patterns
+- **manageOrgData** (policies): Validates resources against stored capability metadata
+
+Without capability data, these tools may not work or will produce poor results.
+
+### Enabling Capability Scanning
+
+Create a `CapabilityScanConfig` CR to enable autonomous capability discovery. The controller watches for CRD changes and automatically scans new resources. See the [Capability Scan Guide](https://devopstoolkit.ai/docs/controller/capability-scan-guide) for setup instructions.
+
+## AI Model Configuration
 
 The DevOps AI Toolkit supports multiple AI models. Choose your model by setting the `AI_PROVIDER` environment variable.
 
-#### Model Requirements
+### Model Requirements
 
 All AI models must meet these minimum requirements:
 - **Context window**: 200K+ tokens (some tools like capability scanning use large context)
 - **Output tokens**: 8K+ tokens (for YAML generation and policy creation)
 - **Function calling**: Required for MCP tool interactions
 
-#### Available Models
+### Available Models
 
 | Provider | Model | AI_PROVIDER | API Key Required | Recommended |
 |----------|-------|-------------|------------------|-------------|
@@ -116,7 +183,7 @@ All AI models must meet these minimum requirements:
 
 \* **Note**: These models may not perform as well as other providers for complex DevOps reasoning tasks.
 
-#### Models Not Supported
+### Models Not Supported
 
 | Provider | Model | Reason |
 |----------|-------|--------|
@@ -125,45 +192,35 @@ All AI models must meet these minimum requirements:
 
 **Why DeepSeek is not supported**: Integration testing revealed that DeepSeek's context window limitations (128K for V3.2, 64K for R1) cause failures in context-heavy operations like Kyverno policy generation, which can exceed 130K tokens. The toolkit requires 200K+ context for reliable operation across all features.
 
-**Configuration Steps:**
+### Helm Configuration
 
-1. **Set your provider** (defaults to anthropic):
-```bash
-AI_PROVIDER=anthropic_haiku  # Example: using Claude Haiku 4.5
+Set AI provider in your Helm values:
+
+```yaml
+ai:
+  provider: anthropic_haiku  # or anthropic, anthropic_opus, google, etc.
+
+secrets:
+  anthropic:
+    apiKey: "your-api-key"
 ```
 
-2. **Set the corresponding API key** (**only one** needed):
+Or via `--set`:
+
 ```bash
-# Choose ONE based on your selected provider:
-
-# For Claude models (Opus 4.5, Sonnet 4.5, Haiku 4.5)
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
-# For OpenAI models (GPT-5.1 Codex)
-OPENAI_API_KEY=your_openai_api_key_here
-
-# For Google models (Gemini 3 Pro)
-GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key_here
-
-# For xAI models (Grok-4)
-XAI_API_KEY=your_xai_api_key_here
-
-# For Moonshot AI models (Kimi K2, Kimi K2 Thinking)
-MOONSHOT_API_KEY=your_moonshot_api_key_here
-
-# For Amazon Bedrock (uses AWS credential chain)
-# Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=us-east-1
-AI_MODEL=anthropic.claude-sonnet-4-5-20250929-v1:0  # Bedrock model ID
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set ai.provider=anthropic_haiku \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  # ... other settings
 ```
 
-### Embedding Provider Configuration
+**AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
+
+## Embedding Provider Configuration
 
 The DevOps AI Toolkit supports multiple embedding providers for semantic search capabilities in pattern management, capability discovery, and policy matching.
 
-#### Available Embedding Providers
+### Available Embedding Providers
 
 | Provider | EMBEDDINGS_PROVIDER | Model | Dimensions | API Key Required |
 |----------|-------------------|-------|------------|------------------|
@@ -172,29 +229,19 @@ The DevOps AI Toolkit supports multiple embedding providers for semantic search 
 | **Google** | `google` | `gemini-embedding-001` | 768 | `GOOGLE_API_KEY` |
 | **OpenAI** | `openai` (default) | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY` |
 
-**Configuration Steps:**
+### Helm Configuration
 
-1. **Set your embedding provider** (defaults to openai):
-```bash
-EMBEDDINGS_PROVIDER=google  # Example: using Google embeddings
-```
+Set embedding provider via `extraEnv` in your values file:
 
-2. **Set the corresponding API key** (**only one** needed):
-```bash
-# Choose ONE based on your selected provider:
-
-# For OpenAI embeddings (default)
-OPENAI_API_KEY=your_openai_api_key_here
-
-# For Google embeddings
-GOOGLE_API_KEY=your_google_api_key_here
-
-# For Amazon Bedrock embeddings (uses AWS credential chain)
-# Set AWS credentials via environment variables, ~/.aws/credentials, or IAM roles
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=us-east-1
-EMBEDDINGS_MODEL=amazon.titan-embed-text-v2:0  # Optional: defaults to Titan v2
+```yaml
+extraEnv:
+  - name: EMBEDDINGS_PROVIDER
+    value: "google"
+  - name: GOOGLE_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: dot-ai-secrets
+        key: google-api-key
 ```
 
 **Notes:**
@@ -203,83 +250,227 @@ EMBEDDINGS_MODEL=amazon.titan-embed-text-v2:0  # Optional: defaults to Titan v2
 - **Embedding Support**: Not all AI model providers support embeddings. Anthropic does not provide embeddings; use OpenAI, Google, or Amazon Bedrock for embeddings
 - **Google Deprecation**: `text-embedding-004` will be discontinued on January 14, 2026. Use `gemini-embedding-001` for new deployments. When switching models, you must delete and recreate all embeddings (patterns, capabilities, policies) as vectors from different models are not compatible
 
-### Custom Endpoint Configuration
+## Custom Endpoint Configuration
 
 You can configure custom OpenAI-compatible endpoints for AI models. This enables using alternative providers like OpenRouter, self-hosted models, or air-gapped deployments.
 
-#### Configuration Variables
+### In-Cluster Ollama Example
 
-| Variable | Purpose |
-|----------|---------|
-| `CUSTOM_LLM_BASE_URL` | Custom AI model endpoint URL |
-| `CUSTOM_LLM_API_KEY` | API key for custom AI endpoint |
-| `CUSTOM_EMBEDDINGS_BASE_URL` | Custom embeddings endpoint URL (OpenAI-compatible) |
-| `CUSTOM_EMBEDDINGS_API_KEY` | API key for custom embeddings endpoint |
-| `EMBEDDINGS_MODEL` | Custom embeddings model name (defaults to `text-embedding-3-small`) |
-| `EMBEDDINGS_DIMENSIONS` | Custom embeddings dimensions (defaults to `1536`) |
+Deploy with a self-hosted Ollama service running in the same Kubernetes cluster:
 
-#### Example: OpenRouter
+**Create a `values.yaml` file:**
+```yaml
+ai:
+  provider: openai
+  model: "llama3.3:70b"  # Your self-hosted model
+  customEndpoint:
+    enabled: true
+    baseURL: "http://ollama-service.default.svc.cluster.local:11434/v1"
+
+secrets:
+  customLlm:
+    apiKey: "ollama"  # Ollama doesn't require authentication
+  openai:
+    apiKey: "your-openai-key"  # Still needed for vector embeddings
+```
+
+**Install with custom values:**
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --values values.yaml \
+  --create-namespace \
+  --namespace dot-ai \
+  --wait
+```
+
+### Other Self-Hosted Options
+
+**vLLM (Self-Hosted):**
+```yaml
+ai:
+  provider: openai
+  model: "meta-llama/Llama-3.1-70B-Instruct"
+  customEndpoint:
+    enabled: true
+    baseURL: "http://vllm-service:8000/v1"
+
+secrets:
+  customLlm:
+    apiKey: "dummy"  # vLLM may not require authentication
+  openai:
+    apiKey: "your-openai-key"
+```
+
+**LocalAI (Self-Hosted):**
+```yaml
+ai:
+  provider: openai
+  model: "your-model-name"
+  customEndpoint:
+    enabled: true
+    baseURL: "http://localai-service:8080/v1"
+
+secrets:
+  customLlm:
+    apiKey: "dummy"
+  openai:
+    apiKey: "your-openai-key"
+```
+
+### OpenRouter Example
 
 OpenRouter provides access to 100+ LLM models from multiple providers:
 
-```bash
-# AI Model configuration via OpenRouter
-export CUSTOM_LLM_API_KEY="sk-or-v1-your-key-here"
-export CUSTOM_LLM_BASE_URL="https://openrouter.ai/api/v1"
-export AI_PROVIDER=openai
-export AI_MODEL="anthropic/claude-3.5-sonnet"
+```yaml
+ai:
+  provider: openai
+  model: "anthropic/claude-3.5-sonnet"
+  customEndpoint:
+    enabled: true
+    baseURL: "https://openrouter.ai/api/v1"
 
-# Embeddings still use OpenAI directly (OpenRouter doesn't support embeddings)
-export OPENAI_API_KEY="sk-proj-your-openai-key"
-export EMBEDDINGS_PROVIDER=openai
+secrets:
+  customLlm:
+    apiKey: "sk-or-v1-your-key-here"
+  openai:
+    apiKey: "your-openai-key"  # Still needed for embeddings
 ```
 
 **Note**: OpenRouter does not support embedding models. Use OpenAI, Google, or Amazon Bedrock for embeddings.
 
 Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 
-#### Environment Variable Management
+### Important Notes
 
-All setup methods benefit from using `.env` files for easier environment variable management:
+- **Context window**: 200K+ tokens recommended
+- **Output tokens**: 8K+ tokens minimum
+- **Function calling**: Must support OpenAI-compatible function calling
 
-#### Using .env Files
+**Testing Status:**
+- Validated with OpenRouter (alternative SaaS provider)
+- Not yet tested with self-hosted Ollama, vLLM, or LocalAI
+- We need your help testing! Report results in [issue #193](https://github.com/vfarcic/dot-ai/issues/193)
 
-Create a `.env` file to manage environment variables consistently:
+**Notes:**
+- OpenAI API key is still required for vector embeddings (Qdrant operations)
+- If model requirements are too high for your setup, please open an issue
+- Configuration examples are based on common patterns but not yet validated
 
-```bash
-# Create environment file
-cat > .env << 'EOF'
-# Required API keys
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
+## TLS Configuration
 
-# Optional: Custom Kubernetes config path
-KUBECONFIG=/path/to/your/kubeconfig.yaml
+To enable HTTPS, add these values (requires [cert-manager](https://cert-manager.io/) with a ClusterIssuer):
 
-# Additional variables specific to your chosen setup method
-# (see individual setup guides for method-specific variables)
-EOF
+```yaml
+ingress:
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt  # Your ClusterIssuer name
 ```
 
-#### Security Best Practices
+Then update your `.mcp.json` URL to use `https://`.
 
-```bash
-# Prevent accidental git commits
-echo ".env" >> .gitignore
+## Web UI Visualization
 
-# Set restrictive file permissions
-chmod 600 .env
+Enable rich visualizations of query results by connecting to a [DevOps AI Web UI](https://github.com/vfarcic/dot-ai-ui) instance.
+
+When configured, the query tool includes a `visualizationUrl` field in responses that opens interactive visualizations (resource topology, relationships, health status) in your browser.
+
+### Configuration
+
+Add the Web UI base URL to your Helm values:
+
+```yaml
+webUI:
+  baseUrl: "https://dot-ai-ui.example.com"  # Your Web UI instance URL
 ```
 
-**HTTP Authentication**: For Kubernetes deployments exposed via Ingress, Bearer token authentication is required. See [Kubernetes Setup](kubernetes-setup.md) for configuration details.
+Or via `--set`:
 
-#### Usage with Setup Methods
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set webUI.baseUrl="https://dot-ai-ui.example.com" \
+  # ... other settings
+```
 
-- **Docker**: `docker compose --env-file .env ...`
-- **NPX**: Most tools automatically load `.env` files
-- **Development**: Use `dotenv` package or similar
+### Feature Toggle Behavior
 
-Each setup method guide shows how to use `.env` files with that specific approach.
+- **Not configured** (default): Query responses contain only text summaries. No `visualizationUrl` field is included.
+- **Configured**: Query responses include a `visualizationUrl` field (format: `{baseUrl}/v/{sessionId}`) that opens the visualization in the Web UI.
+
+### Example Query Response
+
+When `webUI.baseUrl` is configured, query responses include:
+
+```text
+**View visualization**: https://dot-ai-ui.example.com/v/abc123-session-id
+```
+
+This URL opens an interactive visualization of the query results in the Web UI.
+
+## Gateway API (Alternative to Ingress)
+
+For Kubernetes 1.26+, you can use **Gateway API v1** for advanced traffic management with role-oriented design (platform teams manage Gateways, app teams create routes).
+
+### When to Use
+
+**Use Gateway API when:**
+- Running Kubernetes 1.26+ with Gateway API support
+- Need advanced routing (weighted traffic, header-based routing)
+- Prefer separation of infrastructure and application concerns
+
+**Use Ingress when:**
+- Running Kubernetes < 1.26
+- Simpler requirements met by Ingress features
+
+### Prerequisites
+
+- Kubernetes 1.26+ cluster
+- Gateway API CRDs installed: `kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml`
+- Gateway controller running (Istio, Envoy Gateway, Kong, etc.)
+- Existing Gateway resource created by platform team (reference pattern)
+
+### Quick Start (Reference Pattern - RECOMMENDED)
+
+Reference an existing platform-managed Gateway:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=false \
+  --set gateway.name="cluster-gateway" \
+  --set gateway.namespace="gateway-system" \
+  --namespace dot-ai \
+  --wait
+```
+
+### Configuration Reference
+
+```yaml
+# Reference pattern (RECOMMENDED)
+gateway:
+  name: "cluster-gateway"           # Existing Gateway name
+  namespace: "gateway-system"       # Gateway namespace (optional)
+  timeouts:
+    request: "3600s"                # SSE streaming timeout
+    backendRequest: "3600s"
+
+# Creation pattern (development/testing only)
+gateway:
+  create: true                      # Create Gateway (NOT for production)
+  className: "istio"                # GatewayClass name
+```
+
+### Complete Guide
+
+See **[Gateway API Deployment Guide](gateway-api.md)** for:
+- Platform team Gateway setup (HTTP and HTTPS)
+- Application team deployment steps
+- Cross-namespace access (ReferenceGrant)
+- Development/testing creation pattern
+- Troubleshooting and verification
+- Migration from Ingress
 
 ## MCP Client Compatibility
 
@@ -288,11 +479,11 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 ### Popular MCP Clients
 
 **Claude Code**
-- Create `.mcp.json` in your project root with your chosen setup method configuration
+- Create `.mcp.json` in your project root with the configuration from [Step 4](#step-4-configure-mcp-client)
 - Start with `claude` - MCP tools automatically available
 
-**Cursor**  
-- Settings → "MCP Servers" → Add configuration → Restart
+**Cursor**
+- Settings -> "MCP Servers" -> Add configuration -> Restart
 
 **Cline (VS Code Extension)**
 - Configure in VS Code settings or extension preferences
@@ -300,82 +491,9 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 **VS Code (with MCP Extension)**
 - Add configuration to `settings.json` under `mcp.servers`
 
-**kagent (Kubernetes AI Agent Framework)**
-- Requires Kubernetes-deployed MCP server (HTTP transport)
-- See [kagent Setup Guide](kagent-setup.md) for agent integration
-
 **Other MCP Clients**
 - Any client supporting the Model Context Protocol standard
-- Use the configuration pattern from your chosen setup method
-
-### Configuration Pattern
-
-Each setup method provides an MCP configuration that works with any compatible client:
-
-```json
-{
-  "mcpServers": {
-    "dot-ai": {
-      // Method-specific command and arguments
-      // See individual setup guides for details
-    }
-  }
-}
-```
-
-## Getting Started
-
-### 1. Choose Your Setup Method
-
-- **Recommended**: [Stack Installation](https://devopstoolkit.ai/docs/stack) - Complete dot-ai stack with all components pre-configured
-- **Kubernetes**: [Kubernetes Setup](kubernetes-setup.md) - Individual component deployment with full features
-- **Operator-managed**: [ToolHive Setup](kubernetes-toolhive-setup.md) - Simplified Kubernetes deployment with built-in security
-- **Local development**: [Docker Setup](docker-setup.md) - Complete stack for local use (manual capability scanning only)
-- **Alternative**: [NPX Setup](npx-setup.md) - If you prefer Node.js over Docker  
-
-### 2. Follow Setup Instructions
-
-Each setup guide provides complete instructions:
-- Prerequisites and dependencies
-- Step-by-step configuration
-- MCP client integration
-- Troubleshooting guidance
-
-### 3. Verify Installation
-
-Test that everything is working:
-
-```bash
-# In your MCP client, ask:
-"Show dot-ai status"
-
-# Should display comprehensive system status including:
-# - Version information
-# - Vector DB connectivity  
-# - API connections (Anthropic, OpenAI)
-# - Kubernetes cluster connectivity
-# - Available features and readiness
-```
-
-### 4. Explore Available Features
-
-Once setup is complete, see [Tools Overview](../guides/mcp-tools-overview.md) for detailed information about available capabilities and usage examples.
-
-## Verify Your Setup
-
-After completing setup, verify everything is working correctly:
-
-```text
-Show dot-ai status
-```
-
-This displays comprehensive diagnostics including:
-- **Component health**: Kubernetes, Vector DB, AI provider connectivity
-- **Collection status**: Capabilities, patterns, and policies
-- **Active features**: What capabilities are available
-
-A healthy setup shows all components as "Connected" or "Ready". See the **[System Status Guide](../guides/mcp-version-guide.md)** for detailed troubleshooting if any components show errors.
-
+- Use the HTTP configuration pattern shown in [Step 4](#step-4-configure-mcp-client)
 
 ## Next Steps
 
@@ -388,8 +506,8 @@ Once your MCP server is running:
 - **[Observability Guide](../guides/observability-guide.md)** - Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
 
 ### 3. Production Considerations
-- For production workloads, plan for Docker deployment with external orchestration
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
+- Review [TLS Configuration](#tls-configuration) for HTTPS
 
 ## Support
 
