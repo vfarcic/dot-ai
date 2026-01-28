@@ -209,7 +209,7 @@ describe('Telemetry Service', () => {
     const { getTelemetry } = await import('../../../../src/core/telemetry/client');
     const telemetry = getTelemetry();
 
-    expect(() => telemetry.trackClientConnected({ name: 'test-client', version: '1.0.0' }, 'stdio')).not.toThrow();
+    expect(() => telemetry.trackClientConnected({ name: 'test-client', version: '1.0.0' })).not.toThrow();
   });
 
   it('should accept MCP client info in trackToolExecution', async () => {

@@ -117,9 +117,8 @@ async function main() {
       author: 'Viktor Farcic'
     });
 
-    // Start the MCP server
-    const transportType = process.env.TRANSPORT_TYPE || 'stdio';
-    process.stderr.write(`Starting DevOps AI Toolkit MCP server with ${transportType} transport...\n`);
+    // Start the MCP server (HTTP transport only)
+    process.stderr.write('Starting DevOps AI Toolkit MCP server...\n');
     await mcpServer.start();
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
@@ -150,17 +149,12 @@ async function main() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-    // Keep the process alive for HTTP transport
-    if (transportType === 'http') {
-      process.stderr.write('HTTP transport active - server will run until terminated\n');
-      // Keep the process running indefinitely for HTTP server
-      const keepAlive = () => {
-        setTimeout(keepAlive, 24 * 60 * 60 * 1000); // Check every 24 hours
-      };
-      keepAlive();
-    } else {
-      process.stderr.write('STDIO transport active - waiting for client connection\n');
-    }
+    // Keep the process alive for HTTP server
+    process.stderr.write('HTTP server active - server will run until terminated\n');
+    const keepAlive = () => {
+      setTimeout(keepAlive, 24 * 60 * 60 * 1000); // Check every 24 hours
+    };
+    keepAlive();
 
   } catch (error) {
     process.stderr.write(`Failed to start DevOps AI Toolkit MCP server: ${error}\n`);

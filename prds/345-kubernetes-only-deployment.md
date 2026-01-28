@@ -54,11 +54,11 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
   - [x] Remove code paths for non-K8s scenarios
   - [x] Clean up environment variable handling
 
-- [ ] **M3: Remove stdio transport**
-  - Remove `StdioServerTransport` import and code from `src/interfaces/mcp.ts`
-  - Remove stdio transport handling from `src/mcp/server.ts`
-  - Make HTTP the only transport (remove `TRANSPORT_TYPE` env var, hardcode HTTP)
-  - Update any documentation referencing stdio transport
+- [x] **M3: Remove stdio transport**
+  - [x] Remove `StdioServerTransport` import and code from `src/interfaces/mcp.ts`
+  - [x] Remove stdio transport handling from `src/mcp/server.ts`
+  - [x] Make HTTP the only transport (remove `TRANSPORT_TYPE` env var, hardcode HTTP)
+  - [x] Remove `transport` parameter from telemetry (no longer needed with single transport)
 
 - [ ] **M4: Update documentation**
   - Update README with Kubernetes prerequisites
@@ -167,3 +167,19 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 | `.mcp-docker.json` | Docker MCP config - kept for blog post references |
 | `.mcp-kubernetes.json` | HTTP transport for K8s deployment |
 | `.mcp.json` | HTTP transport for production |
+
+### M3 Implementation (2026-01-28)
+
+#### Files Modified
+| File | Change |
+|------|--------|
+| `src/interfaces/mcp.ts` | Removed `StdioServerTransport` import; removed `transport` config option from `MCPServerConfig`; removed `startStdioTransport()` method; simplified `start()` to always use HTTP |
+| `src/mcp/server.ts` | Removed `TRANSPORT_TYPE` env var handling; removed stdio keep-alive branch; server now always uses HTTP transport |
+| `Dockerfile` | Removed `ENV TRANSPORT_TYPE=stdio` - HTTP is now the only transport |
+| `server.json` | Changed transport from `"type": "stdio"` to `"type": "http"` with port 3456 |
+| `src/core/telemetry/types.ts` | Removed `transport` field from `ClientConnectedEventProperties`; updated `trackClientConnected` signature |
+| `src/core/telemetry/client.ts` | Removed `transport` parameter from `trackClientConnected()` method |
+| `tests/unit/core/telemetry/telemetry.test.ts` | Updated test to match new `trackClientConnected` signature |
+
+#### Result
+HTTP is now the only MCP transport. All stdio-related code has been removed, simplifying the codebase.

@@ -225,12 +225,11 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track MCP client connection
    */
-  trackClientConnected(mcpClient: McpClientInfo, transport: string): void {
+  trackClientConnected(mcpClient: McpClientInfo): void {
     const properties: ClientConnectedEventProperties = {
       ...this.getBaseProperties(),
       mcp_client: mcpClient.name,
       mcp_client_version: mcpClient.version,
-      transport,
     };
     this.trackEvent('client_connected', properties);
   }
