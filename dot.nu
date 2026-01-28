@@ -9,7 +9,6 @@ source scripts/anthropic.nu
 source scripts/openai.nu
 source scripts/kyverno.nu
 source scripts/atlas.nu
-source scripts/toolhive.nu
 source scripts/jaeger.nu
 source scripts/dot-ai.nu
 source scripts/cnpg.nu

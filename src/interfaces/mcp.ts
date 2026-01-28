@@ -6,7 +6,6 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -77,7 +76,6 @@ export interface MCPServerConfig {
   version: string;
   description: string;
   author?: string;
-  transport?: 'stdio' | 'http';
   port?: number;
   host?: string;
   sessionMode?: 'stateful' | 'stateless';
@@ -133,8 +131,7 @@ export class MCPServer {
           name: clientVersion.name,
           version: clientVersion.version,
         };
-        const transportType = process.env.TRANSPORT_TYPE || this.config.transport || 'stdio';
-        getTelemetry().trackClientConnected(this.mcpClientInfo, transportType);
+        getTelemetry().trackClientConnected(this.mcpClientInfo);
         this.logger.info('MCP client connected', {
           client: clientVersion.name,
           version: clientVersion.version,
@@ -525,27 +522,12 @@ export class MCPServer {
   }
 
   async start(): Promise<void> {
-    // Get transport type from environment or config
-    const transportType = process.env.TRANSPORT_TYPE || this.config.transport || 'stdio';
-    
-    this.logger.info('Starting MCP Server', { 
-      transportType,
+    this.logger.info('Starting MCP Server', {
       sessionMode: this.config.sessionMode || 'stateful'
     });
 
-    if (transportType === 'http') {
-      await this.startHttpTransport();
-    } else {
-      await this.startStdioTransport();
-    }
-    
+    await this.startHttpTransport();
     this.initialized = true;
-  }
-
-  private async startStdioTransport(): Promise<void> {
-    this.logger.info('Using STDIO transport');
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
   }
 
   private async startHttpTransport(): Promise<void> {

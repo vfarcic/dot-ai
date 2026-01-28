@@ -72,8 +72,6 @@ export interface ClientConnectedEventProperties extends BaseEventProperties {
   mcp_client: string;
   /** MCP client version */
   mcp_client_version: string;
-  /** Transport type (stdio, http) */
-  transport: string;
 }
 
 /**
@@ -145,7 +143,7 @@ export interface TelemetryService {
   trackServerStop(uptimeSeconds: number): void;
 
   /** Track MCP client connection */
-  trackClientConnected(mcpClient: McpClientInfo, transport: string): void;
+  trackClientConnected(mcpClient: McpClientInfo): void;
 
   /** Flush pending events and shutdown */
   shutdown(): Promise<void>;

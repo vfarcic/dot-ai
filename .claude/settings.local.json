@@ -1,0 +1,12 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "dot-ai",
+    "coderabbitai"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__coderabbitai__get_review_comments"
+    ]
+  }
+}

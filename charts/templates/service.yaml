@@ -1,4 +1,3 @@
-{{- if eq .Values.deployment.method "standard" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -19,4 +18,3 @@ spec:
     targetPort: 3456
     protocol: TCP
     name: http
-{{- end }}

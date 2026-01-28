@@ -36,11 +36,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            {{- if eq .Values.deployment.method "toolhive" }}
-            name: mcp-{{ include "dot-ai.fullname" . }}-proxy
-            {{- else }}
             name: {{ include "dot-ai.fullname" . }}
-            {{- end }}
             port:
               number: 3456
 {{- end }}

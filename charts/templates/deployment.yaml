@@ -1,4 +1,3 @@
-{{- if eq .Values.deployment.method "standard" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -156,4 +155,3 @@ spec:
           name: {{ include "dot-ai.fullname" . }}-plugins
 {{- end }}
       terminationGracePeriodSeconds: 30
-{{- end }}

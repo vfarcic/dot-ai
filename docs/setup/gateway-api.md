@@ -977,6 +977,4 @@ kubectl get httproute,svc,pod -n dot-ai
 - [external-dns Gateway API Support](https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/gateway-api.md)
 
 **dot-ai Documentation:**
-- [Kubernetes Setup Guide](kubernetes-setup.md)
-- [ToolHive Deployment](kubernetes-toolhive-setup.md)
 - [MCP Setup Guide](mcp-setup.md)

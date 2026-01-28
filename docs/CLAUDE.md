@@ -3,9 +3,9 @@
 ## Documentation Standards & Format
 
 ### File Structure Requirements
-- **Filename format**: Use kebab-case with descriptive names (`mcp-tools-overview.md`, `setup/docker-setup.md`)
+- **Filename format**: Use kebab-case with descriptive names (`mcp-tools-overview.md`, `setup/mcp-setup.md`)
 - **Directory organization**: Group related docs in subdirectories (`setup/`, guides, references)
-- **Consistent naming**: Use prefix patterns (`mcp-` for MCP-related guides, `setup-` or directory structure for setup guides)
+- **Consistent naming**: Use prefix patterns (`mcp-` for MCP-related guides, `setup/` directory for setup guides)
 
 ### Documentation Format Standards
 - **H1 Title**: One H1 per file with descriptive title and bold summary line
@@ -71,9 +71,8 @@ For each command/example in documentation:
 **CRITICAL: MCP Client Workflow Alignment**
 
 ❌ **Manual Server Commands**: Never document commands users run directly:
-- `npx @vfarcic/dot-ai` (users never run this)
-- `docker compose up` (users never run this) 
 - `node dist/mcp/server.js` (users never run this)
+- Direct HTTP calls to the MCP server (users interact through MCP clients)
 
 ✅ **MCP Client Workflow**: Document only what users actually do:
 - Create `.mcp.json` configuration
@@ -91,8 +90,8 @@ For each command/example in documentation:
 - Client handles cleanup when needed
 
 ❌ **Manual Debugging Commands**: Never document CLI debugging:
-- `docker logs dot-ai` (users won't run this)
-- `curl http://localhost:6333` (users won't run this)
+- `kubectl logs` for MCP server (users won't typically run this)
+- `curl` to MCP endpoints (users won't run this)
 - Manual health checks or status commands
 
 ✅ **MCP-Based Diagnostics**: Use client-integrated diagnostics:
