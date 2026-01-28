@@ -204,6 +204,28 @@ export class RestRouteRegistry {
   }
 
   /**
+   * Find allowed methods for a path (ignoring method)
+   *
+   * Used to return METHOD_NOT_ALLOWED with proper Allow header
+   * when a path matches but method doesn't.
+   *
+   * @param path - Request path to match
+   * @returns Array of allowed methods, or empty array if path doesn't match any route
+   */
+  findAllowedMethods(path: string): HttpMethod[] {
+    const methods: HttpMethod[] = [];
+
+    for (const compiled of this.routes.values()) {
+      const match = compiled.regex.exec(path);
+      if (match) {
+        methods.push(compiled.definition.method);
+      }
+    }
+
+    return methods;
+  }
+
+  /**
    * Get all registered route definitions
    *
    * Used by OpenAPI generator to document all endpoints
