@@ -1,5 +1,5 @@
 import { GenericSessionManager } from '../core/generic-session-manager';
-import { KUBECTL_INVESTIGATION_TOOLS, executeKubectlTools } from '../core/kubectl-tools';
+import { PluginManager } from '../core/plugin-manager';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
@@ -17,9 +17,12 @@ import {
 /**
  * Analyzes user intent and generates operational proposal using AI tool loop
  *
+ * PRD #343: pluginManager is required - all kubectl operations go through plugin.
+ *
  * @param intent - User's operational intent (e.g., "update my-api to v2.0")
  * @param logger - Logger instance
  * @param sessionManager - Session manager instance
+ * @param pluginManager - Plugin manager for kubectl operations
  * @param sessionId - Optional session ID for refinement
  * @param interaction_id - Optional interaction ID for eval datasets
  * @returns Operation output with proposed changes
@@ -28,6 +31,7 @@ export async function analyzeIntent(
   intent: string,
   logger: Logger,
   sessionManager: GenericSessionManager<OperateSessionData>,
+  pluginManager: PluginManager,
   sessionId?: string,
   interaction_id?: string
 ): Promise<any> {
@@ -40,8 +44,8 @@ export async function analyzeIntent(
   const systemPrompt = loadSystemPrompt();
   const userMessage = buildUserMessage(intent, context);
 
-  // 3. Execute AI tool loop with kubectl tools
-  const aiResult = await executeToolLoop(systemPrompt, userMessage, logger, interaction_id);
+  // 3. Execute AI tool loop with kubectl tools (PRD #343: via plugin)
+  const aiResult = await executeToolLoop(systemPrompt, userMessage, logger, pluginManager, interaction_id);
 
   // 4. Parse AI response into structured format
   const proposedChanges = parseAIResponse(aiResult, logger);
@@ -111,13 +115,31 @@ function buildUserMessage(intent: string, context: EmbeddedContext): string {
   });
 }
 
+/** Kubectl tool names for investigation and dry-run validation */
+const KUBECTL_INVESTIGATION_TOOL_NAMES = [
+  'kubectl_get',
+  'kubectl_describe',
+  'kubectl_logs',
+  'kubectl_events',
+  'kubectl_api_resources',
+  'kubectl_get_crd_schema',
+  'kubectl_get_resource_json',
+  // Dry-run tools for validation
+  'kubectl_patch_dryrun',
+  'kubectl_apply_dryrun',
+  'kubectl_delete_dryrun'
+];
+
 /**
  * Executes AI tool loop with kubectl investigation tools
  * AI autonomously inspects cluster and validates changes with dry-run
  *
+ * PRD #343: Kubectl tools are routed through the plugin system.
+ *
  * @param systemPrompt - Static instructions (cacheable)
  * @param userMessage - Dynamic content with intent and context
  * @param logger - Logger instance
+ * @param pluginManager - Plugin manager for kubectl operations
  * @param interaction_id - Optional interaction ID for eval datasets
  * @returns AI's final response
  * @throws Error if AI fails to converge within 30 iterations
@@ -126,17 +148,35 @@ async function executeToolLoop(
   systemPrompt: string,
   userMessage: string,
   logger: Logger,
+  pluginManager: PluginManager,
   interaction_id?: string
 ): Promise<string> {
   logger.debug('Starting AI tool loop for operate analysis');
+
+  // PRD #343: Get kubectl tools from plugin
+  const kubectlTools = pluginManager.getDiscoveredTools().filter(t =>
+    KUBECTL_INVESTIGATION_TOOL_NAMES.includes(t.name)
+  );
+
+  if (kubectlTools.length === 0) {
+    throw new Error('No kubectl tools available from plugin. Ensure agentic-tools plugin is running.');
+  }
+
+  logger.debug('Using kubectl tools from plugin', {
+    toolCount: kubectlTools.length,
+    tools: kubectlTools.map(t => t.name)
+  });
+
+  // PRD #343: Create tool executor that routes through plugin
+  const toolExecutor = pluginManager.createToolExecutor();
 
   const aiProvider = createAIProvider();
 
   const result = await aiProvider.toolLoop({
     systemPrompt,
     userMessage,
-    tools: KUBECTL_INVESTIGATION_TOOLS,
-    toolExecutor: executeKubectlTools,
+    tools: kubectlTools,
+    toolExecutor: toolExecutor,
     maxIterations: 30,
     operation: 'operate-analysis',
     evaluationContext: {

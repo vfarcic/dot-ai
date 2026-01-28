@@ -1,0 +1,105 @@
+{{/*
+Plugin Deployments and Services (PRD #343)
+Creates Deployment + Service for plugins with image configuration (deployed mode).
+External plugins (endpoint only) are not deployed - just registered in DOT_AI_PLUGINS_CONFIG.
+*/}}
+{{- range $name, $config := .Values.plugins }}
+{{- if and $config.enabled $config.image }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "dot-ai.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: plugin
+    app.kubernetes.io/part-of: dot-ai
+  {{- $annotations := include "dot-ai.annotations" (dict "global" $.Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+      {{- $podAnnotations := include "dot-ai.annotations" (dict "global" $.Values.annotations "local" nil) -}}
+      {{- if $podAnnotations }}
+      annotations:
+        {{- $podAnnotations | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if eq $name "agentic-tools" }}
+      {{- /* agentic-tools uses the existing dot-ai ServiceAccount for K8s RBAC */}}
+      serviceAccountName: {{ include "dot-ai.serviceAccountName" $ }}
+      {{- else if $config.serviceAccountName }}
+      serviceAccountName: {{ $config.serviceAccountName }}
+      {{- end }}
+      containers:
+      - name: {{ $name }}
+        image: "{{ $config.image.repository }}:{{ $config.image.tag }}"
+        imagePullPolicy: {{ $config.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: {{ $config.port }}
+          name: http
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ $config.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ $config.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+        {{- with $config.env }}
+        env:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $config.envFrom }}
+        envFrom:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $config.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "dot-ai.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: plugin
+    app.kubernetes.io/part-of: dot-ai
+  {{- $svcAnnotations := include "dot-ai.annotations" (dict "global" $.Values.annotations "local" nil) -}}
+  {{- if $svcAnnotations }}
+  annotations:
+    {{- $svcAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+  ports:
+  - port: {{ $config.port }}
+    targetPort: {{ $config.port }}
+    protocol: TCP
+    name: http
+{{- end }}
+{{- end }}

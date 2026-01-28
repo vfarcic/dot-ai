@@ -29,22 +29,10 @@ import {
   executeResourceTools,
   getResourceKinds,
   listResources,
-  getNamespaces,
-  fetchResource,
-  getResourceEvents,
-  getPodLogs,
-  ContainerRequiredError
+  getNamespaces
 } from '../core/resource-tools';
-import {
-  KUBECTL_API_RESOURCES_TOOL,
-  KUBECTL_GET_TOOL,
-  KUBECTL_DESCRIBE_TOOL,
-  KUBECTL_LOGS_TOOL,
-  KUBECTL_EVENTS_TOOL,
-  KUBECTL_GET_CRD_SCHEMA_TOOL,
-  executeKubectlTools
-} from '../core/kubectl-tools';
 import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
+import { PluginManager } from '../core/plugin-manager';
 
 /**
  * HTTP status codes for REST responses
@@ -55,6 +43,7 @@ export enum HttpStatus {
   NOT_FOUND = 404,
   METHOD_NOT_ALLOWED = 405,
   INTERNAL_SERVER_ERROR = 500,
+  BAD_GATEWAY = 502,
   SERVICE_UNAVAILABLE = 503
 }
 
@@ -180,16 +169,19 @@ export class RestApiRouter {
   private config: RestApiConfig;
   private openApiGenerator: OpenApiGenerator;
   private requestCounter: number = 0;
+  private pluginManager?: PluginManager;
 
   constructor(
-    registry: RestToolRegistry, 
+    registry: RestToolRegistry,
     dotAI: DotAI,
-    logger: Logger, 
+    logger: Logger,
+    pluginManager?: PluginManager,
     config: Partial<RestApiConfig> = {}
   ) {
     this.registry = registry;
     this.dotAI = dotAI;
     this.logger = logger;
+    this.pluginManager = pluginManager;
     this.config = {
       basePath: '/api',
       version: 'v1',
@@ -568,8 +560,9 @@ export class RestApiRouter {
 
       // Execute the tool handler with timeout
       // Note: Tool handlers expect the same format as MCP calls
+      // PRD #343: Pass pluginManager for kubectl operations via plugin system
       const timeoutMs = this.config.requestTimeout;
-      const toolPromise = toolMetadata.handler(body, this.dotAI, this.logger, requestId);
+      const toolPromise = toolMetadata.handler(body, this.dotAI, this.logger, requestId, this.pluginManager);
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Request timeout exceeded')), timeoutMs)
       );
@@ -1024,7 +1017,39 @@ export class RestApiRouter {
         offset
       });
 
-      const result = await listResources({ kind, apiVersion, namespace, includeStatus, limit, offset });
+      // PRD #343: Never pass includeStatus to listResources (it uses direct kubectl)
+      // Fetch status via plugin separately if requested
+      const result = await listResources({ kind, apiVersion, namespace, limit, offset });
+
+      // Enrich with live status via plugin if requested
+      if (includeStatus && result.resources.length > 0 && this.pluginManager?.isPluginTool('kubectl_get_resource_json')) {
+        const statusPromises = result.resources.map(async (resource) => {
+          const resourceType = resource.apiGroup
+            ? `${resource.kind.toLowerCase()}.${resource.apiGroup}`
+            : resource.kind.toLowerCase();
+          const resourceId = `${resourceType}/${resource.name}`;
+
+          const pluginResponse = await this.pluginManager!.invokeTool('kubectl_get_resource_json', {
+            resource: resourceId,
+            namespace: resource.namespace,
+            field: 'status'
+          });
+
+          if (pluginResponse.success && pluginResponse.result) {
+            const pluginResult = pluginResponse.result as { success: boolean; data: string };
+            if (pluginResult.success && pluginResult.data) {
+              try {
+                return { ...resource, status: JSON.parse(pluginResult.data) };
+              } catch {
+                return resource;
+              }
+            }
+          }
+          return resource;
+        });
+
+        result.resources = await Promise.all(statusPromises);
+      }
 
       const response: RestApiResponse = {
         success: true,
@@ -1149,12 +1174,67 @@ export class RestApiRouter {
       // Extract apiGroup from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
       const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
 
-      const resource = await fetchResource(
-        name,
-        namespace || '_cluster',
-        kind,
-        apiGroup
-      );
+      // PRD #343: Use plugin for kubectl operations
+      if (!this.pluginManager?.isPluginTool('kubectl_get_resource_json')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'PLUGIN_UNAVAILABLE',
+          'Kubernetes plugin not available'
+        );
+        return;
+      }
+
+      // Build resource identifier (kind.group/name or kind/name for core resources)
+      const resourceType = apiGroup ? `${kind.toLowerCase()}.${apiGroup}` : kind.toLowerCase();
+      const resourceId = `${resourceType}/${name}`;
+
+      const pluginResponse = await this.pluginManager.invokeTool('kubectl_get_resource_json', {
+        resource: resourceId,
+        namespace: namespace
+      });
+
+      // Check for plugin-level failures first
+      if (!pluginResponse.success) {
+        const errorMsg = pluginResponse.error?.message || 'Plugin invocation failed';
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PLUGIN_ERROR',
+          `Kubernetes plugin error: ${errorMsg}`
+        );
+        return;
+      }
+
+      let resource: object | undefined;
+      let pluginError: string | undefined;
+      if (pluginResponse.result) {
+        const result = pluginResponse.result as { success: boolean; data: string; error?: string };
+        if (result.success && result.data) {
+          try {
+            resource = JSON.parse(result.data);
+          } catch (parseError) {
+            pluginError = `Failed to parse resource JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+          }
+        } else if (!result.success) {
+          // kubectl command failed - check if it's a "not found" error
+          pluginError = result.error || 'kubectl command failed';
+        }
+      }
+
+      // Handle parse errors
+      if (pluginError && !pluginError.toLowerCase().includes('not found')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'KUBECTL_ERROR',
+          pluginError
+        );
+        return;
+      }
 
       if (!resource) {
         await this.sendErrorResponse(
@@ -1234,13 +1314,62 @@ export class RestApiRouter {
 
       this.logger.info('Processing get events request', { requestId, name, kind, namespace, uid });
 
-      const result = await getResourceEvents({ name, kind, namespace, uid });
+      // PRD #343: Use plugin for kubectl operations
+      if (!this.pluginManager?.isPluginTool('kubectl_events')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'PLUGIN_UNAVAILABLE',
+          'Kubernetes plugin not available'
+        );
+        return;
+      }
+
+      // Build field selector for involvedObject filtering
+      const fieldSelectors: string[] = [
+        `involvedObject.name=${name}`,
+        `involvedObject.kind=${kind}`
+      ];
+      if (uid) {
+        fieldSelectors.push(`involvedObject.uid=${uid}`);
+      }
+
+      const pluginResponse = await this.pluginManager.invokeTool('kubectl_events', {
+        namespace: namespace,
+        args: [`--field-selector=${fieldSelectors.join(',')}`]
+      });
+
+      let events: any[] = [];
+      if (pluginResponse.success && pluginResponse.result) {
+        const pluginResult = pluginResponse.result as { success: boolean; data: string };
+        if (pluginResult.success && pluginResult.data) {
+          // Parse the table output or handle JSON if available
+          // Events output is typically table format, so we need to parse it
+          const lines = pluginResult.data.split('\n').filter(line => line.trim());
+          if (lines.length > 1) {
+            // Skip header line, parse remaining lines
+            for (let i = 1; i < lines.length; i++) {
+              const parts = lines[i].split(/\s{2,}/);
+              if (parts.length >= 5) {
+                events.push({
+                  lastTimestamp: parts[0],
+                  type: parts[1],
+                  reason: parts[2],
+                  involvedObject: { kind, name },
+                  message: parts.slice(4).join(' ')
+                });
+              }
+            }
+          }
+        }
+      }
 
       const response: RestApiResponse = {
         success: true,
         data: {
-          events: result.events,
-          count: result.count
+          events,
+          count: events.length
         },
         meta: {
           timestamp: new Date().toISOString(),
@@ -1256,7 +1385,7 @@ export class RestApiRouter {
         name,
         kind,
         namespace,
-        eventCount: result.count
+        eventCount: events.length
       });
 
     } catch (error) {
@@ -1315,14 +1444,65 @@ export class RestApiRouter {
 
       this.logger.info('Processing get logs request', { requestId, name, namespace, container, tailLines });
 
-      const result = await getPodLogs({ name, namespace, container, tailLines });
+      // PRD #343: Use plugin for kubectl operations
+      if (!this.pluginManager?.isPluginTool('kubectl_logs')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'PLUGIN_UNAVAILABLE',
+          'Kubernetes plugin not available'
+        );
+        return;
+      }
+
+      // Build args for kubectl_logs
+      const args: string[] = [];
+      if (tailLines) {
+        args.push(`--tail=${tailLines}`);
+      }
+      if (container) {
+        args.push('-c', container);
+      }
+
+      const pluginResponse = await this.pluginManager.invokeTool('kubectl_logs', {
+        resource: name,
+        namespace: namespace,
+        args: args.length > 0 ? args : undefined
+      });
+
+      if (!pluginResponse.success) {
+        const errorMsg = pluginResponse.error?.message || 'Failed to retrieve logs';
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'LOGS_ERROR',
+          'Failed to retrieve logs',
+          { error: errorMsg }
+        );
+        return;
+      }
+
+      const result = pluginResponse.result as { success: boolean; data: string; message: string };
+      if (!result.success) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'LOGS_ERROR',
+          'Failed to retrieve logs',
+          { error: result.message || 'Unknown error' }
+        );
+        return;
+      }
 
       const response: RestApiResponse = {
         success: true,
         data: {
-          logs: result.logs,
-          container: result.container,
-          containerCount: result.containerCount
+          logs: result.data,
+          container: container || 'default',
+          containerCount: 1
         },
         meta: {
           timestamp: new Date().toISOString(),
@@ -1337,33 +1517,11 @@ export class RestApiRouter {
         requestId,
         name,
         namespace,
-        container: result.container,
-        logLength: result.logs.length
+        container: container || 'default',
+        logLength: result.data.length
       });
 
     } catch (error) {
-      // Handle ContainerRequiredError specially
-      if (error instanceof ContainerRequiredError) {
-        const response: RestApiResponse = {
-          success: false,
-          error: {
-            code: 'CONTAINER_REQUIRED',
-            message: error.message,
-            details: {
-              containers: error.containers
-            }
-          },
-          meta: {
-            timestamp: new Date().toISOString(),
-            requestId,
-            version: this.config.version
-          }
-        };
-
-        await this.sendJsonResponse(res, HttpStatus.BAD_REQUEST, response);
-        return;
-      }
-
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Get logs request failed', error instanceof Error ? error : new Error(String(error)), {
         requestId,
@@ -1616,16 +1774,13 @@ export class RestApiRouter {
 
       const systemPrompt = loadPrompt(promptName, promptData);
 
-      // Tool executor - same as query tool, plus mermaid validation
-      const executeVisualizationTools = async (toolName: string, input: any): Promise<any> => {
+      // PRD #343: Local executor for non-plugin tools (capability, resource, mermaid)
+      const localToolExecutor = async (toolName: string, input: any): Promise<any> => {
         if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
           return executeCapabilityTools(toolName, input);
         }
         if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
           return executeResourceTools(toolName, input);
-        }
-        if (toolName.startsWith('kubectl_')) {
-          return executeKubectlTools(toolName, input);
         }
         // PRD #320: Mermaid validation tools
         if (toolName === 'validate_mermaid') {
@@ -1638,15 +1793,23 @@ export class RestApiRouter {
         };
       };
 
-      // Read-only kubectl tools for gathering additional data
-      const KUBECTL_READONLY_TOOLS = [
-        KUBECTL_API_RESOURCES_TOOL,
-        KUBECTL_GET_TOOL,
-        KUBECTL_DESCRIBE_TOOL,
-        KUBECTL_LOGS_TOOL,
-        KUBECTL_EVENTS_TOOL,
-        KUBECTL_GET_CRD_SCHEMA_TOOL
+      // PRD #343: Use plugin executor for kubectl tools, local for others
+      const executeVisualizationTools = this.pluginManager
+        ? this.pluginManager.createToolExecutor(localToolExecutor)
+        : localToolExecutor;
+
+      // PRD #343: Get kubectl tools from plugin (read-only tools for visualization)
+      const KUBECTL_READONLY_TOOL_NAMES = [
+        'kubectl_api_resources',
+        'kubectl_get',
+        'kubectl_describe',
+        'kubectl_logs',
+        'kubectl_events',
+        'kubectl_get_crd_schema'
       ];
+      const pluginKubectlTools = this.pluginManager
+        ? this.pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
+        : [];
 
       this.logger.info('Starting AI visualization generation with tools', { requestId, sessionIds, toolName });
 
@@ -1655,7 +1818,8 @@ export class RestApiRouter {
         systemPrompt,
         userMessage: 'Generate visualizations based on the query results provided. Use tools if you need additional information about any resources.',
         // PRD #320: Include MERMAID_TOOLS for diagram validation
-        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS, ...MERMAID_TOOLS],
+        // PRD #343: kubectl tools from plugin
+        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...MERMAID_TOOLS],
         toolExecutor: executeVisualizationTools,
         maxIterations: 10,  // Allow enough iterations for tool calls + JSON generation
         operation: `visualize-${toolName}`  // PRD #320: Include tool name for debugging

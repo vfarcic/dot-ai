@@ -1,0 +1,18 @@
+# Build artifacts (rebuilt in container)
+dist/
+node_modules/
+
+# Development and test files
+tests/
+*.test.ts
+*.spec.ts
+
+# IDE and editor files
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Environment files (may contain secrets)
+.env*

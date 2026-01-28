@@ -12,15 +12,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../co
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
-import {
-  KUBECTL_API_RESOURCES_TOOL,
-  KUBECTL_GET_TOOL,
-  KUBECTL_DESCRIBE_TOOL,
-  KUBECTL_LOGS_TOOL,
-  KUBECTL_EVENTS_TOOL,
-  KUBECTL_GET_CRD_SCHEMA_TOOL,
-  executeKubectlTools
-} from '../core/kubectl-tools';
+import { PluginManager } from '../core/plugin-manager';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getVisualizationUrl,
@@ -142,8 +134,14 @@ function parseSummary(aiResponse: string): string {
 
 /**
  * Main query tool handler
+ *
+ * PRD #343: When pluginManager is provided, kubectl tools are routed through
+ * the plugin system instead of local execution.
  */
-export async function handleQueryTool(args: any): Promise<any> {
+export async function handleQueryTool(
+  args: any,
+  pluginManager?: PluginManager
+): Promise<any> {
   const requestId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   const logger = new ConsoleLogger('QueryTool');
 
@@ -177,17 +175,13 @@ export async function handleQueryTool(args: any): Promise<any> {
         : loadPrompt('partials/query-simple-output')
     });
 
-    // Combined tool executor for capability, resource, kubectl, and mermaid tools
-    const executeQueryTools = async (toolName: string, input: any): Promise<any> => {
-      // Route to appropriate executor based on tool name
+    // Local executor for non-plugin tools (capability, resource, mermaid)
+    const localToolExecutor = async (toolName: string, input: any): Promise<any> => {
       if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
         return executeCapabilityTools(toolName, input);
       }
       if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
         return executeResourceTools(toolName, input);
-      }
-      if (toolName.startsWith('kubectl_')) {
-        return executeKubectlTools(toolName, input);
       }
       if (toolName === 'validate_mermaid') {
         return executeMermaidTools(toolName, input);
@@ -199,20 +193,31 @@ export async function handleQueryTool(args: any): Promise<any> {
       };
     };
 
-    // Read-only kubectl tools for live cluster queries
-    const KUBECTL_READONLY_TOOLS = [
-      KUBECTL_API_RESOURCES_TOOL,
-      KUBECTL_GET_TOOL,
-      KUBECTL_DESCRIBE_TOOL,
-      KUBECTL_LOGS_TOOL,
-      KUBECTL_EVENTS_TOOL,
-      KUBECTL_GET_CRD_SCHEMA_TOOL
+    // PRD #343: Use plugin executor when pluginManager is available
+    // kubectl tools route through plugin HTTP, others use local executor
+    const executeQueryTools = pluginManager
+      ? pluginManager.createToolExecutor(localToolExecutor)
+      : localToolExecutor;
+
+    // PRD #343: Get kubectl tools from plugin (read-only tools for query)
+    // Only include kubectl tools when plugin provides them
+    const KUBECTL_READONLY_TOOL_NAMES = [
+      'kubectl_api_resources',
+      'kubectl_get',
+      'kubectl_describe',
+      'kubectl_logs',
+      'kubectl_events',
+      'kubectl_get_crd_schema'
     ];
+    const pluginKubectlTools = pluginManager
+      ? pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
+      : [];
 
     // Build tool list - add mermaid tools when in visualization mode
+    // kubectl tools only available when plugin is configured
     const tools = visualizationMode
-      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS, ...MERMAID_TOOLS]
-      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KUBECTL_READONLY_TOOLS];
+      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...MERMAID_TOOLS]
+      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools];
 
     // Execute tool loop with capability, resource, and kubectl tools
     const result = await aiProvider.toolLoop({

@@ -10,9 +10,11 @@
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
-import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
+import { getTelemetry, shutdownTelemetry, setTelemetryPluginManager } from '../core/telemetry/index.js';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+import { PluginManager } from '../core/plugin-manager.js';
+import { ConsoleLogger } from '../core/error-handling.js';
 
 // Track server start time for uptime calculation
 const serverStartTime = Date.now();
@@ -43,18 +45,6 @@ function detectDeploymentMethod(): string {
 /**
  * Get Kubernetes version (non-blocking, returns undefined if unavailable)
  */
-async function getK8sVersion(): Promise<string | undefined> {
-  try {
-    const { KubernetesDiscovery } = await import('../core/discovery.js');
-    const discovery = new KubernetesDiscovery({});
-    await discovery.connect();
-    const result = await discovery.testConnection();
-    return result.version;
-  } catch {
-    // K8s version is optional - don't fail startup
-    return undefined;
-  }
-}
 
 async function main() {
   try {
@@ -131,13 +121,43 @@ async function main() {
 
     // Load version dynamically from package.json
     const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
-    
+
+    // Initialize plugin discovery (PRD #343)
+    const pluginLogger = new ConsoleLogger('PluginManager');
+    const pluginManager = new PluginManager(pluginLogger);
+    const pluginConfigs = PluginManager.parsePluginConfig();
+
+    if (pluginConfigs.length > 0) {
+      process.stderr.write(`Discovering ${pluginConfigs.length} plugin(s)...\n`);
+      try {
+        await pluginManager.discoverPlugins(pluginConfigs);
+        const stats = pluginManager.getStats();
+        process.stderr.write(`Plugin discovery complete: ${stats.pluginCount} plugin(s), ${stats.toolCount} tool(s)\n`);
+      } catch (error) {
+        // Non-required plugin failures are warnings, required failures throw
+        if (error instanceof Error && error.name === 'PluginDiscoveryError') {
+          process.stderr.write(`FATAL: Required plugin discovery failed: ${error.message}\n`);
+          process.exit(1);
+        }
+        process.stderr.write(`Plugin discovery warning: ${error}\n`);
+      }
+    } else {
+      process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
+    }
+
+    // PRD #343: Set plugin manager for telemetry before first use
+    // This enables cluster ID generation via plugin instead of direct K8s client
+    if (pluginConfigs.length > 0) {
+      setTelemetryPluginManager(pluginManager);
+    }
+
     // Create and configure MCP server
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
       version: packageJson.version,
       description: 'Universal Kubernetes application deployment agent with AI-powered orchestration',
-      author: 'Viktor Farcic'
+      author: 'Viktor Farcic',
+      pluginManager: pluginConfigs.length > 0 ? pluginManager : undefined
     });
 
     // Start the MCP server
@@ -147,12 +167,9 @@ async function main() {
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
     // Track server start telemetry (non-blocking)
+    // PRD #343: K8s version obtained via plugin at runtime, not at startup
     const deploymentMethod = detectDeploymentMethod();
-    getK8sVersion().then((k8sVersion) => {
-      getTelemetry().trackServerStart(k8sVersion, deploymentMethod);
-    }).catch(() => {
-      // Telemetry errors are non-fatal - silently ignore
-    });
+    getTelemetry().trackServerStart(undefined, deploymentMethod);
 
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {

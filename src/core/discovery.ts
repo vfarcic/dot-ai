@@ -4,16 +4,8 @@
  * Handles cluster connection, resource discovery, and capability detection
  */
 
-import * as k8s from '@kubernetes/client-node';
-import * as path from 'path';
-import * as os from 'os';
 import * as yaml from 'yaml';
-import {
-  executeKubectl,
-  KubectlConfig,
-  ErrorClassifier
-} from './kubernetes-utils';
-import { createTracedK8sClient } from './tracing';
+import type { PluginManager } from './plugin-manager';
 
 export interface ClusterInfo {
   type: string;
@@ -107,112 +99,23 @@ export interface ClusterFingerprint {
   };
 }
 
-export interface KubernetesDiscoveryConfig {
-  kubeconfigPath?: string;
-}
-
+/**
+ * PRD #343: KubernetesDiscovery simplified - all K8s operations go through plugin
+ * No longer uses @kubernetes/client-node or kubeconfig directly.
+ */
 export class KubernetesDiscovery {
-  private kc: k8s.KubeConfig;
-  private k8sApi!: k8s.CoreV1Api;
   private connected: boolean = false;
-  private kubeconfigPath: string;
-
-  constructor(config?: KubernetesDiscoveryConfig) {
-    this.kc = new k8s.KubeConfig();
-    this.kubeconfigPath = this.resolveKubeconfigPath(config?.kubeconfigPath);
-  }
+  // PRD #343: Plugin manager for routing kubectl operations through plugin
+  private pluginManager?: PluginManager;
 
   /**
-   * Resolves kubeconfig path following priority order:
-   * 1. Custom path provided in constructor
-   * 2. KUBECONFIG environment variable (first path if multiple)
-   * 3. Default ~/.kube/config
+   * PRD #343: Set plugin manager for routing kubectl operations through plugin
+   * When set, all K8s operations route through the plugin
    */
-  private resolveKubeconfigPath(customPath?: string): string {
-    // Priority 1: Custom path provided
-    if (customPath) {
-      return path.isAbsolute(customPath) ? customPath : path.resolve(customPath);
-    }
-
-    // Priority 2: KUBECONFIG environment variable
-    const envPath = process.env.KUBECONFIG;
-    if (envPath) {
-      // Handle multiple paths separated by colons (use first one)
-      const kubeconfigPath = envPath.split(':')[0];
-      // Resolve relative paths against process.cwd()
-      return path.isAbsolute(kubeconfigPath) ? kubeconfigPath : path.resolve(kubeconfigPath);
-    }
-
-    // Priority 3: Default location (only when not in cluster)
-    // When KUBERNETES_SERVICE_HOST is set, we should use in-cluster config instead
-    if (process.env.KUBERNETES_SERVICE_HOST) {
-      return ''; // Empty string indicates in-cluster should be used
-    }
-
-    return path.join(os.homedir(), '.kube', 'config');
-  }
-
-  /**
-   * Get the current kubeconfig path being used
-   */
-  getKubeconfigPath(): string {
-    return this.kubeconfigPath;
-  }
-
-  /**
-   * Set a new kubeconfig path (will require reconnection)
-   */
-  setKubeconfigPath(newPath: string): void {
-    this.kubeconfigPath = newPath;
-    this.connected = false; // Force reconnection with new path
-  }
-
-  /**
-   * Get connection status and configuration info for diagnostics
-   */
-  getConnectionInfo(): {
-    connected: boolean;
-    kubeconfig: string;
-    mode: 'file' | 'in-cluster' | 'default';
-    server?: string;
-    context?: string;
-  } {
-    const isInCluster = process.env.KUBERNETES_SERVICE_HOST && (!this.kubeconfigPath || this.kubeconfigPath === '');
-    
-    if (isInCluster) {
-      return {
-        connected: this.connected,
-        kubeconfig: 'in-cluster',
-        mode: 'in-cluster',
-        server: `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`,
-        context: 'in-cluster'
-      };
-    }
-
-    // For file-based or default configs
-    const mode = this.kubeconfigPath ? 'file' : 'default';
-    const kubeconfig = this.kubeconfigPath || '~/.kube/config';
-    
-    let server: string | undefined;
-    let context: string | undefined;
-    
-    if (this.connected && this.kc) {
-      try {
-        context = this.kc.getCurrentContext();
-        const cluster = this.kc.getCurrentCluster();
-        server = cluster?.server;
-      } catch (error) {
-        // Ignore errors getting context/cluster info
-      }
-    }
-
-    return {
-      connected: this.connected,
-      kubeconfig,
-      mode,
-      server,
-      context
-    };
+  setPluginManager(pluginManager: PluginManager): void {
+    this.pluginManager = pluginManager;
+    // PRD #343: Mark as connected since all K8s operations go through plugin
+    this.connected = true;
   }
 
   /**
@@ -224,92 +127,12 @@ export class KubernetesDiscovery {
     error?: string;
     errorType?: string;
   }> {
-    if (!this.connected || !this.k8sApi) {
-      return { connected: false, error: 'No connection established' };
+    // PRD #343: All K8s operations go through plugin
+    // If plugin is available, we're "connected" - actual failures happen at operation time
+    if (this.pluginManager) {
+      return { connected: true };
     }
-
-    try {
-      // Simple API call to test connectivity
-      await this.k8sApi.listNamespace();
-      
-      // Try to get server version
-      let version: string | undefined;
-      try {
-        const versionClient = createTracedK8sClient(
-          this.kc!.makeApiClient(k8s.VersionApi),
-          'VersionApi'
-        );
-        const versionResponse = await versionClient.getCode();
-        version = versionResponse.gitVersion;
-      } catch (error) {
-        // Version is optional
-      }
-      
-      return { connected: true, version };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const classified = ErrorClassifier.classifyError(error as Error);
-      
-      return {
-        connected: false,
-        error: errorMessage,
-        errorType: classified.type
-      };
-    }
-  }
-
-  /**
-   * Get the Kubernetes client for direct API access (used by other tools)
-   */
-  getClient(): k8s.KubeConfig {
-    if (!this.kc) {
-      throw new Error('Kubernetes client not initialized. Call connect() first.');
-    }
-    return this.kc;
-  }
-
-  async connect(): Promise<void> {
-    try {
-      this.kc = new k8s.KubeConfig();
-      
-      if (this.kubeconfigPath) {
-        // Priority 1: Explicit kubeconfig file (constructor param or KUBECONFIG env)
-        if (!require('fs').existsSync(this.kubeconfigPath)) {
-          throw new Error(`Kubeconfig file not found: ${this.kubeconfigPath}`);
-        }
-        this.kc.loadFromFile(this.kubeconfigPath);
-      } else if (process.env.KUBERNETES_SERVICE_HOST) {
-        // Priority 2: In-cluster configuration (when KUBERNETES_SERVICE_HOST is set by k8s)
-        this.kc.loadFromCluster();
-      } else {
-        // Priority 3: Default kubeconfig location
-        this.kc.loadFromDefault();
-      }
-
-      // Create API clients with tracing
-      this.k8sApi = createTracedK8sClient(
-        this.kc.makeApiClient(k8s.CoreV1Api),
-        'CoreV1Api'
-      );
-      
-      // Test the connection by making a simple API call
-      try {
-        await this.k8sApi.listNamespace();
-        this.connected = true;
-      } catch (apiError) {
-        this.connected = false;
-        throw new Error(`Cannot connect to Kubernetes cluster: ${(apiError as Error).message}`);
-      }
-    } catch (error) {
-      this.connected = false;
-      // Use error classification to provide enhanced error messages
-      const classified = ErrorClassifier.classifyError(error as Error);
-      throw new Error(classified.enhancedMessage);
-    }
-  }
-
-  isConnected(): boolean {
-    return this.connected;
+    return { connected: false, error: 'Plugin system not available' };
   }
 
   async getClusterInfo(): Promise<ClusterInfo> {
@@ -318,8 +141,6 @@ export class KubernetesDiscovery {
     }
 
     try {
-      // Get version info from server (available but not used in current implementation)
-      
       return {
         type: this.detectClusterType(),
         version: 'v1.0.0', // Simplified for now
@@ -330,37 +151,24 @@ export class KubernetesDiscovery {
     }
   }
 
+  /**
+   * PRD #343: Simplified cluster type detection
+   * Returns 'in-cluster' when running in K8s, 'vanilla-k8s' otherwise
+   */
   private detectClusterType(): string {
-    try {
-      // Simple detection based on context or API endpoints
-      const context = this.kc.getCurrentContext();
-      const contextName = context?.toLowerCase() || '';
-      
-      // Check for managed cloud platforms
-      if (contextName.includes('gke') || contextName.includes('gcp')) return 'gke';
-      if (contextName.includes('eks') || contextName.includes('aws')) return 'eks';
-      if (contextName.includes('aks') || contextName.includes('azure')) return 'aks';
-      
-      // Check for local development environments
-      if (contextName.includes('kind')) return 'kind';
-      if (contextName.includes('minikube')) return 'minikube';
-      if (contextName.includes('k3s') || contextName.includes('k3d')) return 'k3s';
-      if (contextName.includes('docker-desktop')) return 'docker-desktop';
-      
-      // Check for enterprise platforms
-      if (contextName.includes('openshift')) return 'openshift';
-      if (contextName.includes('rancher')) return 'rancher';
-      
-      // For test environments, return vanilla-k8s to match test expectations
-      if (process.env.NODE_ENV === 'test' || contextName.includes('test')) {
-        return 'vanilla-k8s';
-      }
-      
-      // Default to vanilla Kubernetes
-      return 'vanilla';
-    } catch (error) {
+    // Check if running in-cluster
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      return 'in-cluster';
+    }
+
+    // For test environments, return vanilla-k8s to match test expectations
+    if (process.env.NODE_ENV === 'test') {
       return 'vanilla-k8s';
     }
+
+    // PRD #343: Without K8s client, we can't read context from kubeconfig
+    // Default to vanilla Kubernetes
+    return 'vanilla-k8s';
   }
 
   private async detectCapabilities(): Promise<string[]> {
@@ -372,7 +180,7 @@ export class KubernetesDiscovery {
       
       // Check for scheduler by looking at system pods
       try {
-        const systemPods = await this.executeKubectl(['get', 'pods', '-n', 'kube-system', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+        const systemPods = await this.executeKubectl(['get', 'pods', '-n', 'kube-system', '-o', 'json']);
         const pods = JSON.parse(systemPods);
         
         if (pods.items.some((pod: any) => pod.metadata.name.includes('scheduler'))) {
@@ -400,9 +208,9 @@ export class KubernetesDiscovery {
         capabilities.push('controller-manager');
       }
       
-      // Check for common capabilities
+      // Check for common capabilities via plugin
       try {
-        await this.k8sApi.listNamespace();
+        await this.executeKubectl(['get', 'namespaces', '--no-headers']);
         capabilities.push('namespaces');
       } catch (error) {
         // Ignore namespace check errors in test environment
@@ -443,9 +251,7 @@ export class KubernetesDiscovery {
         custom: customCRDs
       };
     } catch (error) {
-      // Use error classification to provide enhanced error messages
-      const classified = ErrorClassifier.classifyError(error as Error);
-      throw new Error(classified.enhancedMessage);
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -453,16 +259,38 @@ export class KubernetesDiscovery {
    * Execute kubectl command with proper configuration
    */
   /**
-   * Execute kubectl command with proper configuration
-   * Delegates to shared utility function
+   * Execute kubectl command via plugin
    */
-  async executeKubectl(args: string[], config?: KubectlConfig): Promise<string> {
-    // Don't pass kubeconfig if it's empty (in-cluster configuration)
-    const kubectlConfig = { ...config };
-    if (this.kubeconfigPath && this.kubeconfigPath !== '') {
-      kubectlConfig.kubeconfig = this.kubeconfigPath;
+  async executeKubectl(args: string[]): Promise<string> {
+    if (!this.pluginManager) {
+      throw new Error('Plugin system not available');
     }
-    return executeKubectl(args, kubectlConfig);
+
+    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+
+    if (response.success) {
+      // Extract data from response - plugin returns { success: true, result: { success: true, data: "..." } }
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'kubectl command failed');
+        }
+        // Return only the data field - never pass JSON wrapper to consumers
+        if (result.data !== undefined) {
+          return String(result.data);
+        }
+        // If no data field, check for direct string result
+        if (typeof result === 'string') {
+          return result;
+        }
+        throw new Error('Plugin returned unexpected response format - missing data field');
+      }
+      // Handle direct string results
+      return String(response.result || '');
+    } else {
+      throw new Error(response.error?.message || 'kubectl command failed via plugin');
+    }
   }
 
 
@@ -507,7 +335,7 @@ export class KubernetesDiscovery {
       throw new Error('Not connected to cluster');
     }
 
-    const output = await this.executeKubectl(['get', 'crd', crdName, '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+    const output = await this.executeKubectl(['get', 'crd', crdName, '-o', 'json']);
     const item = JSON.parse(output);
     return this.parseCRDItem(item);
   }
@@ -518,7 +346,7 @@ export class KubernetesDiscovery {
     }
 
     try {
-      const output = await this.executeKubectl(['get', 'crd', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+      const output = await this.executeKubectl(['get', 'crd', '-o', 'json']);
       const crdList = JSON.parse(output);
 
       const crds: EnhancedCRD[] = crdList.items.map((item: any) => this.parseCRDItem(item));
@@ -529,17 +357,14 @@ export class KubernetesDiscovery {
 
       return crds;
     } catch (error) {
-      // Graceful degradation: Classify error and provide appropriate fallback
-      const classified = ErrorClassifier.classifyError(error as Error);
-      
-      // For authorization errors, log warning but don't fail completely
-      if (classified.type === 'authorization') {
-        console.warn(`Warning: ${classified.enhancedMessage}`);
+      // Graceful degradation: For authorization errors, return empty array
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.includes('forbidden') || errorMsg.includes('Forbidden') || errorMsg.includes('unauthorized')) {
+        console.warn(`Warning: Cannot list CRDs - ${errorMsg}`);
         return []; // Return empty array to allow core functionality to continue
       }
-      
-      // For other errors, throw enhanced error message
-      throw new Error(classified.enhancedMessage);
+
+      throw error instanceof Error ? error : new Error(errorMsg);
     }
   }
 
@@ -551,7 +376,7 @@ export class KubernetesDiscovery {
     
     try {
       // Use standard format - simple and reliable
-      const output = await this.executeKubectl(['api-resources'], { kubeconfig: this.kubeconfigPath });
+      const output = await this.executeKubectl(['api-resources']);
       const lines = output.split('\n').slice(1); // Skip header line
 
       const resources: EnhancedResource[] = lines
@@ -615,9 +440,7 @@ export class KubernetesDiscovery {
 
       return resources;
     } catch (error) {
-      // Use error classification to provide enhanced error messages
-      const classified = ErrorClassifier.classifyError(error as Error);
-      throw new Error(classified.enhancedMessage);
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -633,7 +456,7 @@ export class KubernetesDiscovery {
         args[1] = `${resource}.${options.field}`;
       }
 
-      const output = await this.executeKubectl(args, { kubeconfig: this.kubeconfigPath });
+      const output = await this.executeKubectl(args, );
       return output;
     } catch (error) {
       throw new Error(`Failed to explain resource '${resource}': ${error instanceof Error ? error.message : 'Unknown error'}. Please check resource name and cluster connectivity.`);
@@ -651,7 +474,7 @@ export class KubernetesDiscovery {
     }
 
     try {
-      const yamlOutput = await this.executeKubectl(['get', 'crd', crdName, '-o', 'yaml'], { kubeconfig: this.kubeconfigPath });
+      const yamlOutput = await this.executeKubectl(['get', 'crd', crdName, '-o', 'yaml']);
 
       // Parse YAML
       const crdObject = yaml.parse(yamlOutput);
@@ -681,9 +504,8 @@ export class KubernetesDiscovery {
   }
 
   /**
-   * Get printer columns for a resource type via Kubernetes Table API
-   * Works for both CRDs and core Kubernetes resources
-   * For CRDs, also fetches jsonPath from the CRD spec (not available in Table API)
+   * Get printer columns for a resource type via plugin
+   * PRD #343: Uses kubectl_get_printer_columns plugin tool instead of direct API calls
    *
    * @param resourcePlural - Plural name of the resource (e.g., 'deployments', 'pods', 'sqls')
    * @param apiVersion - Full API version (e.g., 'apps/v1', 'v1', 'devopstoolkit.live/v1beta1')
@@ -697,68 +519,35 @@ export class KubernetesDiscovery {
     description?: string;
     priority?: number;
   }>> {
-    if (!this.connected) {
-      throw new Error('Not connected to cluster');
+    if (!this.pluginManager) {
+      throw new Error('Plugin system not available for getPrinterColumns');
     }
 
-    // Build the API path based on apiVersion
-    // Core resources (v1): /api/v1/{resource}
-    // Other resources (group/version): /apis/{group}/{version}/{resource}
-    let apiPath: string;
+    const response = await this.pluginManager.invokeTool('kubectl_get_printer_columns', {
+      resourcePlural,
+      apiVersion
+    });
 
-    if (apiVersion === 'v1' || !apiVersion.includes('/')) {
-      apiPath = `/api/${apiVersion}/${resourcePlural}`;
-    } else {
-      apiPath = `/apis/${apiVersion}/${resourcePlural}`;
-    }
-
-    // Get cluster info for building the URL
-    const cluster = this.kc.getCurrentCluster();
-    if (!cluster || !cluster.server) {
-      throw new Error('No cluster server configured');
-    }
-
-    // Build full URL with limit=1 (we only need column definitions, not data)
-    const url = `${cluster.server}${apiPath}?limit=1`;
-
-    // Prepare fetch options with Table API Accept header
-    const fetchOptions: any = {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json;as=Table;g=meta.k8s.io;v=v1'
+    if (response.success) {
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        // Check for nested error
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'Failed to get printer columns');
+        }
+        // Parse the data field which contains JSON string of columns
+        if (result.data !== undefined) {
+          try {
+            return JSON.parse(result.data);
+          } catch {
+            return [];
+          }
+        }
       }
-    };
-
-    // Apply kubeconfig auth (handles tokens, certs, etc.)
-    const authedOptions = await this.kc.applyToFetchOptions(fetchOptions);
-
-    // Make the request
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url, authedOptions);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Table API request failed for ${resourcePlural} (${apiVersion}): ${response.status} ${response.statusText} - ${errorText}`);
+      return [];
+    } else {
+      throw new Error(response.error?.message || 'Failed to get printer columns via plugin');
     }
-
-    const tableData = await response.json() as any;
-
-    // Extract column definitions from the Table API response
-    // May be empty or minimal for resources without custom printer columns
-    const columnDefinitions = tableData.columnDefinitions || [];
-
-    // Note: This method is now primarily used for core resources.
-    // CRDs get their printer columns (with jsonPath) directly from CRD metadata.
-    // Core resources don't have jsonPath in the Table API response.
-
-    // Map to our PrinterColumn format
-    return columnDefinitions.map((col: any) => ({
-      name: col.name,
-      type: col.type || 'string',
-      jsonPath: '',  // Core resources don't have jsonPath in Table API
-      description: col.description,
-      priority: col.priority
-    }));
   }
 
   async fingerprintCluster(): Promise<ClusterFingerprint> {
@@ -987,9 +776,38 @@ export class KubernetesDiscovery {
       throw new Error('Not connected to cluster');
     }
 
+    // PRD #343: ALL Kubernetes operations go through plugin
+    if (!this.pluginManager) {
+      throw new Error('Plugin system not available. getNamespaces requires agentic-tools plugin.');
+    }
+
     try {
-      const namespaces = await this.k8sApi.listNamespace();
-      return namespaces.items.map((ns: any) => ns.metadata?.name || '');
+      // Use kubectl_exec_command for JSON output (kubectl_get strips -o json)
+      const response = await this.pluginManager.invokeTool('kubectl_exec_command', {
+        args: ['get', 'namespaces', '-o', 'json']
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to get namespaces via plugin');
+      }
+
+      // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
+      if (typeof response.result === 'object' && response.result !== null) {
+        const result = response.result as any;
+        if (result.success === false) {
+          throw new Error(result.error || result.message || 'kubectl command failed');
+        }
+      }
+
+      // Parse JSON output from kubectl
+      const resultData = (response.result as any)?.data || response.result;
+      const data = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
+
+      if (data?.items) {
+        return data.items.map((ns: any) => ns.metadata?.name || '').filter(Boolean);
+      }
+
+      return [];
     } catch (error) {
       throw new Error(`Failed to get namespaces: ${error}`);
     }
@@ -1070,7 +888,7 @@ export class KubernetesDiscovery {
       if (!kind) return [];
 
       // Get all compositions and find ones that match this CRD
-      const output = await this.executeKubectl(['get', 'compositions', '-o', 'json'], { kubeconfig: this.kubeconfigPath });
+      const output = await this.executeKubectl(['get', 'compositions', '-o', 'json']);
       const compositionList = JSON.parse(output);
       
       return compositionList.items.filter((comp: any) => {

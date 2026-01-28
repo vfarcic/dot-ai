@@ -22,22 +22,12 @@ describe.concurrent('Version Tool Integration', () => {
   // All providers use VercelProvider (PRD #238), providerType matches the configured provider
   const expectedProviderType = aiProvider;
 
-  // Detect deployment mode based on MCP_BASE_URL
-  const isInClusterMode = process.env.MCP_BASE_URL?.includes('nip.io') || false;
-
-  beforeAll(() => {
-    // Verify we're using the test environment (either kubeconfig or in-cluster)
-    if (!isInClusterMode) {
-      const kubeconfig = process.env.KUBECONFIG;
-      expect(kubeconfig).toContain('kubeconfig-test.yaml');
-    }
-  });
+  // Integration tests always run in-cluster (MCP deployed in Kind, accessed via ingress)
 
 
   describe('System Status via REST API', () => {
     test('should return comprehensive system status with correct structure', async () => {
       // Define expected response structure (based on actual API inspection)
-      // Adjust expectations based on deployment mode (host vs in-cluster)
       const expectedVersionResponse = {
         success: true,
         data: {
@@ -47,16 +37,14 @@ describe.concurrent('Version Tool Integration', () => {
             status: 'success',
             system: {
               version: {
-                version: packageJson.version, // Dynamic - should match actual package.json version
-                nodeVersion: expect.stringMatching(/^v\d+\.\d+\.\d+/), // Pattern - Node.js version changes
-                platform: isInClusterMode ? 'linux' : process.platform, // In-cluster runs on Linux
-                arch: expect.any(String) // Architecture varies
+                version: packageJson.version,
+                nodeVersion: expect.stringMatching(/^v\d+\.\d+\.\d+/),
+                platform: 'linux',
+                arch: expect.any(String)
               },
               vectorDB: {
-                connected: true, // Specific - should be connected to Qdrant
-                url: isInClusterMode
-                  ? expect.stringContaining('qdrant') // In-cluster: service DNS (qdrant.dot-ai.svc.cluster.local)
-                  : 'http://localhost:6335', // Host mode: localhost
+                connected: true,
+                url: expect.stringContaining('qdrant'), // Service DNS in-cluster
                 collections: {
                   patterns: expect.objectContaining({
                     exists: expect.any(Boolean)
@@ -73,42 +61,50 @@ describe.concurrent('Version Tool Integration', () => {
                 }
               },
               embedding: {
-                available: true, // Specific - test environment should have embedding configured
-                provider: 'openai', // Specific - using OpenAI for embeddings
-                model: 'text-embedding-3-small', // Specific - model name
-                dimensions: 1536 // Specific - embedding dimensions
+                available: true,
+                provider: 'openai',
+                model: 'text-embedding-3-small',
+                dimensions: 1536
               },
               aiProvider: {
-                connected: true, // Specific - should be connected with API key
-                keyConfigured: true, // Specific - API key should be configured
-                providerType: expectedProviderType, // Specific - validates against AI_PROVIDER env var
-                modelName: expectedModelName // Specific - validates against AI_PROVIDER env var
+                connected: true,
+                keyConfigured: true,
+                providerType: expectedProviderType,
+                modelName: expectedModelName
               },
               kubernetes: {
-                connected: true, // Specific - should be connected to our test cluster
-                kubeconfig: isInClusterMode
-                  ? 'in-cluster' // In-cluster: uses service account
-                  : expect.stringContaining('kubeconfig-test.yaml'), // Host mode: uses kubeconfig file
+                connected: true,
+                kubeconfig: 'in-cluster', // PRD #343: uses plugin
                 clusterInfo: {
-                  context: isInClusterMode ? 'in-cluster' : 'kind-dot-test', // Context differs by mode
-                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/), // Pattern - K8s version changes
-                  endpoint: isInClusterMode
-                    ? expect.stringMatching(/^https:\/\/\d+\.\d+\.\d+\.\d+:\d+$/) // In-cluster: Kubernetes service IP
-                    : expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/) // Host mode: localhost with port
+                  context: 'in-cluster',
+                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/)
+                  // PRD #343: endpoint not available from kubectl version
                 }
               },
               capabilities: {
-                systemReady: true, // Specific - capability system should be ready
-                vectorDBHealthy: true, // Specific - vector DB should be healthy
-                collectionAccessible: true, // Specific - collections should be accessible
-                storedCount: expect.any(Number), // Variable - stored count varies
-                lastDiagnosis: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/) // Pattern - ISO timestamp
+                systemReady: true,
+                vectorDBHealthy: true,
+                collectionAccessible: true,
+                storedCount: expect.any(Number),
+                lastDiagnosis: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
               },
               kyverno: {
-                installed: true, // Specific - Kyverno should be installed
-                version: expect.stringMatching(/^\d+\.\d+\.\d+$/), // Pattern - semantic version
-                webhookReady: true, // Specific - webhook should be ready
-                policyGenerationReady: true // Specific - policy generation should be ready
+                installed: true,
+                version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+                webhookReady: true,
+                policyGenerationReady: true
+              },
+              // PRD #343: Plugin stats (21 tools: 17 kubectl + 4 helm)
+              plugins: {
+                pluginCount: 1,
+                toolCount: 21,
+                plugins: [
+                  {
+                    name: 'agentic-tools',
+                    version: '1.0.0',
+                    toolCount: 21
+                  }
+                ]
               }
             },
             summary: {
@@ -143,6 +139,27 @@ describe.concurrent('Version Tool Integration', () => {
       const response = await integrationTest.httpClient.post('/api/v1/tools/version', {
         interaction_id: 'system_status'
       });
+
+      // PRD #343: Diagnostic assertions for plugin system
+      const system = response.data?.result?.system;
+      const plugins = system?.plugins;
+      const kubernetes = system?.kubernetes;
+      const kyverno = system?.kyverno;
+
+      // Plugin system diagnostics
+      expect(plugins, 'plugins field missing - PluginManager not passed to handleVersionTool?').toBeDefined();
+      expect(plugins?.pluginCount, `Plugin discovery failed: found ${plugins?.pluginCount} plugins. Check plugins.json mounted at /etc/dot-ai/ and plugin service reachable`).toBe(1);
+      // 21 tools in agentic-tools plugin (17 kubectl + 4 helm)
+      expect(plugins?.toolCount, `Expected 21 tools, found ${plugins?.toolCount}. Check agentic-tools registration`).toBe(21);
+      expect(plugins?.plugins?.[0]?.name, 'agentic-tools plugin not in discovered plugins').toBe('agentic-tools');
+
+      // Kubernetes via plugin diagnostics
+      expect(kubernetes?.connected, `Kubernetes not connected: ${kubernetes?.error || 'unknown'}. kubectl_version tool failed?`).toBe(true);
+      expect(kubernetes?.clusterInfo?.version, 'K8s version missing from kubectl_version response').toBeDefined();
+
+      // Kyverno via plugin diagnostics
+      expect(kyverno?.installed, `Kyverno not detected: ${kyverno?.error || kyverno?.reason || 'unknown'}`).toBe(true);
+      expect(kyverno?.policyGenerationReady, `Kyverno not ready: ${kyverno?.reason || 'unknown'}`).toBe(true);
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedVersionResponse);
@@ -246,7 +263,6 @@ describe.concurrent('Version Tool Integration', () => {
   describe('Test Environment Validation', () => {
     test('should use test-specific configuration', async () => {
       // Define expected response structure for test environment validation
-      // Adjust expectations based on deployment mode
       const expectedTestResponse = {
         success: true,
         data: {
@@ -257,15 +273,11 @@ describe.concurrent('Version Tool Integration', () => {
             system: {
               kubernetes: {
                 connected: true,
-                kubeconfig: isInClusterMode
-                  ? 'in-cluster'
-                  : expect.stringContaining('kubeconfig-test.yaml'),
+                kubeconfig: 'in-cluster', // PRD #343: uses plugin
                 clusterInfo: {
-                  context: isInClusterMode ? 'in-cluster' : 'kind-dot-test',
-                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/),
-                  endpoint: isInClusterMode
-                    ? expect.stringMatching(/^https:\/\/\d+\.\d+\.\d+\.\d+:\d+$/)
-                    : expect.stringMatching(/^https:\/\/127\.0\.0\.1:\d+$/)
+                  context: 'in-cluster',
+                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/)
+                  // PRD #343: endpoint not available from kubectl version
                 }
               }
             }

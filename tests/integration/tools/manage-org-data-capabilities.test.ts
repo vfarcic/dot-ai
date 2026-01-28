@@ -333,13 +333,13 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(deployment.printerColumns).toBeDefined();
       expect(Array.isArray(deployment.printerColumns)).toBe(true);
       expect(deployment.printerColumns.length).toBeGreaterThan(0);
-      // Deployment has columns: Name, Ready, Up-to-date, Available, Age
+      // Deployment has columns: NAME, READY, UP-TO-DATE, AVAILABLE, AGE (uppercase from kubectl output)
       const deploymentColNames = deployment.printerColumns.map((c: any) => c.name);
-      expect(deploymentColNames).toContain('Name');
-      expect(deploymentColNames).toContain('Ready');
-      expect(deploymentColNames).toContain('Up-to-date');
-      expect(deploymentColNames).toContain('Available');
-      expect(deploymentColNames).toContain('Age');
+      expect(deploymentColNames).toContain('NAME');
+      expect(deploymentColNames).toContain('READY');
+      expect(deploymentColNames).toContain('UP-TO-DATE');
+      expect(deploymentColNames).toContain('AVAILABLE');
+      expect(deploymentColNames).toContain('AGE');
 
       // Validate Service (v1 - core resource) - apiVersion, version, group, and printerColumns
       expect(service.apiVersion).toBe('v1');
@@ -348,14 +348,14 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(service.printerColumns).toBeDefined();
       expect(Array.isArray(service.printerColumns)).toBe(true);
       expect(service.printerColumns.length).toBeGreaterThan(0);
-      // Service has columns: Name, Type, Cluster-IP, External-IP, Port(s), Age
+      // Service has columns: NAME, TYPE, CLUSTER-IP, EXTERNAL-IP, PORT(S), AGE (uppercase from kubectl output)
       const serviceColNames = service.printerColumns.map((c: any) => c.name);
-      expect(serviceColNames).toContain('Name');
-      expect(serviceColNames).toContain('Type');
-      expect(serviceColNames).toContain('Cluster-IP');
-      expect(serviceColNames).toContain('External-IP');
-      expect(serviceColNames).toContain('Port(s)');
-      expect(serviceColNames).toContain('Age');
+      expect(serviceColNames).toContain('NAME');
+      expect(serviceColNames).toContain('TYPE');
+      expect(serviceColNames).toContain('CLUSTER-IP');
+      expect(serviceColNames).toContain('EXTERNAL-IP');
+      expect(serviceColNames).toContain('PORT(S)');
+      expect(serviceColNames).toContain('AGE');
 
       // Validate CNPG Cluster CRD (postgresql.cnpg.io/v1) - apiVersion, version, group, and printerColumns
       expect(cluster.apiVersion).toBe('postgresql.cnpg.io/v1');
@@ -364,7 +364,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(cluster.printerColumns).toBeDefined();
       expect(Array.isArray(cluster.printerColumns)).toBe(true);
       expect(cluster.printerColumns.length).toBeGreaterThan(0);
-      // CNPG Cluster has columns: Name, Age, Instances, Ready, Status, Primary
+      // CNPG Cluster has columns from CRD spec (title case - no instances at scan time)
       const clusterColNames = cluster.printerColumns.map((c: any) => c.name);
       expect(clusterColNames).toContain('Name');
       expect(clusterColNames).toContain('Age');

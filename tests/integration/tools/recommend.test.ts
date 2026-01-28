@@ -574,6 +574,15 @@ describe.concurrent('Recommend Tool Integration', () => {
 
   describe('Helm Chart Discovery', () => {
     test('should complete Helm workflow: discovery → choose solution → question generation', async () => {
+      // Clean up any existing Helm releases BEFORE starting workflow
+      // This prevents "another operation in progress" errors from previous runs
+      try {
+        // Use kubectl to delete namespace - this runs in the test cluster via kubectl
+        await integrationTest.kubectl('delete namespace monitoring --ignore-not-found=true --wait=true --timeout=60s');
+      } catch {
+        // Ignore errors - namespace may not exist
+      }
+
       // PHASE 1: Discover Helm solutions
       // Use Prometheus as test case - no Prometheus CRDs in test cluster, so Helm will be triggered
       const helmResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
@@ -903,6 +912,49 @@ describe.concurrent('Recommend Tool Integration', () => {
           version: 'v1'
         }
       };
+
+      // If deployment failed, gather diagnostics before asserting
+      if (!deployResponse?.data?.result?.success) {
+        let diagnostics = '\n=== HELM DEPLOYMENT DIAGNOSTICS ===\n';
+        diagnostics += `Deploy response: ${JSON.stringify(deployResponse?.data?.result, null, 2)}\n`;
+
+        try {
+          // Get all Helm releases to see their states
+          const helmList = await integrationTest.kubectl('get secrets -A -l owner=helm -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type --no-headers');
+          diagnostics += `\n--- Helm Release Secrets ---\n${helmList}\n`;
+        } catch (e) {
+          diagnostics += `\n--- Helm Release Secrets: Failed to retrieve ---\n`;
+        }
+
+        try {
+          // Get Helm release history if it exists
+          const helmHistory = await integrationTest.kubectl(`get secrets -n ${helmNamespace} -l owner=helm,name=${releaseName} -o json`);
+          const secrets = JSON.parse(helmHistory);
+          if (secrets.items?.length > 0) {
+            const states = secrets.items.map((s: any) => ({
+              name: s.metadata.name,
+              status: s.metadata.labels?.status || 'unknown',
+              version: s.metadata.labels?.version || 'unknown'
+            }));
+            diagnostics += `\n--- Release "${releaseName}" Secrets ---\n${JSON.stringify(states, null, 2)}\n`;
+          }
+        } catch (e) {
+          diagnostics += `\n--- Release Secrets: Failed to retrieve ---\n`;
+        }
+
+        try {
+          // Check for any pending pods or events
+          const events = await integrationTest.kubectl(`get events -n ${helmNamespace} --sort-by='.lastTimestamp' -o custom-columns=TIME:.lastTimestamp,TYPE:.type,REASON:.reason,MESSAGE:.message --no-headers 2>/dev/null | tail -10`);
+          diagnostics += `\n--- Recent Events in ${helmNamespace} ---\n${events}\n`;
+        } catch (e) {
+          diagnostics += `\n--- Events: Failed to retrieve ---\n`;
+        }
+
+        diagnostics += '=== END DIAGNOSTICS ===\n';
+
+        // Fail with diagnostics included in error message
+        expect(deployResponse?.data?.result?.success, diagnostics).toBe(true);
+      }
 
       expect(deployResponse).toMatchObject(expectedDeployResponse);
 

@@ -1057,7 +1057,7 @@ spec:
     const podName = podsOutput.replace(/'/g, '').trim();
 
     const response = await integrationTest.httpClient.get(
-      `/api/v1/logs?name=${podName}&namespace=dot-ai&tailLines=10`
+      `/api/v1/logs?name=${podName}&namespace=dot-ai&container=mcp-server&tailLines=10`
     );
 
     expect(response).toMatchObject({

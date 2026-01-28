@@ -25,7 +25,7 @@ spec:
         {{- $podAnnotations | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
+      {{- /* MCP server no longer needs K8s RBAC - all K8s ops go through plugins (PRD #343) */}}
       containers:
       - name: mcp-server
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -142,5 +142,18 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 5
           timeoutSeconds: 5
+{{- $pluginsConfig := include "dot-ai.pluginsConfig" . -}}
+{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
+        volumeMounts:
+        - name: plugins-config
+          mountPath: /etc/dot-ai
+          readOnly: true
+{{- end }}
+{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
+      volumes:
+      - name: plugins-config
+        configMap:
+          name: {{ include "dot-ai.fullname" . }}-plugins
+{{- end }}
       terminationGracePeriodSeconds: 30
 {{- end }}
