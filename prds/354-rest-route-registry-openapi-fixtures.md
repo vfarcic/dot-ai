@@ -298,7 +298,7 @@ Update `package.json` exports:
 
 ## Milestones
 
-- [ ] M1: Create RestRouteRegistry class with route registration and matching
+- [x] M1: Create RestRouteRegistry class with route registration and matching
 - [ ] M2: Define Zod schemas for all existing REST endpoint responses
 - [ ] M3: Migrate existing endpoints to registry-based routing
 - [ ] M4: Update OpenAPI generator to include registry routes
