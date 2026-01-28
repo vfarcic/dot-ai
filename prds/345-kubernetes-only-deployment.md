@@ -1,7 +1,7 @@
 # PRD #345: Kubernetes-Only Deployment
 
 **GitHub Issue**: [#345](https://github.com/vfarcic/dot-ai/issues/345)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: Medium
 **Created**: 2025-01-25
 
@@ -43,11 +43,11 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 
 ## Milestones
 
-- [ ] **M1: Identify non-K8s code and config**
-  - Audit codebase for Docker Compose files
-  - Identify code paths that assume non-K8s deployment
-  - Identify stdio transport usage (`StdioServerTransport`, `TRANSPORT_TYPE`)
-  - List documentation referencing alternative deployments
+- [x] **M1: Identify non-K8s code and config**
+  - [x] Audit codebase for Docker Compose files
+  - [x] Identify code paths that assume non-K8s deployment
+  - [x] Identify stdio transport usage (`StdioServerTransport`, `TRANSPORT_TYPE`)
+  - [x] List documentation referencing alternative deployments
 
 - [ ] **M2: Remove non-K8s deployment code**
   - Delete Docker Compose files
@@ -98,3 +98,51 @@ Remove non-Kubernetes deployment options and establish Kubernetes as the only su
 |------|----------|-----------|
 | 2025-01-25 | Kubernetes-only | dot-ai is useless without K8s; simplifies maintenance |
 | 2026-01-27 | Remove stdio transport | K8s uses HTTP transport; stdio only used for local MCP clients which require K8s anyway; simplifies codebase |
+
+---
+
+## Implementation Notes
+
+### M1 Audit Results (2026-01-28)
+
+#### Docker Compose Files to Delete
+| File | Description |
+|------|-------------|
+| `docker-compose-dot-ai.yaml` | Main Docker Compose config |
+| `.mcp-docker.json` | MCP config for Docker |
+
+#### stdio Transport Code to Remove
+| File | Lines | Content |
+|------|-------|---------|
+| `src/interfaces/mcp.ts` | 9 | `import { StdioServerTransport }` |
+| `src/interfaces/mcp.ts` | 79 | `transport?: 'stdio' \| 'http'` type |
+| `src/interfaces/mcp.ts` | 126, 435 | `'stdio'` fallback defaults |
+| `src/interfaces/mcp.ts` | 445, 451-454 | `startStdioTransport()` method |
+| `src/mcp/server.ts` | 144 | `TRANSPORT_TYPE \|\| 'stdio'` |
+| `src/mcp/server.ts` | 178-186 | stdio keep-alive logic |
+| `Dockerfile` | 45-47 | `ENV TRANSPORT_TYPE=stdio` |
+| `server.json` | 15-17 | `"type": "stdio"` |
+
+#### Local Deployment Detection to Simplify
+| File | Lines | Content |
+|------|-------|---------|
+| `src/mcp/server.ts` | 23-41 | `detectDeploymentMethod()` - remove 'docker' and 'local' cases |
+
+#### Documentation to Update/Delete
+| File | Action |
+|------|--------|
+| `docs/setup/docker-setup.md` | DELETE |
+| `docs/setup/npx-setup.md` | DELETE |
+| `docs/setup/mcp-setup.md` | UPDATE - remove Docker/NPX references |
+| `docs/guides/mcp-prompts-guide.md` | UPDATE - remove Docker Compose env reference |
+| `docs/dev/development-setup.md` | UPDATE - remove Docker Qdrant reference |
+| `docs/CLAUDE.md` | UPDATE - remove Docker anti-patterns |
+| `README.md` | UPDATE - Kubernetes-only focus |
+
+#### Config Files to Update
+| File | Action |
+|------|--------|
+| `renovate.json` | Remove docker-compose reference (lines 16-18) |
+| `.github/labeler.yml` | Remove docker-compose label rule |
+| `assets/project-setup/templates/.github/labeler.yml.hbs` | Remove docker-compose pattern |
+| `package.json` | Update test:integration:server script |
