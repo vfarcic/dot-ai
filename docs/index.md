@@ -101,12 +101,9 @@ For individual component installation:
 - **[MCP Setup Guide](setup/mcp-setup.md)** - Complete configuration instructions
 - **[Tools Overview](guides/mcp-tools-overview.md)** - All available tools and features
 
-### Deployment Options
-- **[Stack Installation](https://devopstoolkit.ai/docs/stack)** - Recommended: Complete dot-ai stack with all components pre-configured
-- **[Kubernetes Setup](setup/kubernetes-setup.md)** - Individual component deployment with full features
-- **[ToolHive Setup](setup/kubernetes-toolhive-setup.md)** - Operator-managed Kubernetes deployment
-- **[Docker Setup](setup/docker-setup.md)** - Local development (manual capability scanning only)
-- **[NPX Setup](setup/npx-setup.md)** - Quick trials with Node.js
+### Deployment
+- 🎯 **[Stack Installation](https://devopstoolkit.ai/docs/stack)** - Recommended: Complete dot-ai stack with all components pre-configured
+- **[MCP Setup Guide](setup/mcp-setup.md)** - Individual component deployment with full features
 
 ### Feature Guides
 - **[Resource Provisioning](guides/mcp-recommendation-guide.md)** - AI-powered deployment recommendations

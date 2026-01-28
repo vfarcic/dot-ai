@@ -11,11 +11,10 @@
 - Testing changes before publishing
 
 ❌ **Consider alternatives for:**
-- Using the toolkit as an MCP server (use [Docker](../setup/docker-setup.md) or [NPX](../setup/npx-setup.md))
-- Production environments (use Docker with external orchestration)
-- Quick evaluations (use [Docker](../setup/docker-setup.md) for complete setup)
+- Using the toolkit as an MCP server (use [MCP Setup Guide](../setup/mcp-setup.md))
+- Production environments (use Kubernetes deployment)
 
-→ See [other setup methods](../setup/mcp-setup.md#setup-methods) for alternatives
+→ See [MCP Setup Guide](../setup/mcp-setup.md) for production deployment
 
 ## What You Get
 
@@ -273,7 +272,5 @@ Once your development setup is complete, see the [Next Steps section](../setup/m
 
 ## See Also
 
-- [MCP Setup Guide](../setup/mcp-setup.md) - Method comparison and feature overview
-- [Docker Setup](../setup/docker-setup.md) - Complete setup with bundled Qdrant
-- [NPX Setup](../setup/npx-setup.md) - Simple single-command start
+- [MCP Setup Guide](../setup/mcp-setup.md) - Production Kubernetes deployment
 - [Tools and Features Overview](../guides/mcp-tools-overview.md) - Complete guide to all available tools

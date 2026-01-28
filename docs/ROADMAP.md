@@ -8,7 +8,6 @@ This roadmap is a living document and may change based on community feedback and
 ## Short-term (Next 1-3 Months)
 
 - Modular plugin architecture - transform dot-ai into extensible orchestrator (PRD #342)
-- Kubernetes-only deployment - remove non-K8s deployment options (PRD #345)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Parallel capability analysis for 10x faster cluster scanning (PRD #155)
 - Guided setup system to simplify onboarding (PRD #165)

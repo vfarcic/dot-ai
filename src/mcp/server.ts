@@ -11,36 +11,13 @@ import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry, setTelemetryPluginManager } from '../core/telemetry/index.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import path from 'path';
 import { PluginManager } from '../core/plugin-manager.js';
 import { ConsoleLogger } from '../core/error-handling.js';
 
 // Track server start time for uptime calculation
 const serverStartTime = Date.now();
-
-/**
- * Detect deployment method from environment
- */
-function detectDeploymentMethod(): string {
-  // Check for Helm deployment (set by Helm chart)
-  if (process.env.HELM_RELEASE_NAME || process.env.HELM_CHART_NAME) {
-    return 'helm';
-  }
-
-  // Check for Kubernetes environment (service account or env vars set by k8s)
-  if (process.env.KUBERNETES_SERVICE_HOST || process.env.KUBERNETES_PORT) {
-    return 'kubernetes';
-  }
-
-  // Check for Docker container (/.dockerenv file exists in containers)
-  if (existsSync('/.dockerenv') || process.env.DOCKER_CONTAINER === 'true') {
-    return 'docker';
-  }
-
-  // Default to local development
-  return 'local';
-}
 
 /**
  * Get Kubernetes version (non-blocking, returns undefined if unavailable)
@@ -58,7 +35,7 @@ async function main() {
 
     // Validate required environment variables
     process.stderr.write('Validating MCP server configuration...\n');
-    
+
     // Check session directory configuration
     const sessionDir = process.env.DOT_AI_SESSION_DIR || './tmp/sessions';
     process.stderr.write(`Using session directory: ${sessionDir}\n`);
@@ -67,19 +44,19 @@ async function main() {
       process.stderr.write('INFO: DOT_AI_SESSION_DIR not set, using default: ./tmp/sessions\n');
       process.stderr.write('For custom session directory, set DOT_AI_SESSION_DIR environment variable\n');
     }
-    
+
     // Validate session directory exists and is writable
     try {
       const fs = await import('fs');
       const path = await import('path');
-      
+
       // Check if directory exists
       if (!fs.existsSync(sessionDir)) {
         process.stderr.write(`FATAL: Session directory does not exist: ${sessionDir}\n`);
         process.stderr.write('Solution: Create the directory or update DOT_AI_SESSION_DIR\n');
         process.exit(1);
       }
-      
+
       // Check if it's actually a directory
       const stat = fs.statSync(sessionDir);
       if (!stat.isDirectory()) {
@@ -87,7 +64,7 @@ async function main() {
         process.stderr.write('Solution: Use a valid directory path in DOT_AI_SESSION_DIR\n');
         process.exit(1);
       }
-      
+
       // Test write permissions
       const testFile = path.join(sessionDir, '.mcp-test-write');
       try {
@@ -99,7 +76,7 @@ async function main() {
         process.stderr.write('Solution: Fix directory permissions or use a different directory\n');
         process.exit(1);
       }
-      
+
     } catch (error) {
       process.stderr.write(`FATAL: Session directory validation failed: ${error}\n`);
       process.exit(1);
@@ -160,16 +137,15 @@ async function main() {
       pluginManager: pluginConfigs.length > 0 ? pluginManager : undefined
     });
 
-    // Start the MCP server
-    const transportType = process.env.TRANSPORT_TYPE || 'stdio';
-    process.stderr.write(`Starting DevOps AI Toolkit MCP server with ${transportType} transport...\n`);
+    // Start the MCP server (HTTP transport only)
+    process.stderr.write('Starting DevOps AI Toolkit MCP server...\n');
     await mcpServer.start();
     process.stderr.write('DevOps AI Toolkit MCP server started successfully\n');
 
     // Track server start telemetry (non-blocking)
     // PRD #343: K8s version obtained via plugin at runtime, not at startup
-    const deploymentMethod = detectDeploymentMethod();
-    getTelemetry().trackServerStart(undefined, deploymentMethod);
+    // PRD #345: Deployment method tracking removed (Kubernetes-only)
+    getTelemetry().trackServerStart();
 
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {
@@ -191,17 +167,8 @@ async function main() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-    // Keep the process alive for HTTP transport
-    if (transportType === 'http') {
-      process.stderr.write('HTTP transport active - server will run until terminated\n');
-      // Keep the process running indefinitely for HTTP server
-      const keepAlive = () => {
-        setTimeout(keepAlive, 24 * 60 * 60 * 1000); // Check every 24 hours
-      };
-      keepAlive();
-    } else {
-      process.stderr.write('STDIO transport active - waiting for client connection\n');
-    }
+    // HTTP server keeps the process alive
+    process.stderr.write('HTTP server active - server will run until terminated\n');
 
   } catch (error) {
     process.stderr.write(`Failed to start DevOps AI Toolkit MCP server: ${error}\n`);

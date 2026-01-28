@@ -1,4 +1,5 @@
 {
+  "_deprecated": "This file is maintained for legacy blog post references only. dot-ai requires Kubernetes - use .mcp-kubernetes.json or .mcp.json instead.",
   "mcpServers": {
     "dot-ai": {
       "command": "docker",

@@ -339,22 +339,6 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
         expect(backendRef?.port).toBe(3456);
       });
 
-      test('should route to proxy service when deployment.method=toolhive', () => {
-        const output = helmTemplate({
-          'gateway.name': 'cluster-gateway',
-          'deployment.method': 'toolhive',
-        });
-
-        const docs = parseYamlDocs(output);
-        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
-
-        expect(httproute).toBeDefined();
-        const backendRef = httproute?.spec.rules[0].backendRefs[0];
-        expect(backendRef?.name).toContain('mcp-');
-        expect(backendRef?.name).toContain('proxy');
-        expect(backendRef?.port).toBe(3456);
-      });
-
       test('should include hostnames from listeners in creation mode', () => {
         const output = helmTemplate({
           'gateway.create': true,
