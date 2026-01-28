@@ -20,6 +20,7 @@ This roadmap is a living document and may change based on community feedback and
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Update to Kimi K2.5 model support (PRD #353)
+- REST API route registry with auto-generated OpenAPI and test fixtures (PRD #354)
 
 ## Medium-term (3-6 Months)
 
