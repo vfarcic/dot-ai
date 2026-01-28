@@ -305,7 +305,7 @@ Update `package.json` exports:
 - [ ] M5: Create fixture files with realistic scenarios for all endpoints
 - [ ] M6: Add fixture validation script and CI integration
 - [ ] M7: Export fixtures and types from package
-- [ ] M8: Write response to dot-ai-ui with usage instructions
+- [ ] M8: Notify dot-ai-ui project (write `../dot-ai-ui/tmp/feature-response.md` with usage instructions)
 
 ## Dependencies
 
