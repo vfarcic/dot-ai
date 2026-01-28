@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     company.com/managed-by: "platform-team"
   ```
 
-  See the [Kubernetes Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/kubernetes-setup) for configuration details. ([#336](https://github.com/vfarcic/dot-ai/issues/336))
+  See the [MCP Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/mcp-setup) for configuration details. ([#336](https://github.com/vfarcic/dot-ai/issues/336))
 - **Circuit Breaker for LLM API Rate Limits**
 
   Embedding operations now include circuit breaker protection to gracefully handle rate limits and API quota errors. Previously, when rate limits hit, dot-ai would retry rapidly without backoff, generating hundreds of identical errors and wasting API budget before failing.
