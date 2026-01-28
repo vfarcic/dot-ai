@@ -679,18 +679,12 @@ export async function handleScanning(
       });
 
       // Process each resource using scanSingleResource
+      // Progress is tracked via updateProgress() and available via the progress endpoint
       for (let i = 0; i < resources.length; i++) {
         const currentResource = resources[i];
 
         // Update progress before processing
         updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
-
-        logger.info(`Processing resource ${i + 1}/${totalResources}`, {
-          requestId,
-          sessionId: session.sessionId,
-          resource: currentResource,
-          percentage: Math.round(((i + 1) / totalResources) * 100)
-        });
 
         // Call the shared single-resource scan function
         const result = await scanSingleResource(
@@ -711,14 +705,6 @@ export async function handleScanning(
             providers: result.providers,
             complexity: result.complexity,
             confidence: result.confidence
-          });
-
-          logger.info(`Successfully processed resource ${i + 1}/${totalResources}`, {
-            requestId,
-            sessionId: session.sessionId,
-            resource: currentResource,
-            capabilitiesFound: result.capabilities?.length || 0,
-            percentage: Math.round(((i + 1) / totalResources) * 100)
           });
         } else {
           errors.push({
