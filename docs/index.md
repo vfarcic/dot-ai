@@ -102,7 +102,7 @@ For individual component installation:
 - **[Tools Overview](guides/mcp-tools-overview.md)** - All available tools and features
 
 ### Deployment
-- **[Stack Installation](https://devopstoolkit.ai/docs/stack)** - Recommended: Complete dot-ai stack with all components pre-configured
+- 🎯 **[Stack Installation](https://devopstoolkit.ai/docs/stack)** - Recommended: Complete dot-ai stack with all components pre-configured
 - **[MCP Setup Guide](setup/mcp-setup.md)** - Individual component deployment with full features
 
 ### Feature Guides

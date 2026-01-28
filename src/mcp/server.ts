@@ -167,12 +167,8 @@ async function main() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-    // Keep the process alive for HTTP server
+    // HTTP server keeps the process alive
     process.stderr.write('HTTP server active - server will run until terminated\n');
-    const keepAlive = () => {
-      setTimeout(keepAlive, 24 * 60 * 60 * 1000); // Check every 24 hours
-    };
-    keepAlive();
 
   } catch (error) {
     process.stderr.write(`Failed to start DevOps AI Toolkit MCP server: ${error}\n`);

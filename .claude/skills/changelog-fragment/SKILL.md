@@ -50,7 +50,7 @@ Create file: `changelog.d/[issue-id].[type].md`
 
 **Content format:**
 ```markdown
-**[Feature Title]**
+## [Feature Title]
 
 [Opening sentence: What this feature is and the problem it solves]
 
@@ -69,7 +69,7 @@ If the PRD includes documentation updates, link to the relevant page on devopsto
 
 **Example: `changelog.d/142.feature.md`**
 ```markdown
-**Multi-Cluster Management**
+## Multi-Cluster Management
 
 Manage multiple Kubernetes clusters from a single dot-ai instance. Previously, each cluster required its own dot-ai deployment, making it difficult to compare configurations or apply consistent patterns across environments.
 
