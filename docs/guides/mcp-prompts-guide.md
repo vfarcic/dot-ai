@@ -267,7 +267,7 @@ Your prompt instructions go here...
 
 ## User-Defined Prompts
 
-Serve custom prompts from your own git repository. Your prompts appear alongside built-in prompts and work identically across all deployment methods (local, Docker, Kubernetes).
+Serve custom prompts from your own git repository. Your prompts appear alongside built-in prompts.
 
 ### Why User-Defined Prompts?
 
@@ -275,7 +275,7 @@ Serve custom prompts from your own git repository. Your prompts appear alongside
 - **Team consistency**: Share standard prompts across all projects without contributing to the core project
 - **Organization-specific workflows**: Create prompts tailored to your team's processes
 - **Version control**: Manage prompts through standard git workflows (commit, push, PR)
-- **Works everywhere**: Same prompts work in local, Docker, and Kubernetes deployments
+- **Works everywhere**: Prompts work across all Kubernetes deployments
 
 ### Configuration
 
@@ -374,30 +374,6 @@ helm upgrade --install dot-ai oci://ghcr.io/vfarcic/helm/dot-ai \
     {"name":"DOT_AI_USER_PROMPTS_PATH","value":"prompts"},
     {"name":"DOT_AI_GIT_TOKEN","value":"'"${DOT_AI_GIT_TOKEN}"'"}
   ]'
-```
-
-#### Docker
-
-Add to your `docker-compose-dot-ai.yaml` environment section:
-
-```yaml
-services:
-  dot-ai:
-    environment:
-      - DOT_AI_USER_PROMPTS_REPO=https://github.com/your-org/team-prompts.git
-      - DOT_AI_USER_PROMPTS_BRANCH=main
-      - DOT_AI_USER_PROMPTS_PATH=prompts
-      - DOT_AI_GIT_TOKEN=${DOT_AI_GIT_TOKEN}
-```
-
-#### NPX
-
-Set environment variables before running:
-
-```bash
-export DOT_AI_USER_PROMPTS_REPO="https://github.com/your-org/team-prompts.git"
-export DOT_AI_USER_PROMPTS_PATH="prompts"
-export DOT_AI_GIT_TOKEN="ghp_xxxx"  # For private repos
 ```
 
 ### How It Works

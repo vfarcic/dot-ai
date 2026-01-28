@@ -109,7 +109,11 @@ async function main() {
       try {
         await pluginManager.discoverPlugins(pluginConfigs);
         const stats = pluginManager.getStats();
+        const pending = pluginManager.getPendingPlugins();
         process.stderr.write(`Plugin discovery complete: ${stats.pluginCount} plugin(s), ${stats.toolCount} tool(s)\n`);
+        if (pending.length > 0) {
+          process.stderr.write(`Plugins pending background discovery: ${pending.join(', ')}\n`);
+        }
       } catch (error) {
         // Non-required plugin failures are warnings, required failures throw
         if (error instanceof Error && error.name === 'PluginDiscoveryError') {
@@ -117,6 +121,17 @@ async function main() {
           process.exit(1);
         }
         process.stderr.write(`Plugin discovery warning: ${error}\n`);
+      }
+
+      // Start background discovery for any plugins that failed initial discovery
+      // They will be retried every 30 seconds for up to 10 minutes
+      if (pluginManager.getPendingPlugins().length > 0) {
+        pluginManager.setOnPluginDiscovered((plugin) => {
+          process.stderr.write(`Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`);
+          // Note: Tools are automatically registered via pluginManager's internal maps
+          // The version tool will reflect the updated plugin status
+        });
+        pluginManager.startBackgroundDiscovery();
       }
     } else {
       process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
@@ -150,6 +165,9 @@ async function main() {
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       process.stderr.write(`Shutting down DevOps AI Toolkit MCP server (${signal})...\n`);
+
+      // Stop background plugin discovery if active
+      pluginManager.stopBackgroundDiscovery();
 
       // Track server stop telemetry
       const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);

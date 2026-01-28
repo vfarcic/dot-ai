@@ -115,6 +115,8 @@ export interface SystemStatus {
     pluginCount: number;
     toolCount: number;
     plugins: Array<{ name: string; version: string; toolCount: number }>;
+    pendingDiscovery: string[];
+    backgroundDiscoveryActive: boolean;
   };
 }
 

@@ -65,13 +65,6 @@ extraEnv:
     value: "false"
 ```
 
-```bash
-# Docker
-docker run -e DOT_AI_TELEMETRY=false ghcr.io/vfarcic/dot-ai
-
-# Local development
-export DOT_AI_TELEMETRY=false
-```
 
 ## Self-Hosted PostHog
 
