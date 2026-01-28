@@ -445,3 +445,120 @@ describe('CircuitOpenError', () => {
     expect(error).toBeInstanceOf(Error);
   });
 });
+
+describe('Log Suppression', () => {
+  test('should log "circuit open" only once per open period', async () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    };
+
+    const breaker = new CircuitBreaker('test-circuit', {
+      failureThreshold: 2,
+      cooldownPeriodMs: 10000
+    }, mockLogger as any);
+
+    // Open the circuit
+    for (let i = 0; i < 2; i++) {
+      await expect(breaker.execute(async () => {
+        throw new Error('fail');
+      })).rejects.toThrow('fail');
+    }
+
+    // Clear mock calls from the failure recording
+    mockLogger.warn.mockClear();
+
+    // Make multiple blocked requests
+    for (let i = 0; i < 5; i++) {
+      await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+    }
+
+    // Should only log "circuit open" once, not 5 times
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(
+      (call: any[]) => call[0]?.includes('is open, blocking')
+    );
+    expect(circuitOpenLogs.length).toBe(1);
+  });
+
+  test('should log again after circuit is reset and reopens', async () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    };
+
+    const breaker = new CircuitBreaker('test-circuit', {
+      failureThreshold: 2,
+      cooldownPeriodMs: 10000
+    }, mockLogger as any);
+
+    // Open the circuit first time
+    for (let i = 0; i < 2; i++) {
+      await expect(breaker.execute(async () => {
+        throw new Error('fail');
+      })).rejects.toThrow('fail');
+    }
+
+    // Make a blocked request (should log once)
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+
+    // Reset the circuit
+    breaker.reset();
+    mockLogger.warn.mockClear();
+
+    // Open the circuit again
+    for (let i = 0; i < 2; i++) {
+      await expect(breaker.execute(async () => {
+        throw new Error('fail');
+      })).rejects.toThrow('fail');
+    }
+
+    mockLogger.warn.mockClear();
+
+    // Make blocked requests again - should log once for new open period
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(
+      (call: any[]) => call[0]?.includes('is open, blocking')
+    );
+    expect(circuitOpenLogs.length).toBe(1);
+  });
+
+  test('should include willRetryAt in log when circuit is open', async () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    };
+
+    const breaker = new CircuitBreaker('test-circuit', {
+      failureThreshold: 2,
+      cooldownPeriodMs: 5000
+    }, mockLogger as any);
+
+    // Open the circuit
+    for (let i = 0; i < 2; i++) {
+      await expect(breaker.execute(async () => {
+        throw new Error('fail');
+      })).rejects.toThrow('fail');
+    }
+
+    mockLogger.warn.mockClear();
+
+    // Make a blocked request
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+
+    // Find the "circuit open" log call
+    const circuitOpenLog = mockLogger.warn.mock.calls.find(
+      (call: any[]) => call[0]?.includes('is open, blocking')
+    );
+    expect(circuitOpenLog).toBeDefined();
+    expect(circuitOpenLog[1]).toHaveProperty('willRetryAt');
+    expect(circuitOpenLog[1]).toHaveProperty('remainingCooldownMs');
+  });
+});
