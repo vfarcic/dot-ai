@@ -354,8 +354,10 @@ export class MCPServer {
       ['query', 'search', 'discover', 'capabilities', 'cluster']
     );
 
-    // Register plugin tools (PRD #343)
-    const pluginTools = this.registerPluginTools();
+    // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.
+    // They are internal implementation details used by built-in tools like remediate/query.
+    // Plugin tools remain available internally via pluginManager.invokeTool().
+    // Only the 7 built-in MCP tools are exposed to clients.
 
     const builtInTools = [
       RECOMMEND_TOOL_NAME,
@@ -367,73 +369,13 @@ export class MCPServer {
       QUERY_TOOL_NAME
     ];
 
-    this.logger.info('Registered all tools with McpServer', {
+    // Log summary of tool registration
+    const pluginToolCount = this.pluginManager?.getDiscoveredTools().length || 0;
+    this.logger.info('Registered tools with McpServer', {
       builtInTools,
-      pluginTools,
-      totalTools: builtInTools.length + pluginTools.length,
+      totalRegistered: builtInTools.length,
+      pluginToolsAvailableInternally: pluginToolCount,
     });
-  }
-
-  /**
-   * Register tools from discovered plugins (PRD #343)
-   */
-  private registerPluginTools(): string[] {
-    if (!this.pluginManager) {
-      return [];
-    }
-
-    const tools = this.pluginManager.getDiscoveredTools();
-    const registeredTools: string[] = [];
-
-    for (const tool of tools) {
-      // Create handler that routes to plugin
-      const pluginHandler = async (args: any) => {
-        const response = await this.pluginManager!.invokeTool(
-          tool.name,
-          args,
-          {},
-          undefined
-        );
-
-        // Return proper MCP CallToolResult format
-        if (response.success) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(response.result)
-            }]
-          };
-        } else {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify({ error: response.error?.message || 'Plugin invocation failed' })
-            }],
-            isError: true
-          };
-        }
-      };
-
-      this.registerTool(
-        tool.name,
-        tool.description,
-        tool.inputSchema,
-        pluginHandler,
-        'Plugin',
-        ['plugin', 'kubectl', 'kubernetes']
-      );
-
-      registeredTools.push(tool.name);
-    }
-
-    if (registeredTools.length > 0) {
-      this.logger.info('Registered plugin tools', {
-        tools: registeredTools,
-        count: registeredTools.length,
-      });
-    }
-
-    return registeredTools;
   }
 
   /**
