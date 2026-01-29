@@ -126,8 +126,9 @@ export type NamespacesResponse = z.infer<typeof NamespacesResponseSchema>;
  * POST /api/v1/resources/sync
  */
 export const ResourceSyncRequestSchema = z.object({
-  operation: z.enum(['upsert', 'delete', 'resync', 'health']).describe('Sync operation type'),
-  resources: z.array(z.record(z.string(), z.any())).optional().describe('Resources to sync'),
+  upserts: z.array(z.record(z.string(), z.any())).optional().describe('Resources to upsert'),
+  deletes: z.array(z.record(z.string(), z.any())).optional().describe('Resources to delete (requires namespace, name, kind, apiVersion)'),
+  isResync: z.boolean().optional().describe('When true, performs full reconciliation - deletes resources not in upserts list'),
 });
 
 export type ResourceSyncRequest = z.infer<typeof ResourceSyncRequestSchema>;
@@ -161,7 +162,7 @@ export const ResourceNotFoundErrorSchema = NotFoundErrorSchema.extend({
 
 export const ResourceBadRequestErrorSchema = BadRequestErrorSchema.extend({
   error: z.object({
-    code: z.enum(['BAD_REQUEST', 'MISSING_PARAMETER', 'INVALID_PARAMETER']),
+    code: z.enum(['BAD_REQUEST', 'MISSING_PARAMETER', 'INVALID_PARAMETER', 'VALIDATION_ERROR']),
     message: z.string(),
     details: z.any().optional(),
   }),

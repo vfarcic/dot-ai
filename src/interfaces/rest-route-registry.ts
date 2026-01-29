@@ -291,7 +291,9 @@ export class RestRouteRegistry {
   getTags(): string[] {
     const tags = new Set<string>();
     for (const compiled of this.routes.values()) {
-      compiled.definition.tags.forEach((tag) => tags.add(tag));
+      for (const tag of compiled.definition.tags) {
+        tags.add(tag);
+      }
     }
     return Array.from(tags).sort();
   }

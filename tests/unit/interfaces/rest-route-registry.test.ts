@@ -9,11 +9,7 @@
 
 import { describe, test, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
-import {
-  RestRouteRegistry,
-  RouteDefinition,
-  HttpMethod,
-} from '../../../src/interfaces/rest-route-registry';
+import { RestRouteRegistry } from '../../../src/interfaces/rest-route-registry';
 import { Logger } from '../../../src/core/error-handling';
 
 // Mock logger for testing
@@ -41,11 +37,6 @@ const VisualizationResponseSchema = z.object({
     type: z.string(),
   })),
   insights: z.array(z.string()),
-});
-
-const ErrorResponseSchema = z.object({
-  code: z.string(),
-  message: z.string(),
 });
 
 describe('RestRouteRegistry', () => {

@@ -264,8 +264,11 @@ export class RestApiRouter {
       const allowedMethods = this.routeRegistry.findAllowedMethods(url.pathname);
       if (allowedMethods.length > 0) {
         res.setHeader('Allow', allowedMethods.join(', '));
-        await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED',
-          `Only ${allowedMethods[0]} method allowed`);
+        const methodList = allowedMethods.join(', ');
+        const message = allowedMethods.length === 1
+          ? `Only ${methodList} method allowed`
+          : `Only ${methodList} methods allowed`;
+        await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', message);
         return;
       }
 
