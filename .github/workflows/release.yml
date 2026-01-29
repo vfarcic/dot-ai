@@ -88,6 +88,14 @@ jobs:
           echo "has_fragments=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Commit and push changelog changes
+      if: steps.towncrier.outputs.has_fragments == 'true'
+      run: |
+        VERSION=${{ steps.config.outputs.version }}
+        git add docs/CHANGELOG.md changelog.d/
+        git commit -m "docs: update changelog for v$VERSION [skip ci]"
+        git push origin HEAD:main
+
     - name: Extract release notes from CHANGELOG
       id: notes
       run: |
@@ -113,14 +121,11 @@ jobs:
           echo "has_notes=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Upload changelog artifacts
+    - name: Upload release notes artifact
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: changelog-artifacts
-        path: |
-          docs/CHANGELOG.md
-          changelog.d/
-          release_notes_content.md
+        name: release-notes
+        path: release_notes_content.md
         if-no-files-found: ignore
 
   # =============================================================================
@@ -279,10 +284,10 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-    - name: Download changelog artifacts
+    - name: Download release notes artifact
       uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
       with:
-        name: changelog-artifacts
+        name: release-notes
         path: .
 
     - name: Install Devbox
@@ -335,13 +340,12 @@ jobs:
         devbox run -- helm push dot-ai-$VERSION.tgz oci://ghcr.io/vfarcic/dot-ai/charts
         echo "Published Helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION"
 
-    - name: Commit version and changelog changes
+    - name: Commit version changes
       run: |
         VERSION=${{ needs.prepare.outputs.version }}
 
-        # Add all version-related changes and changelog
+        # Add all version-related changes
         git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
-        git add docs/CHANGELOG.md changelog.d/
 
         git commit -m "chore: coordinated release v$VERSION
 
@@ -435,28 +439,11 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         submodules: true
 
-    - name: Setup git config
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-
-    - name: Download changelog artifacts
+    - name: Download release notes artifact
       uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
       with:
-        name: changelog-artifacts
+        name: release-notes
         path: .
-
-    - name: Commit changelog changes
-      run: |
-        VERSION=${{ needs.prepare.outputs.version }}
-
-        git add docs/CHANGELOG.md changelog.d/
-
-        git commit -m "docs: update release notes for v$VERSION
-
-        [skip ci]" || echo "No changes to commit"
-
-        git push origin HEAD:main
 
     - name: Create GitHub Release
       run: |
