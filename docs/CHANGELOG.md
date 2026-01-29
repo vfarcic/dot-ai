@@ -7,17 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
-## [1.0.2] - 2026-01-29
-
-### Bug Fixes
-
-- **Plugin Tools No Longer Exposed as MCP Tools**
-
-  Plugin tools (kubectl_*, helm_*, shell_exec) are no longer registered as MCP tools. Previously, all 20+ plugin tools were exposed alongside the 7 built-in tools, consuming significant context tokens in AI clients even when users only needed core functionality.
-
-  Plugin tools remain available internally for built-in tools like remediate and query to use via pluginManager.invokeTool(). Only the 7 built-in MCP tools (recommend, version, manageOrgData, remediate, operate, projectSetup, query) are now exposed to clients, reducing context overhead and keeping the tool list focused on user-facing capabilities.
-
-
 ## [1.0.1] - 2026-01-28
 
 ### Bug Fixes
