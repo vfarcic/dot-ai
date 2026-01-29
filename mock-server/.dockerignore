@@ -1,0 +1,11 @@
+# Build artifacts (rebuilt in container)
+dist/
+node_modules/
+
+# Development files
+*.log
+.env*
+
+# IDE and editor files
+.vscode/
+.idea/
