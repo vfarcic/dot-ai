@@ -24,24 +24,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install kubectl and helm for Kubernetes operations
-# Using curl to download the stable release binaries, detecting architecture
-RUN apk add --no-cache curl jq && \
-    KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt) && \
-    HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r .tag_name) && \
-    ARCH=$(uname -m) && \
-    case $ARCH in \
-      x86_64) ARCH="amd64" ;; \
-      aarch64) ARCH="arm64" ;; \
-    esac && \
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/ && \
-    # Install Helm (latest version)
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz" | tar xz && \
-    mv linux-${ARCH}/helm /usr/local/bin/ && \
-    rm -rf linux-${ARCH} && \
-    apk del curl jq
+# Copy kubectl and helm binaries from official images (Renovate auto-updates these)
+COPY --from=rancher/kubectl:v1.34.2 /bin/kubectl /usr/local/bin/kubectl
+COPY --from=alpine/helm:4.0.4 /usr/bin/helm /usr/local/bin/helm
 
 # Create non-root user for security
 RUN addgroup -g 10001 -S appgroup && \
