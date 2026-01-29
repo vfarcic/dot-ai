@@ -1,0 +1,83 @@
+{
+  "success": true,
+  "data": {
+    "tools": [
+      {
+        "name": "query",
+        "description": "Query Kubernetes cluster using natural language",
+        "category": "cluster",
+        "tags": ["kubernetes", "query", "natural-language"],
+        "parameters": [
+          {
+            "name": "intent",
+            "type": "string",
+            "description": "Natural language query about the cluster",
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "recommend",
+        "description": "Get AI-powered deployment recommendations",
+        "category": "deployment",
+        "tags": ["kubernetes", "deployment", "ai"],
+        "parameters": [
+          {
+            "name": "intent",
+            "type": "string",
+            "description": "What you want to deploy or configure",
+            "required": true
+          },
+          {
+            "name": "stage",
+            "type": "string",
+            "description": "Workflow stage",
+            "required": false,
+            "enum": ["recommend", "chooseSolution", "generateManifests", "deployManifests"]
+          }
+        ]
+      },
+      {
+        "name": "remediate",
+        "description": "Diagnose and fix Kubernetes issues",
+        "category": "troubleshooting",
+        "tags": ["kubernetes", "debugging", "remediation"],
+        "parameters": [
+          {
+            "name": "issue",
+            "type": "string",
+            "description": "Description of the issue to diagnose",
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "kubectl_get",
+        "description": "Get Kubernetes resources in table format",
+        "category": "kubectl",
+        "tags": ["kubernetes", "kubectl", "resources"],
+        "parameters": [
+          {
+            "name": "resource",
+            "type": "string",
+            "description": "Resource type to get (e.g., pods, deployments)",
+            "required": true
+          },
+          {
+            "name": "namespace",
+            "type": "string",
+            "description": "Namespace to query",
+            "required": false
+          }
+        ]
+      }
+    ],
+    "total": 4,
+    "categories": ["cluster", "deployment", "troubleshooting", "kubectl"],
+    "tags": ["kubernetes", "query", "natural-language", "deployment", "ai", "debugging", "remediation", "kubectl", "resources"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "data": {
+    "id": "session-operate-jkl012",
+    "data": {
+      "toolName": "operate",
+      "intent": "Scale nginx-deployment to 5 replicas",
+      "operation": {
+        "type": "scale",
+        "target": {
+          "kind": "Deployment",
+          "name": "nginx-deployment",
+          "namespace": "default"
+        },
+        "changes": {
+          "replicas": {
+            "from": 3,
+            "to": 5
+          }
+        },
+        "status": "pending_approval"
+      },
+      "dryRunResult": {
+        "success": true,
+        "message": "Dry run successful. Deployment can be scaled to 5 replicas."
+      },
+      "toolsUsed": ["kubectl_get", "kubectl_patch_dryrun"]
+    },
+    "createdAt": "2024-01-15T10:28:00.000Z",
+    "expiresAt": "2024-01-16T10:28:00.000Z"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

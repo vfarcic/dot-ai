@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "title": "Cluster Architecture Overview",
+    "visualizations": [
+      {
+        "id": "viz-1",
+        "label": "Deployment Dependencies",
+        "type": "mermaid",
+        "content": "graph TD\n    A[nginx-ingress] --> B[api-gateway]\n    B --> C[user-service]\n    B --> D[order-service]\n    C --> E[(PostgreSQL)]\n    D --> E\n    D --> F[(Redis Cache)]"
+      }
+    ],
+    "insights": [
+      "The nginx-ingress controller routes traffic to the api-gateway",
+      "Both user-service and order-service share the PostgreSQL database",
+      "Order-service uses Redis for caching to improve performance"
+    ],
+    "toolsUsed": ["query", "kubectl_get"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "viz-req-123",
+    "version": "1.0.0"
+  }
+}

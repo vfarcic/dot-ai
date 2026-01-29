@@ -1,0 +1,75 @@
+{
+  "success": true,
+  "data": {
+    "prompts": [
+      {
+        "name": "troubleshoot-pod",
+        "description": "Generate a troubleshooting guide for a pod",
+        "arguments": [
+          {
+            "name": "podName",
+            "description": "Name of the pod to troubleshoot",
+            "required": true
+          },
+          {
+            "name": "namespace",
+            "description": "Namespace of the pod",
+            "required": false
+          }
+        ]
+      },
+      {
+        "name": "explain-resource",
+        "description": "Explain a Kubernetes resource in simple terms",
+        "arguments": [
+          {
+            "name": "resourceKind",
+            "description": "Kind of resource to explain (e.g., Deployment, Service)",
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "security-review",
+        "description": "Generate security recommendations for a workload",
+        "arguments": [
+          {
+            "name": "workloadName",
+            "description": "Name of the workload to review",
+            "required": true
+          },
+          {
+            "name": "workloadKind",
+            "description": "Kind of workload (Deployment, StatefulSet, etc.)",
+            "required": true
+          },
+          {
+            "name": "namespace",
+            "description": "Namespace of the workload",
+            "required": false
+          }
+        ]
+      },
+      {
+        "name": "optimize-resources",
+        "description": "Suggest resource optimization for a deployment",
+        "arguments": [
+          {
+            "name": "deploymentName",
+            "description": "Name of the deployment",
+            "required": true
+          },
+          {
+            "name": "namespace",
+            "description": "Namespace of the deployment",
+            "required": false
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

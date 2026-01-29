@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "error": {
+    "code": "AI_NOT_CONFIGURED",
+    "message": "AI provider is not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.",
+    "details": {
+      "supportedProviders": ["anthropic", "openai", "google", "xai"]
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "success": true,
+  "data": {
+    "resources": [
+      {
+        "name": "nginx-deployment-7d9c67b5f-abc12",
+        "namespace": "default",
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "labels": {
+          "app": "nginx",
+          "pod-template-hash": "7d9c67b5f"
+        },
+        "createdAt": "2024-01-15T08:00:00Z",
+        "status": {
+          "phase": "Running",
+          "containerStatuses": [
+            {
+              "name": "nginx",
+              "ready": true,
+              "restartCount": 0,
+              "state": {
+                "running": {
+                  "startedAt": "2024-01-15T08:00:30Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "nginx-deployment-7d9c67b5f-def34",
+        "namespace": "default",
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "labels": {
+          "app": "nginx",
+          "pod-template-hash": "7d9c67b5f"
+        },
+        "createdAt": "2024-01-15T08:00:00Z",
+        "status": {
+          "phase": "Running",
+          "containerStatuses": [
+            {
+              "name": "nginx",
+              "ready": true,
+              "restartCount": 0,
+              "state": {
+                "running": {
+                  "startedAt": "2024-01-15T08:00:45Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "postgres-0",
+        "namespace": "database",
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "labels": {
+          "app": "postgres",
+          "statefulset.kubernetes.io/pod-name": "postgres-0"
+        },
+        "createdAt": "2024-01-08T10:00:00Z",
+        "status": {
+          "phase": "Running",
+          "containerStatuses": [
+            {
+              "name": "postgres",
+              "ready": true,
+              "restartCount": 1,
+              "state": {
+                "running": {
+                  "startedAt": "2024-01-10T06:00:00Z"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "total": 3,
+    "limit": 20,
+    "offset": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

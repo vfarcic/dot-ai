@@ -1,0 +1,16 @@
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Resource not found: Deployment/nonexistent in namespace default",
+    "details": {
+      "kind": "Deployment",
+      "name": "nonexistent",
+      "namespace": "default"
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

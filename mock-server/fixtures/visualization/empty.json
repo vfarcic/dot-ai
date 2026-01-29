@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "data": {
+    "title": "No Visualizations Available",
+    "visualizations": [],
+    "insights": [
+      "No visualization data could be generated for this session",
+      "The session may not have completed successfully"
+    ]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

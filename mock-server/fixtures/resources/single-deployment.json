@@ -1,0 +1,89 @@
+{
+  "success": true,
+  "data": {
+    "resource": {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "nginx-deployment",
+        "namespace": "default",
+        "uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "creationTimestamp": "2024-01-10T08:00:00Z",
+        "labels": {
+          "app": "nginx",
+          "environment": "production"
+        },
+        "annotations": {
+          "deployment.kubernetes.io/revision": "3"
+        }
+      },
+      "spec": {
+        "replicas": 3,
+        "selector": {
+          "matchLabels": {
+            "app": "nginx"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "nginx"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "nginx",
+                "image": "nginx:1.25.3",
+                "ports": [
+                  {
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "500m",
+                    "memory": "256Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 3,
+        "readyReplicas": 3,
+        "replicas": 3,
+        "updatedReplicas": 3,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True",
+            "lastUpdateTime": "2024-01-10T08:02:00Z",
+            "lastTransitionTime": "2024-01-10T08:02:00Z",
+            "reason": "MinimumReplicasAvailable",
+            "message": "Deployment has minimum availability."
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "lastUpdateTime": "2024-01-12T14:30:00Z",
+            "lastTransitionTime": "2024-01-10T08:00:00Z",
+            "reason": "NewReplicaSetAvailable",
+            "message": "ReplicaSet \"nginx-deployment-7d9c67b5f\" has successfully progressed."
+          }
+        ]
+      }
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

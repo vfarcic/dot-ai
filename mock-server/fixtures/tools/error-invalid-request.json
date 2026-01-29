@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Missing required parameter 'intent'",
+    "details": {
+      "missingParameters": ["intent"],
+      "providedParameters": {}
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

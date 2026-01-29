@@ -1,0 +1,77 @@
+{
+  "success": true,
+  "data": {
+    "title": "Node Resource Usage",
+    "visualizations": [
+      {
+        "id": "viz-1",
+        "label": "CPU Usage by Node",
+        "type": "bar-chart",
+        "content": {
+          "data": [
+            {
+              "label": "node-1",
+              "value": 2.5,
+              "max": 4,
+              "status": "ok"
+            },
+            {
+              "label": "node-2",
+              "value": 3.2,
+              "max": 4,
+              "status": "warning"
+            },
+            {
+              "label": "node-3",
+              "value": 1.8,
+              "max": 4,
+              "status": "ok"
+            }
+          ],
+          "unit": "cores",
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "id": "viz-2",
+        "label": "Memory Usage by Node",
+        "type": "bar-chart",
+        "content": {
+          "data": [
+            {
+              "label": "node-1",
+              "value": 12,
+              "max": 16,
+              "status": "warning"
+            },
+            {
+              "label": "node-2",
+              "value": 14,
+              "max": 16,
+              "status": "error"
+            },
+            {
+              "label": "node-3",
+              "value": 8,
+              "max": 16,
+              "status": "ok"
+            }
+          ],
+          "unit": "Gi",
+          "orientation": "horizontal"
+        }
+      }
+    ],
+    "insights": [
+      "node-2 is under heavy load with 80% CPU and 87.5% memory usage",
+      "Consider migrating workloads from node-2 to node-3",
+      "Overall cluster has 34Gi of 48Gi memory allocated (70%)"
+    ],
+    "toolsUsed": ["query", "kubectl_get"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "viz-req-303",
+    "version": "1.0.0"
+  }
+}

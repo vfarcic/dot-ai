@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "error": {
+    "code": "MISSING_PARAMETER",
+    "message": "Missing required parameter: kind",
+    "details": {
+      "requiredParameters": ["kind", "apiVersion"],
+      "providedParameters": ["apiVersion"]
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}
