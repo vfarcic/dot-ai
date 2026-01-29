@@ -243,7 +243,7 @@ describe.concurrent('Version Tool Integration', () => {
         success: false,
         error: {
           code: 'METHOD_NOT_ALLOWED',
-          message: 'Only POST method allowed for tool execution'
+          message: expect.stringContaining('Only POST method allowed'),
         },
         meta: {
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),

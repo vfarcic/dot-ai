@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "data": {
+    "tools": [
+      {
+        "name": "kubectl_get",
+        "description": "Get Kubernetes resources in table format",
+        "category": "kubectl",
+        "tags": ["kubernetes", "kubectl", "resources"]
+      },
+      {
+        "name": "kubectl_describe",
+        "description": "Describe Kubernetes resources with detailed information",
+        "category": "kubectl",
+        "tags": ["kubernetes", "kubectl", "describe"]
+      },
+      {
+        "name": "kubectl_logs",
+        "description": "Get container logs from pods",
+        "category": "kubectl",
+        "tags": ["kubernetes", "kubectl", "logs"]
+      }
+    ],
+    "total": 3,
+    "categories": ["kubectl"],
+    "tags": ["kubernetes", "kubectl", "resources", "describe", "logs"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

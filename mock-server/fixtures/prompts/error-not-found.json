@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Prompt not found: nonexistent-prompt",
+    "details": {
+      "promptName": "nonexistent-prompt",
+      "availablePrompts": ["troubleshoot-pod", "explain-resource", "security-review", "optimize-resources"]
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

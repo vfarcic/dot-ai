@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "data": {
+    "title": "Generated Kubernetes Manifest",
+    "visualizations": [
+      {
+        "id": "viz-1",
+        "label": "Deployment YAML",
+        "type": "code",
+        "content": {
+          "language": "yaml",
+          "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx-deployment\n  namespace: default\n  labels:\n    app: nginx\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: nginx\n  template:\n    metadata:\n      labels:\n        app: nginx\n    spec:\n      containers:\n      - name: nginx\n        image: nginx:1.25.3\n        ports:\n        - containerPort: 80\n        resources:\n          limits:\n            cpu: 500m\n            memory: 256Mi\n          requests:\n            cpu: 100m\n            memory: 128Mi"
+        }
+      }
+    ],
+    "insights": [
+      "Deployment configured with 3 replicas for high availability",
+      "Resource limits set to prevent resource contention",
+      "Using nginx:1.25.3 which is the latest stable version"
+    ],
+    "toolsUsed": ["recommend"]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "viz-req-101",
+    "version": "1.0.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": {
+    "description": "Generate a troubleshooting guide for a pod",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "Please help me troubleshoot the pod 'nginx-deployment-7d9c67b5f-abc12' in the 'default' namespace. Here's what I know:\n\n1. Check the pod status and recent events\n2. Look at container logs for errors\n3. Verify resource limits and requests\n4. Check if the pod can reach required services\n5. Examine any volume mounts or secrets\n\nProvide step-by-step guidance and kubectl commands I can run."
+        }
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

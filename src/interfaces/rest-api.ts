@@ -9,6 +9,8 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { URL } from 'node:url';
 import { RestToolRegistry, ToolInfo } from './rest-registry';
 import { OpenApiGenerator } from './openapi-generator';
+import { RestRouteRegistry, RouteMatch } from './rest-route-registry';
+import { registerAllRoutes } from './routes';
 import { Logger } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { handleResourceSync } from './resource-sync-handler';
@@ -164,6 +166,7 @@ export interface RestApiConfig {
  */
 export class RestApiRouter {
   private registry: RestToolRegistry;
+  private routeRegistry: RestRouteRegistry;
   private logger: Logger;
   private dotAI: DotAI;
   private config: RestApiConfig;
@@ -189,16 +192,31 @@ export class RestApiRouter {
       requestTimeout: 1800000, // 30 minutes for long-running operations (capability scan with slower AI providers)
       ...config
     };
-    
-    // Initialize OpenAPI generator
-    this.openApiGenerator = new OpenApiGenerator(registry, logger, {
-      basePath: this.config.basePath,
-      apiVersion: this.config.version
+
+    // Initialize route registry and register all routes (PRD #354)
+    this.routeRegistry = new RestRouteRegistry(logger);
+    registerAllRoutes(this.routeRegistry);
+    this.logger.info('REST route registry initialized', {
+      routeCount: this.routeRegistry.getRouteCount(),
+      tags: this.routeRegistry.getTags(),
     });
+
+    // Initialize OpenAPI generator with route registry (PRD #354)
+    this.openApiGenerator = new OpenApiGenerator(
+      registry,
+      logger,
+      {
+        basePath: this.config.basePath,
+        apiVersion: this.config.version,
+      },
+      this.routeRegistry
+    );
   }
 
   /**
    * Handle incoming HTTP requests for REST API
+   *
+   * PRD #354: Uses route registry for matching, dispatches to handlers based on route path.
    */
   async handleRequest(req: IncomingMessage, res: ServerResponse, body?: any): Promise<void> {
     const requestId = this.generateRequestId();
@@ -222,134 +240,40 @@ export class RestApiRouter {
         }
       }
 
-      // Parse URL and route
+      // Parse URL
       const url = new URL(req.url || '/', 'http://localhost');
-      const pathMatch = this.parseApiPath(url.pathname);
+      const method = req.method || 'GET';
 
-      if (!pathMatch) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'API endpoint not found');
+      // PRD #354: Try route registry first
+      const routeMatch = this.routeRegistry.findRoute(method, url.pathname);
+
+      if (routeMatch) {
+        this.logger.debug('Route matched via registry', {
+          requestId,
+          path: routeMatch.route.path,
+          method: routeMatch.route.method,
+          params: routeMatch.params,
+        });
+
+        // Dispatch to handler based on route path
+        await this.dispatchRoute(req, res, requestId, routeMatch, url.searchParams, body, startTime);
         return;
       }
 
-      // Route to appropriate handler
-      switch (pathMatch.endpoint) {
-        case 'tools':
-          if (req.method === 'GET') {
-            await this.handleToolDiscovery(req, res, requestId, url.searchParams);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for tool discovery');
-          }
-          break;
-
-        case 'tool':
-          if (req.method === 'POST' && pathMatch.toolName) {
-            await this.handleToolExecution(req, res, requestId, pathMatch.toolName, body, startTime);
-          } else if (req.method !== 'POST') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for tool execution');
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Tool name is required');
-          }
-          break;
-
-        case 'openapi':
-          if (req.method === 'GET') {
-            await this.handleOpenApiSpec(req, res, requestId);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for OpenAPI specification');
-          }
-          break;
-
-        case 'resources':
-          if (req.method === 'POST' && pathMatch.action === 'sync') {
-            await this.handleResourceSyncRequest(req, res, requestId, body);
-          } else if (req.method === 'GET' && pathMatch.action === 'kinds') {
-            await this.handleGetResourceKinds(req, res, requestId, url.searchParams);
-          } else if (req.method === 'GET' && pathMatch.action === 'search') {
-            await this.handleSearchResources(req, res, requestId, url.searchParams);
-          } else if (req.method === 'GET' && pathMatch.action === 'list') {
-            await this.handleListResources(req, res, requestId, url.searchParams);
-          } else if (pathMatch.action === 'sync' && req.method !== 'POST') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for resource sync');
-          } else if ((pathMatch.action === 'kinds' || pathMatch.action === 'list' || pathMatch.action === 'search') && req.method !== 'GET') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for this endpoint');
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown resources endpoint');
-          }
-          break;
-
-        case 'namespaces':
-          if (req.method === 'GET') {
-            await this.handleGetNamespaces(req, res, requestId);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for namespaces');
-          }
-          break;
-
-        case 'resource':
-          if (req.method === 'GET') {
-            await this.handleGetResource(req, res, requestId, url.searchParams);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for resource');
-          }
-          break;
-
-        case 'events':
-          if (req.method === 'GET') {
-            await this.handleGetEvents(req, res, requestId, url.searchParams);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for events');
-          }
-          break;
-
-        case 'logs':
-          if (req.method === 'GET') {
-            await this.handleGetLogs(req, res, requestId, url.searchParams);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for logs');
-          }
-          break;
-
-        case 'prompts':
-          if (req.method === 'GET') {
-            await this.handlePromptsListRequest(req, res, requestId);
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for prompts list');
-          }
-          break;
-
-        case 'prompt':
-          if (req.method === 'POST' && pathMatch.promptName) {
-            await this.handlePromptsGetRequest(req, res, requestId, pathMatch.promptName, body);
-          } else if (req.method !== 'POST') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only POST method allowed for prompt get');
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Prompt name is required');
-          }
-          break;
-
-        case 'visualize':
-          if (req.method === 'GET' && pathMatch.sessionId) {
-            await this.handleVisualize(req, res, requestId, pathMatch.sessionId, url.searchParams);
-          } else if (req.method !== 'GET') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for visualization');
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
-          }
-          break;
-
-        case 'sessions':
-          if (req.method === 'GET' && pathMatch.sessionId) {
-            await this.handleSessionRetrieval(req, res, requestId, pathMatch.sessionId);
-          } else if (req.method !== 'GET') {
-            await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', 'Only GET method allowed for session retrieval');
-          } else {
-            await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Session ID is required');
-          }
-          break;
-
-        default:
-          await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Unknown API endpoint');
+      // Check if path matches but method is wrong (HTTP 405 per RFC 7231)
+      const allowedMethods = this.routeRegistry.findAllowedMethods(url.pathname);
+      if (allowedMethods.length > 0) {
+        res.setHeader('Allow', allowedMethods.join(', '));
+        const methodList = allowedMethods.join(', ');
+        const message = allowedMethods.length === 1
+          ? `Only ${methodList} method allowed`
+          : `Only ${methodList} methods allowed`;
+        await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', message);
+        return;
       }
+
+      // No match found
+      await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'API endpoint not found');
 
     } catch (error) {
       this.logger.error('REST API request failed', error instanceof Error ? error : new Error(String(error)), {
@@ -358,126 +282,57 @@ export class RestApiRouter {
       });
 
       await this.sendErrorResponse(
-        res, 
-        requestId, 
-        HttpStatus.INTERNAL_SERVER_ERROR, 
-        'INTERNAL_ERROR', 
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'INTERNAL_ERROR',
         'An internal server error occurred'
       );
     }
   }
 
   /**
-   * Parse API path and extract route information
+   * Dispatch request to appropriate handler based on matched route
+   * PRD #354: Central dispatch using handler map for registry-matched routes.
    */
-  private parseApiPath(pathname: string): { endpoint: string; toolName?: string; action?: string; promptName?: string; sessionId?: string } | null {
-    // Expected patterns:
-    // /api/v1/tools -> tools discovery
-    // /api/v1/tools/{toolName} -> tool execution
-    // /api/v1/openapi -> OpenAPI spec
-    // /api/v1/resources/sync -> resource sync from controller
-    // /api/v1/resources/kinds -> list resource kinds (PRD #328)
-    // /api/v1/resources/search -> semantic search for resources (PRD #328)
-    // /api/v1/resource -> get single resource with full details (PRD #328)
-    // /api/v1/resources -> list resources with filtering (PRD #328)
-    // /api/v1/namespaces -> list namespaces (PRD #328)
-    // /api/v1/events -> get events for a resource (PRD #328)
-    // /api/v1/logs -> get pod logs (PRD #328)
-    // /api/v1/prompts -> prompts list
-    // /api/v1/prompts/{promptName} -> prompt get
+  private async dispatchRoute(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    routeMatch: RouteMatch,
+    searchParams: URLSearchParams,
+    body: any,
+    startTime: number
+  ): Promise<void> {
+    const { route, params } = routeMatch;
+    const routeKey = `${route.method}:${route.path}`;
 
-    const basePath = `${this.config.basePath}/${this.config.version}`;
+    // Handler map: route key -> handler function
+    const handlers: Record<string, () => Promise<void>> = {
+      'GET:/api/v1/tools': () => this.handleToolDiscovery(req, res, requestId, searchParams),
+      'POST:/api/v1/tools/:toolName': () => this.handleToolExecution(req, res, requestId, params.toolName, body, startTime),
+      'GET:/api/v1/openapi': () => this.handleOpenApiSpec(req, res, requestId),
+      'GET:/api/v1/resources': () => this.handleListResources(req, res, requestId, searchParams),
+      'GET:/api/v1/resources/kinds': () => this.handleGetResourceKinds(req, res, requestId, searchParams),
+      'GET:/api/v1/resources/search': () => this.handleSearchResources(req, res, requestId, searchParams),
+      'POST:/api/v1/resources/sync': () => this.handleResourceSyncRequest(req, res, requestId, body),
+      'GET:/api/v1/resource': () => this.handleGetResource(req, res, requestId, searchParams),
+      'GET:/api/v1/namespaces': () => this.handleGetNamespaces(req, res, requestId),
+      'GET:/api/v1/events': () => this.handleGetEvents(req, res, requestId, searchParams),
+      'GET:/api/v1/logs': () => this.handleGetLogs(req, res, requestId, searchParams),
+      'GET:/api/v1/prompts': () => this.handlePromptsListRequest(req, res, requestId),
+      'POST:/api/v1/prompts/:promptName': () => this.handlePromptsGetRequest(req, res, requestId, params.promptName, body),
+      'GET:/api/v1/visualize/:sessionId': () => this.handleVisualize(req, res, requestId, params.sessionId, searchParams),
+      'GET:/api/v1/sessions/:sessionId': () => this.handleSessionRetrieval(req, res, requestId, params.sessionId),
+    };
 
-    if (!pathname.startsWith(basePath)) {
-      return null;
+    const handler = handlers[routeKey];
+    if (handler) {
+      await handler();
+    } else {
+      this.logger.warn('Route matched but no handler found', { requestId, routeKey });
+      await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Handler not found for route');
     }
-
-    const pathSuffix = pathname.substring(basePath.length);
-
-    // Remove leading slash
-    const cleanPath = pathSuffix.startsWith('/') ? pathSuffix.substring(1) : pathSuffix;
-
-    if (cleanPath === 'tools') {
-      return { endpoint: 'tools' };
-    }
-
-    if (cleanPath === 'openapi') {
-      return { endpoint: 'openapi' };
-    }
-
-    if (cleanPath.startsWith('tools/')) {
-      const toolName = cleanPath.substring(6); // Remove 'tools/'
-      if (toolName) {
-        return { endpoint: 'tool', toolName };
-      }
-    }
-
-    // Handle resources endpoints (PRD #328)
-    if (cleanPath === 'resources/kinds') {
-      return { endpoint: 'resources', action: 'kinds' };
-    }
-
-    if (cleanPath === 'resources/search') {
-      return { endpoint: 'resources', action: 'search' };
-    }
-
-    if (cleanPath === 'resources/sync') {
-      return { endpoint: 'resources', action: 'sync' };
-    }
-
-    if (cleanPath === 'resources') {
-      return { endpoint: 'resources', action: 'list' };
-    }
-
-    // Handle single resource endpoint (PRD #328)
-    if (cleanPath === 'resource') {
-      return { endpoint: 'resource' };
-    }
-
-    // Handle namespaces endpoint (PRD #328)
-    if (cleanPath === 'namespaces') {
-      return { endpoint: 'namespaces' };
-    }
-
-    // Handle events endpoint (PRD #328)
-    if (cleanPath === 'events') {
-      return { endpoint: 'events' };
-    }
-
-    // Handle logs endpoint (PRD #328)
-    if (cleanPath === 'logs') {
-      return { endpoint: 'logs' };
-    }
-
-    // Handle prompts endpoints
-    if (cleanPath === 'prompts') {
-      return { endpoint: 'prompts' };
-    }
-
-    if (cleanPath.startsWith('prompts/')) {
-      const promptName = cleanPath.substring(8); // Remove 'prompts/'
-      if (promptName) {
-        return { endpoint: 'prompt', promptName };
-      }
-    }
-
-    // Handle visualize endpoint (PRD #317)
-    if (cleanPath.startsWith('visualize/')) {
-      const sessionId = cleanPath.substring(10); // Remove 'visualize/'
-      if (sessionId) {
-        return { endpoint: 'visualize', sessionId };
-      }
-    }
-
-    // Handle generic session retrieval endpoint (works for any tool: remediate, query, recommend, etc.)
-    if (cleanPath.startsWith('sessions/')) {
-      const sessionId = cleanPath.substring(9); // Remove 'sessions/'
-      if (sessionId) {
-        return { endpoint: 'sessions', sessionId };
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -2060,5 +1915,13 @@ export class RestApiRouter {
    */
   getConfig(): RestApiConfig {
     return { ...this.config };
+  }
+
+  /**
+   * Get the route registry for OpenAPI generation and fixture validation
+   * PRD #354: Exposes route registry for downstream consumers
+   */
+  getRouteRegistry(): RestRouteRegistry {
+    return this.routeRegistry;
   }
 }

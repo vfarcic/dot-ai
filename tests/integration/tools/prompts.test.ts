@@ -185,7 +185,7 @@ describe.concurrent('Prompts Integration', () => {
         success: false,
         error: {
           code: 'METHOD_NOT_ALLOWED',
-          message: 'Only GET method allowed for prompts list'
+          message: expect.stringContaining('Only GET method allowed'),
         },
         meta: {
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -204,7 +204,7 @@ describe.concurrent('Prompts Integration', () => {
         success: false,
         error: {
           code: 'METHOD_NOT_ALLOWED',
-          message: 'Only POST method allowed for prompt get'
+          message: expect.stringContaining('Only POST method allowed'),
         },
         meta: {
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),

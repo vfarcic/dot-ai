@@ -1,0 +1,54 @@
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "lastTimestamp": "2024-01-15T10:20:00Z",
+        "type": "Warning",
+        "reason": "FailedScheduling",
+        "message": "0/3 nodes are available: 3 Insufficient memory. preemption: 0/3 nodes are available: 3 No preemption victims found for incoming pod.",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "memory-hungry-pod-xyz",
+          "namespace": "default",
+          "uid": "pod-uid-456"
+        },
+        "count": 5,
+        "firstTimestamp": "2024-01-15T10:00:00Z"
+      },
+      {
+        "lastTimestamp": "2024-01-15T10:15:00Z",
+        "type": "Warning",
+        "reason": "BackOff",
+        "message": "Back-off restarting failed container api in pod api-server-abc123_default",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "api-server-abc123",
+          "namespace": "default",
+          "uid": "pod-uid-789"
+        },
+        "count": 12,
+        "firstTimestamp": "2024-01-15T09:30:00Z"
+      },
+      {
+        "lastTimestamp": "2024-01-15T10:10:00Z",
+        "type": "Warning",
+        "reason": "Unhealthy",
+        "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+        "involvedObject": {
+          "kind": "Pod",
+          "name": "web-frontend-def456",
+          "namespace": "production",
+          "uid": "pod-uid-101"
+        },
+        "count": 3,
+        "firstTimestamp": "2024-01-15T10:05:00Z"
+      }
+    ],
+    "count": 3
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

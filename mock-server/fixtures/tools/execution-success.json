@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Found 3 pods in the default namespace:\n\n| NAME | READY | STATUS | RESTARTS | AGE |\n|------|-------|--------|----------|-----|\n| nginx-deployment-abc123 | 1/1 | Running | 0 | 2d |\n| redis-master-xyz789 | 1/1 | Running | 0 | 5d |\n| postgres-0 | 1/1 | Running | 1 | 7d |"
+        }
+      ],
+      "isError": false
+    },
+    "tool": "kubectl_get",
+    "executionTime": 245
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "requestId": "req-abc123",
+    "version": "1.0.0"
+  }
+}

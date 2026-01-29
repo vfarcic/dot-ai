@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Missing required parameters: name, kind",
+    "details": {
+      "requiredParameters": ["name", "kind"],
+      "providedParameters": []
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

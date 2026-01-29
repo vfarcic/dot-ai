@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "data": {
+    "upserted": 15,
+    "message": "Successfully synced 15 resources"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

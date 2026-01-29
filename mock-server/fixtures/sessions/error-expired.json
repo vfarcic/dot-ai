@@ -1,0 +1,16 @@
+{
+  "success": false,
+  "error": {
+    "code": "SESSION_NOT_FOUND",
+    "message": "Session expired: session-expired-xyz",
+    "details": {
+      "sessionId": "session-expired-xyz",
+      "expiredAt": "2024-01-14T10:30:00.000Z",
+      "hint": "Sessions expire after 24 hours. Please create a new session."
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

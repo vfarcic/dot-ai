@@ -1,11 +1,18 @@
 /**
  * OpenAPI 3.0 Specification Generator
- * 
- * Automatically generates OpenAPI 3.0 documentation from the tool registry.
- * Creates comprehensive API documentation with proper schemas and examples.
+ *
+ * Automatically generates OpenAPI 3.0 documentation from the tool registry
+ * and REST route registry.
+ *
+ * PRD #354: REST API Route Registry with Auto-Generated OpenAPI and Test Fixtures
+ * - Generates paths from RestRouteRegistry for all REST endpoints
+ * - Converts Zod schemas to JSON Schema for complete API documentation
  */
 
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
 import { RestToolRegistry, ToolInfo } from './rest-registry';
+import { RestRouteRegistry, RouteDefinition } from './rest-route-registry';
 import { Logger } from '../core/error-handling';
 
 /**
@@ -59,24 +66,33 @@ export interface OpenApiConfig {
  * OpenAPI 3.0 specification generator
  */
 export class OpenApiGenerator {
-  private registry: RestToolRegistry;
+  private toolRegistry: RestToolRegistry;
+  private routeRegistry?: RestRouteRegistry;
   private logger: Logger;
   private config: OpenApiConfig;
   private specCache?: OpenApiSpec;
   private lastCacheUpdate: number = 0;
   private cacheValidityMs: number = 60000; // 1 minute
+  private schemaCache: Map<string, any> = new Map();
 
-  constructor(registry: RestToolRegistry, logger: Logger, config: Partial<OpenApiConfig> = {}) {
-    this.registry = registry;
+  constructor(
+    toolRegistry: RestToolRegistry,
+    logger: Logger,
+    config: Partial<OpenApiConfig> = {},
+    routeRegistry?: RestRouteRegistry
+  ) {
+    this.toolRegistry = toolRegistry;
+    this.routeRegistry = routeRegistry;
     this.logger = logger;
     this.config = {
       title: 'DevOps AI Toolkit REST API',
-      description: 'REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities',
+      description:
+        'REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities',
       version: '1.0.0',
       basePath: '/api',
       apiVersion: 'v1',
       serverUrl: 'http://localhost:3456',
-      ...config
+      ...config,
     };
   }
 
@@ -86,26 +102,52 @@ export class OpenApiGenerator {
   generateSpec(): OpenApiSpec {
     // Check cache validity
     const now = Date.now();
-    if (this.specCache && (now - this.lastCacheUpdate) < this.cacheValidityMs) {
+    if (this.specCache && now - this.lastCacheUpdate < this.cacheValidityMs) {
       this.logger.debug('Returning cached OpenAPI specification');
       return this.specCache;
     }
 
     this.logger.info('Generating OpenAPI 3.0 specification', {
-      toolCount: this.registry.getToolCount(),
-      cacheExpired: !this.specCache || (now - this.lastCacheUpdate) >= this.cacheValidityMs
+      toolCount: this.toolRegistry.getToolCount(),
+      routeCount: this.routeRegistry?.getRouteCount() ?? 0,
+      cacheExpired:
+        !this.specCache || now - this.lastCacheUpdate >= this.cacheValidityMs,
     });
 
-    const tools = this.registry.getAllTools();
-    const categories = this.registry.getCategories();
+    const tools = this.toolRegistry.getAllTools();
+    const categories = this.toolRegistry.getCategories();
+
+    // Generate paths from tool registry (MCP tools)
+    const toolPaths = this.generateToolPaths(tools);
+
+    // Generate paths from route registry (REST endpoints) - PRD #354
+    const routePaths = this.routeRegistry
+      ? this.generateRoutePaths()
+      : {};
+
+    // Generate component schemas
+    const toolSchemas = this.generateToolSchemas(tools);
+    const routeSchemas = this.routeRegistry
+      ? this.generateRouteSchemas()
+      : {};
 
     const spec: OpenApiSpec = {
       openapi: '3.0.0',
       info: this.generateInfo(),
       servers: this.generateServers(),
-      paths: this.generatePaths(tools),
-      components: this.generateComponents(tools),
-      tags: this.generateTags(categories)
+      paths: {
+        ...this.generateBasePaths(),
+        ...toolPaths,
+        ...routePaths,
+      },
+      components: {
+        schemas: {
+          ...this.generateBaseSchemas(),
+          ...toolSchemas,
+          ...routeSchemas,
+        },
+      },
+      tags: this.generateTags(categories),
     };
 
     // Cache the generated spec
@@ -115,7 +157,7 @@ export class OpenApiGenerator {
     this.logger.info('OpenAPI specification generated successfully', {
       pathCount: Object.keys(spec.paths).length,
       componentCount: Object.keys(spec.components?.schemas || {}).length,
-      tagCount: spec.tags?.length || 0
+      tagCount: spec.tags?.length || 0,
     });
 
     return spec;
@@ -156,17 +198,17 @@ export class OpenApiGenerator {
   }
 
   /**
-   * Generate paths for all endpoints
+   * Generate base paths (MCP Protocol endpoints)
    */
-  private generatePaths(tools: ToolInfo[]): Record<string, any> {
+  private generateBasePaths(): Record<string, any> {
     const paths: Record<string, any> = {};
-    const basePath = `${this.config.basePath}/${this.config.apiVersion}`;
 
     // MCP Protocol Endpoints
     paths['/'] = {
       get: {
         summary: 'Open MCP SSE stream',
-        description: 'Opens a Server-Sent Events (SSE) stream for Model Context Protocol communication. This endpoint allows the server to push messages to the client without the client first sending data.',
+        description:
+          'Opens a Server-Sent Events (SSE) stream for Model Context Protocol communication. This endpoint allows the server to push messages to the client without the client first sending data.',
         tags: ['MCP Protocol'],
         parameters: [],
         responses: {
@@ -176,24 +218,25 @@ export class OpenApiGenerator {
               'text/event-stream': {
                 schema: {
                   type: 'string',
-                  description: 'Server-Sent Events stream'
-                }
-              }
-            }
+                  description: 'Server-Sent Events stream',
+                },
+              },
+            },
           },
           405: {
             description: 'Method not allowed - server does not support SSE',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' }
-              }
-            }
-          }
-        }
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
       },
       post: {
         summary: 'Send MCP JSON-RPC message',
-        description: 'Send a JSON-RPC message using Model Context Protocol. Used for tool calls, initialization, and other MCP operations. The server may respond with either a JSON object or open an SSE stream.',
+        description:
+          'Send a JSON-RPC message using Model Context Protocol. Used for tool calls, initialization, and other MCP operations. The server may respond with either a JSON object or open an SSE stream.',
         tags: ['MCP Protocol'],
         requestBody: {
           required: true,
@@ -212,10 +255,10 @@ export class OpenApiGenerator {
                       capabilities: {},
                       clientInfo: {
                         name: 'example-client',
-                        version: '1.0.0'
-                      }
-                    }
-                  }
+                        version: '1.0.0',
+                      },
+                    },
+                  },
                 },
                 toolCall: {
                   summary: 'Call a tool',
@@ -225,82 +268,51 @@ export class OpenApiGenerator {
                     method: 'tools/call',
                     params: {
                       name: 'version',
-                      arguments: {}
-                    }
-                  }
-                }
-              }
-            }
-          }
+                      arguments: {},
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         responses: {
           200: {
             description: 'JSON-RPC response or SSE stream',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/McpJsonRpcResponse' }
+                schema: { $ref: '#/components/schemas/McpJsonRpcResponse' },
               },
               'text/event-stream': {
                 schema: {
                   type: 'string',
-                  description: 'Server-Sent Events stream with JSON-RPC messages'
-                }
-              }
-            }
+                  description:
+                    'Server-Sent Events stream with JSON-RPC messages',
+                },
+              },
+            },
           },
           400: {
             description: 'Bad request - invalid JSON-RPC message',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/McpJsonRpcError' }
-              }
-            }
-          }
-        }
-      }
+                schema: { $ref: '#/components/schemas/McpJsonRpcError' },
+              },
+            },
+          },
+        },
+      },
     };
 
-    // Tool discovery endpoint
-    paths[`${basePath}/tools`] = {
-      get: {
-        summary: 'Discover available tools',
-        description: 'Get a list of all available tools with their schemas and metadata',
-        tags: ['Tool Discovery'],
-        parameters: [
-          {
-            name: 'category',
-            in: 'query',
-            description: 'Filter tools by category',
-            required: false,
-            schema: { type: 'string' }
-          },
-          {
-            name: 'tag',
-            in: 'query',
-            description: 'Filter tools by tag',
-            required: false,
-            schema: { type: 'string' }
-          },
-          {
-            name: 'search',
-            in: 'query',
-            description: 'Search tools by name or description',
-            required: false,
-            schema: { type: 'string' }
-          }
-        ],
-        responses: {
-          200: {
-            description: 'List of available tools',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ToolDiscoveryResponse' }
-              }
-            }
-          }
-        }
-      }
-    };
+    return paths;
+  }
+
+  /**
+   * Generate paths for MCP tool endpoints
+   */
+  private generateToolPaths(tools: ToolInfo[]): Record<string, any> {
+    const paths: Record<string, any> = {};
+    const basePath = `${this.config.basePath}/${this.config.apiVersion}`;
 
     // Individual tool execution endpoints
     for (const tool of tools) {
@@ -314,103 +326,343 @@ export class OpenApiGenerator {
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/${tool.name}Request` },
-                example: this.generateExampleForTool(tool)
-              }
-            }
+                example: this.generateExampleForTool(tool),
+              },
+            },
           },
           responses: {
             200: {
               description: 'Tool execution result',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ToolExecutionResponse' }
-                }
-              }
+                  schema: { $ref: '#/components/schemas/ToolExecutionResponse' },
+                },
+              },
             },
             400: {
               description: 'Bad request - invalid parameters',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' }
-                }
-              }
+                  schema: { $ref: '#/components/schemas/ErrorResponse' },
+                },
+              },
             },
             404: {
               description: 'Tool not found',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' }
-                }
-              }
+                  schema: { $ref: '#/components/schemas/ErrorResponse' },
+                },
+              },
             },
             500: {
               description: 'Internal server error',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' }
-                }
-              }
-            }
-          }
-        }
+                  schema: { $ref: '#/components/schemas/ErrorResponse' },
+                },
+              },
+            },
+          },
+        },
       };
     }
-
-    // OpenAPI specification endpoint
-    paths[`${basePath}/openapi`] = {
-      get: {
-        summary: 'Get OpenAPI specification',
-        description: 'Returns the complete OpenAPI 3.0 specification for this API',
-        tags: ['Documentation'],
-        responses: {
-          200: {
-            description: 'OpenAPI specification',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  description: 'OpenAPI 3.0 specification'
-                }
-              }
-            }
-          }
-        }
-      }
-    };
 
     return paths;
   }
 
   /**
-   * Generate component schemas
+   * Generate paths from REST route registry
+   * PRD #354: Auto-generates OpenAPI paths from registered routes
    */
-  private generateComponents(tools: ToolInfo[]): OpenApiSpec['components'] {
+  private generateRoutePaths(): Record<string, any> {
+    if (!this.routeRegistry) {
+      return {};
+    }
+
+    const paths: Record<string, any> = {};
+    const routes = this.routeRegistry.getAllRoutes();
+
+    for (const route of routes) {
+      const openApiPath = this.convertPathToOpenApi(route.path);
+      const method = route.method.toLowerCase();
+
+      // Initialize path object if not exists
+      if (!paths[openApiPath]) {
+        paths[openApiPath] = {};
+      }
+
+      paths[openApiPath][method] = this.routeToOpenApiOperation(route);
+    }
+
+    return paths;
+  }
+
+  /**
+   * Convert Express-style path to OpenAPI path format
+   * Example: "/api/v1/visualize/:sessionId" -> "/api/v1/visualize/{sessionId}"
+   */
+  private convertPathToOpenApi(path: string): string {
+    return path.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, '{$1}');
+  }
+
+  /**
+   * Convert a route definition to an OpenAPI operation object
+   */
+  private routeToOpenApiOperation(
+    route: RouteDefinition<unknown, unknown, unknown, unknown>
+  ): any {
+    const operation: any = {
+      summary: route.description,
+      description: route.description,
+      tags: route.tags,
+      responses: {},
+    };
+
+    // Add path parameters
+    const pathParams = this.extractPathParams(route.path);
+    if (pathParams.length > 0 || route.query) {
+      operation.parameters = [];
+
+      // Add path parameters
+      for (const paramName of pathParams) {
+        const paramSchema = this.getParamSchemaFromRoute(route, paramName);
+        operation.parameters.push({
+          name: paramName,
+          in: 'path',
+          required: true,
+          description: paramSchema?.description || `${paramName} parameter`,
+          schema: paramSchema || { type: 'string' },
+        });
+      }
+
+      // Add query parameters from Zod schema
+      if (route.query) {
+        const queryParams = this.zodSchemaToParameters(route.query, 'query');
+        operation.parameters.push(...queryParams);
+      }
+    }
+
+    // Add request body for POST/PUT/DELETE with body schema
+    if (route.body && ['POST', 'PUT', 'DELETE'].includes(route.method)) {
+      const schemaName = this.getSchemaName(route, 'Request');
+      operation.requestBody = {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: `#/components/schemas/${schemaName}` },
+          },
+        },
+      };
+    }
+
+    // Add success response
+    const responseSchemaName = this.getSchemaName(route, 'Response');
+    operation.responses['200'] = {
+      description: 'Successful response',
+      content: {
+        'application/json': {
+          schema: { $ref: `#/components/schemas/${responseSchemaName}` },
+        },
+      },
+    };
+
+    // Add error responses
+    if (route.errorResponses) {
+      for (const statusCode of Object.keys(route.errorResponses)) {
+        const errorSchemaName = this.getSchemaName(
+          route,
+          `Error${statusCode}`
+        );
+        operation.responses[statusCode] = {
+          description: this.getErrorDescription(Number(statusCode)),
+          content: {
+            'application/json': {
+              schema: { $ref: `#/components/schemas/${errorSchemaName}` },
+            },
+          },
+        };
+      }
+    }
+
+    return operation;
+  }
+
+  /**
+   * Extract path parameter names from a route path
+   */
+  private extractPathParams(path: string): string[] {
+    const params: string[] = [];
+    const regex = /:([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    let match;
+    while ((match = regex.exec(path)) !== null) {
+      params.push(match[1]);
+    }
+    return params;
+  }
+
+  /**
+   * Get parameter schema from route's params Zod schema
+   */
+  private getParamSchemaFromRoute(
+    route: RouteDefinition<unknown, unknown, unknown, unknown>,
+    paramName: string
+  ): any {
+    if (!route.params) {
+      return { type: 'string' };
+    }
+
+    try {
+      const jsonSchema = this.zodSchemaToJsonSchema(route.params);
+      return jsonSchema.properties?.[paramName] || { type: 'string' };
+    } catch {
+      return { type: 'string' };
+    }
+  }
+
+  /**
+   * Convert Zod schema to OpenAPI parameters array
+   */
+  private zodSchemaToParameters(
+    schema: z.ZodSchema<unknown>,
+    location: 'query' | 'path'
+  ): any[] {
+    const parameters: any[] = [];
+
+    try {
+      const jsonSchema = this.zodSchemaToJsonSchema(schema);
+      const properties = jsonSchema.properties || {};
+      const required = jsonSchema.required || [];
+
+      for (const [name, propSchema] of Object.entries(properties)) {
+        parameters.push({
+          name,
+          in: location,
+          required: required.includes(name),
+          description: (propSchema as any).description || `${name} parameter`,
+          schema: propSchema,
+        });
+      }
+    } catch (error) {
+      this.logger.warn('Failed to convert Zod schema to parameters', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return parameters;
+  }
+
+  /**
+   * Generate unique schema name for a route
+   */
+  private getSchemaName(
+    route: RouteDefinition<unknown, unknown, unknown, unknown>,
+    suffix: string
+  ): string {
+    // Convert path to PascalCase name
+    // e.g., "/api/v1/visualize/:sessionId" -> "VisualizeSessionId"
+    const pathParts = route.path
+      .replace(/^\/api\/v\d+\//, '') // Remove /api/v1/ prefix
+      .split('/')
+      .filter((part) => part.length > 0)
+      .map((part) => {
+        // Remove : prefix for params and capitalize
+        const cleaned = part.replace(/^:/, '');
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      });
+
+    const baseName = pathParts.join('');
+    return `${baseName}${route.method.charAt(0)}${route.method.slice(1).toLowerCase()}${suffix}`;
+  }
+
+  /**
+   * Get human-readable error description for status code
+   */
+  private getErrorDescription(statusCode: number): string {
+    const descriptions: Record<number, string> = {
+      400: 'Bad request - invalid parameters',
+      401: 'Unauthorized - authentication required',
+      403: 'Forbidden - insufficient permissions',
+      404: 'Not found',
+      405: 'Method not allowed',
+      409: 'Conflict',
+      422: 'Unprocessable entity',
+      500: 'Internal server error',
+      502: 'Bad gateway',
+      503: 'Service unavailable',
+    };
+    return descriptions[statusCode] || `Error ${statusCode}`;
+  }
+
+  /**
+   * Convert Zod schema to JSON Schema with caching
+   */
+  private zodSchemaToJsonSchema(schema: z.ZodSchema<unknown>): any {
+    const cacheKey = JSON.stringify(schema);
+    if (this.schemaCache.has(cacheKey)) {
+      return this.schemaCache.get(cacheKey);
+    }
+
+    try {
+      const jsonSchema = zodToJsonSchema(schema as any, {
+        target: 'openApi3',
+        $refStrategy: 'none', // Inline all schemas
+      });
+
+      // Remove $schema property if present (not valid in OpenAPI component schemas)
+      const result = { ...jsonSchema };
+      delete result.$schema;
+
+      this.schemaCache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      this.logger.warn('Failed to convert Zod schema to JSON Schema', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { type: 'object' };
+    }
+  }
+
+  /**
+   * Generate base component schemas (shared across all endpoints)
+   */
+  private generateBaseSchemas(): Record<string, any> {
     const schemas: Record<string, any> = {};
 
     // Base response schemas
     schemas.RestApiResponse = {
       type: 'object',
       properties: {
-        success: { type: 'boolean', description: 'Whether the request was successful' },
+        success: {
+          type: 'boolean',
+          description: 'Whether the request was successful',
+        },
         data: { type: 'object', description: 'Response data' },
         error: {
           type: 'object',
           properties: {
             code: { type: 'string', description: 'Error code' },
             message: { type: 'string', description: 'Error message' },
-            details: { type: 'object', description: 'Additional error details' }
-          }
+            details: { type: 'object', description: 'Additional error details' },
+          },
         },
         meta: {
           type: 'object',
           properties: {
-            timestamp: { type: 'string', format: 'date-time', description: 'Response timestamp' },
-            requestId: { type: 'string', description: 'Unique request identifier' },
-            version: { type: 'string', description: 'API version' }
-          }
-        }
+            timestamp: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Response timestamp',
+            },
+            requestId: {
+              type: 'string',
+              description: 'Unique request identifier',
+            },
+            version: { type: 'string', description: 'API version' },
+          },
+        },
       },
-      required: ['success']
+      required: ['success'],
     };
 
     schemas.ToolExecutionResponse = {
@@ -422,14 +674,23 @@ export class OpenApiGenerator {
             data: {
               type: 'object',
               properties: {
-                result: { type: 'object', description: 'Tool execution result' },
-                tool: { type: 'string', description: 'Name of the executed tool' },
-                executionTime: { type: 'number', description: 'Execution time in milliseconds' }
-              }
-            }
-          }
-        }
-      ]
+                result: {
+                  type: 'object',
+                  description: 'Tool execution result',
+                },
+                tool: {
+                  type: 'string',
+                  description: 'Name of the executed tool',
+                },
+                executionTime: {
+                  type: 'number',
+                  description: 'Execution time in milliseconds',
+                },
+              },
+            },
+          },
+        },
+      ],
     };
 
     schemas.ToolDiscoveryResponse = {
@@ -443,24 +704,27 @@ export class OpenApiGenerator {
               properties: {
                 tools: {
                   type: 'array',
-                  items: { $ref: '#/components/schemas/ToolInfo' }
+                  items: { $ref: '#/components/schemas/ToolInfo' },
                 },
-                total: { type: 'number', description: 'Total number of tools' },
+                total: {
+                  type: 'number',
+                  description: 'Total number of tools',
+                },
                 categories: {
                   type: 'array',
                   items: { type: 'string' },
-                  description: 'Available tool categories'
+                  description: 'Available tool categories',
                 },
                 tags: {
                   type: 'array',
                   items: { type: 'string' },
-                  description: 'Available tool tags'
-                }
-              }
-            }
-          }
-        }
-      ]
+                  description: 'Available tool tags',
+                },
+              },
+            },
+          },
+        },
+      ],
     };
 
     schemas.ToolInfo = {
@@ -473,10 +737,10 @@ export class OpenApiGenerator {
         tags: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Tool tags'
-        }
+          description: 'Tool tags',
+        },
       },
-      required: ['name', 'description', 'schema']
+      required: ['name', 'description', 'schema'],
     };
 
     schemas.ErrorResponse = {
@@ -491,14 +755,14 @@ export class OpenApiGenerator {
               properties: {
                 code: { type: 'string' },
                 message: { type: 'string' },
-                details: { type: 'object' }
+                details: { type: 'object' },
               },
-              required: ['code', 'message']
-            }
+              required: ['code', 'message'],
+            },
           },
-          required: ['error']
-        }
-      ]
+          required: ['error'],
+        },
+      ],
     };
 
     // MCP JSON-RPC schemas
@@ -506,60 +770,132 @@ export class OpenApiGenerator {
       type: 'object',
       description: 'JSON-RPC 2.0 request message for MCP protocol',
       properties: {
-        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
-        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
-        method: { type: 'string', description: 'Method name (e.g., initialize, tools/call, tools/list)' },
-        params: { type: 'object', description: 'Method parameters' }
+        jsonrpc: {
+          type: 'string',
+          enum: ['2.0'],
+          description: 'JSON-RPC version',
+        },
+        id: {
+          type: ['number', 'string', 'null'],
+          description: 'Request identifier',
+        },
+        method: {
+          type: 'string',
+          description:
+            'Method name (e.g., initialize, tools/call, tools/list)',
+        },
+        params: { type: 'object', description: 'Method parameters' },
       },
-      required: ['jsonrpc', 'method']
+      required: ['jsonrpc', 'method'],
     };
 
     schemas.McpJsonRpcResponse = {
       type: 'object',
       description: 'JSON-RPC 2.0 response message',
       properties: {
-        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
-        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
+        jsonrpc: {
+          type: 'string',
+          enum: ['2.0'],
+          description: 'JSON-RPC version',
+        },
+        id: {
+          type: ['number', 'string', 'null'],
+          description: 'Request identifier',
+        },
         result: { type: 'object', description: 'Method result' },
         error: {
           type: 'object',
           properties: {
             code: { type: 'number', description: 'Error code' },
             message: { type: 'string', description: 'Error message' },
-            data: { type: 'object', description: 'Additional error data' }
-          }
-        }
+            data: { type: 'object', description: 'Additional error data' },
+          },
+        },
       },
-      required: ['jsonrpc', 'id']
+      required: ['jsonrpc', 'id'],
     };
 
     schemas.McpJsonRpcError = {
       type: 'object',
       description: 'JSON-RPC 2.0 error response',
       properties: {
-        jsonrpc: { type: 'string', enum: ['2.0'], description: 'JSON-RPC version' },
-        id: { type: ['number', 'string', 'null'], description: 'Request identifier' },
+        jsonrpc: {
+          type: 'string',
+          enum: ['2.0'],
+          description: 'JSON-RPC version',
+        },
+        id: {
+          type: ['number', 'string', 'null'],
+          description: 'Request identifier',
+        },
         error: {
           type: 'object',
           properties: {
             code: { type: 'number', description: 'Error code' },
             message: { type: 'string', description: 'Error message' },
-            data: { type: 'object', description: 'Additional error data' }
+            data: { type: 'object', description: 'Additional error data' },
           },
-          required: ['code', 'message']
-        }
+          required: ['code', 'message'],
+        },
       },
-      required: ['jsonrpc', 'id', 'error']
+      required: ['jsonrpc', 'id', 'error'],
     };
+
+    return schemas;
+  }
+
+  /**
+   * Generate schemas for MCP tool endpoints
+   */
+  private generateToolSchemas(tools: ToolInfo[]): Record<string, any> {
+    const schemas: Record<string, any> = {};
 
     // Individual tool request schemas
     for (const tool of tools) {
       schemas[`${tool.name}Request`] = tool.schema;
     }
 
-    return {
-      schemas
-    };
+    return schemas;
+  }
+
+  /**
+   * Generate schemas from REST route registry
+   * PRD #354: Auto-generates OpenAPI schemas from route Zod schemas
+   */
+  private generateRouteSchemas(): Record<string, any> {
+    if (!this.routeRegistry) {
+      return {};
+    }
+
+    const schemas: Record<string, any> = {};
+    const routes = this.routeRegistry.getAllRoutes();
+
+    for (const route of routes) {
+      // Add response schema
+      const responseSchemaName = this.getSchemaName(route, 'Response');
+      schemas[responseSchemaName] = this.zodSchemaToJsonSchema(route.response);
+
+      // Add request body schema if present
+      if (route.body) {
+        const requestSchemaName = this.getSchemaName(route, 'Request');
+        schemas[requestSchemaName] = this.zodSchemaToJsonSchema(route.body);
+      }
+
+      // Add error response schemas
+      if (route.errorResponses) {
+        for (const [statusCode, errorSchema] of Object.entries(
+          route.errorResponses
+        )) {
+          const errorSchemaName = this.getSchemaName(
+            route,
+            `Error${statusCode}`
+          );
+          schemas[errorSchemaName] = this.zodSchemaToJsonSchema(errorSchema);
+        }
+      }
+    }
+
+    return schemas;
   }
 
   /**
@@ -569,32 +905,57 @@ export class OpenApiGenerator {
     const tags: OpenApiSpec['tags'] = [
       {
         name: 'MCP Protocol',
-        description: 'Model Context Protocol endpoints for AI assistant integration via JSON-RPC and Server-Sent Events'
+        description:
+          'Model Context Protocol endpoints for AI assistant integration via JSON-RPC and Server-Sent Events',
       },
       {
         name: 'Tool Discovery',
-        description: 'Endpoints for discovering available tools and their capabilities'
+        description:
+          'Endpoints for discovering available tools and their capabilities',
       },
       {
         name: 'Documentation',
-        description: 'API documentation and specification endpoints'
-      }
+        description: 'API documentation and specification endpoints',
+      },
     ];
 
-    // Add category-based tags
+    // Track tag names to avoid duplicates
+    const tagNames = new Set(tags.map((t) => t.name));
+
+    // Add category-based tags from tool registry
     for (const category of categories) {
-      tags.push({
-        name: category,
-        description: `${category} tools and operations`
-      });
+      if (!tagNames.has(category)) {
+        tags.push({
+          name: category,
+          description: `${category} tools and operations`,
+        });
+        tagNames.add(category);
+      }
     }
 
     // Add generic tools tag for uncategorized tools
-    if (this.registry.getAllTools().some(tool => !tool.category)) {
-      tags.push({
-        name: 'Tools',
-        description: 'General purpose tools and utilities'
-      });
+    if (this.toolRegistry.getAllTools().some((tool) => !tool.category)) {
+      if (!tagNames.has('Tools')) {
+        tags.push({
+          name: 'Tools',
+          description: 'General purpose tools and utilities',
+        });
+        tagNames.add('Tools');
+      }
+    }
+
+    // PRD #354: Add tags from route registry
+    if (this.routeRegistry) {
+      const routeTags = this.routeRegistry.getTags();
+      for (const routeTag of routeTags) {
+        if (!tagNames.has(routeTag)) {
+          tags.push({
+            name: routeTag,
+            description: `${routeTag} endpoints`,
+          });
+          tagNames.add(routeTag);
+        }
+      }
     }
 
     return tags;

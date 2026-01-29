@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "data": {
+    "namespaces": [
+      "default",
+      "kube-system",
+      "kube-public",
+      "kube-node-lease",
+      "monitoring",
+      "logging",
+      "database",
+      "production",
+      "staging"
+    ]
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}
