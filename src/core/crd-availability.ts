@@ -4,10 +4,10 @@
  * Checks once per MCP server lifecycle if Solution CRD is available,
  * then caches the result globally to avoid repeated cluster queries.
  *
- * PRD #343: Uses plugin system for K8s operations (MCP server has no RBAC)
+ * PRD #359: Uses unified plugin registry for K8s operations
  */
 
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 
 /**
  * Singleton cache for CRD availability check
@@ -16,7 +16,6 @@ import type { PluginManager } from './plugin-manager';
 class CRDAvailabilityCache {
   private static instance: CRDAvailabilityCache;
   private crdAvailable: boolean | null = null;
-  private pluginManager: PluginManager | null = null;
 
   private constructor() {}
 
@@ -27,21 +26,14 @@ class CRDAvailabilityCache {
     return CRDAvailabilityCache.instance;
   }
 
-  /**
-   * Set plugin manager for K8s operations
-   */
-  setPluginManager(pluginManager: PluginManager): void {
-    this.pluginManager = pluginManager;
-  }
-
   async isSolutionCRDAvailable(): Promise<boolean> {
     // Return cached result if available
     if (this.crdAvailable !== null) {
       return this.crdAvailable;
     }
 
-    // PRD #343: All K8s operations go through plugin
-    if (!this.pluginManager) {
+    // PRD #359: All K8s operations go through unified plugin registry
+    if (!isPluginInitialized()) {
       console.log('ℹ️  Plugin system not available - Solution CR generation disabled');
       this.crdAvailable = false;
       return false;
@@ -51,7 +43,7 @@ class CRDAvailabilityCache {
     const crdName = 'solutions.dot-ai.devopstoolkit.live';
 
     try {
-      const response = await this.pluginManager.invokeTool('kubectl_get_resource_json', {
+      const response = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
         resource: `crd/${crdName}`
       });
 
@@ -106,14 +98,10 @@ class CRDAvailabilityCache {
 /**
  * Helper function for checking CRD availability
  * Use this function throughout the codebase
- *
- * @param pluginManager - Optional plugin manager. If provided on first call, will be cached.
+ * PRD #359: No longer requires pluginManager parameter - uses unified registry
  */
-export async function isSolutionCRDAvailable(pluginManager?: PluginManager): Promise<boolean> {
+export async function isSolutionCRDAvailable(): Promise<boolean> {
   const cache = CRDAvailabilityCache.getInstance();
-  if (pluginManager) {
-    cache.setPluginManager(pluginManager);
-  }
   return cache.isSolutionCRDAvailable();
 }
 

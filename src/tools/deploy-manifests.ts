@@ -12,7 +12,7 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
 import { extractUserAnswers } from '../core/solution-utils';
 import { HelmChartInfo } from '../core/helm-types';
-import type { PluginManager } from '../core/plugin-manager';
+import { invokePluginTool } from '../core/plugin-registry';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -47,12 +47,14 @@ export const DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA = {
  * Direct MCP tool handler for deployManifests functionality
  * PRD #343: pluginManager required for kubectl operations
  */
+/**
+ * PRD #359: Uses unified plugin registry for kubectl operations
+ */
 export async function handleDeployManifestsTool(
   args: { solutionId: string; timeout?: number },
   dotAI: DotAI,
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -118,9 +120,9 @@ export async function handleDeployManifestsTool(
           requestId
         });
 
-        // PRD #343: All Helm operations go through plugin system
+        // PRD #359: All Helm operations go through unified plugin registry
         // First, add/update the Helm repository
-        const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+        const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
           name: chart.repositoryName,
           url: chart.repository
         });
@@ -130,7 +132,7 @@ export async function handleDeployManifestsTool(
         }
 
         // Deploy using helm_install with wait
-        const installResult = await pluginManager.invokeTool('helm_install', {
+        const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
           releaseName,
           chart: `${chart.repositoryName}/${chart.chartName}`,
           namespace,
@@ -218,12 +220,12 @@ export async function handleDeployManifestsTool(
       }
 
       // Capability-based solution: Use existing DeployOperation
-      // PRD #343: Pass pluginManager for kubectl operations
+      // PRD #359: Uses unified plugin registry for kubectl operations
       logger.info('Using capability-based deployment flow', {
         solutionId: args.solutionId
       });
 
-      const deployOp = new DeployOperation(pluginManager);
+      const deployOp = new DeployOperation();
 
       const deployOptions = {
         solutionId: args.solutionId,

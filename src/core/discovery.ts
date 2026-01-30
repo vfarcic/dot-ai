@@ -5,7 +5,7 @@
  */
 
 import * as yaml from 'yaml';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 
 export interface ClusterInfo {
   type: string;
@@ -101,25 +101,13 @@ export interface ClusterFingerprint {
 
 /**
  * PRD #343: KubernetesDiscovery simplified - all K8s operations go through plugin
+ * PRD #359: Uses unified plugin registry for all operations
  * No longer uses @kubernetes/client-node or kubeconfig directly.
  */
 export class KubernetesDiscovery {
-  private connected: boolean = false;
-  // PRD #343: Plugin manager for routing kubectl operations through plugin
-  private pluginManager?: PluginManager;
-
-  /**
-   * PRD #343: Set plugin manager for routing kubectl operations through plugin
-   * When set, all K8s operations route through the plugin
-   */
-  setPluginManager(pluginManager: PluginManager): void {
-    this.pluginManager = pluginManager;
-    // PRD #343: Mark as connected since all K8s operations go through plugin
-    this.connected = true;
-  }
-
   /**
    * Test connection to the cluster with detailed result
+   * PRD #359: Uses unified plugin registry
    */
   async testConnection(): Promise<{
     connected: boolean;
@@ -127,16 +115,15 @@ export class KubernetesDiscovery {
     error?: string;
     errorType?: string;
   }> {
-    // PRD #343: All K8s operations go through plugin
-    // If plugin is available, we're "connected" - actual failures happen at operation time
-    if (this.pluginManager) {
+    // PRD #359: Check if plugin system is initialized via unified registry
+    if (isPluginInitialized()) {
       return { connected: true };
     }
     return { connected: false, error: 'Plugin system not available' };
   }
 
   async getClusterInfo(): Promise<ClusterInfo> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -227,7 +214,7 @@ export class KubernetesDiscovery {
   }
 
   async discoverResources(): Promise<ResourceMap> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -256,17 +243,15 @@ export class KubernetesDiscovery {
   }
 
   /**
-   * Execute kubectl command with proper configuration
-   */
-  /**
    * Execute kubectl command via plugin
+   * PRD #359: Uses unified plugin registry
    */
   async executeKubectl(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available');
     }
 
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
 
     if (response.success) {
       // Extract data from response - plugin returns { success: true, result: { success: true, data: "..." } }
@@ -331,7 +316,7 @@ export class KubernetesDiscovery {
    * This is the single source of truth for CRD data - used by both full and targeted scans
    */
   async getCRDData(crdName: string): Promise<EnhancedCRD> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -341,7 +326,7 @@ export class KubernetesDiscovery {
   }
 
   async discoverCRDs(options?: { group?: string }): Promise<EnhancedCRD[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -370,7 +355,7 @@ export class KubernetesDiscovery {
 
 
   async getAPIResources(options?: { group?: string }): Promise<EnhancedResource[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
     
@@ -445,7 +430,7 @@ export class KubernetesDiscovery {
   }
 
   async explainResource(resource: string, options?: { field?: string }): Promise<string> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -469,7 +454,7 @@ export class KubernetesDiscovery {
    * @returns Cleaned YAML string suitable for AI prompts
    */
   async getCRDDefinition(crdName: string): Promise<string> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -519,11 +504,11 @@ export class KubernetesDiscovery {
     description?: string;
     priority?: number;
   }>> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available for getPrinterColumns');
     }
 
-    const response = await this.pluginManager.invokeTool('kubectl_get_printer_columns', {
+    const response = await invokePluginTool('agentic-tools', 'kubectl_get_printer_columns', {
       resourcePlural,
       apiVersion
     });
@@ -551,7 +536,7 @@ export class KubernetesDiscovery {
   }
 
   async fingerprintCluster(): Promise<ClusterFingerprint> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
     
@@ -755,7 +740,7 @@ export class KubernetesDiscovery {
   }
 
   async getResourceSchema(_kind: string, _apiVersion: string): Promise<any> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -772,18 +757,13 @@ export class KubernetesDiscovery {
   }
 
   async getNamespaces(): Promise<string[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
-    // PRD #343: ALL Kubernetes operations go through plugin
-    if (!this.pluginManager) {
-      throw new Error('Plugin system not available. getNamespaces requires agentic-tools plugin.');
-    }
-
     try {
-      // Use kubectl_exec_command for JSON output (kubectl_get strips -o json)
-      const response = await this.pluginManager.invokeTool('kubectl_exec_command', {
+      // PRD #359: Use unified plugin registry for kubectl operations
+      const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', {
         args: ['get', 'namespaces', '-o', 'json']
       });
 

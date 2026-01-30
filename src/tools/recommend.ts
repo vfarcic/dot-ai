@@ -173,12 +173,13 @@ export async function handleRecommendTool(
       }
 
       if (stage === 'generateManifests') {
-        // PRD #343: Pass pluginManager for kubectl operations
+        // PRD #359: Uses unified plugin registry for kubectl operations
         return await handleGenerateManifestsTool(args, dotAI, logger, requestId, pluginManager);
       }
 
       if (stage === 'deployManifests') {
-        return await handleDeployManifestsTool(args, dotAI, logger, requestId, pluginManager);
+        // PRD #359: Uses unified plugin registry for kubectl operations
+        return await handleDeployManifestsTool(args, dotAI, logger, requestId);
       }
 
       // Default: recommend stage (original recommend logic)
@@ -228,8 +229,8 @@ export async function handleRecommendTool(
       }
 
       // Initialize AI-powered ResourceRecommender with provider
-      // PRD #343: Pass pluginManager for kubectl operations
-      const recommender = new ResourceRecommender(dotAI.ai, pluginManager);
+      // PRD #359: Uses unified plugin registry for kubectl operations
+      const recommender = new ResourceRecommender(dotAI.ai);
 
       // Create discovery function
       const explainResourceFn = async (resource: string) => {

@@ -13,7 +13,6 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { AI_SERVICE_ERROR_TEMPLATES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import type { PluginManager } from '../core/plugin-manager';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternVectorService, CapabilityVectorService } from '../core/index';
 import { PolicyVectorService } from '../core/policy-vector-service';
@@ -220,8 +219,7 @@ async function handleFireAndForgetScan(
   args: any,
   logger: Logger,
   requestId: string,
-  capabilityService: CapabilityVectorService,
-  pluginManager?: PluginManager
+  capabilityService: CapabilityVectorService
 ): Promise<any> {
   const isFullScan = args.mode === 'full';
   const isTargetedScan = !!args.resourceList;
@@ -275,6 +273,7 @@ async function handleFireAndForgetScan(
   saveCapabilitySession(session);
 
   // Start scanning in background (don't await) - fire and forget
+  // PRD #359: Uses unified plugin registry for kubectl operations
   handleScanningCore(
     session,
     { ...args, response: undefined },
@@ -284,8 +283,7 @@ async function handleFireAndForgetScan(
     parseNumericResponse,
     transitionCapabilitySession,
     cleanupCapabilitySession,
-    createCapabilityScanCompletionResponse,
-    pluginManager
+    createCapabilityScanCompletionResponse
   ).catch(error => {
     logger.error('Background fire-and-forget scan failed', error as Error, {
       requestId,
@@ -318,20 +316,19 @@ async function handleFireAndForgetScan(
 
 /**
  * Handle capabilities operations - PRD #48 Implementation
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 async function handleCapabilitiesOperation(
   operation: string,
   args: any,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
+  requestId: string
 ): Promise<any> {
   logger.info('Capabilities operation requested', { requestId, operation });
 
   switch (operation) {
     case 'scan':
-      return await handleCapabilityScan(args, logger, requestId, pluginManager);
+      return await handleCapabilityScan(args, logger, requestId);
 
     case 'progress':
       return await handleCapabilityProgress(args, logger, requestId);
@@ -560,13 +557,12 @@ function cleanupCapabilitySession(session: CapabilityScanSession, args: any, log
 
 /**
  * Handle capability scanning workflow with step-based state management
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 async function handleCapabilityScan(
   args: any,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
+  requestId: string
 ): Promise<any> {
   // Validate Vector DB and embedding service dependencies upfront
   // This prevents users from going through the entire workflow only to fail at storage
@@ -686,7 +682,7 @@ async function handleCapabilityScan(
   const isFireAndForget = !args.sessionId && (args.mode === 'full' || args.resourceList);
 
   if (isFireAndForget) {
-    return await handleFireAndForgetScan(args, logger, requestId, capabilityService, pluginManager);
+    return await handleFireAndForgetScan(args, logger, requestId, capabilityService);
   }
 
   // ============================================================================
@@ -718,6 +714,7 @@ async function handleCapabilityScan(
   }
   
   // Handle workflow based on current step
+  // PRD #359: Uses unified plugin registry for kubectl operations
   switch (session.currentStep) {
     case 'resource-selection':
       return await handleResourceSelectionCore(
@@ -730,8 +727,7 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore,
-        pluginManager
+        handleScanningCore
       );
 
     case 'resource-specification':
@@ -745,8 +741,7 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore,
-        pluginManager
+        handleScanningCore
       );
 
     case 'scanning':
@@ -759,8 +754,7 @@ async function handleCapabilityScan(
         parseNumericResponse,
         transitionCapabilitySession,
         cleanupCapabilitySession,
-        createCapabilityScanCompletionResponse,
-        pluginManager
+        createCapabilityScanCompletionResponse
       );
 
     case 'complete':
@@ -796,13 +790,13 @@ async function handleCapabilityScan(
 
 /**
  * Main tool handler - routes to appropriate data type handler
+ * PRD #359: Uses unified plugin registry - no pluginManager parameter needed
  */
 export async function handleOrganizationalDataTool(
   args: any,
   _dotAI: DotAI | null,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
+  requestId: string
 ): Promise<any> {
   try {
     logger.info('Processing organizational-data tool request', { 
@@ -844,15 +838,15 @@ export async function handleOrganizationalDataTool(
     let result;
     switch (args.dataType) {
       case 'pattern':
-        result = await handlePatternOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
+        result = await handlePatternOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService);
         break;
 
       case 'policy':
-        result = await handlePolicyOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
+        result = await handlePolicyOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService);
         break;
-      
+
       case 'capabilities':
-        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId, pluginManager);
+        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
         break;
       
       default:

@@ -35,6 +35,7 @@ import {
 } from '../core/resource-tools';
 import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
+import { invokePluginTool } from '../core/plugin-registry';
 
 /**
  * HTTP status codes for REST responses
@@ -1045,7 +1046,8 @@ export class RestApiRouter {
       const resourceType = apiGroup ? `${kind.toLowerCase()}.${apiGroup}` : kind.toLowerCase();
       const resourceId = `${resourceType}/${name}`;
 
-      const pluginResponse = await this.pluginManager.invokeTool('kubectl_get_resource_json', {
+      // PRD #359: Use unified plugin registry for kubectl operations
+      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
         resource: resourceId,
         namespace: namespace
       });
@@ -1190,7 +1192,8 @@ export class RestApiRouter {
         fieldSelectors.push(`involvedObject.uid=${uid}`);
       }
 
-      const pluginResponse = await this.pluginManager.invokeTool('kubectl_events', {
+      // PRD #359: Use unified plugin registry for kubectl operations
+      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_events', {
         namespace: namespace,
         args: [`--field-selector=${fieldSelectors.join(',')}`]
       });
@@ -1320,7 +1323,8 @@ export class RestApiRouter {
         args.push('-c', container);
       }
 
-      const pluginResponse = await this.pluginManager.invokeTool('kubectl_logs', {
+      // PRD #359: Use unified plugin registry for kubectl operations
+      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_logs', {
         resource: name,
         namespace: namespace,
         args: args.length > 0 ? args : undefined

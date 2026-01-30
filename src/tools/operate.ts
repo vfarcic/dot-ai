@@ -280,9 +280,9 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
   try {
     // Route 1: Execute approved operation
     if (args.sessionId && args.executeChoice) {
-      // Import and delegate to execution workflow
+      // Import and delegate to execution workflow (PRD #359: uses unified registry)
       const { executeOperations } = await import('./operate-execution');
-      return await executeOperations(args.sessionId, logger, sessionManager, pluginManager);
+      return await executeOperations(args.sessionId, logger, sessionManager);
     }
 
     // Route 2: Refine intent with more context

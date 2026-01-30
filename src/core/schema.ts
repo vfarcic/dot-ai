@@ -7,7 +7,7 @@
 
 import { ResourceExplanation } from './discovery';
 import { AIProvider } from './ai-provider.interface';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
 import { VectorDBService } from './vector-db-service';
@@ -381,21 +381,22 @@ export class SchemaParser {
  * PRD #343: Supports plugin system for kubectl operations
  */
 export class ManifestValidator {
-  private pluginManager?: PluginManager;
-
-  constructor(pluginManager?: PluginManager) {
-    this.pluginManager = pluginManager;
+  /**
+   * PRD #359: Uses unified plugin registry for kubectl operations
+   */
+  constructor() {
+    // Plugin registry will be checked at operation time
   }
 
   /**
    * Execute kubectl via plugin system
-   * PRD #343: ALL Kubernetes operations go through plugin
+   * PRD #359: ALL Kubernetes operations go through unified plugin registry
    */
   private async executeKubectlViaPlugin(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
     }
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as any;
@@ -421,7 +422,7 @@ export class ManifestValidator {
   /**
    * Validate a manifest using kubectl dry-run
    * This uses the actual Kubernetes API server validation for accuracy
-   * PRD #343: Routes through plugin system when pluginManager is available
+   * PRD #359: Routes through unified plugin registry
    */
   async validateManifest(manifestPath: string, config?: { dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
     const errors: string[] = [];
@@ -430,18 +431,18 @@ export class ManifestValidator {
     try {
       const dryRunMode = config?.dryRunMode || 'server';
 
-      // PRD #343: Read manifest content and use kubectl_apply_dryrun tool
+      // PRD #359: Read manifest content and use kubectl_apply_dryrun tool via unified registry
       // File paths don't work across containers, so we pass content via plugin tool
       const fs = await import('fs');
       const yaml = await import('yaml');
       const manifestContent = fs.readFileSync(manifestPath, 'utf8');
 
-      if (!this.pluginManager) {
+      if (!isPluginInitialized()) {
         throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
       }
 
       // Use kubectl_apply_dryrun tool which accepts manifest content
-      const response = await this.pluginManager.invokeTool('kubectl_apply_dryrun', {
+      const response = await invokePluginTool('agentic-tools', 'kubectl_apply_dryrun', {
         manifest: manifestContent,
         dryRunMode: dryRunMode
       });
@@ -514,17 +515,15 @@ export class ManifestValidator {
 
 /**
  * ResourceRecommender determines which resources best meet user needs using AI
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 export class ResourceRecommender {
   private aiProvider: AIProvider;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
   private policyService?: PolicyVectorService;
-  // PRD #343: Plugin manager for K8s operations
-  private pluginManager?: PluginManager;
 
-  constructor(aiProvider?: AIProvider, pluginManager?: PluginManager) {
-    this.pluginManager = pluginManager;
+  constructor(aiProvider?: AIProvider) {
     // Use provided AI provider or create from environment
     this.aiProvider = aiProvider || (() => {
       // Lazy import to avoid circular dependencies
@@ -567,13 +566,13 @@ export class ResourceRecommender {
 
   /**
    * Execute kubectl via plugin system
-   * PRD #343: ALL Kubernetes operations go through plugin
+   * PRD #359: ALL Kubernetes operations go through unified plugin registry
    */
   private async executeKubectlViaPlugin(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available. ResourceRecommender requires agentic-tools plugin for kubectl operations.');
     }
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as any;

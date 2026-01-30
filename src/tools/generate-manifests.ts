@@ -23,9 +23,10 @@ import { generateSolutionCR } from '../core/solution-cr';
 import { HelmChartInfo } from '../core/helm-types';
 import { packageManifests, OutputFormat } from '../core/packaging';
 import { getVisualizationUrl } from '../core/visualization';
+import { invokePluginTool } from '../core/plugin-registry';
 import type { PluginManager } from '../core/plugin-manager';
 
-// PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
+// PRD #359: All helm operations via unified plugin registry
 
 /**
  * Ensure tmp directory exists
@@ -231,9 +232,9 @@ async function helmLint(
 
 /**
  * Validate manifests using multi-layer approach
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
-async function validateManifests(yamlPath: string, pluginManager: PluginManager): Promise<ValidationResult> {
+async function validateManifests(yamlPath: string): Promise<ValidationResult> {
   // First check if file exists
   if (!fs.existsSync(yamlPath)) {
     return {
@@ -257,8 +258,8 @@ async function validateManifests(yamlPath: string, pluginManager: PluginManager)
   }
 
   // 2. kubectl dry-run validation using ManifestValidator
-  // PRD #343: Pass pluginManager for kubectl operations
-  const validator = new ManifestValidator(pluginManager);
+  // PRD #359: Uses unified plugin registry for kubectl operations
+  const validator = new ManifestValidator();
   return await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
 }
 
@@ -414,13 +415,15 @@ ${errorContext.previousValues}
  * Validate Helm installation using dry-run via plugin
  * PRD #343: All Helm operations go through plugin system
  */
+/**
+ * PRD #359: Uses unified plugin registry for helm operations
+ */
 async function validateHelmInstallation(
   chart: HelmChartInfo,
   releaseName: string,
   namespace: string,
   valuesYaml: string,
-  logger: Logger,
-  pluginManager: PluginManager
+  logger: Logger
 ): Promise<ValidationResult> {
   logger.info('Running Helm dry-run validation via plugin', {
     chart: `${chart.repositoryName}/${chart.chartName}`,
@@ -429,8 +432,8 @@ async function validateHelmInstallation(
   });
 
   try {
-    // First, add/update the Helm repository
-    const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+    // PRD #359: First, add/update the Helm repository via unified registry
+    const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
       name: chart.repositoryName,
       url: chart.repository
     });
@@ -445,7 +448,7 @@ async function validateHelmInstallation(
     }
 
     // Run helm install with dry-run
-    const installResult = await pluginManager.invokeTool('helm_install', {
+    const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
       releaseName,
       chart: `${chart.repositoryName}/${chart.chartName}`,
       namespace,
@@ -553,14 +556,13 @@ async function handleHelmGeneration(
       fs.writeFileSync(attemptPath, valuesYaml, 'utf8');
 
       // Validate with helm dry-run via plugin
-      // PRD #343: Pass values content directly to plugin (no file path needed)
+      // PRD #359: Uses unified plugin registry - no pluginManager needed
       const validation = await validateHelmInstallation(
         chart,
         releaseName,
         namespace,
         valuesYaml,
-        logger,
-        pluginManager
+        logger
       );
 
       if (validation.valid) {
@@ -847,7 +849,7 @@ async function packageAndValidate(
       }
       fs.writeFileSync(renderedYamlPath, renderResult.yaml, 'utf8');
 
-      const validation = await validateManifests(renderedYamlPath, pluginManager);
+      const validation = await validateManifests(renderedYamlPath);
       if (validation.valid) {
         logger.info('Package validation successful', { format: outputFormat, attempt });
         cleanupPackageDir();
@@ -998,9 +1000,10 @@ export async function handleGenerateManifestsTool(
           );
 
           // Check if Solution CRD is available and generate Solution CR if present
+          // PRD #359: Uses unified plugin registry - no pluginManager param needed
           let solutionCR = '';
           try {
-            const crdAvailable = await isSolutionCRDAvailable(pluginManager);
+            const crdAvailable = await isSolutionCRDAvailable();
             if (crdAvailable) {
               solutionCR = generateSolutionCR({
                 solutionId: args.solutionId,
@@ -1042,8 +1045,8 @@ export async function handleGenerateManifestsTool(
           });
           
           // Validate manifests
-          // PRD #343: Pass pluginManager for kubectl operations
-          const validation = await validateManifests(yamlPath, pluginManager);
+          // PRD #359: Uses unified plugin registry for kubectl operations
+          const validation = await validateManifests(yamlPath);
           
           if (validation.valid) {
             logger.info('Manifest validation successful', {

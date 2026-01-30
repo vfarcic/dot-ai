@@ -18,7 +18,7 @@ import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
-import { PluginManager } from '../core/plugin-manager';
+import { getPluginManager, invokePluginTool } from '../core/plugin-registry';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -566,11 +566,11 @@ export function getTracingStatus(): SystemStatus['tracing'] {
 
 /**
  * Get Kubernetes status via plugin (PRD #343)
- * Uses kubectl_version plugin tool for K8s version information
+ * PRD #359: Uses unified plugin registry
  */
-async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kubernetes']> {
+async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes']> {
   try {
-    const response = await pluginManager.invokeTool('kubectl_version', {});
+    const response = await invokePluginTool('agentic-tools', 'kubectl_version', {});
 
     if (!response.success) {
       return {
@@ -617,12 +617,12 @@ async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promi
 
 /**
  * Get Kyverno status via plugin (PRD #343)
- * Uses kubectl_get_resource_json plugin tool for Kyverno resource checks
+ * PRD #359: Uses unified plugin registry
  */
-export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kyverno']> {
+export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno']> {
   try {
     // Check if Kyverno CRD exists (clusterpolicies.kyverno.io)
-    const crdResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const crdResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'crd/clusterpolicies.kyverno.io'
     });
 
@@ -650,7 +650,7 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
     let version: string | undefined;
 
     // Try to get kyverno-admission-controller deployment
-    const deploymentResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const deploymentResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'deployment/kyverno-admission-controller',
       namespace: 'kyverno'
     });
@@ -678,7 +678,7 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
 
     // Check webhook configuration
     let webhookReady = false;
-    const webhookResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const webhookResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'validatingwebhookconfiguration/kyverno-resource-validating-webhook-cfg'
     });
 
@@ -730,13 +730,12 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
 /**
  * Handle version tool request with comprehensive system diagnostics
  *
- * PRD #343: When pluginManager is provided, uses plugin system for all K8s interactions
+ * PRD #359: Uses unified plugin registry for all K8s interactions
  */
 export async function handleVersionTool(
   args: any,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
+  requestId: string
 ): Promise<any> {
   try {
     // Extract interaction_id for evaluation dataset generation
@@ -746,9 +745,9 @@ export async function handleVersionTool(
     
     // Get version info
     const version = getVersionInfo();
-    
-    // PRD #343: K8s interactions go through plugins only
-    // If plugins not available, K8s/Kyverno status reports as unavailable
+
+    // PRD #359: Check for K8s plugins via unified registry
+    const pluginManager = getPluginManager();
     const hasK8sPlugins = pluginManager?.isPluginTool('kubectl_version') ?? false;
 
     // Run all diagnostics in parallel for better performance
@@ -758,18 +757,18 @@ export async function handleVersionTool(
       getEmbeddingStatus(),
       getAIProviderStatus(interaction_id),
       hasK8sPlugins
-        ? getKubernetesStatusViaPlugin(pluginManager!)
+        ? getKubernetesStatusViaPlugin()
         : Promise.resolve({ connected: false, kubeconfig: 'unknown', error: 'Kubernetes plugins not available' } as SystemStatus['kubernetes']),
       getCapabilityStatus(),
       hasK8sPlugins
-        ? getKyvernoStatusViaPlugin(pluginManager!)
+        ? getKyvernoStatusViaPlugin()
         : Promise.resolve({ installed: false, policyGenerationReady: false, error: 'Kubernetes plugins not available' } as SystemStatus['kyverno'])
     ]);
 
     // Get tracing status synchronously (no async operations)
     const tracingStatus = getTracingStatus();
 
-    // PRD #343: Add plugin stats when pluginManager is available
+    // PRD #359: Add plugin stats via unified registry
     const pluginStats = pluginManager?.getStats();
 
     const systemStatus: SystemStatus = {

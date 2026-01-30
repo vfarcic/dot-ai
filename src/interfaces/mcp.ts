@@ -70,6 +70,7 @@ import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
 import { getTelemetry, McpClientInfo } from '../core/telemetry';
 import { PluginManager } from '../core/plugin-manager';
+import { isPluginInitialized } from '../core/plugin-registry';
 
 export interface MCPServerConfig {
   name: string;
@@ -102,11 +103,7 @@ export class MCPServer {
     this.config = config;
     this.logger = new ConsoleLogger('MCPServer');
     this.pluginManager = config.pluginManager;
-
-    // PRD #343: Connect pluginManager to dotAI for routing all kubectl operations through plugin
-    if (this.pluginManager) {
-      this.dotAI.setPluginManager(this.pluginManager);
-    }
+    // PRD #359: Plugin manager connected to unified registry in server.ts
 
     // Create McpServer instance
     this.server = new McpServer(
@@ -248,7 +245,7 @@ export class MCPServer {
         this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, {
           requestId,
         });
-        return await handleVersionTool(args, this.logger, requestId, this.pluginManager);
+        return await handleVersionTool(args, this.logger, requestId);
       },
       'System',
       ['version', 'diagnostics', 'status']
@@ -270,8 +267,7 @@ export class MCPServer {
           args,
           this.dotAI,
           this.logger,
-          requestId,
-          this.pluginManager
+          requestId
         );
       },
       'Management',
@@ -290,10 +286,10 @@ export class MCPServer {
           `Processing ${REMEDIATE_TOOL_NAME} tool request`,
           { requestId }
         );
-        if (!this.pluginManager) {
+        if (!isPluginInitialized()) {
           throw new Error('Plugin system not available. Remediate tool requires agentic-tools plugin for kubectl operations.');
         }
-        return await handleRemediateTool(args, this.pluginManager);
+        return await handleRemediateTool(args);
       },
       'Troubleshooting',
       ['remediation', 'troubleshooting', 'kubernetes', 'analysis']

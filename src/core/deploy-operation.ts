@@ -6,7 +6,7 @@
 import { access, readFile } from 'fs/promises';
 import { join } from 'path';
 import { ErrorHandler } from './error-handling';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 
 export interface DeployOptions {
   solutionId: string;
@@ -24,10 +24,13 @@ export interface DeployResult {
 }
 
 export class DeployOperation {
-  private pluginManager: PluginManager;
-
-  constructor(pluginManager: PluginManager) {
-    this.pluginManager = pluginManager;
+  /**
+   * PRD #359: Uses unified plugin registry for kubectl operations
+   */
+  constructor() {
+    if (!isPluginInitialized()) {
+      throw new Error('Plugin system not available. DeployOperation requires agentic-tools plugin.');
+    }
   }
 
   /**
@@ -83,10 +86,10 @@ export class DeployOperation {
 
   /**
    * Execute kubectl command via plugin
-   * PRD #343: All kubectl operations go through plugin
+   * PRD #359: All kubectl operations go through unified plugin registry
    */
   private async executeKubectl(args: string[]): Promise<string> {
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as any;
@@ -147,10 +150,10 @@ export class DeployOperation {
 
   /**
    * Apply manifest content using kubectl_apply tool
-   * PRD #343: Uses plugin's kubectl_apply tool with stdin
+   * PRD #359: Uses unified plugin registry's kubectl_apply tool with stdin
    */
   private async applyManifestContent(manifest: string): Promise<string> {
-    const response = await this.pluginManager.invokeTool('kubectl_apply', { manifest });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_apply', { manifest });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as any;

@@ -427,7 +427,7 @@ export class PluginManager {
   }
 
   /**
-   * Invoke a tool on its plugin
+   * Invoke a tool on its plugin (auto-routing by tool name)
    */
   async invokeTool(
     toolName: string,
@@ -448,6 +448,36 @@ export class PluginManager {
       };
     }
 
+    const client = this.plugins.get(pluginName);
+    if (!client) {
+      return {
+        sessionId: sessionId || '',
+        success: false,
+        error: {
+          code: 'PLUGIN_NOT_AVAILABLE',
+          message: `Plugin '${pluginName}' is not available`,
+        },
+        state,
+      };
+    }
+
+    return client.invoke(toolName, args, state, sessionId);
+  }
+
+  /**
+   * Invoke a tool on a specific plugin (explicit routing)
+   *
+   * PRD #359: Unified plugin invocation with explicit plugin specification.
+   * Use this when you know which plugin provides the tool, avoiding
+   * ambiguity when multiple plugins might have tools with the same name.
+   */
+  async invokeToolOnPlugin(
+    pluginName: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    state: Record<string, unknown> = {},
+    sessionId?: string
+  ): Promise<InvokeResponse> {
     const client = this.plugins.get(pluginName);
     if (!client) {
       return {

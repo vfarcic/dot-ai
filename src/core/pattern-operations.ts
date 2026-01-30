@@ -12,7 +12,6 @@ import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
 import { VectorDBService, PatternVectorService } from './index';
 import { getAndValidateSessionDirectory } from './session-utils';
-import type { PluginManager } from './plugin-manager';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -114,7 +113,7 @@ async function getPatternService(): Promise<PatternVectorService> {
 /**
  * Handle pattern operations with workflow support
  * Shared validation functions are passed as parameters to avoid circular dependencies
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 export async function handlePatternOperation(
   operation: string,
@@ -122,8 +121,7 @@ export async function handlePatternOperation(
   logger: Logger,
   requestId: string,
   validateVectorDBConnection: (vectorService: PatternVectorService, logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  pluginManager?: PluginManager
+  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>
 ): Promise<any> {
   // Get pattern service and validate Vector DB connection
   const patternService = await getPatternService();
@@ -155,7 +153,8 @@ export async function handlePatternOperation(
     }
   }
 
-  const sessionManager = new UnifiedCreationSessionManager('pattern', undefined, pluginManager);
+  // PRD #359: Uses unified plugin registry for kubectl operations
+  const sessionManager = new UnifiedCreationSessionManager('pattern');
 
   switch (operation) {
     case 'create': {

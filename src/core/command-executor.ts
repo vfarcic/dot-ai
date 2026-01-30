@@ -10,7 +10,7 @@
  */
 
 import { Logger } from './error-handling';
-import { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 
 /**
  * Execution result for a single command
@@ -36,21 +36,23 @@ export interface CommandExecutionOptions {
  * Execute a list of commands sequentially with continue-on-error pattern
  *
  * PRD #343: Commands are executed through the plugin's shell_exec tool.
+ * PRD #359: Uses unified plugin registry for tool invocation.
  * The plugin container has RBAC; commands are executed exactly as provided
  * (no parsing or transformation).
  *
  * @param commands - Array of command strings to execute
  * @param logger - Logger instance for tracking execution
- * @param pluginManager - Plugin manager for executing commands via plugin
  * @param options - Optional execution context and metadata
  * @returns Array of execution results and overall success status
  */
 export async function executeCommands(
   commands: string[],
   logger: Logger,
-  pluginManager: PluginManager,
   options: CommandExecutionOptions = {}
 ): Promise<{ results: CommandExecutionResult[]; overallSuccess: boolean }> {
+  if (!isPluginInitialized()) {
+    throw new Error('Plugin system not initialized');
+  }
   const results: CommandExecutionResult[] = [];
   let overallSuccess = true;
 
@@ -77,8 +79,8 @@ export async function executeCommands(
       // Clean up escape sequences that AI models sometimes add
       const cleanCommand = command.replace(/\\"/g, '"');
 
-      // PRD #343: Execute command via plugin's shell_exec tool
-      const response = await pluginManager.invokeTool('shell_exec', { command: cleanCommand });
+      // PRD #359: Execute command via unified plugin registry
+      const response = await invokePluginTool('agentic-tools', 'shell_exec', { command: cleanCommand });
 
       if (response.success) {
         // Check for nested error - plugin wraps command errors in { success: false, error: "..." }

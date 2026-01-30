@@ -10,7 +10,8 @@
 import { MCPServer } from '../interfaces/mcp.js';
 import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
-import { getTelemetry, shutdownTelemetry, setTelemetryPluginManager } from '../core/telemetry/index.js';
+import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
+import { initializePluginRegistry } from '../core/plugin-registry.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { PluginManager } from '../core/plugin-manager.js';
@@ -137,10 +138,10 @@ async function main() {
       process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
     }
 
-    // PRD #343: Set plugin manager for telemetry before first use
-    // This enables cluster ID generation via plugin instead of direct K8s client
+    // PRD #359: Initialize unified plugin registry for all plugin tool invocations
+    // This replaces scattered plugin manager passing (telemetry, vector tools, etc.)
     if (pluginConfigs.length > 0) {
-      setTelemetryPluginManager(pluginManager);
+      initializePluginRegistry(pluginManager);
     }
 
     // Create and configure MCP server

@@ -12,7 +12,6 @@ import { createAIProvider } from './ai-provider-factory';
 import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
 import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
-import type { PluginManager } from './plugin-manager';
 
 // PRD #343: CoreConfig simplified - kubernetesConfig removed since all K8s ops go through plugin
 export interface CoreConfig {
@@ -139,18 +138,8 @@ export class DotAI {
   isInitialized(): boolean {
     return this.initialized;
   }
-
-  getVersion(): string {
-    return '0.1.0';
-  }
-
-  /**
-   * PRD #343: Set plugin manager for routing kubectl operations through plugin
-   * Must be called before any Kubernetes operations are performed
-   */
-  setPluginManager(pluginManager: PluginManager): void {
-    this.discovery.setPluginManager(pluginManager);
-  }
+  // PRD #359: Plugin manager is now handled through the unified registry
+  // KubernetesDiscovery automatically uses the registry - no setPluginManager needed
 }
 
 // Re-export all modules for convenience
@@ -173,7 +162,7 @@ export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingPr
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
 export { CircuitBreaker, CircuitBreakerFactory, CircuitBreakerConfig, CircuitBreakerStats, CircuitState, CircuitOpenError } from './circuit-breaker';
 
-// Plugin system (PRD #343)
+// Plugin system (PRD #343, #359)
 export { PluginManager, PluginDiscoveryError } from './plugin-manager';
 export { PluginClient, PluginClientError } from './plugin-client';
 export {
@@ -185,6 +174,14 @@ export {
   InvokeErrorResponse,
   DiscoveredPlugin,
 } from './plugin-types';
+
+// Unified plugin registry (PRD #359)
+export {
+  initializePluginRegistry,
+  getPluginManager,
+  isPluginInitialized,
+  invokePluginTool,
+} from './plugin-registry';
 
 // Default export
 export default DotAI; 

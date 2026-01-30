@@ -9,7 +9,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-hand
 import { PolicyVectorService } from './policy-vector-service';
 import { VectorDBService } from './vector-db-service';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { VALIDATION_MESSAGES } from './constants/validation';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 
@@ -38,9 +38,10 @@ export async function getPolicyService(): Promise<PolicyVectorService> {
 /**
  * Execute kubectl command via plugin
  * PRD #343: All kubectl operations go through plugin
+ * PRD #359: Uses unified plugin registry
  */
-async function executeKubectlViaPlugin(pluginManager: PluginManager, args: string[]): Promise<string> {
-  const response = await pluginManager.invokeTool('kubectl_exec_command', { args });
+async function executeKubectlViaPlugin(args: string[]): Promise<string> {
+  const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
   if (response.success) {
     if (typeof response.result === 'object' && response.result !== null) {
       const result = response.result as any;
@@ -65,13 +66,12 @@ async function executeKubectlViaPlugin(pluginManager: PluginManager, args: strin
 
 /**
  * Find Kyverno policies by policy intent ID using label selector
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function findKyvernoPoliciesByPolicyId(
   policyId: string,
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<any[]> {
   try {
     logger.info('Searching for Kyverno policies by policy ID', {
@@ -79,7 +79,7 @@ export async function findKyvernoPoliciesByPolicyId(
       policyId
     });
 
-    const output = await executeKubectlViaPlugin(pluginManager, ['get', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`, '-o', 'json']);
+    const output = await executeKubectlViaPlugin(['get', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`, '-o', 'json']);
     
     const parsedOutput = JSON.parse(output || '{"items": []}');
     const policies = parsedOutput.items || [];
@@ -109,19 +109,18 @@ export async function findKyvernoPoliciesByPolicyId(
 
 /**
  * Find all Kyverno policies that have policy-intent/id labels
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function findAllKyvernoPoliciesForPolicyIntents(
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<any[]> {
   try {
     logger.info('Searching for all Kyverno policies with policy-intent labels', {
       requestId
     });
 
-    const output = await executeKubectlViaPlugin(pluginManager, ['get', 'clusterpolicy', '-l', 'policy-intent/id', '-o', 'json']);
+    const output = await executeKubectlViaPlugin(['get', 'clusterpolicy', '-l', 'policy-intent/id', '-o', 'json']);
     
     const parsedOutput = JSON.parse(output || '{"items": []}');
     const policies = parsedOutput.items || [];
@@ -150,13 +149,12 @@ export async function findAllKyvernoPoliciesForPolicyIntents(
 
 /**
  * Delete Kyverno policies by policy intent ID using label selector
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function deleteKyvernoPoliciesByPolicyId(
   policyId: string,
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<any> {
   try {
     logger.info('Deleting Kyverno policies by policy ID', {
@@ -164,7 +162,7 @@ export async function deleteKyvernoPoliciesByPolicyId(
       policyId
     });
 
-    const output = await executeKubectlViaPlugin(pluginManager, ['delete', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`]);
+    const output = await executeKubectlViaPlugin(['delete', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`]);
     
     logger.info('Kyverno policies deleted successfully', { 
       requestId, 
@@ -195,19 +193,18 @@ export async function deleteKyvernoPoliciesByPolicyId(
 
 /**
  * Delete all Kyverno policies that have policy-intent/id labels
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function deleteAllKyvernoPoliciesForPolicyIntents(
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<any> {
   try {
     logger.info('Deleting all Kyverno policies with policy-intent labels', {
       requestId
     });
 
-    const output = await executeKubectlViaPlugin(pluginManager, ['delete', 'clusterpolicy', '-l', 'policy-intent/id']);
+    const output = await executeKubectlViaPlugin(['delete', 'clusterpolicy', '-l', 'policy-intent/id']);
     
     logger.info('All Kyverno policies deleted successfully', { 
       requestId,
@@ -236,15 +233,14 @@ export async function deleteAllKyvernoPoliciesForPolicyIntents(
 
 /**
  * Handle individual policy delete with Kyverno cleanup
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function handlePolicyDelete(
   policyId: string,
   policyService: any,
   args: any,
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<any> {
   try {
     // Check if policy intent exists
@@ -260,7 +256,7 @@ export async function handlePolicyDelete(
     }
 
     // Check if there are deployed Kyverno policies with this policy ID
-    const kyvernoPolicies = await findKyvernoPoliciesByPolicyId(policyId, logger, requestId, pluginManager);
+    const kyvernoPolicies = await findKyvernoPoliciesByPolicyId(policyId, logger, requestId);
     
     if (kyvernoPolicies.length > 0 && !args.response) {
       // Show confirmation prompt for Kyverno cleanup
@@ -286,7 +282,7 @@ export async function handlePolicyDelete(
       const response = args.response.trim();
       if (response === '1' || response.toLowerCase().includes('delete everything')) {
         // Delete Kyverno policies from cluster
-        kyvernoCleanupResults = await deleteKyvernoPoliciesByPolicyId(policyId, logger, requestId, pluginManager);
+        kyvernoCleanupResults = await deleteKyvernoPoliciesByPolicyId(policyId, logger, requestId);
       }
     }
 
@@ -322,19 +318,18 @@ export async function handlePolicyDelete(
 
 /**
  * Handle deleteAll policies with batch Kyverno cleanup
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry
  */
 export async function handlePolicyDeleteAll(
   policyService: any,
   args: any,
   logger: Logger,
-  pluginManager: PluginManager,
   requestId: string
 ): Promise<any> {
   try {
     // Get all policy intents
     const allPolicyIntents = await policyService.getAllPolicyIntents();
-    
+
     if (!allPolicyIntents || allPolicyIntents.length === 0) {
       return {
         success: true,
@@ -346,7 +341,7 @@ export async function handlePolicyDeleteAll(
     }
 
     // Find all deployed Kyverno policies for all policy intents
-    const allKyvernoPolicies = await findAllKyvernoPoliciesForPolicyIntents(logger, requestId, pluginManager);
+    const allKyvernoPolicies = await findAllKyvernoPoliciesForPolicyIntents(logger, requestId);
     
     if (allKyvernoPolicies.length > 0 && !args.response) {
       // Show confirmation prompt for batch Kyverno cleanup
@@ -372,7 +367,7 @@ export async function handlePolicyDeleteAll(
       const response = args.response.trim();
       if (response === '1' || response.toLowerCase().includes('delete everything')) {
         // Delete all Kyverno policies from cluster
-        kyvernoCleanupResults = await deleteAllKyvernoPoliciesForPolicyIntents(logger, requestId, pluginManager);
+        kyvernoCleanupResults = await deleteAllKyvernoPoliciesForPolicyIntents(logger, requestId);
       }
     }
 
@@ -412,7 +407,7 @@ export async function handlePolicyDeleteAll(
 /**
  * Main policy operations handler - delegates to specific operation functions
  * Requires shared validation utilities to be passed as parameters to avoid circular imports
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 export async function handlePolicyOperation(
   operation: string,
@@ -420,8 +415,7 @@ export async function handlePolicyOperation(
   logger: Logger,
   requestId: string,
   validateVectorDBConnection: (vectorService: PolicyVectorService, logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  pluginManager?: PluginManager
+  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>
 ): Promise<any> {
   // Get policy service and validate Vector DB connection
   const policyService = await getPolicyService();
@@ -453,7 +447,7 @@ export async function handlePolicyOperation(
     }
   }
 
-  const sessionManager = new UnifiedCreationSessionManager('policy', undefined, pluginManager);
+  const sessionManager = new UnifiedCreationSessionManager('policy');
 
   switch (operation) {
     case 'create': {
@@ -671,19 +665,19 @@ export async function handlePolicyOperation(
         };
       }
 
-      if (!pluginManager) {
+      if (!isPluginInitialized()) {
         throw new Error('Plugin system not available. Policy delete requires agentic-tools plugin for kubectl operations.');
       }
 
-      return await handlePolicyDelete(args.id, policyService, args, logger, requestId, pluginManager);
+      return await handlePolicyDelete(args.id, policyService, args, logger, requestId);
     }
 
     case 'deleteAll': {
-      if (!pluginManager) {
+      if (!isPluginInitialized()) {
         throw new Error('Plugin system not available. Policy deleteAll requires agentic-tools plugin for kubectl operations.');
       }
 
-      return await handlePolicyDeleteAll(policyService, args, logger, pluginManager, requestId);
+      return await handlePolicyDeleteAll(policyService, args, logger, requestId);
     }
 
     default:
