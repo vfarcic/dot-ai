@@ -1,9 +1,9 @@
 # PRD: Guided Setup System for DevOps AI Toolkit
 
 **Created**: 2025-10-15
-**Status**: Planning - Ready to Start
-**Owner**: Viktor Farcic  
-**Last Updated**: 2025-10-15
+**Status**: Closed - Superseded by Kubernetes-only deployment (PRD #345)
+**Owner**: Viktor Farcic
+**Last Updated**: 2026-01-30
 **GitHub Issue**: [#165](https://github.com/vfarcic/dot-ai/issues/165)
 **Priority**: High
 **Complexity**: Medium
