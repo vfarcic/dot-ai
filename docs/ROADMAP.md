@@ -23,6 +23,7 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
+- MCP server integration for extended tool capabilities - observability, tracing, logging (PRD #358)
 - Knowledge base system - document ingestion, storage, and semantic search (PRD #356)
 - Policy extraction from knowledge base with human-in-the-loop review (PRD #357)
 - MCP tool filtering - server-side allow/deny lists to control tool exposure (PRD #347)
