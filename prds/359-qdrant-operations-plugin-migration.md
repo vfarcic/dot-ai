@@ -74,52 +74,123 @@ Extract Qdrant operations into the **existing agentic-tools plugin** while keepi
 
 ## Plugin Interface
 
-### New Tools to Add to agentic-tools
+### Architecture: Domain-Specific Tools with Shared Implementation
+
+The plugin exposes **domain-specific tools** (capabilities, patterns, policies, resources) rather than generic vector operations. This enables:
+1. **AI-friendly descriptions** - Tools describe what data they access, not storage mechanics
+2. **MCP flexibility** - Same tools can be called by MCP code or exposed to internal AI via toolLoop
+3. **Clean separation** - Plugin handles all Qdrant operations, MCP handles embeddings and orchestration
+
+Internally, domain tools call shared functions to avoid code duplication.
+
+```
+Plugin Structure:
+├── Internal shared functions (not exposed as tools):
+│   ├── search(collection, embedding, options)
+│   ├── query(collection, filter, options)
+│   ├── store(collection, id, embedding, payload)
+│   ├── get(collection, id)
+│   ├── delete(collection, id)
+│   └── list(collection, options)
+│
+└── Exposed tools (domain-specific):
+    ├── Capabilities (6 tools)
+    ├── Patterns (6 tools)
+    ├── Policies (6 tools)
+    ├── Resources (6 tools)
+    └── Collection management (2 tools)
+```
+
+### Capabilities Tools
 
 ```typescript
-// Store a vector with metadata
-vector_store: {
-  collection: string;      // e.g., "patterns", "capabilities"
-  id: string;              // document ID
-  vector: number[];        // pre-computed embedding from MCP
-  payload: Record<string, unknown>;  // metadata (searchText, etc.)
+// Semantic search for cluster capabilities
+search_capabilities: {
+  query: string;           // semantic query (e.g., "database", "message queue")
+  embedding: number[];     // pre-computed embedding from MCP
+  limit?: number;          // default: 10
 }
 
-// Semantic search with pre-computed query vector
-vector_search: {
-  collection: string;
-  vector: number[];        // query embedding from MCP
-  limit: number;
-  filter?: Record<string, unknown>;  // optional Qdrant filter
-  scoreThreshold?: number;
+// Filter-based query for capabilities
+query_capabilities: {
+  filter: Record<string, unknown>;  // Qdrant filter (provider, complexity, etc.)
+  limit?: number;          // default: 100
 }
 
-// Delete by ID
-vector_delete: {
-  collection: string;
+// Store a capability
+store_capability: {
   id: string;
+  embedding: number[];
+  payload: {
+    resourceName: string;
+    group: string;
+    apiVersion: string;
+    complexity: string;
+    providers: string[];
+    capabilities: string[];
+    description: string;
+    useCase: string;
+    searchText: string;
+  };
 }
 
-// Filter-only query (no embedding needed)
-vector_query_filter: {
-  collection: string;
-  filter: Record<string, unknown>;
-  limit: number;
-  offset?: number;
-}
+// Get capability by ID
+get_capability: { id: string; }
 
+// Delete capability by ID
+delete_capability: { id: string; }
+
+// List all capabilities
+list_capabilities: { limit?: number; }
+```
+
+### Patterns Tools
+
+```typescript
+search_patterns: { query: string; embedding: number[]; limit?: number; }
+query_patterns: { filter: Record<string, unknown>; limit?: number; }
+store_pattern: { id: string; embedding: number[]; payload: PatternPayload; }
+get_pattern: { id: string; }
+delete_pattern: { id: string; }
+list_patterns: { limit?: number; }
+```
+
+### Policies Tools
+
+```typescript
+search_policies: { query: string; embedding: number[]; limit?: number; }
+query_policies: { filter: Record<string, unknown>; limit?: number; }
+store_policy: { id: string; embedding: number[]; payload: PolicyPayload; }
+get_policy: { id: string; }
+delete_policy: { id: string; }
+list_policies: { limit?: number; }
+```
+
+### Resources Tools
+
+```typescript
+search_resources: { query: string; embedding: number[]; limit?: number; filter?: Record<string, unknown>; }
+query_resources: { filter: Record<string, unknown>; limit?: number; }
+store_resource: { id: string; embedding: number[]; payload: ResourcePayload; }
+get_resource: { id: string; }
+delete_resource: { id: string; }
+list_resources: { limit?: number; filter?: Record<string, unknown>; }
+```
+
+### Collection Management Tools
+
+```typescript
 // Initialize/ensure collection exists
 collection_initialize: {
   collection: string;
-  vectorSize: number;      // embedding dimensions
+  vectorSize: number;
   createTextIndex?: boolean;
 }
 
-// Get collection stats (for version/health reporting)
+// Get collection stats
 collection_stats: {
   collection: string;
 }
-```
 
 ---
 
@@ -129,15 +200,27 @@ collection_stats: {
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `QDRANT_URL` | `http://localhost:6333` | Qdrant server connection |
-| `QDRANT_API_KEY` | (none) | Authentication |
-| `QDRANT_CAPABILITIES_COLLECTION` | `capabilities` | Collection name override |
-| `QDRANT_RESOURCES_COLLECTION` | `resources` | Collection name override |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant server connection (auto-set by Helm chart) |
+| `QDRANT_API_KEY` | (none) | Authentication (optional, only for external Qdrant) |
+
+**Note:** Collection name overrides (`QDRANT_CAPABILITIES_COLLECTION`, `QDRANT_RESOURCES_COLLECTION`) stay in MCP server. The MCP server resolves the collection name and passes it to the plugin via tool args (e.g., `{collection: "capabilities"}`). The plugin just stores to whatever collection name it receives - no env var logic needed.
 
 ### Stays in MCP Server
 
 - All embedding-related config (`EMBEDDINGS_MODEL`, `OPENAI_API_KEY`, etc.)
-- No Qdrant-specific configuration remains
+- Collection name override env vars (`QDRANT_CAPABILITIES_COLLECTION`, `QDRANT_RESOURCES_COLLECTION`)
+- No direct Qdrant client code remains
+
+### Helm Chart Updates Required
+
+The Helm chart currently:
+- Passes `QDRANT_URL` to MCP server (will move to plugin)
+- Has `qdrant.external.apiKey` in values.yaml but **never propagates it** (dead config)
+
+Required changes:
+1. Add `QDRANT_URL` to agentic-tools plugin env vars (same auto-generation logic)
+2. Wire `QDRANT_API_KEY` to plugin if external Qdrant auth is needed
+3. Remove `QDRANT_URL` from MCP server deployment
 
 ---
 
@@ -205,14 +288,27 @@ Update `VectorDBService` to call plugin instead of Qdrant directly. All `*Vector
 
 ## Milestones
 
-- [ ] Add vector operation tools to agentic-tools plugin
-- [ ] Create plugin-based VectorDBService adapter in MCP server
-- [ ] Migrate all *VectorService classes to use plugin adapter
-- [ ] Update resource-sync-handler to use plugin
+### Phase 1: Add Domain Tools to Plugin
+- [x] Add shared internal functions (search, query, store, get, delete, list)
+- [ ] Add capabilities tools (search_capabilities, query_capabilities, store_capability, get_capability, delete_capability, list_capabilities)
+- [ ] Add patterns tools (search_patterns, query_patterns, store_pattern, get_pattern, delete_pattern, list_patterns)
+- [ ] Add policies tools (search_policies, query_policies, store_policy, get_policy, delete_policy, list_policies)
+- [ ] Add resources tools (search_resources, query_resources, store_resource, get_resource, delete_resource, list_resources)
+- [ ] Add collection management tools (collection_initialize, collection_stats)
+- [ ] Unit tests for all plugin tools
+
+### Phase 2: Migrate MCP to Use Plugin
+- [ ] Update CapabilityVectorService to call plugin tools
+- [ ] Update PatternVectorService to call plugin tools
+- [ ] Update PolicyVectorService to call plugin tools
+- [ ] Update ResourceVectorService to call plugin tools
+- [ ] Update capability-tools.ts to use plugin (search_capabilities, query_capabilities)
+- [ ] Update resource-tools.ts to use plugin (search_resources, query_resources)
 - [ ] Update MCP tools (organize-data, operate, version) to use plugin
+
+### Phase 3: Cleanup
 - [ ] Remove Qdrant dependencies from MCP server package.json
 - [ ] Update Helm chart to pass Qdrant config only to agentic-tools
-- [ ] Unit tests for new vector operation tools in agentic-tools plugin
 - [ ] All existing integration tests pass (pure refactoring - no behavioral changes)
 - [ ] Update umbrella PRD #342 (migration tracking, lessons learned, child PRDs)
 
@@ -234,6 +330,17 @@ Update `VectorDBService` to call plugin instead of Qdrant directly. All `*Vector
 - Adding new vector operations beyond current functionality
 - Multi-tenancy or collection isolation changes
 - Qdrant cluster/scaling configuration
+
+---
+
+## Decision Log
+
+| Date | Decision | Rationale | Impact |
+|------|----------|-----------|--------|
+| 2026-01-30 | Collection name overrides stay in MCP server, not plugin | MCP passes resolved collection name via tool args. Plugin is a pure storage layer with no business logic about which collection to use. Simplifies plugin interface. | Plugin only needs `QDRANT_URL` (required) and `QDRANT_API_KEY` (optional). Collection name override logic remains in MCP. |
+| 2026-01-30 | Fix dead `qdrant.external.apiKey` Helm config | Currently defined in values.yaml but never propagated. If external Qdrant auth is needed, must wire to plugin. | Helm chart milestone includes fixing this dead config. |
+| 2026-01-30 | Domain-specific tools instead of generic vector_* tools | Plugin tools are called by both MCP code AND internal AI agent via toolLoop. AI needs domain-aware descriptions ("search capabilities by concept") not storage mechanics ("vector similarity search"). Plugin doesn't distinguish callers - MCP decides which tools to expose where. | ~26 domain tools (capabilities, patterns, policies, resources) instead of 6 generic tools. Internal shared functions avoid code duplication. |
+| 2026-01-30 | Embeddings passed to plugin, not generated there | MCP already has AI provider configuration. Avoids API key duplication in plugin. Clean interface: MCP generates embedding, passes to plugin tool. | All search/store tools accept pre-computed `embedding` parameter from MCP. |
 
 ---
 
