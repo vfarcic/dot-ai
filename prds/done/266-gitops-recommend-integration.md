@@ -1,9 +1,12 @@
 # PRD: GitOps Integration in Recommend Workflow
 
 **Issue**: [#266](https://github.com/vfarcic/dot-ai/issues/266)
-**Status**: Draft
+**Status**: Closed - Superseded
 **Priority**: Medium
 **Created**: 2025-12-10
+**Closed**: 2026-01-30
+
+> **Note**: This PRD has been superseded. Instead of integrating with a standalone gitops tool, Git push capabilities will be built directly into the recommend tool. This simpler approach assumes users have existing Argo CD/Flux configured.
 
 ---
 
