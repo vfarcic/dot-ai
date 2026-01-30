@@ -1,9 +1,12 @@
 # PRD: GitOps Tool with Argo CD Support
 
 **Issue**: [#264](https://github.com/vfarcic/dot-ai/issues/264)
-**Status**: Draft
+**Status**: Closed - Superseded
 **Priority**: High
 **Created**: 2025-12-10
+**Closed**: 2026-01-30
+
+> **Note**: This PRD has been superseded by a new approach that integrates Git push capabilities directly into existing MCP tools (recommend, operate, remediate) rather than creating a standalone gitops tool. See discussion in issue #264.
 
 ---
 

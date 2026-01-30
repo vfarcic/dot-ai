@@ -1,9 +1,12 @@
 # PRD: Flux Support for GitOps Tool
 
 **Issue**: [#265](https://github.com/vfarcic/dot-ai/issues/265)
-**Status**: Draft
+**Status**: Closed - Superseded
 **Priority**: High
 **Created**: 2025-12-10
+**Closed**: 2026-01-30
+
+> **Note**: This PRD has been superseded. The standalone gitops tool approach (#264) was replaced with direct Git push integration into existing MCP tools. Flux support will be considered as part of that new approach.
 
 ---
 
