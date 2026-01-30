@@ -1,12 +1,13 @@
 # PRD: AI Provider Performance Comparison & Benchmarking
 
-**Status**: Draft
+**Status**: Closed - No Longer Needed
 **Priority**: Medium
 **GitHub Issue**: [#139](https://github.com/vfarcic/dot-ai/issues/139)
 **Created**: 2025-10-04
+**Closed**: 2026-01-30
 **Dependencies**:
 - ✅ [PRD 136: Tool-Based Agentic Architecture](./done/136-tool-based-agentic-architecture.md) - **COMPLETE** (2025-10-05)
-- ⏳ [PRD 137: OpenTelemetry Tracing](./137-opentelemetry-tracing.md) - **PENDING**
+- ✅ [PRD 137: OpenTelemetry Tracing](./done/137-opentelemetry-tracing.md) - **COMPLETE** (2025-10-30)
 
 ## Executive Summary
 
