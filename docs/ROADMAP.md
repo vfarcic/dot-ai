@@ -29,7 +29,6 @@ This roadmap is a living document and may change based on community feedback and
 - Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
 - Skills distribution via MCP - install-skills prompt and enhanced skill format (PRD #290)
 - Multi-step workflow distributed tracing (PRD #197)
-- Remediation observability integration (PRD #150)
 - Integrate patterns & policies into remediation tool (PRD #227)
 - Pattern & policy learning system with AI-driven suggestions (PRD #218)
 
