@@ -1,9 +1,10 @@
 # PRD: Remediation Observability Integration
 
 **Created**: 2025-10-06
-**Status**: Draft
+**Status**: Superseded
 **Owner**: Viktor Farcic
-**Last Updated**: 2025-10-06
+**Last Updated**: 2026-01-30
+**Closed**: 2026-01-30
 **GitHub Issue**: [#150](https://github.com/vfarcic/dot-ai/issues/150)
 **Priority**: Medium
 **Complexity**: High
