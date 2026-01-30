@@ -1,10 +1,13 @@
 # PRD 155: Parallel Capability Analysis
 
-**GitHub Issue**: [#155](https://github.com/vfarcic/dot-ai/issues/155)  
-**Status**: Planning  
-**Priority**: High  
-**Created**: 2025-10-12  
-**Last Updated**: 2025-10-12
+**GitHub Issue**: [#155](https://github.com/vfarcic/dot-ai/issues/155)
+**Status**: Complete (Superseded by Controller Architecture)
+**Priority**: High
+**Created**: 2025-10-12
+**Last Updated**: 2026-01-30
+**Closed**: 2026-01-30
+
+> **Note**: This PRD was closed without implementation in dot-ai because the problem is now solved by the [dot-ai-controller](https://github.com/vfarcic/dot-ai-controller) project. The controller runs capability scanning continuously in the background via the `CapabilityScanReconciler`, eliminating the need for client-side parallel processing entirely.
 
 ## Problem Statement
 
