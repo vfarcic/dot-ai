@@ -37,7 +37,8 @@ describe('Tool Definitions', () => {
 
   it('should have at least the core kubectl tools', () => {
     // Tool count may change as more tools are added
-    expect(TOOLS.length).toBeGreaterThanOrEqual(11);
+    // PRD #359: Now includes 8 vector tools
+    expect(TOOLS.length).toBeGreaterThanOrEqual(19);
   });
 
   it('should have matching handlers for all tools', () => {

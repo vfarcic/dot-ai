@@ -50,7 +50,7 @@ npm run test:integration version     # Run specific test by pattern
 
 **Temporary Files**: Always use `./tmp`, never `/tmp`
 
-**Test Clusters**: Store kubeconfig in `./tmp/kubeconfig.yaml`
+**Test Clusters**: Store kubeconfig in `./kubeconfig-test.yaml` (project root)
 
 **Git Commits**: Add `[skip ci]` when user requests to skip CI
 

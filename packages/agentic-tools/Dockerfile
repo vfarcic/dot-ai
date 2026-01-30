@@ -32,9 +32,9 @@ COPY --from=alpine/helm:4.0.4 /usr/bin/helm /usr/local/bin/helm
 RUN addgroup -g 10001 -S appgroup && \
     adduser -u 10001 -S appuser -G appgroup
 
-# Copy only the compiled JavaScript output
-# No runtime dependencies needed - uses only Node.js built-ins
+# Copy compiled JavaScript and production dependencies
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
 
 # Set ownership to non-root user
 RUN chown -R appuser:appgroup /app
