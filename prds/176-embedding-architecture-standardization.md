@@ -1,7 +1,8 @@
 # PRD #176: Standardize Embedding Architecture on Vercel AI SDK
 
-**Status**: Draft
+**Status**: Completed
 **Created**: 2025-10-22
+**Completed**: 2026-01-30
 **GitHub Issue**: [#176](https://github.com/vfarcic/dot-ai/issues/176)
 **Priority**: Medium
 **Related**: PRD #175 (Bedrock Provider Support)
