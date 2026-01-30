@@ -12,7 +12,6 @@ This roadmap is a living document and may change based on community feedback and
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Guided setup system to simplify onboarding (PRD #165)
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)
-- Dynamic credential management for multi-user MCP deployments (PRD #180)
 - Deployment documentation & example-based learning (PRD #228)
 - GitOps tool with Argo CD support - standalone package detection and Application generation (PRD #264)
 - Flux support for GitOps tool (PRD #265)

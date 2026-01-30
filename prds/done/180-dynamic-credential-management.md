@@ -1,10 +1,17 @@
 # PRD: Dynamic Credential Management for MCP Multi-User Support
 
-**Status**: Planning
+**Status**: Superseded
 **Priority**: High
 **GitHub Issue**: [#180](https://github.com/vfarcic/dot-ai/issues/180)
 **Created**: 2025-10-24
-**Last Updated**: 2025-10-24
+**Last Updated**: 2026-01-30
+**Closed**: 2026-01-30
+
+> **Note**: This PRD has been superseded. After analysis, it was determined that this PRD conflates two distinct concerns that should be addressed separately:
+> 1. **User Authentication & Access Control** - Verifying user identity and restricting MCP access
+> 2. **User-Specific Permissions** - Extracting permissions from kubeconfig, applying to DB queries and AI prompts
+>
+> Additionally, the original PRD missed a critical requirement: the AI's view of cluster data must be scoped to the user's permissions, not just operations. New PRDs will be created to address these concerns properly.
 
 ---
 
