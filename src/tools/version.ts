@@ -18,7 +18,7 @@ import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
-import { isPluginInitialized, invokePluginTool } from '../core/plugin-registry';
+import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -786,7 +786,7 @@ export async function handleVersionTool(
     const tracingStatus = getTracingStatus();
 
     // PRD #359: Add plugin stats via unified registry
-    const pluginStats = pluginManager?.getStats();
+    const pluginStats = getPluginManager()?.getStats();
 
     const systemStatus: SystemStatus = {
       version,
