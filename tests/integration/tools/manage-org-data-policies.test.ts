@@ -916,7 +916,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for get operation', async () => {
-      const nonExistentId = 'non-existent-policy-id-12345';
+      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
+      const nonExistentId = '00000000-0000-0000-0000-000000012345';
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
@@ -930,9 +931,10 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         data: {
           result: {
             success: false,
-            error: expect.objectContaining({
-              message: expect.stringContaining('Failed to get document')
-            })
+            operation: 'get',
+            dataType: 'policy',
+            message: expect.stringContaining('Policy intent not found'),
+            error: 'Policy intent not found'
           }
         }
       };
@@ -941,7 +943,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for delete operation', async () => {
-      const nonExistentId = 'non-existent-policy-id-67890';
+      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
+      const nonExistentId = '00000000-0000-0000-0000-000000067890';
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
@@ -955,7 +958,10 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         data: {
           result: {
             success: false,
-            error: expect.stringContaining('Failed to get document')
+            operation: 'delete',
+            dataType: 'policy',
+            message: expect.stringContaining('Policy intent not found'),
+            error: 'Policy intent not found'
           }
         }
       };

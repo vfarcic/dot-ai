@@ -6,7 +6,6 @@
  */
 
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
-import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
 import { CapabilityInferenceEngine, ResourceCapability, PrinterColumn } from './capabilities';
 
@@ -23,8 +22,8 @@ export interface CapabilitySearchOptions extends BaseSearchOptions {
  */
 export class CapabilityVectorService extends BaseVectorService<ResourceCapability> {
 
-  constructor(collectionName: string = 'capabilities', vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super(collectionName, vectorDB, embeddingService);
+  constructor(collectionName: string = 'capabilities', embeddingService?: EmbeddingService) {
+    super(collectionName, embeddingService);
   }
 
   /**

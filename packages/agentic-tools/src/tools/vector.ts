@@ -22,9 +22,11 @@ import {
   query,
   get,
   remove,
+  removeAll,
   list,
   initializeCollection,
   getCollectionStats,
+  searchByKeywords,
 } from '../qdrant/operations';
 
 /**
@@ -314,14 +316,90 @@ export const collectionStats: QdrantTool = {
 };
 
 /**
+ * vector_delete_all - Delete all documents from a collection
+ */
+export const vectorDeleteAll: QdrantTool = {
+  definition: {
+    name: 'vector_delete_all',
+    type: 'agentic',
+    description:
+      'Delete all documents from a collection. Preserves the collection structure (schema, indexes) but removes all points.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collection: { type: 'string', description: 'Collection name to clear' },
+      },
+      required: ['collection'],
+    },
+  },
+  handler: withQdrantValidation(async (args) => {
+    const collection = requireQdrantParam<string>(args, 'collection', 'vector_delete_all');
+
+    try {
+      await removeAll(collection);
+      return qdrantSuccessResult({ collection }, `Deleted all documents from '${collection}'`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return qdrantErrorResult(message, `Failed to delete all documents from '${collection}': ${message}`);
+    }
+  }),
+};
+
+/**
+ * vector_search_keywords - Keyword-based search with scoring
+ */
+export const vectorSearchKeywords: QdrantTool = {
+  definition: {
+    name: 'vector_search_keywords',
+    type: 'agentic',
+    description:
+      'Search for documents using keyword matching. Scores results based on keyword matches in searchText and triggers fields. Does not require an embedding vector.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collection: { type: 'string', description: 'Collection name to search in' },
+        keywords: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Keywords to search for',
+        },
+        limit: { type: 'number', description: 'Maximum number of results to return (default: 10)' },
+        filter: { type: 'object', description: 'Optional Qdrant filter for additional filtering' },
+      },
+      required: ['collection', 'keywords'],
+    },
+  },
+  handler: withQdrantValidation(async (args) => {
+    const collection = requireQdrantParam<string>(args, 'collection', 'vector_search_keywords');
+    const keywords = requireQdrantParam<string[]>(args, 'keywords', 'vector_search_keywords');
+    const limit = optionalQdrantParam<number>(args, 'limit', 10);
+    const filter = optionalQdrantParam<Record<string, unknown> | undefined>(args, 'filter', undefined);
+
+    if (!Array.isArray(keywords)) {
+      return qdrantErrorResult('keywords must be an array', 'vector_search_keywords requires keywords as an array');
+    }
+
+    try {
+      const results = await searchByKeywords(collection, keywords, { limit, filter });
+      return qdrantSuccessResult(results, `Found ${results.length} documents matching keywords in '${collection}'`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return qdrantErrorResult(message, `Keyword search failed in '${collection}': ${message}`);
+    }
+  }),
+};
+
+/**
  * All vector tools for registration
  */
 export const VECTOR_TOOLS: QdrantTool[] = [
   vectorSearch,
+  vectorSearchKeywords,
   vectorStore,
   vectorQuery,
   vectorGet,
   vectorDelete,
+  vectorDeleteAll,
   vectorList,
   collectionInitialize,
   collectionStats,

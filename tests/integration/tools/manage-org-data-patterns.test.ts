@@ -596,7 +596,8 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
     });
 
     test('should handle non-existent pattern ID for get operation', async () => {
-      const nonExistentId = 'non-existent-pattern-id-12345';
+      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
+      const nonExistentId = '00000000-0000-0000-0000-000000012345';
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'pattern',
@@ -611,7 +612,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
           result: {
             success: false,
             error: {
-              message: expect.stringContaining('Failed to get document')
+              message: expect.stringContaining('Pattern not found with ID')
             }
           }
         }
@@ -621,7 +622,8 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
     });
 
     test('should handle non-existent pattern ID for delete operation', async () => {
-      const nonExistentId = 'non-existent-pattern-id-67890';
+      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
+      const nonExistentId = '00000000-0000-0000-0000-000000067890';
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'pattern',
@@ -636,7 +638,7 @@ describe.concurrent('ManageOrgData - Patterns Integration', () => {
           result: {
             success: false,
             error: {
-              message: expect.stringContaining('Failed to get document')
+              message: expect.stringContaining('Pattern not found with ID')
             }
           }
         }

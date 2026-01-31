@@ -5,7 +5,6 @@
  * Extends BaseVectorService for organizational patterns
  */
 
-import { VectorDBService } from './vector-db-service';
 import { OrganizationalPattern } from './pattern-types';
 import { EmbeddingService } from './embedding-service';
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
@@ -14,8 +13,8 @@ export interface PatternSearchOptions extends BaseSearchOptions {}
 export interface PatternSearchResult extends BaseSearchResult<OrganizationalPattern> {}
 
 export class PatternVectorService extends BaseVectorService<OrganizationalPattern> {
-  constructor(collectionName: string = 'patterns', vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super(collectionName, vectorDB, embeddingService);
+  constructor(collectionName: string = 'patterns', embeddingService?: EmbeddingService) {
+    super(collectionName, embeddingService);
   }
 
   // Implement abstract methods from BaseVectorService

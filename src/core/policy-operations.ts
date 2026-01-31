@@ -7,7 +7,6 @@
 
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-handling';
 import { PolicyVectorService } from './policy-vector-service';
-import { VectorDBService } from './vector-db-service';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { VALIDATION_MESSAGES } from './constants/validation';
@@ -533,11 +532,10 @@ export async function handlePolicyOperation(
       if (isComplete && hasPolicy) {
         try {
           await policyService.storePolicyIntent(workflowStep.data.policy);
-          const vectorDBConfig = new VectorDBService({ collectionName: 'policies' }).getConfig();
           storageInfo = {
             stored: true,
-            vectorDbUrl: vectorDBConfig.url,
-            collectionName: vectorDBConfig.collectionName,
+            vectorDbUrl: process.env.QDRANT_URL || 'http://localhost:6333',
+            collectionName: 'policies',
             policyId: workflowStep.data.policy.id
           };
           

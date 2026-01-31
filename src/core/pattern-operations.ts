@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-handling';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
-import { VectorDBService, PatternVectorService } from './index';
+import { PatternVectorService } from './index';
 import { getAndValidateSessionDirectory } from './session-utils';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -240,17 +240,17 @@ export async function handlePatternOperation(
       if (isComplete && hasPattern) {
         try {
           await patternService.storePattern(workflowStep.data.pattern);
-          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
+          const vectorDbUrl = process.env.QDRANT_URL || 'http://localhost:6333';
           storageInfo = {
             stored: true,
-            vectorDbUrl: vectorDBConfig.url,
-            collectionName: vectorDBConfig.collectionName,
+            vectorDbUrl,
+            collectionName: 'patterns',
             patternId: workflowStep.data.pattern.id
           };
-          logger.info('Pattern stored in Vector DB successfully', { 
-            requestId, 
+          logger.info('Pattern stored in Vector DB successfully', {
+            requestId,
             patternId: workflowStep.data.pattern.id,
-            vectorDbUrl: vectorDBConfig.url
+            vectorDbUrl
           });
 
           // Clean up session file after successful Vector DB storage
@@ -275,16 +275,16 @@ export async function handlePatternOperation(
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
+          const vectorDbUrl = process.env.QDRANT_URL || 'http://localhost:6333';
           storageInfo = {
             stored: false,
             error: errorMessage,
-            vectorDbUrl: vectorDBConfig.url,
-            collectionName: vectorDBConfig.collectionName,
+            vectorDbUrl,
+            collectionName: 'patterns',
             patternId: workflowStep.data.pattern.id
           };
-          logger.error('Failed to store pattern in Vector DB', error as Error, { 
-            requestId, 
+          logger.error('Failed to store pattern in Vector DB', error as Error, {
+            requestId,
             patternId: workflowStep.data.pattern.id,
             error: errorMessage
           });

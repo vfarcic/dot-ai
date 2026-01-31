@@ -5,7 +5,6 @@
  * Extends BaseVectorService for policy intents
  */
 
-import { VectorDBService } from './vector-db-service';
 import { PolicyIntent } from './organizational-types';
 import { EmbeddingService } from './embedding-service';
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
@@ -14,8 +13,8 @@ export interface PolicySearchOptions extends BaseSearchOptions {}
 export interface PolicySearchResult extends BaseSearchResult<PolicyIntent> {}
 
 export class PolicyVectorService extends BaseVectorService<PolicyIntent> {
-  constructor(vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super('policies', vectorDB, embeddingService);
+  constructor(embeddingService?: EmbeddingService) {
+    super('policies', embeddingService);
   }
 
   // Implement abstract methods from BaseVectorService

@@ -78,6 +78,8 @@ export interface CollectionStats {
   status: string;
   /** Whether the collection exists */
   exists: boolean;
+  /** Qdrant URL (PRD #359) */
+  url: string;
 }
 
 /**
@@ -88,4 +90,14 @@ export interface InitializeCollectionOptions {
   vectorSize: number;
   /** Create text index on searchText field (default: true) */
   createTextIndex?: boolean;
+}
+
+/**
+ * Options for keyword-based search
+ */
+export interface KeywordSearchOptions {
+  /** Maximum results to return (default: 10) */
+  limit?: number;
+  /** Qdrant filter object for additional filtering */
+  filter?: Record<string, unknown>;
 }

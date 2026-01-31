@@ -12,7 +12,7 @@ import { join } from 'path';
 import { z } from 'zod';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
+import { PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
@@ -139,49 +139,53 @@ export interface VersionSessionData extends BaseVisualizationData {
 
 /**
  * Test Vector DB connectivity and get status for all collections
+ * PRD #359: Uses plugin for all Qdrant operations, URL comes from plugin
  */
 async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
-  // Create a test service just to get connection config
-  const testVectorDB = new VectorDBService({ collectionName: 'test' });
-  const config = testVectorDB.getConfig();
-  
+  const fallbackUrl = 'unknown';
+
   try {
-    // Test basic Vector DB connectivity (independent of collections)
-    const isHealthy = await testVectorDB.healthCheck();
-    if (!isHealthy) {
+    // Test basic Vector DB connectivity via plugin
+    const healthResponse = await invokePluginTool('agentic-tools', 'collection_stats', {
+      collection: 'capabilities', // Use any collection for health check
+    });
+
+    if (!healthResponse.success) {
       return {
         connected: false,
-        url: config.url || 'unknown',
+        url: fallbackUrl,
         error: 'Health check failed - Vector DB not responding',
         collections: {
           patterns: { exists: false, error: 'Vector DB not accessible' },
           policies: { exists: false, error: 'Vector DB not accessible' },
           capabilities: { exists: false, error: 'Vector DB not accessible' },
-          resources: { exists: false, error: 'Vector DB not accessible' }
-        }
+          resources: { exists: false, error: 'Vector DB not accessible' },
+        },
       };
     }
 
+    // Extract URL from plugin response (PRD #359)
+    const toolResult = healthResponse.result as { success?: boolean; data?: { url?: string } };
+    const url = toolResult?.data?.url || fallbackUrl;
+
     // Test each collection separately
     const embeddingService = new EmbeddingService();
-    
+
     // Test patterns collection
     const patternsStatus = await testCollectionStatus('patterns', () => {
-      const patternVectorDB = new VectorDBService({ collectionName: 'patterns' });
-      const patternService = new PatternVectorService('patterns', patternVectorDB, embeddingService);
+      const patternService = new PatternVectorService('patterns', embeddingService);
       return patternService.getPatternsCount();
     });
 
     // Test policies collection
     const policiesStatus = await testCollectionStatus('policies', () => {
-      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
-      const policyService = new PolicyVectorService(policyVectorDB, embeddingService);
+      const policyService = new PolicyVectorService(embeddingService);
       return policyService.getDataCount();
     });
 
     // Test capabilities collection
     const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
-      const capabilityService = new CapabilityVectorService();
+      const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
       return capabilityService.getCapabilitiesCount();
     });
 
@@ -190,25 +194,25 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
 
     return {
       connected: true,
-      url: config.url || 'unknown',
+      url,
       collections: {
         patterns: patternsStatus,
         policies: policiesStatus,
         capabilities: capabilitiesStatus,
-        resources: resourcesStatus
-      }
+        resources: resourcesStatus,
+      },
     };
   } catch (error) {
     return {
       connected: false,
-      url: config.url || 'unknown',
+      url: fallbackUrl,
       error: error instanceof Error ? error.message : String(error),
       collections: {
         patterns: { exists: false, error: 'Vector DB connection failed' },
         policies: { exists: false, error: 'Vector DB connection failed' },
         capabilities: { exists: false, error: 'Vector DB connection failed' },
-        resources: { exists: false, error: 'Vector DB connection failed' }
-      }
+        resources: { exists: false, error: 'Vector DB connection failed' },
+      },
     };
   }
 }
@@ -248,8 +252,7 @@ async function testResourcesCollectionStatus(
   embeddingService: EmbeddingService
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
   try {
-    const resourceVectorDB = new VectorDBService({ collectionName: 'resources' });
-    const resourceService = new ResourceVectorService('resources', resourceVectorDB, embeddingService);
+    const resourceService = new ResourceVectorService('resources', embeddingService);
 
     const resources = await resourceService.listResources();
     const documentsCount = resources.length;

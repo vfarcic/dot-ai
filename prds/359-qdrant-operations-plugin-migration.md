@@ -220,8 +220,8 @@ Required changes:
 
 | File | Change |
 |------|--------|
-| `src/core/vector-db-service.ts` | Replace Qdrant client calls with plugin invocations |
-| `src/core/base-vector-service.ts` | Update to call plugin for storage/search |
+| `src/core/vector-db-service.ts` | ~~Replace Qdrant client calls with plugin invocations~~ **DELETED** - was "wrapper of a wrapper" |
+| `src/core/base-vector-service.ts` | ✅ Now calls plugin directly via `invokePluginTool()` |
 | `src/core/pattern-vector-service.ts` | Remove direct Qdrant dependency |
 | `src/core/policy-vector-service.ts` | Remove direct Qdrant dependency |
 | `src/core/capability-vector-service.ts` | Remove direct Qdrant dependency |
@@ -347,19 +347,19 @@ Update `VectorDBService` to call plugin via the unified registry instead of Qdra
 - [x] ~~Verify kubectl/helm tools can optionally use `getPluginManager()` or continue receiving as parameter~~ **Exceeded scope**: All kubectl/helm/shell tools now use unified registry with explicit plugin name
 - [ ] Add documentation for the unified pattern
 
-### Phase 3: Migrate MCP to Use Plugin
-- [ ] Update VectorDBService to call plugin tools via `invokePluginTool()`
-- [ ] Update CapabilityVectorService (uses VectorDBService, minimal changes expected)
-- [ ] Update PatternVectorService (uses VectorDBService, minimal changes expected)
-- [ ] Update PolicyVectorService (uses VectorDBService, minimal changes expected)
-- [ ] Update ResourceVectorService (uses VectorDBService, minimal changes expected)
-- [ ] Update schema.ts for collection initialization via plugin
-- [ ] Update version.ts for collection stats via plugin
+### Phase 3: Migrate MCP to Use Plugin ✅
+- [x] ~~Update VectorDBService to call plugin tools via `invokePluginTool()`~~ **DELETED** - BaseVectorService calls plugin directly (see Decision Log)
+- [x] Update CapabilityVectorService (uses BaseVectorService, no changes needed)
+- [x] Update PatternVectorService (uses BaseVectorService, no changes needed)
+- [x] Update PolicyVectorService (uses BaseVectorService, no changes needed)
+- [x] Update ResourceVectorService (uses BaseVectorService, no changes needed)
+- [x] Update schema.ts for collection initialization via plugin
+- [x] Update version.ts for collection stats via plugin (gets Qdrant URL from plugin response)
 
 ### Phase 4: Cleanup
-- [ ] Remove Qdrant dependencies from MCP server package.json
-- [ ] Update Helm chart to pass Qdrant config only to agentic-tools
-- [ ] All existing integration tests pass (pure refactoring - no behavioral changes)
+- [x] Remove Qdrant dependencies from MCP server package.json (VectorDBService deleted, no direct Qdrant calls remain)
+- [x] Update Helm chart to pass Qdrant config only to agentic-tools
+- [x] All existing integration tests pass (136 tests passed - pure refactoring, no behavioral changes)
 - [ ] Update umbrella PRD #342 (migration tracking, lessons learned, child PRDs)
 
 ---
@@ -394,6 +394,7 @@ Update `VectorDBService` to call plugin via the unified registry instead of Qdra
 | 2026-01-30 | **Generic tools in plugin, domain logic in MCP** | AI agents cannot generate embeddings, so exposing embedding-dependent tools (search_*, store_*) to AI would confuse them. Domain-specific tools with embedding params only make sense for MCP programmatic calls. Simpler to have generic tools in plugin that MCP calls, keeping domain knowledge (capabilities, patterns, etc.) in MCP. | Plugin has ~8 generic tools (vector_search, vector_store, etc.) instead of ~26 domain tools. MCP's *VectorService classes call generic plugin tools. Plugin is replaceable (users can swap vector DB backend). |
 | 2026-01-30 | **Unify plugin tool invocation before adding vector tools** | Current codebase has inconsistent patterns: kubectl/helm tools receive `pluginManager` as parameter, telemetry uses module-level setter. Adding vector tools with yet another pattern would increase complexity. Future plugin tools should follow one consistent pattern. | New Phase 2 added to create unified plugin registry. Telemetry migrates to unified pattern first, then vector tools follow same pattern. Single `initializePluginRegistry()` call at startup replaces multiple setters. |
 | 2026-01-30 | **True unification: explicit plugin+tool in all invocations** | Original plan allowed kubectl/helm to "optionally" continue using parameter passing. During implementation, decided to fully unify ALL plugin tool calls to use `invokePluginTool('plugin-name', 'tool-name', args)`. Removes ~100 `pluginManager` parameter passings across codebase. | All plugin invocations now explicit: `invokePluginTool('agentic-tools', 'kubectl_exec_command', {...})`. Enables future multi-plugin scenarios where different tools come from different plugins. Removed `setPluginManager()` methods from multiple classes. |
+| 2026-01-31 | **Delete VectorDBService entirely** | Original plan was to update VectorDBService to call plugin. During implementation, realized VectorDBService was a "wrapper of a wrapper" - BaseVectorService already handles all domain logic (embeddings, hybrid search). VectorDBService just forwarded calls. Eliminating it simplifies architecture. | BaseVectorService now calls plugin directly via `invokePluginTool()`. Removed ~200 lines of unnecessary abstraction. All `*VectorService` classes (Capability, Pattern, Policy, Resource) extend BaseVectorService unchanged. |
 
 ---
 

@@ -153,8 +153,7 @@ export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
 export { BaseOrganizationalEntity, PolicyIntent, CreatePolicyIntentRequest, DeployedPolicyReference } from './organizational-types';
 export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
 // Removed obsolete pattern creation types - now using unified creation system
-export { VectorDBService, VectorDBConfig, VectorDocument, SearchResult } from './vector-db-service';
-export { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
+export { BaseVectorService, BaseSearchOptions, BaseSearchResult, VectorDocument } from './base-vector-service';
 export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
 export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './policy-vector-service';
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';

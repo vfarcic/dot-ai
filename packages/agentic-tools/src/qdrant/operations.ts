@@ -5,7 +5,7 @@
  * These are NOT exposed as tools directly - domain tools call these functions.
  */
 
-import { getQdrantClient } from './client';
+import { getQdrantClient, getQdrantConfig } from './client';
 import type {
   VectorDocument,
   SearchResult,
@@ -339,6 +339,7 @@ async function ensureTextIndex(collection: string): Promise<void> {
  */
 export async function getCollectionStats(collection: string): Promise<CollectionStats> {
   const client = getQdrantClient();
+  const { url } = getQdrantConfig();
 
   // Check if collection exists
   const collections = await client.getCollections();
@@ -350,6 +351,7 @@ export async function getCollectionStats(collection: string): Promise<Collection
       vectorSize: 0,
       status: 'not_found',
       exists: false,
+      url: url || 'unknown',
     };
   }
 
@@ -369,6 +371,7 @@ export async function getCollectionStats(collection: string): Promise<Collection
     vectorSize,
     status: info.status || 'unknown',
     exists: true,
+    url: url || 'unknown',
   };
 }
 
@@ -385,6 +388,135 @@ export async function healthCheck(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Search for documents using keyword matching with scoring
+ *
+ * Uses Qdrant's native text index for efficient server-side filtering,
+ * then scores results based on keyword matches in searchText and triggers fields.
+ *
+ * @param collection - Collection name
+ * @param keywords - Keywords to search for
+ * @param options - Search options
+ * @returns Array of search results with scores
+ */
+export async function searchByKeywords(
+  collection: string,
+  keywords: string[],
+  options: { limit?: number; filter?: Record<string, unknown> } = {}
+): Promise<SearchResult[]> {
+  if (keywords.length === 0) {
+    return [];
+  }
+
+  const client = getQdrantClient();
+  const limit = options.limit ?? 10;
+
+  // Build Qdrant filter for text search
+  // Use "should" (OR) to match any keyword in searchText or triggers
+  const keywordConditions: Record<string, unknown>[] = [];
+
+  for (const keyword of keywords) {
+    // Text match on searchText field (uses text index)
+    keywordConditions.push({
+      key: 'searchText',
+      match: { text: keyword },
+    });
+
+    // Match on triggers array (for patterns/policies)
+    keywordConditions.push({
+      key: 'triggers',
+      match: { any: [keyword, keyword.toLowerCase()] },
+    });
+  }
+
+  // Combine keyword conditions with any user-provided filter
+  const filter: Record<string, unknown> = {
+    should: keywordConditions,
+  };
+
+  // If user provided additional filters, merge them properly
+  if (options.filter) {
+    const userFilter = options.filter as Record<string, unknown>;
+    // Merge must conditions
+    if (userFilter.must) {
+      filter.must = Array.isArray(userFilter.must) ? userFilter.must : [userFilter.must];
+    }
+    // Preserve must_not conditions
+    if (userFilter.must_not) {
+      filter.must_not = userFilter.must_not;
+    }
+    // If user filter has should conditions, wrap in must to AND with keyword should
+    if (userFilter.should) {
+      filter.must = [...((filter.must as unknown[]) || []), { should: userFilter.should }];
+    }
+  }
+
+  // Use scroll with native Qdrant filtering
+  const scrollResult = await client.scroll(collection, {
+    limit: limit * 10, // Get more candidates for scoring
+    with_payload: true,
+    with_vector: false,
+    filter,
+  });
+
+  // Score the filtered results
+  const scoredPoints = scrollResult.points
+    .map((point) => {
+      if (!point.payload) return null;
+
+      const searchText = ((point.payload.searchText as string) || '').toLowerCase();
+      const triggers = Array.isArray(point.payload.triggers)
+        ? (point.payload.triggers as string[]).map((t) => t.toLowerCase())
+        : [];
+
+      // Count keyword matches for scoring
+      let matchCount = 0;
+      let exactMatch = false;
+
+      for (const keyword of keywords) {
+        const kw = keyword.toLowerCase();
+
+        // Check searchText
+        if (searchText.includes(kw)) {
+          matchCount++;
+          const wordPattern = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
+          if (wordPattern.test(searchText)) {
+            exactMatch = true;
+          }
+        }
+
+        // Check triggers
+        if (triggers.some((t) => t.includes(kw) || kw.includes(t))) {
+          matchCount++;
+        }
+      }
+
+      if (matchCount === 0) return null;
+
+      const baseScore = matchCount / keywords.length;
+      const score = exactMatch ? Math.min(1.0, baseScore + 0.3) : baseScore;
+
+      return { point, score };
+    })
+    .filter((item): item is { point: (typeof scrollResult.points)[0]; score: number } => item !== null)
+    .sort((a, b) => b.score - a.score);
+
+  const limitedResults = scoredPoints.slice(0, limit);
+
+  return limitedResults.map(({ point, score }) => ({
+    id: point.id.toString(),
+    score,
+    payload: (point.payload as Record<string, unknown>) || {},
+  }));
 }
 
 /**

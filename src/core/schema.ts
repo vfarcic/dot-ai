@@ -10,7 +10,6 @@ import { AIProvider } from './ai-provider.interface';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
-import { VectorDBService } from './vector-db-service';
 import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
@@ -531,35 +530,32 @@ export class ResourceRecommender {
       return createAIProvider();
     })();
     
-    // Initialize capability service - fail gracefully if Vector DB unavailable
+    // Initialize capability service - fail gracefully if plugin unavailable
     try {
       // Use environment variable for collection name (allows using test data collection)
       const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
-      const capabilityVectorDB = new VectorDBService({ collectionName });
-      this.capabilityService = new CapabilityVectorService(collectionName, capabilityVectorDB);
-      console.log(`✅ Capability service initialized with Vector DB (collection: ${collectionName})`);
+      this.capabilityService = new CapabilityVectorService(collectionName);
+      console.log(`✅ Capability service initialized (collection: ${collectionName})`);
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, capabilities disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, capabilities disabled:', error);
       this.capabilityService = undefined;
     }
-    
-    // Initialize pattern service only if Vector DB is available
+
+    // Initialize pattern service
     try {
-      const vectorDB = new VectorDBService({ collectionName: 'patterns' });
-      this.patternService = new PatternVectorService('patterns', vectorDB);
-      console.log('✅ Pattern service initialized with Vector DB');
+      this.patternService = new PatternVectorService('patterns');
+      console.log('✅ Pattern service initialized');
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, patterns disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, patterns disabled:', error);
       this.patternService = undefined;
     }
-    
-    // Initialize policy service only if Vector DB is available
+
+    // Initialize policy service
     try {
-      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
-      this.policyService = new PolicyVectorService(policyVectorDB);
-      console.log('✅ Policy service initialized with Vector DB');
+      this.policyService = new PolicyVectorService();
+      console.log('✅ Policy service initialized');
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, policies disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, policies disabled:', error);
       this.policyService = undefined;
     }
   }

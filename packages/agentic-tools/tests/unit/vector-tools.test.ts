@@ -15,10 +15,12 @@ import * as operations from '../../src/qdrant/operations';
 vi.mock('../../src/qdrant/operations', async () => {
   return {
     search: vi.fn(),
+    searchByKeywords: vi.fn(),
     store: vi.fn(),
     query: vi.fn(),
     get: vi.fn(),
     remove: vi.fn(),
+    removeAll: vi.fn(),
     list: vi.fn(),
     initializeCollection: vi.fn(),
     getCollectionStats: vi.fn(),
@@ -30,10 +32,12 @@ describe('Vector Tool Definitions', () => {
     const toolNames = TOOLS.map((t) => t.name);
 
     expect(toolNames).toContain('vector_search');
+    expect(toolNames).toContain('vector_search_keywords');
     expect(toolNames).toContain('vector_store');
     expect(toolNames).toContain('vector_query');
     expect(toolNames).toContain('vector_get');
     expect(toolNames).toContain('vector_delete');
+    expect(toolNames).toContain('vector_delete_all');
     expect(toolNames).toContain('vector_list');
     expect(toolNames).toContain('collection_initialize');
     expect(toolNames).toContain('collection_stats');
@@ -42,10 +46,12 @@ describe('Vector Tool Definitions', () => {
   it('should have matching handlers for all vector tools', () => {
     const vectorToolNames = [
       'vector_search',
+      'vector_search_keywords',
       'vector_store',
       'vector_query',
       'vector_get',
       'vector_delete',
+      'vector_delete_all',
       'vector_list',
       'collection_initialize',
       'collection_stats',
@@ -60,10 +66,12 @@ describe('Vector Tool Definitions', () => {
   describe('Tool definition structure', () => {
     const vectorToolNames = [
       'vector_search',
+      'vector_search_keywords',
       'vector_store',
       'vector_query',
       'vector_get',
       'vector_delete',
+      'vector_delete_all',
       'vector_list',
       'collection_initialize',
       'collection_stats',
@@ -100,10 +108,12 @@ describe('Vector Tool Definitions', () => {
 
 describe('Vector Tool Handlers', () => {
   const mockSearch = vi.mocked(operations.search);
+  const mockSearchByKeywords = vi.mocked(operations.searchByKeywords);
   const mockStore = vi.mocked(operations.store);
   const mockQuery = vi.mocked(operations.query);
   const mockGet = vi.mocked(operations.get);
   const mockRemove = vi.mocked(operations.remove);
+  const mockRemoveAll = vi.mocked(operations.removeAll);
   const mockList = vi.mocked(operations.list);
   const mockInitializeCollection = vi.mocked(operations.initializeCollection);
   const mockGetCollectionStats = vi.mocked(operations.getCollectionStats);
@@ -191,6 +201,98 @@ describe('Vector Tool Handlers', () => {
       expect(result).toMatchObject({
         success: false,
         error: 'Connection failed',
+      });
+    });
+  });
+
+  describe('vector_search_keywords', () => {
+    it('should require collection parameter', async () => {
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      const result = await handler({ keywords: ['test'] });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
+    });
+
+    it('should require keywords parameter', async () => {
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      const result = await handler({ collection: 'test' });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('keywords'),
+      });
+    });
+
+    it('should call searchByKeywords with correct parameters', async () => {
+      mockSearchByKeywords.mockResolvedValue([
+        { id: 'doc-1', score: 0.9, payload: { text: 'test' } },
+      ]);
+
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      const result = await handler({
+        collection: 'capabilities',
+        keywords: ['postgres', 'database'],
+        limit: 5,
+      });
+
+      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['postgres', 'database'], {
+        limit: 5,
+        filter: undefined,
+      });
+      expect(result).toMatchObject({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({ id: 'doc-1', score: 0.9 }),
+        ]),
+      });
+    });
+
+    it('should use default values when optional params not provided', async () => {
+      mockSearchByKeywords.mockResolvedValue([]);
+
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      await handler({
+        collection: 'capabilities',
+        keywords: ['test'],
+      });
+
+      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['test'], {
+        limit: 10,
+        filter: undefined,
+      });
+    });
+
+    it('should pass filter when provided', async () => {
+      mockSearchByKeywords.mockResolvedValue([]);
+
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      await handler({
+        collection: 'capabilities',
+        keywords: ['test'],
+        filter: { must: [{ key: 'type', match: { value: 'db' } }] },
+      });
+
+      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['test'], {
+        limit: 10,
+        filter: { must: [{ key: 'type', match: { value: 'db' } }] },
+      });
+    });
+
+    it('should handle errors', async () => {
+      mockSearchByKeywords.mockRejectedValue(new Error('Search failed'));
+
+      const handler = TOOL_HANDLERS['vector_search_keywords'];
+      const result = await handler({
+        collection: 'capabilities',
+        keywords: ['test'],
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Search failed',
       });
     });
   });
@@ -382,6 +484,47 @@ describe('Vector Tool Handlers', () => {
       expect(result).toMatchObject({
         success: false,
         error: 'Delete failed',
+      });
+    });
+  });
+
+  describe('vector_delete_all', () => {
+    it('should require collection parameter', async () => {
+      const handler = TOOL_HANDLERS['vector_delete_all'];
+      const result = await handler({});
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
+    });
+
+    it('should call removeAll with correct parameters', async () => {
+      mockRemoveAll.mockResolvedValue(undefined);
+
+      const handler = TOOL_HANDLERS['vector_delete_all'];
+      const result = await handler({
+        collection: 'capabilities',
+      });
+
+      expect(mockRemoveAll).toHaveBeenCalledWith('capabilities');
+      expect(result).toMatchObject({
+        success: true,
+        data: { collection: 'capabilities' },
+      });
+    });
+
+    it('should handle errors', async () => {
+      mockRemoveAll.mockRejectedValue(new Error('Delete all failed'));
+
+      const handler = TOOL_HANDLERS['vector_delete_all'];
+      const result = await handler({
+        collection: 'capabilities',
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Delete all failed',
       });
     });
   });

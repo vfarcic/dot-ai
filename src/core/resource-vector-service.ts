@@ -10,7 +10,6 @@
 
 import { createHash } from 'crypto';
 import { BaseVectorService } from './base-vector-service';
-import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
 
 /**
@@ -220,10 +219,9 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
 
   constructor(
     collectionName: string = 'resources',
-    vectorDB?: VectorDBService,
     embeddingService?: EmbeddingService
   ) {
-    super(collectionName, vectorDB, embeddingService);
+    super(collectionName, embeddingService);
   }
 
   /**
