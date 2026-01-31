@@ -246,7 +246,11 @@ export async function initializeCollection(
     }
 
     if (existingVectorSize && existingVectorSize !== vectorSize) {
-      // Dimension mismatch - recreate collection
+      // Dimension mismatch - recreate collection (embedding model likely changed)
+      console.warn(
+        `Collection '${collection}' has vector size ${existingVectorSize}, but ${vectorSize} requested. ` +
+        `Recreating collection (embedding model likely changed).`
+      );
       await client.deleteCollection(collection);
       await createCollection(collection, vectorSize, createTextIndex);
     } else if (createTextIndex) {

@@ -48,9 +48,9 @@ npm run test:integration version     # Run specific test by pattern
 
 **AI Prompts**: Store in `prompts/` (internal) or `shared-prompts/` (user-facing). Never hardcode.
 
-**Temporary Files**: Always use `./tmp`, never `/tmp`
+**Temporary Files**: Always use `./tmp` for any temporary files, never `/tmp`
 
-**Test Clusters**: Store kubeconfig in `./kubeconfig-test.yaml` (project root)
+**Test Clusters**: Integration tests create `./kubeconfig-test.yaml` in project root
 
 **Git Commits**: Add `[skip ci]` when user requests to skip CI
 

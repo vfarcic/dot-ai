@@ -400,7 +400,7 @@ export class MCPServer {
 
     // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.
     // They are internal implementation details used by built-in tools like remediate/query.
-    // Plugin tools remain available internally via pluginManager.invokeTool().
+    // Plugin tools are invoked via invokePluginTool() from the unified registry.
     // Only the 7 built-in MCP tools are exposed to clients.
 
     const builtInTools = [

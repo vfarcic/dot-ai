@@ -614,7 +614,7 @@ export async function handlePolicyOperation(
       }
 
       // Always check if workflow is complete and store policy in Vector DB
-      let storageInfo: { stored?: boolean; error?: string; vectorDbUrl?: string; collectionName?: string; policyId?: string } = {};
+      let storageInfo: { stored?: boolean; error?: string; collectionName?: string; policyId?: string } = {};
 
       const isComplete = !('nextStep' in workflowStep) || !workflowStep.nextStep; // Complete when no next step
       const workflowData = workflowStep.data as { policy?: { id: string; description: string } } | undefined;
@@ -632,7 +632,6 @@ export async function handlePolicyOperation(
           await policyService.storePolicyIntent(workflowData!.policy as Parameters<typeof policyService.storePolicyIntent>[0]);
           storageInfo = {
             stored: true,
-            vectorDbUrl: process.env.QDRANT_URL || 'http://localhost:6333',
             collectionName: 'policies',
             policyId: workflowData!.policy!.id
           };

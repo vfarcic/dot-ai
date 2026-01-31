@@ -37,7 +37,7 @@ import {
 } from '../core/resource-tools';
 import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
-import { invokePluginTool } from '../core/plugin-registry';
+import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
 
 /**
  * HTTP status codes for REST responses
@@ -880,14 +880,15 @@ export class RestApiRouter {
       const result = await listResources({ kind, apiVersion, namespace, limit, offset });
 
       // Enrich with live status via plugin if requested
-      if (includeStatus && result.resources.length > 0 && this.pluginManager?.isPluginTool('kubectl_get_resource_json')) {
+      // PRD #359: Use unified plugin registry
+      if (includeStatus && result.resources.length > 0 && isPluginInitialized()) {
         const statusPromises = result.resources.map(async (resource) => {
           const resourceType = resource.apiGroup
             ? `${resource.kind.toLowerCase()}.${resource.apiGroup}`
             : resource.kind.toLowerCase();
           const resourceId = `${resourceType}/${resource.name}`;
 
-          const pluginResponse = await this.pluginManager!.invokeTool('kubectl_get_resource_json', {
+          const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
             resource: resourceId,
             namespace: resource.namespace,
             field: 'status'
@@ -1032,14 +1033,14 @@ export class RestApiRouter {
       // Extract apiGroup from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
       const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
 
-      // PRD #343: Use plugin for kubectl operations
-      if (!this.pluginManager?.isPluginTool('kubectl_get_resource_json')) {
+      // PRD #359: Use unified plugin registry
+      if (!isPluginInitialized()) {
         await this.sendErrorResponse(
           res,
           requestId,
           HttpStatus.SERVICE_UNAVAILABLE,
           'PLUGIN_UNAVAILABLE',
-          'Kubernetes plugin not available'
+          'Plugin system not initialized'
         );
         return;
       }
@@ -1173,14 +1174,14 @@ export class RestApiRouter {
 
       this.logger.info('Processing get events request', { requestId, name, kind, namespace, uid });
 
-      // PRD #343: Use plugin for kubectl operations
-      if (!this.pluginManager?.isPluginTool('kubectl_events')) {
+      // PRD #359: Use unified plugin registry
+      if (!isPluginInitialized()) {
         await this.sendErrorResponse(
           res,
           requestId,
           HttpStatus.SERVICE_UNAVAILABLE,
           'PLUGIN_UNAVAILABLE',
-          'Kubernetes plugin not available'
+          'Plugin system not initialized'
         );
         return;
       }
@@ -1304,14 +1305,14 @@ export class RestApiRouter {
 
       this.logger.info('Processing get logs request', { requestId, name, namespace, container, tailLines });
 
-      // PRD #343: Use plugin for kubectl operations
-      if (!this.pluginManager?.isPluginTool('kubectl_logs')) {
+      // PRD #359: Use unified plugin registry
+      if (!isPluginInitialized()) {
         await this.sendErrorResponse(
           res,
           requestId,
           HttpStatus.SERVICE_UNAVAILABLE,
           'PLUGIN_UNAVAILABLE',
-          'Kubernetes plugin not available'
+          'Plugin system not initialized'
         );
         return;
       }

@@ -18,7 +18,7 @@ import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
-import { getPluginManager, invokePluginTool } from '../core/plugin-registry';
+import { isPluginInitialized, invokePluginTool } from '../core/plugin-registry';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -764,9 +764,8 @@ export async function handleVersionTool(
     // Get version info
     const version = getVersionInfo();
 
-    // PRD #359: Check for K8s plugins via unified registry
-    const pluginManager = getPluginManager();
-    const hasK8sPlugins = pluginManager?.isPluginTool('kubectl_version') ?? false;
+    // PRD #359: Check for plugins via unified registry
+    const hasK8sPlugins = isPluginInitialized();
 
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId, hasK8sPlugins });

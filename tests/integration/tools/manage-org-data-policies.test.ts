@@ -8,6 +8,7 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Policies Integration', () => {
@@ -916,8 +917,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for get operation', async () => {
-      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
-      const nonExistentId = '00000000-0000-0000-0000-000000012345';
+      // Use random UUID to avoid collisions in parallel test runs
+      const nonExistentId = randomUUID();
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
@@ -943,8 +944,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for delete operation', async () => {
-      // Use a valid UUID format - Qdrant requires IDs to be integers or UUIDs
-      const nonExistentId = '00000000-0000-0000-0000-000000067890';
+      // Use random UUID to avoid collisions in parallel test runs
+      const nonExistentId = randomUUID();
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',

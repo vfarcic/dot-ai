@@ -16,8 +16,8 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Build TypeScript to JavaScript
-RUN npm run build
+# Build TypeScript to JavaScript and prune dev dependencies
+RUN npm run build && npm prune --omit=dev
 
 # Runtime stage - minimal image with no build tools
 FROM node:20-alpine

@@ -273,17 +273,14 @@ export async function handlePatternOperation(
       if (isComplete && hasPattern) {
         try {
           await patternService.storePattern(workflowData!.pattern!);
-          const vectorDbUrl = process.env.QDRANT_URL || 'http://localhost:6333';
           storageInfo = {
             stored: true,
-            vectorDbUrl,
             collectionName: 'patterns',
             patternId: workflowData!.pattern!.id
           };
           logger.info('Pattern stored in Vector DB successfully', {
             requestId,
-            patternId: workflowData!.pattern!.id,
-            vectorDbUrl
+            patternId: workflowData!.pattern!.id
           });
 
           // Clean up session file after successful Vector DB storage
@@ -308,11 +305,9 @@ export async function handlePatternOperation(
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          const vectorDbUrl = process.env.QDRANT_URL || 'http://localhost:6333';
           storageInfo = {
             stored: false,
             error: errorMessage,
-            vectorDbUrl,
             collectionName: 'patterns',
             patternId: workflowData!.pattern!.id
           };

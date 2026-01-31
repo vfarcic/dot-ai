@@ -427,44 +427,6 @@ export class PluginManager {
   }
 
   /**
-   * Invoke a tool on its plugin (auto-routing by tool name)
-   */
-  async invokeTool(
-    toolName: string,
-    args: Record<string, unknown>,
-    state: Record<string, unknown> = {},
-    sessionId?: string
-  ): Promise<InvokeResponse> {
-    const pluginName = this.toolToPlugin.get(toolName);
-    if (!pluginName) {
-      return {
-        sessionId: sessionId || '',
-        success: false,
-        error: {
-          code: 'TOOL_NOT_FOUND',
-          message: `Tool '${toolName}' not found in any plugin`,
-        },
-        state,
-      };
-    }
-
-    const client = this.plugins.get(pluginName);
-    if (!client) {
-      return {
-        sessionId: sessionId || '',
-        success: false,
-        error: {
-          code: 'PLUGIN_NOT_AVAILABLE',
-          message: `Plugin '${pluginName}' is not available`,
-        },
-        state,
-      };
-    }
-
-    return client.invoke(toolName, args, state, sessionId);
-  }
-
-  /**
    * Invoke a tool on a specific plugin (explicit routing)
    *
    * PRD #359: Unified plugin invocation with explicit plugin specification.
@@ -514,7 +476,9 @@ export class PluginManager {
         });
 
         try {
-          const response = await this.invokeTool(
+          const pluginName = this.getToolPlugin(toolName)!;
+          const response = await this.invokeToolOnPlugin(
+            pluginName,
             toolName,
             input as Record<string, unknown>
           );
@@ -539,7 +503,7 @@ export class PluginManager {
         } catch (err) {
           // Catch invoke exceptions to prevent tool-loop crashes
           const message = err instanceof Error ? err.message : String(err);
-          this.logger.error('Plugin invokeTool failed with exception', new Error(message), {
+          this.logger.error('Plugin invokeToolOnPlugin failed with exception', new Error(message), {
             tool: toolName,
             plugin: this.getToolPlugin(toolName),
           });
