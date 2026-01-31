@@ -18,7 +18,7 @@ import { getAndValidateSessionDirectory } from './session-utils';
  * Generic session structure
  * T is the type of data stored in the session
  */
-export interface GenericSession<T = any> {
+export interface GenericSession<T = unknown> {
   sessionId: string;
   createdAt: string;
   updatedAt: string;
@@ -28,7 +28,7 @@ export interface GenericSession<T = any> {
 /**
  * Generic session manager with file-based storage
  */
-export class GenericSessionManager<T = any> {
+export class GenericSessionManager<T = unknown> {
   private prefix: string;
   private sessionDir: string;
   private sessionsPath: string;

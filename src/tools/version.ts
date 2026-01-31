@@ -12,13 +12,13 @@ import { join } from 'path';
 import { z } from 'zod';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { VectorDBService, PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
+import { PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
-import { PluginManager } from '../core/plugin-manager';
+import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -139,49 +139,53 @@ export interface VersionSessionData extends BaseVisualizationData {
 
 /**
  * Test Vector DB connectivity and get status for all collections
+ * PRD #359: Uses plugin for all Qdrant operations, URL comes from plugin
  */
 async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
-  // Create a test service just to get connection config
-  const testVectorDB = new VectorDBService({ collectionName: 'test' });
-  const config = testVectorDB.getConfig();
-  
+  const fallbackUrl = 'unknown';
+
   try {
-    // Test basic Vector DB connectivity (independent of collections)
-    const isHealthy = await testVectorDB.healthCheck();
-    if (!isHealthy) {
+    // Test basic Vector DB connectivity via plugin
+    const healthResponse = await invokePluginTool('agentic-tools', 'collection_stats', {
+      collection: 'capabilities', // Use any collection for health check
+    });
+
+    if (!healthResponse.success) {
       return {
         connected: false,
-        url: config.url || 'unknown',
+        url: fallbackUrl,
         error: 'Health check failed - Vector DB not responding',
         collections: {
           patterns: { exists: false, error: 'Vector DB not accessible' },
           policies: { exists: false, error: 'Vector DB not accessible' },
           capabilities: { exists: false, error: 'Vector DB not accessible' },
-          resources: { exists: false, error: 'Vector DB not accessible' }
-        }
+          resources: { exists: false, error: 'Vector DB not accessible' },
+        },
       };
     }
 
+    // Extract URL from plugin response (PRD #359)
+    const toolResult = healthResponse.result as { success?: boolean; data?: { url?: string } };
+    const url = toolResult?.data?.url || fallbackUrl;
+
     // Test each collection separately
     const embeddingService = new EmbeddingService();
-    
+
     // Test patterns collection
     const patternsStatus = await testCollectionStatus('patterns', () => {
-      const patternVectorDB = new VectorDBService({ collectionName: 'patterns' });
-      const patternService = new PatternVectorService('patterns', patternVectorDB, embeddingService);
+      const patternService = new PatternVectorService('patterns', embeddingService);
       return patternService.getPatternsCount();
     });
 
     // Test policies collection
     const policiesStatus = await testCollectionStatus('policies', () => {
-      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
-      const policyService = new PolicyVectorService(policyVectorDB, embeddingService);
+      const policyService = new PolicyVectorService(embeddingService);
       return policyService.getDataCount();
     });
 
     // Test capabilities collection
     const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
-      const capabilityService = new CapabilityVectorService();
+      const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
       return capabilityService.getCapabilitiesCount();
     });
 
@@ -190,25 +194,25 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
 
     return {
       connected: true,
-      url: config.url || 'unknown',
+      url,
       collections: {
         patterns: patternsStatus,
         policies: policiesStatus,
         capabilities: capabilitiesStatus,
-        resources: resourcesStatus
-      }
+        resources: resourcesStatus,
+      },
     };
   } catch (error) {
     return {
       connected: false,
-      url: config.url || 'unknown',
+      url: fallbackUrl,
       error: error instanceof Error ? error.message : String(error),
       collections: {
         patterns: { exists: false, error: 'Vector DB connection failed' },
         policies: { exists: false, error: 'Vector DB connection failed' },
         capabilities: { exists: false, error: 'Vector DB connection failed' },
-        resources: { exists: false, error: 'Vector DB connection failed' }
-      }
+        resources: { exists: false, error: 'Vector DB connection failed' },
+      },
     };
   }
 }
@@ -248,8 +252,7 @@ async function testResourcesCollectionStatus(
   embeddingService: EmbeddingService
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
   try {
-    const resourceVectorDB = new VectorDBService({ collectionName: 'resources' });
-    const resourceService = new ResourceVectorService('resources', resourceVectorDB, embeddingService);
+    const resourceService = new ResourceVectorService('resources', embeddingService);
 
     const resources = await resourceService.listResources();
     const documentsCount = resources.length;
@@ -474,7 +477,14 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
       errorMessage = error.message;
 
       // If there are additional properties on the error object, include them
-      const errorObj = error as any;
+      const errorObj = error as Error & {
+        cause?: unknown;
+        url?: string;
+        statusCode?: number;
+        status?: number;
+        statusText?: string;
+        responseBody?: unknown;
+      };
       const details: string[] = [];
 
       if (errorObj.cause) {
@@ -527,21 +537,21 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
  */
 export function getVersionInfo(): VersionInfo {
   // Find package.json relative to this module's location (MCP server's installation)
-  let packageJson: any;
-  
+  let packageJson: { version?: string };
+
   try {
     // Get the directory where this module is installed
     // __dirname points to the compiled JS location (dist/tools/), go up two levels to find package.json
     const mcpServerDir = join(__dirname, '..', '..');
     const packageJsonPath = join(mcpServerDir, 'package.json');
-    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-  } catch (error) {
+    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+  } catch {
     // If package.json not found, use unknown version
     packageJson = { version: 'unknown' };
   }
   
   return {
-    version: packageJson.version,
+    version: packageJson.version || 'unknown',
     nodeVersion: process.version,
     platform: process.platform,
     arch: process.arch
@@ -566,11 +576,11 @@ export function getTracingStatus(): SystemStatus['tracing'] {
 
 /**
  * Get Kubernetes status via plugin (PRD #343)
- * Uses kubectl_version plugin tool for K8s version information
+ * PRD #359: Uses unified plugin registry
  */
-async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kubernetes']> {
+async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes']> {
   try {
-    const response = await pluginManager.invokeTool('kubectl_version', {});
+    const response = await invokePluginTool('agentic-tools', 'kubectl_version', {});
 
     if (!response.success) {
       return {
@@ -617,12 +627,12 @@ async function getKubernetesStatusViaPlugin(pluginManager: PluginManager): Promi
 
 /**
  * Get Kyverno status via plugin (PRD #343)
- * Uses kubectl_get_resource_json plugin tool for Kyverno resource checks
+ * PRD #359: Uses unified plugin registry
  */
-export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): Promise<SystemStatus['kyverno']> {
+export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno']> {
   try {
     // Check if Kyverno CRD exists (clusterpolicies.kyverno.io)
-    const crdResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const crdResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'crd/clusterpolicies.kyverno.io'
     });
 
@@ -650,7 +660,7 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
     let version: string | undefined;
 
     // Try to get kyverno-admission-controller deployment
-    const deploymentResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const deploymentResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'deployment/kyverno-admission-controller',
       namespace: 'kyverno'
     });
@@ -678,7 +688,7 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
 
     // Check webhook configuration
     let webhookReady = false;
-    const webhookResponse = await pluginManager.invokeTool('kubectl_get_resource_json', {
+    const webhookResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
       resource: 'validatingwebhookconfiguration/kyverno-resource-validating-webhook-cfg'
     });
 
@@ -730,26 +740,32 @@ export async function getKyvernoStatusViaPlugin(pluginManager: PluginManager): P
 /**
  * Handle version tool request with comprehensive system diagnostics
  *
- * PRD #343: When pluginManager is provided, uses plugin system for all K8s interactions
+ * PRD #359: Uses unified plugin registry for all K8s interactions
  */
+interface VersionToolArgs {
+  interaction_id?: string;
+}
+
+interface VersionToolResponse {
+  content: Array<{ type: 'text'; text: string }>;
+}
+
 export async function handleVersionTool(
-  args: any,
+  args: VersionToolArgs | undefined,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
-): Promise<any> {
+  requestId: string
+): Promise<VersionToolResponse> {
   try {
     // Extract interaction_id for evaluation dataset generation
-    const interaction_id = args.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
+    const interaction_id = args?.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
     
     logger.info('Processing version tool request with system diagnostics', { requestId });
     
     // Get version info
     const version = getVersionInfo();
-    
-    // PRD #343: K8s interactions go through plugins only
-    // If plugins not available, K8s/Kyverno status reports as unavailable
-    const hasK8sPlugins = pluginManager?.isPluginTool('kubectl_version') ?? false;
+
+    // PRD #359: Check for plugins via unified registry
+    const hasK8sPlugins = isPluginInitialized();
 
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId, hasK8sPlugins });
@@ -758,19 +774,19 @@ export async function handleVersionTool(
       getEmbeddingStatus(),
       getAIProviderStatus(interaction_id),
       hasK8sPlugins
-        ? getKubernetesStatusViaPlugin(pluginManager!)
+        ? getKubernetesStatusViaPlugin()
         : Promise.resolve({ connected: false, kubeconfig: 'unknown', error: 'Kubernetes plugins not available' } as SystemStatus['kubernetes']),
       getCapabilityStatus(),
       hasK8sPlugins
-        ? getKyvernoStatusViaPlugin(pluginManager!)
+        ? getKyvernoStatusViaPlugin()
         : Promise.resolve({ installed: false, policyGenerationReady: false, error: 'Kubernetes plugins not available' } as SystemStatus['kyverno'])
     ]);
 
     // Get tracing status synchronously (no async operations)
     const tracingStatus = getTracingStatus();
 
-    // PRD #343: Add plugin stats when pluginManager is available
-    const pluginStats = pluginManager?.getStats();
+    // PRD #359: Add plugin stats via unified registry
+    const pluginStats = getPluginManager()?.getStats();
 
     const systemStatus: SystemStatus = {
       version,

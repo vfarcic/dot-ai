@@ -15,10 +15,10 @@ export interface EvaluationScore {
 }
 
 export interface EvaluationSample {
-  input: Record<string, any>;
+  input: Record<string, unknown>;
   output: string;
-  ideal?: any;
-  metadata?: Record<string, any>;
+  ideal?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PerformanceMetrics {
@@ -52,8 +52,8 @@ export interface EvaluationResult {
   };
   
   // Raw data for analysis
-  input: Record<string, any>;
+  input: Record<string, unknown>;
   output: string;
-  ideal?: any;
+  ideal?: unknown;
 }
 

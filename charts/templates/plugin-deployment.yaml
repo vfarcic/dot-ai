@@ -64,8 +64,13 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 5
-        {{- with $config.env }}
         env:
+        {{- if eq $name "agentic-tools" }}
+        {{- /* PRD #359: agentic-tools needs Qdrant URL for vector operations */}}
+        - name: QDRANT_URL
+          value: {{ if $.Values.qdrant.enabled }}"http://{{ $.Release.Name }}-qdrant.{{ $.Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ $.Values.qdrant.external.url | quote }}{{ end }}
+        {{- end }}
+        {{- with $config.env }}
           {{- toYaml . | nindent 10 }}
         {{- end }}
         {{- with $config.envFrom }}

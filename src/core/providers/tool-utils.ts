@@ -14,9 +14,17 @@ export function formatToolDefinitions(tools: AITool[]): string {
 }
 
 /**
+ * Tool call structure
+ */
+interface ToolCall {
+  tool: string;
+  [key: string]: unknown;
+}
+
+/**
  * Formats a tool execution result for inclusion in conversation history.
  */
-export function formatToolOutput(toolName: string, output: any): string {
+export function formatToolOutput(toolName: string, output: unknown): string {
   return `Tool '${toolName}' output:\n${JSON.stringify(output, null, 2)}`;
 }
 
@@ -30,8 +38,8 @@ export const TOOL_CALL_REGEX = /```json\s*([\s\S]*?)\s*```/g;
  * Extracts tool calls from a string containing markdown code blocks.
  * Handles nested objects and malformed JSON gracefully.
  */
-export function extractToolCalls(content: string): any[] {
-  const toolCalls: any[] = [];
+export function extractToolCalls(content: string): ToolCall[] {
+  const toolCalls: ToolCall[] = [];
   const matches = [...content.matchAll(TOOL_CALL_REGEX)];
 
   if (matches.length > 0) {
@@ -49,7 +57,7 @@ export function extractToolCalls(content: string): any[] {
         } else if (parsed && typeof parsed === 'object' && parsed.tool) {
           toolCalls.push(parsed);
         }
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     }
@@ -103,7 +111,7 @@ export function extractToolCalls(content: string): any[] {
           }
         }
       }
-    } catch (e) {
+    } catch {
       // Ignore fallback errors
     }
   }

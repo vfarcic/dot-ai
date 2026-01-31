@@ -17,7 +17,7 @@ import { KubernetesDiscovery } from './discovery';
 import { ManifestValidator } from './schema';
 import { getKyvernoStatusViaPlugin } from '../tools/version';
 import { extractContentFromMarkdownCodeBlocks } from './platform-utils';
-import type { PluginManager } from './plugin-manager';
+import { isPluginInitialized } from './plugin-registry';
 import * as yaml from 'js-yaml';
 import {
   UnifiedCreationSession,
@@ -33,33 +33,60 @@ import { CreatePatternRequest } from './pattern-types';
 import { PolicyIntent } from './organizational-types';
 import { createPattern } from './pattern-operations';
 
+/**
+ * Session creation/operation arguments
+ */
+interface SessionArgs {
+  collection?: string;
+  interaction_id?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Template data for review step
+ */
+interface ReviewTemplateData {
+  description: string | undefined;
+  triggers: string;
+  rationale: string | undefined;
+  createdBy: string | undefined;
+  resources?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Schema data for Kyverno generation
+ */
+interface SchemaData {
+  resourceName: string;
+  score?: number;
+  capabilities: unknown;
+  schema: string;
+  timestamp: string;
+}
+
 export class UnifiedCreationSessionManager {
   private config: WorkflowConfig;
   private discovery: KubernetesDiscovery;
   private sessionManager: GenericSessionManager<UnifiedCreationSessionData>;
-  private pluginManager: PluginManager;
 
   /**
-   * PRD #343: pluginManager required for kubectl operations via plugin system
+   * PRD #359: Uses unified plugin registry for kubectl operations
    */
-  constructor(entityType: EntityType, discovery?: KubernetesDiscovery, pluginManager?: PluginManager) {
-    if (!pluginManager) {
+  constructor(entityType: EntityType, discovery?: KubernetesDiscovery) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available. UnifiedCreationSessionManager requires agentic-tools plugin for kubectl operations.');
     }
 
     this.config = WORKFLOW_CONFIGS[entityType];
     this.discovery = discovery || new KubernetesDiscovery();
     this.sessionManager = new GenericSessionManager(entityType);
-    this.pluginManager = pluginManager;
-
-    // PRD #343: Set pluginManager on discovery for kubectl operations
-    this.discovery.setPluginManager(pluginManager);
   }
   
   /**
    * Create a new creation session
    */
-  createSession(args: any): UnifiedCreationSession {
+  createSession(args: SessionArgs): UnifiedCreationSession {
     const sessionData: UnifiedCreationSessionData = {
       entityType: this.config.entityType,
       currentStep: this.config.steps[0], // Start with first step
@@ -73,15 +100,15 @@ export class UnifiedCreationSessionManager {
   /**
    * Load existing session
    */
-  loadSession(sessionId: string, _args: any): UnifiedCreationSession | null {
+  loadSession(sessionId: string): UnifiedCreationSession | null {
     return this.sessionManager.getSession(sessionId);
   }
 
   /**
    * Process user response and advance session
    */
-  processResponse(sessionId: string, response: string, _args: any): UnifiedCreationSession {
-    const session = this.loadSession(sessionId, _args);
+  processResponse(sessionId: string, response: string): UnifiedCreationSession {
+    const session = this.loadSession(sessionId);
     if (!session) {
       throw new Error(`${this.config.displayName} session ${sessionId} not found`);
     }
@@ -104,7 +131,7 @@ export class UnifiedCreationSessionManager {
           const confirmed = JSON.parse(response);
           session.data.expandedTriggers = confirmed;
           session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
-        } catch (error) {
+        } catch {
           // If not JSON, treat as comma-separated list
           session.data.expandedTriggers = response.split(',').map(t => t.trim()).filter(t => t.length > 0);
           session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
@@ -196,7 +223,7 @@ export class UnifiedCreationSessionManager {
   /**
    * Generate next workflow step
    */
-  async getNextWorkflowStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse | UnifiedWorkflowCompletionResponse> {
+  async getNextWorkflowStep(session: UnifiedCreationSession, args?: SessionArgs): Promise<UnifiedWorkflowStepResponse | UnifiedWorkflowCompletionResponse> {
     const sessionId = session.sessionId;
     
     switch (session.data.currentStep) {
@@ -254,7 +281,7 @@ export class UnifiedCreationSessionManager {
         
       case 'namespace-scope': {
         // Check if Kyverno is installed - only show namespace options if it is
-        const kyvernoStatus = await getKyvernoStatusViaPlugin(this.pluginManager);
+        const kyvernoStatus = await getKyvernoStatusViaPlugin();
         if (!kyvernoStatus.installed) {
           // Skip namespace-scope if Kyverno not installed, go to next step
           session.data.currentStep = getNextStep('namespace-scope', this.config)!;
@@ -344,6 +371,7 @@ export class UnifiedCreationSessionManager {
    * Generate trigger expansion using internal AI
    */
   private async generateInternalTriggerExpansion(initialTriggers: string[], description: string, interaction_id?: string): Promise<string[]> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require to avoid circular dependency
     const { createAIProvider } = require('./ai-provider-factory');
     const aiProvider = createAIProvider();
 
@@ -391,7 +419,7 @@ export class UnifiedCreationSessionManager {
     const data = session.data;
     const finalTriggers = data.expandedTriggers || data.initialTriggers || [];
     
-    const templateData: any = {
+    const templateData: ReviewTemplateData = {
       description: data.description,
       triggers: finalTriggers.join(', '),
       rationale: data.rationale,
@@ -587,10 +615,10 @@ The pattern is now ready to enhance AI recommendations. When users ask for deplo
       fs.writeFileSync(kyvernoFilePath, generatedKyvernoPolicy!, 'utf8');
       
       // Apply to cluster using existing DeployOperation
-      // PRD #343: Pass pluginManager for kubectl operations
+      // PRD #359: Uses unified plugin registry for kubectl operations
       try {
         const { DeployOperation } = await import('./deploy-operation');
-        const deployOp = new DeployOperation(this.pluginManager);
+        const deployOp = new DeployOperation();
         
         const deployResult = await deployOp.deploy({
           solutionId: `${policy.id}-kyverno`,
@@ -623,7 +651,8 @@ ${deployResult.kubectlOutput}`,
           data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: true, kyvernoFile: kyvernoFilePath }
         };
         
-      } catch (deployError: any) {
+      } catch (deployError) {
+        const errorMessage = deployError instanceof Error ? deployError.message : String(deployError);
         return {
           sessionId: session.sessionId,
           entityType: this.config.entityType,
@@ -631,12 +660,12 @@ ${deployResult.kubectlOutput}`,
 
 **Policy ID**: ${policy.id}
 **Description**: ${policy.description}
-**Error**: ${deployError.message}
+**Error**: ${errorMessage}
 **Kyverno File**: ${kyvernoFilePath}
 
 The policy intent has been stored in the database, but the Kyverno policy could not be applied to the cluster. You can manually apply it using:
 \`kubectl apply -f ${kyvernoFilePath}\``,
-          data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false, error: deployError.message, kyvernoFile: kyvernoFilePath }
+          data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false, error: errorMessage, kyvernoFile: kyvernoFilePath }
         };
       }
     } else {
@@ -715,9 +744,9 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
     }
     
     // 2. kubectl dry-run validation using ManifestValidator
-    // PRD #343: Pass pluginManager for kubectl operations
+    // PRD #359: Uses unified plugin registry for kubectl operations
     try {
-      const validator = new ManifestValidator(this.pluginManager);
+      const validator = new ManifestValidator();
       const result = await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
       return result;
     } catch (error) {
@@ -732,9 +761,9 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
   /**
    * Generate Kyverno policy step - automatically generates policy from intent data with validation loop
    */
-  private async generateKyvernoStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse> {
+  private async generateKyvernoStep(session: UnifiedCreationSession, args?: SessionArgs): Promise<UnifiedWorkflowStepResponse> {
     // Check if Kyverno is available before attempting policy generation
-    const kyvernoStatus = await getKyvernoStatusViaPlugin(this.pluginManager);
+    const kyvernoStatus = await getKyvernoStatusViaPlugin();
     if (!kyvernoStatus.policyGenerationReady) {
       // Skip Kyverno generation and go directly to review with intent-only option
       session.data.currentStep = getNextStep('kyverno-generation', this.config)!;
@@ -796,6 +825,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           const prompt = loadPrompt('kyverno-generation', templateData);
 
           // Call AI provider internally to generate Kyverno policy
+          // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require to avoid circular dependency
           const { createAIProvider } = require('./ai-provider-factory');
           const aiProvider = createAIProvider();
           
@@ -921,7 +951,7 @@ Please try again or modify your policy description.`,
     policyDescription: string,
     triggers: string[],
     collection?: string
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, SchemaData>> {
 
     // Combine policy description with triggers for enhanced search
     const searchQuery = [policyDescription, ...triggers].join(' ');
@@ -973,7 +1003,7 @@ Please try again or modify your policy description.`,
       resources: filteredResults.map(r => r.data.resourceName)
     });
 
-    const schemas: Record<string, any> = {};
+    const schemas: Record<string, SchemaData> = {};
 
     // Retrieve schema for each relevant resource using existing pattern from generate-manifests.ts
     for (const result of filteredResults) {
@@ -1035,7 +1065,7 @@ Please try again or modify your policy description.`,
   /**
    * Format schemas for inclusion in the Kyverno generation prompt
    */
-  private formatSchemasForPrompt(resourceSchemas: Record<string, any>): string {
+  private formatSchemasForPrompt(resourceSchemas: Record<string, SchemaData>): string {
     return Object.entries(resourceSchemas)
       .map(([resourceName, schemaData]) => {
         return `${resourceName} (Score: ${schemaData.score?.toFixed(2) || 'N/A'}):

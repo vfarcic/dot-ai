@@ -17,6 +17,52 @@ import * as path from 'path';
 // that remain in the main organizational-data.ts file as they're used by multiple domains
 
 /**
+ * Common args interface for capability operations
+ */
+interface CapabilityOperationArgs {
+  id?: string;
+  limit?: number;
+  sessionId?: string;
+  collection?: string;
+}
+
+/**
+ * Common response structure for capability operations
+ */
+interface CapabilityOperationResponse {
+  success: boolean;
+  operation: string;
+  dataType: string;
+  data?: unknown;
+  message?: string;
+  error?: {
+    message: string;
+    details?: string;
+    example?: Record<string, unknown>;
+    alternativeFormat?: Record<string, unknown>;
+    suggestion?: string;
+    help?: string;
+    setup?: Record<string, string>;
+    sessionDirectory?: string;
+  };
+  deletedCapability?: { id: string; resourceName: string };
+  deletedCount?: number;
+  totalCount?: number;
+  errorCount?: number;
+  confirmation?: string;
+  method?: string;
+  sessionId?: string;
+  status?: string;
+  currentStep?: string;
+  startedAt?: string;
+  lastActivity?: string;
+  progress?: Record<string, unknown>;
+  sessionInfo?: Record<string, unknown>;
+  display?: Record<string, unknown>;
+  clientInstructions?: Record<string, unknown>;
+}
+
+/**
  * Get initialized capability service
  * @param collection - Collection name (default: 'capabilities')
  */
@@ -39,11 +85,11 @@ export async function getCapabilityService(collection?: string): Promise<Capabil
  * Handle capability list operation
  */
 export async function handleCapabilityList(
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     // Get all capabilities with validated limit
     const rawLimit = Number(args.limit);
@@ -66,7 +112,7 @@ export async function handleCapabilityList(
         capabilities: capabilities.map(cap => {
           const desc = typeof cap.description === 'string' ? cap.description : '';
           return {
-            id: (cap as any).id ?? CapabilityInferenceEngine.generateCapabilityId(cap.resourceName),
+            id: (cap as { id?: string }).id ?? CapabilityInferenceEngine.generateCapabilityId(cap.resourceName),
             resourceName: cap.resourceName,
             apiVersion: cap.apiVersion,
             version: cap.version,
@@ -114,11 +160,11 @@ export async function handleCapabilityList(
  * - JSON format: '{"kind":"Deployment","apiVersion":"apps/v1"}' (new format for dashboard UI)
  */
 export async function handleCapabilityGet(
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     // Validate required parameters
     if (!args.id) {
@@ -247,11 +293,11 @@ export async function handleCapabilityGet(
  * Handle capability delete operation
  */
 export async function handleCapabilityDelete(
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     // Validate required parameters
     if (!args.id) {
@@ -328,11 +374,11 @@ export async function handleCapabilityDelete(
  * Handle capability delete all operation
  */
 export async function handleCapabilityDeleteAll(
-  args: any,
+  _args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     // Get count first to provide feedback (but don't retrieve all data)
     const totalCount = await capabilityService.getCapabilitiesCount();
@@ -431,10 +477,10 @@ interface CapabilityScanSession {
  * Handle capability progress query (check progress of running scan)
  */
 export async function handleCapabilityProgress(
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     logger.info('Capability progress query requested', { 
       requestId,
@@ -568,7 +614,7 @@ export async function handleCapabilityProgress(
     }
     
     // Build comprehensive progress response
-    const response: any = {
+    const response: CapabilityOperationResponse = {
       success: true,
       operation: 'progress',
       dataType: 'capabilities',
@@ -595,11 +641,11 @@ export async function handleCapabilityProgress(
     
     // Add completion information if scan is done
     if (progress.status === 'completed') {
-      response.progress.completedAt = progress.completedAt;
-      response.progress.totalProcessingTime = progress.totalProcessingTime;
+      response.progress!.completedAt = progress.completedAt;
+      response.progress!.totalProcessingTime = progress.totalProcessingTime;
       response.message = 'Capability scan completed successfully';
     } else {
-      response.progress.estimatedTimeRemaining = progress.estimatedTimeRemaining;
+      response.progress!.estimatedTimeRemaining = progress.estimatedTimeRemaining;
       response.message = `Capability scan in progress: ${progress.current}/${progress.total} resources processed`;
     }
     
@@ -660,11 +706,11 @@ export async function handleCapabilityProgress(
  * Handle capability search operation
  */
 export async function handleCapabilitySearch(
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   try {
     // Validate required search query (stored in id field)
     if (!args.id || typeof args.id !== 'string' || args.id.trim() === '') {
@@ -760,10 +806,10 @@ export async function handleCapabilitySearch(
  */
 export async function handleCapabilityCRUD(
   operation: string,
-  args: any,
+  args: CapabilityOperationArgs,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<CapabilityOperationResponse> {
   // Create capability service for CRUD operations
   // Use collection from args if provided, otherwise defaults to 'capabilities'
   const capabilityService = new CapabilityVectorService(args.collection);

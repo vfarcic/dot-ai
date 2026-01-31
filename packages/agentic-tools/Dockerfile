@@ -16,8 +16,8 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Build TypeScript to JavaScript
-RUN npm run build
+# Build TypeScript to JavaScript and prune dev dependencies
+RUN npm run build && npm prune --omit=dev
 
 # Runtime stage - minimal image with no build tools
 FROM node:20-alpine
@@ -32,9 +32,9 @@ COPY --from=alpine/helm:4.0.4 /usr/bin/helm /usr/local/bin/helm
 RUN addgroup -g 10001 -S appgroup && \
     adduser -u 10001 -S appuser -G appgroup
 
-# Copy only the compiled JavaScript output
-# No runtime dependencies needed - uses only Node.js built-ins
+# Copy compiled JavaScript and production dependencies
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
 
 # Set ownership to non-root user
 RUN chown -R appuser:appgroup /app

@@ -8,6 +8,7 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Policies Integration', () => {
@@ -916,7 +917,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for get operation', async () => {
-      const nonExistentId = 'non-existent-policy-id-12345';
+      // Use random UUID to avoid collisions in parallel test runs
+      const nonExistentId = randomUUID();
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
@@ -930,9 +932,10 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         data: {
           result: {
             success: false,
-            error: expect.objectContaining({
-              message: expect.stringContaining('Failed to get document')
-            })
+            operation: 'get',
+            dataType: 'policy',
+            message: expect.stringContaining('Policy intent not found'),
+            error: 'Policy intent not found'
           }
         }
       };
@@ -941,7 +944,8 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
     });
 
     test('should handle non-existent policy ID for delete operation', async () => {
-      const nonExistentId = 'non-existent-policy-id-67890';
+      // Use random UUID to avoid collisions in parallel test runs
+      const nonExistentId = randomUUID();
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'policy',
@@ -955,7 +959,10 @@ describe.concurrent('ManageOrgData - Policies Integration', () => {
         data: {
           result: {
             success: false,
-            error: expect.stringContaining('Failed to get document')
+            operation: 'delete',
+            dataType: 'policy',
+            message: expect.stringContaining('Policy intent not found'),
+            error: 'Policy intent not found'
           }
         }
       };

@@ -93,13 +93,13 @@ describe('PluginManager', () => {
     });
   });
 
-  describe('invokeTool error handling', () => {
-    test('should return error for unknown tool', async () => {
-      const result = await pluginManager.invokeTool('unknown_tool', {});
+  describe('invokeToolOnPlugin error handling', () => {
+    test('should return error for unknown plugin', async () => {
+      const result = await pluginManager.invokeToolOnPlugin('unknown_plugin', 'some_tool', {});
 
       expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('TOOL_NOT_FOUND');
-      expect(result.error?.message).toContain('unknown_tool');
+      expect(result.error?.code).toBe('PLUGIN_NOT_AVAILABLE');
+      expect(result.error?.message).toContain('unknown_plugin');
     });
   });
 });

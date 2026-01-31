@@ -104,7 +104,7 @@ export interface OperateOutput {
   visualizationUrl?: string;  // PRD #320: URL to open visualization in Web UI
   analysis?: {
     summary: string;
-    currentState: any;
+    currentState: unknown;
     proposedChanges: ProposedChanges;
     commands: string[];
     dryRunValidation: {
@@ -280,9 +280,9 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
   try {
     // Route 1: Execute approved operation
     if (args.sessionId && args.executeChoice) {
-      // Import and delegate to execution workflow
+      // Import and delegate to execution workflow (PRD #359: uses unified registry)
       const { executeOperations } = await import('./operate-execution');
-      return await executeOperations(args.sessionId, logger, sessionManager, pluginManager);
+      return await executeOperations(args.sessionId, logger, sessionManager);
     }
 
     // Route 2: Refine intent with more context
@@ -327,7 +327,7 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
  *
  * PRD #343: pluginManager is required - all kubectl operations go through plugin.
  */
-export async function handleOperateTool(args: any, pluginManager: PluginManager): Promise<any> {
+export async function handleOperateTool(args: OperateInput, pluginManager: PluginManager): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
   const result = await operate(args, pluginManager);
 
   // Build content blocks - JSON for REST API, agent instruction for MCP agents

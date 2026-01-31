@@ -112,7 +112,7 @@ export abstract class BaseComparativeEvaluator {
   /**
    * Conduct final assessment across all scenarios to determine overall winner
    */
-  async conductFinalAssessment(scenarioResults: ComparativeEvaluationScore[]): Promise<any> {
+  async conductFinalAssessment(scenarioResults: ComparativeEvaluationScore[]): Promise<Record<string, unknown>> {
     if (scenarioResults.length === 0) {
       throw new Error('No scenario results provided for final assessment');
     }
@@ -144,11 +144,12 @@ export abstract class BaseComparativeEvaluator {
       );
 
       // Extract JSON from AI response
-      const finalAssessment = extractJsonFromAIResponse(response.content);
-      
+      const finalAssessment = extractJsonFromAIResponse(response.content) as Record<string, unknown>;
+      const overallAssessment = finalAssessment.overall_assessment as Record<string, unknown> | undefined;
+
       console.log(`✅ Final Assessment Complete for ${this.toolName}`);
-      console.log(`🏆 Overall Winner: ${finalAssessment.overall_assessment?.winner || 'Unknown'}`);
-      
+      console.log(`🏆 Overall Winner: ${overallAssessment?.winner || 'Unknown'}`);
+
       return finalAssessment;
 
     } catch (error) {
@@ -167,8 +168,8 @@ export abstract class BaseComparativeEvaluator {
       let reliabilityContext = '✅ Completed successfully';
       if (modelResponse.metadata.failure_analysis) {
         const failure = modelResponse.metadata.failure_analysis;
-        reliabilityContext = `⚠️  **${failure.failure_type.toUpperCase()} FAILURE**: ${failure.failure_reason}`;
-        if (failure.failure_type === 'timeout') {
+        reliabilityContext = `⚠️  **${(failure.failure_type || 'unknown').toUpperCase()} FAILURE**: ${failure.failure_reason || 'Unknown reason'}`;
+        if (failure.failure_type === 'timeout' && failure.time_to_failure) {
           reliabilityContext += `\n- **Time to failure**: ${Math.round(failure.time_to_failure / 1000)}s (${Math.round(failure.time_to_failure / 60000)}min)`;
           reliabilityContext += `\n- **Impact**: Model could not complete full workflow within time limit`;
         }
@@ -212,7 +213,7 @@ ${modelResponse.response}
       );
       
       // Extract JSON from AI response with robust parsing
-      const evaluation: ComparativeEvaluationResult = extractJsonFromAIResponse(response.content);
+      const evaluation = extractJsonFromAIResponse(response.content) as ComparativeEvaluationResult;
 
       // Convert to standard EvaluationScore format
       const rankings = evaluation.ranking || [];

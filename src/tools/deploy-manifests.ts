@@ -10,11 +10,19 @@ import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
-import { extractUserAnswers } from '../core/solution-utils';
+import { extractUserAnswers, type Solution } from '../core/solution-utils';
 import { HelmChartInfo } from '../core/helm-types';
-import type { PluginManager } from '../core/plugin-manager';
+import { invokePluginTool } from '../core/plugin-registry';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Plugin result data structure
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
 
 // PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
 
@@ -47,12 +55,14 @@ export const DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA = {
  * Direct MCP tool handler for deployManifests functionality
  * PRD #343: pluginManager required for kubectl operations
  */
+/**
+ * PRD #359: Uses unified plugin registry for kubectl operations
+ */
 export async function handleDeployManifestsTool(
   args: { solutionId: string; timeout?: number },
   dotAI: DotAI,
   logger: Logger,
-  requestId: string,
-  pluginManager: PluginManager
+  requestId: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -93,7 +103,7 @@ export async function handleDeployManifestsTool(
         }
 
         const chart: HelmChartInfo = solution.chart;
-        const userAnswers = extractUserAnswers(solution);
+        const userAnswers = extractUserAnswers(solution as unknown as Solution);
         const releaseName = userAnswers.name;
         const namespace = userAnswers.namespace || 'default';
 
@@ -118,9 +128,9 @@ export async function handleDeployManifestsTool(
           requestId
         });
 
-        // PRD #343: All Helm operations go through plugin system
+        // PRD #359: All Helm operations go through unified plugin registry
         // First, add/update the Helm repository
-        const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+        const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
           name: chart.repositoryName,
           url: chart.repository
         });
@@ -130,7 +140,7 @@ export async function handleDeployManifestsTool(
         }
 
         // Deploy using helm_install with wait
-        const installResult = await pluginManager.invokeTool('helm_install', {
+        const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
           releaseName,
           chart: `${chart.repositoryName}/${chart.chartName}`,
           namespace,
@@ -145,7 +155,7 @@ export async function handleDeployManifestsTool(
         // Check for nested error in result
         let nestedError: string | undefined;
         if (installResult.success && typeof installResult.result === 'object' && installResult.result !== null) {
-          const nestedResult = installResult.result as any;
+          const nestedResult = installResult.result as PluginResultData;
           if (nestedResult.success === false) {
             nestedError = nestedResult.error || nestedResult.message || 'Helm install failed';
           }
@@ -155,11 +165,11 @@ export async function handleDeployManifestsTool(
         let output = '';
         if (installResult.success && !nestedError) {
           if (typeof installResult.result === 'object' && installResult.result !== null) {
-            const resultData = installResult.result as any;
+            const resultData = installResult.result as PluginResultData;
             if (resultData.data !== undefined) {
               output = String(resultData.data);
             } else if (typeof resultData === 'string') {
-              output = resultData;
+              output = resultData as unknown as string;
             }
             // Don't throw error here - empty output is acceptable for Helm
           } else {
@@ -218,12 +228,12 @@ export async function handleDeployManifestsTool(
       }
 
       // Capability-based solution: Use existing DeployOperation
-      // PRD #343: Pass pluginManager for kubectl operations
+      // PRD #359: Uses unified plugin registry for kubectl operations
       logger.info('Using capability-based deployment flow', {
         solutionId: args.solutionId
       });
 
-      const deployOp = new DeployOperation(pluginManager);
+      const deployOp = new DeployOperation();
 
       const deployOptions = {
         solutionId: args.solutionId,

@@ -559,7 +559,7 @@ export class GraphGenerator {
               font: {
                 size: 20
               },
-              formatter: (value: any) => value.label
+              formatter: (value: { label?: string }) => value.label
             }
           },
           title: {
@@ -616,7 +616,7 @@ export class GraphGenerator {
             titleFontColor: '#FFFFFF',
             bodyFontColor: '#FFFFFF',
             callbacks: {
-              label: (tooltipItem: any, data: any) => {
+              label: (tooltipItem: { datasetIndex: number; index: number }, data: { datasets: Array<{ data: Array<{ label: string; x: number; y: number }> }> }) => {
                 const dataset = data.datasets[tooltipItem.datasetIndex];
                 const point = dataset.data[tooltipItem.index];
                 return `${point.label}: ${point.y.toFixed(3)} (${Math.round(point.x)}K tokens)`;
@@ -644,7 +644,7 @@ export class GraphGenerator {
   /**
    * Downloads a chart from QuickChart.io API and saves it as PNG
    */
-  private async downloadChart(chartConfig: any, outputPath: string, width = 1000, height = 600): Promise<void> {
+  private async downloadChart(chartConfig: Record<string, unknown>, outputPath: string, width = 1000, height = 600): Promise<void> {
     return new Promise((resolve, reject) => {
       const chartJson = JSON.stringify(chartConfig);
       const url = `${this.quickchartBaseUrl}?c=${encodeURIComponent(chartJson)}&width=${width}&height=${height}&format=png&backgroundColor=black`;

@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../core/error-handling';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
-import { RESOURCE_TOOLS, executeResourceTools } from '../core/resource-tools';
+import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
@@ -20,7 +20,7 @@ import {
   VISUALIZATION_PREFIX,
   CachedVisualization
 } from '../core/visualization';
-import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
+import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { loadPrompt } from '../core/shared-prompt-loader';
 
 // Tool metadata for MCP registration
@@ -48,8 +48,8 @@ export interface QuerySessionData {
   iterations: number;
   toolCallsExecuted: Array<{
     tool: string;
-    input: any;
-    output: any;
+    input: unknown;
+    output: unknown;
   }>;
   // Cached visualization to avoid re-generation on subsequent requests
   cachedVisualization?: CachedVisualization;
@@ -68,6 +68,7 @@ export interface QueryOutput {
     code: string;
     message: string;
   };
+  content?: Array<{ type: string; text: string }>;  // MCP response format
 }
 
 /**
@@ -126,7 +127,7 @@ function parseSummary(aiResponse: string): string {
     const parsed = JSON.parse(jsonString);
 
     return parsed.summary || 'No summary provided';
-  } catch (error) {
+  } catch {
     // If parsing fails, use the raw response as summary
     return aiResponse.trim() || 'No summary provided';
   }
@@ -138,10 +139,15 @@ function parseSummary(aiResponse: string): string {
  * PRD #343: When pluginManager is provided, kubectl tools are routed through
  * the plugin system instead of local execution.
  */
+interface QueryToolArgs {
+  intent?: string;
+  interaction_id?: string;
+}
+
 export async function handleQueryTool(
-  args: any,
+  args: QueryToolArgs,
   pluginManager?: PluginManager
-): Promise<any> {
+): Promise<QueryOutput | { content: Array<{ type: string; text: string }> }> {
   const requestId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   const logger = new ConsoleLogger('QueryTool');
 
@@ -176,15 +182,15 @@ export async function handleQueryTool(
     });
 
     // Local executor for non-plugin tools (capability, resource, mermaid)
-    const localToolExecutor = async (toolName: string, input: any): Promise<any> => {
+    const localToolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
       if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
-        return executeCapabilityTools(toolName, input);
+        return executeCapabilityTools(toolName, input as Record<string, unknown>);
       }
       if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
-        return executeResourceTools(toolName, input);
+        return executeResourceTools(toolName, input as SearchResourcesInput | QueryResourcesInput);
       }
       if (toolName === 'validate_mermaid') {
-        return executeMermaidTools(toolName, input);
+        return executeMermaidTools(toolName, input as MermaidToolInput);
       }
       return {
         success: false,

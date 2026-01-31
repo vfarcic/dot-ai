@@ -427,27 +427,19 @@ export class PluginManager {
   }
 
   /**
-   * Invoke a tool on its plugin
+   * Invoke a tool on a specific plugin (explicit routing)
+   *
+   * PRD #359: Unified plugin invocation with explicit plugin specification.
+   * Use this when you know which plugin provides the tool, avoiding
+   * ambiguity when multiple plugins might have tools with the same name.
    */
-  async invokeTool(
+  async invokeToolOnPlugin(
+    pluginName: string,
     toolName: string,
     args: Record<string, unknown>,
     state: Record<string, unknown> = {},
     sessionId?: string
   ): Promise<InvokeResponse> {
-    const pluginName = this.toolToPlugin.get(toolName);
-    if (!pluginName) {
-      return {
-        sessionId: sessionId || '',
-        success: false,
-        error: {
-          code: 'TOOL_NOT_FOUND',
-          message: `Tool '${toolName}' not found in any plugin`,
-        },
-        state,
-      };
-    }
-
     const client = this.plugins.get(pluginName);
     if (!client) {
       return {
@@ -484,7 +476,9 @@ export class PluginManager {
         });
 
         try {
-          const response = await this.invokeTool(
+          const pluginName = this.getToolPlugin(toolName)!;
+          const response = await this.invokeToolOnPlugin(
+            pluginName,
             toolName,
             input as Record<string, unknown>
           );
@@ -493,7 +487,7 @@ export class PluginManager {
             // PRD #343: Return only the data field to AI, not the full JSON wrapper
             // This saves tokens and provides cleaner output matching raw command output
             if (typeof response.result === 'object' && response.result !== null) {
-              const result = response.result as any;
+              const result = response.result as { success?: boolean; data?: unknown; message?: string; error?: string };
               if ('success' in result && 'data' in result) {
                 // Return just the data (raw command output) for successful results
                 // Return error message string for failed results
@@ -509,7 +503,7 @@ export class PluginManager {
         } catch (err) {
           // Catch invoke exceptions to prevent tool-loop crashes
           const message = err instanceof Error ? err.message : String(err);
-          this.logger.error('Plugin invokeTool failed with exception', new Error(message), {
+          this.logger.error('Plugin invokeToolOnPlugin failed with exception', new Error(message), {
             tool: toolName,
             plugin: this.getToolPlugin(toolName),
           });

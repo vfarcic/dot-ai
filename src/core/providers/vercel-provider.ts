@@ -6,6 +6,7 @@
  */
 
 import { generateText, jsonSchema, tool, stepCountIs } from 'ai';
+import type { JSONSchema7 } from 'json-schema';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -31,8 +32,50 @@ import {
 import { CURRENT_MODELS } from '../model-config';
 import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
+import type { LanguageModel } from 'ai';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
+
+// Type for Vercel AI SDK tool execution
+interface ToolCallRecord {
+  tool: string;
+  input: unknown;
+  output: unknown;
+}
+
+// Type for Vercel AI SDK message content parts
+interface MessageContentPart {
+  type: string;
+  text?: string;
+  toolName?: string;
+  output?: unknown;
+  result?: unknown;
+  content?: unknown;
+}
+
+// Type for Vercel AI SDK messages
+interface VercelMessage {
+  role: string;
+  content: string | MessageContentPart[];
+  providerOptions?: Record<string, unknown>;
+}
+
+// Type for Vercel AI SDK usage with cache fields
+interface VercelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  cachedTokens?: number;
+  cached_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
+
+// Type for tool result
+interface ToolResultPart {
+  toolName?: string;
+  output?: unknown;
+}
 
 // Get all supported provider keys dynamically from CURRENT_MODELS
 const SUPPORTED_PROVIDERS = Object.keys(CURRENT_MODELS) as SupportedProvider[];
@@ -43,7 +86,7 @@ export class VercelProvider implements AIProvider {
   private apiKey: string;
   private debugMode: boolean;
   private baseURL?: string; // PRD #194: Custom endpoint URL for OpenAI-compatible APIs
-  private modelInstance: any; // Vercel AI SDK model instance
+  private modelInstance!: LanguageModel; // Vercel AI SDK model instance - initialized by initializeModel()
 
   constructor(config: AIProviderConfig) {
     this.apiKey = config.apiKey;
@@ -70,6 +113,7 @@ export class VercelProvider implements AIProvider {
 
   private initializeModel(): void {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Vercel AI SDK provider types vary
       let provider: any;
 
       switch (this.providerType) {
@@ -380,15 +424,11 @@ export class VercelProvider implements AIProvider {
         const operation = config.operation || 'tool-loop';
 
         // Convert AITool[] to Vercel AI SDK tool format
-        const tools: Record<string, any> = {};
+        const tools: Record<string, unknown> = {};
 
         // PRD #320: Capture tool calls during execution (not reconstruction from steps)
         // This ensures toolCallsExecuted has actual data for visualization
-        const toolCallsExecuted: Array<{
-          tool: string;
-          input: any;
-          output: any;
-        }> = [];
+        const toolCallsExecuted: ToolCallRecord[] = [];
 
         for (let i = 0; i < config.tools.length; i++) {
           const aiTool = config.tools[i];
@@ -396,8 +436,8 @@ export class VercelProvider implements AIProvider {
 
           const toolDef = tool({
             description: aiTool.description,
-            inputSchema: jsonSchema(aiTool.inputSchema),
-            execute: async (input: any) => {
+            inputSchema: jsonSchema(aiTool.inputSchema as JSONSchema7),
+            execute: async (input: unknown) => {
               // Execute and capture result
               const output = await config.toolExecutor(aiTool.name, input);
               // Capture for toolCallsExecuted array
@@ -418,7 +458,7 @@ export class VercelProvider implements AIProvider {
               this.providerType === 'anthropic_haiku') &&
             isLastTool
           ) {
-            (toolDef as any).providerOptions = {
+            (toolDef as unknown as { providerOptions: Record<string, unknown> }).providerOptions = {
               anthropic: {
                 cacheControl: { type: 'ephemeral' },
               },
@@ -437,7 +477,7 @@ export class VercelProvider implements AIProvider {
 
         // Build messages array with system prompt caching for Anthropic
         // Anthropic caching requires system messages in messages array with providerOptions
-        const messages: any[] = [];
+        const messages: VercelMessage[] = [];
         let systemParam: string | undefined;
 
         if (
@@ -484,7 +524,13 @@ export class VercelProvider implements AIProvider {
           // Use Vercel AI SDK's generateText with stopWhen for automatic loop
           // Default is stepCountIs(1) - we need to increase for multi-step investigation
           // Note: maxOutputTokens not specified - provider will use model's natural maximum
-          const generateConfig: any = {
+          const generateConfig: {
+            model: LanguageModel;
+            messages: VercelMessage[];
+            tools: Record<string, unknown>;
+            stopWhen: ReturnType<typeof stepCountIs>;
+            system?: string;
+          } = {
             model: this.modelInstance,
             messages,
             tools,
@@ -496,7 +542,8 @@ export class VercelProvider implements AIProvider {
             generateConfig.system = systemParam;
           }
 
-          const result = await generateText(generateConfig);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Vercel AI SDK types are complex, use any for compatibility
+          const result = await generateText(generateConfig as any);
 
           // Log raw response immediately after generation (before any processing)
           let debugFiles: { promptFile: string; responseFile: string } | null =
@@ -517,23 +564,24 @@ export class VercelProvider implements AIProvider {
                   } else if (Array.isArray(msg.content)) {
                     const contentParts = msg.content
                       .map(part => {
-                        if (part.type === 'text') {
-                          return (part as any).text;
-                        } else if (part.type === 'tool-call') {
-                          return `[TOOL_USE: ${(part as any).toolName}]`;
-                        } else if (part.type === 'tool-result') {
+                        const typedPart = part as MessageContentPart;
+                        if (typedPart.type === 'text') {
+                          return typedPart.text;
+                        } else if (typedPart.type === 'tool-call') {
+                          return `[TOOL_USE: ${typedPart.toolName}]`;
+                        } else if (typedPart.type === 'tool-result') {
                           const resultData =
-                            (part as any).output ||
-                            (part as any).result ||
-                            (part as any).content;
+                            typedPart.output ||
+                            typedPart.result ||
+                            typedPart.content;
                           if (typeof resultData === 'string') {
-                            return `[TOOL_RESULT: ${(part as any).toolName}]\n${resultData}`;
+                            return `[TOOL_RESULT: ${typedPart.toolName}]\n${resultData}`;
                           } else if (resultData) {
-                            return `[TOOL_RESULT: ${(part as any).toolName}]\n${JSON.stringify(resultData, null, 2)}`;
+                            return `[TOOL_RESULT: ${typedPart.toolName}]\n${JSON.stringify(resultData, null, 2)}`;
                           }
-                          return `[TOOL_RESULT: ${(part as any).toolName}]`;
+                          return `[TOOL_RESULT: ${typedPart.toolName}]`;
                         }
-                        return `[${part.type}]`;
+                        return `[${typedPart.type}]`;
                       })
                       .join(' ');
                     return `${msg.role}: ${contentParts}`;
@@ -603,24 +651,25 @@ export class VercelProvider implements AIProvider {
           // However, testing still shows ~70% fewer tokens reported vs Anthropic native SDK.
           // Root cause: We were using result.usage (final step only) instead of result.totalUsage (sum of all steps)!
           const usage = result.totalUsage || result.usage;
+          const typedUsage = usage as VercelUsage;
           let cacheReadTokens = 0;
           let cacheCreationTokens = 0;
 
           // Anthropic via Vercel uses cachedInputTokens (confirmed in AI SDK 5+)
-          if ((usage as any).cachedInputTokens) {
-            cacheReadTokens = (usage as any).cachedInputTokens;
+          if (typedUsage.cachedInputTokens) {
+            cacheReadTokens = typedUsage.cachedInputTokens;
           }
           // OpenAI uses cached_tokens or cachedTokens (automatic caching, no config needed)
-          if ('cachedTokens' in usage || (usage as any).cached_tokens) {
+          if (typedUsage.cachedTokens || typedUsage.cached_tokens) {
             cacheReadTokens =
-              (usage as any).cachedTokens || (usage as any).cached_tokens || 0;
+              typedUsage.cachedTokens || typedUsage.cached_tokens || 0;
           }
           // Anthropic native SDK uses separate cache_creation and cache_read fields
-          if ((usage as any).cache_creation_input_tokens) {
-            cacheCreationTokens = (usage as any).cache_creation_input_tokens;
+          if (typedUsage.cache_creation_input_tokens) {
+            cacheCreationTokens = typedUsage.cache_creation_input_tokens;
           }
-          if ((usage as any).cache_read_input_tokens) {
-            cacheReadTokens = (usage as any).cache_read_input_tokens;
+          if (typedUsage.cache_read_input_tokens) {
+            cacheReadTokens = typedUsage.cache_read_input_tokens;
           }
 
           // TODO: Check if Google Gemini reports cache metrics in future SDK versions
@@ -649,7 +698,7 @@ export class VercelProvider implements AIProvider {
           if (stepsUsed >= maxIterations && !hasProperSummary) {
             try {
               // Build wrap-up messages with full conversation history
-              const wrapUpMessages: any[] = [];
+              const wrapUpMessages: VercelMessage[] = [];
 
               // Add system message for Anthropic providers
               if (
@@ -679,9 +728,10 @@ export class VercelProvider implements AIProvider {
                 }
                 // Add tool results as user messages
                 for (const toolResult of step.toolResults || []) {
+                  const typedToolResult = toolResult as ToolResultPart;
                   wrapUpMessages.push({
                     role: 'user',
-                    content: `Tool result from ${(toolResult as any).toolName}: ${JSON.stringify((toolResult as any).output || toolResult)}`,
+                    content: `Tool result from ${typedToolResult.toolName}: ${JSON.stringify(typedToolResult.output || toolResult)}`,
                   });
                 }
               }
@@ -693,7 +743,11 @@ export class VercelProvider implements AIProvider {
               });
 
               // Make final call WITHOUT tools
-              const wrapUpConfig: any = {
+              const wrapUpConfig: {
+                model: LanguageModel;
+                messages: VercelMessage[];
+                system?: string;
+              } = {
                 model: this.modelInstance,
                 messages: wrapUpMessages,
                 // NO tools - forces text response
@@ -708,7 +762,8 @@ export class VercelProvider implements AIProvider {
                 wrapUpConfig.system = config.systemPrompt;
               }
 
-              const wrapUpResult = await generateText(wrapUpConfig);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Vercel AI SDK types are complex, use any for compatibility
+              const wrapUpResult = await generateText(wrapUpConfig as any);
               finalText = wrapUpResult.text || finalText;
             } catch (wrapUpError) {
               // If wrap-up fails, continue with whatever we have
@@ -719,7 +774,7 @@ export class VercelProvider implements AIProvider {
           // Log processed summary response (keep existing functionality)
           if (this.debugMode && debugFiles === null) {
             // Only log summary if we haven't already logged raw response
-            let finalPrompt = `System: ${config.systemPrompt}\n\nuser: ${config.userMessage}`;
+            const finalPrompt = `System: ${config.systemPrompt}\n\nuser: ${config.userMessage}`;
 
             const aiResponse: AIResponse = {
               content: finalText || '',

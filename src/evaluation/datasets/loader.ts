@@ -11,8 +11,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface StandardEvalSample {
-  input: Record<string, any>;
-  ideal: any;
+  input: Record<string, unknown>;
+  ideal: unknown;
   metadata: {
     category: string;
     complexity: 'low' | 'medium' | 'high';

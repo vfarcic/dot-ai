@@ -11,7 +11,7 @@ import { join } from 'path';
 export interface DatasetSample {
   input: {
     issue: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   output: string;
   performance: {
@@ -57,14 +57,20 @@ export interface ModelResponse {
     issue?: string;
     interaction_count?: number;
     failure_analysis?: {
-      failure_type: string;
-      failure_reason: string;
-      time_to_failure: number;
+      failure_type?: string;
+      failure_reason?: string;
+      time_to_failure?: number;
+      interaction_number?: number;
+      issue?: string;
+      [key: string]: unknown;
     };
     all_failures?: Array<{
-      failure_type: string;
-      failure_reason: string;
-      time_to_failure: number;
+      failure_type?: string;
+      failure_reason?: string;
+      time_to_failure?: number;
+      interaction_number?: number;
+      issue?: string;
+      [key: string]: unknown;
     }>;
   };
 }
@@ -186,7 +192,7 @@ export class DatasetAnalyzer {
           } else {
             failure_analysis = sample.metadata.failure_analysis;
           }
-        } catch (error) {
+        } catch {
           // If parsing fails, treat as no failure analysis
           failure_analysis = undefined;
         }
@@ -259,13 +265,13 @@ export class DatasetAnalyzer {
     const totalOutputTokens = sorted.reduce((sum, i) => sum + i.performance.output_tokens, 0);
     
     // Collect all failure analyses from all interactions that have them
-    const allFailures: any[] = [];
+    const allFailures: Array<{ interaction_number: number; issue?: string; [key: string]: unknown }> = [];
     sorted.forEach((interaction, index) => {
       if (interaction.metadata.failure_analysis) {
         allFailures.push({
           interaction_number: index + 1,
           issue: interaction.metadata.issue,
-          ...interaction.metadata.failure_analysis
+          ...(interaction.metadata.failure_analysis as Record<string, unknown>)
         });
       }
     });

@@ -134,7 +134,7 @@ const OpenApiResponseSchema = z.object({
 /**
  * All route definitions for the REST API
  */
-export const routeDefinitions: RouteDefinition<any, any, any, any>[] = [
+export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknown>[] = [
   // ============================================
   // Tool Endpoints
   // ============================================

@@ -8,23 +8,21 @@
 import { Logger, ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { executeCommands } from '../core/command-executor';
-import { PluginManager } from '../core/plugin-manager';
 import { OperateSessionData, ExecutionResult, OperateOutput } from './operate';
 import { handleRemediateTool } from './remediate';
 
 /**
  * Executes approved operational changes
+ * PRD #359: Uses unified plugin registry for tool invocations
  * @param sessionId - Session ID with approved changes
  * @param logger - Logger instance
  * @param sessionManager - Session manager instance
- * @param pluginManager - Plugin manager for kubectl operations (PRD #343)
  * @returns Operation output with execution results
  */
 export async function executeOperations(
   sessionId: string,
   logger: Logger,
-  sessionManager: GenericSessionManager<OperateSessionData>,
-  pluginManager: PluginManager
+  sessionManager: GenericSessionManager<OperateSessionData>
 ): Promise<OperateOutput> {
   logger.info('Starting operation execution', { sessionId });
 
@@ -59,11 +57,10 @@ export async function executeOperations(
       intent: session.data.intent
     });
 
-    // 2. Execute commands using shared executor (PRD #343: via plugin)
+    // 2. Execute commands using shared executor (PRD #359: via unified plugin registry)
     const { results, overallSuccess } = await executeCommands(
       session.data.commands,
       logger,
-      pluginManager,
       {
         sessionId,
         context: 'operation',
@@ -91,12 +88,12 @@ export async function executeOperations(
 
       try {
         // Call remediate tool internally with validation intent
-        // PRD #343: Pass pluginManager for kubectl operations
+        // PRD #359: Uses unified plugin registry
         const validationResponse = await handleRemediateTool({
           issue: session.data.validationIntent,
           executedCommands: session.data.commands,
           interaction_id: session.data.interaction_id
-        }, pluginManager);
+        });
 
         // Extract validation result from remediate response
         const validationData = JSON.parse(validationResponse.content[0].text);
@@ -148,7 +145,7 @@ export async function executeOperations(
     // Mark session as failed if we can
     try {
       sessionManager.updateSession(sessionId, { status: 'failed' });
-    } catch (updateError) {
+    } catch {
       // Ignore - session might not exist
     }
 

@@ -13,7 +13,6 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handli
 import { AI_SERVICE_ERROR_TEMPLATES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-import type { PluginManager } from '../core/plugin-manager';
 // Import only what we need - other imports removed as they're no longer used with Vector DB
 import { PatternVectorService, CapabilityVectorService } from '../core/index';
 import { PolicyVectorService } from '../core/policy-vector-service';
@@ -66,13 +65,35 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
 };
 
 /**
+ * Input type for organizational data tool
+ */
+export interface OrganizationalDataInput {
+  dataType: 'pattern' | 'policy' | 'capabilities';
+  operation: 'create' | 'list' | 'get' | 'delete' | 'deleteAll' | 'scan' | 'analyze' | 'progress' | 'search';
+  sessionId?: string;
+  step?: string;
+  response?: string;
+  id?: string;
+  limit?: number;
+  resource?: {
+    kind: string;
+    group: string;
+    apiVersion: string;
+  };
+  resourceList?: string;
+  mode?: 'full';
+  collection?: string;
+  interaction_id?: string;
+}
+
+/**
  * Validate Vector DB connection and return helpful error if unavailable
  */
 async function validateVectorDBConnection(
   vectorService: PatternVectorService | PolicyVectorService,
   logger: Logger,
   requestId: string
-): Promise<{ success: boolean; error?: any }> {
+): Promise<{ success: boolean; error?: Record<string, unknown> }> {
   const isHealthy = await vectorService.healthCheck();
   
   if (!isHealthy) {
@@ -114,7 +135,7 @@ async function validateVectorDBConnection(
 async function validateEmbeddingService(
   logger: Logger,
   requestId: string
-): Promise<{ success: boolean; error?: any }> {
+): Promise<{ success: boolean; error?: Record<string, unknown> }> {
   const embeddingService = new EmbeddingService();
   const status = embeddingService.getStatus();
   
@@ -168,7 +189,7 @@ function createCapabilityScanCompletionResponse(
   processingTime: string,
   mode: 'auto' | 'manual',
   stopped: boolean = false
-): any {
+): { success: boolean; operation: string; dataType: string; [key: string]: unknown } {
   
   let message: string;
   if (stopped) {
@@ -217,12 +238,11 @@ function createCapabilityScanCompletionResponse(
  * Both modes return immediately with { status: "started" } and run scanning in background.
  */
 async function handleFireAndForgetScan(
-  args: any,
+  args: OrganizationalDataInput,
   logger: Logger,
   requestId: string,
-  capabilityService: CapabilityVectorService,
-  pluginManager?: PluginManager
-): Promise<any> {
+  capabilityService: CapabilityVectorService
+): Promise<Record<string, unknown>> {
   const isFullScan = args.mode === 'full';
   const isTargetedScan = !!args.resourceList;
 
@@ -245,7 +265,7 @@ async function handleFireAndForgetScan(
   };
 
   // If targeted scan, parse and validate resources
-  const parsedResources = isTargetedScan && !isFullScan
+  const parsedResources = isTargetedScan && !isFullScan && args.resourceList
     ? args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0)
     : [];
 
@@ -275,6 +295,7 @@ async function handleFireAndForgetScan(
   saveCapabilitySession(session);
 
   // Start scanning in background (don't await) - fire and forget
+  // PRD #359: Uses unified plugin registry for kubectl operations
   handleScanningCore(
     session,
     { ...args, response: undefined },
@@ -284,8 +305,7 @@ async function handleFireAndForgetScan(
     parseNumericResponse,
     transitionCapabilitySession,
     cleanupCapabilitySession,
-    createCapabilityScanCompletionResponse,
-    pluginManager
+    createCapabilityScanCompletionResponse
   ).catch(error => {
     logger.error('Background fire-and-forget scan failed', error as Error, {
       requestId,
@@ -318,30 +338,29 @@ async function handleFireAndForgetScan(
 
 /**
  * Handle capabilities operations - PRD #48 Implementation
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 async function handleCapabilitiesOperation(
   operation: string,
-  args: any,
+  args: OrganizationalDataInput,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
-): Promise<any> {
+  requestId: string
+): Promise<Record<string, unknown>> {
   logger.info('Capabilities operation requested', { requestId, operation });
 
   switch (operation) {
     case 'scan':
-      return await handleCapabilityScan(args, logger, requestId, pluginManager);
+      return await handleCapabilityScan(args, logger, requestId);
 
     case 'progress':
-      return await handleCapabilityProgress(args, logger, requestId);
+      return await handleCapabilityProgress(args, logger, requestId) as unknown as Record<string, unknown>;
 
     case 'list':
     case 'get':
     case 'search':
     case 'delete':
     case 'deleteAll':
-      return await handleCapabilityCRUD(operation, args, logger, requestId);
+      return await handleCapabilityCRUD(operation, args, logger, requestId) as unknown as Record<string, unknown>;
 
     default:
       return createUnsupportedOperationError(operation, 'capabilities', ['scan', 'progress', 'list', 'get', 'search', 'delete', 'deleteAll']);
@@ -446,7 +465,7 @@ function loadCapabilitySession(sessionId: string): CapabilityScanSession | null 
     saveCapabilitySession(session);
     
     return session;
-  } catch (error) {
+  } catch {
     // Log error but don't throw - return null to create new session
     return null;
   }
@@ -468,7 +487,7 @@ function saveCapabilitySession(session: CapabilityScanSession): void {
 /**
  * Get or create session with file-based persistence
  */
-function getOrCreateCapabilitySession(sessionId: string | undefined, args: any, logger: Logger, requestId: string): CapabilityScanSession {
+function getOrCreateCapabilitySession(sessionId: string | undefined, _args: OrganizationalDataInput, logger: Logger, requestId: string): CapabilityScanSession {
   if (sessionId) {
     const existing = loadCapabilitySession(sessionId);
     if (existing) {
@@ -538,7 +557,7 @@ function transitionCapabilitySession(session: CapabilityScanSession, nextStep: C
 /**
  * Clean up session file after successful completion
  */
-function cleanupCapabilitySession(session: CapabilityScanSession, args: any, logger: Logger, requestId: string): void {
+function cleanupCapabilitySession(session: CapabilityScanSession, _args: unknown, logger: Logger, requestId: string): void {
   try {
     const sessionPath = getCapabilitySessionPath(session.sessionId);
     if (fs.existsSync(sessionPath)) {
@@ -560,14 +579,13 @@ function cleanupCapabilitySession(session: CapabilityScanSession, args: any, log
 
 /**
  * Handle capability scanning workflow with step-based state management
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 async function handleCapabilityScan(
-  args: any,
+  args: OrganizationalDataInput,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
-): Promise<any> {
+  requestId: string
+): Promise<Record<string, unknown>> {
   // Validate Vector DB and embedding service dependencies upfront
   // This prevents users from going through the entire workflow only to fail at storage
   // Use collection from args if provided (for testing with pre-populated data)
@@ -686,7 +704,7 @@ async function handleCapabilityScan(
   const isFireAndForget = !args.sessionId && (args.mode === 'full' || args.resourceList);
 
   if (isFireAndForget) {
-    return await handleFireAndForgetScan(args, logger, requestId, capabilityService, pluginManager);
+    return await handleFireAndForgetScan(args, logger, requestId, capabilityService);
   }
 
   // ============================================================================
@@ -718,6 +736,7 @@ async function handleCapabilityScan(
   }
   
   // Handle workflow based on current step
+  // PRD #359: Uses unified plugin registry for kubectl operations
   switch (session.currentStep) {
     case 'resource-selection':
       return await handleResourceSelectionCore(
@@ -730,9 +749,8 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore,
-        pluginManager
-      );
+        handleScanningCore
+      ) as unknown as Record<string, unknown>;
 
     case 'resource-specification':
       return await handleResourceSpecificationCore(
@@ -745,9 +763,8 @@ async function handleCapabilityScan(
         transitionCapabilitySession,
         cleanupCapabilitySession,
         createCapabilityScanCompletionResponse,
-        handleScanningCore,
-        pluginManager
-      );
+        handleScanningCore
+      ) as unknown as Record<string, unknown>;
 
     case 'scanning':
       return await handleScanningCore(
@@ -759,9 +776,8 @@ async function handleCapabilityScan(
         parseNumericResponse,
         transitionCapabilitySession,
         cleanupCapabilitySession,
-        createCapabilityScanCompletionResponse,
-        pluginManager
-      );
+        createCapabilityScanCompletionResponse
+      ) as unknown as Record<string, unknown>;
 
     case 'complete':
       return {
@@ -796,14 +812,14 @@ async function handleCapabilityScan(
 
 /**
  * Main tool handler - routes to appropriate data type handler
+ * PRD #359: Uses unified plugin registry - no pluginManager parameter needed
  */
 export async function handleOrganizationalDataTool(
-  args: any,
+  args: OrganizationalDataInput,
   _dotAI: DotAI | null,
   logger: Logger,
-  requestId: string,
-  pluginManager?: PluginManager
-): Promise<any> {
+  requestId: string
+): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
   try {
     logger.info('Processing organizational-data tool request', { 
       requestId, 
@@ -844,15 +860,17 @@ export async function handleOrganizationalDataTool(
     let result;
     switch (args.dataType) {
       case 'pattern':
-        result = await handlePatternOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Args and validation function type compatibility between modules
+        result = await handlePatternOperationCore(args.operation, args as any, logger, requestId, validateVectorDBConnection as any, validateEmbeddingService as any);
         break;
 
       case 'policy':
-        result = await handlePolicyOperationCore(args.operation, args, logger, requestId, validateVectorDBConnection, validateEmbeddingService, pluginManager);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Args and validation function type compatibility between modules
+        result = await handlePolicyOperationCore(args.operation, args as any, logger, requestId, validateVectorDBConnection as any, validateEmbeddingService as any);
         break;
-      
+
       case 'capabilities':
-        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId, pluginManager);
+        result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
         break;
       
       default:
@@ -890,7 +908,7 @@ export async function handleOrganizationalDataTool(
     // Handle errors consistently
     if (error instanceof Error && 'category' in error) {
       // Already an AppError, format for MCP response
-      const appError = error as any;
+      const appError = error as Error & { category?: string; severity?: string; code?: string };
       return {
         content: [{
           type: 'text' as const,

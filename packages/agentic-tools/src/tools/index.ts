@@ -1,11 +1,12 @@
 /**
  * Tool Registry
  *
- * Aggregates all kubectl and helm tools and exports them for the describe and invoke hooks.
+ * Aggregates all kubectl, helm, and vector tools and exports them for the describe and invoke hooks.
  */
 
 import { ToolDefinition } from '../types';
 import { KubectlTool } from './base';
+import { QdrantTool } from './qdrant-base';
 
 // Import all kubectl tools
 import { kubectlApiResources } from './kubectl-api-resources';
@@ -33,11 +34,14 @@ import { helmInstall } from './helm-install';
 import { helmTemplate } from './helm-template';
 import { helmUninstall } from './helm-uninstall';
 
+// PRD #359: Vector database tools (Qdrant operations)
+import { VECTOR_TOOLS } from './vector';
+
 /**
  * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
  */
-const ALL_TOOLS: KubectlTool[] = [
+const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   kubectlApiResources,
   kubectlGet,
   kubectlDescribe,
@@ -62,6 +66,16 @@ const ALL_TOOLS: KubectlTool[] = [
   helmTemplate,
   helmUninstall,
 ];
+
+/**
+ * Union type for all tool types
+ */
+type AnyTool = KubectlTool | QdrantTool;
+
+/**
+ * Combined list of all tools
+ */
+const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS];
 
 /**
  * Tool definitions for the describe hook

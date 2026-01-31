@@ -72,7 +72,7 @@ export interface AITool {
   /** JSON schema for tool input parameters */
   inputSchema: {
     type: 'object';
-    properties: Record<string, any>;
+    properties: Record<string, unknown>;
     required?: string[];
   };
 }
@@ -81,7 +81,16 @@ export interface AITool {
  * Tool executor function type
  * Called by the provider when AI requests a tool execution
  */
-export type ToolExecutor = (toolName: string, input: any) => Promise<any>;
+export type ToolExecutor = (toolName: string, input: unknown) => Promise<unknown>;
+
+/**
+ * Record of a tool call execution
+ */
+export interface ToolCallRecord {
+  tool: string;
+  input: unknown;
+  output: unknown;
+}
 
 /**
  * Configuration for agentic tool loop
@@ -103,7 +112,7 @@ export interface ToolLoopConfig {
   maxIterations?: number;
 
   /** Optional callback invoked after each iteration */
-  onIteration?: (iteration: number, toolCalls: any[]) => void;
+  onIteration?: (iteration: number, toolCalls: ToolCallRecord[]) => void;
 
   /** Optional operation identifier for metrics and debugging */
   operation?: string;
@@ -128,11 +137,7 @@ export interface AgenticResult {
   iterations: number;
 
   /** All tool calls executed during the loop */
-  toolCallsExecuted: Array<{
-    tool: string;
-    input: any;
-    output: any;
-  }>;
+  toolCallsExecuted: ToolCallRecord[];
 
   /** Token usage statistics including cache metrics */
   totalTokens: {

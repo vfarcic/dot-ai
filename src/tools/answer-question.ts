@@ -10,7 +10,71 @@ import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
-import { extractUserAnswers } from '../core/solution-utils';
+import { extractUserAnswers, type Solution as SolutionBase } from '../core/solution-utils';
+
+// Interfaces for solution and question types
+interface QuestionValidation {
+  required?: boolean;
+  message?: string;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  options?: string[];
+}
+
+interface Question {
+  id?: string;
+  question: string;
+  type?: 'text' | 'number' | 'boolean' | 'select' | 'multiSelect';
+  validation?: QuestionValidation;
+  answer?: unknown;
+  options?: string[];
+}
+
+interface OpenQuestion {
+  id?: string;
+  question?: string;
+  placeholder?: string;
+  answer?: string;
+}
+
+interface SolutionQuestions {
+  required?: Question[];
+  basic?: Question[];
+  advanced?: Question[];
+  open?: OpenQuestion;
+}
+
+interface AvailableResource {
+  kind?: string;
+}
+
+interface SolutionWithQuestions {
+  solutionId?: string;
+  type?: string;
+  questions: SolutionQuestions;
+  availableResources?: {
+    resources?: AvailableResource[];
+    custom?: AvailableResource[];
+  };
+  schemas?: Record<string, unknown>;
+  // Allow additional properties from SolutionData
+  [key: string]: unknown;
+}
+
+interface AnalysisResult {
+  approach?: string;
+  reasoning?: string;
+  suggestedAction?: string;
+  suggestedResources?: unknown[];
+  requestedCapability?: string;
+  integrationIssue?: string;
+  [key: string]: unknown;
+}
+
+interface EnhancementResult extends AnalysisResult {
+  enhancedSolution?: SolutionWithQuestions;
+}
 
 // Tool metadata for direct MCP registration
 export const ANSWERQUESTION_TOOL_NAME = 'answerQuestion';
@@ -29,7 +93,7 @@ export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
 /**
  * Validate answer against question schema
  */
-function validateAnswer(answer: any, question: any): string | null {
+function validateAnswer(answer: unknown, question: Question): string | null {
   // Check required validation
   if (question.validation?.required && (answer === undefined || answer === null || answer === '')) {
     return question.validation.message || `${question.question} is required`;
@@ -75,7 +139,7 @@ function validateAnswer(answer: any, question: any): string | null {
       break;
       
     case 'select':
-      if (question.options && !question.options.includes(answer)) {
+      if (question.options && !question.options.includes(answer as string)) {
         return `${question.question} must be one of: ${question.options.join(', ')}`;
       }
       break;
@@ -151,7 +215,7 @@ interface StageState {
 /**
  * Check if solution is a Helm-based installation
  */
-function isHelmSolution(solution: any): boolean {
+function isHelmSolution(solution: SolutionData | SolutionWithQuestions): boolean {
   return solution.type === 'helm';
 }
 
@@ -159,7 +223,7 @@ function isHelmSolution(solution: any): boolean {
  * Determine current stage based on solution state
  * For Helm solutions, the open stage is skipped entirely
  */
-function getCurrentStage(solution: any): StageState {
+function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageState {
   const hasRequired = solution.questions.required && solution.questions.required.length > 0;
   const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
   const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
@@ -167,11 +231,11 @@ function getCurrentStage(solution: any): StageState {
   const isHelm = isHelmSolution(solution);
 
   // Check completion status
-  const requiredComplete = !hasRequired || solution.questions.required.every((q: any) => q.answer !== undefined);
-  const basicComplete = !hasBasic || solution.questions.basic.every((q: any) => q.answer !== undefined);
-  const advancedComplete = !hasAdvanced || solution.questions.advanced.every((q: any) => q.answer !== undefined);
+  const requiredComplete = !hasRequired || solution.questions.required!.every((q) => q.answer !== undefined);
+  const basicComplete = !hasBasic || solution.questions.basic!.every((q) => q.answer !== undefined);
+  const advancedComplete = !hasAdvanced || solution.questions.advanced!.every((q) => q.answer !== undefined);
   // For Helm solutions, treat open as always complete (skip it)
-  const openComplete = isHelm || !hasOpen || solution.questions.open.answer !== undefined;
+  const openComplete = isHelm || !hasOpen || solution.questions.open?.answer !== undefined;
 
   // Determine current stage
   if (!requiredComplete) {
@@ -237,7 +301,7 @@ function getCurrentStage(solution: any): StageState {
 /**
  * Validate stage transition is allowed
  */
-function validateStageTransition(currentStage: Stage, requestedStage: Stage, solution: any): { valid: boolean; error?: string } {
+function validateStageTransition(currentStage: Stage, requestedStage: Stage, solution: SolutionData | SolutionWithQuestions): { valid: boolean; error?: string } {
   // Allow processing the same stage (for answering or skipping)
   if (currentStage === requestedStage) {
     return { valid: true };
@@ -293,16 +357,16 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
 /**
  * Get questions for a specific stage
  */
-function getQuestionsForStage(solution: any, stage: Stage): any[] {
+function getQuestionsForStage(solution: SolutionData | SolutionWithQuestions, stage: Stage): (Question | OpenQuestion)[] {
   switch (stage) {
     case 'required':
-      return solution.questions.required || [];
+      return (solution.questions.required || []) as (Question | OpenQuestion)[];
     case 'basic':
-      return solution.questions.basic || [];
+      return (solution.questions.basic || []) as (Question | OpenQuestion)[];
     case 'advanced':
-      return solution.questions.advanced || [];
+      return (solution.questions.advanced || []) as (Question | OpenQuestion)[];
     case 'open':
-      return solution.questions.open ? [solution.questions.open] : [];
+      return solution.questions.open ? [solution.questions.open as OpenQuestion] : [];
     default:
       return [];
   }
@@ -353,13 +417,14 @@ function getStageGuidance(stage: Stage, isHelm: boolean = false): string {
  * Phase 1: Analyze what resources are needed for the user request
  */
 async function analyzeResourceNeeds(
-  currentSolution: any,
+  currentSolution: SolutionData | SolutionWithQuestions,
   openResponse: string,
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
-): Promise<any> {
+): Promise<AnalysisResult> {
   // Get available resources from solution or use defaults
-  const availableResources = currentSolution.availableResources || {
+  const solutionWithResources = currentSolution as SolutionWithQuestions;
+  const availableResources = solutionWithResources.availableResources || {
     resources: [],
     custom: []
   };
@@ -368,7 +433,7 @@ async function analyzeResourceNeeds(
   const availableResourceTypes = [
     ...(availableResources.resources || []),
     ...(availableResources.custom || [])
-  ].map((r: any) => r.kind || r);
+  ].map((r: AvailableResource | string) => (typeof r === 'object' ? r.kind : r) || r);
 
   const analysisPrompt = loadPrompt('resource-analysis', {
     current_solution: JSON.stringify(currentSolution, null, 2),
@@ -394,7 +459,7 @@ async function analyzeResourceNeeds(
     // Check for capability gap and throw specific error
     if (analysisResult.approach === 'capability_gap') {
       context.logger.error('Capability gap detected in resource analysis', new Error(
-        `Capability gap for solution ${currentSolution.solutionId}: ${analysisResult.requestedCapability} - ${analysisResult.integrationIssue}`
+        `Capability gap for solution ${(currentSolution as SolutionWithQuestions).solutionId}: ${analysisResult.requestedCapability} - ${analysisResult.integrationIssue}`
       ));
       
       const capabilityGapError = new Error(
@@ -420,12 +485,12 @@ async function analyzeResourceNeeds(
  * Phase 2: Apply enhancements based on analysis result
  */
 async function applySolutionEnhancement(
-  solution: any,
+  solution: SolutionData | SolutionWithQuestions,
   openResponse: string,
-  analysisResult: any,
+  analysisResult: AnalysisResult,
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
-): Promise<any> {
+): Promise<SolutionData | SolutionWithQuestions> {
   if (analysisResult.approach === 'capability_gap') {
     throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
   }
@@ -458,15 +523,15 @@ async function applySolutionEnhancement(
  * Auto-populate existing questions based on user requirements
  */
 async function autoPopulateQuestions(
-  solution: any,
+  solution: SolutionData | SolutionWithQuestions,
   openResponse: string,
-  analysisResult: any,
+  analysisResult: AnalysisResult,
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
-): Promise<any> {
+): Promise<SolutionData | SolutionWithQuestions> {
   const enhancementPrompt = loadPrompt('solution-enhancement', {
     current_solution: JSON.stringify(solution, null, 2),
-    detailed_schemas: JSON.stringify(solution.schemas || {}, null, 2),
+    detailed_schemas: JSON.stringify((solution as SolutionWithQuestions).schemas || {}, null, 2),
     analysis_result: JSON.stringify(analysisResult, null, 2),
     open_response: openResponse
   });
@@ -491,11 +556,11 @@ async function autoPopulateQuestions(
  * Add new resources and their questions to the solution
  */
 async function addResourcesAndQuestions(
-  solution: any,
+  solution: SolutionData | SolutionWithQuestions,
   openResponse: string,
-  analysisResult: any,
+  analysisResult: AnalysisResult,
   context: { requestId: string; logger: Logger; dotAI: DotAI }
-): Promise<any> {
+): Promise<SolutionData | SolutionWithQuestions> {
   // For now, implement basic resource addition
   // This would need more sophisticated question generation for new resources
   context.logger.warn('Resource addition not fully implemented yet', {
@@ -509,7 +574,7 @@ async function addResourcesAndQuestions(
 /**
  * Parse AI response (handles both JSON and text responses)
  */
-function parseEnhancementResponse(content: string): any {
+function parseEnhancementResponse(content: string): EnhancementResult {
   try {
     // Try to extract JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -528,14 +593,14 @@ function parseEnhancementResponse(content: string): any {
  * Enhance solution with AI analysis of open question
  */
 async function enhanceSolutionWithOpenAnswer(
-  solution: any,
+  solution: SolutionData | SolutionWithQuestions,
   openAnswer: string,
   context: { requestId: string; logger: Logger; dotAI: DotAI },
   interaction_id?: string
-): Promise<any> {
+): Promise<SolutionData | SolutionWithQuestions> {
   try {
     context.logger.info('Starting AI enhancement of solution', {
-      solutionId: solution.solutionId,
+      solutionId: (solution as SolutionWithQuestions).solutionId,
       openAnswer
     });
     
@@ -562,7 +627,7 @@ async function enhanceSolutionWithOpenAnswer(
  * Direct MCP tool handler for answerQuestion functionality
  */
 export async function handleAnswerQuestionTool(
-  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, any>; interaction_id?: string },
+  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, unknown>; interaction_id?: string },
   dotAI: DotAI,
   logger: Logger,
   requestId: string
@@ -605,7 +670,7 @@ export async function handleAnswerQuestionTool(
         );
       }
 
-      let solution = session.data;
+      let solution: SolutionData | SolutionWithQuestions = session.data;
       logger.debug('Solution loaded successfully', {
         solutionId: args.solutionId,
         hasQuestions: !!solution.questions
@@ -654,12 +719,12 @@ export async function handleAnswerQuestionTool(
           continue;
         }
         
-        const question = stageQuestions.find(q => q.id === questionId);
+        const question = stageQuestions.find(q => q.id === questionId) as Question | undefined;
         if (!question) {
           validationErrors.push(`Unknown question ID '${questionId}' for stage '${args.stage}'`);
           continue;
         }
-        
+
         const error = validateAnswer(answer, question);
         if (error) {
           validationErrors.push(error);
@@ -692,7 +757,7 @@ export async function handleAnswerQuestionTool(
         // Handle open question
         const openAnswer = args.answers.open;
         if (openAnswer && solution.questions.open) {
-          solution.questions.open.answer = openAnswer;
+          solution.questions.open.answer = String(openAnswer);
         }
       } else {
         // Handle structured questions
@@ -733,10 +798,10 @@ export async function handleAnswerQuestionTool(
               openAnswer
             });
             
-            solution = await enhanceSolutionWithOpenAnswer(solution, openAnswer, { requestId, logger, dotAI }, args.interaction_id);
+            solution = await enhanceSolutionWithOpenAnswer(solution, String(openAnswer), { requestId, logger, dotAI }, args.interaction_id);
 
             // Save enhanced solution
-            sessionManager.replaceSession(args.solutionId, solution);
+            sessionManager.replaceSession(args.solutionId, solution as SolutionData);
             logger.info('Enhanced solution saved', {
               solutionId: args.solutionId,
               hasOpenAnswer: !!openAnswer
@@ -790,7 +855,7 @@ export async function handleAnswerQuestionTool(
         }
         
         // Extract all user answers for handoff
-        const userAnswers = extractUserAnswers(solution);
+        const userAnswers = extractUserAnswers(solution as unknown as SolutionBase);
 
         // Update session with workflow state - all questions complete
         sessionManager.updateSession(args.solutionId, {
@@ -832,7 +897,7 @@ export async function handleAnswerQuestionTool(
       // For Helm solutions, if all stages are complete, return ready for manifest generation
       // This happens when advanced stage is completed (open stage is skipped for Helm)
       if (newStageState.isComplete && isHelmSolution(solution)) {
-        const userAnswers = extractUserAnswers(solution);
+        const userAnswers = extractUserAnswers(solution as unknown as SolutionBase);
 
         // Update session with workflow state - all questions complete (Helm)
         sessionManager.updateSession(args.solutionId, {

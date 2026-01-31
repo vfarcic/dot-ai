@@ -10,6 +10,7 @@
 import { Logger } from './error-handling';
 import { AIProvider } from './ai-provider.interface';
 import { loadPrompt } from './shared-prompt-loader';
+import crypto from 'crypto';
 
 
 /**
@@ -193,9 +194,17 @@ export class CapabilityInferenceEngine {
       throw new Error(`No JSON found in AI response. Response: ${response.substring(0, 200)}...`);
     }
 
-    let parsed: any;
+    let parsed: {
+      capabilities?: unknown;
+      providers?: unknown;
+      abstractions?: unknown;
+      complexity?: unknown;
+      description?: unknown;
+      useCase?: unknown;
+      confidence?: unknown;
+    };
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(jsonMatch[0]) as typeof parsed;
     } catch (parseError) {
       throw new Error(`Invalid JSON in AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}. JSON: ${jsonMatch[0].substring(0, 200)}...`);
     }
@@ -210,7 +219,7 @@ export class CapabilityInferenceEngine {
     if (!Array.isArray(parsed.abstractions)) {
       throw new Error(`AI response missing or invalid abstractions array. Got: ${typeof parsed.abstractions}`);
     }
-    if (!['low', 'medium', 'high'].includes(parsed.complexity)) {
+    if (!['low', 'medium', 'high'].includes(parsed.complexity as string)) {
       throw new Error(`AI response invalid complexity: ${parsed.complexity}. Must be low, medium, or high`);
     }
     if (typeof parsed.description !== 'string' || parsed.description.trim() === '') {
@@ -224,13 +233,13 @@ export class CapabilityInferenceEngine {
     }
 
     return {
-      capabilities: parsed.capabilities,
-      providers: parsed.providers,
-      abstractions: parsed.abstractions,
-      complexity: parsed.complexity,
-      description: parsed.description.trim(),
-      useCase: parsed.useCase.trim(),
-      confidence: parsed.confidence
+      capabilities: parsed.capabilities as string[],
+      providers: parsed.providers as string[],
+      abstractions: parsed.abstractions as string[],
+      complexity: parsed.complexity as 'low' | 'medium' | 'high',
+      description: (parsed.description as string).trim(),
+      useCase: (parsed.useCase as string).trim(),
+      confidence: parsed.confidence as number
     };
   }
 
@@ -274,7 +283,6 @@ export class CapabilityInferenceEngine {
    */
   static generateCapabilityId(resourceName: string): string {
     // Create deterministic UUID from resource name hash
-    const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(`capability-${resourceName}`).digest('hex');
     
     // Convert to UUID format: 8-4-4-4-12
