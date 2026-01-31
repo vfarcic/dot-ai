@@ -10,4 +10,4 @@ if ! echo "$INPUT" | grep -q "prd-done"; then
 fi
 
 # For UserPromptSubmit, plain text stdout is added to Claude's context
-echo "REMINDER: A changelog fragment may be needed for this PRD. Use /changelog-fragment if there are user-facing changes."
+echo "🛑 CHANGELOG CHECK: Run /changelog-fragment BEFORE any commits if there are user-facing changes."

@@ -83,14 +83,14 @@ Single package/container for all tools called by LLM during agentic loops.
 | helm_template | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
 | helm_repo_add | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
 | shell_exec | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
-| vector_search | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| vector_store | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| vector_query | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| vector_get | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| vector_delete | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| vector_list | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| collection_initialize | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
-| collection_stats | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_search | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| vector_store | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| vector_query | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| vector_get | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| vector_delete | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| vector_list | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| collection_initialize | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
+| collection_stats | ✅ Complete | [#359](./done/359-qdrant-operations-plugin-migration.md) |
 | validate_mermaid | Pending | TBD |
 
 ### MCP Tools (Future)
