@@ -8,7 +8,6 @@ This roadmap is a living document and may change based on community feedback and
 ## Short-term (Next 1-3 Months)
 
 - Modular plugin architecture - transform dot-ai into extensible orchestrator (PRD #342)
-- Qdrant operations plugin migration - extract vector storage to agentic-tools plugin (PRD #359)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Guided setup system to simplify onboarding (PRD #165)
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)

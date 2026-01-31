@@ -18,6 +18,7 @@ export interface ScopeConfig {
   questions: Question[];
   conditionalFiles?: Record<string, { condition: string; reason: string }>;
   additionalInstructions?: string;  // Optional instructions to show user after file generation (e.g., badge markdown, next steps)
+  [key: string]: unknown;  // Allow additional properties
 }
 
 /**

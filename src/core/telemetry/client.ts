@@ -22,7 +22,7 @@ import {
   McpClientInfo
 } from './types';
 import { loadTelemetryConfig } from './config';
-import type { PluginManager } from '../plugin-manager';
+import { isPluginInitialized, invokePluginTool } from '../plugin-registry';
 
 /**
  * Global telemetry instance (singleton pattern with lazy initialization)
@@ -30,30 +30,17 @@ import type { PluginManager } from '../plugin-manager';
 let telemetryInstance: PostHogTelemetry | null = null;
 
 /**
- * PRD #343: Plugin manager for K8s operations (set before first telemetry use)
- */
-let telemetryPluginManager: PluginManager | null = null;
-
-/**
- * Set plugin manager for telemetry K8s operations
- * Must be called before first getTelemetry() use for cluster ID generation
- */
-export function setTelemetryPluginManager(pluginManager: PluginManager): void {
-  telemetryPluginManager = pluginManager;
-}
-
-/**
  * Generate anonymous instance ID from Kubernetes cluster UID
  *
  * Uses SHA-256 hash of the kube-system namespace UID to create a stable,
  * anonymous identifier that's unique per cluster but doesn't reveal cluster identity.
- * PRD #343: Uses plugin system for kubectl operations.
+ * PRD #359: Uses unified plugin registry for kubectl operations.
  */
 async function generateInstanceId(): Promise<string> {
-  // PRD #343: Use plugin to get namespace UID instead of direct K8s client
-  if (telemetryPluginManager) {
+  // PRD #359: Use unified plugin registry for K8s operations
+  if (isPluginInitialized()) {
     try {
-      const response = await telemetryPluginManager.invokeTool('kubectl_get_resource_json', {
+      const response = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
         resource: 'namespace/kube-system',
         field: 'metadata'
       });
@@ -81,7 +68,7 @@ async function generateInstanceId(): Promise<string> {
           return `cluster_${hash.substring(0, 16)}`;
         }
       }
-    } catch (error) {
+    } catch {
       // Plugin not available or failed - fall through to random ID
     }
   }

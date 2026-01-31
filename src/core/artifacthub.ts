@@ -38,7 +38,7 @@ export interface ArtifactHubPackageDetails {
   app_version?: string;
   description: string;
   readme?: string;
-  values_schema?: Record<string, any>;
+  values_schema?: Record<string, unknown>;
   default_values?: string;
   repository: {
     name: string;

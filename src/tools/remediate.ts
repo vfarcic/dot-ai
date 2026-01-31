@@ -7,11 +7,19 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } fro
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { GenericSessionManager } from '../core/generic-session-manager';
-import { PluginManager } from '../core/plugin-manager';
 import { buildAgentDisplayBlock } from '../core/index';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
+import { getPluginManager, invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Plugin result data structure
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
 
 // PRD #143 Milestone 1: Hybrid approach - AI can use kubectl_api_resources tool OR continue with JSON dataRequests
 
@@ -120,6 +128,13 @@ export interface RemediateOutput {
 
 // Session management now handled by GenericSessionManager
 
+/**
+ * Remediate tool response type
+ */
+export interface RemediateToolResponse {
+  content: Array<{ type: 'text'; text: string }>;
+}
+
 /** Kubectl tool names for investigation and validation */
 const KUBECTL_INVESTIGATION_TOOL_NAMES = [
   'kubectl_get',
@@ -139,6 +154,7 @@ const KUBECTL_INVESTIGATION_TOOL_NAMES = [
  * AI-driven investigation - uses toolLoop for single-phase investigation and analysis
  *
  * PRD #343: Kubectl tools are routed through the plugin system.
+ * PRD #359: Uses unified plugin registry for tool access.
  * No fallback to direct execution - MCP server has no RBAC.
  */
 async function conductInvestigation(
@@ -147,10 +163,13 @@ async function conductInvestigation(
   aiProvider: AIProvider,
   logger: Logger,
   requestId: string,
-  pluginManager: PluginManager,
   isValidation: boolean = false,
   interactionId?: string
 ): Promise<RemediateOutput> {
+  if (!isPluginInitialized()) {
+    throw new Error('Plugin system not initialized');
+  }
+  const pluginManager = getPluginManager()!;
   const maxIterations = 30; // Increased for thorough investigation workflows
 
   logger.info('Starting AI investigation with toolLoop', {
@@ -420,6 +439,7 @@ export function parseAIFinalAnalysis(aiResponse: string): AIFinalAnalysisRespons
 
 /**
  * Execute user choice from previous session
+ * PRD #359: Uses unified plugin registry
  */
 async function executeUserChoice(
   sessionManager: GenericSessionManager<RemediateSessionData>,
@@ -427,9 +447,8 @@ async function executeUserChoice(
   choice: number,
   logger: Logger,
   requestId: string,
-  pluginManager: PluginManager,
   currentInteractionId?: string
-): Promise<any> {
+): Promise<RemediateToolResponse> {
   try {
     // Load previous session
     const session = sessionManager.getSession(sessionId);
@@ -457,7 +476,7 @@ async function executeUserChoice(
     // Handle different choices
     switch (choice) {
       case 1: // Execute automatically via MCP
-        return await executeRemediationCommands(session, sessionManager, logger, requestId, pluginManager, currentInteractionId);
+        return await executeRemediationCommands(session, sessionManager, logger, requestId, currentInteractionId);
 
       case 2: { // Execute via agent
         // Use validation intent directly from final analysis
@@ -514,15 +533,15 @@ async function executeUserChoice(
 
 /**
  * Execute remediation commands via kubectl
+ * PRD #359: Uses unified plugin registry
  */
 async function executeRemediationCommands(
   session: RemediateSession,
   sessionManager: GenericSessionManager<RemediateSessionData>,
   logger: Logger,
   requestId: string,
-  pluginManager: PluginManager,
   currentInteractionId?: string
-): Promise<any> {
+): Promise<RemediateToolResponse> {
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
@@ -546,12 +565,12 @@ async function executeRemediationCommands(
         command: action.command 
       });
 
-      // PRD #343: Execute the command via plugin's shell_exec tool
+      // PRD #359: Execute the command via unified plugin registry
       // Clean up escape sequences that some AI models incorrectly add to JSON parameters
       let fullCommand = action.command || '';
       fullCommand = fullCommand.replace(/\\"/g, '"');
 
-      const response = await pluginManager.invokeTool('shell_exec', { command: fullCommand });
+      const response = await invokePluginTool('agentic-tools', 'shell_exec', { command: fullCommand });
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Command execution failed');
@@ -559,7 +578,7 @@ async function executeRemediationCommands(
 
       // Check for nested error - plugin wraps command errors in { success: false, error: "..." }
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.success === false) {
           throw new Error(result.error || result.message || 'Command execution failed');
         }
@@ -568,11 +587,11 @@ async function executeRemediationCommands(
       // Extract only the data field - never pass JSON wrapper
       let output: string;
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.data !== undefined) {
           output = String(result.data);
         } else if (typeof result === 'string') {
-          output = result;
+          output = result as unknown as string;
         } else {
           throw new Error('Plugin returned unexpected response format - missing data field');
         }
@@ -657,8 +676,8 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             interaction_id: currentInteractionId || session.data.interaction_id // Use current interaction_id for validation
           };
       
-          // Recursive call to main function for validation
-          const validationResponse = await handleRemediateTool(validationInput, pluginManager);
+          // Recursive call to main function for validation (PRD #359: uses unified registry)
+          const validationResponse = await handleRemediateTool(validationInput);
           const validationData = JSON.parse(validationResponse.content[0].text);
 
           // If validation discovered new issues, enhance with execution context
@@ -816,9 +835,10 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
 /**
  * Main tool handler for remediate tool
  *
- * PRD #343: pluginManager is required - all kubectl operations go through plugin.
+ * PRD #343: All kubectl operations go through plugin.
+ * PRD #359: Uses unified plugin registry - no pluginManager parameter needed.
  */
-export async function handleRemediateTool(args: any, pluginManager: PluginManager): Promise<any> {
+export async function handleRemediateTool(args: RemediateInput): Promise<RemediateToolResponse> {
   const requestId = `remediate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const logger = new ConsoleLogger('RemediateTool');
 
@@ -844,7 +864,6 @@ export async function handleRemediateTool(args: any, pluginManager: PluginManage
         validatedInput.executeChoice,
         logger,
         requestId,
-        pluginManager,
         validatedInput.interaction_id
       );
     }
@@ -881,7 +900,6 @@ export async function handleRemediateTool(args: any, pluginManager: PluginManage
       aiProvider,
       logger,
       requestId,
-      pluginManager,
       isValidation,
       validatedInput.interaction_id
     );
@@ -978,7 +996,6 @@ export async function handleRemediateTool(args: any, pluginManager: PluginManage
         sessionManager,
         logger,
         requestId,
-        pluginManager,
         validatedInput.interaction_id
       );
     }
@@ -1090,7 +1107,7 @@ function makeExecutionDecision(
 /**
  * Validate remediate input according to schema
  */
-function validateRemediateInput(args: any): RemediateInput {
+function validateRemediateInput(args: Partial<RemediateInput>): RemediateInput {
   try {
     // Basic validation using our schema
     const validated = {

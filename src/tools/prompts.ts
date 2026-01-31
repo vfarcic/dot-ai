@@ -99,7 +99,7 @@ function parseYamlFrontmatter(yaml: string): Partial<PromptMetadata> {
         const cleanValue = value.trim().replace(/^["']|["']$/g, '');
         const trimmedKey = key.trim() as keyof PromptMetadata;
         if (trimmedKey !== 'arguments') {
-          (metadata as any)[trimmedKey] = cleanValue;
+          (metadata as Record<string, unknown>)[trimmedKey] = cleanValue;
         }
       }
       i++;
@@ -252,14 +252,22 @@ export async function loadAllPrompts(
   return allPrompts;
 }
 
+export interface PromptsListArgs {
+  baseDir?: string;
+}
+
+interface PromptsListResponse {
+  prompts: Array<{ name: string; description: string; arguments?: PromptArgument[] }>;
+}
+
 /**
  * Handle prompts/list MCP request
  */
 export async function handlePromptsListRequest(
-  args: any,
+  args: PromptsListArgs | undefined,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<PromptsListResponse> {
   try {
     logger.info('Processing prompts/list request', { requestId });
 
@@ -305,14 +313,25 @@ export async function handlePromptsListRequest(
   }
 }
 
+interface PromptsGetArgs {
+  name: string;
+  arguments?: Record<string, string>;
+  baseDir?: string;
+}
+
+interface PromptsGetResponse {
+  description?: string;
+  messages: Array<{ role: string; content: { type: string; text: string } }>;
+}
+
 /**
  * Handle prompts/get MCP request
  */
 export async function handlePromptsGetRequest(
-  args: any,
+  args: PromptsGetArgs,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<PromptsGetResponse> {
   try {
     logger.info('Processing prompts/get request', {
       requestId,

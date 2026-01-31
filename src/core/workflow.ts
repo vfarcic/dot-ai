@@ -8,7 +8,7 @@ export interface WorkflowSpec {
   app?: string;
   image?: string;
   replicas?: number | string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface WorkflowExecution {
@@ -21,7 +21,7 @@ export interface WorkflowExecution {
 export interface WorkflowStep {
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
-  output?: any;
+  output?: unknown;
   error?: string;
 }
 
@@ -36,12 +36,12 @@ export interface TemplateParameter {
   type: string;
   required: boolean;
   description: string;
-  default?: any;
+  default?: unknown;
 }
 
 export interface TemplateParams {
   template: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 export interface RollbackResult {
@@ -219,7 +219,7 @@ export class WorkflowEngine {
     return state;
   }
 
-  async executePhase(): Promise<any> {
+  async executePhase(): Promise<{ phase: string; status: string }> {
     // Return phase execution result
     return { phase: 'execution', status: 'completed' };
   }

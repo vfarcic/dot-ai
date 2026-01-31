@@ -18,7 +18,7 @@ import { loadPrompt } from '../../core/shared-prompt-loader';
 export async function handleGenerateScope(
   sessionId: string,
   scope: string | undefined,
-  answers: Record<string, any> | undefined,
+  answers: Record<string, unknown> | undefined,
   logger: Logger,
   requestId: string
 ): Promise<GenerateScopeResponse | ErrorResponse> {
@@ -184,7 +184,7 @@ export async function handleGenerateScope(
 /**
  * Generate file content from template using Handlebars
  */
-function generateFileContent(fileName: string, answers: Record<string, any>, logger: Logger): string {
+function generateFileContent(fileName: string, answers: Record<string, unknown>, logger: Logger): string {
   try {
     // Load template using shared prompt loader with Handlebars support
     // Templates use .hbs extension (e.g., README.md -> README.md.hbs)
@@ -212,7 +212,7 @@ function generateFileContent(fileName: string, answers: Record<string, any>, log
  * - "variableName === true" -> check if answers[variableName] is boolean true or truthy string
  * - OR conditions: "condition1 || condition2 || condition3"
  */
-function evaluateCondition(condition: string, answers: Record<string, any>): boolean {
+function evaluateCondition(condition: string, answers: Record<string, unknown>): boolean {
   const trimmed = condition.trim();
 
   // Handle literal boolean strings
@@ -254,7 +254,7 @@ function evaluateCondition(condition: string, answers: Record<string, any>): boo
  * Preprocess answers for Handlebars templates
  * Converts comma-separated strings to arrays where needed
  */
-function preprocessAnswers(answers: Record<string, any>): Record<string, any> {
+function preprocessAnswers(answers: Record<string, unknown>): Record<string, unknown> {
   const processed = { ...answers };
 
   // Convert maintainerUsernames from comma-separated string to array
@@ -272,7 +272,7 @@ function preprocessAnswers(answers: Record<string, any>): Record<string, any> {
  * Replace template variables in additionalInstructions
  * Simple replacement for {{variableName}} patterns
  */
-function replaceTemplateVariables(template: string, answers: Record<string, any>): string {
+function replaceTemplateVariables(template: string, answers: Record<string, unknown>): string {
   let result = template;
 
   // Replace all {{variableName}} with actual values

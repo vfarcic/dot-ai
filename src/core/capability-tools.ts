@@ -118,7 +118,7 @@ async function getCapabilityService(): Promise<CapabilityVectorService> {
  * @param input - Tool input parameters
  * @returns Tool execution result
  */
-export async function executeCapabilityTools(toolName: string, input: any): Promise<any> {
+export async function executeCapabilityTools(toolName: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   try {
     switch (toolName) {
       case 'search_capabilities': {
@@ -133,7 +133,7 @@ export async function executeCapabilityTools(toolName: string, input: any): Prom
         }
 
         const service = await getCapabilityService();
-        const results = await service.searchCapabilities(query, { limit });
+        const results = await service.searchCapabilities(query as string, { limit: limit as number });
 
         // Transform results to a clean format for AI consumption
         const capabilities = results.map(r => ({
@@ -169,7 +169,7 @@ export async function executeCapabilityTools(toolName: string, input: any): Prom
         }
 
         const service = await getCapabilityService();
-        const results = await service.queryWithFilter(filter, limit);
+        const results = await service.queryWithFilter(filter as Record<string, unknown>, limit as number);
 
         // Transform results to a clean format for AI consumption
         const capabilities = results.map(r => ({

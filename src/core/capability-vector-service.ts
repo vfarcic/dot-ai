@@ -6,7 +6,6 @@
  */
 
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
-import { VectorDBService } from './vector-db-service';
 import { EmbeddingService } from './embedding-service';
 import { CapabilityInferenceEngine, ResourceCapability, PrinterColumn } from './capabilities';
 
@@ -23,8 +22,8 @@ export interface CapabilitySearchOptions extends BaseSearchOptions {
  */
 export class CapabilityVectorService extends BaseVectorService<ResourceCapability> {
 
-  constructor(collectionName: string = 'capabilities', vectorDB?: VectorDBService, embeddingService?: EmbeddingService) {
-    super(collectionName, vectorDB, embeddingService);
+  constructor(collectionName: string = 'capabilities', embeddingService?: EmbeddingService) {
+    super(collectionName, embeddingService);
   }
 
   /**
@@ -52,7 +51,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   /**
    * Convert capability to storage payload format
    */
-  protected createPayload(capability: ResourceCapability): Record<string, any> {
+  protected createPayload(capability: ResourceCapability): Record<string, unknown> {
     return {
       resourceName: capability.resourceName,
       apiVersion: capability.apiVersion,
@@ -73,21 +72,21 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
   /**
    * Convert storage payload back to capability object
    */
-  protected payloadToData(payload: Record<string, any>): ResourceCapability {
+  protected payloadToData(payload: Record<string, unknown>): ResourceCapability {
     return {
-      resourceName: payload.resourceName,
-      apiVersion: payload.apiVersion,
-      version: payload.version,
-      group: payload.group,
-      capabilities: payload.capabilities || [],
-      providers: payload.providers || [],
-      abstractions: payload.abstractions || [],
-      complexity: payload.complexity || 'medium',
-      description: payload.description || '',
-      useCase: payload.useCase || '',
-      printerColumns: payload.printerColumns,
-      confidence: payload.confidence || 0,
-      analyzedAt: payload.analyzedAt || new Date().toISOString()
+      resourceName: payload.resourceName as string,
+      apiVersion: payload.apiVersion as string | undefined,
+      version: payload.version as string | undefined,
+      group: payload.group as string | undefined,
+      capabilities: (payload.capabilities as string[]) || [],
+      providers: (payload.providers as string[]) || [],
+      abstractions: (payload.abstractions as string[]) || [],
+      complexity: (payload.complexity as 'low' | 'medium' | 'high') || 'medium',
+      description: (payload.description as string) || '',
+      useCase: (payload.useCase as string) || '',
+      printerColumns: payload.printerColumns as PrinterColumn[] | undefined,
+      confidence: (payload.confidence as number) || 0,
+      analyzedAt: (payload.analyzedAt as string) || new Date().toISOString()
     };
   }
 

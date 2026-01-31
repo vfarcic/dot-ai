@@ -10,6 +10,43 @@
 import { AITool } from './ai-provider.interface';
 import mermaid from 'mermaid';
 
+/**
+ * Input for mermaid validation tools
+ */
+export interface MermaidToolInput {
+  diagram?: string;
+}
+
+/**
+ * Result of mermaid validation
+ */
+interface MermaidValidationResult {
+  success: boolean;
+  valid?: boolean;
+  error?: string | null;
+  parseError?: {
+    text?: string;
+    token?: string;
+    line?: number;
+    loc?: unknown;
+    expected?: string[];
+  } | null;
+  message: string;
+}
+
+/**
+ * Mermaid parse error structure
+ */
+interface MermaidParseError extends Error {
+  hash?: {
+    text?: string;
+    token?: string;
+    line?: number;
+    loc?: unknown;
+    expected?: string[];
+  };
+}
+
 // Initialize mermaid with strict validation
 mermaid.initialize({
   securityLevel: 'strict',
@@ -64,8 +101,8 @@ export const MERMAID_TOOLS: AITool[] = [
  */
 export async function executeMermaidTools(
   toolName: string,
-  input: any
-): Promise<any> {
+  input: MermaidToolInput
+): Promise<MermaidValidationResult> {
   if (toolName !== 'validate_mermaid') {
     return {
       success: false,
@@ -80,7 +117,8 @@ export async function executeMermaidTools(
     return {
       success: false,
       valid: false,
-      error: 'Missing or invalid diagram parameter. Provide the Mermaid diagram code as a string.'
+      error: 'Missing or invalid diagram parameter. Provide the Mermaid diagram code as a string.',
+      message: 'Invalid input'
     };
   }
 
@@ -96,17 +134,18 @@ export async function executeMermaidTools(
       parseError: null,
       message: 'Diagram syntax is valid'
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Extract useful error information
-    const errorMessage = error.message || String(error);
+    const mermaidError = error as MermaidParseError;
+    const errorMessage = mermaidError.message || String(error);
 
     // Check if it's a parser error with detailed info
-    const parseError = error.hash ? {
-      text: error.hash.text,
-      token: error.hash.token,
-      line: error.hash.line,
-      loc: error.hash.loc,
-      expected: error.hash.expected
+    const parseError = mermaidError.hash ? {
+      text: mermaidError.hash.text,
+      token: mermaidError.hash.token,
+      line: mermaidError.hash.line,
+      loc: mermaidError.hash.loc,
+      expected: mermaidError.hash.expected
     } : null;
 
     return {

@@ -139,6 +139,51 @@ export async function getResourceService(): Promise<ResourceVectorService> {
 }
 
 /**
+ * Input for search_resources tool
+ */
+export interface SearchResourcesInput {
+  query: string;
+  namespace?: string;
+  kind?: string;
+  apiVersion?: string;
+  limit?: number;
+}
+
+/**
+ * Input for query_resources tool
+ */
+export interface QueryResourcesInput {
+  filter: Record<string, unknown>;
+  limit?: number;
+}
+
+/**
+ * Result from resource tool execution
+ */
+interface ResourceToolResult {
+  success: boolean;
+  data?: unknown[];
+  count?: number;
+  message: string;
+  error?: string;
+}
+
+/**
+ * Resource with optional id property from vector DB
+ */
+interface ResourceWithId {
+  id?: string;
+  namespace: string;
+  name: string;
+  kind: string;
+  apiVersion: string;
+  apiGroup?: string;
+  labels?: Record<string, string>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
  * Tool executor for resource-based tools
  * Handles execution and error handling for all resource tool calls
  *
@@ -146,11 +191,11 @@ export async function getResourceService(): Promise<ResourceVectorService> {
  * @param input - Tool input parameters
  * @returns Tool execution result
  */
-export async function executeResourceTools(toolName: string, input: any): Promise<any> {
+export async function executeResourceTools(toolName: string, input: SearchResourcesInput | QueryResourcesInput): Promise<ResourceToolResult> {
   try {
     switch (toolName) {
       case 'search_resources': {
-        const { query, namespace, kind, apiVersion, limit = 10 } = input;
+        const { query, namespace, kind, apiVersion, limit = 10 } = input as SearchResourcesInput;
 
         if (!query) {
           return {
@@ -177,7 +222,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
 
         // Transform results to a clean format for AI consumption
         const formattedResources = results.map(({ resource: r, score }) => ({
-          id: (r as any).id,
+          id: (r as ResourceWithId).id,
           namespace: r.namespace,
           name: r.name,
           kind: r.kind,
@@ -203,7 +248,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
       }
 
       case 'query_resources': {
-        const { filter, limit = 100 } = input;
+        const { filter, limit = 100 } = input as QueryResourcesInput;
 
         if (!filter) {
           return {
@@ -218,7 +263,7 @@ export async function executeResourceTools(toolName: string, input: any): Promis
 
         // Transform results to a clean format for AI consumption
         const resources = results.map(r => ({
-          id: (r as any).id,
+          id: (r as ResourceWithId).id,
           namespace: r.namespace,
           name: r.name,
           kind: r.kind,

@@ -8,7 +8,7 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
-import { embed } from 'ai';
+import { embed, EmbeddingModel } from 'ai';
 import { CircuitBreaker, CircuitBreakerStats, CircuitOpenError } from './circuit-breaker';
 import { withAITracing } from './tracing';
 
@@ -45,6 +45,20 @@ export interface EmbeddingProvider {
 }
 
 /**
+ * Options for the embed() function
+ */
+interface EmbedOptions {
+  model: EmbeddingModel<string>;
+  value: string;
+  providerOptions?: {
+    google?: {
+      outputDimensionality: number;
+      taskType: string;
+    };
+  };
+}
+
+/**
  * Unified Vercel AI SDK Embedding Provider
  * Supports OpenAI, Google, and Amazon Bedrock through Vercel AI SDK
  */
@@ -54,7 +68,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
   private model: string;
   private dimensions: number;
   private available: boolean;
-  private modelInstance: any;
+  private modelInstance: EmbeddingModel<string> | undefined;
 
   constructor(config: EmbeddingConfig & { provider: EmbeddingProviderType }) {
     this.providerType = config.provider;
@@ -115,7 +129,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         }
       }
       this.available = true;
-    } catch (error) {
+    } catch {
       this.available = false;
     }
   }
@@ -140,8 +154,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         try {
           // Execute through circuit breaker to prevent cascading failures
           return await embeddingCircuitBreaker.execute(async () => {
-            const embedOptions: any = {
-              model: this.modelInstance,
+            const embedOptions: EmbedOptions = {
+              model: this.modelInstance!,
               value: text.trim()
             };
 
@@ -206,8 +220,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           return await embeddingCircuitBreaker.execute(async () => {
             const results = await Promise.all(
               validTexts.map(text => {
-                const embedOptions: any = {
-                  model: this.modelInstance,
+                const embedOptions: EmbedOptions = {
+                  model: this.modelInstance!,
                   value: text
                 };
 

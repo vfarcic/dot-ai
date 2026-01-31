@@ -106,8 +106,7 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.customEmbeddings.keyName | default "custom-embeddings-api-key" }}
               optional: true
-        - name: QDRANT_URL
-          value: {{ if .Values.qdrant.enabled }}"http://{{ .Release.Name }}-qdrant.{{ .Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ .Values.qdrant.external.url | quote }}{{ end }}
+        # PRD #359: QDRANT_URL moved to agentic-tools plugin (all vector ops go through plugin)
         # Bearer token authentication (optional)
         - name: DOT_AI_AUTH_TOKEN
           valueFrom:

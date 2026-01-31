@@ -66,6 +66,18 @@ export function generateSolutionCR(options: SolutionCROptions): string {
 }
 
 /**
+ * Kubernetes manifest structure from YAML parsing
+ */
+interface ParsedManifest {
+  apiVersion?: string;
+  kind?: string;
+  metadata?: {
+    name?: string;
+    namespace?: string;
+  };
+}
+
+/**
  * Extract resource references from generated manifest YAML
  *
  * @param manifestsYaml Generated Kubernetes manifests as YAML string
@@ -79,11 +91,12 @@ function extractResourceReferences(manifestsYaml: string, defaultNamespace: stri
   namespace: string;
 }> {
   try {
-    const manifests = yaml.loadAll(manifestsYaml);
+    const manifests = yaml.loadAll(manifestsYaml) as ParsedManifest[];
 
     return manifests
-      .filter((manifest: any) => manifest && manifest.kind && manifest.metadata?.name)
-      .map((manifest: any) => ({
+      .filter((manifest): manifest is ParsedManifest & { kind: string; apiVersion: string; metadata: { name: string } } =>
+        Boolean(manifest && manifest.kind && manifest.apiVersion && manifest.metadata?.name))
+      .map((manifest) => ({
         apiVersion: manifest.apiVersion,
         kind: manifest.kind,
         name: manifest.metadata.name,

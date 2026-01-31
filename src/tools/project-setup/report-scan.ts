@@ -167,7 +167,7 @@ export async function handleReportScan(
  */
 function generateReport(
   scopeStatus: Record<string, { complete: boolean; missingFiles: string[] }>,
-  allScopes: Record<string, any>
+  allScopes: Record<string, { files: string[]; [key: string]: unknown }>
 ): string {
   const lines: string[] = ['Repository Analysis:', ''];
 

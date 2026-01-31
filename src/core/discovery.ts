@@ -5,7 +5,7 @@
  */
 
 import * as yaml from 'yaml';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 
 export interface ClusterInfo {
   type: string;
@@ -32,7 +32,7 @@ export interface EnhancedCRD {
     name: string;
     served: boolean;
     storage: boolean;
-    schema?: any;
+    schema?: Record<string, unknown>;
     additionalPrinterColumns?: Array<{
       name: string;
       type: string;
@@ -41,7 +41,7 @@ export interface EnhancedCRD {
       priority?: number;
     }>;
   }>;
-  schema?: any;
+  schema?: Record<string, unknown>;
 }
 
 export interface EnhancedResource {
@@ -100,26 +100,97 @@ export interface ClusterFingerprint {
 }
 
 /**
+ * Raw CRD item from kubectl output
+ */
+interface RawCRDItem {
+  metadata: {
+    name: string;
+    ownerReferences?: Array<{
+      kind: string;
+      name: string;
+    }>;
+  };
+  spec: {
+    group: string;
+    version?: string;
+    names: {
+      kind: string;
+      plural: string;
+      categories?: string[];
+    };
+    scope: 'Namespaced' | 'Cluster';
+    versions?: Array<{
+      name: string;
+      served: boolean;
+      storage: boolean;
+      additionalPrinterColumns?: Array<{
+        name: string;
+        type?: string;
+        jsonPath: string;
+        description?: string;
+        priority?: number;
+      }>;
+    }>;
+  };
+}
+
+/**
+ * Plugin response result structure
+ */
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
+
+/**
+ * Kubernetes resource with metadata
+ */
+interface K8sResource {
+  metadata: {
+    name: string;
+  };
+}
+
+/**
+ * Composition resource structure
+ */
+interface CompositionResource {
+  metadata?: {
+    labels?: Record<string, string>;
+  };
+  spec?: {
+    compositeTypeRef?: {
+      kind: string;
+    };
+    resources?: Array<{
+      base?: {
+        kind: string;
+      };
+    }>;
+    pipeline?: Array<{
+      functionRef?: {
+        name: string;
+      };
+      input?: {
+        spec?: {
+          source?: string;
+        };
+      };
+    }>;
+  };
+}
+
+/**
  * PRD #343: KubernetesDiscovery simplified - all K8s operations go through plugin
+ * PRD #359: Uses unified plugin registry for all operations
  * No longer uses @kubernetes/client-node or kubeconfig directly.
  */
 export class KubernetesDiscovery {
-  private connected: boolean = false;
-  // PRD #343: Plugin manager for routing kubectl operations through plugin
-  private pluginManager?: PluginManager;
-
-  /**
-   * PRD #343: Set plugin manager for routing kubectl operations through plugin
-   * When set, all K8s operations route through the plugin
-   */
-  setPluginManager(pluginManager: PluginManager): void {
-    this.pluginManager = pluginManager;
-    // PRD #343: Mark as connected since all K8s operations go through plugin
-    this.connected = true;
-  }
-
   /**
    * Test connection to the cluster with detailed result
+   * PRD #359: Uses unified plugin registry
    */
   async testConnection(): Promise<{
     connected: boolean;
@@ -127,16 +198,15 @@ export class KubernetesDiscovery {
     error?: string;
     errorType?: string;
   }> {
-    // PRD #343: All K8s operations go through plugin
-    // If plugin is available, we're "connected" - actual failures happen at operation time
-    if (this.pluginManager) {
+    // PRD #359: Check if plugin system is initialized via unified registry
+    if (isPluginInitialized()) {
       return { connected: true };
     }
     return { connected: false, error: 'Plugin system not available' };
   }
 
   async getClusterInfo(): Promise<ClusterInfo> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -183,18 +253,18 @@ export class KubernetesDiscovery {
         const systemPods = await this.executeKubectl(['get', 'pods', '-n', 'kube-system', '-o', 'json']);
         const pods = JSON.parse(systemPods);
         
-        if (pods.items.some((pod: any) => pod.metadata.name.includes('scheduler'))) {
+        if (pods.items.some((pod: { metadata: { name: string } }) => pod.metadata.name.includes('scheduler'))) {
           capabilities.push('scheduler');
         }
         
-        if (pods.items.some((pod: any) => pod.metadata.name.includes('controller-manager'))) {
+        if (pods.items.some((pod: { metadata: { name: string } }) => pod.metadata.name.includes('controller-manager'))) {
           capabilities.push('controller-manager');
         }
         
-        if (pods.items.some((pod: any) => pod.metadata.name.includes('etcd'))) {
+        if (pods.items.some((pod: { metadata: { name: string } }) => pod.metadata.name.includes('etcd'))) {
           capabilities.push('etcd');
         }
-      } catch (error) {
+      } catch {
         // Fallback to basic capabilities if we can't access system pods
         // In test environments or when system pods aren't accessible, assume standard components
         capabilities.push('scheduler', 'controller-manager');
@@ -212,13 +282,13 @@ export class KubernetesDiscovery {
       try {
         await this.executeKubectl(['get', 'namespaces', '--no-headers']);
         capabilities.push('namespaces');
-      } catch (error) {
+      } catch {
         // Ignore namespace check errors in test environment
       }
       
       // Add more capability detection as needed
       capabilities.push('pods', 'services', 'deployments');
-    } catch (error) {
+    } catch {
       // Return standard capabilities on error
       return ['api-server', 'scheduler', 'controller-manager'];
     }
@@ -227,7 +297,7 @@ export class KubernetesDiscovery {
   }
 
   async discoverResources(): Promise<ResourceMap> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -256,22 +326,20 @@ export class KubernetesDiscovery {
   }
 
   /**
-   * Execute kubectl command with proper configuration
-   */
-  /**
    * Execute kubectl command via plugin
+   * PRD #359: Uses unified plugin registry
    */
   async executeKubectl(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available');
     }
 
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
 
     if (response.success) {
       // Extract data from response - plugin returns { success: true, result: { success: true, data: "..." } }
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
         if (result.success === false) {
           throw new Error(result.error || result.message || 'kubectl command failed');
@@ -298,9 +366,9 @@ export class KubernetesDiscovery {
   /**
    * Parse a raw CRD object into EnhancedCRD format
    */
-  private parseCRDItem(item: any): EnhancedCRD {
-    const versions = item.spec.versions || [{ name: item.spec.version, served: true, storage: true }];
-    const storageVersion = versions.find((v: any) => v.storage)?.name || versions[0]?.name;
+  private parseCRDItem(item: RawCRDItem): EnhancedCRD {
+    const versions = item.spec.versions || [{ name: item.spec.version || '', served: true, storage: true }];
+    const storageVersion = versions.find((v) => v.storage)?.name || versions[0]?.name;
 
     return {
       name: item.metadata.name,
@@ -309,12 +377,12 @@ export class KubernetesDiscovery {
       kind: item.spec.names.kind,
       scope: item.spec.scope,
       resourcePlural: item.spec.names.plural,
-      versions: versions.map((v: any) => ({
+      versions: versions.map((v) => ({
         name: v.name,
         served: v.served,
         storage: v.storage,
         schema: undefined,
-        additionalPrinterColumns: v.additionalPrinterColumns?.map((col: any) => ({
+        additionalPrinterColumns: v.additionalPrinterColumns?.map((col) => ({
           name: col.name,
           type: col.type || 'string',
           jsonPath: col.jsonPath,
@@ -331,7 +399,7 @@ export class KubernetesDiscovery {
    * This is the single source of truth for CRD data - used by both full and targeted scans
    */
   async getCRDData(crdName: string): Promise<EnhancedCRD> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -341,7 +409,7 @@ export class KubernetesDiscovery {
   }
 
   async discoverCRDs(options?: { group?: string }): Promise<EnhancedCRD[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -349,7 +417,7 @@ export class KubernetesDiscovery {
       const output = await this.executeKubectl(['get', 'crd', '-o', 'json']);
       const crdList = JSON.parse(output);
 
-      const crds: EnhancedCRD[] = crdList.items.map((item: any) => this.parseCRDItem(item));
+      const crds: EnhancedCRD[] = crdList.items.map((item: RawCRDItem) => this.parseCRDItem(item));
 
       if (options?.group) {
         return crds.filter(crd => crd.group === options.group);
@@ -370,7 +438,7 @@ export class KubernetesDiscovery {
 
 
   async getAPIResources(options?: { group?: string }): Promise<EnhancedResource[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
     
@@ -445,7 +513,7 @@ export class KubernetesDiscovery {
   }
 
   async explainResource(resource: string, options?: { field?: string }): Promise<string> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -469,7 +537,7 @@ export class KubernetesDiscovery {
    * @returns Cleaned YAML string suitable for AI prompts
    */
   async getCRDDefinition(crdName: string): Promise<string> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -519,18 +587,18 @@ export class KubernetesDiscovery {
     description?: string;
     priority?: number;
   }>> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available for getPrinterColumns');
     }
 
-    const response = await this.pluginManager.invokeTool('kubectl_get_printer_columns', {
+    const response = await invokePluginTool('agentic-tools', 'kubectl_get_printer_columns', {
       resourcePlural,
       apiVersion
     });
 
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         // Check for nested error
         if (result.success === false) {
           throw new Error(result.error || result.message || 'Failed to get printer columns');
@@ -551,7 +619,7 @@ export class KubernetesDiscovery {
   }
 
   async fingerprintCluster(): Promise<ClusterFingerprint> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
     
@@ -604,7 +672,7 @@ export class KubernetesDiscovery {
         security,
         storage
       };
-    } catch (error) {
+    } catch {
       // Return basic fingerprint on error
       return {
         version: 'unknown',
@@ -650,9 +718,9 @@ export class KubernetesDiscovery {
         this.executeKubectl(['get', 'configmaps', '--all-namespaces', '-o', 'json']),
         this.executeKubectl(['get', 'secrets', '--all-namespaces', '-o', 'json'])
       ];
-      
+
       const results = await Promise.all(promises);
-      
+
       return {
         deployments: JSON.parse(results[0]).items.length,
         services: JSON.parse(results[1]).items.length,
@@ -660,7 +728,7 @@ export class KubernetesDiscovery {
         configMaps: JSON.parse(results[3]).items.length,
         secrets: JSON.parse(results[4]).items.length
       };
-    } catch (error) {
+    } catch {
       return { deployments: 0, services: 0, pods: 0, configMaps: 0, secrets: 0 };
     }
   }
@@ -669,17 +737,17 @@ export class KubernetesDiscovery {
     try {
       // Get cluster info
       const clusterInfoOutput = await this.executeKubectl(['cluster-info', 'dump']);
-      
+
       // Extract networking information from cluster info
       return {
-        cni: clusterInfoOutput.includes('calico') ? 'calico' : 
+        cni: clusterInfoOutput.includes('calico') ? 'calico' :
              clusterInfoOutput.includes('flannel') ? 'flannel' :
              clusterInfoOutput.includes('weave') ? 'weave' : 'unknown',
         serviceSubnet: this.extractSubnet(clusterInfoOutput, 'service') || '10.96.0.0/12',
         podSubnet: this.extractSubnet(clusterInfoOutput, 'pod') || '10.244.0.0/16',
         dnsProvider: clusterInfoOutput.includes('coredns') ? 'coredns' : 'kube-dns'
       };
-    } catch (error) {
+    } catch {
       return {
         cni: 'unknown',
         serviceSubnet: '10.96.0.0/12',
@@ -709,7 +777,7 @@ export class KubernetesDiscovery {
         networkPolicies,
         admissionControllers: ['api-server', 'scheduler', 'controller-manager'] // Basic controllers
       };
-    } catch (error) {
+    } catch {
       return {
         rbacEnabled: false,
         podSecurityPolicy: false,
@@ -724,17 +792,17 @@ export class KubernetesDiscovery {
       const scOutput = await this.executeKubectl(['get', 'storageclass', '-o', 'json']);
       const pvOutput = await this.executeKubectl(['get', 'pv', '-o', 'json']);
       const csiOutput = await this.executeKubectl(['get', 'csidriver', '-o', 'json']).catch(() => '{"items":[]}');
-      
-      const storageClasses = JSON.parse(scOutput).items.map((sc: any) => sc.metadata.name);
+
+      const storageClasses = JSON.parse(scOutput).items.map((sc: K8sResource) => sc.metadata.name);
       const persistentVolumes = JSON.parse(pvOutput).items.length;
-      const csiDrivers = JSON.parse(csiOutput).items.map((driver: any) => driver.metadata.name);
-      
+      const csiDrivers = JSON.parse(csiOutput).items.map((driver: K8sResource) => driver.metadata.name);
+
       return {
         storageClasses,
         persistentVolumes,
         csiDrivers
       };
-    } catch (error) {
+    } catch {
       return {
         storageClasses: [],
         persistentVolumes: 0,
@@ -754,8 +822,8 @@ export class KubernetesDiscovery {
     return match ? match[1] : null;
   }
 
-  async getResourceSchema(_kind: string, _apiVersion: string): Promise<any> {
-    if (!this.connected) {
+  async getResourceSchema(_kind: string, _apiVersion: string): Promise<Record<string, unknown>> {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
@@ -772,18 +840,13 @@ export class KubernetesDiscovery {
   }
 
   async getNamespaces(): Promise<string[]> {
-    if (!this.connected) {
+    if (!isPluginInitialized()) {
       throw new Error('Not connected to cluster');
     }
 
-    // PRD #343: ALL Kubernetes operations go through plugin
-    if (!this.pluginManager) {
-      throw new Error('Plugin system not available. getNamespaces requires agentic-tools plugin.');
-    }
-
     try {
-      // Use kubectl_exec_command for JSON output (kubectl_get strips -o json)
-      const response = await this.pluginManager.invokeTool('kubectl_exec_command', {
+      // PRD #359: Use unified plugin registry for kubectl operations
+      const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', {
         args: ['get', 'namespaces', '-o', 'json']
       });
 
@@ -793,18 +856,18 @@ export class KubernetesDiscovery {
 
       // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.success === false) {
           throw new Error(result.error || result.message || 'kubectl command failed');
         }
       }
 
       // Parse JSON output from kubectl
-      const resultData = (response.result as any)?.data || response.result;
+      const resultData = (response.result as PluginResultData)?.data || response.result;
       const data = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
 
       if (data?.items) {
-        return data.items.map((ns: any) => ns.metadata?.name || '').filter(Boolean);
+        return data.items.map((ns: K8sResource) => ns.metadata?.name || '').filter(Boolean);
       }
 
       return [];
@@ -817,7 +880,7 @@ export class KubernetesDiscovery {
     try {
       const namespaces = await this.getNamespaces();
       return namespaces.includes(namespace);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -825,7 +888,7 @@ export class KubernetesDiscovery {
   /**
    * Discover what capabilities a CRD provides by analyzing related resources
    */
-  private async discoverCRDCapabilities(crdName: string, crdDef: any): Promise<string[]> {
+  private async discoverCRDCapabilities(_crdName: string, crdDef: RawCRDItem): Promise<string[]> {
     const capabilities: string[] = [];
 
     try {
@@ -873,7 +936,7 @@ export class KubernetesDiscovery {
       }
 
     } catch (error) {
-      console.warn(`Failed to discover capabilities for CRD ${crdName}:`, error);
+      console.warn(`Failed to discover capabilities for CRD ${_crdName}:`, error);
     }
 
     return [...new Set(capabilities)]; // Remove duplicates
@@ -882,7 +945,7 @@ export class KubernetesDiscovery {
   /**
    * Find Compositions associated with this CRD
    */
-  private async discoverAssociatedCompositions(crdDef: any): Promise<any[]> {
+  private async discoverAssociatedCompositions(crdDef: RawCRDItem): Promise<CompositionResource[]> {
     try {
       const kind = crdDef.spec?.names?.kind;
       if (!kind) return [];
@@ -890,12 +953,12 @@ export class KubernetesDiscovery {
       // Get all compositions and find ones that match this CRD
       const output = await this.executeKubectl(['get', 'compositions', '-o', 'json']);
       const compositionList = JSON.parse(output);
-      
-      return compositionList.items.filter((comp: any) => {
+
+      return compositionList.items.filter((comp: CompositionResource) => {
         const claimNames = comp.spec?.compositeTypeRef?.kind;
         return claimNames && claimNames.includes(kind.replace('Claim', ''));
       });
-    } catch (error) {
+    } catch {
       return [];
     }
   }
@@ -903,7 +966,7 @@ export class KubernetesDiscovery {
   /**
    * Analyze what resources a Composition creates
    */
-  private async analyzeCompositionCapabilities(composition: any): Promise<string[]> {
+  private async analyzeCompositionCapabilities(composition: CompositionResource): Promise<string[]> {
     const capabilities: string[] = [];
 
     try {

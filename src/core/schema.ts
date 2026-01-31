@@ -7,10 +7,9 @@
 
 import { ResourceExplanation } from './discovery';
 import { AIProvider } from './ai-provider.interface';
-import type { PluginManager } from './plugin-manager';
+import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { PatternVectorService } from './pattern-vector-service';
 import { OrganizationalPattern } from './pattern-types';
-import { VectorDBService } from './vector-db-service';
 import { CapabilityVectorService } from './capability-vector-service';
 import { PolicyVectorService } from './policy-vector-service';
 import { PolicyIntent } from './organizational-types';
@@ -48,7 +47,7 @@ export interface FieldConstraints {
   minLength?: number;
   maxLength?: number;
   enum?: string[];
-  default?: any;
+  default?: unknown;
   pattern?: string;
 }
 
@@ -57,7 +56,7 @@ export interface SchemaField {
   type: string;
   description: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
   constraints?: FieldConstraints;
   nested: Map<string, SchemaField>;
 }
@@ -90,7 +89,7 @@ export interface ResourceMapping {
 
 // Simple answer structure for manifest generation
 export interface AnswerSet {
-  [questionId: string]: any;
+  [questionId: string]: unknown;
 }
 
 // Enhanced solution for single-pass workflow
@@ -112,8 +111,8 @@ export interface Question {
     pattern?: string;
     message?: string;
   };
-  suggestedAnswer?: any;
-  answer?: any;
+  suggestedAnswer?: unknown;
+  answer?: unknown;
   // Note: resourceMapping removed - manifest generator handles field mapping
 }
 
@@ -213,6 +212,114 @@ export interface ClusterOptions {
 }
 
 /**
+ * Field data from ResourceExplanation
+ */
+interface ExplanationField {
+  name: string;
+  type: string;
+  description: string;
+  required: boolean;
+}
+
+/**
+ * Plugin result data structure
+ */
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
+
+/**
+ * Resource capability data from vector search
+ */
+interface CapabilityData {
+  resourceName: string;
+  group?: string;
+  apiVersion?: string;
+  version?: string;
+  capabilities?: string[];
+  providers?: string[] | string;
+  complexity?: string;
+  useCase?: string;
+  description?: string;
+  confidence?: number;
+  source?: string;
+  patternId?: string;
+  namespaced?: boolean;
+}
+
+/**
+ * Capability search result
+ */
+interface CapabilitySearchResult {
+  data: CapabilityData;
+  score: number;
+}
+
+/**
+ * Resource with capability info
+ */
+interface ResourceWithCapabilities {
+  kind: string;
+  group: string;
+  apiVersion?: string;
+  version?: string;
+  resourceName: string;
+  capabilities: CapabilityData;
+}
+
+/**
+ * K8s item metadata
+ */
+interface K8sItemMetadata {
+  name?: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+}
+
+/**
+ * K8s list item
+ */
+interface K8sListItem {
+  metadata?: K8sItemMetadata;
+}
+
+/**
+ * Parsed AI solution from response
+ */
+interface ParsedSolution {
+  type: 'single' | 'combination';
+  resources: Array<{
+    kind: string;
+    apiVersion: string;
+    group?: string;
+    resourceName?: string;
+  }>;
+  score: number;
+  description: string;
+  reasons?: string[];
+  appliedPatterns?: string[];
+}
+
+/**
+ * Parsed AI response structure
+ */
+interface ParsedAIResponse {
+  solutions?: ParsedSolution[];
+  helmRecommendation?: HelmRecommendation;
+}
+
+/**
+ * Resource candidate for selection
+ */
+interface ResourceCandidate {
+  kind: string;
+  [key: string]: unknown;
+}
+
+/**
  * SchemaParser converts kubectl explain output to structured ResourceSchema
  */
 export class SchemaParser {
@@ -270,7 +377,7 @@ export class SchemaParser {
   /**
    * Add nested field to the schema structure
    */
-  private addNestedField(parentField: SchemaField, fieldParts: string[], field: any): void {
+  private addNestedField(parentField: SchemaField, fieldParts: string[], field: ExplanationField): void {
     const currentPart = fieldParts[0];
     
     if (!parentField.nested.has(currentPart)) {
@@ -381,24 +488,25 @@ export class SchemaParser {
  * PRD #343: Supports plugin system for kubectl operations
  */
 export class ManifestValidator {
-  private pluginManager?: PluginManager;
-
-  constructor(pluginManager?: PluginManager) {
-    this.pluginManager = pluginManager;
+  /**
+   * PRD #359: Uses unified plugin registry for kubectl operations
+   */
+  constructor() {
+    // Plugin registry will be checked at operation time
   }
 
   /**
    * Execute kubectl via plugin system
-   * PRD #343: ALL Kubernetes operations go through plugin
+   * PRD #359: ALL Kubernetes operations go through unified plugin registry
    */
   private async executeKubectlViaPlugin(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
     }
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
         if (result.success === false) {
           throw new Error(result.error || result.message || 'kubectl command failed');
@@ -408,7 +516,7 @@ export class ManifestValidator {
           return String(result.data);
         }
         if (typeof result === 'string') {
-          return result;
+          return result as unknown as string;
         }
         throw new Error('Plugin returned unexpected response format - missing data field');
       }
@@ -421,7 +529,7 @@ export class ManifestValidator {
   /**
    * Validate a manifest using kubectl dry-run
    * This uses the actual Kubernetes API server validation for accuracy
-   * PRD #343: Routes through plugin system when pluginManager is available
+   * PRD #359: Routes through unified plugin registry
    */
   async validateManifest(manifestPath: string, config?: { dryRunMode?: 'client' | 'server' }): Promise<ValidationResult> {
     const errors: string[] = [];
@@ -430,18 +538,18 @@ export class ManifestValidator {
     try {
       const dryRunMode = config?.dryRunMode || 'server';
 
-      // PRD #343: Read manifest content and use kubectl_apply_dryrun tool
+      // PRD #359: Read manifest content and use kubectl_apply_dryrun tool via unified registry
       // File paths don't work across containers, so we pass content via plugin tool
       const fs = await import('fs');
       const yaml = await import('yaml');
       const manifestContent = fs.readFileSync(manifestPath, 'utf8');
 
-      if (!this.pluginManager) {
+      if (!isPluginInitialized()) {
         throw new Error('Plugin system not available. ManifestValidator requires agentic-tools plugin for kubectl operations.');
       }
 
       // Use kubectl_apply_dryrun tool which accepts manifest content
-      const response = await this.pluginManager.invokeTool('kubectl_apply_dryrun', {
+      const response = await invokePluginTool('agentic-tools', 'kubectl_apply_dryrun', {
         manifest: manifestContent,
         dryRunMode: dryRunMode
       });
@@ -452,7 +560,7 @@ export class ManifestValidator {
 
       // Check for nested error
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.success === false) {
           throw new Error(result.error || result.message || 'kubectl dry-run validation failed');
         }
@@ -474,9 +582,9 @@ export class ManifestValidator {
         warnings
       };
 
-    } catch (error: any) {
+    } catch (error) {
       // Parse kubectl error output for validation issues
-      const errorMessage = error.message || '';
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (errorMessage.includes('validation failed')) {
         errors.push('Kubernetes validation failed: ' + errorMessage);
@@ -499,7 +607,7 @@ export class ManifestValidator {
   /**
    * Add best practice warnings
    */
-  private addBestPracticeWarnings(manifest: any, warnings: string[]): void {
+  private addBestPracticeWarnings(manifest: { metadata?: { labels?: Record<string, string>; namespace?: string }; kind?: string }, warnings: string[]): void {
     // Check for missing labels
     if (!manifest.metadata?.labels) {
       warnings.push('Consider adding labels to metadata for better resource organization');
@@ -514,69 +622,65 @@ export class ManifestValidator {
 
 /**
  * ResourceRecommender determines which resources best meet user needs using AI
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 export class ResourceRecommender {
   private aiProvider: AIProvider;
   private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
   private policyService?: PolicyVectorService;
-  // PRD #343: Plugin manager for K8s operations
-  private pluginManager?: PluginManager;
 
-  constructor(aiProvider?: AIProvider, pluginManager?: PluginManager) {
-    this.pluginManager = pluginManager;
+  constructor(aiProvider?: AIProvider) {
     // Use provided AI provider or create from environment
     this.aiProvider = aiProvider || (() => {
       // Lazy import to avoid circular dependencies
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require to avoid circular dependency
       const { createAIProvider } = require('./ai-provider-factory');
       return createAIProvider();
     })();
     
-    // Initialize capability service - fail gracefully if Vector DB unavailable
+    // Initialize capability service - fail gracefully if plugin unavailable
     try {
       // Use environment variable for collection name (allows using test data collection)
       const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
-      const capabilityVectorDB = new VectorDBService({ collectionName });
-      this.capabilityService = new CapabilityVectorService(collectionName, capabilityVectorDB);
-      console.log(`✅ Capability service initialized with Vector DB (collection: ${collectionName})`);
+      this.capabilityService = new CapabilityVectorService(collectionName);
+      console.log(`✅ Capability service initialized (collection: ${collectionName})`);
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, capabilities disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, capabilities disabled:', error);
       this.capabilityService = undefined;
     }
-    
-    // Initialize pattern service only if Vector DB is available
+
+    // Initialize pattern service
     try {
-      const vectorDB = new VectorDBService({ collectionName: 'patterns' });
-      this.patternService = new PatternVectorService('patterns', vectorDB);
-      console.log('✅ Pattern service initialized with Vector DB');
+      this.patternService = new PatternVectorService('patterns');
+      console.log('✅ Pattern service initialized');
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, patterns disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, patterns disabled:', error);
       this.patternService = undefined;
     }
-    
-    // Initialize policy service only if Vector DB is available
+
+    // Initialize policy service
     try {
-      const policyVectorDB = new VectorDBService({ collectionName: 'policies' });
-      this.policyService = new PolicyVectorService(policyVectorDB);
-      console.log('✅ Policy service initialized with Vector DB');
+      this.policyService = new PolicyVectorService();
+      console.log('✅ Policy service initialized');
     } catch (error) {
-      console.warn('⚠️ Vector DB not available, policies disabled:', error);
+      console.warn('⚠️ Vector service initialization failed, policies disabled:', error);
       this.policyService = undefined;
     }
   }
 
   /**
    * Execute kubectl via plugin system
-   * PRD #343: ALL Kubernetes operations go through plugin
+   * PRD #359: ALL Kubernetes operations go through unified plugin registry
    */
   private async executeKubectlViaPlugin(args: string[]): Promise<string> {
-    if (!this.pluginManager) {
+    if (!isPluginInitialized()) {
       throw new Error('Plugin system not available. ResourceRecommender requires agentic-tools plugin for kubectl operations.');
     }
-    const response = await this.pluginManager.invokeTool('kubectl_exec_command', { args });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
         if (result.success === false) {
           throw new Error(result.error || result.message || 'kubectl command failed');
@@ -586,7 +690,7 @@ export class ResourceRecommender {
           return String(result.data);
         }
         if (typeof result === 'string') {
-          return result;
+          return result as unknown as string;
         }
         throw new Error('Plugin returned unexpected response format - missing data field');
       }
@@ -601,7 +705,7 @@ export class ResourceRecommender {
    */
   async findBestSolutions(
     intent: string,
-    _explainResource: (resource: string) => Promise<any>,
+    _explainResource: (resource: string) => Promise<string>,
     interaction_id?: string
   ): Promise<SolutionResult> {
     if (!this.aiProvider.isInitialized()) {
@@ -622,7 +726,7 @@ export class ResourceRecommender {
         );
       }
 
-      let relevantCapabilities: any[] = [];
+      let relevantCapabilities: CapabilitySearchResult[] = [];
 
       if (this.capabilityService) {
         try {
@@ -687,14 +791,7 @@ export class ResourceRecommender {
    */
   private async assembleAndRankSolutions(
     intent: string,
-    availableResources: Array<{
-      kind: string;
-      group: string;
-      apiVersion?: string;
-      version?: string;
-      resourceName: string;
-      capabilities: any;
-    }>,
+    availableResources: ResourceWithCapabilities[],
     patterns: OrganizationalPattern[],
     interaction_id?: string
   ): Promise<SolutionResult> {
@@ -712,7 +809,7 @@ export class ResourceRecommender {
   private parseSimpleSolutionResponse(aiResponse: string): SolutionResult {
     try {
       // Use robust JSON extraction
-      const parsed = extractJsonFromAIResponse(aiResponse);
+      const parsed = extractJsonFromAIResponse(aiResponse) as ParsedAIResponse;
 
       // Handle Helm recommendation case (presence of helmRecommendation means Helm is needed)
       const helmRecommendation: HelmRecommendation | null = parsed.helmRecommendation || null;
@@ -725,7 +822,7 @@ export class ResourceRecommender {
         };
       }
 
-      const solutions: ResourceSolution[] = (parsed.solutions || []).map((solution: any) => {
+      const solutions: ResourceSolution[] = (parsed.solutions || []).map((solution: ParsedSolution) => {
         const isDebugMode = process.env.DOT_AI_DEBUG === 'true';
 
         if (isDebugMode) {
@@ -733,7 +830,7 @@ export class ResourceRecommender {
         }
 
         // Convert resource references to ResourceSchema format for compatibility
-        const resources: ResourceSchema[] = (solution.resources || []).map((resource: any) => ({
+        const resources: ResourceSchema[] = (solution.resources || []).map((resource) => ({
           kind: resource.kind,
           apiVersion: resource.apiVersion,
           group: resource.group || '',
@@ -775,14 +872,7 @@ export class ResourceRecommender {
    */
   private async loadSolutionAssemblyPrompt(
     intent: string,
-    resources: Array<{
-      kind: string;
-      group: string;
-      apiVersion?: string;
-      version?: string;
-      resourceName: string;
-      capabilities: any;
-    }>,
+    resources: ResourceWithCapabilities[],
     patterns: OrganizationalPattern[]
   ): Promise<string> {
     // Format resources for the prompt with capability information
@@ -821,19 +911,9 @@ export class ResourceRecommender {
    * Add pattern-suggested resources that are missing from capability search results
    */
   private async addMissingPatternResources(
-    capabilityResources: Array<{
-      kind: string;
-      group: string;
-      resourceName: string;
-      capabilities: any;
-    }>,
+    capabilityResources: ResourceWithCapabilities[],
     patterns: OrganizationalPattern[]
-  ): Promise<Array<{
-    kind: string;
-    group: string;
-    resourceName: string;
-    capabilities: any;
-  }>> {
+  ): Promise<ResourceWithCapabilities[]> {
     if (!patterns.length) {
       return capabilityResources;
     }
@@ -842,12 +922,7 @@ export class ResourceRecommender {
     const existingResourceNames = new Set(capabilityResources.map(r => r.resourceName));
 
     // Collect missing pattern resources
-    const missingPatternResources: Array<{
-      kind: string;
-      group: string;
-      resourceName: string; 
-      capabilities: any;
-    }> = [];
+    const missingPatternResources: ResourceWithCapabilities[] = [];
 
     for (const pattern of patterns) {
       if (pattern.suggestedResources) {
@@ -967,7 +1042,7 @@ export class ResourceRecommender {
   /**
    * Phase 2: Fetch detailed schemas for selected candidates
    */
-  private async fetchDetailedSchemas(candidates: any[], explainResource: (resource: string) => Promise<any>): Promise<ResourceSchema[]> {
+  private async fetchDetailedSchemas(candidates: ResourceCandidate[], explainResource: (resource: string) => Promise<string>): Promise<ResourceSchema[]> {
     const schemas: ResourceSchema[] = [];
     const errors: string[] = [];
 
@@ -1033,7 +1108,7 @@ export class ResourceRecommender {
       try {
         const storageResult = await this.executeKubectlViaPlugin(['get', 'storageclass', '-o', 'json']);
         const storageData = JSON.parse(storageResult);
-        storageClasses = (storageData.items || []).map((item: any) => ({
+        storageClasses = (storageData.items || []).map((item: K8sListItem) => ({
           name: item.metadata?.name || '',
           isDefault: item.metadata?.annotations?.['storageclass.kubernetes.io/is-default-class'] === 'true'
         }));
@@ -1047,7 +1122,7 @@ export class ResourceRecommender {
       try {
         const ingressResult = await this.executeKubectlViaPlugin(['get', 'ingressclass', '-o', 'json']);
         const ingressData = JSON.parse(ingressResult);
-        ingressClasses = (ingressData.items || []).map((item: any) => ({
+        ingressClasses = (ingressData.items || []).map((item: K8sListItem) => ({
           name: item.metadata?.name || '',
           isDefault: item.metadata?.annotations?.['ingressclass.kubernetes.io/is-default-class'] === 'true'
         }));
@@ -1063,7 +1138,7 @@ export class ResourceRecommender {
         const nodes = JSON.parse(nodesResult);
         const labelSet = new Set<string>();
 
-        nodes.items?.forEach((node: any) => {
+        nodes.items?.forEach((node: K8sListItem) => {
           Object.keys(node.metadata?.labels || {}).forEach(label => {
             if (!label.startsWith('kubernetes.io/') && !label.startsWith('node.kubernetes.io/')) {
               labelSet.add(label);
@@ -1111,7 +1186,7 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
   /**
    * Generate contextual questions using AI based on user intent and solution resources
    */
-  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<any>, interaction_id?: string): Promise<QuestionGroup> {
+  private async generateQuestionsWithAI(intent: string, solution: ResourceSolution, _explainResource: (resource: string) => Promise<string>, interaction_id?: string): Promise<QuestionGroup> {
     try {
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
@@ -1222,8 +1297,8 @@ ${resourceDetails}`;
       });
       
       // Use robust JSON extraction
-      const questions = extractJsonFromAIResponse(response.content);
-      
+      const questions = extractJsonFromAIResponse(response.content) as Partial<QuestionGroup>;
+
       // Validate the response structure
       if (!questions.required || !questions.basic || !questions.advanced || !questions.open) {
         throw new Error('Invalid question structure from AI');
@@ -1334,7 +1409,7 @@ ${readme || 'No README available'}`;
         interaction_id: interaction_id || 'helm_question_generation'
       });
 
-      const questions = extractJsonFromAIResponse(response.content);
+      const questions = extractJsonFromAIResponse(response.content) as Partial<QuestionGroup> & { open?: { question: string; placeholder: string } };
 
       if (!questions.required || !questions.basic || !questions.advanced) {
         throw new Error('Invalid question structure from AI');

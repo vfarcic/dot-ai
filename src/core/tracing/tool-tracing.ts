@@ -40,10 +40,10 @@ export interface ToolTracingOptions {
  * }, { mcpClient: { name: 'claude-code', version: '1.0.0' } });
  * ```
  */
-export async function withToolTracing<T>(
+export async function withToolTracing<T, A = unknown>(
   toolName: string,
-  args: any,
-  handler: (args: any) => Promise<T>,
+  args: A,
+  handler: (args: A) => Promise<T>,
   options?: ToolTracingOptions
 ): Promise<T> {
   const tracer = trace.getTracer('dot-ai-mcp');

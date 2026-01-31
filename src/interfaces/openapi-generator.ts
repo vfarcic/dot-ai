@@ -16,6 +16,39 @@ import { RestRouteRegistry, RouteDefinition } from './rest-route-registry';
 import { Logger } from '../core/error-handling';
 
 /**
+ * JSON Schema object type for OpenAPI schemas
+ */
+type JsonSchemaObject = {
+  type?: string;
+  properties?: Record<string, JsonSchemaObject>;
+  items?: JsonSchemaObject;
+  required?: string[];
+  description?: string;
+  enum?: unknown[];
+  [key: string]: unknown;
+};
+
+/**
+ * OpenAPI path item structure
+ */
+type OpenApiPathItem = {
+  summary?: string;
+  description?: string;
+  operationId?: string;
+  tags?: string[];
+  parameters?: unknown[];
+  requestBody?: {
+    required?: boolean;
+    content?: Record<string, { schema: JsonSchemaObject }>;
+  };
+  responses?: Record<string, {
+    description: string;
+    content?: Record<string, { schema: JsonSchemaObject }>;
+  }>;
+  [key: string]: unknown;
+};
+
+/**
  * OpenAPI 3.0 specification structure
  */
 export interface OpenApiSpec {
@@ -38,11 +71,11 @@ export interface OpenApiSpec {
     url: string;
     description: string;
   }>;
-  paths: Record<string, any>;
+  paths: Record<string, Record<string, OpenApiPathItem>>;
   components?: {
-    schemas?: Record<string, any>;
-    responses?: Record<string, any>;
-    securitySchemes?: Record<string, any>;
+    schemas?: Record<string, JsonSchemaObject>;
+    responses?: Record<string, { description: string; content?: Record<string, { schema: JsonSchemaObject }> }>;
+    securitySchemes?: Record<string, { type: string; scheme?: string; bearerFormat?: string; description?: string }>;
   };
   tags?: Array<{
     name: string;
@@ -73,7 +106,7 @@ export class OpenApiGenerator {
   private specCache?: OpenApiSpec;
   private lastCacheUpdate: number = 0;
   private cacheValidityMs: number = 60000; // 1 minute
-  private schemaCache: Map<string, any> = new Map();
+  private schemaCache: Map<string, JsonSchemaObject> = new Map();
 
   constructor(
     toolRegistry: RestToolRegistry,
@@ -139,13 +172,13 @@ export class OpenApiGenerator {
         ...this.generateBasePaths(),
         ...toolPaths,
         ...routePaths,
-      },
+      } as Record<string, Record<string, OpenApiPathItem>>,
       components: {
         schemas: {
           ...this.generateBaseSchemas(),
           ...toolSchemas,
           ...routeSchemas,
-        },
+        } as Record<string, JsonSchemaObject>,
       },
       tags: this.generateTags(categories),
     };
@@ -200,8 +233,8 @@ export class OpenApiGenerator {
   /**
    * Generate base paths (MCP Protocol endpoints)
    */
-  private generateBasePaths(): Record<string, any> {
-    const paths: Record<string, any> = {};
+  private generateBasePaths(): Record<string, unknown> {
+    const paths: Record<string, unknown> = {};
 
     // MCP Protocol Endpoints
     paths['/'] = {
@@ -310,8 +343,8 @@ export class OpenApiGenerator {
   /**
    * Generate paths for MCP tool endpoints
    */
-  private generateToolPaths(tools: ToolInfo[]): Record<string, any> {
-    const paths: Record<string, any> = {};
+  private generateToolPaths(tools: ToolInfo[]): Record<string, unknown> {
+    const paths: Record<string, unknown> = {};
     const basePath = `${this.config.basePath}/${this.config.apiVersion}`;
 
     // Individual tool execution endpoints
@@ -375,12 +408,12 @@ export class OpenApiGenerator {
    * Generate paths from REST route registry
    * PRD #354: Auto-generates OpenAPI paths from registered routes
    */
-  private generateRoutePaths(): Record<string, any> {
+  private generateRoutePaths(): Record<string, unknown> {
     if (!this.routeRegistry) {
       return {};
     }
 
-    const paths: Record<string, any> = {};
+    const paths: Record<string, unknown> = {};
     const routes = this.routeRegistry.getAllRoutes();
 
     for (const route of routes) {
@@ -392,7 +425,7 @@ export class OpenApiGenerator {
         paths[openApiPath] = {};
       }
 
-      paths[openApiPath][method] = this.routeToOpenApiOperation(route);
+      (paths[openApiPath] as Record<string, OpenApiPathItem>)[method] = this.routeToOpenApiOperation(route);
     }
 
     return paths;
@@ -411,8 +444,8 @@ export class OpenApiGenerator {
    */
   private routeToOpenApiOperation(
     route: RouteDefinition<unknown, unknown, unknown, unknown>
-  ): any {
-    const operation: any = {
+  ): OpenApiPathItem {
+    const operation: OpenApiPathItem = {
       summary: route.description,
       description: route.description,
       tags: route.tags,
@@ -458,7 +491,7 @@ export class OpenApiGenerator {
 
     // Add success response
     const responseSchemaName = this.getSchemaName(route, 'Response');
-    operation.responses['200'] = {
+    operation.responses!['200'] = {
       description: 'Successful response',
       content: {
         'application/json': {
@@ -474,7 +507,7 @@ export class OpenApiGenerator {
           route,
           `Error${statusCode}`
         );
-        operation.responses[statusCode] = {
+        operation.responses![statusCode] = {
           description: this.getErrorDescription(Number(statusCode)),
           content: {
             'application/json': {
@@ -507,7 +540,7 @@ export class OpenApiGenerator {
   private getParamSchemaFromRoute(
     route: RouteDefinition<unknown, unknown, unknown, unknown>,
     paramName: string
-  ): any {
+  ): JsonSchemaObject {
     if (!route.params) {
       return { type: 'string' };
     }
@@ -526,8 +559,8 @@ export class OpenApiGenerator {
   private zodSchemaToParameters(
     schema: z.ZodSchema<unknown>,
     location: 'query' | 'path'
-  ): any[] {
-    const parameters: any[] = [];
+  ): Array<{ name: string; in: string; required: boolean; description: string; schema: JsonSchemaObject }> {
+    const parameters: Array<{ name: string; in: string; required: boolean; description: string; schema: JsonSchemaObject }> = [];
 
     try {
       const jsonSchema = this.zodSchemaToJsonSchema(schema);
@@ -535,12 +568,13 @@ export class OpenApiGenerator {
       const required = jsonSchema.required || [];
 
       for (const [name, propSchema] of Object.entries(properties)) {
+        const propObj = propSchema as JsonSchemaObject;
         parameters.push({
           name,
           in: location,
           required: required.includes(name),
-          description: (propSchema as any).description || `${name} parameter`,
-          schema: propSchema,
+          description: propObj.description || `${name} parameter`,
+          schema: propObj,
         });
       }
     } catch (error) {
@@ -597,17 +631,19 @@ export class OpenApiGenerator {
   /**
    * Convert Zod schema to JSON Schema with caching
    */
-  private zodSchemaToJsonSchema(schema: z.ZodSchema<unknown>): any {
+  private zodSchemaToJsonSchema(schema: z.ZodSchema<unknown>): JsonSchemaObject {
     const cacheKey = JSON.stringify(schema);
     if (this.schemaCache.has(cacheKey)) {
-      return this.schemaCache.get(cacheKey);
+      return this.schemaCache.get(cacheKey)!;
     }
 
     try {
+      // The zodToJsonSchema function accepts ZodSchema but TypeScript needs a cast
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type compatibility workaround
       const jsonSchema = zodToJsonSchema(schema as any, {
         target: 'openApi3',
         $refStrategy: 'none', // Inline all schemas
-      });
+      }) as JsonSchemaObject;
 
       // Remove $schema property if present (not valid in OpenAPI component schemas)
       const result = { ...jsonSchema };
@@ -626,8 +662,8 @@ export class OpenApiGenerator {
   /**
    * Generate base component schemas (shared across all endpoints)
    */
-  private generateBaseSchemas(): Record<string, any> {
-    const schemas: Record<string, any> = {};
+  private generateBaseSchemas(): Record<string, unknown> {
+    const schemas: Record<string, unknown> = {};
 
     // Base response schemas
     schemas.RestApiResponse = {
@@ -847,8 +883,8 @@ export class OpenApiGenerator {
   /**
    * Generate schemas for MCP tool endpoints
    */
-  private generateToolSchemas(tools: ToolInfo[]): Record<string, any> {
-    const schemas: Record<string, any> = {};
+  private generateToolSchemas(tools: ToolInfo[]): Record<string, unknown> {
+    const schemas: Record<string, unknown> = {};
 
     // Individual tool request schemas
     for (const tool of tools) {
@@ -862,12 +898,12 @@ export class OpenApiGenerator {
    * Generate schemas from REST route registry
    * PRD #354: Auto-generates OpenAPI schemas from route Zod schemas
    */
-  private generateRouteSchemas(): Record<string, any> {
+  private generateRouteSchemas(): Record<string, unknown> {
     if (!this.routeRegistry) {
       return {};
     }
 
-    const schemas: Record<string, any> = {};
+    const schemas: Record<string, unknown> = {};
     const routes = this.routeRegistry.getAllRoutes();
 
     for (const route of routes) {
@@ -964,14 +1000,14 @@ export class OpenApiGenerator {
   /**
    * Generate example request body for a tool
    */
-  private generateExampleForTool(tool: ToolInfo): any {
-    const example: any = {};
-    
+  private generateExampleForTool(tool: ToolInfo): Record<string, unknown> {
+    const example: Record<string, unknown> = {};
+
     try {
       const schema = tool.schema;
       if (schema.properties) {
         for (const [propName, propSchema] of Object.entries(schema.properties)) {
-          example[propName] = this.generateExampleValue(propSchema as any, propName);
+          example[propName] = this.generateExampleValue(propSchema as JsonSchemaObject, propName);
         }
       }
     } catch (error) {
@@ -987,7 +1023,7 @@ export class OpenApiGenerator {
   /**
    * Generate example value for a property schema
    */
-  private generateExampleValue(propSchema: any, propName: string): any {
+  private generateExampleValue(propSchema: JsonSchemaObject, propName: string): unknown {
     if (propSchema.example !== undefined) {
       return propSchema.example;
     }
@@ -1010,7 +1046,7 @@ export class OpenApiGenerator {
           return 'deploy web application with PostgreSQL database';
         }
         return `example ${propName}`;
-      
+
       case 'number':
       case 'integer':
         if (propName.toLowerCase().includes('port')) {
@@ -1020,23 +1056,23 @@ export class OpenApiGenerator {
           return 30;
         }
         return 42;
-      
+
       case 'boolean':
         return false;
-      
+
       case 'array':
-        return [this.generateExampleValue(propSchema.items, 'item')];
-      
+        return [this.generateExampleValue(propSchema.items as JsonSchemaObject, 'item')];
+
       case 'object': {
-        const objExample: any = {};
+        const objExample: Record<string, unknown> = {};
         if (propSchema.properties) {
           for (const [subPropName, subPropSchema] of Object.entries(propSchema.properties)) {
-            objExample[subPropName] = this.generateExampleValue(subPropSchema as any, subPropName);
+            objExample[subPropName] = this.generateExampleValue(subPropSchema as JsonSchemaObject, subPropName);
           }
         }
         return objExample;
       }
-      
+
       default:
         return `example ${propName}`;
     }

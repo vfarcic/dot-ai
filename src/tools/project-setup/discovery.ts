@@ -21,6 +21,7 @@ interface ScopeConfig {
     condition: string;
     reason: string;
   }>;
+  [key: string]: unknown;  // Allow additional properties
 }
 
 interface DiscoveryConfig {

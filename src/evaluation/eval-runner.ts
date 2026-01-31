@@ -18,6 +18,49 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// Interfaces for evaluation types
+interface ModelRanking {
+  model: string;
+  score: number;
+}
+
+interface ReliabilityRanking {
+  model: string;
+  reliability_score: number;
+  reliability_notes: string;
+}
+
+interface EvaluationResult {
+  modelRankings?: ModelRanking[];
+  key?: string;
+  bestModel?: string;
+  score?: number;
+  modelCount?: number;
+  confidence?: number;
+  comment?: string;
+  [key: string]: unknown;
+}
+
+interface EvaluationStats {
+  availableModels: string[];
+  totalDatasets: number;
+}
+
+interface FinalAssessment {
+  overall_assessment?: {
+    winner: string;
+    rationale: string;
+    reliability_ranking: ReliabilityRanking[];
+    key_insights?: string[];
+    production_recommendations: {
+      primary: string;
+      secondary?: string;
+      avoid?: string[];
+      specialized_use?: Record<string, string>;
+    };
+  };
+}
+
 const EVALUATOR_CONFIG = {
   remediation: { 
     evaluator: RemediationComparativeEvaluator, 
@@ -48,17 +91,17 @@ const EVALUATOR_CONFIG = {
 
 type EvaluationType = keyof typeof EVALUATOR_CONFIG;
 
-function generateMarkdownReport(results: any[], stats: any, evaluationType: EvaluationType, finalAssessment?: any): string {
+function generateMarkdownReport(results: EvaluationResult[], stats: EvaluationStats, evaluationType: EvaluationType, finalAssessment?: FinalAssessment): string {
   const timestamp = new Date().toISOString();
-  
+
   // Use final assessment if provided
   const overallAssessment = finalAssessment?.overall_assessment || null;
-  
+
   // Calculate basic statistics for reference
   const modelScores = new Map<string, number[]>();
   results.forEach(result => {
     if (result.modelRankings) {
-      result.modelRankings.forEach((ranking: any) => {
+      result.modelRankings.forEach((ranking: ModelRanking) => {
         if (!modelScores.has(ranking.model)) {
           modelScores.set(ranking.model, []);
         }
@@ -95,7 +138,7 @@ ${overallAssessment.rationale}
 ### 📊 AI Reliability Rankings
 
 ${overallAssessment ? overallAssessment.reliability_ranking
-  .map((ranking: any, index: number) => `${index + 1}. **${ranking.model}** (${Math.round(ranking.reliability_score * 100)}%) - ${ranking.reliability_notes}`)
+  .map((ranking: ReliabilityRanking, index: number) => `${index + 1}. **${ranking.model}** (${Math.round(ranking.reliability_score * 100)}%) - ${ranking.reliability_notes}`)
   .join('\n') : 'Reliability rankings not available'}
 
 ### 📋 Production Recommendations
@@ -103,8 +146,8 @@ ${overallAssessment ? overallAssessment.reliability_ranking
 ${overallAssessment ? `
 - **Primary Choice**: ${overallAssessment.production_recommendations.primary}
 - **Secondary Option**: ${overallAssessment.production_recommendations.secondary}
-- **Avoid for Production**: ${overallAssessment.production_recommendations.avoid.length > 0 ? overallAssessment.production_recommendations.avoid.join(', ') : 'None'}
-${Object.keys(overallAssessment.production_recommendations.specialized_use).length > 0 ? 
+- **Avoid for Production**: ${overallAssessment.production_recommendations.avoid?.length ? overallAssessment.production_recommendations.avoid.join(', ') : 'None'}
+${overallAssessment.production_recommendations.specialized_use && Object.keys(overallAssessment.production_recommendations.specialized_use).length > 0 ?
   '\n**Specialized Use Cases:**\n' + Object.entries(overallAssessment.production_recommendations.specialized_use)
     .map(([useCase, model]) => `- **${useCase}**: ${model}`)
     .join('\n') : ''}
@@ -122,7 +165,7 @@ ${Array.from(modelAverages.entries())
 ## Detailed Scenario Results
 
 ${results.map((result, index) => {
-  const scenarioTitle = result.key.replace(/_/g, ' ').replace(/(remediation|recommendation) comparative /, '').toUpperCase();
+  const scenarioTitle = (result.key || 'unknown').replace(/_/g, ' ').replace(/(remediation|recommendation) comparative /, '').toUpperCase();
   
   return `### ${index + 1}. ${scenarioTitle}
 
@@ -131,7 +174,7 @@ ${results.map((result, index) => {
 **Confidence**: ${result.confidence ? Math.round(result.confidence * 100) : 0}%
 
 #### Rankings
-${result.modelRankings ? result.modelRankings.map((rank: any) => 
+${result.modelRankings ? result.modelRankings.map((rank: ModelRanking & { rank?: number }) =>
   `${rank.rank}. **${rank.model}** - ${rank.score}`
 ).join('\n') : 'No detailed rankings available'}
 
@@ -150,7 +193,7 @@ ${overallAssessment.key_insights}
 ### Recommended Selection Strategy
 - **For Production Use**: Choose ${overallAssessment.production_recommendations.primary}
 - **For Secondary Option**: Consider ${overallAssessment.production_recommendations.secondary}
-${overallAssessment.production_recommendations.avoid.length > 0 ? 
+${overallAssessment.production_recommendations.avoid?.length ?
   `- **Avoid**: ${overallAssessment.production_recommendations.avoid.join(', ')} (reliability concerns)` : ''}
 
 ### Decision Framework
@@ -167,7 +210,9 @@ Report generated by DevOps AI Toolkit Comparative Evaluation System
 
 function loadModelMetadata() {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require for CLI script
     const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require for CLI script
     const path = require('path');
     const metadataPath = path.join(__dirname, 'model-metadata.json');
     
@@ -206,7 +251,7 @@ function loadModelMetadata() {
   }
 }
 
-function generateJsonReport(results: any[], stats: any, evaluationType: EvaluationType, modelMetadata: any, finalAssessment?: any) {
+function generateJsonReport(results: EvaluationResult[], stats: EvaluationStats, evaluationType: EvaluationType, modelMetadata: { models: Record<string, unknown> }, finalAssessment?: FinalAssessment) {
   const timestamp = new Date().toISOString();
   
   // Use final assessment if provided
@@ -244,7 +289,7 @@ async function detectAvailableDatasets(datasetsDir: string, filterType?: Evaluat
     }
     
     return result as Record<EvaluationType, boolean>;
-  } catch (error) {
+  } catch {
     console.warn('Could not read datasets directory, assuming no datasets available');
     const result: Record<string, boolean> = {};
     for (const type of Object.keys(EVALUATOR_CONFIG)) {
@@ -254,7 +299,7 @@ async function detectAvailableDatasets(datasetsDir: string, filterType?: Evaluat
   }
 }
 
-async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string, modelMetadata: any) {
+async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string, modelMetadata: { models: Record<string, unknown> }) {
   const EvaluatorClass = EVALUATOR_CONFIG[evaluatorType].evaluator;
   const evaluator = new EvaluatorClass(datasetsDir);
   
@@ -290,8 +335,8 @@ async function runEvaluation(evaluatorType: EvaluationType, datasetsDir: string,
   const finalAssessment = await evaluator.conductFinalAssessment(results);
   
   // Generate dual-format reports using final assessment
-  const reportContent = generateMarkdownReport(results, stats, evaluatorType, finalAssessment);
-  const jsonResults = generateJsonReport(results, stats, evaluatorType, modelMetadata, finalAssessment);
+  const reportContent = generateMarkdownReport(results as unknown as EvaluationResult[], stats, evaluatorType, finalAssessment);
+  const jsonResults = generateJsonReport(results as unknown as EvaluationResult[], stats, evaluatorType, modelMetadata, finalAssessment);
   
   // Save reports to files
   const markdownPath = `./eval/analysis/individual/${evaluatorType}-evaluation.md`;

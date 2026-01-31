@@ -23,9 +23,10 @@ import { generateSolutionCR } from '../core/solution-cr';
 import { HelmChartInfo } from '../core/helm-types';
 import { packageManifests, OutputFormat } from '../core/packaging';
 import { getVisualizationUrl } from '../core/visualization';
+import { invokePluginTool } from '../core/plugin-registry';
 import type { PluginManager } from '../core/plugin-manager';
 
-// PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
+// PRD #359: All helm operations via unified plugin registry
 
 /**
  * Ensure tmp directory exists
@@ -96,28 +97,63 @@ interface ErrorContext {
 }
 
 /**
+ * Resource reference from a solution
+ */
+interface ResourceRef {
+  kind: string;
+  apiVersion: string;
+  group?: string;
+}
+
+/**
+ * Solution structure from session storage
+ */
+interface Solution {
+  resources?: ResourceRef[];
+  description?: string;
+  reasons?: string[];
+  appliedPatterns?: string[];
+  intent?: string;
+}
+
+/**
+ * Schema data for a resource
+ */
+interface ResourceSchemaData {
+  kind: string;
+  apiVersion: string;
+  explanation: string;
+  retrievedAt: string;
+}
+
+/**
+ * Collection of resource schemas
+ */
+type ResourceSchemas = Record<string, ResourceSchemaData>;
+
+/**
  * Retrieve schemas for resources specified in the solution
  */
-async function retrieveResourceSchemas(solution: any, dotAI: DotAI, logger: Logger): Promise<any> {
+async function retrieveResourceSchemas(solution: Solution, dotAI: DotAI, logger: Logger): Promise<ResourceSchemas> {
   try {
     // Extract resource references from solution
-    const resourceRefs = (solution.resources || []).map((resource: any) => ({
+    const resourceRefs = (solution.resources || []).map((resource: ResourceRef) => ({
       kind: resource.kind,
       apiVersion: resource.apiVersion,
       group: resource.group
     }));
-    
+
     if (resourceRefs.length === 0) {
       logger.warn('No resources found in solution for schema retrieval');
       return {};
     }
-    
+
     logger.info('Retrieving schemas for solution resources', {
       resourceCount: resourceRefs.length,
-      resources: resourceRefs.map((r: any) => `${r.kind}@${r.apiVersion}`)
+      resources: resourceRefs.map((r: ResourceRef) => `${r.kind}@${r.apiVersion}`)
     });
-    
-    const schemas: any = {};
+
+    const schemas: ResourceSchemas = {};
     
     // Retrieve schema for each resource
     for (const resourceRef of resourceRefs) {
@@ -131,8 +167,8 @@ async function retrieveResourceSchemas(solution: any, dotAI: DotAI, logger: Logg
         schemas[resourceKey] = {
           kind: resourceRef.kind,
           apiVersion: resourceRef.apiVersion,
-          schema: explanation,
-          timestamp: new Date().toISOString()
+          explanation,
+          retrievedAt: new Date().toISOString()
         };
         
         logger.debug('Schema retrieved successfully', { 
@@ -205,7 +241,8 @@ async function helmLint(
 
   } catch (error) {
     // helm lint exits with non-zero on errors
-    const errorOutput = error instanceof Error ? (error as any).stderr || error.message : String(error);
+    const execError = error as { stderr?: string; message?: string };
+    const errorOutput = execError.stderr || execError.message || String(error);
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -231,9 +268,9 @@ async function helmLint(
 
 /**
  * Validate manifests using multi-layer approach
- * PRD #343: pluginManager required for kubectl operations
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
-async function validateManifests(yamlPath: string, pluginManager: PluginManager): Promise<ValidationResult> {
+async function validateManifests(yamlPath: string): Promise<ValidationResult> {
   // First check if file exists
   if (!fs.existsSync(yamlPath)) {
     return {
@@ -257,8 +294,8 @@ async function validateManifests(yamlPath: string, pluginManager: PluginManager)
   }
 
   // 2. kubectl dry-run validation using ManifestValidator
-  // PRD #343: Pass pluginManager for kubectl operations
-  const validator = new ManifestValidator(pluginManager);
+  // PRD #359: Uses unified plugin registry for kubectl operations
+  const validator = new ManifestValidator();
   return await validator.validateManifest(yamlPath, { dryRunMode: 'server' });
 }
 
@@ -266,7 +303,7 @@ async function validateManifests(yamlPath: string, pluginManager: PluginManager)
  * Generate manifests using AI provider
  */
 async function generateManifestsWithAI(
-  solution: any,
+  solution: Solution & { initialIntent?: string },
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -344,10 +381,18 @@ interface HelmErrorContext {
 }
 
 /**
+ * Helm solution with chart info
+ */
+interface HelmSolution extends Solution {
+  chart: HelmChartInfo;
+  initialIntent?: string;
+}
+
+/**
  * Generate Helm values.yaml using AI provider
  */
 async function generateHelmValuesWithAI(
-  solution: any,
+  solution: HelmSolution,
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -414,13 +459,15 @@ ${errorContext.previousValues}
  * Validate Helm installation using dry-run via plugin
  * PRD #343: All Helm operations go through plugin system
  */
+/**
+ * PRD #359: Uses unified plugin registry for helm operations
+ */
 async function validateHelmInstallation(
   chart: HelmChartInfo,
   releaseName: string,
   namespace: string,
   valuesYaml: string,
-  logger: Logger,
-  pluginManager: PluginManager
+  logger: Logger
 ): Promise<ValidationResult> {
   logger.info('Running Helm dry-run validation via plugin', {
     chart: `${chart.repositoryName}/${chart.chartName}`,
@@ -429,8 +476,8 @@ async function validateHelmInstallation(
   });
 
   try {
-    // First, add/update the Helm repository
-    const repoResult = await pluginManager.invokeTool('helm_repo_add', {
+    // PRD #359: First, add/update the Helm repository via unified registry
+    const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
       name: chart.repositoryName,
       url: chart.repository
     });
@@ -445,7 +492,7 @@ async function validateHelmInstallation(
     }
 
     // Run helm install with dry-run
-    const installResult = await pluginManager.invokeTool('helm_install', {
+    const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
       releaseName,
       chart: `${chart.repositoryName}/${chart.chartName}`,
       namespace,
@@ -486,7 +533,7 @@ async function validateHelmInstallation(
  * PRD #343: pluginManager required for Helm operations
  */
 async function handleHelmGeneration(
-  solution: any,
+  solution: HelmSolution,
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -497,11 +544,11 @@ async function handleHelmGeneration(
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   const maxAttempts = 10;
   const chart: HelmChartInfo = solution.chart;
-  const userAnswers = extractUserAnswers(solution);
+  const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
 
   // Extract release name and namespace from answers
-  const releaseName = userAnswers.name;
-  const namespace = userAnswers.namespace || 'default';
+  const releaseName = userAnswers.name as string;
+  const namespace = (userAnswers.namespace as string) || 'default';
 
   if (!releaseName) {
     throw ErrorHandler.createError(
@@ -553,14 +600,13 @@ async function handleHelmGeneration(
       fs.writeFileSync(attemptPath, valuesYaml, 'utf8');
 
       // Validate with helm dry-run via plugin
-      // PRD #343: Pass values content directly to plugin (no file path needed)
+      // PRD #359: Uses unified plugin registry - no pluginManager needed
       const validation = await validateHelmInstallation(
         chart,
         releaseName,
         namespace,
         valuesYaml,
-        logger,
-        pluginManager
+        logger
       );
 
       if (validation.valid) {
@@ -586,13 +632,13 @@ async function handleHelmGeneration(
               repository: chart.repository,
               repositoryName: chart.repositoryName,
               chartName: chart.chartName,
-              version: chart.version
+              version: chart.version || 'latest'
             },
             releaseName: releaseName,
             namespace: namespace,
             validationAttempts: attempt
           }
-        });
+        } as Partial<SolutionData>);
 
         // PRD #320: Generate visualization URL
         const visualizationUrl = getVisualizationUrl(solutionId);
@@ -753,7 +799,7 @@ function writePackageFiles(
  */
 async function packageAndValidate(
   rawManifests: string,
-  solution: any,
+  solution: Solution & { initialIntent?: string },
   outputFormat: OutputFormat,
   outputPath: string,
   solutionId: string,
@@ -785,7 +831,8 @@ async function packageAndValidate(
     try {
       const packagingResult = await packageManifests(
         rawManifests,
-        solution,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Different SolutionData types between modules
+        solution as any,
         outputFormat,
         outputPath,
         dotAI,
@@ -847,7 +894,7 @@ async function packageAndValidate(
       }
       fs.writeFileSync(renderedYamlPath, renderResult.yaml, 'utf8');
 
-      const validation = await validateManifests(renderedYamlPath, pluginManager);
+      const validation = await validateManifests(renderedYamlPath);
       if (validation.valid) {
         logger.info('Package validation successful', { format: outputFormat, attempt });
         cleanupPackageDir();
@@ -947,7 +994,7 @@ export async function handleGenerateManifestsTool(
           chart: solution.chart ? `${solution.chart.repositoryName}/${solution.chart.chartName}` : 'unknown'
         });
         return await handleHelmGeneration(
-          solution,
+          solution as unknown as HelmSolution,
           args.solutionId,
           dotAI,
           logger,
@@ -983,8 +1030,8 @@ export async function handleGenerateManifestsTool(
         
         try {
           // Extract user answers and generate required labels
-          const userAnswers = extractUserAnswers(solution);
-          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
+          const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
+          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution as unknown as Parameters<typeof addDotAiLabels>[2]);
 
           // Generate manifests with AI (including labels)
           const aiManifests = await generateManifestsWithAI(
@@ -998,13 +1045,14 @@ export async function handleGenerateManifestsTool(
           );
 
           // Check if Solution CRD is available and generate Solution CR if present
+          // PRD #359: Uses unified plugin registry - no pluginManager param needed
           let solutionCR = '';
           try {
-            const crdAvailable = await isSolutionCRDAvailable(pluginManager);
+            const crdAvailable = await isSolutionCRDAvailable();
             if (crdAvailable) {
               solutionCR = generateSolutionCR({
                 solutionId: args.solutionId,
-                namespace: userAnswers.namespace || 'default',
+                namespace: (userAnswers.namespace as string) || 'default',
                 solution: solution,
                 generatedManifestsYaml: aiManifests
               });
@@ -1042,8 +1090,8 @@ export async function handleGenerateManifestsTool(
           });
           
           // Validate manifests
-          // PRD #343: Pass pluginManager for kubectl operations
-          const validation = await validateManifests(yamlPath, pluginManager);
+          // PRD #359: Uses unified plugin registry for kubectl operations
+          const validation = await validateManifests(yamlPath);
           
           if (validation.valid) {
             logger.info('Manifest validation successful', {
@@ -1054,7 +1102,7 @@ export async function handleGenerateManifestsTool(
 
             // Extract packaging options from user answers (with defaults)
             const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
-            const outputPath = userAnswers.outputPath || './manifests';
+            const outputPath = (userAnswers.outputPath as string) || './manifests';
 
             // Handle packaging based on outputFormat
             if (outputFormat === 'helm' || outputFormat === 'kustomize') {

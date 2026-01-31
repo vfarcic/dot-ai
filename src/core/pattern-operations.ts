@@ -10,14 +10,45 @@ import { randomUUID } from 'crypto';
 import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger } from './error-handling';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { UnifiedCreationSessionManager } from './unified-creation-session';
-import { VectorDBService, PatternVectorService } from './index';
+import { PatternVectorService } from './index';
 import { getAndValidateSessionDirectory } from './session-utils';
-import type { PluginManager } from './plugin-manager';
 import * as fs from 'fs';
 import * as path from 'path';
 
 // Note: validateVectorDBConnection and validateEmbeddingService are shared utilities
 // that remain in the main organizational-data.ts file as they're used by multiple domains
+
+/**
+ * Arguments for pattern operations
+ */
+interface PatternOperationArgs {
+  sessionId?: string;
+  response?: string;
+  id?: string;
+  limit?: number;
+  step?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Validation result structure
+ */
+interface ValidationResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Pattern operation response
+ */
+interface PatternOperationResponse {
+  success: boolean;
+  operation?: string;
+  dataType?: string;
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+}
 
 // Simple validation function
 export function validatePattern(request: CreatePatternRequest): string[] {
@@ -100,12 +131,12 @@ export function deserializePattern(json: string): OrganizationalPattern {
  */
 async function getPatternService(): Promise<PatternVectorService> {
   const patternService = new PatternVectorService();
-  
+
   // Always ensure proper collection initialization
   try {
     await patternService.initialize();
     return patternService;
-  } catch (error) {
+  } catch {
     // If initialization fails, return service anyway - health check will catch connection issues
     return patternService;
   }
@@ -114,17 +145,16 @@ async function getPatternService(): Promise<PatternVectorService> {
 /**
  * Handle pattern operations with workflow support
  * Shared validation functions are passed as parameters to avoid circular dependencies
- * PRD #343: pluginManager required for kubectl operations via plugin system
+ * PRD #359: Uses unified plugin registry for kubectl operations
  */
 export async function handlePatternOperation(
   operation: string,
-  args: any,
+  args: PatternOperationArgs,
   logger: Logger,
   requestId: string,
-  validateVectorDBConnection: (vectorService: PatternVectorService, logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  pluginManager?: PluginManager
-): Promise<any> {
+  validateVectorDBConnection: (vectorService: PatternVectorService, logger: Logger, requestId: string) => Promise<ValidationResult>,
+  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<ValidationResult>
+): Promise<PatternOperationResponse> {
   // Get pattern service and validate Vector DB connection
   const patternService = await getPatternService();
   const connectionCheck = await validateVectorDBConnection(patternService, logger, requestId);
@@ -155,7 +185,8 @@ export async function handlePatternOperation(
     }
   }
 
-  const sessionManager = new UnifiedCreationSessionManager('pattern', undefined, pluginManager);
+  // PRD #359: Uses unified plugin registry for kubectl operations
+  const sessionManager = new UnifiedCreationSessionManager('pattern');
 
   switch (operation) {
     case 'create': {
@@ -170,11 +201,11 @@ export async function handlePatternOperation(
         
         if (args.response) {
           // Process user response and move to next step
-          const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
+          const updatedSession = sessionManager.processResponse(args.sessionId, args.response);
           workflowStep = await sessionManager.getNextWorkflowStep(updatedSession, args);
         } else {
           // Just get current step without processing response
-          const session = sessionManager.loadSession(args.sessionId, args);
+          const session = sessionManager.loadSession(args.sessionId);
           if (!session) {
             throw ErrorHandler.createError(
               ErrorCategory.VALIDATION,
@@ -226,32 +257,30 @@ export async function handlePatternOperation(
       }
       
       // Always check if workflow is complete and store pattern in Vector DB
-      let storageInfo: any = {};
-      
+      let storageInfo: Record<string, unknown> = {};
+
       const isComplete = !('nextStep' in workflowStep) || !workflowStep.nextStep; // Complete when no next step
-      const hasPattern = !!workflowStep.data?.pattern;
-      
+      const workflowData = workflowStep.data as { pattern?: OrganizationalPattern } | undefined;
+      const hasPattern = !!workflowData?.pattern;
+
       logger.info('Checking workflow completion', {
         requestId,
         nextStep: ('nextStep' in workflowStep) ? workflowStep.nextStep : 'complete',
         hasPattern,
-        patternId: workflowStep.data?.pattern?.id
+        patternId: workflowData?.pattern?.id
       });
-      
+
       if (isComplete && hasPattern) {
         try {
-          await patternService.storePattern(workflowStep.data.pattern);
-          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
+          await patternService.storePattern(workflowData!.pattern!);
           storageInfo = {
             stored: true,
-            vectorDbUrl: vectorDBConfig.url,
-            collectionName: vectorDBConfig.collectionName,
-            patternId: workflowStep.data.pattern.id
+            collectionName: 'patterns',
+            patternId: workflowData!.pattern!.id
           };
-          logger.info('Pattern stored in Vector DB successfully', { 
-            requestId, 
-            patternId: workflowStep.data.pattern.id,
-            vectorDbUrl: vectorDBConfig.url
+          logger.info('Pattern stored in Vector DB successfully', {
+            requestId,
+            patternId: workflowData!.pattern!.id
           });
 
           // Clean up session file after successful Vector DB storage
@@ -276,17 +305,15 @@ export async function handlePatternOperation(
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          const vectorDBConfig = new VectorDBService({ collectionName: 'patterns' }).getConfig();
           storageInfo = {
             stored: false,
             error: errorMessage,
-            vectorDbUrl: vectorDBConfig.url,
-            collectionName: vectorDBConfig.collectionName,
-            patternId: workflowStep.data.pattern.id
+            collectionName: 'patterns',
+            patternId: workflowData!.pattern!.id
           };
-          logger.error('Failed to store pattern in Vector DB', error as Error, { 
-            requestId, 
-            patternId: workflowStep.data.pattern.id,
+          logger.error('Failed to store pattern in Vector DB', error as Error, {
+            requestId,
+            patternId: workflowData!.pattern!.id,
             error: errorMessage
           });
         }

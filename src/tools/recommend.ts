@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { ErrorHandler } from '../core/error-handling';
-import { ResourceRecommender } from '../core/schema';
+import { ResourceRecommender, Question } from '../core/schema';
 import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
@@ -60,13 +60,13 @@ export interface SolutionData {
   // Helm solutions have chart info
   chart?: HelmChartInfo;
   questions: {
-    required?: any[];
-    basic?: any[];
-    advanced?: any[];
-    open?: any;
+    required?: Question[];
+    basic?: Question[];
+    advanced?: Question[];
+    open?: { question: string; placeholder: string; answer?: string };
     relevantPolicies?: string[];  // Policy descriptions from question generation
   };
-  answers: Record<string, any>;
+  answers: Record<string, unknown>;
   timestamp: string;
   appliedPatterns?: string[];  // Pattern descriptions that influenced this solution
   // PRD #320: Generated manifests data for visualization
@@ -139,11 +139,41 @@ function generateIntentRefinementGuidance(intent: string): object {
 // Session management now handled by GenericSessionManager
 
 /**
+ * Arguments for recommend tool
+ */
+interface RecommendToolArgs {
+  stage?: string;
+  intent?: string;
+  final?: boolean;
+  solutionId?: string;
+  answers?: Record<string, unknown>;
+  timeout?: number;
+  interaction_id?: string;
+}
+
+/**
+ * AI response structure for Helm chart selection
+ */
+interface AIChartSelectionResponse {
+  solutions?: Array<{
+    chartName: string;
+    repositoryUrl: string;
+    repositoryName: string;
+    version: string;
+    appVersion?: string;
+    score: number;
+    description: string;
+    reasons: string[];
+  }>;
+  noMatchReason?: string;
+}
+
+/**
  * Direct MCP tool handler for recommend functionality (unified with stage routing)
  * PRD #343: pluginManager required for kubectl operations
  */
 export async function handleRecommendTool(
-  args: any,
+  args: RecommendToolArgs,
   dotAI: DotAI,
   logger: Logger,
   requestId: string,
@@ -158,27 +188,29 @@ export async function handleRecommendTool(
 
       // Route to appropriate handler based on stage
       if (stage === 'chooseSolution') {
-        return await handleChooseSolutionTool(args, dotAI, logger, requestId);
+        return await handleChooseSolutionTool(args as { solutionId: string }, dotAI, logger, requestId);
       }
 
       if (stage.startsWith('answerQuestion:')) {
         // Extract config stage from stage parameter (e.g., "answerQuestion:required" -> "required")
-        const configStage = stage.split(':')[1];
+        const configStage = stage.split(':')[1] as 'required' | 'basic' | 'advanced' | 'open';
         const answerQuestionArgs = {
-          solutionId: args.solutionId,
+          solutionId: args.solutionId || '',
           stage: configStage,
-          answers: args.answers
+          answers: args.answers || {},
+          interaction_id: args.interaction_id
         };
         return await handleAnswerQuestionTool(answerQuestionArgs, dotAI, logger, requestId);
       }
 
       if (stage === 'generateManifests') {
-        // PRD #343: Pass pluginManager for kubectl operations
-        return await handleGenerateManifestsTool(args, dotAI, logger, requestId, pluginManager);
+        // PRD #359: Uses unified plugin registry for kubectl operations
+        return await handleGenerateManifestsTool(args as { solutionId: string }, dotAI, logger, requestId, pluginManager);
       }
 
       if (stage === 'deployManifests') {
-        return await handleDeployManifestsTool(args, dotAI, logger, requestId, pluginManager);
+        // PRD #359: Uses unified plugin registry for kubectl operations
+        return await handleDeployManifestsTool(args as { solutionId: string }, dotAI, logger, requestId);
       }
 
       // Default: recommend stage (original recommend logic)
@@ -197,16 +229,19 @@ export async function handleRecommendTool(
         hasApiProvider: dotAI.ai.isInitialized()
       });
 
+      // Ensure intent is provided for recommend stage
+      const intent = args.intent || '';
+
       // Check if intent needs refinement using simple heuristic (unless final=true)
-      if (!args.final && isVagueIntent(args.intent)) {
+      if (!args.final && isVagueIntent(intent)) {
         logger.debug('Vague intent detected, returning refinement guidance', {
           requestId,
-          intent: args.intent,
-          intentLength: args.intent.length,
+          intent,
+          intentLength: intent.length,
           threshold: VAGUE_INTENT_THRESHOLD
         });
 
-        const guidanceResponse = generateIntentRefinementGuidance(args.intent);
+        const guidanceResponse = generateIntentRefinementGuidance(intent);
 
         return {
           content: [
@@ -223,13 +258,13 @@ export async function handleRecommendTool(
       } else {
         logger.debug('Intent is detailed enough, proceeding with recommendations', {
           requestId,
-          intentLength: args.intent.length
+          intentLength: intent.length
         });
       }
 
       // Initialize AI-powered ResourceRecommender with provider
-      // PRD #343: Pass pluginManager for kubectl operations
-      const recommender = new ResourceRecommender(dotAI.ai, pluginManager);
+      // PRD #359: Uses unified plugin registry for kubectl operations
+      const recommender = new ResourceRecommender(dotAI.ai);
 
       // Create discovery function
       const explainResourceFn = async (resource: string) => {
@@ -240,7 +275,7 @@ export async function handleRecommendTool(
       // Find best solutions for the user intent
       logger.debug('Generating recommendations with AI', { requestId });
       const solutionResult = await recommender.findBestSolutions(
-        args.intent,
+        intent,
         explainResourceFn,
         args.interaction_id
       );
@@ -296,7 +331,7 @@ export async function handleRecommendTool(
         );
 
         // Parse AI response
-        const aiSelection = extractJsonFromAIResponse(aiResponse.content);
+        const aiSelection = extractJsonFromAIResponse(aiResponse.content) as AIChartSelectionResponse;
 
         if (!aiSelection.solutions || aiSelection.solutions.length === 0) {
           // AI couldn't find matching charts
@@ -324,7 +359,7 @@ export async function handleRecommendTool(
 
           const solutionData: SolutionData = {
             toolName: 'recommend',
-            intent: args.intent,
+            intent,
             type: 'helm',
             score: aiSolution.score,
             description: aiSolution.description,
@@ -427,7 +462,7 @@ export async function handleRecommendTool(
         // Create complete solution data
         const solutionData: SolutionData = {
           toolName: 'recommend',
-          intent: args.intent,
+          intent,
           type: solution.type,
           score: solution.score,
           description: solution.description,
