@@ -249,7 +249,7 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
   /**
    * Convert resource to storage payload format
    */
-  protected createPayload(resource: ClusterResource): Record<string, any> {
+  protected createPayload(resource: ClusterResource): Record<string, unknown> {
     return {
       id: generateResourceId(resource.namespace, resource.apiVersion, resource.kind, resource.name),
       namespace: resource.namespace,
@@ -267,17 +267,17 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
   /**
    * Convert storage payload back to resource object
    */
-  protected payloadToData(payload: Record<string, any>): ClusterResource {
+  protected payloadToData(payload: Record<string, unknown>): ClusterResource {
     return {
-      namespace: payload.namespace || '',
-      name: payload.name || '',
-      kind: payload.kind || '',
-      apiVersion: payload.apiVersion || '',
-      apiGroup: payload.apiGroup || '',
-      labels: payload.labels || {},
-      annotations: payload.annotations || {},
-      createdAt: payload.createdAt || new Date().toISOString(),
-      updatedAt: payload.updatedAt || new Date().toISOString()
+      namespace: (payload.namespace as string) || '',
+      name: (payload.name as string) || '',
+      kind: (payload.kind as string) || '',
+      apiVersion: (payload.apiVersion as string) || '',
+      apiGroup: (payload.apiGroup as string) || '',
+      labels: (payload.labels as Record<string, string>) || {},
+      annotations: (payload.annotations as Record<string, string>) || {},
+      createdAt: (payload.createdAt as string) || new Date().toISOString(),
+      updatedAt: (payload.updatedAt as string) || new Date().toISOString()
     };
   }
 
@@ -364,10 +364,10 @@ export class ResourceVectorService extends BaseVectorService<ClusterResource> {
   /**
    * Build Qdrant filter object from simple filter parameters
    */
-  private buildQdrantFilter(filters?: { namespace?: string; kind?: string; apiVersion?: string }): Record<string, any> | undefined {
+  private buildQdrantFilter(filters?: { namespace?: string; kind?: string; apiVersion?: string }): Record<string, unknown> | undefined {
     if (!filters) return undefined;
 
-    const conditions: any[] = [];
+    const conditions: Array<{ key: string; match: { value: string } }> = [];
 
     if (filters.namespace) {
       conditions.push({

@@ -13,6 +13,14 @@ import { getPluginManager, invokePluginTool, isPluginInitialized } from '../core
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Plugin result data structure
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
+
 // PRD #143 Milestone 1: Hybrid approach - AI can use kubectl_api_resources tool OR continue with JSON dataRequests
 
 // Tool metadata for direct MCP registration
@@ -119,6 +127,13 @@ export interface RemediateOutput {
 }
 
 // Session management now handled by GenericSessionManager
+
+/**
+ * Remediate tool response type
+ */
+export interface RemediateToolResponse {
+  content: Array<{ type: 'text'; text: string }>;
+}
 
 /** Kubectl tool names for investigation and validation */
 const KUBECTL_INVESTIGATION_TOOL_NAMES = [
@@ -433,7 +448,7 @@ async function executeUserChoice(
   logger: Logger,
   requestId: string,
   currentInteractionId?: string
-): Promise<any> {
+): Promise<RemediateToolResponse> {
   try {
     // Load previous session
     const session = sessionManager.getSession(sessionId);
@@ -526,7 +541,7 @@ async function executeRemediationCommands(
   logger: Logger,
   requestId: string,
   currentInteractionId?: string
-): Promise<any> {
+): Promise<RemediateToolResponse> {
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
@@ -563,7 +578,7 @@ async function executeRemediationCommands(
 
       // Check for nested error - plugin wraps command errors in { success: false, error: "..." }
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.success === false) {
           throw new Error(result.error || result.message || 'Command execution failed');
         }
@@ -572,11 +587,11 @@ async function executeRemediationCommands(
       // Extract only the data field - never pass JSON wrapper
       let output: string;
       if (typeof response.result === 'object' && response.result !== null) {
-        const result = response.result as any;
+        const result = response.result as PluginResultData;
         if (result.data !== undefined) {
           output = String(result.data);
         } else if (typeof result === 'string') {
-          output = result;
+          output = result as unknown as string;
         } else {
           throw new Error('Plugin returned unexpected response format - missing data field');
         }
@@ -823,7 +838,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
  * PRD #343: All kubectl operations go through plugin.
  * PRD #359: Uses unified plugin registry - no pluginManager parameter needed.
  */
-export async function handleRemediateTool(args: any): Promise<any> {
+export async function handleRemediateTool(args: RemediateInput): Promise<RemediateToolResponse> {
   const requestId = `remediate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const logger = new ConsoleLogger('RemediateTool');
 
@@ -1092,7 +1107,7 @@ function makeExecutionDecision(
 /**
  * Validate remediate input according to schema
  */
-function validateRemediateInput(args: any): RemediateInput {
+function validateRemediateInput(args: Partial<RemediateInput>): RemediateInput {
   try {
     // Basic validation using our schema
     const validated = {

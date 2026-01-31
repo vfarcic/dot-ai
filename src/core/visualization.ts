@@ -23,7 +23,7 @@ export interface CachedVisualization {
     id: string;
     label: string;
     type: VisualizationType;
-    content: any;
+    content: unknown;
   }>;
   insights: string[];
   toolsUsed?: string[];  // Tools called during visualization generation
@@ -170,7 +170,7 @@ export function parseVisualizationResponse(aiResponse: string, toolsUsed?: strin
   }
 
   // Normalize insights to strings if they are objects
-  const normalizedInsights = parsed.insights.map((insight: any) => {
+  const normalizedInsights = parsed.insights.map((insight: string | { title?: string; description?: string; severity?: string }) => {
     if (typeof insight === 'string') {
       return insight;
     }

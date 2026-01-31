@@ -34,7 +34,7 @@ export interface SamplingResult {
 export type SamplingHandler = (
   messages: SamplingMessage[],
   systemPrompt?: string,
-  options?: any
+  options?: Record<string, unknown>
 ) => Promise<SamplingResult>;
 
 export class HostProvider implements AIProvider {
@@ -244,7 +244,7 @@ export class HostProvider implements AIProvider {
       },
       async () => {
         const maxIterations = config.maxIterations || 20;
-        const messages: any[] = [
+        const messages: SamplingMessage[] = [
           { role: 'user', content: { type: 'text', text: config.userMessage } },
         ];
 
@@ -268,8 +268,8 @@ export class HostProvider implements AIProvider {
 
         const toolCallsExecuted: Array<{
           tool: string;
-          input: any;
-          output: any;
+          input: unknown;
+          output: unknown;
         }> = [];
         let iterations = 0;
 
@@ -360,7 +360,7 @@ export class HostProvider implements AIProvider {
               if (config.onIteration) {
                 try {
                   config.onIteration(iterations, toolCallsExecuted);
-                } catch (error) {
+                } catch {
                   // Ignore errors in callback
                 }
               }
@@ -418,7 +418,7 @@ export class HostProvider implements AIProvider {
             status: 'timeout',
             completionReason: 'max_iterations',
           };
-        } catch (error) {
+        } catch {
           // If wrap-up call fails, fall back to last message
           const lastMessage = messages[messages.length - 2]; // -2 because we added wrap-up message
           const lastContent =

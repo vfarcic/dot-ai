@@ -72,7 +72,7 @@ async function main() {
         fs.writeFileSync(testFile, 'test');
         fs.unlinkSync(testFile);
         process.stderr.write(`Session directory validated: ${sessionDir}\n`);
-      } catch (writeError) {
+      } catch {
         process.stderr.write(`FATAL: Session directory is not writable: ${sessionDir}\n`);
         process.stderr.write('Solution: Fix directory permissions or use a different directory\n');
         process.exit(1);

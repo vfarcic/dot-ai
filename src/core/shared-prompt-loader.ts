@@ -14,7 +14,8 @@ import Handlebars from 'handlebars';
 
 // Register custom Handlebars helpers
 // Block helper for equality comparison: {{#eq a b}}...{{/eq}}
-Handlebars.registerHelper('eq', function(this: any, a: any, b: any, options: any) {
+ 
+Handlebars.registerHelper('eq', function(this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
   if (a === b) {
     return options.fn(this);
   } else {
@@ -25,7 +26,8 @@ Handlebars.registerHelper('eq', function(this: any, a: any, b: any, options: any
 // Block helper for truthy check: {{#isTrue value}}...{{/isTrue}}
 // Treats various truthy values as true (case-insensitive for strings)
 // Truthy: true, "yes", "true", "1", "on" (any case)
-Handlebars.registerHelper('isTrue', function(this: any, value: any, options: any) {
+ 
+Handlebars.registerHelper('isTrue', function(this: unknown, value: unknown, options: Handlebars.HelperOptions) {
   // Handle boolean true
   if (value === true) {
     return options.fn(this);
@@ -63,7 +65,7 @@ Handlebars.registerHelper('isTrue', function(this: any, value: any, options: any
  */
 export function loadPrompt(
   templateName: string,
-  variables: Record<string, any> = {},
+  variables: Record<string, unknown> = {},
   baseDir: string = 'prompts',
   fileExtension: string = '.md'
 ): string {

@@ -74,9 +74,9 @@ class CRDAvailabilityCache {
         // Other errors - don't cache, throw
         throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if it's a "not found" error
-      const errorMsg = error.message || String(error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
       if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
         this.crdAvailable = false;
         console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');

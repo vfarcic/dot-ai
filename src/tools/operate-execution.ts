@@ -145,7 +145,7 @@ export async function executeOperations(
     // Mark session as failed if we can
     try {
       sessionManager.updateSession(sessionId, { status: 'failed' });
-    } catch (updateError) {
+    } catch {
       // Ignore - session might not exist
     }
 

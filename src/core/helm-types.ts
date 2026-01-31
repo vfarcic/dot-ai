@@ -27,12 +27,12 @@ export interface HelmSolutionData {
   description: string;
   reasons: string[];
   questions?: {
-    required?: any[];
-    basic?: any[];
-    advanced?: any[];
+    required?: unknown[];
+    basic?: unknown[];
+    advanced?: unknown[];
   };
-  answers: Record<string, any>;
-  generatedValues?: Record<string, any>;
+  answers: Record<string, unknown>;
+  generatedValues?: Record<string, unknown>;
   helmCommand?: string;
   namespace?: string;
   releaseName?: string;

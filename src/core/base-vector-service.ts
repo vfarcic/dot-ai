@@ -16,7 +16,7 @@ export interface BaseSearchOptions {
   limit?: number;
   scoreThreshold?: number;
   keywordWeight?: number; // Weight for keyword vs semantic search
-  filter?: Record<string, any>; // Qdrant filter object for exact filtering
+  filter?: Record<string, unknown>; // Qdrant filter object for exact filtering
 }
 
 export interface BaseSearchResult<T> {
@@ -36,7 +36,7 @@ export interface SearchMode {
  */
 export interface VectorDocument {
   id: string;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   vector?: number[];
 }
 
@@ -46,7 +46,7 @@ export interface VectorDocument {
 interface SearchResult {
   id: string;
   score: number;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
 }
 
 /**
@@ -223,7 +223,7 @@ export abstract class BaseVectorService<T> {
     }
     const data = this.payloadToData(document.payload);
     // Set the ID from the document
-    (data as any).id = document.id;
+    (data as T & { id: string }).id = document.id;
     return data;
   }
 
@@ -251,7 +251,7 @@ export abstract class BaseVectorService<T> {
    * @param filter - Qdrant filter object constructed by AI
    * @param limit - Maximum results to return
    */
-  async queryWithFilter(filter: any, limit: number = 100): Promise<T[]> {
+  async queryWithFilter(filter: Record<string, unknown>, limit: number = 100): Promise<T[]> {
     const documents = await this.invokePlugin<VectorDocument[]>('vector_query', {
       collection: this.collectionName,
       filter,
@@ -260,7 +260,7 @@ export abstract class BaseVectorService<T> {
 
     return documents.map((doc) => {
       const data = this.payloadToData(doc.payload);
-      (data as any).id = doc.id;
+      (data as T & { id: string }).id = doc.id;
       return data;
     });
   }
@@ -276,7 +276,7 @@ export abstract class BaseVectorService<T> {
 
     return documents.map((doc) => {
       const data = this.payloadToData(doc.payload);
-      (data as any).id = doc.id;
+      (data as T & { id: string }).id = doc.id;
       return data;
     });
   }
@@ -312,8 +312,8 @@ export abstract class BaseVectorService<T> {
   // Abstract methods that must be implemented by subclasses
   protected abstract createSearchText(data: T): string;
   protected abstract extractId(data: T): string;
-  protected abstract createPayload(data: T): Record<string, any>;
-  protected abstract payloadToData(payload: Record<string, any>): T;
+  protected abstract createPayload(data: T): Record<string, unknown>;
+  protected abstract payloadToData(payload: Record<string, unknown>): T;
 
   // Virtual methods that can be overridden by subclasses
   protected extractKeywords(query: string): string[] {
@@ -329,7 +329,7 @@ export abstract class BaseVectorService<T> {
   private async hybridSearch(
     query: string,
     queryKeywords: string[],
-    options: { limit: number; scoreThreshold: number; filter?: Record<string, any> }
+    options: { limit: number; scoreThreshold: number; filter?: Record<string, unknown> }
   ): Promise<BaseSearchResult<T>[]> {
     // Generate query embedding - required for semantic search
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
@@ -373,7 +373,7 @@ export abstract class BaseVectorService<T> {
     // Add semantic results with weighted score
     for (const result of semanticResults) {
       const data = this.payloadToData(result.payload);
-      (data as any).id = result.id;
+      (data as T & { id: string }).id = result.id;
       combinedResults.set(result.id, {
         data,
         score: result.score * 0.5, // Semantic gets 50% weight
@@ -391,7 +391,7 @@ export abstract class BaseVectorService<T> {
         existing.matchType = 'hybrid';
       } else {
         const data = this.payloadToData(result.payload);
-        (data as any).id = result.id;
+        (data as T & { id: string }).id = result.id;
         combinedResults.set(result.id, {
           data,
           score: result.score * 0.5, // Keyword-only gets 50% weight

@@ -16,6 +16,103 @@ import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 // that remain in the main organizational-data.ts file as they're used by multiple domains
 
 /**
+ * Plugin result data structure
+ */
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
+
+/**
+ * Kyverno policy metadata
+ */
+interface KyvernoPolicyInfo {
+  name: string;
+  labels?: Record<string, string>;
+  creationTimestamp?: string;
+}
+
+/**
+ * Raw Kubernetes resource with metadata
+ */
+interface K8sResource {
+  metadata?: {
+    name?: string;
+    labels?: Record<string, string>;
+    creationTimestamp?: string;
+  };
+}
+
+/**
+ * Kyverno delete result
+ */
+interface KyvernoDeleteResult {
+  successful: Array<{ policyId?: string; deletedAt: string }>;
+  failed: Array<{ policyId?: string; error: string }>;
+  total: number;
+}
+
+/**
+ * Policy operation result
+ */
+interface PolicyOperationResult {
+  success: boolean;
+  operation?: string;
+  dataType?: string;
+  message?: string;
+  error?: string;
+  data?: unknown;
+  deletedKyvernoPolicies?: KyvernoDeleteResult;
+  requiresConfirmation?: boolean;
+  confirmationMessage?: string;
+  confirmation?: string | { question: string; options: string[] };
+  note?: string;
+  deletedPolicyIntent?: { id: string; description: string };
+  deletedPolicyIntents?: unknown[];
+  deletedCount?: number;
+  workflow?: unknown;
+  storage?: unknown;
+  policyIntents?: unknown[];
+  policyIntent?: unknown;
+  totalCount?: number;
+  searchResults?: unknown[];
+  kyvernoCleanup?: unknown;
+  kyvernoPolicies?: unknown;
+}
+
+/**
+ * Policy delete arguments
+ */
+interface PolicyDeleteArgs {
+  operation?: string;
+  dataType?: string;
+  id?: string;
+  response?: string;
+}
+
+/**
+ * Policy operation arguments
+ */
+interface PolicyOperationArgs {
+  sessionId?: string;
+  response?: string;
+  id?: string;
+  limit?: number;
+  step?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Validation result from connection checks
+ */
+interface ValidationCheckResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
  * Get initialized policy service
  */
 export async function getPolicyService(): Promise<PolicyVectorService> {
@@ -43,7 +140,7 @@ async function executeKubectlViaPlugin(args: string[]): Promise<string> {
   const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
   if (response.success) {
     if (typeof response.result === 'object' && response.result !== null) {
-      const result = response.result as any;
+      const result = response.result as PluginResultData;
       // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
       if (result.success === false) {
         throw new Error(result.error || result.message || 'kubectl command failed');
@@ -53,7 +150,7 @@ async function executeKubectlViaPlugin(args: string[]): Promise<string> {
         return String(result.data);
       }
       if (typeof result === 'string') {
-        return result;
+        return result as unknown as string;
       }
       throw new Error('Plugin returned unexpected response format - missing data field');
     }
@@ -71,7 +168,7 @@ export async function findKyvernoPoliciesByPolicyId(
   policyId: string,
   logger: Logger,
   requestId: string
-): Promise<any[]> {
+): Promise<KyvernoPolicyInfo[]> {
   try {
     logger.info('Searching for Kyverno policies by policy ID', {
       requestId,
@@ -79,19 +176,19 @@ export async function findKyvernoPoliciesByPolicyId(
     });
 
     const output = await executeKubectlViaPlugin(['get', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`, '-o', 'json']);
-    
+
     const parsedOutput = JSON.parse(output || '{"items": []}');
-    const policies = parsedOutput.items || [];
-    
-    logger.info('Found Kyverno policies for policy intent', { 
-      requestId, 
+    const policies: K8sResource[] = parsedOutput.items || [];
+
+    logger.info('Found Kyverno policies for policy intent', {
+      requestId,
       policyId,
       policyCount: policies.length,
-      policyNames: policies.map((p: any) => p.metadata?.name)
+      policyNames: policies.map((p: K8sResource) => p.metadata?.name)
     });
-    
-    return policies.map((p: any) => ({
-      name: p.metadata?.name,
+
+    return policies.map((p: K8sResource) => ({
+      name: p.metadata?.name || '',
       labels: p.metadata?.labels,
       creationTimestamp: p.metadata?.creationTimestamp
     }));
@@ -113,25 +210,25 @@ export async function findKyvernoPoliciesByPolicyId(
 export async function findAllKyvernoPoliciesForPolicyIntents(
   logger: Logger,
   requestId: string
-): Promise<any[]> {
+): Promise<Array<KyvernoPolicyInfo & { policyId?: string }>> {
   try {
     logger.info('Searching for all Kyverno policies with policy-intent labels', {
       requestId
     });
 
     const output = await executeKubectlViaPlugin(['get', 'clusterpolicy', '-l', 'policy-intent/id', '-o', 'json']);
-    
+
     const parsedOutput = JSON.parse(output || '{"items": []}');
-    const policies = parsedOutput.items || [];
-    
-    logger.info('Found all Kyverno policies for policy intents', { 
+    const policies: K8sResource[] = parsedOutput.items || [];
+
+    logger.info('Found all Kyverno policies for policy intents', {
       requestId,
       policyCount: policies.length,
-      policyNames: policies.map((p: any) => p.metadata?.name)
+      policyNames: policies.map((p: K8sResource) => p.metadata?.name)
     });
-    
-    return policies.map((p: any) => ({
-      name: p.metadata?.name,
+
+    return policies.map((p: K8sResource) => ({
+      name: p.metadata?.name || '',
       policyId: p.metadata?.labels?.['policy-intent/id'],
       labels: p.metadata?.labels,
       creationTimestamp: p.metadata?.creationTimestamp
@@ -154,7 +251,7 @@ export async function deleteKyvernoPoliciesByPolicyId(
   policyId: string,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<KyvernoDeleteResult> {
   try {
     logger.info('Deleting Kyverno policies by policy ID', {
       requestId,
@@ -162,26 +259,26 @@ export async function deleteKyvernoPoliciesByPolicyId(
     });
 
     const output = await executeKubectlViaPlugin(['delete', 'clusterpolicy', '-l', `policy-intent/id=${policyId}`]);
-    
-    logger.info('Kyverno policies deleted successfully', { 
-      requestId, 
+
+    logger.info('Kyverno policies deleted successfully', {
+      requestId,
       policyId,
       output
     });
-    
+
     return {
       successful: [{ policyId, deletedAt: new Date().toISOString() }],
       failed: [],
       total: 1
     };
-    
+
   } catch (error) {
-    logger.error('Failed to delete Kyverno policies', error as Error, { 
-      requestId, 
+    logger.error('Failed to delete Kyverno policies', error as Error, {
+      requestId,
       policyId,
       error: error instanceof Error ? error.message : String(error)
     });
-    
+
     return {
       successful: [],
       failed: [{ policyId, error: error instanceof Error ? error.message : String(error) }],
@@ -197,7 +294,7 @@ export async function deleteKyvernoPoliciesByPolicyId(
 export async function deleteAllKyvernoPoliciesForPolicyIntents(
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<KyvernoDeleteResult> {
   try {
     logger.info('Deleting all Kyverno policies with policy-intent labels', {
       requestId
@@ -236,11 +333,11 @@ export async function deleteAllKyvernoPoliciesForPolicyIntents(
  */
 export async function handlePolicyDelete(
   policyId: string,
-  policyService: any,
-  args: any,
+  policyService: PolicyVectorService,
+  args: PolicyDeleteArgs,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<PolicyOperationResult> {
   try {
     // Check if policy intent exists
     const existingPolicyIntent = await policyService.getPolicyIntent(policyId);
@@ -320,11 +417,11 @@ export async function handlePolicyDelete(
  * PRD #359: Uses unified plugin registry
  */
 export async function handlePolicyDeleteAll(
-  policyService: any,
-  args: any,
+  policyService: PolicyVectorService,
+  args: PolicyDeleteArgs & { response?: string },
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<PolicyOperationResult> {
   try {
     // Get all policy intents
     const allPolicyIntents = await policyService.getAllPolicyIntents();
@@ -410,12 +507,12 @@ export async function handlePolicyDeleteAll(
  */
 export async function handlePolicyOperation(
   operation: string,
-  args: any,
+  args: PolicyOperationArgs,
   logger: Logger,
   requestId: string,
-  validateVectorDBConnection: (vectorService: PolicyVectorService, logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>,
-  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<{ success: boolean; error?: any }>
-): Promise<any> {
+  validateVectorDBConnection: (vectorService: PolicyVectorService, logger: Logger, requestId: string) => Promise<ValidationCheckResult>,
+  validateEmbeddingService: (logger: Logger, requestId: string) => Promise<ValidationCheckResult>
+): Promise<PolicyOperationResult> {
   // Get policy service and validate Vector DB connection
   const policyService = await getPolicyService();
   const connectionCheck = await validateVectorDBConnection(policyService, logger, requestId);
@@ -461,11 +558,11 @@ export async function handlePolicyOperation(
         
         if (args.response) {
           // Process user response and move to next step
-          const updatedSession = sessionManager.processResponse(args.sessionId, args.response, args);
+          const updatedSession = sessionManager.processResponse(args.sessionId, args.response);
           workflowStep = await sessionManager.getNextWorkflowStep(updatedSession, args);
         } else {
           // Just get current step without processing response
-          const session = sessionManager.loadSession(args.sessionId, args);
+          const session = sessionManager.loadSession(args.sessionId);
           if (!session) {
             throw ErrorHandler.createError(
               ErrorCategory.VALIDATION,
@@ -517,44 +614,45 @@ export async function handlePolicyOperation(
       }
 
       // Always check if workflow is complete and store policy in Vector DB
-      let storageInfo: any = {};
-      
+      let storageInfo: { stored?: boolean; error?: string; vectorDbUrl?: string; collectionName?: string; policyId?: string } = {};
+
       const isComplete = !('nextStep' in workflowStep) || !workflowStep.nextStep; // Complete when no next step
-      const hasPolicy = !!workflowStep.data?.policy;
-      
+      const workflowData = workflowStep.data as { policy?: { id: string; description: string } } | undefined;
+      const hasPolicy = !!workflowData?.policy;
+
       logger.info('Checking workflow completion', {
         requestId,
         nextStep: ('nextStep' in workflowStep) ? workflowStep.nextStep : 'complete',
         hasPolicy,
-        policyId: workflowStep.data?.policy?.id
+        policyId: workflowData?.policy?.id
       });
-      
+
       if (isComplete && hasPolicy) {
         try {
-          await policyService.storePolicyIntent(workflowStep.data.policy);
+          await policyService.storePolicyIntent(workflowData!.policy as Parameters<typeof policyService.storePolicyIntent>[0]);
           storageInfo = {
             stored: true,
             vectorDbUrl: process.env.QDRANT_URL || 'http://localhost:6333',
             collectionName: 'policies',
-            policyId: workflowStep.data.policy.id
+            policyId: workflowData!.policy!.id
           };
-          
-          logger.info('Policy stored in Vector DB successfully', { 
-            requestId, 
-            policyId: workflowStep.data.policy.id,
-            description: workflowStep.data.policy.description.substring(0, 50) + (workflowStep.data.policy.description.length > 50 ? '...' : '')
+
+          logger.info('Policy stored in Vector DB successfully', {
+            requestId,
+            policyId: workflowData!.policy!.id,
+            description: workflowData!.policy!.description.substring(0, 50) + (workflowData!.policy!.description.length > 50 ? '...' : '')
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           storageInfo = {
             stored: false,
             error: errorMessage,
-            policyId: workflowStep.data.policy.id
+            policyId: workflowData!.policy!.id
           };
-          
-          logger.error('Failed to store policy in Vector DB', error instanceof Error ? error : new Error(String(error)), { 
-            requestId, 
-            policyId: workflowStep.data.policy.id
+
+          logger.error('Failed to store policy in Vector DB', error instanceof Error ? error : new Error(String(error)), {
+            requestId,
+            policyId: workflowData!.policy!.id
           });
         }
       }

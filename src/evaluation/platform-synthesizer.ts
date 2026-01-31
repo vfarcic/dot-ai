@@ -39,6 +39,56 @@ export interface UsageRecommendation {
   useCases: string[];
 }
 
+interface ToolMetadata {
+  tools?: Record<string, unknown>;
+}
+
+interface EvaluationReport {
+  assessments?: Record<string, ReportAssessment>;
+  overallAssessment?: {
+    detailed_analysis?: Record<string, ReportAssessment>;
+  };
+  modelMetadata?: Record<string, {
+    provider?: string;
+    pricing?: {
+      input_cost_per_million_tokens: number;
+      output_cost_per_million_tokens: number;
+    };
+    context_window?: number;
+    supports_function_calling?: boolean;
+  }>;
+}
+
+interface ReportAssessment {
+  average_score?: number;
+  participation_rate?: number;
+  reliability_score?: number;
+  metadata?: {
+    provider?: string;
+    pricing?: {
+      input_cost_per_million_tokens: number;
+      output_cost_per_million_tokens: number;
+    };
+    context_window?: number;
+    supports_function_calling?: boolean;
+  };
+}
+
+interface CrossToolAnalysis {
+  modelPerformances: ModelPerformance[];
+  crossToolConsistency: Record<string, number>;
+  toolSpecificLeaders: Record<string, string>;
+  universalPerformers: string[];
+}
+
+interface ModelWithValueScore extends ModelPerformance {
+  valueScore: number;
+}
+
+interface ModelWithBalancedScore extends ModelPerformance {
+  balancedScore: number;
+}
+
 export class PlatformSynthesizer {
   private aiProvider: VercelProvider;
   private reportsDir: string;
@@ -93,13 +143,13 @@ export class PlatformSynthesizer {
     return reportWithGraphs;
   }
 
-  private loadToolMetadata(): any {
+  private loadToolMetadata(): ToolMetadata {
     const metadata = loadEvaluationMetadata();
     return { tools: metadata.tools };
   }
 
-  private async loadAllReports(): Promise<Record<string, any>> {
-    const reports: Record<string, any> = {};
+  private async loadAllReports(): Promise<Record<string, EvaluationReport>> {
+    const reports: Record<string, EvaluationReport> = {};
     
     // Load all JSON result files from the directory
     const reportFiles = fs.readdirSync(this.reportsDir)
@@ -123,7 +173,7 @@ export class PlatformSynthesizer {
     return reports;
   }
 
-  private async analyzeCrossToolPerformance(allReports: Record<string, any>): Promise<{
+  private async analyzeCrossToolPerformance(allReports: Record<string, EvaluationReport>): Promise<{
     modelPerformances: ModelPerformance[];
     crossToolConsistency: Record<string, number>;
     toolSpecificLeaders: Record<string, string>;
@@ -185,7 +235,7 @@ export class PlatformSynthesizer {
     };
   }
 
-  private calculateModelPerformances(allReports: Record<string, any>): ModelPerformance[] {
+  private calculateModelPerformances(allReports: Record<string, EvaluationReport>): ModelPerformance[] {
     const modelMap = new Map<string, Partial<ModelPerformance>>();
     
     // Process each tool's evaluation results
@@ -210,18 +260,18 @@ export class PlatformSynthesizer {
         }
         
         const modelData = modelMap.get(modelId)!;
-        const assessmentData = assessment as any;
-        
+        const assessmentData = assessment as ReportAssessment;
+
         // Extract average score for this tool
         if (typeof assessmentData.average_score === 'number') {
           modelData.toolScores![toolType] = assessmentData.average_score;
         }
-        
+
         // Update participation and reliability metrics
         if (typeof assessmentData.participation_rate === 'number') {
           modelData.participationRate = (modelData.participationRate || 0) + assessmentData.participation_rate;
         }
-        
+
         if (typeof assessmentData.reliability_score === 'number') {
           modelData.reliabilityScore = (modelData.reliabilityScore || 0) + assessmentData.reliability_score;
         }
@@ -277,7 +327,7 @@ export class PlatformSynthesizer {
         ...model,
         valueScore: model.averageScore / ((model.pricing.input_cost_per_million_tokens + model.pricing.output_cost_per_million_tokens) / 2)
       }))
-      .sort((a: any, b: any) => b.valueScore - a.valueScore)
+      .sort((a: ModelWithValueScore, b: ModelWithValueScore) => b.valueScore - a.valueScore)
       .slice(0, 5);
     
     const balanced = [...modelPerformances]
@@ -288,7 +338,7 @@ export class PlatformSynthesizer {
                       (model.reliabilityScore * 0.3) - 
                       ((model.pricing.input_cost_per_million_tokens + model.pricing.output_cost_per_million_tokens) / 100)
       }))
-      .sort((a: any, b: any) => b.balancedScore - a.balancedScore)
+      .sort((a: ModelWithBalancedScore, b: ModelWithBalancedScore) => b.balancedScore - a.balancedScore)
       .slice(0, 5);
     
     const reliabilityFocused = [...modelPerformances]
@@ -310,7 +360,7 @@ export class PlatformSynthesizer {
   }
 
   private generateUsageRecommendations(
-    crossToolAnalysis: any, 
+    crossToolAnalysis: CrossToolAnalysis,
     decisionMatrices: DecisionMatrix
   ): UsageRecommendation[] {
     const recommendations: UsageRecommendation[] = [
@@ -352,11 +402,11 @@ export class PlatformSynthesizer {
   }
 
   private async generatePlatformInsights(
-    crossToolAnalysis: any,
+    crossToolAnalysis: CrossToolAnalysis,
     decisionMatrices: DecisionMatrix,
     usageRecommendations: UsageRecommendation[],
-    toolMetadata: any
-  ): Promise<any> {
+    toolMetadata: ToolMetadata
+  ): Promise<string> {
     // Load prompt template from evaluation prompts directory
     const promptPath = path.join(process.cwd(), 'src', 'evaluation', 'prompts', 'platform-synthesis.md');
     const promptTemplate = fs.readFileSync(promptPath, 'utf8');
@@ -371,14 +421,14 @@ export class PlatformSynthesizer {
     return aiResponse.content; // Return the AI-generated markdown directly
   }
 
-  private extractKeyFindings(crossToolAnalysis: any): string[] {
+  private extractKeyFindings(crossToolAnalysis: CrossToolAnalysis): string[] {
     const findings: string[] = [];
-    
+
     findings.push(`${crossToolAnalysis.modelPerformances.length} models evaluated across ${Object.keys(crossToolAnalysis.toolSpecificLeaders).length} tool types`);
     findings.push(`${crossToolAnalysis.universalPerformers.length} models demonstrated consistent cross-tool performance`);
-    
+
     // Add performance spread analysis
-    const scores = crossToolAnalysis.modelPerformances.map((m: any) => m.averageScore);
+    const scores = crossToolAnalysis.modelPerformances.map((m: ModelPerformance) => m.averageScore);
     const maxScore = Math.max(...scores);
     const minScore = Math.min(...scores);
     findings.push(`Performance spread: ${(maxScore - minScore).toFixed(3)} (${maxScore.toFixed(3)} - ${minScore.toFixed(3)})`);
@@ -408,7 +458,11 @@ export class PlatformSynthesizer {
     };
   }
 
-  private identifyCrossToolPatterns(crossToolAnalysis: any): Record<string, any> {
+  private identifyCrossToolPatterns(crossToolAnalysis: CrossToolAnalysis): {
+    consistencyLeaders: string[];
+    toolSpecificLeaders: Record<string, string>;
+    universalPerformers: string[];
+  } {
     return {
       consistencyLeaders: Object.entries(crossToolAnalysis.crossToolConsistency)
         .sort(([,a], [,b]) => (b as number) - (a as number))

@@ -29,7 +29,17 @@ export interface CommandExecutionResult {
 export interface CommandExecutionOptions {
   sessionId?: string;
   context?: string; // e.g., 'remediation', 'operation'
-  logMetadata?: Record<string, any>;
+  logMetadata?: Record<string, unknown>;
+}
+
+/**
+ * Plugin response result structure for shell execution
+ */
+interface ShellExecResult {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
 }
 
 /**
@@ -85,7 +95,7 @@ export async function executeCommands(
       if (response.success) {
         // Check for nested error - plugin wraps command errors in { success: false, error: "..." }
         if (typeof response.result === 'object' && response.result !== null) {
-          const result = response.result as any;
+          const result = response.result as ShellExecResult;
           if (result.success === false) {
             throw new Error(result.error || result.message || 'Command execution failed');
           }
@@ -94,11 +104,11 @@ export async function executeCommands(
         // Extract only the data field - never pass JSON wrapper
         let output: string;
         if (typeof response.result === 'object' && response.result !== null) {
-          const result = response.result as any;
+          const result = response.result as ShellExecResult;
           if (result.data !== undefined) {
             output = String(result.data);
           } else if (typeof result === 'string') {
-            output = result;
+            output = result as unknown as string;
           } else {
             throw new Error('Plugin returned unexpected response format - missing data field');
           }

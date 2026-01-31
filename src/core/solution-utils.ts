@@ -2,18 +2,37 @@
  * Solution utilities for working with solution data structures
  */
 
+interface SolutionQuestion {
+  id?: string;
+  answer?: unknown;
+}
+
+interface SolutionQuestions {
+  required?: SolutionQuestion[];
+  basic?: SolutionQuestion[];
+  advanced?: SolutionQuestion[];
+  open?: { answer?: string };
+  [key: string]: unknown;
+}
+
+export interface Solution {
+  questions: SolutionQuestions;
+  intent?: string;
+  [key: string]: unknown;
+}
+
 /**
  * Extract all user answers from a solution's questions
  */
-export function extractUserAnswers(solution: any): Record<string, any> {
-  const userAnswers: Record<string, any> = {};
-  
+export function extractUserAnswers(solution: Solution): Record<string, unknown> {
+  const userAnswers: Record<string, unknown> = {};
+
   // Extract from all question categories
-  const questionCategories = ['required', 'basic', 'advanced'];
+  const questionCategories = ['required', 'basic', 'advanced'] as const;
   for (const category of questionCategories) {
     const questions = solution.questions[category] || [];
     for (const question of questions) {
-      if (question.answer !== undefined && question.answer !== null) {
+      if (question.id && question.answer !== undefined && question.answer !== null) {
         userAnswers[question.id] = question.answer;
       }
     }
@@ -41,7 +60,7 @@ export function sanitizeIntentForLabel(intent: string): string {
 /**
  * Generate standard dot-ai labels for Kubernetes resources
  */
-export function generateDotAiLabels(userAnswers: Record<string, any>, solution: any): Record<string, string> {
+export function generateDotAiLabels(userAnswers: Record<string, unknown>, solution: Solution): Record<string, string> {
   const appName = userAnswers.name;
   const originalIntent = solution.intent;
   
@@ -55,7 +74,7 @@ export function generateDotAiLabels(userAnswers: Record<string, any>, solution: 
   
   return {
     'dot-ai.io/managed': 'true',
-    'dot-ai.io/app-name': appName,
+    'dot-ai.io/app-name': appName as string,
     'dot-ai.io/intent': sanitizeIntentForLabel(originalIntent)
   };
 }
@@ -65,8 +84,8 @@ export function generateDotAiLabels(userAnswers: Record<string, any>, solution: 
  */
 export function addDotAiLabels(
   existingLabels: Record<string, string> | undefined,
-  userAnswers: Record<string, any>,
-  solution: any
+  userAnswers: Record<string, unknown>,
+  solution: Solution
 ): Record<string, string> {
   const dotAiLabels = generateDotAiLabels(userAnswers, solution);
   return { ...existingLabels, ...dotAiLabels };

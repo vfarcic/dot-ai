@@ -31,9 +31,11 @@ import {
   executeResourceTools,
   getResourceKinds,
   listResources,
-  getNamespaces
+  getNamespaces,
+  type SearchResourcesInput,
+  type QueryResourcesInput
 } from '../core/resource-tools';
-import { MERMAID_TOOLS, executeMermaidTools } from '../core/mermaid-tools';
+import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { invokePluginTool } from '../core/plugin-registry';
 
@@ -55,11 +57,11 @@ export enum HttpStatus {
  */
 export interface RestApiResponse {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   meta?: {
     timestamp: string;
@@ -73,7 +75,7 @@ export interface RestApiResponse {
  */
 export interface ToolExecutionResponse extends RestApiResponse {
   data?: {
-    result: any;
+    result: unknown;
     tool: string;
     executionTime?: number;
   };
@@ -219,7 +221,7 @@ export class RestApiRouter {
    *
    * PRD #354: Uses route registry for matching, dispatches to handlers based on route path.
    */
-  async handleRequest(req: IncomingMessage, res: ServerResponse, body?: any): Promise<void> {
+  async handleRequest(req: IncomingMessage, res: ServerResponse, body?: unknown): Promise<void> {
     const requestId = this.generateRequestId();
     const startTime = Date.now();
 
@@ -302,7 +304,7 @@ export class RestApiRouter {
     requestId: string,
     routeMatch: RouteMatch,
     searchParams: URLSearchParams,
-    body: any,
+    body: unknown,
     startTime: number
   ): Promise<void> {
     const { route, params } = routeMatch;
@@ -377,7 +379,7 @@ export class RestApiRouter {
         filters: { category, tag, search }
       });
 
-    } catch (error) {
+    } catch {
       await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'DISCOVERY_ERROR', 'Failed to retrieve tool information');
     }
   }
@@ -386,11 +388,11 @@ export class RestApiRouter {
    * Handle tool execution requests
    */
   private async handleToolExecution(
-    req: IncomingMessage, 
-    res: ServerResponse, 
+    req: IncomingMessage,
+    res: ServerResponse,
     requestId: string,
     toolName: string,
-    body: any,
+    body: unknown,
     startTime: number
   ): Promise<void> {
     try {
@@ -424,8 +426,8 @@ export class RestApiRouter {
       );
       // Prevent unhandled rejection if toolPromise resolves after timeout
       toolPromise.catch(() => {});
-      const mcpResult = await Promise.race([toolPromise, timeoutPromise]);
-      
+      const mcpResult = await Promise.race([toolPromise, timeoutPromise]) as { content?: Array<{ type: string; text: string }> };
+
       // Transform MCP format to proper REST JSON
       // All MCP tools return JSON.stringify() in content[0].text, so parse it back to proper JSON
       let transformedResult;
@@ -522,7 +524,7 @@ export class RestApiRouter {
     req: IncomingMessage,
     res: ServerResponse,
     requestId: string,
-    body: any
+    body: unknown
   ): Promise<void> {
     try {
       this.logger.info('Processing resource sync request', { requestId });
@@ -560,8 +562,8 @@ export class RestApiRouter {
       this.logger.info('Resource sync request completed', {
         requestId,
         success: response.success,
-        upserted: response.data?.upserted,
-        deleted: response.data?.deleted
+        upserted: (response.data as Record<string, unknown>)?.upserted,
+        deleted: (response.data as Record<string, unknown>)?.deleted
       });
 
     } catch (error) {
@@ -1198,7 +1200,7 @@ export class RestApiRouter {
         args: [`--field-selector=${fieldSelectors.join(',')}`]
       });
 
-      let events: any[] = [];
+      const events: Array<{ lastTimestamp: string; type: string; reason: string; involvedObject: { kind: string; name: string }; message: string }> = [];
       if (pluginResponse.success && pluginResponse.result) {
         const pluginResult = pluginResponse.result as { success: boolean; data: string };
         if (pluginResult.success && pluginResult.data) {
@@ -1451,13 +1453,14 @@ export class RestApiRouter {
     res: ServerResponse,
     requestId: string,
     promptName: string,
-    body: any
+    body: unknown
   ): Promise<void> {
     try {
       this.logger.info('Processing prompt get request', { requestId, promptName });
 
+      const bodyObj = body as { arguments?: Record<string, string> } | undefined;
       const result = await handlePromptsGetRequest(
-        { name: promptName, arguments: body?.arguments },
+        { name: promptName, arguments: bodyObj?.arguments },
         this.logger,
         requestId
       );
@@ -1528,7 +1531,7 @@ export class RestApiRouter {
       });
 
       // Fetch all sessions
-      const sessions: Array<{ sessionId: string; data: any }> = [];
+      const sessions: Array<{ sessionId: string; data: QuerySessionData & BaseVisualizationData }> = [];
       for (const sessionId of sessionIds) {
         const sessionPrefix = extractPrefixFromSessionId(sessionId);
         const sessionManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
@@ -1591,7 +1594,7 @@ export class RestApiRouter {
       }
 
       // PRD #320: Select prompt based on tool name (defaults to 'query' for backwards compatibility)
-      const toolName = primarySession.data.toolName || 'query';
+      const toolName = (primarySession.data.toolName || 'query') as string;
       const promptName = getPromptForTool(toolName);
 
       this.logger.info('Loading visualization prompt', { requestId, sessionIds, toolName, promptName });
@@ -1599,24 +1602,26 @@ export class RestApiRouter {
       // Load system prompt with session context
       // PRD #320: Unified visualization prompt with tool-aware data selection
       let intent: string;
-      let data: any;
+      let data: unknown;
 
+      // Cast to allow access to tool-specific properties
+      const sessionData = primarySession.data as unknown as Record<string, unknown>;
       switch (toolName) {
         case 'recommend':
-          intent = primarySession.data.intent || '';
+          intent = (sessionData.intent as string) || '';
           data = isMultiSession ? sessions.map(s => s.data) : primarySession.data;
           break;
         case 'remediate':
-          intent = primarySession.data.issue || '';
-          data = primarySession.data.finalAnalysis || primarySession.data;
+          intent = (sessionData.issue as string) || '';
+          data = sessionData.finalAnalysis || primarySession.data;
           break;
         case 'operate':
-          intent = primarySession.data.intent || '';
+          intent = (sessionData.intent as string) || '';
           data = primarySession.data;
           break;
         case 'version':
           // PRD #320: Version tool provides system health status
-          intent = `System health: ${primarySession.data.summary?.overall || 'unknown'}`;
+          intent = `System health: ${(sessionData.summary as Record<string, unknown>)?.overall || 'unknown'}`;
           data = primarySession.data;
           break;
         default:
@@ -1634,16 +1639,16 @@ export class RestApiRouter {
       const systemPrompt = loadPrompt(promptName, promptData);
 
       // PRD #343: Local executor for non-plugin tools (capability, resource, mermaid)
-      const localToolExecutor = async (toolName: string, input: any): Promise<any> => {
+      const localToolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
         if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
-          return executeCapabilityTools(toolName, input);
+          return executeCapabilityTools(toolName, input as Record<string, unknown>);
         }
         if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
-          return executeResourceTools(toolName, input);
+          return executeResourceTools(toolName, input as SearchResourcesInput | QueryResourcesInput);
         }
         // PRD #320: Mermaid validation tools
         if (toolName === 'validate_mermaid') {
-          return executeMermaidTools(toolName, input);
+          return executeMermaidTools(toolName, input as MermaidToolInput);
         }
         return {
           success: false,
@@ -1867,7 +1872,7 @@ export class RestApiRouter {
   /**
    * Send JSON response
    */
-  private async sendJsonResponse(res: ServerResponse, status: HttpStatus, data: any): Promise<void> {
+  private async sendJsonResponse(res: ServerResponse, status: HttpStatus, data: unknown): Promise<void> {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data, null, 2));
   }
@@ -1876,12 +1881,12 @@ export class RestApiRouter {
    * Send error response
    */
   private async sendErrorResponse(
-    res: ServerResponse, 
+    res: ServerResponse,
     requestId: string,
-    status: HttpStatus, 
-    code: string, 
+    status: HttpStatus,
+    code: string,
     message: string,
-    details?: any
+    details?: unknown
   ): Promise<void> {
     const response: RestApiResponse = {
       success: false,

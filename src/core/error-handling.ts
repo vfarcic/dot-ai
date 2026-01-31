@@ -63,8 +63,8 @@ export interface ErrorContext {
   version: string;
   
   // Input context
-  input?: any;
-  parameters?: Record<string, any>;
+  input?: unknown;
+  parameters?: Record<string, unknown>;
   
   // Stack trace and debugging
   originalError?: Error;
@@ -155,7 +155,7 @@ export interface LogEntry {
   operation?: string;
   requestId?: string;
   sessionId?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   error?: AppError;
   duration?: number;
 }
@@ -164,11 +164,11 @@ export interface LogEntry {
  * Logger interface for dependency injection
  */
 export interface Logger {
-  debug(message: string, data?: any): void;
-  info(message: string, data?: any): void;
-  warn(message: string, data?: any): void;
-  error(message: string, error?: Error | AppError, data?: any): void;
-  fatal(message: string, error?: Error | AppError, data?: any): void;
+  debug(message: string, data?: Record<string, unknown>): void;
+  info(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  error(message: string, error?: Error | AppError, data?: Record<string, unknown>): void;
+  fatal(message: string, error?: Error | AppError, data?: Record<string, unknown>): void;
 }
 
 /**
@@ -188,7 +188,7 @@ export class ConsoleLogger implements Logger {
     return levels.indexOf(level) >= levels.indexOf(this.minLevel);
   }
 
-  private formatMessage(level: LogLevel, message: string, data?: any): string {
+  private formatMessage(level: LogLevel, message: string, data?: Record<string, unknown>): string {
     const timestamp = new Date().toISOString();
     const baseMessage = `[${timestamp}] ${level.toUpperCase()} [${this.component}] ${message}`;
     
@@ -199,39 +199,39 @@ export class ConsoleLogger implements Logger {
     return baseMessage;
   }
 
-  debug(message: string, data?: any): void {
+  debug(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       console.debug(this.formatMessage(LogLevel.DEBUG, message, data));
     }
   }
 
-  info(message: string, data?: any): void {
+  info(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.INFO)) {
       console.info(this.formatMessage(LogLevel.INFO, message, data));
     }
   }
 
-  warn(message: string, data?: any): void {
+  warn(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.WARN)) {
       console.warn(this.formatMessage(LogLevel.WARN, message, data));
     }
   }
 
-  error(message: string, error?: Error | AppError, data?: any): void {
+  error(message: string, error?: Error | AppError, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.ERROR)) {
       const errorData = error ? { error: this.serializeError(error), ...data } : data;
       console.error(this.formatMessage(LogLevel.ERROR, message, errorData));
     }
   }
 
-  fatal(message: string, error?: Error | AppError, data?: any): void {
+  fatal(message: string, error?: Error | AppError, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.FATAL)) {
       const errorData = error ? { error: this.serializeError(error), ...data } : data;
       console.error(this.formatMessage(LogLevel.FATAL, message, errorData));
     }
   }
 
-  private serializeError(error: Error | AppError): any {
+  private serializeError(error: Error | AppError): Record<string, unknown> {
     if ('category' in error) {
       // AppError
       return {
@@ -365,9 +365,8 @@ export class ErrorHandler {
       );
     }
 
-    // Log the handled error
-    const logLevel = options.logLevel || LogLevel.ERROR;
-    this.logger[logLevel](`Error handled in ${context.component || 'unknown'}`, appError);
+    // Log the handled error - always use error() method for proper error typing
+    this.logger.error(`Error handled in ${context.component || 'unknown'}`, appError);
 
     if (options.convertToMcp) {
       const mcpError = this.toMcpError(appError);

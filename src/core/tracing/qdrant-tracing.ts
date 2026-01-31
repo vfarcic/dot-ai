@@ -126,7 +126,7 @@ export async function withQdrantTracing<T>(
 
             // For search results with scores, track top score
             if (result.length > 0 && 'score' in result[0]) {
-              span.setAttribute('db.vector.top_score', (result[0] as any).score);
+              span.setAttribute('db.vector.top_score', (result[0] as { score: number }).score);
             }
           }
         }

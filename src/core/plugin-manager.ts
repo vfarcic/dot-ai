@@ -523,7 +523,7 @@ export class PluginManager {
             // PRD #343: Return only the data field to AI, not the full JSON wrapper
             // This saves tokens and provides cleaner output matching raw command output
             if (typeof response.result === 'object' && response.result !== null) {
-              const result = response.result as any;
+              const result = response.result as { success?: boolean; data?: unknown; message?: string; error?: string };
               if ('success' in result && 'data' in result) {
                 // Return just the data (raw command output) for successful results
                 // Return error message string for failed results

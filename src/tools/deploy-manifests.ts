@@ -10,11 +10,19 @@ import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
-import { extractUserAnswers } from '../core/solution-utils';
+import { extractUserAnswers, type Solution } from '../core/solution-utils';
 import { HelmChartInfo } from '../core/helm-types';
 import { invokePluginTool } from '../core/plugin-registry';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Plugin result data structure
+interface PluginResultData {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  data?: string;
+}
 
 // PRD #343: Inline utilities (helm-utils.ts removed - all helm operations via plugin)
 
@@ -95,7 +103,7 @@ export async function handleDeployManifestsTool(
         }
 
         const chart: HelmChartInfo = solution.chart;
-        const userAnswers = extractUserAnswers(solution);
+        const userAnswers = extractUserAnswers(solution as unknown as Solution);
         const releaseName = userAnswers.name;
         const namespace = userAnswers.namespace || 'default';
 
@@ -147,7 +155,7 @@ export async function handleDeployManifestsTool(
         // Check for nested error in result
         let nestedError: string | undefined;
         if (installResult.success && typeof installResult.result === 'object' && installResult.result !== null) {
-          const nestedResult = installResult.result as any;
+          const nestedResult = installResult.result as PluginResultData;
           if (nestedResult.success === false) {
             nestedError = nestedResult.error || nestedResult.message || 'Helm install failed';
           }
@@ -157,11 +165,11 @@ export async function handleDeployManifestsTool(
         let output = '';
         if (installResult.success && !nestedError) {
           if (typeof installResult.result === 'object' && installResult.result !== null) {
-            const resultData = installResult.result as any;
+            const resultData = installResult.result as PluginResultData;
             if (resultData.data !== undefined) {
               output = String(resultData.data);
             } else if (typeof resultData === 'string') {
-              output = resultData;
+              output = resultData as unknown as string;
             }
             // Don't throw error here - empty output is acceptable for Helm
           } else {

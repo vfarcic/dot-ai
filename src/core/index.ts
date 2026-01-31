@@ -14,6 +14,7 @@ import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 
 // PRD #343: CoreConfig simplified - kubernetesConfig removed since all K8s ops go through plugin
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface CoreConfig {
   // Reserved for future configuration options
 }
@@ -30,8 +31,8 @@ export class DotAI {
     parser: SchemaParser;
     validator: ManifestValidator;
     ranker: ResourceRecommender | null;
-    parseResource: (resourceName: string) => Promise<any>;
-    rankResources: (intent: string) => Promise<any>;
+    parseResource: (resourceName: string) => Promise<unknown>;
+    rankResources: (intent: string) => Promise<unknown>;
     generateQuestionsForHelmChart: (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => Promise<QuestionGroup>;
     fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
   };

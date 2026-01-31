@@ -33,6 +33,38 @@ import { CreatePatternRequest } from './pattern-types';
 import { PolicyIntent } from './organizational-types';
 import { createPattern } from './pattern-operations';
 
+/**
+ * Session creation/operation arguments
+ */
+interface SessionArgs {
+  collection?: string;
+  interaction_id?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Template data for review step
+ */
+interface ReviewTemplateData {
+  description: string | undefined;
+  triggers: string;
+  rationale: string | undefined;
+  createdBy: string | undefined;
+  resources?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Schema data for Kyverno generation
+ */
+interface SchemaData {
+  resourceName: string;
+  score?: number;
+  capabilities: unknown;
+  schema: string;
+  timestamp: string;
+}
+
 export class UnifiedCreationSessionManager {
   private config: WorkflowConfig;
   private discovery: KubernetesDiscovery;
@@ -54,7 +86,7 @@ export class UnifiedCreationSessionManager {
   /**
    * Create a new creation session
    */
-  createSession(args: any): UnifiedCreationSession {
+  createSession(args: SessionArgs): UnifiedCreationSession {
     const sessionData: UnifiedCreationSessionData = {
       entityType: this.config.entityType,
       currentStep: this.config.steps[0], // Start with first step
@@ -68,15 +100,15 @@ export class UnifiedCreationSessionManager {
   /**
    * Load existing session
    */
-  loadSession(sessionId: string, _args: any): UnifiedCreationSession | null {
+  loadSession(sessionId: string): UnifiedCreationSession | null {
     return this.sessionManager.getSession(sessionId);
   }
 
   /**
    * Process user response and advance session
    */
-  processResponse(sessionId: string, response: string, _args: any): UnifiedCreationSession {
-    const session = this.loadSession(sessionId, _args);
+  processResponse(sessionId: string, response: string): UnifiedCreationSession {
+    const session = this.loadSession(sessionId);
     if (!session) {
       throw new Error(`${this.config.displayName} session ${sessionId} not found`);
     }
@@ -99,7 +131,7 @@ export class UnifiedCreationSessionManager {
           const confirmed = JSON.parse(response);
           session.data.expandedTriggers = confirmed;
           session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
-        } catch (error) {
+        } catch {
           // If not JSON, treat as comma-separated list
           session.data.expandedTriggers = response.split(',').map(t => t.trim()).filter(t => t.length > 0);
           session.data.currentStep = getNextStep('trigger-expansion', this.config)!;
@@ -191,7 +223,7 @@ export class UnifiedCreationSessionManager {
   /**
    * Generate next workflow step
    */
-  async getNextWorkflowStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse | UnifiedWorkflowCompletionResponse> {
+  async getNextWorkflowStep(session: UnifiedCreationSession, args?: SessionArgs): Promise<UnifiedWorkflowStepResponse | UnifiedWorkflowCompletionResponse> {
     const sessionId = session.sessionId;
     
     switch (session.data.currentStep) {
@@ -339,6 +371,7 @@ export class UnifiedCreationSessionManager {
    * Generate trigger expansion using internal AI
    */
   private async generateInternalTriggerExpansion(initialTriggers: string[], description: string, interaction_id?: string): Promise<string[]> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require to avoid circular dependency
     const { createAIProvider } = require('./ai-provider-factory');
     const aiProvider = createAIProvider();
 
@@ -386,7 +419,7 @@ export class UnifiedCreationSessionManager {
     const data = session.data;
     const finalTriggers = data.expandedTriggers || data.initialTriggers || [];
     
-    const templateData: any = {
+    const templateData: ReviewTemplateData = {
       description: data.description,
       triggers: finalTriggers.join(', '),
       rationale: data.rationale,
@@ -618,7 +651,8 @@ ${deployResult.kubectlOutput}`,
           data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: true, kyvernoFile: kyvernoFilePath }
         };
         
-      } catch (deployError: any) {
+      } catch (deployError) {
+        const errorMessage = deployError instanceof Error ? deployError.message : String(deployError);
         return {
           sessionId: session.sessionId,
           entityType: this.config.entityType,
@@ -626,12 +660,12 @@ ${deployResult.kubectlOutput}`,
 
 **Policy ID**: ${policy.id}
 **Description**: ${policy.description}
-**Error**: ${deployError.message}
+**Error**: ${errorMessage}
 **Kyverno File**: ${kyvernoFilePath}
 
 The policy intent has been stored in the database, but the Kyverno policy could not be applied to the cluster. You can manually apply it using:
 \`kubectl apply -f ${kyvernoFilePath}\``,
-          data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false, error: deployError.message, kyvernoFile: kyvernoFilePath }
+          data: { policy, kyvernoPolicy: generatedKyvernoPolicy, applied: false, error: errorMessage, kyvernoFile: kyvernoFilePath }
         };
       }
     } else {
@@ -727,7 +761,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
   /**
    * Generate Kyverno policy step - automatically generates policy from intent data with validation loop
    */
-  private async generateKyvernoStep(session: UnifiedCreationSession, args?: any): Promise<UnifiedWorkflowStepResponse> {
+  private async generateKyvernoStep(session: UnifiedCreationSession, args?: SessionArgs): Promise<UnifiedWorkflowStepResponse> {
     // Check if Kyverno is available before attempting policy generation
     const kyvernoStatus = await getKyvernoStatusViaPlugin();
     if (!kyvernoStatus.policyGenerationReady) {
@@ -791,6 +825,7 @@ The policy intent has been stored in the database. The Kyverno policy was not ap
           const prompt = loadPrompt('kyverno-generation', templateData);
 
           // Call AI provider internally to generate Kyverno policy
+          // eslint-disable-next-line @typescript-eslint/no-require-imports -- Dynamic require to avoid circular dependency
           const { createAIProvider } = require('./ai-provider-factory');
           const aiProvider = createAIProvider();
           
@@ -916,7 +951,7 @@ Please try again or modify your policy description.`,
     policyDescription: string,
     triggers: string[],
     collection?: string
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, SchemaData>> {
 
     // Combine policy description with triggers for enhanced search
     const searchQuery = [policyDescription, ...triggers].join(' ');
@@ -968,7 +1003,7 @@ Please try again or modify your policy description.`,
       resources: filteredResults.map(r => r.data.resourceName)
     });
 
-    const schemas: Record<string, any> = {};
+    const schemas: Record<string, SchemaData> = {};
 
     // Retrieve schema for each relevant resource using existing pattern from generate-manifests.ts
     for (const result of filteredResults) {
@@ -1030,7 +1065,7 @@ Please try again or modify your policy description.`,
   /**
    * Format schemas for inclusion in the Kyverno generation prompt
    */
-  private formatSchemasForPrompt(resourceSchemas: Record<string, any>): string {
+  private formatSchemasForPrompt(resourceSchemas: Record<string, SchemaData>): string {
     return Object.entries(resourceSchemas)
       .map(([resourceName, schemaData]) => {
         return `${resourceName} (Score: ${schemaData.score?.toFixed(2) || 'N/A'}):

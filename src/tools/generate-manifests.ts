@@ -97,28 +97,63 @@ interface ErrorContext {
 }
 
 /**
+ * Resource reference from a solution
+ */
+interface ResourceRef {
+  kind: string;
+  apiVersion: string;
+  group?: string;
+}
+
+/**
+ * Solution structure from session storage
+ */
+interface Solution {
+  resources?: ResourceRef[];
+  description?: string;
+  reasons?: string[];
+  appliedPatterns?: string[];
+  intent?: string;
+}
+
+/**
+ * Schema data for a resource
+ */
+interface ResourceSchemaData {
+  kind: string;
+  apiVersion: string;
+  explanation: string;
+  retrievedAt: string;
+}
+
+/**
+ * Collection of resource schemas
+ */
+type ResourceSchemas = Record<string, ResourceSchemaData>;
+
+/**
  * Retrieve schemas for resources specified in the solution
  */
-async function retrieveResourceSchemas(solution: any, dotAI: DotAI, logger: Logger): Promise<any> {
+async function retrieveResourceSchemas(solution: Solution, dotAI: DotAI, logger: Logger): Promise<ResourceSchemas> {
   try {
     // Extract resource references from solution
-    const resourceRefs = (solution.resources || []).map((resource: any) => ({
+    const resourceRefs = (solution.resources || []).map((resource: ResourceRef) => ({
       kind: resource.kind,
       apiVersion: resource.apiVersion,
       group: resource.group
     }));
-    
+
     if (resourceRefs.length === 0) {
       logger.warn('No resources found in solution for schema retrieval');
       return {};
     }
-    
+
     logger.info('Retrieving schemas for solution resources', {
       resourceCount: resourceRefs.length,
-      resources: resourceRefs.map((r: any) => `${r.kind}@${r.apiVersion}`)
+      resources: resourceRefs.map((r: ResourceRef) => `${r.kind}@${r.apiVersion}`)
     });
-    
-    const schemas: any = {};
+
+    const schemas: ResourceSchemas = {};
     
     // Retrieve schema for each resource
     for (const resourceRef of resourceRefs) {
@@ -132,8 +167,8 @@ async function retrieveResourceSchemas(solution: any, dotAI: DotAI, logger: Logg
         schemas[resourceKey] = {
           kind: resourceRef.kind,
           apiVersion: resourceRef.apiVersion,
-          schema: explanation,
-          timestamp: new Date().toISOString()
+          explanation,
+          retrievedAt: new Date().toISOString()
         };
         
         logger.debug('Schema retrieved successfully', { 
@@ -206,7 +241,8 @@ async function helmLint(
 
   } catch (error) {
     // helm lint exits with non-zero on errors
-    const errorOutput = error instanceof Error ? (error as any).stderr || error.message : String(error);
+    const execError = error as { stderr?: string; message?: string };
+    const errorOutput = execError.stderr || execError.message || String(error);
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -267,7 +303,7 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
  * Generate manifests using AI provider
  */
 async function generateManifestsWithAI(
-  solution: any,
+  solution: Solution & { initialIntent?: string },
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -345,10 +381,18 @@ interface HelmErrorContext {
 }
 
 /**
+ * Helm solution with chart info
+ */
+interface HelmSolution extends Solution {
+  chart: HelmChartInfo;
+  initialIntent?: string;
+}
+
+/**
  * Generate Helm values.yaml using AI provider
  */
 async function generateHelmValuesWithAI(
-  solution: any,
+  solution: HelmSolution,
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -489,7 +533,7 @@ async function validateHelmInstallation(
  * PRD #343: pluginManager required for Helm operations
  */
 async function handleHelmGeneration(
-  solution: any,
+  solution: HelmSolution,
   solutionId: string,
   dotAI: DotAI,
   logger: Logger,
@@ -500,11 +544,11 @@ async function handleHelmGeneration(
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   const maxAttempts = 10;
   const chart: HelmChartInfo = solution.chart;
-  const userAnswers = extractUserAnswers(solution);
+  const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
 
   // Extract release name and namespace from answers
-  const releaseName = userAnswers.name;
-  const namespace = userAnswers.namespace || 'default';
+  const releaseName = userAnswers.name as string;
+  const namespace = (userAnswers.namespace as string) || 'default';
 
   if (!releaseName) {
     throw ErrorHandler.createError(
@@ -588,13 +632,13 @@ async function handleHelmGeneration(
               repository: chart.repository,
               repositoryName: chart.repositoryName,
               chartName: chart.chartName,
-              version: chart.version
+              version: chart.version || 'latest'
             },
             releaseName: releaseName,
             namespace: namespace,
             validationAttempts: attempt
           }
-        });
+        } as Partial<SolutionData>);
 
         // PRD #320: Generate visualization URL
         const visualizationUrl = getVisualizationUrl(solutionId);
@@ -755,7 +799,7 @@ function writePackageFiles(
  */
 async function packageAndValidate(
   rawManifests: string,
-  solution: any,
+  solution: Solution & { initialIntent?: string },
   outputFormat: OutputFormat,
   outputPath: string,
   solutionId: string,
@@ -787,7 +831,8 @@ async function packageAndValidate(
     try {
       const packagingResult = await packageManifests(
         rawManifests,
-        solution,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Different SolutionData types between modules
+        solution as any,
         outputFormat,
         outputPath,
         dotAI,
@@ -949,7 +994,7 @@ export async function handleGenerateManifestsTool(
           chart: solution.chart ? `${solution.chart.repositoryName}/${solution.chart.chartName}` : 'unknown'
         });
         return await handleHelmGeneration(
-          solution,
+          solution as unknown as HelmSolution,
           args.solutionId,
           dotAI,
           logger,
@@ -985,8 +1030,8 @@ export async function handleGenerateManifestsTool(
         
         try {
           // Extract user answers and generate required labels
-          const userAnswers = extractUserAnswers(solution);
-          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution);
+          const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
+          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution as unknown as Parameters<typeof addDotAiLabels>[2]);
 
           // Generate manifests with AI (including labels)
           const aiManifests = await generateManifestsWithAI(
@@ -1007,7 +1052,7 @@ export async function handleGenerateManifestsTool(
             if (crdAvailable) {
               solutionCR = generateSolutionCR({
                 solutionId: args.solutionId,
-                namespace: userAnswers.namespace || 'default',
+                namespace: (userAnswers.namespace as string) || 'default',
                 solution: solution,
                 generatedManifestsYaml: aiManifests
               });
@@ -1057,7 +1102,7 @@ export async function handleGenerateManifestsTool(
 
             // Extract packaging options from user answers (with defaults)
             const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
-            const outputPath = userAnswers.outputPath || './manifests';
+            const outputPath = (userAnswers.outputPath as string) || './manifests';
 
             // Handle packaging based on outputFormat
             if (outputFormat === 'helm' || outputFormat === 'kustomize') {

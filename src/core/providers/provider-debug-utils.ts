@@ -180,7 +180,7 @@ export function logEvaluationDataset(
 export function createAndLogAgenticResult(config: {
   finalMessage: string;
   iterations: number;
-  toolCallsExecuted: Array<{ tool: string; input: any; output: any }>;
+  toolCallsExecuted: Array<{ tool: string; input: unknown; output: unknown }>;
   totalTokens: {
     input: number;
     output: number;

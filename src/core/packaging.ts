@@ -40,6 +40,28 @@ interface PackagingErrorContext {
 }
 
 /**
+ * Question with answer structure
+ */
+interface QuestionWithAnswer {
+  question: string;
+  answer?: unknown;
+}
+
+/**
+ * Solution data structure for packaging
+ */
+interface SolutionData {
+  questions?: {
+    required?: QuestionWithAnswer[];
+    basic?: QuestionWithAnswer[];
+    advanced?: QuestionWithAnswer[];
+    open?: { answer?: string };
+  };
+  intent?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Format-specific instructions for Helm chart generation
  */
 const HELM_FORMAT_INSTRUCTIONS = `
@@ -212,10 +234,10 @@ function getFormatConfig(format: OutputFormat): {
 /**
  * Format questions and answers for prompt
  */
-function formatQuestionsAndAnswers(solution: any): string {
+function formatQuestionsAndAnswers(solution: SolutionData): string {
   const lines: string[] = [];
 
-  const questionCategories = ['required', 'basic', 'advanced'];
+  const questionCategories = ['required', 'basic', 'advanced'] as const;
   for (const category of questionCategories) {
     const questions = solution.questions?.[category] || [];
     for (const q of questions) {
@@ -285,7 +307,7 @@ function parsePackagingResponse(response: string): PackageFile[] {
  */
 export async function packageManifests(
   rawManifests: string,
-  solution: any,
+  solution: SolutionData,
   outputFormat: OutputFormat,
   outputPath: string,
   dotAI: DotAI,

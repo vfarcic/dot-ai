@@ -5,11 +5,13 @@
  * Extends BaseVectorService for policy intents
  */
 
-import { PolicyIntent } from './organizational-types';
+import { PolicyIntent, DeployedPolicyReference } from './organizational-types';
 import { EmbeddingService } from './embedding-service';
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PolicySearchOptions extends BaseSearchOptions {}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PolicySearchResult extends BaseSearchResult<PolicyIntent> {}
 
 export class PolicyVectorService extends BaseVectorService<PolicyIntent> {
@@ -28,7 +30,7 @@ export class PolicyVectorService extends BaseVectorService<PolicyIntent> {
     return policyIntent.id;
   }
 
-  protected createPayload(policyIntent: PolicyIntent): Record<string, any> {
+  protected createPayload(policyIntent: PolicyIntent): Record<string, unknown> {
     return {
       description: policyIntent.description,
       triggers: policyIntent.triggers.map(t => t.toLowerCase()),
@@ -39,15 +41,15 @@ export class PolicyVectorService extends BaseVectorService<PolicyIntent> {
     };
   }
 
-  protected payloadToData(payload: Record<string, any>): PolicyIntent {
+  protected payloadToData(payload: Record<string, unknown>): PolicyIntent {
     return {
       id: '', // Will be set from document ID in base class
-      description: payload.description,
-      triggers: payload.triggers,
-      rationale: payload.rationale,
-      createdAt: payload.createdAt,
-      createdBy: payload.createdBy,
-      deployedPolicies: payload.deployedPolicies || []
+      description: payload.description as string,
+      triggers: payload.triggers as string[],
+      rationale: payload.rationale as string,
+      createdAt: payload.createdAt as string,
+      createdBy: payload.createdBy as string,
+      deployedPolicies: (payload.deployedPolicies as DeployedPolicyReference[]) || []
     };
   }
 

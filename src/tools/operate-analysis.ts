@@ -8,11 +8,63 @@ import {
   EmbeddedContext,
   OperateSessionData,
   OperateSession,
+  ProposedChanges,
   embedContext,
   formatPatterns,
   formatPolicies,
   formatCapabilities
 } from './operate';
+
+/**
+ * Parsed AI response for operate analysis
+ */
+interface ParsedOperateResponse {
+  analysis: string;
+  currentState: unknown;
+  proposedChanges: ProposedChanges;
+  commands: string[];
+  dryRunValidation: {
+    status: 'success' | 'failed';
+    details: string;
+  };
+  patternsApplied: string[];
+  capabilitiesUsed: string[];
+  policiesChecked: string[];
+  risks: {
+    level: 'low' | 'medium' | 'high';
+    description: string;
+  };
+  validationIntent: string;
+}
+
+/**
+ * Result type for operate analysis
+ */
+interface OperateAnalysisResult {
+  status: 'awaiting_user_approval';
+  sessionId: string;
+  visualizationUrl?: string;
+  analysis: {
+    summary: string;
+    currentState: unknown;
+    proposedChanges: ProposedChanges;
+    commands: string[];
+    dryRunValidation: {
+      status: 'success' | 'failed';
+      details: string;
+    };
+    patternsApplied: string[];
+    capabilitiesUsed: string[];
+    policiesChecked: string[];
+    risks: {
+      level: 'low' | 'medium' | 'high';
+      description: string;
+    };
+    validationIntent: string;
+  };
+  message: string;
+  nextAction: string;
+}
 
 /**
  * Analyzes user intent and generates operational proposal using AI tool loop
@@ -34,7 +86,7 @@ export async function analyzeIntent(
   pluginManager: PluginManager,
   sessionId?: string,
   interaction_id?: string
-): Promise<any> {
+): Promise<OperateAnalysisResult> {
   logger.info('Starting operate analysis', { intent, sessionId });
 
   // 1. Embed context (patterns, policies, capabilities)
@@ -203,7 +255,7 @@ async function executeToolLoop(
  * @returns Parsed proposed changes
  * @throws Error if response is not valid JSON or missing required fields
  */
-function parseAIResponse(response: string, logger: Logger): any {
+function parseAIResponse(response: string, logger: Logger): ParsedOperateResponse {
   logger.debug('Parsing AI response');
 
   // Try to extract JSON from code block first (Claude format)
@@ -310,7 +362,7 @@ function parseAIResponse(response: string, logger: Logger): any {
 async function saveAnalysisSession(
   intent: string,
   context: EmbeddedContext,
-  proposedChanges: any,
+  proposedChanges: ParsedOperateResponse,
   sessionManager: GenericSessionManager<OperateSessionData>,
   sessionId: string | undefined,
   interaction_id: string | undefined,

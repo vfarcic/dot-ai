@@ -66,8 +66,8 @@ export class CapabilityComparativeEvaluator extends BaseComparativeEvaluator {
       .replace('{models}', modelList);
   }
 
-  private extractResourceName(input: any): string {
-    if (input?.issue) {
+  private extractResourceName(input: Record<string, unknown>): string {
+    if (input?.issue && typeof input.issue === 'string') {
       const match = input.issue.match(/resource: (.+)/);
       return match ? match[1] : 'unknown';
     }

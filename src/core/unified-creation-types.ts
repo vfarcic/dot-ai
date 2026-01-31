@@ -73,14 +73,14 @@ export interface UnifiedWorkflowStepResponse {
   prompt?: string;
   instruction: string;
   nextStep?: WorkflowStep;
-  data?: any;
+  data?: unknown;
 }
 
 export interface UnifiedWorkflowCompletionResponse {
   sessionId: string;
   entityType: EntityType;
   instruction: string;
-  data?: any;
+  data?: unknown;
 }
 
 // Pattern workflow - unchanged, no Kyverno generation needed

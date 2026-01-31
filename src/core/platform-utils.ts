@@ -24,7 +24,7 @@ export function getScriptsDir(): string {
  * Extract JSON object from AI response with robust parsing
  * Handles markdown code blocks and finds proper JSON boundaries
  */
-export function extractJsonFromAIResponse(aiResponse: string): any {
+export function extractJsonFromAIResponse(aiResponse: string): unknown {
   let jsonContent = aiResponse;
   
   // First try to find JSON wrapped in code blocks
@@ -82,7 +82,7 @@ export function extractContentFromMarkdownCodeBlocks(content: string, language?:
  * Extract JSON array from AI response with robust parsing
  * Handles markdown code blocks and finds proper array boundaries
  */
-export function extractJsonArrayFromAIResponse(aiResponse: string): any[] {
+export function extractJsonArrayFromAIResponse(aiResponse: string): unknown[] {
   let jsonContent = aiResponse;
   
   // First try to find JSON array wrapped in code blocks

@@ -13,6 +13,7 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { DotAI } from '../core/index';
 import { ConsoleLogger, Logger } from '../core/error-handling';
 import {
@@ -32,6 +33,7 @@ import {
   ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
   ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
   handleOrganizationalDataTool,
+  type OrganizationalDataInput,
 } from '../tools/organizational-data';
 import {
   REMEDIATE_TOOL_NAME,
@@ -61,6 +63,7 @@ import {
 import {
   handlePromptsListRequest,
   handlePromptsGetRequest,
+  type PromptsListArgs,
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
@@ -71,6 +74,49 @@ import { context, trace } from '@opentelemetry/api';
 import { getTelemetry, McpClientInfo } from '../core/telemetry';
 import { PluginManager } from '../core/plugin-manager';
 import { isPluginInitialized } from '../core/plugin-registry';
+
+/**
+ * Tool handler function type
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible handler type for various tool signatures
+type ToolHandler = (args: any, ...rest: any[]) => Promise<unknown>;
+
+/**
+ * Tool arguments passed to handlers
+ */
+type ToolArgs = Record<string, unknown>;
+
+/**
+ * Sampling message structure
+ */
+interface SamplingMessage {
+  role: 'user' | 'assistant';
+  content: { type: 'text'; text: string } | string;
+}
+
+/**
+ * Sampling options
+ */
+interface SamplingOptions {
+  maxTokens?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * Sampling result structure
+ */
+interface SamplingResult {
+  content: { type: 'text'; text: string } | string;
+}
+
+/**
+ * Sampling handler function type
+ */
+type SamplingHandler = (
+  messages: SamplingMessage[],
+  systemPrompt?: string,
+  options?: SamplingOptions
+) => Promise<SamplingResult>;
 
 export interface MCPServerConfig {
   name: string;
@@ -172,33 +218,35 @@ export class MCPServer {
   private registerTool(
     name: string,
     description: string,
-    inputSchema: Record<string, any>,
-    handler: (...args: any[]) => Promise<any>,
+    inputSchema: Record<string, unknown>,
+    handler: ToolHandler,
     category?: string,
     tags?: string[]
   ): void {
     // MCP handler: uses actual client info from MCP handshake (e.g., "claude-code", "cursor")
-    const mcpTracedHandler = async (args: any) => {
+    const mcpTracedHandler = async (args: ToolArgs) => {
       return await withToolTracing(name, args, handler, { mcpClient: this.mcpClientInfo });
     };
 
     // REST handler: uses "http" as client identifier for REST API calls
-    const restTracedHandler = async (args: any) => {
+    const restTracedHandler = async (args: ToolArgs) => {
       return await withToolTracing(name, args, handler, { mcpClient: { name: 'http', version: 'rest-api' } });
     };
 
     // Register MCP handler with MCP server
+    /* eslint-disable @typescript-eslint/no-explicit-any -- MCP SDK type compatibility */
     this.server.registerTool(name, {
       description,
-      inputSchema
-    }, mcpTracedHandler);
+      inputSchema: inputSchema as any
+    }, mcpTracedHandler as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     // Register REST handler with REST registry
     this.restRegistry.registerTool({
       name,
       description,
-      inputSchema,
-      handler: restTracedHandler,
+      inputSchema: inputSchema as Record<string, z.ZodSchema>,
+      handler: restTracedHandler as (...args: unknown[]) => Promise<unknown>,
       category,
       tags
     });
@@ -215,7 +263,7 @@ export class MCPServer {
       RECOMMEND_TOOL_NAME,
       RECOMMEND_TOOL_DESCRIPTION,
       RECOMMEND_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(`Processing ${RECOMMEND_TOOL_NAME} tool request`, {
           requestId,
@@ -240,7 +288,7 @@ export class MCPServer {
       VERSION_TOOL_NAME,
       VERSION_TOOL_DESCRIPTION,
       VERSION_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(`Processing ${VERSION_TOOL_NAME} tool request`, {
           requestId,
@@ -257,14 +305,14 @@ export class MCPServer {
       ORGANIZATIONAL_DATA_TOOL_NAME,
       ORGANIZATIONAL_DATA_TOOL_DESCRIPTION,
       ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(
           `Processing ${ORGANIZATIONAL_DATA_TOOL_NAME} tool request`,
           { requestId }
         );
         return await handleOrganizationalDataTool(
-          args,
+          args as unknown as OrganizationalDataInput,
           this.dotAI,
           this.logger,
           requestId
@@ -280,7 +328,7 @@ export class MCPServer {
       REMEDIATE_TOOL_NAME,
       REMEDIATE_TOOL_DESCRIPTION,
       REMEDIATE_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(
           `Processing ${REMEDIATE_TOOL_NAME} tool request`,
@@ -301,7 +349,7 @@ export class MCPServer {
       OPERATE_TOOL_NAME,
       OPERATE_TOOL_DESCRIPTION,
       OPERATE_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(
           `Processing ${OPERATE_TOOL_NAME} tool request`,
@@ -321,7 +369,7 @@ export class MCPServer {
       PROJECT_SETUP_TOOL_NAME,
       PROJECT_SETUP_TOOL_DESCRIPTION,
       PROJECT_SETUP_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(
           `Processing ${PROJECT_SETUP_TOOL_NAME} tool request`,
@@ -338,7 +386,7 @@ export class MCPServer {
       QUERY_TOOL_NAME,
       QUERY_TOOL_DESCRIPTION,
       QUERY_TOOL_INPUT_SCHEMA,
-      async (args: any) => {
+      async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
         this.logger.info(
           `Processing ${QUERY_TOOL_NAME} tool request`,
@@ -379,9 +427,10 @@ export class MCPServer {
    */
   private registerPrompts(): void {
     // Register prompts/list handler
-    this.server.server.setRequestHandler(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
+    (this.server.server.setRequestHandler as any)(
       ListPromptsRequestSchema,
-      async request => {
+      async (request: { params?: PromptsListArgs }) => {
         const requestId = this.generateRequestId();
         this.logger.info('Processing prompts/list request', { requestId });
         return await handlePromptsListRequest(
@@ -393,16 +442,17 @@ export class MCPServer {
     );
 
     // Register prompts/get handler
-    this.server.server.setRequestHandler(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
+    (this.server.server.setRequestHandler as any)(
       GetPromptRequestSchema,
-      async request => {
+      async (request: { params?: { name: string; arguments?: Record<string, string> } }) => {
         const requestId = this.generateRequestId();
         this.logger.info('Processing prompts/get request', {
           requestId,
           promptName: request.params?.name,
         });
         return await handlePromptsGetRequest(
-          request.params || {},
+          request.params || { name: '' },
           this.logger,
           requestId
         );
@@ -418,37 +468,37 @@ export class MCPServer {
     // Configure HostProvider if active
     // We use capability detection (duck typing) to avoid strict class dependency
     // and handle potential class loading issues
-    const aiProvider = this.dotAI.ai as any;
+    const aiProvider = this.dotAI.ai as { setSamplingHandler?: (handler: SamplingHandler) => void; getProviderType?: () => string };
 
     if (typeof aiProvider.setSamplingHandler === 'function') {
       this.logger.info('Configuring Host AI Provider with Sampling capability');
       aiProvider.setSamplingHandler(this.handleSamplingRequest.bind(this));
     } else {
       this.logger.info('Using configured AI Provider', {
-        type: this.dotAI.ai.getProviderType ? this.dotAI.ai.getProviderType() : 'unknown'
+        type: aiProvider.getProviderType ? aiProvider.getProviderType() : 'unknown'
       });
     }
   }
 
   private async handleSamplingRequest(
-    messages: any[],
+    messages: SamplingMessage[],
     systemPrompt?: string,
-    options?: any
-  ): Promise<any> {
+    options?: SamplingOptions
+  ): Promise<SamplingResult> {
     try {
       if (!this.server.server.createMessage) {
          throw new Error('Server does not support createMessage (sampling)');
       }
-      
       return await this.server.server.createMessage({
-        messages,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
+        messages: messages as any,
         systemPrompt,
         includeContext: 'none',
         maxTokens: options?.maxTokens || 4096,
         ...options
       }, {
         timeout: 3600000 // 1 hour timeout for sampling requests
-      });
+      }) as SamplingResult;
     } catch (error) {
       this.logger.error('Sampling request failed', error as Error);
       throw error;
@@ -535,7 +585,7 @@ export class MCPServer {
         }
 
         // Parse request body for POST requests
-        let body: any = undefined;
+        let body: unknown = undefined;
         if (req.method === 'POST') {
           body = await this.parseRequestBody(req);
         }
@@ -595,7 +645,7 @@ export class MCPServer {
     });
   }
 
-  private async parseRequestBody(req: IncomingMessage): Promise<any> {
+  private async parseRequestBody(req: IncomingMessage): Promise<unknown> {
     return new Promise((resolve, reject) => {
       let body = '';
       req.on('data', chunk => body += chunk.toString());

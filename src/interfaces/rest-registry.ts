@@ -16,7 +16,7 @@ export interface ToolMetadata {
   name: string;
   description: string;
   inputSchema: Record<string, z.ZodSchema>;
-  handler: (...args: any[]) => Promise<any>;
+  handler: (...args: unknown[]) => Promise<unknown>;
   category?: string;
   tags?: string[];
 }
@@ -26,12 +26,12 @@ export interface ToolMetadata {
  */
 export interface JsonSchema {
   type?: string;
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
   required?: string[];
   description?: string;
   $ref?: string;
-  definitions?: Record<string, any>;
-  [key: string]: any;
+  definitions?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 /**
@@ -140,22 +140,23 @@ export class RestToolRegistry {
       const zodObjectSchema = z.object(zodSchemas);
       
       // Convert to JSON Schema using OpenAPI3 conventions, inlining all subschemas
-      // Type cast needed for Zod v4 compatibility with zod-to-json-schema
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type compatibility workaround
       const jsonSchema = zodToJsonSchema(zodObjectSchema as any, {
         name: `${toolName}Request`,
         target: 'openApi3',
-        // Place definitions where OpenAPI expects them  
+        // Place definitions where OpenAPI expects them
         definitionPath: 'components.schemas',
         $refStrategy: 'none' // inline sub-schemas to avoid unresolved refs
       });
 
       let result = jsonSchema as JsonSchema;
-      
+
       // Extract the actual schema from components.schemas if it's using $ref
-      if (result.$ref && (result as any)['components.schemas']) {
+      const jsonSchemaWithComponents = jsonSchema as { 'components.schemas'?: Record<string, unknown> };
+      if (result.$ref && jsonSchemaWithComponents['components.schemas']) {
         const refKey = result.$ref.replace('#/components.schemas/', '');
-        if ((result as any)['components.schemas'][refKey]) {
-          result = (result as any)['components.schemas'][refKey] as JsonSchema;
+        if (jsonSchemaWithComponents['components.schemas'][refKey]) {
+          result = jsonSchemaWithComponents['components.schemas'][refKey] as JsonSchema;
         }
       }
       

@@ -9,7 +9,9 @@ import { OrganizationalPattern } from './pattern-types';
 import { EmbeddingService } from './embedding-service';
 import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PatternSearchOptions extends BaseSearchOptions {}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PatternSearchResult extends BaseSearchResult<OrganizationalPattern> {}
 
 export class PatternVectorService extends BaseVectorService<OrganizationalPattern> {
@@ -29,7 +31,7 @@ export class PatternVectorService extends BaseVectorService<OrganizationalPatter
     return pattern.id;
   }
 
-  protected createPayload(pattern: OrganizationalPattern): Record<string, any> {
+  protected createPayload(pattern: OrganizationalPattern): Record<string, unknown> {
     return {
       description: pattern.description,
       triggers: pattern.triggers.map(t => t.toLowerCase()),
@@ -40,15 +42,15 @@ export class PatternVectorService extends BaseVectorService<OrganizationalPatter
     };
   }
 
-  protected payloadToData(payload: Record<string, any>): OrganizationalPattern {
+  protected payloadToData(payload: Record<string, unknown>): OrganizationalPattern {
     return {
       id: '', // Will be set from document ID in base class
-      description: payload.description,
-      triggers: payload.triggers,
-      suggestedResources: payload.suggestedResources,
-      rationale: payload.rationale,
-      createdAt: payload.createdAt,
-      createdBy: payload.createdBy
+      description: payload.description as string,
+      triggers: payload.triggers as string[],
+      suggestedResources: payload.suggestedResources as string[],
+      rationale: payload.rationale as string,
+      createdAt: payload.createdAt as string,
+      createdBy: payload.createdBy as string
     };
   }
 

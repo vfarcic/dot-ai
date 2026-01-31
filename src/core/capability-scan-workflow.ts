@@ -12,11 +12,56 @@ import { CapabilityInferenceEngine } from './capabilities';
 import { createAIProvider } from './ai-provider-factory';
 import { isPluginInitialized } from './plugin-registry';
 
+/**
+ * Args passed to capability scan operations
+ */
+interface CapabilityScanArgs {
+  response?: string;
+  resourceList?: string;
+  interaction_id?: string;
+}
+
+/**
+ * Response from capability scan operations
+ */
+interface CapabilityScanResponse {
+  success: boolean;
+  operation: string;
+  dataType: string;
+  REQUIRED_NEXT_CALL?: Record<string, unknown>;
+  workflow?: Record<string, unknown>;
+  status?: string;
+  sessionId?: string;
+  message?: string;
+  checkProgress?: Record<string, unknown>;
+  error?: {
+    message: string;
+    details?: string;
+    currentStep?: string;
+    expectedCall?: string;
+    sessionId?: string;
+    suggestedActions?: string[];
+  };
+  summary?: Record<string, unknown>;
+  results?: unknown[];
+  clientInstructions?: Record<string, unknown>;
+}
+
+/**
+ * Error record for scan operations
+ */
+interface ScanError {
+  resource: string;
+  error: string;
+  index: number;
+  timestamp: string;
+}
+
 // Types for shared utility functions (dependency injection)
-export type TransitionCapabilitySessionFn = (session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: any) => void;
-export type CleanupCapabilitySessionFn = (session: CapabilityScanSession, args: any, logger: Logger, requestId: string) => void;
+export type TransitionCapabilitySessionFn = (session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: CapabilityScanArgs) => void;
+export type CleanupCapabilitySessionFn = (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string) => void;
 export type ParseNumericResponseFn = (response: string, validOptions: string[]) => string;
-export type CreateCapabilityScanCompletionResponseFn = (sessionId: string, totalProcessed: number, successful: number, failed: number, processingTime: string, mode: 'auto' | 'manual', stopped?: boolean) => any;
+export type CreateCapabilityScanCompletionResponseFn = (sessionId: string, totalProcessed: number, successful: number, failed: number, processingTime: string, mode: 'auto' | 'manual', stopped?: boolean) => CapabilityScanResponse;
 
 // Progress tracking interface
 interface ProgressData {
@@ -32,7 +77,7 @@ interface ProgressData {
   totalProcessingTime?: string;
   successfulResources: number;
   failedResources: number;
-  errors: any[];
+  errors: ScanError[];
 }
 
 // Printer column definition (matches EnhancedCRD structure)
@@ -60,7 +105,7 @@ interface CapabilityScanSession {
   selectedResources?: string[] | 'all';
   resourceList?: string;
   currentResourceIndex?: number;
-  progress?: any; // Progress tracking for long-running operations
+  progress?: ProgressData; // Progress tracking for long-running operations
   startedAt: string;
   lastActivity: string;
   resourceMetadata?: Record<string, ResourceMetadata>;
@@ -233,7 +278,7 @@ export async function scanSingleResource(
  */
 export async function handleResourceSelection(
   session: CapabilityScanSession,
-  args: any,
+  args: CapabilityScanArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService,
@@ -241,8 +286,8 @@ export async function handleResourceSelection(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
-): Promise<any> {
+  handleScanningFn: (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<CapabilityScanResponse>
+): Promise<CapabilityScanResponse> {
   if (!args.response) {
     // Show initial resource selection prompt
     return {
@@ -408,7 +453,7 @@ export async function handleResourceSelection(
  */
 export async function handleResourceSpecification(
   session: CapabilityScanSession,
-  args: any,
+  args: CapabilityScanArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService,
@@ -416,8 +461,8 @@ export async function handleResourceSpecification(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: any, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<any>
-): Promise<any> {
+  handleScanningFn: (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<CapabilityScanResponse>
+): Promise<CapabilityScanResponse> {
   if (!args.resourceList) {
     return {
       success: false,
@@ -470,15 +515,15 @@ export async function handleResourceSpecification(
  */
 export async function handleScanning(
   session: CapabilityScanSession,
-  args: any,
+  args: CapabilityScanArgs,
   logger: Logger,
   requestId: string,
   capabilityService: CapabilityVectorService,
-  parseNumericResponse: ParseNumericResponseFn,
+  _parseNumericResponse: ParseNumericResponseFn,
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn
-): Promise<any> {
+): Promise<CapabilityScanResponse> {
   try {
     // Validate and initialize AI provider
     let aiProvider;
@@ -613,8 +658,8 @@ export async function handleScanning(
       
       const resources = session.selectedResources;
       const totalResources = resources.length;
-      const processedResults: any[] = [];
-      const errors: any[] = [];
+      const processedResults: ScanResourceResult[] = [];
+      const errors: ScanError[] = [];
       
       logger.info('Starting auto batch processing', {
         requestId,
@@ -625,7 +670,7 @@ export async function handleScanning(
       
       // Initialize progress tracking
       const startTime = Date.now();
-      const updateProgress = (current: number, currentResource: string, successful: number, failed: number, recentErrors: any[]) => {
+      const updateProgress = (current: number, currentResource: string, successful: number, failed: number, recentErrors: ScanError[]) => {
         const elapsed = Date.now() - startTime;
         const percentage = Math.round((current / totalResources) * 100);
         
@@ -695,6 +740,7 @@ export async function handleScanning(
 
         if (result.success) {
           processedResults.push({
+            success: true,
             resource: result.resource,
             id: result.id,
             capabilities: result.capabilities,
@@ -705,7 +751,7 @@ export async function handleScanning(
         } else {
           errors.push({
             resource: result.resource,
-            error: result.error,
+            error: result.error || 'Unknown error',
             index: i + 1,
             timestamp: new Date().toISOString()
           });
@@ -764,7 +810,7 @@ export async function handleScanning(
     logger.error('Capability scanning failed', error as Error, {
       requestId,
       sessionId: session.sessionId,
-      resource: (error && typeof error === 'object' && 'resourceName' in error) ? (error as any).resourceName : 'unknown',
+      resource: (error && typeof error === 'object' && 'resourceName' in error) ? (error as { resourceName: string }).resourceName : 'unknown',
       step: session.currentStep
     });
     

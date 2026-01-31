@@ -68,7 +68,7 @@ async function generateInstanceId(): Promise<string> {
           return `cluster_${hash.substring(0, 16)}`;
         }
       }
-    } catch (error) {
+    } catch {
       // Plugin not available or failed - fall through to random ID
     }
   }

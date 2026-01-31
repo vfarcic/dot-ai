@@ -477,7 +477,14 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
       errorMessage = error.message;
 
       // If there are additional properties on the error object, include them
-      const errorObj = error as any;
+      const errorObj = error as Error & {
+        cause?: unknown;
+        url?: string;
+        statusCode?: number;
+        status?: number;
+        statusText?: string;
+        responseBody?: unknown;
+      };
       const details: string[] = [];
 
       if (errorObj.cause) {
@@ -530,21 +537,21 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
  */
 export function getVersionInfo(): VersionInfo {
   // Find package.json relative to this module's location (MCP server's installation)
-  let packageJson: any;
-  
+  let packageJson: { version?: string };
+
   try {
     // Get the directory where this module is installed
     // __dirname points to the compiled JS location (dist/tools/), go up two levels to find package.json
     const mcpServerDir = join(__dirname, '..', '..');
     const packageJsonPath = join(mcpServerDir, 'package.json');
-    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-  } catch (error) {
+    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+  } catch {
     // If package.json not found, use unknown version
     packageJson = { version: 'unknown' };
   }
   
   return {
-    version: packageJson.version,
+    version: packageJson.version || 'unknown',
     nodeVersion: process.version,
     platform: process.platform,
     arch: process.arch
@@ -735,14 +742,22 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
  *
  * PRD #359: Uses unified plugin registry for all K8s interactions
  */
+interface VersionToolArgs {
+  interaction_id?: string;
+}
+
+interface VersionToolResponse {
+  content: Array<{ type: 'text'; text: string }>;
+}
+
 export async function handleVersionTool(
-  args: any,
+  args: VersionToolArgs | undefined,
   logger: Logger,
   requestId: string
-): Promise<any> {
+): Promise<VersionToolResponse> {
   try {
     // Extract interaction_id for evaluation dataset generation
-    const interaction_id = args.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
+    const interaction_id = args?.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
     
     logger.info('Processing version tool request with system diagnostics', { requestId });
     
