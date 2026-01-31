@@ -2,7 +2,7 @@
 
 **GitHub Issue**: [#359](https://github.com/vfarcic/dot-ai/issues/359)
 **Parent PRD**: [#342 - Modular Plugin Architecture](./342-modular-plugin-architecture.md)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2026-01-30
 
@@ -300,7 +300,7 @@ export async function invokePluginTool(
 - [x] Create `src/core/plugin-registry.ts` with unified accessor
 - [x] Migrate telemetry to use `invokePluginTool()` instead of `setTelemetryPluginManager()`
 - [x] Update `mcp/server.ts` to call `initializePluginRegistry()` once at startup
-- [ ] Document the pattern for future plugin tool integrations
+- [x] Document the pattern for future plugin tool integrations (lessons learned in PRD #342)
 
 ### Phase 3: Refactor VectorDBService
 
@@ -345,7 +345,7 @@ Update `VectorDBService` to call plugin via the unified registry instead of Qdra
 - [x] Migrate `src/core/telemetry/client.ts` to use `invokePluginTool()` instead of module-level `telemetryPluginManager`
 - [x] Remove `setTelemetryPluginManager()` (replaced by unified registry)
 - [x] ~~Verify kubectl/helm tools can optionally use `getPluginManager()` or continue receiving as parameter~~ **Exceeded scope**: All kubectl/helm/shell tools now use unified registry with explicit plugin name
-- [ ] Add documentation for the unified pattern
+- [x] Add documentation for the unified pattern (lessons learned in PRD #342; code is self-documenting)
 
 ### Phase 3: Migrate MCP to Use Plugin ✅
 - [x] ~~Update VectorDBService to call plugin tools via `invokePluginTool()`~~ **DELETED** - BaseVectorService calls plugin directly (see Decision Log)
@@ -360,7 +360,7 @@ Update `VectorDBService` to call plugin via the unified registry instead of Qdra
 - [x] Remove Qdrant dependencies from MCP server package.json (VectorDBService deleted, no direct Qdrant calls remain)
 - [x] Update Helm chart to pass Qdrant config only to agentic-tools
 - [x] All existing integration tests pass (136 tests passed - pure refactoring, no behavioral changes)
-- [ ] Update umbrella PRD #342 (migration tracking, lessons learned, child PRDs)
+- [x] Update umbrella PRD #342 (migration tracking, lessons learned, child PRDs)
 
 ---
 

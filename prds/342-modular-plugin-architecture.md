@@ -83,10 +83,14 @@ Single package/container for all tools called by LLM during agentic loops.
 | helm_template | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
 | helm_repo_add | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
 | shell_exec | ✅ Complete | [#343](./done/343-kubectl-plugin-migration.md) |
-| search_capabilities | Pending | TBD |
-| search_resources | Pending | TBD |
-| query_capabilities | Pending | TBD |
-| query_resources | Pending | TBD |
+| vector_search | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_store | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_query | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_get | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_delete | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| vector_list | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| collection_initialize | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
+| collection_stats | ✅ Complete | [#359](./359-qdrant-operations-plugin-migration.md) |
 | validate_mermaid | Pending | TBD |
 
 ### MCP Tools (Future)
@@ -132,6 +136,11 @@ Tools registered with MCP, called by users via MCP protocol.
 - **Parallel CI jobs**: `build-dot-ai` and `build-agentic-tools` run concurrently, cutting release time
 - **Plugin timeout matters**: Helm operations need 5min timeout vs 30s default
 
+### From #359 (Qdrant Plugin Migration)
+- **Unified plugin registry beats parameter passing**: Created `invokePluginTool('plugin', 'tool', args)` pattern. Removed ~100 instances of passing `pluginManager` through call chains.
+- **Delete wrapper layers during migration**: VectorDBService was a "wrapper of a wrapper" - deleted it entirely. BaseVectorService now calls plugin directly.
+- **Generic plugin tools, domain logic in MCP**: Plugin exposes `vector_search`, MCP's `*VectorService` classes handle domain knowledge (capabilities, patterns, policies). Plugin is a replaceable storage layer.
+
 ### From MCP Tool Plugins (future)
 - TBD
 
@@ -140,7 +149,7 @@ Tools registered with MCP, called by users via MCP protocol.
 ## Child PRDs
 
 - [x] **#343** - kubectl Plugin Migration (agentic-tools package + kubectl_* tools) - ✅ Complete
-- [ ] **TBD** - search/query tools migration (add to agentic-tools)
+- [x] **#359** - Qdrant Plugin Migration (vector_* tools + unified plugin registry) - ✅ Complete
 - [ ] **TBD** - mermaid tools migration (add to agentic-tools)
 - [ ] **TBD** - MCP tools as plugins
 - [ ] **TBD** - Plugin scaffolding tool (MCP tool to help users create their own plugins)
