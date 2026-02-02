@@ -37,6 +37,9 @@ import { helmUninstall } from './helm-uninstall';
 // PRD #359: Vector database tools (Qdrant operations)
 import { VECTOR_TOOLS } from './vector';
 
+// PRD #356: Knowledge base tools (document chunking)
+import { KNOWLEDGE_TOOLS, KnowledgeTool } from './knowledge';
+
 /**
  * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
@@ -70,12 +73,12 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
 /**
  * Union type for all tool types
  */
-type AnyTool = KubectlTool | QdrantTool;
+type AnyTool = KubectlTool | QdrantTool | KnowledgeTool;
 
 /**
  * Combined list of all tools
  */
-const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS];
+const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS, ...KNOWLEDGE_TOOLS];
 
 /**
  * Tool definitions for the describe hook

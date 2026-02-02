@@ -88,6 +88,7 @@
     "@types/glob": "^9.0.0",
     "@types/handlebars": "^4.0.40",
     "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "@vitest/ui": "^3.2.4",
@@ -97,6 +98,7 @@
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.54.0",
+    "uuid": "^13.0.0",
     "vitest": "^3.2.4"
   },
   "dependencies": {

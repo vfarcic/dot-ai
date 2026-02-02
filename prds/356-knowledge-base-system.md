@@ -1,11 +1,11 @@
 # PRD #356: Knowledge Base System
 
-**Status**: Blocked
+**Status**: In Progress
 **Created**: 2025-01-30
 **GitHub Issue**: [#356](https://github.com/vfarcic/dot-ai/issues/356)
 **Priority**: High
 **Related**:
-- PRD #359 (Qdrant Plugin Migration - **blocks this PRD**)
+- PRD #359 (Qdrant Plugin Migration - ✅ **completed**)
 - PRD #357 (Policy Extraction - depends on this)
 - Controller PRD (to be created - handles CRD, Git operations, scheduling)
 
@@ -69,7 +69,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 │  Query ───► Embedding ───► Hybrid Search ───► Ranked Results    │
 ├─────────────────────────────────────────────────────────────────┤
 │  UNIFIED ACCESS (MCP Tool = HTTP API)                           │
-│  • MCP Tool: manageKnowledge (ingest, search, delete, getChunk) │
+│  • MCP Tool: manageKnowledge (ingest, search, deleteByUri, get) │
 │  • HTTP: POST /api/v1/tools/manageKnowledge (auto-generated)    │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -78,7 +78,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 │  QDRANT: knowledge-base collection                              │
 │  • Dense vectors (semantic similarity)                          │
 │  • Sparse vectors (BM25 keyword matching)                       │
-│  • Payload: content, sourceId, uri, metadata                    │
+│  • Payload: content, uri, metadata, chunkIndex                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,7 +88,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 |------------|---------|---------|
 | `knowledge-base` | Document chunks with embeddings | Dense + Sparse (BM25) |
 
-Each chunk references its `sourceId` for efficient deletion when a source is removed.
+Each chunk references its `uri` for efficient deletion when a document is updated or removed.
 
 ---
 
@@ -105,8 +105,8 @@ Each chunk references its `sourceId` for efficient deletion when a source is rem
 3. **As a user**, I want to directly ingest a document via MCP so I can add ad-hoc content
    - **Acceptance**: MCP tool accepts document content and ingests it without needing the controller
 
-4. **As a controller**, I want to delete all chunks for a source so I can clean up when a source is removed
-   - **Acceptance**: deleteBySource removes all chunks with matching sourceId
+4. **As a controller**, I want to delete all chunks for a URI so I can clean up or prepare for re-ingestion
+   - **Acceptance**: deleteByUri removes all chunks with matching URI
 
 ### Secondary User Stories
 
@@ -133,17 +133,17 @@ All MCP tools are automatically exposed via HTTP at `POST /api/v1/tools/:toolNam
 # Ingest a document
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
-  -d '{"operation": "ingest", "sourceId": "docs", "content": "...", "uri": "..."}'
+  -d '{"operation": "ingest", "uri": "git://acme/platform/docs/guide.md", "content": "..."}'
 
 # Search the knowledge base
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
   -d '{"operation": "search", "query": "how to deploy", "limit": 10}'
 
-# Delete all chunks for a source
+# Delete all chunks for a URI (for updates: delete then re-ingest)
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
-  -d '{"operation": "deleteBySource", "sourceId": "docs"}'
+  -d '{"operation": "deleteByUri", "uri": "git://acme/platform/docs/guide.md"}'
 
 # Get a specific chunk
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
@@ -155,9 +155,9 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
 
 ```typescript
 type KnowledgeOperation =
-  | 'ingest'         // Ingest a document (for direct user input)
+  | 'ingest'         // Ingest a document
   | 'search'         // Semantic search
-  | 'deleteBySource' // Delete all chunks for a sourceId
+  | 'deleteByUri'    // Delete all chunks for a URI
   | 'getChunk';      // Get specific chunk by ID
 
 interface ManageKnowledgeParams {
@@ -165,16 +165,15 @@ interface ManageKnowledgeParams {
 
   // For ingest
   content?: string;
-  uri?: string;
-  sourceId?: string;             // Default: 'user-provided'
-  metadata?: Record<string, any>;
+  uri?: string;                    // Required for ingest - full URI (e.g., 'git://org/repo/docs/guide.md')
+  metadata?: Record<string, any>;  // Optional additional metadata
 
   // For search
   query?: string;
   limit?: number;
 
-  // For deleteBySource
-  // sourceId (above)
+  // For deleteByUri
+  // uri (above)
 
   // For getChunk
   chunkId?: string;
@@ -185,37 +184,31 @@ interface ManageKnowledgeParams {
 
 ```typescript
 interface KnowledgeChunk {
-  id: string;                        // UUID
+  id: string;                        // Deterministic UUID v5 from uri#chunkIndex
   content: string;                   // Chunk text
-
-  // Source provenance
-  source: {
-    type: string;                    // 'git-markdown', 'slack', etc.
-    uri: string;                     // e.g., 'git://org/repo/docs/guide.md#chunk-2'
-    metadata: Record<string, any>;   // Source-specific metadata
-  };
+  uri: string;                       // Full URI (e.g., 'git://org/repo/docs/guide.md')
+  metadata: Record<string, any>;     // Optional source-specific metadata
 
   // Change tracking
-  checksum: string;                  // Hash of content
-  sourceLastModified: string;        // From source
-  fetchedAt: string;                 // When we pulled it
-  processedAt?: string;              // When chunked/embedded
+  checksum: string;                  // SHA-256 hash of content
+  ingestedAt: string;                // When chunked/embedded
 
   // Chunking info
   chunkIndex: number;
   totalChunks: number;
-
-  // State
-  status: 'pending' | 'processed' | 'stale';
 
   // Links to extracted items (populated by PRD #357)
   extractedPolicyIds?: string[];
 
   // Vectors (stored in Qdrant)
   // Dense embedding from embedding service
-  // Sparse BM25 from FastEmbed
 }
 ```
+
+**Chunk ID Generation**: Deterministic UUID v5 from `${uri}#${chunkIndex}` enables:
+- **Upsert behavior**: Re-ingesting same content updates in place (no duplicates)
+- **Direct lookup**: Can compute ID from URI without querying
+- **Idempotent ingestion**: Same request = same result
 
 ### Search Result Schema
 
@@ -226,9 +219,10 @@ interface KnowledgeSearchResult {
     content: string;
     score: number;
     matchType: 'semantic' | 'keyword' | 'hybrid';
-    sourceId: string;
     uri: string;
     metadata: Record<string, any>;
+    chunkIndex: number;
+    totalChunks: number;
     extractedPolicies?: Array<{   // Populated by PRD #357
       id: string;
       description: string;
@@ -257,16 +251,16 @@ interface KnowledgeSearchResult {
 **Goal**: Define and implement the `ingest` operation with chunking and embedding storage
 
 **Success Criteria**:
-- [ ] Create `src/tools/manage-knowledge.ts` with Zod schema for `ingest` operation only
-- [ ] Register tool with MCP server
-- [ ] Chunking implementation (semantic-aware splitting)
-- [ ] KnowledgeVectorService extending BaseVectorService pattern
-- [ ] Qdrant collection "knowledge-base" created
-- [ ] Dense embeddings via existing embedding service
-- [ ] Sparse BM25 vectors via FastEmbed (if feasible)
-- [ ] Chunk metadata stored correctly (sourceId, uri, etc.)
-- [ ] Integration tests for ingestion pipeline
-- [ ] HTTP endpoint auto-available at `POST /api/v1/tools/manageKnowledge`
+- [x] Create `src/tools/manage-knowledge.ts` with Zod schema for `ingest` operation only
+- [x] Register tool with MCP server
+- [x] Chunking implementation (semantic-aware splitting)
+- [x] KnowledgeVectorService extending BaseVectorService pattern (via plugin delegation)
+- [x] Qdrant collection "knowledge-base" created
+- [x] Dense embeddings via existing embedding service
+- [ ] Sparse BM25 vectors via FastEmbed (if feasible) - **Deferred**: FastEmbed not available for Node.js
+- [x] Chunk metadata stored correctly (uri, chunkIndex, checksum, etc.)
+- [x] Integration tests for ingestion pipeline
+- [x] HTTP endpoint auto-available at `POST /api/v1/tools/manageKnowledge`
 
 **Validation**:
 - Tool appears in `/api/v1/tools` discovery endpoint
@@ -297,8 +291,8 @@ interface KnowledgeSearchResult {
 - [ ] Add `search` operation to Zod schema
 - [ ] Hybrid search combining dense and sparse vectors
 - [ ] RRF (Reciprocal Rank Fusion) for result merging
-- [ ] Source filtering by sourceId
-- [ ] Result includes provenance (sourceId, uri, metadata)
+- [ ] Source filtering by uri
+- [ ] Result includes provenance (uri, metadata, chunkIndex)
 - [ ] Configurable result limit
 - [ ] Integration tests for search
 - [ ] Mock server fixture for search operation
@@ -310,18 +304,19 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 4: DeleteBySource Operation
-**Goal**: Add operation to delete all chunks for a source
+### Milestone 4: DeleteByUri Operation
+**Goal**: Add operation to delete all chunks for a URI (enables document updates)
 
 **Success Criteria**:
-- [ ] Add `deleteBySource` operation to Zod schema
-- [ ] Delete all chunks matching sourceId from Qdrant
-- [ ] Integration tests for deleteBySource
-- [ ] Mock server fixture for deleteBySource operation
+- [ ] Add `deleteByUri` operation to Zod schema
+- [ ] Delete all chunks matching URI from Qdrant
+- [ ] Integration tests for deleteByUri
+- [ ] Mock server fixture for deleteByUri operation
 
 **Validation**:
-- All chunks for a sourceId can be deleted
+- All chunks for a URI can be deleted
 - Deletion is atomic and complete
+- Re-ingesting after delete works correctly (update flow)
 
 ---
 
@@ -363,7 +358,7 @@ interface KnowledgeSearchResult {
 - [ ] Documents can be ingested via MCP tool / HTTP API (same endpoint)
 - [ ] Documents chunked and stored with embeddings
 - [ ] Semantic search returns relevant results
-- [ ] Chunks can be deleted by sourceId
+- [ ] Chunks can be deleted by URI
 - [ ] Chunks can be retrieved by ID
 
 ### Quality Success
@@ -445,13 +440,9 @@ interface KnowledgeSearchResult {
 
 ## Open Questions
 
-1. **Chunk Size**: What's the optimal chunk size for documents? (Proposal: 512-1024 tokens)
+1. **Chunking Library**: Which library to use for chunking in Node.js? (Options: Chonkie, LangChain splitters, custom recursive splitter)
 
-2. **Embedding Model**: Should knowledge base use same embedding model as policies? (Proposal: Yes, for consistency)
-
-3. **Chunking Library**: Which library to use for chunking in Node.js? (Options: Chonkie, LangChain splitters, custom)
-
-4. **BM25 in Node.js**: Is FastEmbed available for Node.js or do we need an alternative for sparse vectors?
+2. **BM25 in Node.js**: Is FastEmbed available for Node.js or do we need an alternative for sparse vectors?
 
 ## Resolved Questions
 
@@ -493,6 +484,49 @@ interface KnowledgeSearchResult {
     - **Rationale**: PRD #359 is migrating all Qdrant/vector operations to a plugin. Implementing Knowledge Base in MCP core now would require migration later. Better to wait for plugin infrastructure and implement there from the start.
     - **Impact**: PRD #356 is now blocked by PRD #359. Status changed to "Blocked". Implementation approach will need to be updated once plugin architecture is finalized.
     - **Date**: 2025-01-30
+
+12. **Chunk Size and Overlap**: What chunk size and overlap to use?
+    - **Decision**: 1000 characters max chunk size with 200 character overlap (20%)
+    - **Rationale**: Industry standard for semantic search. 20% overlap ensures context continuity across chunk boundaries.
+    - **Date**: 2025-02-02
+
+13. **Empty Content Handling**: How to handle empty or whitespace-only documents?
+    - **Decision**: Return success with `chunksCreated: 0` and descriptive message
+    - **Rationale**: Allows batch workflows to continue without breaking on empty files. Caller can see nothing was stored (not a silent failure).
+    - **Date**: 2025-02-02
+
+14. **Document Size Limit**: What's the maximum document size for ingestion?
+    - **Decision**: 1MB maximum input document size
+    - **Rationale**: ~1000 chunks max per document, reasonable for embedding API costs and processing time. Larger documents should be split by the caller.
+    - **Date**: 2025-02-02
+
+15. **Document Update Strategy**: How to handle document updates?
+    - **Decision**: Delete and re-ingest pattern (not partial updates)
+    - **Rationale**: Simple, consistent, handles chunk boundary shifts correctly. Embedding costs are minimal. Controller detects change → calls deleteByUri → calls ingest with new content.
+    - **Date**: 2025-02-02
+
+16. **Source Identifier Design**: Should we have separate sourceId and uri fields?
+    - **Decision**: Single `uri` field serves as both identifier and provenance
+    - **Rationale**: Eliminates redundancy. URI uniquely identifies the source document. No need for separate grouping key when URI already serves that purpose.
+    - **Impact**: Renamed `deleteBySource` to `deleteByUri`. Removed `sourceId` from schema.
+    - **Date**: 2025-02-02
+
+17. **URI Format**: Should URIs be short paths or full URIs?
+    - **Decision**: Full URIs required (e.g., `git://org/repo/docs/guide.md`)
+    - **Rationale**: Globally unique, self-describing, no collisions across different repos/sources. Controller knows full context and constructs complete URI.
+    - **Examples**: `git://acme/platform/docs/guide.md`, `slack://workspace-id/channel-id`, `confluence://space-key/page-id`
+    - **Date**: 2025-02-02
+
+18. **Chunk ID Generation**: How to generate chunk IDs?
+    - **Decision**: Deterministic UUID v5 from `${uri}#${chunkIndex}` using a fixed namespace
+    - **Rationale**: Enables upsert behavior (re-ingesting updates in place), direct lookup by computed ID, and idempotent ingestion. Same URI + chunk index always produces same ID.
+    - **Impact**: Qdrant point IDs are deterministic, not random UUIDs. Simplifies update flow.
+    - **Date**: 2025-02-02
+
+19. **Embedding Model**: Should knowledge base use same embedding model as policies?
+    - **Decision**: Yes, use existing embedding service
+    - **Rationale**: Consistency across the system, reuse existing infrastructure, no additional configuration needed.
+    - **Date**: 2025-02-02
 
 ---
 
@@ -712,7 +746,7 @@ interface KnowledgeSearchResult {
 ---
 
 ### 2025-01-30: Blocked by Qdrant Plugin Migration
-**Status**: Blocked
+**Status**: ✅ Resolved - PRD #359 completed
 
 **Key Decision**: Wait for PRD #359 (Qdrant Plugin Migration) before implementing Knowledge Base
 
@@ -732,3 +766,112 @@ interface KnowledgeSearchResult {
 - Complete PRD #359 (Qdrant Plugin Migration)
 - Revisit PRD #356 milestones to align with plugin architecture
 - Then proceed with Knowledge Base implementation in plugin
+
+---
+
+### 2025-02-02: PRD Unblocked - Starting Implementation
+**Status**: In Progress
+
+**Context**:
+- PRD #359 (Qdrant Plugin Migration) has been completed
+- Qdrant operations are now available via the agentic-tools plugin
+- Knowledge Base can now be implemented using the plugin infrastructure
+
+**Next Steps**:
+- Begin Milestone 1: Ingest Operation - Contract & Implementation
+- Create `manageKnowledge` MCP tool with Zod schema for `ingest` operation
+- Implement chunking and embedding pipeline using plugin infrastructure
+
+---
+
+### 2025-02-02: API Design Decisions
+**Status**: In Progress (design finalized)
+
+**Key Design Decisions Made**:
+
+1. **Simplified Identifier Model**
+   - Single `uri` field replaces separate `sourceId` + `uri`
+   - URI is the unique identifier for source documents
+   - Full URIs required (e.g., `git://org/repo/docs/guide.md`)
+   - Renamed `deleteBySource` → `deleteByUri`
+
+2. **Deterministic Chunk IDs**
+   - UUID v5 generated from `${uri}#${chunkIndex}`
+   - Enables upsert behavior (re-ingest updates in place)
+   - Same input always produces same chunk IDs
+   - Idempotent ingestion
+
+3. **Document Update Strategy**
+   - Delete and re-ingest pattern (not partial updates)
+   - Simple and handles chunk boundary shifts correctly
+   - Flow: detect change → deleteByUri → ingest new content
+
+4. **Chunking Configuration**
+   - 1000 characters max chunk size
+   - 200 character overlap (20%)
+   - Empty content returns success with 0 chunks
+
+5. **Input Limits**
+   - 1MB maximum document size
+   - Larger documents should be split by caller
+
+**Schema Changes**:
+- Removed: `sourceId` field, `source.type`, `source.uri` nested structure
+- Added: flat `uri` field at top level
+- Renamed: `deleteBySource` → `deleteByUri`
+- Simplified: `KnowledgeChunk` schema
+
+**Code Examples Updated**:
+- HTTP access patterns
+- MCP tool interface
+- Knowledge chunk schema
+- Search result schema
+
+**Next Steps**:
+- Implement Milestone 1 with finalized design
+- Create type definitions, chunking utility, vector service, MCP tool
+
+---
+
+### 2025-02-02: Milestone 1 Implementation Complete
+**Status**: In Progress (Milestone 1 done)
+
+**Completed Work**:
+
+1. **Plugin Tool** (`packages/agentic-tools/src/tools/knowledge.ts`)
+   - `knowledge_chunk` tool using `@langchain/textsplitters` (RecursiveCharacterTextSplitter)
+   - Chunk size: 1000 chars, overlap: 200 chars
+   - Deterministic UUID v5 chunk IDs from `${uri}#${chunkIndex}`
+   - SHA-256 checksums for content verification
+
+2. **MCP Core Types** (`src/core/knowledge-types.ts`)
+   - `KnowledgeChunk`, `PluginChunkResult`, `IngestResponse`, `GetByUriResponse` interfaces
+
+3. **MCP Tool** (`src/tools/manage-knowledge.ts`)
+   - `manageKnowledge` tool with `ingest` and `getByUri` operations
+   - Architecture: MCP server coordinates, plugin handles chunking and Qdrant operations
+   - Embeddings generated in MCP core via `EmbeddingService`
+   - Edge cases handled: empty content (returns 0 chunks), non-existent URI (returns empty array)
+
+4. **Integration Tests** (`tests/integration/tools/manage-knowledge.test.ts`)
+   - 7 tests all passing:
+     - Single-chunk ingest and retrieve with exact value verification
+     - Multi-chunk ingest and retrieve (real Kubernetes documentation content)
+     - Empty content handling (whitespace-only returns 0 chunks)
+     - Non-existent URI returns empty chunks array
+     - Error handling for missing content, uri parameters
+   - Uses deterministic chunk ID calculation for precise assertions
+
+**Architecture Decision**:
+- Implemented using plugin delegation pattern (not KnowledgeVectorService in MCP core)
+- Chunking → `knowledge_chunk` plugin tool
+- Embeddings → MCP core `EmbeddingService`
+- Qdrant operations → `collection_initialize`, `vector_store`, `vector_query` plugin tools
+
+**Deferred**:
+- BM25 sparse vectors (FastEmbed not available for Node.js)
+- Will rely on dense vector search; can add BM25 later if needed
+
+**Next Steps**:
+- Milestone 2: Create mock server fixture for `ingest` operation
+- Milestone 3: Implement `search` operation

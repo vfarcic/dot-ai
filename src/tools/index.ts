@@ -60,3 +60,11 @@ export {
   PROJECT_SETUP_TOOL_INPUT_SCHEMA,
   handleProjectSetupTool,
 } from './project-setup';
+
+export {
+  MANAGE_KNOWLEDGE_TOOL_NAME,
+  MANAGE_KNOWLEDGE_TOOL_DESCRIPTION,
+  MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA,
+  handleManageKnowledgeTool,
+  type ManageKnowledgeInput,
+} from './manage-knowledge';
