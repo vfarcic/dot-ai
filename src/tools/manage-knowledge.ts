@@ -17,6 +17,8 @@ import {
   PluginChunkResult,
   IngestResponse,
   GetByUriResponse,
+  KnowledgeSearchResponse,
+  KnowledgeSearchResultItem,
 } from '../core/knowledge-types';
 
 /**
@@ -27,15 +29,17 @@ const KNOWLEDGE_COLLECTION = 'knowledge-base';
 // Tool metadata for MCP registration
 export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
 export const MANAGE_KNOWLEDGE_TOOL_DESCRIPTION =
-  'Ingest documents into the knowledge base for semantic search. ' +
-  'Use this to store organizational documentation, guides, and policies ' +
-  'that can later be searched with natural language queries.';
+  'Manage the knowledge base: ingest documents, search with natural language, or retrieve chunks. ' +
+  'Use "ingest" to store organizational documentation, "search" to find relevant content semantically, ' +
+  'or "getByUri" to retrieve all chunks for a specific document.';
 
 // Input schema using Zod
 export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   operation: z
-    .enum(['ingest', 'getByUri'])
-    .describe('Operation to perform: "ingest" to add documents, "getByUri" to retrieve chunks.'),
+    .enum(['ingest', 'getByUri', 'search'])
+    .describe(
+      'Operation to perform: "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search.'
+    ),
   content: z
     .string()
     .optional()
@@ -51,6 +55,18 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
     .record(z.string(), z.unknown())
     .optional()
     .describe('Optional metadata to store with chunks'),
+  query: z
+    .string()
+    .optional()
+    .describe('Natural language search query (required for search operation).'),
+  limit: z
+    .number()
+    .optional()
+    .describe('Maximum number of results to return for search (default: 10).'),
+  uriFilter: z
+    .string()
+    .optional()
+    .describe('Optional URI prefix to filter search results (e.g., "git://org/repo/").'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate.'),
 };
 
@@ -58,10 +74,13 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
  * Input type for knowledge management tool
  */
 export interface ManageKnowledgeInput {
-  operation: 'ingest' | 'getByUri';
+  operation: 'ingest' | 'getByUri' | 'search';
   content?: string;
   uri?: string;
   metadata?: Record<string, unknown>;
+  query?: string;
+  limit?: number;
+  uriFilter?: string;
   interaction_id?: string;
 }
 
@@ -448,6 +467,195 @@ async function handleGetByUriOperation(
 }
 
 /**
+ * Default score threshold for semantic search
+ */
+const DEFAULT_SCORE_THRESHOLD = 0.5;
+
+/**
+ * Default limit for search results
+ */
+const DEFAULT_SEARCH_LIMIT = 10;
+
+/**
+ * Handle the search operation
+ */
+async function handleSearchOperation(
+  args: ManageKnowledgeInput,
+  logger: Logger,
+  requestId: string
+): Promise<unknown> {
+  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter } = args;
+
+  // Validate required parameters
+  if (!query) {
+    return createErrorResponse('Missing required parameter: query', {
+      operation: 'search',
+      hint: 'Provide a natural language search query',
+    });
+  }
+
+  // Check plugin availability
+  if (!isPluginInitialized()) {
+    return createErrorResponse('Plugin system not available', {
+      operation: 'search',
+      hint: 'The agentic-tools plugin must be running for knowledge base operations',
+    });
+  }
+
+  // Check embedding service availability
+  const embeddingService = new EmbeddingService();
+  if (!embeddingService.isAvailable()) {
+    const status = embeddingService.getStatus();
+    return createErrorResponse('Embedding service not available', {
+      operation: 'search',
+      reason: status.reason,
+      hint: 'Set OPENAI_API_KEY environment variable to enable embeddings',
+    });
+  }
+
+  logger.info('Starting knowledge base search', {
+    requestId,
+    queryLength: query.length,
+    limit,
+    hasUriFilter: !!uriFilter,
+  });
+
+  try {
+    // Step 1: Generate embedding for the search query
+    logger.debug('Generating embedding for search query', { requestId });
+    const queryEmbedding = await embeddingService.generateEmbedding(query);
+
+    // Step 2: Build filter if uriFilter is provided
+    let filter: Record<string, unknown> | undefined;
+    if (uriFilter) {
+      // Use text match for URI prefix filtering
+      filter = {
+        must: [
+          {
+            key: 'uri',
+            match: {
+              text: uriFilter,
+            },
+          },
+        ],
+      };
+    }
+
+    // Step 3: Call vector_search plugin tool
+    logger.debug('Executing vector search via plugin', { requestId, limit, hasFilter: !!filter });
+
+    const searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
+      collection: KNOWLEDGE_COLLECTION,
+      embedding: queryEmbedding,
+      limit,
+      filter,
+      scoreThreshold: DEFAULT_SCORE_THRESHOLD,
+    });
+
+    if (!searchResponse.success) {
+      const error = searchResponse.error as { message?: string; error?: string } | undefined;
+      const errorMessage = error?.message || error?.error || 'Search failed';
+
+      // If collection doesn't exist (Not Found), return empty result
+      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+        logger.info('Collection not found - returning empty search results', { requestId });
+        const response: KnowledgeSearchResponse = {
+          success: true,
+          operation: 'search',
+          chunks: [],
+          totalMatches: 0,
+          query,
+          message: 'No matching documents found',
+        };
+        return response;
+      }
+
+      logger.error('Plugin search failed', new Error(errorMessage), { requestId });
+      return createErrorResponse('Search failed', {
+        operation: 'search',
+        error: errorMessage,
+      });
+    }
+
+    // Extract results from plugin response
+    const searchResult = searchResponse.result as {
+      success: boolean;
+      data?: Array<{
+        id: string;
+        score: number;
+        payload: Record<string, unknown>;
+      }>;
+      error?: string;
+      message: string;
+    };
+
+    if (!searchResult.success) {
+      const errorMessage = searchResult.error || searchResult.message;
+
+      // If collection doesn't exist, return empty result
+      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+        logger.info('Collection not found - returning empty search results', { requestId });
+        const response: KnowledgeSearchResponse = {
+          success: true,
+          operation: 'search',
+          chunks: [],
+          totalMatches: 0,
+          query,
+          message: 'No matching documents found',
+        };
+        return response;
+      }
+
+      return createErrorResponse('Search failed', {
+        operation: 'search',
+        error: errorMessage,
+      });
+    }
+
+    // Step 4: Transform results to KnowledgeSearchResultItem format
+    const results = searchResult.data || [];
+    const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
+      id: result.id,
+      content: result.payload.content as string,
+      score: result.score,
+      matchType: 'semantic' as const, // Dense vector search only (BM25 deferred)
+      uri: result.payload.uri as string,
+      metadata: (result.payload.metadata as Record<string, unknown>) || {},
+      chunkIndex: result.payload.chunkIndex as number,
+      totalChunks: result.payload.totalChunks as number,
+      extractedPolicies: undefined, // Populated by PRD #357
+    }));
+
+    logger.info('Knowledge base search completed', {
+      requestId,
+      query: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
+      resultsFound: chunks.length,
+    });
+
+    const response: KnowledgeSearchResponse = {
+      success: true,
+      operation: 'search',
+      chunks,
+      totalMatches: chunks.length,
+      query,
+      message:
+        chunks.length > 0
+          ? `Found ${chunks.length} matching chunks`
+          : 'No matching documents found',
+    };
+
+    return response;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Knowledge base search failed', error as Error, { requestId });
+    return createErrorResponse('Search failed', {
+      operation: 'search',
+      error: errorMessage,
+    });
+  }
+}
+
+/**
  * Main tool handler - routes to appropriate operation handler
  */
 export async function handleManageKnowledgeTool(
@@ -469,10 +677,13 @@ export async function handleManageKnowledgeTool(
     case 'getByUri':
       return handleGetByUriOperation(args, logger, requestId);
 
+    case 'search':
+      return handleSearchOperation(args, logger, requestId);
+
     default:
       return createErrorResponse(`Unsupported operation: ${args.operation}`, {
-        supportedOperations: ['ingest', 'getByUri'],
-        hint: 'Use operation "ingest" to add documents or "getByUri" to retrieve chunks',
+        supportedOperations: ['ingest', 'getByUri', 'search'],
+        hint: 'Use "ingest" to add documents, "getByUri" to retrieve chunks, or "search" for semantic search',
       });
   }
 }

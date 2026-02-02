@@ -302,5 +302,262 @@ describe.concurrent('ManageKnowledge Integration', () => {
         },
       });
     }, 60000);
+
+    test('should return error for search without query', async () => {
+      const testId = Date.now();
+
+      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        interaction_id: `search_no_query_${testId}`,
+      });
+
+      expect(errorResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            error: {
+              message: 'Missing required parameter: query',
+              operation: 'search',
+              hint: 'Provide a natural language search query',
+            },
+          },
+        },
+      });
+    }, 60000);
+  });
+
+  describe('Search Operation', () => {
+    test('should search and return only the matching chunk from multiple ingested docs', async () => {
+      const testId = Date.now();
+
+      // Create 3 documents with unique, distinct content (each under 1000 chars = 1 chunk)
+      // Using testId in content to ensure uniqueness and avoid collision with other tests
+      const k8sUri = `git://test/search/flamingo-deployment-${testId}.md`;
+      const dbUri = `git://test/search/pelican-database-${testId}.md`;
+      const netUri = `git://test/search/albatross-network-${testId}.md`;
+
+      // Unique content with invented terms to avoid matching other ingested docs
+      const k8sContent = `Flamingo orchestration system ${testId} enables declarative application updates.
+The Flamingo controller reconciles desired state with actual state using rolling updates.
+Flamingo manages replica sets automatically for zero-downtime deployments.
+This unique flamingo-based orchestration pattern provides self-healing capabilities.`;
+
+      const dbContent = `Pelican database system ${testId} provides relational data storage.
+Pelican uses MVCC for concurrent transactions and supports ACID guarantees.
+The pelican query optimizer handles complex joins efficiently.
+This unique pelican-based storage engine excels at analytical workloads.`;
+
+      const netContent = `Albatross networking protocol ${testId} handles packet routing.
+Albatross uses BGP for autonomous system interconnection.
+The albatross load balancer distributes traffic across backend servers.
+This unique albatross-based protocol stack ensures reliable delivery.`;
+
+      // Pre-calculate expected chunk IDs (each doc = 1 chunk at index 0)
+      const expectedK8sChunkId = uuidv5(`${k8sUri}#0`, KNOWLEDGE_NAMESPACE);
+      const expectedDbChunkId = uuidv5(`${dbUri}#0`, KNOWLEDGE_NAMESPACE);
+      const expectedNetChunkId = uuidv5(`${netUri}#0`, KNOWLEDGE_NAMESPACE);
+
+      // Step 1: Ingest all three documents
+      for (const doc of [
+        { uri: k8sUri, content: k8sContent, name: 'k8s' },
+        { uri: dbUri, content: dbContent, name: 'db' },
+        { uri: netUri, content: netContent, name: 'net' },
+      ]) {
+        const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+          operation: 'ingest',
+          uri: doc.uri,
+          content: doc.content,
+          metadata: { testId, docType: doc.name },
+          interaction_id: `ingest_search_${doc.name}_${testId}`,
+        });
+
+        expect(ingestResponse, `Ingest ${doc.name}: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              operation: 'ingest',
+              chunksCreated: 1, // Each doc is under 1000 chars = 1 chunk
+            },
+          },
+        });
+      }
+
+      // Step 2: Search for flamingo orchestration content (should match only k8s doc)
+      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `flamingo orchestration rolling updates ${testId}`,
+        limit: 10,
+        interaction_id: `search_flamingo_${testId}`,
+      });
+
+      expect(searchResponse, `Search response: ${JSON.stringify(searchResponse, null, 2)}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+            query: `flamingo orchestration rolling updates ${testId}`,
+          },
+        },
+      });
+
+      const searchResult = searchResponse.data.result;
+
+      // Step 3: Verify exactly 1 result - the flamingo/k8s chunk
+      expect(searchResult.totalMatches).toBe(1);
+      expect(searchResult.chunks).toHaveLength(1);
+
+      // Step 4: Verify the exact chunk ID and content
+      const returnedChunk = searchResult.chunks[0];
+      expect(returnedChunk.id).toBe(expectedK8sChunkId);
+      expect(returnedChunk.uri).toBe(k8sUri);
+      expect(returnedChunk.content).toContain('Flamingo orchestration');
+      expect(returnedChunk.content).toContain(String(testId));
+      expect(returnedChunk.matchType).toBe('semantic');
+      expect(returnedChunk.score).toBeGreaterThanOrEqual(0.5);
+      expect(returnedChunk.chunkIndex).toBe(0);
+      expect(returnedChunk.totalChunks).toBe(1);
+
+      // Step 5: Verify pelican and albatross chunks are NOT returned
+      const returnedIds = searchResult.chunks.map((c: { id: string }) => c.id);
+      expect(returnedIds).not.toContain(expectedDbChunkId);
+      expect(returnedIds).not.toContain(expectedNetChunkId);
+    }, 180000);
+
+    test('should search multi-chunk document and return the specific matching chunk', async () => {
+      const testId = Date.now();
+      const multiChunkUri = `git://test/search/phoenix-guide-${testId}.md`;
+
+      // Create content that produces exactly 2 chunks (each ~600 chars, total ~1200 > 1000 chunk size)
+      // Chunk 0: About phoenix migration patterns
+      // Chunk 1: About phoenix caching strategies (distinct topic)
+      const chunk0Content = `Phoenix migration patterns ${testId} enable seamless database schema evolution.
+The phoenix migrator tracks schema versions using a dedicated migrations table.
+Each phoenix migration runs in a transaction ensuring atomic changes.
+Phoenix supports both forward migrations and rollback operations for safety.
+The phoenix CLI generates timestamped migration files automatically.
+Teams using phoenix migrations achieve zero-downtime schema deployments.`;
+
+      const chunk1Content = `Phoenix caching strategies ${testId} improve application performance dramatically.
+The phoenix cache layer supports multiple backends including Redis and Memcached.
+Phoenix implements cache invalidation using tag-based expiration policies.
+Distributed phoenix caches synchronize across cluster nodes automatically.
+The phoenix cache warming feature preloads frequently accessed data on startup.
+Applications using phoenix caching see response times drop significantly.`;
+
+      const fullContent = `${chunk0Content}\n\n${chunk1Content}`;
+
+      // Pre-calculate expected chunk IDs
+      const expectedChunk0Id = uuidv5(`${multiChunkUri}#0`, KNOWLEDGE_NAMESPACE);
+      const expectedChunk1Id = uuidv5(`${multiChunkUri}#1`, KNOWLEDGE_NAMESPACE);
+
+      // Step 1: Ingest the multi-chunk document
+      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: multiChunkUri,
+        content: fullContent,
+        metadata: { testId, docType: 'multi-chunk' },
+        interaction_id: `ingest_multichunk_${testId}`,
+      });
+
+      expect(ingestResponse, `Multi-chunk ingest: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'ingest',
+            chunksCreated: 2,
+            chunkIds: [expectedChunk0Id, expectedChunk1Id],
+          },
+        },
+      });
+
+      // Step 2: Search for caching content (should match chunk 1 specifically)
+      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `phoenix caching Redis Memcached cache invalidation ${testId}`,
+        limit: 10,
+        interaction_id: `search_chunk1_${testId}`,
+      });
+
+      expect(searchResponse, `Search chunk1: ${JSON.stringify(searchResponse, null, 2)}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+          },
+        },
+      });
+
+      const searchResult = searchResponse.data.result;
+      expect(searchResult.chunks.length).toBeGreaterThan(0);
+
+      // Step 3: Verify chunk 1 (caching) is the top result, not chunk 0 (migration)
+      const topResult = searchResult.chunks[0];
+      expect(topResult.id).toBe(expectedChunk1Id);
+      expect(topResult.uri).toBe(multiChunkUri);
+      expect(topResult.chunkIndex).toBe(1);
+      expect(topResult.totalChunks).toBe(2);
+      expect(topResult.content).toContain('phoenix caching');
+      expect(topResult.content).toContain('Redis');
+
+      // Step 4: If chunk 0 appears, it should have lower score
+      const chunk0Result = searchResult.chunks.find((c: { id: string }) => c.id === expectedChunk0Id);
+      if (chunk0Result) {
+        expect(chunk0Result.score).toBeLessThan(topResult.score);
+      }
+    }, 180000);
+
+    test('should respect limit parameter', async () => {
+      const testId = Date.now();
+
+      // Search with limit=1 using unique terms from previous tests
+      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'flamingo orchestration deployment',
+        limit: 1,
+        interaction_id: `search_limit_${testId}`,
+      });
+
+      expect(searchResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+          },
+        },
+      });
+
+      // Verify limit is respected - at most 1 result
+      expect(searchResponse.data.result.chunks.length).toBeLessThanOrEqual(1);
+    }, 60000);
+
+    test('should return empty results for completely unrelated query', async () => {
+      const testId = Date.now();
+
+      // Search for invented gibberish that matches nothing
+      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `zxqwvtyu${testId} plmkjnhb${testId} qazxswed${testId}`,
+        interaction_id: `search_nomatch_${testId}`,
+      });
+
+      expect(searchResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+            chunks: [],
+            totalMatches: 0,
+            message: 'No matching documents found',
+          },
+        },
+      });
+    }, 60000);
   });
 });
