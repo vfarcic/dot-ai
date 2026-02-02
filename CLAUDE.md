@@ -31,7 +31,12 @@ npm run test:integration             # Full e2e tests (creates Kind cluster)
 npm run test:integration version     # Run specific test by pattern
 ```
 
-- **Long-running tests**: `npm run test:integration 2>&1 | tee ./tmp/test-output.log`
+- **Long-running tests**: Redirect to file, then check tail for pass/fail:
+  ```bash
+  npm run test:integration > ./tmp/test-output.log 2>&1
+  tail -30 ./tmp/test-output.log  # Check result
+  # Read full file only if failures detected
+  ```
 - **Cleanup after success**: `./tests/integration/infrastructure/teardown-cluster.sh`
 - **Keep resources on failure** for debugging
 
