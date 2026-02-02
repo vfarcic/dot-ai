@@ -274,9 +274,9 @@ interface KnowledgeSearchResult {
 **Goal**: Create mock server fixture for ingest operation to enable parallel controller development
 
 **Success Criteria**:
-- [ ] Mock server fixture for `ingest` operation
-- [ ] Fixture matches Zod response schema from Milestone 1
-- [ ] Controller team can develop against mock server
+- [x] Mock server fixture for `ingest` operation
+- [x] Fixture matches Zod response schema from Milestone 1
+- [x] Controller team can develop against mock server
 
 **Validation**:
 - `POST /api/v1/tools/manageKnowledge` with `operation: "ingest"` returns appropriate mock response
@@ -830,6 +830,31 @@ interface KnowledgeSearchResult {
 **Next Steps**:
 - Implement Milestone 1 with finalized design
 - Create type definitions, chunking utility, vector service, MCP tool
+
+---
+
+### 2025-02-02: Milestone 2 Implementation Complete
+**Status**: In Progress (Milestone 2 done)
+
+**Completed Work**:
+
+1. **Mock Server Fixture** (`mock-server/fixtures/tools/manageKnowledge-ingest-success.json`)
+   - Created fixture matching `IngestResponse` schema
+   - Fields: success, operation, chunksCreated, chunkIds, uri, message
+   - Sample data with 3 chunks for realistic testing
+
+2. **Route Registration** (`mock-server/routes.ts`)
+   - Added specific route for `/api/v1/tools/manageKnowledge`
+   - Route placed before generic `:toolName` route for priority matching
+   - Fixture properly linked and verified
+
+**Verification**:
+- Mock server builds successfully
+- Route appears in `/routes` endpoint with `hasFixture: true`
+- `POST /api/v1/tools/manageKnowledge` returns correct `IngestResponse` schema
+
+**Next Steps**:
+- Milestone 3: Implement `search` operation
 
 ---
 
