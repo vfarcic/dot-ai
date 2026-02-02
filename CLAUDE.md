@@ -74,6 +74,33 @@ git worktree remove ../dot-ai-[branch-name]
 
 **Why:** Keeps main directory on `main` branch, enables parallel work on multiple features, and ensures each agent session has consistent context for its branch.
 
+## MCP vs Plugin Architecture
+
+The codebase has two layers. Most features involve both working together.
+
+**MCP Server (`src/`)** - Interface + Orchestration
+- Registers tools with clients (Claude Code, Cursor, etc.)
+- Interacts with AI models for reasoning
+- Orchestrates calls to plugin tools
+- Manages sessions and state
+
+**Plugins (`packages/agentic-tools/`)** - Tool Implementations
+- Contains the actual tool logic (kubectl_*, vector_*, etc.)
+- Executes against external systems (Kubernetes, Qdrant)
+- Can run agentic loops for complex multi-step operations
+
+**Example flow for "what's the status of my cluster":**
+1. MCP receives request → calls AI for reasoning
+2. AI decides to invoke `kubectl_get` → MCP routes to plugin
+3. Plugin executes kubectl, returns data
+4. MCP feeds result to AI for interpretation → returns answer
+
+**When adding code, ask:**
+- "Is this about registration, AI interaction, or routing?" → MCP
+- "Is this tool implementation or external system execution?" → Plugin
+
+Note: MCP tool implementations are migrating to plugins over time. The direction is MCP as a thin orchestration layer with all tool logic in plugins.
+
 ## Environment
 
 ```bash
