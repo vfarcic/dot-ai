@@ -2,7 +2,7 @@
 # Multi-stage build for minimal production image
 
 # Build stage
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:e4bf2a82ad0a4037d28035ae71529873c069b13eb0455466ae0bc13363826e34 AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY server.ts routes.ts ./
 RUN npm run build
 
 # Production stage
-FROM node:22-alpine
+FROM node:22-alpine@sha256:e4bf2a82ad0a4037d28035ae71529873c069b13eb0455466ae0bc13363826e34
 
 WORKDIR /app
 
