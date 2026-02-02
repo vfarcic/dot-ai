@@ -12,6 +12,7 @@ import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
 import { initializePluginRegistry } from '../core/plugin-registry.js';
+import { initializeOAuthAuth } from '../interfaces/auth-oauth.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { PluginManager } from '../core/plugin-manager.js';
@@ -142,6 +143,19 @@ async function main() {
     // This replaces scattered plugin manager passing (telemetry, vector tools, etc.)
     if (pluginConfigs.length > 0) {
       initializePluginRegistry(pluginManager);
+
+      // PRD #360: Initialize OAuth authentication (fetch public key from plugin)
+      // This enables local JWT validation without per-request plugin calls
+      const authMode = process.env.DOT_AI_AUTH_MODE?.toLowerCase();
+      if (authMode === 'oauth') {
+        process.stderr.write('Initializing OAuth authentication...\n');
+        const oauthInitialized = await initializeOAuthAuth();
+        if (oauthInitialized) {
+          process.stderr.write('OAuth authentication initialized successfully\n');
+        } else {
+          process.stderr.write('Warning: OAuth authentication initialization failed. JWT validation will not work.\n');
+        }
+      }
     }
 
     // Create and configure MCP server

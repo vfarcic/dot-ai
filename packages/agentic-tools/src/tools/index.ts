@@ -37,6 +37,12 @@ import { helmUninstall } from './helm-uninstall';
 // PRD #359: Vector database tools (Qdrant operations)
 import { VECTOR_TOOLS } from './vector';
 
+// PRD #360: Auth tools for OAuth 2.1 authentication
+import { AuthTool } from './auth-base';
+import { authGetPublicKey } from './auth-get-public-key';
+import { authGetMetadata } from './auth-get-metadata';
+import { authValidateToken } from './auth-validate-token';
+
 /**
  * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
@@ -68,14 +74,24 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
 ];
 
 /**
+ * PRD #360: Auth tools for OAuth 2.1 authentication
+ * These tools handle JWT key management, OAuth metadata, and token validation
+ */
+const ALL_AUTH_TOOLS: AuthTool[] = [
+  authGetPublicKey,
+  authGetMetadata,
+  authValidateToken,
+];
+
+/**
  * Union type for all tool types
  */
-type AnyTool = KubectlTool | QdrantTool;
+type AnyTool = KubectlTool | QdrantTool | AuthTool;
 
 /**
  * Combined list of all tools
  */
-const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS];
+const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS, ...ALL_AUTH_TOOLS];
 
 /**
  * Tool definitions for the describe hook

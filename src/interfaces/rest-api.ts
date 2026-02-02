@@ -38,6 +38,8 @@ import {
 import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
+import { fetchOAuthMetadata } from './auth-oauth';
+import { getAuthIssuer } from './auth';
 
 /**
  * HTTP status codes for REST responses
@@ -312,6 +314,10 @@ export class RestApiRouter {
 
     // Handler map: route key -> handler function
     const handlers: Record<string, () => Promise<void>> = {
+      // OAuth well-known endpoints (PRD #360)
+      'GET:/.well-known/oauth-protected-resource': () => this.handleProtectedResourceMetadata(req, res, requestId),
+      'GET:/.well-known/oauth-authorization-server': () => this.handleAuthorizationServerMetadata(req, res, requestId),
+      // Tool endpoints
       'GET:/api/v1/tools': () => this.handleToolDiscovery(req, res, requestId, searchParams),
       'POST:/api/v1/tools/:toolName': () => this.handleToolExecution(req, res, requestId, params.toolName, body, startTime),
       'GET:/api/v1/openapi': () => this.handleOpenApiSpec(req, res, requestId),
@@ -515,6 +521,113 @@ export class RestApiRouter {
         'Failed to generate OpenAPI specification'
       );
     }
+  }
+
+  /**
+   * Handle OAuth Protected Resource Metadata requests (RFC 9728)
+   * PRD #360: User Authentication & Access Control
+   */
+  private async handleProtectedResourceMetadata(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.debug('Serving protected resource metadata', { requestId });
+
+      // Get the issuer URL from config or derive from request
+      const issuer = this.getIssuerUrl(req);
+
+      // Fetch metadata from auth plugin
+      const metadata = await fetchOAuthMetadata('protected-resource', issuer);
+
+      if (!metadata) {
+        // Return a basic response if plugin is not available
+        const basicMetadata = {
+          resource: issuer,
+          authorization_servers: [issuer],
+          scopes_supported: ['mcp:read', 'mcp:write', 'mcp:admin'],
+        };
+        await this.sendJsonResponse(res, HttpStatus.OK, basicMetadata);
+        return;
+      }
+
+      await this.sendJsonResponse(res, HttpStatus.OK, metadata);
+
+      this.logger.info('Protected resource metadata served', { requestId, issuer });
+    } catch (error) {
+      this.logger.error('Failed to serve protected resource metadata', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+      await this.sendJsonResponse(res, HttpStatus.INTERNAL_SERVER_ERROR, {
+        error: 'server_error',
+        error_description: 'Failed to generate metadata',
+      });
+    }
+  }
+
+  /**
+   * Handle OAuth Authorization Server Metadata requests (RFC 8414)
+   * PRD #360: User Authentication & Access Control
+   */
+  private async handleAuthorizationServerMetadata(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.debug('Serving authorization server metadata', { requestId });
+
+      // Get the issuer URL from config or derive from request
+      const issuer = this.getIssuerUrl(req);
+
+      // Fetch metadata from auth plugin
+      const metadata = await fetchOAuthMetadata('authorization-server', issuer);
+
+      if (!metadata) {
+        // Return a basic response if plugin is not available
+        const basicMetadata = {
+          issuer,
+          authorization_endpoint: `${issuer}/oauth/authorize`,
+          token_endpoint: `${issuer}/oauth/token`,
+          response_types_supported: ['code'],
+          grant_types_supported: ['authorization_code', 'refresh_token'],
+          code_challenge_methods_supported: ['S256'],
+          scopes_supported: ['mcp:read', 'mcp:write', 'mcp:admin'],
+        };
+        await this.sendJsonResponse(res, HttpStatus.OK, basicMetadata);
+        return;
+      }
+
+      await this.sendJsonResponse(res, HttpStatus.OK, metadata);
+
+      this.logger.info('Authorization server metadata served', { requestId, issuer });
+    } catch (error) {
+      this.logger.error('Failed to serve authorization server metadata', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+      await this.sendJsonResponse(res, HttpStatus.INTERNAL_SERVER_ERROR, {
+        error: 'server_error',
+        error_description: 'Failed to generate metadata',
+      });
+    }
+  }
+
+  /**
+   * Get the issuer URL for OAuth metadata
+   * Uses DOT_AI_AUTH_ISSUER if set, otherwise derives from request
+   */
+  private getIssuerUrl(req: IncomingMessage): string {
+    // Check for configured issuer first
+    const configuredIssuer = getAuthIssuer();
+    if (configuredIssuer) {
+      return configuredIssuer;
+    }
+
+    // Derive from request
+    const host = req.headers.host || 'localhost';
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    return `${protocol}://${host}`;
   }
 
   /**

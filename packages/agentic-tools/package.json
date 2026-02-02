@@ -27,7 +27,8 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.16.2"
+    "@qdrant/js-client-rest": "^1.16.2",
+    "jose": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

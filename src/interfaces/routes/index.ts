@@ -10,6 +10,10 @@
 import { z } from 'zod';
 import { RestRouteRegistry, RouteDefinition } from '../rest-route-registry';
 import {
+  // Auth schemas (PRD #360)
+  ProtectedResourceMetadataSchema,
+  AuthorizationServerMetadataSchema,
+  AuthErrorResponseSchema,
   // Tool schemas
   ToolDiscoveryResponseSchema,
   ToolExecutionResponseSchema,
@@ -135,6 +139,31 @@ const OpenApiResponseSchema = z.object({
  * All route definitions for the REST API
  */
 export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknown>[] = [
+  // ============================================
+  // OAuth Well-Known Endpoints (PRD #360)
+  // These endpoints are PUBLIC - no authentication required
+  // ============================================
+  {
+    path: '/.well-known/oauth-protected-resource',
+    method: 'GET',
+    description: 'OAuth 2.0 Protected Resource Metadata (RFC 9728). Returns information about the protected resource including supported scopes and authorization servers.',
+    tags: ['Auth'],
+    response: ProtectedResourceMetadataSchema,
+    errorResponses: {
+      500: AuthErrorResponseSchema,
+    },
+  },
+  {
+    path: '/.well-known/oauth-authorization-server',
+    method: 'GET',
+    description: 'OAuth 2.0 Authorization Server Metadata (RFC 8414). Returns authorization server configuration including endpoints and supported features.',
+    tags: ['Auth'],
+    response: AuthorizationServerMetadataSchema,
+    errorResponses: {
+      500: AuthErrorResponseSchema,
+    },
+  },
+
   // ============================================
   // Tool Endpoints
   // ============================================

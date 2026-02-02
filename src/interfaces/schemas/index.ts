@@ -185,3 +185,13 @@ export {
   type PromptGetResponse,
   type PromptGetRequest,
 } from './prompts';
+
+// Auth schemas (PRD #360)
+export {
+  ProtectedResourceMetadataSchema,
+  AuthorizationServerMetadataSchema,
+  AuthErrorResponseSchema,
+  type ProtectedResourceMetadata,
+  type AuthorizationServerMetadata,
+  type AuthErrorResponse,
+} from './auth';

@@ -67,7 +67,7 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import { checkBearerAuth } from './auth';
+import { checkAuth } from './auth';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
@@ -571,14 +571,38 @@ export class MCPServer {
           return;
         }
 
-        // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
-        // Skip authentication for OpenAPI specification endpoint (public documentation)
-        const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
-        if (!isOpenApiEndpoint) {
-          const authResult = checkBearerAuth(req);
+        // Check authentication (supports token and OAuth modes)
+        // Skip authentication for public endpoints:
+        // - /api/v1/openapi - OpenAPI specification (public documentation)
+        // - /.well-known/* - OAuth discovery endpoints (RFC 9728, RFC 8414)
+        const isPublicEndpoint =
+          req.url?.startsWith('/api/v1/openapi') ||
+          req.url?.startsWith('/.well-known/');
+
+        if (!isPublicEndpoint) {
+          const authResult = await checkAuth(req);
           if (!authResult.authorized) {
             this.logger.warn('Authentication failed', { message: authResult.message });
-            sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
+
+            // Build response headers
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            };
+
+            // Add WWW-Authenticate header if available (required by MCP auth spec)
+            if (authResult.wwwAuthenticate) {
+              headers['WWW-Authenticate'] = authResult.wwwAuthenticate;
+            }
+
+            res.writeHead(401, headers);
+            res.end(JSON.stringify({
+              success: false,
+              error: {
+                code: 'UNAUTHORIZED',
+                message: authResult.message || 'Authentication required',
+              },
+            }));
             endSpan(401);
             return;
           }
