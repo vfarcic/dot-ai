@@ -42,7 +42,7 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   content: z
     .string()
     .optional()
-    .describe('Document content to ingest (required for ingest operation). Max 1MB.'),
+    .describe('Document content to ingest (required for ingest operation).'),
   uri: z
     .string()
     .optional()
@@ -84,11 +84,6 @@ export interface ManageKnowledgeInput {
 }
 
 /**
- * Maximum document size in bytes (1MB)
- */
-const MAX_DOCUMENT_SIZE = 1_048_576;
-
-/**
  * Plugin name for agentic-tools
  */
 const PLUGIN_NAME = 'agentic-tools';
@@ -128,17 +123,6 @@ async function handleIngestOperation(
     });
   }
 
-  // Check document size limit
-  const contentSize = Buffer.byteLength(content, 'utf8');
-  if (contentSize > MAX_DOCUMENT_SIZE) {
-    return createErrorResponse('Document exceeds maximum size limit', {
-      operation: 'ingest',
-      maxSize: '1MB',
-      actualSize: `${(contentSize / 1_048_576).toFixed(2)}MB`,
-      hint: 'Split the document into smaller parts before ingesting',
-    });
-  }
-
   // Check plugin availability
   if (!isPluginInitialized()) {
     return createErrorResponse('Plugin system not available', {
@@ -161,7 +145,7 @@ async function handleIngestOperation(
   logger.info('Starting document ingestion', {
     requestId,
     uri,
-    contentSize,
+    contentSize: Buffer.byteLength(content, 'utf8'),
     hasMetadata: !!metadata,
   });
 
