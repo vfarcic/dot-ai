@@ -1,6 +1,6 @@
 # PRD: User Authentication & Access Control
 
-**Status**: Planning
+**Status**: In Progress
 **Priority**: High
 **GitHub Issue**: [#360](https://github.com/vfarcic/dot-ai/issues/360)
 **Created**: 2026-01-30
@@ -400,16 +400,16 @@ No manual token configuration needed - the OAuth flow handles it.
 **Objective**: Implement GitHub OAuth flow via plugin tools
 
 **Deliverables:**
-- [ ] Auth tools in agentic-tools plugin:
-  - [ ] `auth_start_oauth_flow` - Returns GitHub authorization URL with PKCE
-  - [ ] `auth_exchange_code` - Exchanges code for JWT, fetches GitHub user info
-  - [ ] `auth_refresh_token` - Exchanges refresh token for new access token
-- [ ] MCP server OAuth routes:
-  - [ ] `GET /oauth/authorize` - Initiates OAuth flow (calls plugin)
-  - [ ] `GET /oauth/callback` - Receives GitHub callback (calls plugin)
-  - [ ] `POST /oauth/token` - Token exchange endpoint (calls plugin)
-- [ ] JWT token issuance with user claims (id, name, email, orgs)
-- [ ] PKCE validation (S256)
+- [x] Auth tools in agentic-tools plugin:
+  - [x] `auth_start_oauth_flow` - Returns GitHub authorization URL with PKCE
+  - [x] `auth_exchange_code` - Exchanges code for JWT, fetches GitHub user info
+  - [x] `auth_refresh_token` - Exchanges refresh token for new access token
+- [x] MCP server OAuth routes:
+  - [x] `GET /oauth/authorize` - Initiates OAuth flow (calls plugin)
+  - [x] `GET /oauth/callback` - Receives GitHub callback (calls plugin)
+  - [x] `POST /oauth/token` - Token exchange endpoint (calls plugin)
+- [x] JWT token issuance with user claims (id, name, email, orgs)
+- [x] PKCE validation (S256)
 
 **Success Criteria:**
 - Users can authenticate via GitHub
@@ -535,6 +535,7 @@ No manual token configuration needed - the OAuth flow handles it.
 
 ## Version History
 
+- **v3.2** (2026-02-03): Completed Milestone 2 - GitHub OAuth flow with PKCE, token exchange, refresh tokens
 - **v3.1** (2026-02-02): Simplified auth modes to `none`/`oauth`; admin token always available; removed anonymous access option; completed Milestone 1 implementation
 - **v3.0** (2026-02-02): Architecture change to plugin-based auth; auth tools in agentic-tools plugin, MCP validates JWTs locally
 - **v2.0** (2026-02-02): Major revision to align with MCP Authorization Specification; OAuth 2.1 as primary method, API keys as future fallback
