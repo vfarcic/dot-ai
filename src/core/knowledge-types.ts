@@ -122,33 +122,9 @@ export interface DeleteByUriResponse {
 }
 
 /**
- * GetChunk operation response
- */
-export interface GetChunkResponse {
-  success: boolean;
-  operation: 'getChunk';
-  chunk: KnowledgeChunk | null;
-  message: string;
-}
-
-/**
- * GetByUri operation response
- */
-export interface GetByUriResponse {
-  success: boolean;
-  operation: 'getByUri';
-  uri: string;
-  chunks: KnowledgeChunk[];
-  totalChunks: number;
-  message: string;
-}
-
-/**
  * Union type for all manageKnowledge operation responses
  */
 export type ManageKnowledgeResponse =
   | IngestResponse
   | KnowledgeSearchResponse
-  | DeleteByUriResponse
-  | GetChunkResponse
-  | GetByUriResponse;
+  | DeleteByUriResponse;

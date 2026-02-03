@@ -13,7 +13,6 @@ import { DotAI } from '../core/index';
 import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
 import { EmbeddingService } from '../core/embedding-service';
 import {
-  KnowledgeChunk,
   PluginChunkResult,
   IngestResponse,
   KnowledgeSearchResponse,
@@ -710,8 +709,8 @@ export async function handleManageKnowledgeTool(
 
     default:
       return createErrorResponse(`Unsupported operation: ${args.operation}`, {
-        supportedOperations: ['ingest', 'getByUri', 'search', 'deleteByUri'],
-        hint: 'Use "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
+        supportedOperations: ['ingest', 'search', 'deleteByUri'],
+        hint: 'Use "ingest" to add documents, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
       });
   }
 }
