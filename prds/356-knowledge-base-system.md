@@ -368,6 +368,22 @@ interface KnowledgeSearchResult {
 
 ---
 
+### Milestone 8: Web UI PRD Creation
+**Goal**: Create PRD for knowledge base UI in the dot-ai-ui project
+
+**Success Criteria**:
+- [ ] Use `/request-dot-ai-feature` to send API contract to dot-ai-ui project
+- [ ] Web UI PRD created with: search interface, result display, source browsing
+- [ ] Clear interface contract between UI and MCP server API
+
+**Validation**:
+- UI team has clear PRD to implement
+- API contract covers all UI requirements (search, pagination, filtering)
+
+**Note**: UI PRD should be created after MCP server API is stable and controller integration is validated.
+
+---
+
 ---
 
 ## Success Criteria
