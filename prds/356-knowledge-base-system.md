@@ -69,7 +69,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 │  Query ───► Embedding ───► Hybrid Search ───► Ranked Results    │
 ├─────────────────────────────────────────────────────────────────┤
 │  UNIFIED ACCESS (MCP Tool = HTTP API)                           │
-│  • MCP Tool: manageKnowledge (ingest, search, deleteByUri, get) │
+│  • MCP Tool: manageKnowledge (ingest, search, getByUri, deleteByUri) │
 │  • HTTP: POST /api/v1/tools/manageKnowledge (auto-generated)    │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -145,10 +145,10 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
   -d '{"operation": "deleteByUri", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md"}'
 
-# Get a specific chunk
+# Get all chunks for a URI
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
-  -d '{"operation": "getChunk", "chunkId": "abc-123"}'
+  -d '{"operation": "getByUri", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md"}'
 ```
 
 ### MCP Tool: manageKnowledge
@@ -157,26 +157,21 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
 type KnowledgeOperation =
   | 'ingest'         // Ingest a document
   | 'search'         // Semantic search
-  | 'deleteByUri'    // Delete all chunks for a URI
-  | 'getChunk';      // Get specific chunk by ID
+  | 'getByUri'       // Get all chunks for a URI
+  | 'deleteByUri';   // Delete all chunks for a URI
 
 interface ManageKnowledgeParams {
   operation: KnowledgeOperation;
 
   // For ingest
   content?: string;
-  uri?: string;                    // Required for ingest - full URL (e.g., 'https://github.com/org/repo/blob/main/docs/guide.md')
+  uri?: string;                    // Required for ingest, getByUri, deleteByUri - full URL
   metadata?: Record<string, any>;  // Optional additional metadata
 
   // For search
   query?: string;
   limit?: number;
-
-  // For deleteByUri
-  // uri (above)
-
-  // For getChunk
-  chunkId?: string;
+  scoreThreshold?: number;         // Min similarity score (0-1, default: 0.3)
 }
 ```
 
@@ -321,23 +316,7 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 5: GetChunk Operation
-**Goal**: Add operation to retrieve a specific chunk by ID
-
-**Success Criteria**:
-- [ ] Add `getChunk` operation to Zod schema
-- [ ] Retrieve chunk by ID from Qdrant
-- [ ] Return full chunk content and metadata
-- [ ] Integration tests for getChunk
-- [ ] Mock server fixture for getChunk operation
-
-**Validation**:
-- Individual chunks can be retrieved by ID
-- Returns full content and metadata
-
----
-
-### Milestone 6: Controller PRD Creation
+### Milestone 5: Controller PRD Creation
 **Goal**: Create PRD for controller-side knowledge base orchestration
 
 **Success Criteria**:
@@ -351,12 +330,12 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 7: Documentation
+### Milestone 6: Documentation
 **Goal**: Create user-facing documentation after controller integration is validated
 
 **Success Criteria**:
 - [ ] User guide for knowledge base ingestion and search
-- [ ] API reference with examples for all operations (ingest, search, getByUri, deleteByUri, getChunk)
+- [ ] API reference with examples for all operations (ingest, search, getByUri, deleteByUri)
 - [ ] Architecture overview showing MCP server + controller interaction
 - [ ] Troubleshooting guide for common issues
 
@@ -368,7 +347,7 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 8: Web UI PRD Creation
+### Milestone 7: Web UI PRD Creation
 **Goal**: Create PRD for knowledge base UI in the dot-ai-ui project
 
 **Success Criteria**:
@@ -392,8 +371,8 @@ interface KnowledgeSearchResult {
 - [ ] Documents can be ingested via MCP tool / HTTP API (same endpoint)
 - [ ] Documents chunked and stored with embeddings
 - [ ] Semantic search returns relevant results
-- [ ] Chunks can be deleted by URI
-- [ ] Chunks can be retrieved by ID
+- [ ] Chunks can be retrieved by URI (getByUri)
+- [ ] Chunks can be deleted by URI (deleteByUri)
 
 ### Quality Success
 - [ ] Search latency < 500ms for typical queries
@@ -561,6 +540,12 @@ interface KnowledgeSearchResult {
     - **Decision**: Yes, use existing embedding service
     - **Rationale**: Consistency across the system, reuse existing infrastructure, no additional configuration needed.
     - **Date**: 2025-02-02
+
+20. **GetChunk Operation**: Is a `getChunk` operation needed to retrieve individual chunks by ID?
+    - **Decision**: No, removed from scope
+    - **Rationale**: The `search` operation returns chunk content and metadata in results. The `getByUri` operation retrieves all chunks for a document. There's no clear use case for fetching a single chunk by ID that isn't covered by these operations.
+    - **Impact**: Removed Milestone 5 (GetChunk), renumbered subsequent milestones. Simplified API surface.
+    - **Date**: 2025-02-03
 
 ---
 
