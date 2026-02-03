@@ -2,14 +2,13 @@
  * Integration Test: ManageKnowledge Tool
  *
  * Tests the knowledge base functionality via REST API with a comprehensive
- * workflow test covering ingest, getByUri, search, re-ingest (upsert), and deleteByUri.
+ * workflow test covering ingest, search, re-ingest (upsert), and deleteByUri.
  *
  * PRD #356: Knowledge Base System
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import { createHash } from 'crypto';
 import { v5 as uuidv5 } from 'uuid';
 
 // Same namespace used by the plugin for deterministic chunk IDs
@@ -24,7 +23,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
   });
 
   describe('Complete Knowledge Base Workflow', () => {
-    test('should complete full ingest → getByUri → search → re-ingest → delete workflow', async () => {
+    test('should complete full ingest → search → re-ingest → delete workflow', async () => {
       const testId = Date.now();
       const testUri = `https://github.com/test-org/test-repo/blob/main/docs/workflow-${testId}.md`;
 
@@ -100,44 +99,7 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
 
-      // ============ STEP 2: GET BY URI - verify chunks stored correctly ============
-      const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'getByUri',
-        uri: testUri,
-        interaction_id: `workflow_get_${testId}`,
-      });
-
-      expect(getResponse).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'getByUri',
-            uri: testUri,
-            totalChunks: 2,
-            message: 'Retrieved 2 chunks for URI',
-          },
-        },
-      });
-
-      const chunks = getResponse.data.result.chunks;
-      expect(chunks).toHaveLength(2);
-
-      // Verify chunk 0 details
-      expect(chunks[0].id).toBe(expectedChunk0Id);
-      expect(chunks[0].chunkIndex).toBe(0);
-      expect(chunks[0].totalChunks).toBe(2);
-      expect(chunks[0].uri).toBe(testUri);
-      expect(chunks[0].metadata).toEqual(originalMetadata);
-      expect(chunks[0].content).toContain('Narwhal deployment');
-      expect(chunks[0].checksum).toBe(createHash('sha256').update(chunks[0].content).digest('hex'));
-
-      // Verify chunk 1 details
-      expect(chunks[1].id).toBe(expectedChunk1Id);
-      expect(chunks[1].chunkIndex).toBe(1);
-      expect(chunks[1].content).toContain('Narwhal scaling');
-
-      // ============ STEP 3: SEARCH - verify semantic search works ============
+      // ============ STEP 2: SEARCH - verify semantic search works ============
       // First test with semantically related terms (NOT exact keywords)
       // Content: "narwhal deployment patterns", "container orchestration", "rolling updates"
       // Query: "container management application deployment" (related concepts)
@@ -214,21 +176,7 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
 
-      // ============ STEP 5: VERIFY UPSERT - new content and metadata in place ============
-      const getAfterUpsert = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'getByUri',
-        uri: testUri,
-        interaction_id: `workflow_get_upsert_${testId}`,
-      });
-
-      expect(getAfterUpsert.data.result.totalChunks).toBe(2);
-      expect(getAfterUpsert.data.result.chunks[0].content).toContain('UPDATED');
-      expect(getAfterUpsert.data.result.chunks[0].content).toContain('canary deployments');
-      expect(getAfterUpsert.data.result.chunks[0].metadata.version).toBe(2);
-      expect(getAfterUpsert.data.result.chunks[1].content).toContain('UPDATED');
-      expect(getAfterUpsert.data.result.chunks[1].content).toContain('predictive scaling');
-
-      // ============ STEP 6: DELETE BY URI - remove all chunks ============
+      // ============ STEP 5: DELETE BY URI - remove all chunks ============
       const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'deleteByUri',
         uri: testUri,
@@ -248,28 +196,7 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
 
-      // ============ STEP 7: VERIFY DELETION via getByUri ============
-      const getAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'getByUri',
-        uri: testUri,
-        interaction_id: `workflow_get_deleted_${testId}`,
-      });
-
-      expect(getAfterDelete).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'getByUri',
-            uri: testUri,
-            totalChunks: 0,
-            chunks: [],
-            message: 'No chunks found for URI',
-          },
-        },
-      });
-
-      // ============ STEP 8: VERIFY DELETION via search ============
+      // ============ STEP 6: VERIFY DELETION via search with uriFilter ============
       // Search with uriFilter targeting deleted URI should return empty results
       const searchAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'search',
@@ -279,10 +206,10 @@ The narwhal metrics server collects and aggregates resource utilization data for
         interaction_id: `workflow_search_deleted_${testId}`,
       });
 
-      // Deleted URI should return no results
+      // Deleted URI should return no results - confirms deletion worked
       expect(searchAfterDelete.data.result.chunks).toHaveLength(0);
 
-      // ============ STEP 9: DELETE non-existent URI returns 0 ============
+      // ============ STEP 7: DELETE non-existent URI returns 0 ============
       const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/never-existed-${testId}.md`;
       const deleteNonExistent = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'deleteByUri',
@@ -354,31 +281,6 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
     }, 60000);
-
-    test('should return empty chunks array for non-existent URI', async () => {
-      const testId = Date.now();
-      const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/does-not-exist-${testId}.md`;
-
-      const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'getByUri',
-        uri: nonExistentUri,
-        interaction_id: `edge_nonexistent_${testId}`,
-      });
-
-      expect(getResponse).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'getByUri',
-            uri: nonExistentUri,
-            totalChunks: 0,
-            chunks: [],
-            message: 'No chunks found for URI',
-          },
-        },
-      });
-    }, 60000);
   });
 
   describe('Error Handling', () => {
@@ -424,29 +326,6 @@ The narwhal metrics server collects and aggregates resource utilization data for
               message: 'Missing required parameter: uri',
               operation: 'ingest',
               hint: 'Provide the full URL identifying the document (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
-            },
-          },
-        },
-      });
-    }, 60000);
-
-    test('should return error for getByUri without uri', async () => {
-      const testId = Date.now();
-
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'getByUri',
-        interaction_id: `error_get_no_uri_${testId}`,
-      });
-
-      expect(errorResponse).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: false,
-            error: {
-              message: 'Missing required parameter: uri',
-              operation: 'getByUri',
-              hint: 'Provide the URI of the document to retrieve chunks for',
             },
           },
         },

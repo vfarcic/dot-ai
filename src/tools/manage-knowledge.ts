@@ -16,7 +16,6 @@ import {
   KnowledgeChunk,
   PluginChunkResult,
   IngestResponse,
-  GetByUriResponse,
   KnowledgeSearchResponse,
   KnowledgeSearchResultItem,
   DeleteByUriResponse,
@@ -30,16 +29,16 @@ const KNOWLEDGE_COLLECTION = 'knowledge-base';
 // Tool metadata for MCP registration
 export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
 export const MANAGE_KNOWLEDGE_TOOL_DESCRIPTION =
-  'Manage the knowledge base: ingest documents, search with natural language, delete, or retrieve chunks. ' +
+  'Manage the knowledge base: ingest documents, search with natural language, or delete chunks. ' +
   'Use "ingest" to store organizational documentation, "search" to find relevant content semantically, ' +
-  '"getByUri" to retrieve all chunks for a specific document, or "deleteByUri" to remove all chunks for a document.';
+  'or "deleteByUri" to remove all chunks for a document.';
 
 // Input schema using Zod
 export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   operation: z
-    .enum(['ingest', 'getByUri', 'search', 'deleteByUri'])
+    .enum(['ingest', 'search', 'deleteByUri'])
     .describe(
-      'Operation to perform: "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search, "deleteByUri" to remove all chunks for a document.'
+      'Operation to perform: "ingest" to add documents, "search" for semantic search, "deleteByUri" to remove all chunks for a document.'
     ),
   content: z
     .string()
@@ -49,7 +48,7 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
     .string()
     .optional()
     .describe(
-      'Full URL identifying the document (required for ingest and getByUri). ' +
+      'Full URL identifying the document (required for ingest and deleteByUri). ' +
         'E.g., https://github.com/org/repo/blob/main/docs/guide.md'
     ),
   metadata: z
@@ -79,7 +78,7 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
  * Input type for knowledge management tool
  */
 export interface ManageKnowledgeInput {
-  operation: 'ingest' | 'getByUri' | 'search' | 'deleteByUri';
+  operation: 'ingest' | 'search' | 'deleteByUri';
   content?: string;
   uri?: string;
   metadata?: Record<string, unknown>;
@@ -325,148 +324,6 @@ async function handleIngestOperation(
     logger.error('Document ingestion failed', error as Error, { requestId, uri });
     return createErrorResponse('Document ingestion failed', {
       operation: 'ingest',
-      error: errorMessage,
-    });
-  }
-}
-
-/**
- * Handle the getByUri operation
- */
-async function handleGetByUriOperation(
-  args: ManageKnowledgeInput,
-  logger: Logger,
-  requestId: string
-): Promise<unknown> {
-  const { uri } = args;
-
-  // Validate required parameters
-  if (!uri) {
-    return createErrorResponse('Missing required parameter: uri', {
-      operation: 'getByUri',
-      hint: 'Provide the URI of the document to retrieve chunks for',
-    });
-  }
-
-  // Check plugin availability
-  if (!isPluginInitialized()) {
-    return createErrorResponse('Plugin system not available', {
-      operation: 'getByUri',
-      hint: 'The agentic-tools plugin must be running for knowledge base operations',
-    });
-  }
-
-  logger.info('Retrieving chunks by URI via plugin', { requestId, uri });
-
-  try {
-    // Query chunks by URI filter via plugin
-    const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
-      collection: KNOWLEDGE_COLLECTION,
-      filter: {
-        must: [{ key: 'uri', match: { value: uri } }],
-      },
-      limit: 10000, // High limit to get all chunks for a document
-    });
-
-    if (!queryResponse.success) {
-      const error = queryResponse.error as { message?: string; error?: string } | undefined;
-      const errorMessage = error?.message || error?.error || 'Query failed';
-
-      // If collection doesn't exist (Not Found), return empty result instead of error
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning empty result', { requestId, uri });
-        const response: GetByUriResponse = {
-          success: true,
-          operation: 'getByUri',
-          uri,
-          chunks: [],
-          totalChunks: 0,
-          message: 'No chunks found for URI',
-        };
-        return response;
-      }
-
-      logger.error('Plugin query failed', new Error(errorMessage), { requestId, uri });
-      return createErrorResponse('Failed to retrieve chunks', {
-        operation: 'getByUri',
-        error: errorMessage,
-      });
-    }
-
-    // Extract results from plugin response
-    const queryResult = queryResponse.result as {
-      success: boolean;
-      data?: Array<{
-        id: string;
-        payload: Record<string, unknown>;
-      }>;
-      error?: string;
-      message: string;
-    };
-
-    if (!queryResult.success) {
-      const errorMessage = queryResult.error || queryResult.message;
-
-      // If collection doesn't exist (Not Found), return empty result instead of error
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning empty result', { requestId, uri });
-        const response: GetByUriResponse = {
-          success: true,
-          operation: 'getByUri',
-          uri,
-          chunks: [],
-          totalChunks: 0,
-          message: 'No chunks found for URI',
-        };
-        return response;
-      }
-
-      return createErrorResponse('Failed to retrieve chunks', {
-        operation: 'getByUri',
-        error: errorMessage,
-      });
-    }
-
-    // Convert plugin results to KnowledgeChunk format
-    const results = queryResult.data || [];
-    const chunks: KnowledgeChunk[] = results.map((result) => ({
-      id: result.id,
-      content: result.payload.content as string,
-      uri: result.payload.uri as string,
-      metadata: (result.payload.metadata as Record<string, unknown>) || {},
-      checksum: result.payload.checksum as string,
-      ingestedAt: result.payload.ingestedAt as string,
-      chunkIndex: result.payload.chunkIndex as number,
-      totalChunks: result.payload.totalChunks as number,
-      extractedPolicyIds: result.payload.extractedPolicyIds as string[] | undefined,
-    }));
-
-    // Sort by chunkIndex for consistent ordering
-    chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
-
-    logger.info('Retrieved chunks by URI', {
-      requestId,
-      uri,
-      chunksFound: chunks.length,
-    });
-
-    const response: GetByUriResponse = {
-      success: true,
-      operation: 'getByUri',
-      uri,
-      chunks,
-      totalChunks: chunks.length,
-      message: chunks.length > 0
-        ? `Retrieved ${chunks.length} chunks for URI`
-        : 'No chunks found for URI',
-    };
-
-    return response;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Failed to retrieve chunks by URI', error as Error, { requestId, uri });
-    return createErrorResponse('Failed to retrieve chunks', {
-      operation: 'getByUri',
       error: errorMessage,
     });
   }
@@ -844,9 +701,6 @@ export async function handleManageKnowledgeTool(
   switch (args.operation) {
     case 'ingest':
       return handleIngestOperation(args, logger, requestId);
-
-    case 'getByUri':
-      return handleGetByUriOperation(args, logger, requestId);
 
     case 'search':
       return handleSearchOperation(args, logger, requestId);

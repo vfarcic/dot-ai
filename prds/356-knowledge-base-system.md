@@ -69,7 +69,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 │  Query ───► Embedding ───► Hybrid Search ───► Ranked Results    │
 ├─────────────────────────────────────────────────────────────────┤
 │  UNIFIED ACCESS (MCP Tool = HTTP API)                           │
-│  • MCP Tool: manageKnowledge (ingest, search, getByUri, deleteByUri) │
+│  • MCP Tool: manageKnowledge (ingest, search, deleteByUri)       │
 │  • HTTP: POST /api/v1/tools/manageKnowledge (auto-generated)    │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -144,11 +144,6 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
   -d '{"operation": "deleteByUri", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md"}'
-
-# Get all chunks for a URI
-curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
-  -H "Content-Type: application/json" \
-  -d '{"operation": "getByUri", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md"}'
 ```
 
 ### MCP Tool: manageKnowledge
@@ -157,7 +152,6 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
 type KnowledgeOperation =
   | 'ingest'         // Ingest a document
   | 'search'         // Semantic search
-  | 'getByUri'       // Get all chunks for a URI
   | 'deleteByUri';   // Delete all chunks for a URI
 
 interface ManageKnowledgeParams {
@@ -165,7 +159,7 @@ interface ManageKnowledgeParams {
 
   // For ingest
   content?: string;
-  uri?: string;                    // Required for ingest, getByUri, deleteByUri - full URL
+  uri?: string;                    // Required for ingest, deleteByUri - full URL
   metadata?: Record<string, any>;  // Optional additional metadata
 
   // For search
@@ -335,7 +329,7 @@ interface KnowledgeSearchResult {
 
 **Success Criteria**:
 - [ ] User guide for knowledge base ingestion and search
-- [ ] API reference with examples for all operations (ingest, search, getByUri, deleteByUri)
+- [ ] API reference with examples for all operations (ingest, search, deleteByUri)
 - [ ] Architecture overview showing MCP server + controller interaction
 - [ ] Troubleshooting guide for common issues
 
@@ -371,7 +365,6 @@ interface KnowledgeSearchResult {
 - [ ] Documents can be ingested via MCP tool / HTTP API (same endpoint)
 - [ ] Documents chunked and stored with embeddings
 - [ ] Semantic search returns relevant results
-- [ ] Chunks can be retrieved by URI (getByUri)
 - [ ] Chunks can be deleted by URI (deleteByUri)
 
 ### Quality Success
@@ -543,8 +536,14 @@ interface KnowledgeSearchResult {
 
 20. **GetChunk Operation**: Is a `getChunk` operation needed to retrieve individual chunks by ID?
     - **Decision**: No, removed from scope
-    - **Rationale**: The `search` operation returns chunk content and metadata in results. The `getByUri` operation retrieves all chunks for a document. There's no clear use case for fetching a single chunk by ID that isn't covered by these operations.
+    - **Rationale**: The `search` operation returns chunk content and metadata in results. No clear use case for fetching a single chunk by ID.
     - **Impact**: Removed Milestone 5 (GetChunk), renumbered subsequent milestones. Simplified API surface.
+    - **Date**: 2025-02-03
+
+21. **GetByUri Operation**: Is a `getByUri` operation needed to retrieve all chunks for a document?
+    - **Decision**: No, removed from scope
+    - **Rationale**: Was implemented for testing/debugging during development. Not part of core workflow - controller knows what it ingested, users find content via search, delete works directly by URI.
+    - **Impact**: Removed `getByUri` operation. API now has 3 operations: ingest, search, deleteByUri.
     - **Date**: 2025-02-03
 
 ---
