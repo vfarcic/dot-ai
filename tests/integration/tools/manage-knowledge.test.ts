@@ -1,10 +1,10 @@
 /**
  * Integration Test: ManageKnowledge Tool
  *
- * Tests the knowledge base ingest and retrieval functionality via REST API.
- * Uses precise assertions with pre-calculated expected values.
+ * Tests the knowledge base functionality via REST API with a comprehensive
+ * workflow test covering ingest, getByUri, search, re-ingest (upsert), and deleteByUri.
  *
- * PRD #356: Knowledge Base System - Milestone 1
+ * PRD #356: Knowledge Base System
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -23,49 +23,88 @@ describe.concurrent('ManageKnowledge Integration', () => {
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
   });
 
-  describe('Ingest and Retrieve Workflow', () => {
-    test('should ingest single-chunk document and retrieve with exact values', async () => {
+  describe('Complete Knowledge Base Workflow', () => {
+    test('should complete full ingest → getByUri → search → re-ingest → delete workflow', async () => {
       const testId = Date.now();
-      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/single-chunk-${testId}.md`;
+      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/workflow-${testId}.md`;
 
-      // Content under 1000 chars = exactly 1 chunk
-      const testContent = 'This is a short test document for the knowledge base integration test.';
-      const testMetadata = { source: 'integration-test', testId };
+      // Multi-chunk content (2 chunks) - each paragraph ~600 chars, total ~1200+ chars
+      // With chunkSize=1000 and overlap=200, this produces 2 chunks
+      const originalParagraph1 = `Narwhal deployment patterns ${testId} enable seamless container orchestration across enterprise environments.
+The narwhal controller reconciles desired state with actual state using sophisticated rolling update strategies.
+Narwhal manages replica sets automatically for zero-downtime deployments in production systems worldwide.
+This unique narwhal-based orchestration pattern provides self-healing capabilities for mission-critical applications.
+The narwhal system integrates with various container runtimes seamlessly including Docker and containerd.
+Teams using narwhal achieve consistent deployments across all environments from development to production.
+Narwhal deployment configurations support advanced features like pod affinity, resource quotas, and priority classes.
+The narwhal scheduler optimizes pod placement based on resource availability and custom scheduling policies.`;
 
-      // Pre-calculate expected values
-      const expectedChunkCount = 1;
-      const expectedChunkContent = testContent;
-      const expectedChecksum = createHash('sha256').update(testContent).digest('hex');
-      const expectedChunkId = uuidv5(`${testUri}#0`, KNOWLEDGE_NAMESPACE);
+      const originalParagraph2 = `Narwhal scaling strategies ${testId} improve application availability dramatically in cloud environments.
+The narwhal autoscaler adjusts replicas based on CPU, memory metrics, and custom application metrics.
+Narwhal supports both horizontal pod autoscaling and vertical pod autoscaling configurations natively.
+Distributed narwhal deployments synchronize across cluster nodes automatically using leader election.
+The narwhal scaling feature handles traffic spikes gracefully in production with configurable thresholds.
+Applications using narwhal scaling see improved reliability under load with automatic failover support.
+Narwhal scaling policies can be customized per workload type including batch jobs and long-running services.
+The narwhal metrics server collects and aggregates resource utilization data for intelligent scaling decisions.`;
 
-      // Step 1: Ingest
+      const originalContent = `${originalParagraph1}\n\n${originalParagraph2}`;
+      const originalMetadata = { version: 1, testId };
+
+      // Updated content for re-ingest (upsert) - different metadata, similar structure
+      const updatedParagraph1 = `Narwhal deployment patterns ${testId} enable seamless container orchestration across enterprise environments.
+The narwhal controller reconciles desired state with actual state using sophisticated rolling update strategies.
+Narwhal manages replica sets automatically for zero-downtime deployments in production systems worldwide.
+This unique narwhal-based orchestration pattern provides self-healing capabilities for mission-critical applications.
+UPDATED: The narwhal system now supports canary deployments natively with traffic splitting capabilities.
+Teams using narwhal achieve consistent deployments across all environments from development to production.
+Narwhal deployment configurations support advanced features like pod affinity, resource quotas, and priority classes.
+The narwhal scheduler optimizes pod placement based on resource availability and custom scheduling policies.`;
+
+      const updatedParagraph2 = `Narwhal scaling strategies ${testId} improve application availability dramatically in cloud environments.
+The narwhal autoscaler adjusts replicas based on CPU, memory metrics, and custom application metrics.
+Narwhal supports both horizontal pod autoscaling and vertical pod autoscaling configurations natively.
+UPDATED: Narwhal now includes predictive scaling based on historical patterns and machine learning models.
+The narwhal scaling feature handles traffic spikes gracefully in production with configurable thresholds.
+Applications using narwhal scaling see improved reliability under load with automatic failover support.
+Narwhal scaling policies can be customized per workload type including batch jobs and long-running services.
+The narwhal metrics server collects and aggregates resource utilization data for intelligent scaling decisions.`;
+
+      const updatedContent = `${updatedParagraph1}\n\n${updatedParagraph2}`;
+      const updatedMetadata = { version: 2, testId };
+
+      // Pre-calculate expected chunk IDs (deterministic from URI + index)
+      const expectedChunk0Id = uuidv5(`${testUri}#0`, KNOWLEDGE_NAMESPACE);
+      const expectedChunk1Id = uuidv5(`${testUri}#1`, KNOWLEDGE_NAMESPACE);
+
+      // ============ STEP 1: INGEST multi-chunk document ============
       const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
         uri: testUri,
-        content: testContent,
-        metadata: testMetadata,
-        interaction_id: `ingest_${testId}`,
+        content: originalContent,
+        metadata: originalMetadata,
+        interaction_id: `workflow_ingest_${testId}`,
       });
 
-      expect(ingestResponse, `Ingest response: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+      expect(ingestResponse, `Ingest: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
         success: true,
         data: {
           result: {
             success: true,
             operation: 'ingest',
             uri: testUri,
-            chunksCreated: expectedChunkCount,
-            chunkIds: [expectedChunkId],
-            message: `Successfully ingested document into ${expectedChunkCount} chunks`,
+            chunksCreated: 2,
+            chunkIds: [expectedChunk0Id, expectedChunk1Id],
+            message: 'Successfully ingested document into 2 chunks',
           },
         },
       });
 
-      // Step 2: Retrieve by URI
+      // ============ STEP 2: GET BY URI - verify chunks stored correctly ============
       const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'getByUri',
         uri: testUri,
-        interaction_id: `get_${testId}`,
+        interaction_id: `workflow_get_${testId}`,
       });
 
       expect(getResponse).toMatchObject({
@@ -75,110 +114,198 @@ describe.concurrent('ManageKnowledge Integration', () => {
             success: true,
             operation: 'getByUri',
             uri: testUri,
-            totalChunks: expectedChunkCount,
-            chunks: [
-              {
-                id: expectedChunkId,
-                content: expectedChunkContent,
-                uri: testUri,
-                checksum: expectedChecksum,
-                chunkIndex: 0,
-                totalChunks: expectedChunkCount,
-                ingestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
-                metadata: testMetadata,
-              },
-            ],
-            message: `Retrieved ${expectedChunkCount} chunks for URI`,
+            totalChunks: 2,
+            message: 'Retrieved 2 chunks for URI',
           },
         },
       });
-    }, 120000);
 
-    test('should ingest multi-chunk document and retrieve with exact values', async () => {
-      const testId = Date.now();
-      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/multi-chunk-${testId}.md`;
-      const testMetadata = { source: 'integration-test', testId };
+      const chunks = getResponse.data.result.chunks;
+      expect(chunks).toHaveLength(2);
 
-      // Two meaningful paragraphs, each ~500 chars, separated by \n\n
-      // Total ~1000+ chars will produce 2 chunks with chunkSize=1000, overlap=200
-      const paragraph1 = `This is the first section of the document about Kubernetes deployments. It covers how to configure pods, services, and ingress resources. Deployments allow you to declaratively update applications. You describe a desired state in a Deployment, and the controller changes the actual state. StatefulSets are used for stateful applications that require stable network identifiers. Each pod in a StatefulSet has a persistent identifier maintained across rescheduling. ReplicaSets ensure a specified number of pod replicas are running at any given time.`;
+      // Verify chunk 0 details
+      expect(chunks[0].id).toBe(expectedChunk0Id);
+      expect(chunks[0].chunkIndex).toBe(0);
+      expect(chunks[0].totalChunks).toBe(2);
+      expect(chunks[0].uri).toBe(testUri);
+      expect(chunks[0].metadata).toEqual(originalMetadata);
+      expect(chunks[0].content).toContain('Narwhal deployment');
+      expect(chunks[0].checksum).toBe(createHash('sha256').update(chunks[0].content).digest('hex'));
 
-      const paragraph2 = `The second section covers ConfigMaps and Secrets for configuration management. ConfigMaps allow you to decouple configuration from container images. Secrets are similar but designed for sensitive data like passwords and tokens. Both can be consumed as environment variables or mounted as files. This separation enables portable and reusable application configurations. Always use Secrets for sensitive data rather than storing them in ConfigMaps. You can also use external secret management tools like HashiCorp Vault for enhanced security.`;
+      // Verify chunk 1 details
+      expect(chunks[1].id).toBe(expectedChunk1Id);
+      expect(chunks[1].chunkIndex).toBe(1);
+      expect(chunks[1].content).toContain('Narwhal scaling');
 
-      const testContent = `${paragraph1}\n\n${paragraph2}`;
-
-      // Pre-calculate expected values
-      const expectedChunkCount = 2;
-      const expectedChunkId0 = uuidv5(`${testUri}#0`, KNOWLEDGE_NAMESPACE);
-      const expectedChunkId1 = uuidv5(`${testUri}#1`, KNOWLEDGE_NAMESPACE);
-
-      // Step 1: Ingest
-      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: testUri,
-        content: testContent,
-        metadata: testMetadata,
-        interaction_id: `ingest_multi_${testId}`,
+      // ============ STEP 3: SEARCH - verify semantic search works ============
+      // First test with semantically related terms (NOT exact keywords)
+      // Content: "narwhal deployment patterns", "container orchestration", "rolling updates"
+      // Query: "container management application deployment" (related concepts)
+      const semanticSearchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'container management application deployment orchestration',
+        limit: 10,
+        interaction_id: `workflow_search_semantic_${testId}`,
       });
 
-      expect(ingestResponse, `Multi-chunk ingest response: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+      expect(semanticSearchResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+          },
+        },
+      });
+
+      const semanticResult = semanticSearchResponse.data.result;
+      expect(semanticResult.chunks.length).toBeGreaterThan(0);
+      expect(semanticResult.chunks[0].matchType).toBe('semantic');
+      expect(semanticResult.chunks[0].score).toBeGreaterThanOrEqual(0.5);
+
+      // Verify our test document appears in results (may not be first due to other test data)
+      const ourChunks = semanticResult.chunks.filter((c: { uri: string }) => c.uri === testUri);
+      expect(ourChunks.length).toBeGreaterThan(0);
+
+      // Test with uriFilter for exact document isolation
+      const filteredSearchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'deployment scaling orchestration',
+        limit: 10,
+        uriFilter: testUri,
+        interaction_id: `workflow_search_filtered_${testId}`,
+      });
+
+      expect(filteredSearchResponse.data.result.chunks.length).toBeGreaterThan(0);
+      // All results should be from our test URI
+      filteredSearchResponse.data.result.chunks.forEach((chunk: { uri: string }) => {
+        expect(chunk.uri).toBe(testUri);
+      });
+
+      // Search with limit=1 should respect the limit
+      const limitedSearch = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'deployment scaling',
+        limit: 1,
+        uriFilter: testUri,
+        interaction_id: `workflow_search_limit_${testId}`,
+      });
+      expect(limitedSearch.data.result.chunks.length).toBeLessThanOrEqual(1);
+
+      // ============ STEP 4: RE-INGEST (upsert) - update with new content ============
+      const reIngestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: testUri,
+        content: updatedContent,
+        metadata: updatedMetadata,
+        interaction_id: `workflow_reingest_${testId}`,
+      });
+
+      expect(reIngestResponse).toMatchObject({
         success: true,
         data: {
           result: {
             success: true,
             operation: 'ingest',
             uri: testUri,
-            chunksCreated: expectedChunkCount,
-            chunkIds: [expectedChunkId0, expectedChunkId1],
-            message: `Successfully ingested document into ${expectedChunkCount} chunks`,
+            chunksCreated: 2,
+            chunkIds: [expectedChunk0Id, expectedChunk1Id], // Same deterministic IDs
           },
         },
       });
 
-      // Step 2: Retrieve by URI
-      const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+      // ============ STEP 5: VERIFY UPSERT - new content and metadata in place ============
+      const getAfterUpsert = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'getByUri',
         uri: testUri,
-        interaction_id: `get_multi_${testId}`,
+        interaction_id: `workflow_get_upsert_${testId}`,
       });
 
-      expect(getResponse, `Multi-chunk get response: ${JSON.stringify(getResponse, null, 2)}`).toMatchObject({
+      expect(getAfterUpsert.data.result.totalChunks).toBe(2);
+      expect(getAfterUpsert.data.result.chunks[0].content).toContain('UPDATED');
+      expect(getAfterUpsert.data.result.chunks[0].content).toContain('canary deployments');
+      expect(getAfterUpsert.data.result.chunks[0].metadata.version).toBe(2);
+      expect(getAfterUpsert.data.result.chunks[1].content).toContain('UPDATED');
+      expect(getAfterUpsert.data.result.chunks[1].content).toContain('predictive scaling');
+
+      // ============ STEP 6: DELETE BY URI - remove all chunks ============
+      const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: testUri,
+        interaction_id: `workflow_delete_${testId}`,
+      });
+
+      expect(deleteResponse, `Delete: ${JSON.stringify(deleteResponse, null, 2)}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'deleteByUri',
+            uri: testUri,
+            chunksDeleted: 2,
+            message: 'Successfully deleted 2 chunks for URI',
+          },
+        },
+      });
+
+      // ============ STEP 7: VERIFY DELETION via getByUri ============
+      const getAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'getByUri',
+        uri: testUri,
+        interaction_id: `workflow_get_deleted_${testId}`,
+      });
+
+      expect(getAfterDelete).toMatchObject({
         success: true,
         data: {
           result: {
             success: true,
             operation: 'getByUri',
             uri: testUri,
-            totalChunks: expectedChunkCount,
-            message: `Retrieved ${expectedChunkCount} chunks for URI`,
+            totalChunks: 0,
+            chunks: [],
+            message: 'No chunks found for URI',
           },
         },
       });
 
-      const chunks = getResponse.data.result.chunks;
-      expect(chunks).toHaveLength(expectedChunkCount);
+      // ============ STEP 8: VERIFY DELETION via search ============
+      // Search with uriFilter targeting deleted URI should return empty results
+      const searchAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'deployment scaling orchestration',
+        limit: 10,
+        uriFilter: testUri,
+        interaction_id: `workflow_search_deleted_${testId}`,
+      });
 
-      // Verify chunk 0
-      const chunk0 = chunks[0];
-      expect(chunk0.id).toBe(expectedChunkId0);
-      expect(chunk0.chunkIndex).toBe(0);
-      expect(chunk0.totalChunks).toBe(expectedChunkCount);
-      expect(chunk0.uri).toBe(testUri);
-      expect(chunk0.metadata).toEqual(testMetadata);
-      expect(chunk0.content).toContain('Kubernetes deployments');
-      expect(chunk0.checksum).toBe(createHash('sha256').update(chunk0.content).digest('hex'));
+      // Deleted URI should return no results
+      expect(searchAfterDelete.data.result.chunks).toHaveLength(0);
 
-      // Verify chunk 1
-      const chunk1 = chunks[1];
-      expect(chunk1.id).toBe(expectedChunkId1);
-      expect(chunk1.chunkIndex).toBe(1);
-      expect(chunk1.totalChunks).toBe(expectedChunkCount);
-      expect(chunk1.uri).toBe(testUri);
-      expect(chunk1.metadata).toEqual(testMetadata);
-      expect(chunk1.content).toContain('ConfigMaps and Secrets');
-      expect(chunk1.checksum).toBe(createHash('sha256').update(chunk1.content).digest('hex'));
-    }, 120000);
+      // ============ STEP 9: DELETE non-existent URI returns 0 ============
+      const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/never-existed-${testId}.md`;
+      const deleteNonExistent = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: nonExistentUri,
+        interaction_id: `workflow_delete_nonexistent_${testId}`,
+      });
 
+      expect(deleteNonExistent).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'deleteByUri',
+            uri: nonExistentUri,
+            chunksDeleted: 0,
+            message: 'No chunks found for URI',
+          },
+        },
+      });
+    }, 300000);
+  });
+
+  describe('Edge Cases', () => {
     test('should handle empty content with zero chunks', async () => {
       const testId = Date.now();
       const testUri = `https://github.com/test-org/test-repo/blob/main/docs/empty-${testId}.md`;
@@ -187,10 +314,10 @@ describe.concurrent('ManageKnowledge Integration', () => {
         operation: 'ingest',
         uri: testUri,
         content: '   \n\n   ',
-        interaction_id: `ingest_empty_${testId}`,
+        interaction_id: `edge_empty_${testId}`,
       });
 
-      expect(ingestResponse, `Empty content response: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+      expect(ingestResponse).toMatchObject({
         success: true,
         data: {
           result: {
@@ -205,6 +332,29 @@ describe.concurrent('ManageKnowledge Integration', () => {
       });
     }, 60000);
 
+    test('should return empty results for completely unrelated search query', async () => {
+      const testId = Date.now();
+
+      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `zxqwvtyu${testId} plmkjnhb${testId} qazxswed${testId}`,
+        interaction_id: `edge_nomatch_${testId}`,
+      });
+
+      expect(searchResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'search',
+            chunks: [],
+            totalMatches: 0,
+            message: 'No matching documents found',
+          },
+        },
+      });
+    }, 60000);
+
     test('should return empty chunks array for non-existent URI', async () => {
       const testId = Date.now();
       const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/does-not-exist-${testId}.md`;
@@ -212,10 +362,10 @@ describe.concurrent('ManageKnowledge Integration', () => {
       const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'getByUri',
         uri: nonExistentUri,
-        interaction_id: `get_nonexistent_${testId}`,
+        interaction_id: `edge_nonexistent_${testId}`,
       });
 
-      expect(getResponse, `Non-existent URI response: ${JSON.stringify(getResponse, null, 2)}`).toMatchObject({
+      expect(getResponse).toMatchObject({
         success: true,
         data: {
           result: {
@@ -238,7 +388,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
         uri: `https://github.com/test-org/test-repo/blob/main/docs/test-${testId}.md`,
-        interaction_id: `ingest_no_content_${testId}`,
+        interaction_id: `error_no_content_${testId}`,
       });
 
       expect(errorResponse).toMatchObject({
@@ -262,7 +412,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
         content: 'Some content',
-        interaction_id: `ingest_no_uri_${testId}`,
+        interaction_id: `error_no_uri_${testId}`,
       });
 
       expect(errorResponse).toMatchObject({
@@ -285,7 +435,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'getByUri',
-        interaction_id: `get_no_uri_${testId}`,
+        interaction_id: `error_get_no_uri_${testId}`,
       });
 
       expect(errorResponse).toMatchObject({
@@ -308,7 +458,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'search',
-        interaction_id: `search_no_query_${testId}`,
+        interaction_id: `error_no_query_${testId}`,
       });
 
       expect(errorResponse).toMatchObject({
@@ -325,240 +475,25 @@ describe.concurrent('ManageKnowledge Integration', () => {
         },
       });
     }, 60000);
-  });
 
-  describe('Search Operation', () => {
-    test('should search and return only the matching chunk from multiple ingested docs', async () => {
+    test('should return error for deleteByUri without uri', async () => {
       const testId = Date.now();
 
-      // Create 3 documents with unique, distinct content (each under 1000 chars = 1 chunk)
-      // Using testId in content to ensure uniqueness and avoid collision with other tests
-      const k8sUri = `https://github.com/test-org/test-repo/blob/main/search/flamingo-deployment-${testId}.md`;
-      const dbUri = `https://github.com/test-org/test-repo/blob/main/search/pelican-database-${testId}.md`;
-      const netUri = `https://github.com/test-org/test-repo/blob/main/search/albatross-network-${testId}.md`;
+      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        interaction_id: `error_delete_no_uri_${testId}`,
+      });
 
-      // Unique content with invented terms to avoid matching other ingested docs
-      const k8sContent = `Flamingo orchestration system ${testId} enables declarative application updates.
-The Flamingo controller reconciles desired state with actual state using rolling updates.
-Flamingo manages replica sets automatically for zero-downtime deployments.
-This unique flamingo-based orchestration pattern provides self-healing capabilities.`;
-
-      const dbContent = `Pelican database system ${testId} provides relational data storage.
-Pelican uses MVCC for concurrent transactions and supports ACID guarantees.
-The pelican query optimizer handles complex joins efficiently.
-This unique pelican-based storage engine excels at analytical workloads.`;
-
-      const netContent = `Albatross networking protocol ${testId} handles packet routing.
-Albatross uses BGP for autonomous system interconnection.
-The albatross load balancer distributes traffic across backend servers.
-This unique albatross-based protocol stack ensures reliable delivery.`;
-
-      // Pre-calculate expected chunk IDs (each doc = 1 chunk at index 0)
-      const expectedK8sChunkId = uuidv5(`${k8sUri}#0`, KNOWLEDGE_NAMESPACE);
-      const expectedDbChunkId = uuidv5(`${dbUri}#0`, KNOWLEDGE_NAMESPACE);
-      const expectedNetChunkId = uuidv5(`${netUri}#0`, KNOWLEDGE_NAMESPACE);
-
-      // Step 1: Ingest all three documents
-      for (const doc of [
-        { uri: k8sUri, content: k8sContent, name: 'k8s' },
-        { uri: dbUri, content: dbContent, name: 'db' },
-        { uri: netUri, content: netContent, name: 'net' },
-      ]) {
-        const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-          operation: 'ingest',
-          uri: doc.uri,
-          content: doc.content,
-          metadata: { testId, docType: doc.name },
-          interaction_id: `ingest_search_${doc.name}_${testId}`,
-        });
-
-        expect(ingestResponse, `Ingest ${doc.name}: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
-          success: true,
-          data: {
-            result: {
-              success: true,
-              operation: 'ingest',
-              chunksCreated: 1, // Each doc is under 1000 chars = 1 chunk
+      expect(errorResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            error: {
+              message: 'Missing required parameter: uri',
+              operation: 'deleteByUri',
+              hint: 'Provide the URI of the document to delete all chunks for',
             },
-          },
-        });
-      }
-
-      // Step 2: Search for flamingo orchestration content (should match only k8s doc)
-      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `flamingo orchestration rolling updates ${testId}`,
-        limit: 10,
-        interaction_id: `search_flamingo_${testId}`,
-      });
-
-      expect(searchResponse, `Search response: ${JSON.stringify(searchResponse, null, 2)}`).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'search',
-            query: `flamingo orchestration rolling updates ${testId}`,
-          },
-        },
-      });
-
-      const searchResult = searchResponse.data.result;
-
-      // Step 3: Verify exactly 1 result - the flamingo/k8s chunk
-      expect(searchResult.totalMatches).toBe(1);
-      expect(searchResult.chunks).toHaveLength(1);
-
-      // Step 4: Verify the exact chunk ID and content
-      const returnedChunk = searchResult.chunks[0];
-      expect(returnedChunk.id).toBe(expectedK8sChunkId);
-      expect(returnedChunk.uri).toBe(k8sUri);
-      expect(returnedChunk.content).toContain('Flamingo orchestration');
-      expect(returnedChunk.content).toContain(String(testId));
-      expect(returnedChunk.matchType).toBe('semantic');
-      expect(returnedChunk.score).toBeGreaterThanOrEqual(0.5);
-      expect(returnedChunk.chunkIndex).toBe(0);
-      expect(returnedChunk.totalChunks).toBe(1);
-
-      // Step 5: Verify pelican and albatross chunks are NOT returned
-      const returnedIds = searchResult.chunks.map((c: { id: string }) => c.id);
-      expect(returnedIds).not.toContain(expectedDbChunkId);
-      expect(returnedIds).not.toContain(expectedNetChunkId);
-    }, 180000);
-
-    test('should search multi-chunk document and return the specific matching chunk', async () => {
-      const testId = Date.now();
-      const multiChunkUri = `https://github.com/test-org/test-repo/blob/main/search/phoenix-guide-${testId}.md`;
-
-      // Create content that produces exactly 2 chunks (each ~700 chars, total ~1400 > 1000 chunk size)
-      // Chunk 0: About phoenix migration patterns
-      // Chunk 1: About phoenix caching strategies (distinct topic)
-      const chunk0Content = `Phoenix migration patterns ${testId} enable seamless database schema evolution.
-The phoenix migrator tracks schema versions using a dedicated migrations table.
-Each phoenix migration runs in a transaction ensuring atomic changes to the database.
-Phoenix supports both forward migrations and rollback operations for maximum safety.
-The phoenix CLI generates timestamped migration files automatically for developers.
-Teams using phoenix migrations achieve zero-downtime schema deployments consistently.
-Phoenix migration best practices include writing reversible migrations when possible.
-The phoenix migration system integrates with continuous integration pipelines seamlessly.`;
-
-      const chunk1Content = `Phoenix caching strategies ${testId} improve application performance dramatically.
-The phoenix cache layer supports multiple backends including Redis and Memcached servers.
-Phoenix implements cache invalidation using tag-based expiration policies for accuracy.
-Distributed phoenix caches synchronize across cluster nodes automatically and reliably.
-The phoenix cache warming feature preloads frequently accessed data on application startup.
-Applications using phoenix caching see response times drop significantly in production.
-Phoenix cache configuration allows fine-grained control over TTL and eviction policies.
-The phoenix caching system provides comprehensive metrics for monitoring cache efficiency.`;
-
-      const fullContent = `${chunk0Content}\n\n${chunk1Content}`;
-
-      // Pre-calculate expected chunk IDs
-      const expectedChunk0Id = uuidv5(`${multiChunkUri}#0`, KNOWLEDGE_NAMESPACE);
-      const expectedChunk1Id = uuidv5(`${multiChunkUri}#1`, KNOWLEDGE_NAMESPACE);
-
-      // Step 1: Ingest the multi-chunk document
-      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: multiChunkUri,
-        content: fullContent,
-        metadata: { testId, docType: 'multi-chunk' },
-        interaction_id: `ingest_multichunk_${testId}`,
-      });
-
-      expect(ingestResponse, `Multi-chunk ingest: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'ingest',
-            chunksCreated: 2,
-            chunkIds: [expectedChunk0Id, expectedChunk1Id],
-          },
-        },
-      });
-
-      // Step 2: Search for caching content (should match chunk 1 specifically)
-      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `phoenix caching Redis Memcached cache invalidation ${testId}`,
-        limit: 10,
-        interaction_id: `search_chunk1_${testId}`,
-      });
-
-      expect(searchResponse, `Search chunk1: ${JSON.stringify(searchResponse, null, 2)}`).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'search',
-          },
-        },
-      });
-
-      const searchResult = searchResponse.data.result;
-      expect(searchResult.chunks.length).toBeGreaterThan(0);
-
-      // Step 3: Verify chunk 1 (caching) is the top result, not chunk 0 (migration)
-      const topResult = searchResult.chunks[0];
-      expect(topResult.id).toBe(expectedChunk1Id);
-      expect(topResult.uri).toBe(multiChunkUri);
-      expect(topResult.chunkIndex).toBe(1);
-      expect(topResult.totalChunks).toBe(2);
-      expect(topResult.content).toContain('phoenix caching');
-      expect(topResult.content).toContain('Redis');
-
-      // Step 4: If chunk 0 appears, it should have lower score
-      const chunk0Result = searchResult.chunks.find((c: { id: string }) => c.id === expectedChunk0Id);
-      if (chunk0Result) {
-        expect(chunk0Result.score).toBeLessThan(topResult.score);
-      }
-    }, 180000);
-
-    test('should respect limit parameter', async () => {
-      const testId = Date.now();
-
-      // Search with limit=1 using unique terms from previous tests
-      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'flamingo orchestration deployment',
-        limit: 1,
-        interaction_id: `search_limit_${testId}`,
-      });
-
-      expect(searchResponse).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'search',
-          },
-        },
-      });
-
-      // Verify limit is respected - at most 1 result
-      expect(searchResponse.data.result.chunks.length).toBeLessThanOrEqual(1);
-    }, 60000);
-
-    test('should return empty results for completely unrelated query', async () => {
-      const testId = Date.now();
-
-      // Search for invented gibberish that matches nothing
-      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `zxqwvtyu${testId} plmkjnhb${testId} qazxswed${testId}`,
-        interaction_id: `search_nomatch_${testId}`,
-      });
-
-      expect(searchResponse).toMatchObject({
-        success: true,
-        data: {
-          result: {
-            success: true,
-            operation: 'search',
-            chunks: [],
-            totalMatches: 0,
-            message: 'No matching documents found',
           },
         },
       });

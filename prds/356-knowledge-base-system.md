@@ -294,6 +294,7 @@ interface KnowledgeSearchResult {
 - [x] Source filtering by uri (uriFilter parameter)
 - [x] Result includes provenance (uri, metadata, chunkIndex)
 - [x] Configurable result limit
+- [x] Configurable score threshold (scoreThreshold parameter, default 0.3)
 - [x] Integration tests for search (5 tests passing)
 - [x] Mock server fixture for search operation
 
@@ -308,10 +309,10 @@ interface KnowledgeSearchResult {
 **Goal**: Add operation to delete all chunks for a URI (enables document updates)
 
 **Success Criteria**:
-- [ ] Add `deleteByUri` operation to Zod schema
-- [ ] Delete all chunks matching URI from Qdrant
-- [ ] Integration tests for deleteByUri
-- [ ] Mock server fixture for deleteByUri operation
+- [x] Add `deleteByUri` operation to Zod schema
+- [x] Delete all chunks matching URI from Qdrant
+- [x] Integration tests for deleteByUri
+- [x] Mock server fixture for deleteByUri operation
 
 **Validation**:
 - All chunks for a URI can be deleted
@@ -898,8 +899,8 @@ interface KnowledgeSearchResult {
 - Will rely on dense vector search; can add BM25 later if needed
 
 **Next Steps**:
-- Milestone 4: Implement `deleteByUri` operation
 - Milestone 5: Implement `getChunk` operation
+- Milestone 6: Controller PRD creation
 
 ---
 
@@ -911,7 +912,7 @@ interface KnowledgeSearchResult {
 1. **Search Operation** (`src/tools/manage-knowledge.ts`)
    - Added `search` operation to Zod schema with `query`, `limit`, `uriFilter` parameters
    - `handleSearchOperation` generates query embedding and calls `vector_search` plugin
-   - Score threshold of 0.5 filters low-relevance results
+   - Configurable score threshold (default 0.3) filters low-relevance results
    - Returns `KnowledgeSearchResponse` with chunks, scores, and provenance
 
 2. **URL Format Update**
@@ -934,4 +935,37 @@ interface KnowledgeSearchResult {
 - RRF result merging - Only one vector type currently
 
 **Next Steps**:
-- Milestone 4: Implement `deleteByUri` operation
+- Milestone 5: Implement `getChunk` operation
+
+---
+
+### 2025-02-03: Milestone 4 Implementation Complete
+**Status**: In Progress (Milestone 4 done)
+
+**Completed Work**:
+
+1. **DeleteByUri Operation** (`src/tools/manage-knowledge.ts`)
+   - Added `deleteByUri` operation to Zod schema
+   - `handleDeleteByUriOperation` queries chunks by URI, then deletes each
+   - Handles edge cases: collection not found (returns 0 deleted), no chunks found
+   - Returns `DeleteByUriResponse` with `chunksDeleted` count
+
+2. **Configurable Score Threshold**
+   - Added `scoreThreshold` parameter to search operation (default: 0.3)
+   - Users can control precision vs recall based on their needs
+   - Lower values (0.2-0.3) return more results, higher values (0.5+) stricter
+
+3. **Integration Tests** (9 tests all passing)
+   - Comprehensive workflow test: Ingest → GetByUri → Search → Re-ingest (upsert) → Delete → Verify
+   - Edge cases: empty content, non-existent URI, unrelated search query
+   - Error handling for missing parameters
+
+4. **Mock Server Fixture** (`manageKnowledge-deleteByUri-success.json`)
+   - Sample response with 3 chunks deleted
+
+**Architecture**:
+- DeleteByUri uses `vector_query` to find chunks, then `vector_delete` for each
+- Consistent with plugin delegation pattern established in Milestone 1
+
+**Next Steps**:
+- Milestone 5: Implement `getChunk` operation

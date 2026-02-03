@@ -19,6 +19,7 @@ import {
   GetByUriResponse,
   KnowledgeSearchResponse,
   KnowledgeSearchResultItem,
+  DeleteByUriResponse,
 } from '../core/knowledge-types';
 
 /**
@@ -29,16 +30,16 @@ const KNOWLEDGE_COLLECTION = 'knowledge-base';
 // Tool metadata for MCP registration
 export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
 export const MANAGE_KNOWLEDGE_TOOL_DESCRIPTION =
-  'Manage the knowledge base: ingest documents, search with natural language, or retrieve chunks. ' +
+  'Manage the knowledge base: ingest documents, search with natural language, delete, or retrieve chunks. ' +
   'Use "ingest" to store organizational documentation, "search" to find relevant content semantically, ' +
-  'or "getByUri" to retrieve all chunks for a specific document.';
+  '"getByUri" to retrieve all chunks for a specific document, or "deleteByUri" to remove all chunks for a document.';
 
 // Input schema using Zod
 export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   operation: z
-    .enum(['ingest', 'getByUri', 'search'])
+    .enum(['ingest', 'getByUri', 'search', 'deleteByUri'])
     .describe(
-      'Operation to perform: "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search.'
+      'Operation to perform: "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search, "deleteByUri" to remove all chunks for a document.'
     ),
   content: z
     .string()
@@ -67,6 +68,10 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
     .string()
     .optional()
     .describe('Optional URL prefix to filter search results (e.g., "https://github.com/org/repo/").'),
+  scoreThreshold: z
+    .number()
+    .optional()
+    .describe('Minimum similarity score threshold for search results (0-1, default: 0.3). Lower values return more results.'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate.'),
 };
 
@@ -74,13 +79,14 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
  * Input type for knowledge management tool
  */
 export interface ManageKnowledgeInput {
-  operation: 'ingest' | 'getByUri' | 'search';
+  operation: 'ingest' | 'getByUri' | 'search' | 'deleteByUri';
   content?: string;
   uri?: string;
   metadata?: Record<string, unknown>;
   query?: string;
   limit?: number;
   uriFilter?: string;
+  scoreThreshold?: number;
   interaction_id?: string;
 }
 
@@ -469,7 +475,7 @@ async function handleGetByUriOperation(
 /**
  * Default score threshold for semantic search
  */
-const DEFAULT_SCORE_THRESHOLD = 0.5;
+const DEFAULT_SCORE_THRESHOLD = 0.3;
 
 /**
  * Default limit for search results
@@ -484,7 +490,7 @@ async function handleSearchOperation(
   logger: Logger,
   requestId: string
 ): Promise<unknown> {
-  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter } = args;
+  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter, scoreThreshold = DEFAULT_SCORE_THRESHOLD } = args;
 
   // Validate required parameters
   if (!query) {
@@ -517,6 +523,7 @@ async function handleSearchOperation(
     requestId,
     queryLength: query.length,
     limit,
+    scoreThreshold,
     hasUriFilter: !!uriFilter,
   });
 
@@ -528,13 +535,13 @@ async function handleSearchOperation(
     // Step 2: Build filter if uriFilter is provided
     let filter: Record<string, unknown> | undefined;
     if (uriFilter) {
-      // Use text match for URI prefix filtering
+      // Use exact value match for URI filtering
       filter = {
         must: [
           {
             key: 'uri',
             match: {
-              text: uriFilter,
+              value: uriFilter,
             },
           },
         ],
@@ -549,7 +556,7 @@ async function handleSearchOperation(
       embedding: queryEmbedding,
       limit,
       filter,
-      scoreThreshold: DEFAULT_SCORE_THRESHOLD,
+      scoreThreshold,
     });
 
     if (!searchResponse.success) {
@@ -656,6 +663,170 @@ async function handleSearchOperation(
 }
 
 /**
+ * Handle the deleteByUri operation
+ */
+async function handleDeleteByUriOperation(
+  args: ManageKnowledgeInput,
+  logger: Logger,
+  requestId: string
+): Promise<unknown> {
+  const { uri } = args;
+
+  // Validate required parameters
+  if (!uri) {
+    return createErrorResponse('Missing required parameter: uri', {
+      operation: 'deleteByUri',
+      hint: 'Provide the URI of the document to delete all chunks for',
+    });
+  }
+
+  // Check plugin availability
+  if (!isPluginInitialized()) {
+    return createErrorResponse('Plugin system not available', {
+      operation: 'deleteByUri',
+      hint: 'The agentic-tools plugin must be running for knowledge base operations',
+    });
+  }
+
+  logger.info('Starting deleteByUri operation', { requestId, uri });
+
+  try {
+    // Step 1: Query all chunks matching the URI
+    const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
+      collection: KNOWLEDGE_COLLECTION,
+      filter: {
+        must: [{ key: 'uri', match: { value: uri } }],
+      },
+      limit: 10000, // High limit to get all chunks for a document
+    });
+
+    if (!queryResponse.success) {
+      const error = queryResponse.error as { message?: string; error?: string } | undefined;
+      const errorMessage = error?.message || error?.error || 'Query failed';
+
+      // If collection doesn't exist (Not Found), return success with 0 deleted
+      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+        logger.info('Collection not found - returning success with 0 deleted', { requestId, uri });
+        const response: DeleteByUriResponse = {
+          success: true,
+          operation: 'deleteByUri',
+          uri,
+          chunksDeleted: 0,
+          message: 'No chunks found for URI',
+        };
+        return response;
+      }
+
+      logger.error('Plugin query failed', new Error(errorMessage), { requestId, uri });
+      return createErrorResponse('Failed to query chunks for deletion', {
+        operation: 'deleteByUri',
+        error: errorMessage,
+      });
+    }
+
+    // Extract results from plugin response
+    const queryResult = queryResponse.result as {
+      success: boolean;
+      data?: Array<{
+        id: string;
+        payload: Record<string, unknown>;
+      }>;
+      error?: string;
+      message: string;
+    };
+
+    if (!queryResult.success) {
+      const errorMessage = queryResult.error || queryResult.message;
+
+      // If collection doesn't exist, return success with 0 deleted
+      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+        logger.info('Collection not found - returning success with 0 deleted', { requestId, uri });
+        const response: DeleteByUriResponse = {
+          success: true,
+          operation: 'deleteByUri',
+          uri,
+          chunksDeleted: 0,
+          message: 'No chunks found for URI',
+        };
+        return response;
+      }
+
+      return createErrorResponse('Failed to query chunks for deletion', {
+        operation: 'deleteByUri',
+        error: errorMessage,
+      });
+    }
+
+    const chunksToDelete = queryResult.data || [];
+
+    // If no chunks found, return success with 0 deleted
+    if (chunksToDelete.length === 0) {
+      logger.info('No chunks found for URI', { requestId, uri });
+      const response: DeleteByUriResponse = {
+        success: true,
+        operation: 'deleteByUri',
+        uri,
+        chunksDeleted: 0,
+        message: 'No chunks found for URI',
+      };
+      return response;
+    }
+
+    // Step 2: Delete each chunk by ID
+    let deletedCount = 0;
+    for (const chunk of chunksToDelete) {
+      logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
+
+      const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
+        collection: KNOWLEDGE_COLLECTION,
+        id: chunk.id,
+      });
+
+      if (!deleteResponse.success) {
+        const error = deleteResponse.error as { message?: string } | undefined;
+        const errorMessage = error?.message || 'Delete failed';
+        logger.error('Failed to delete chunk', new Error(errorMessage), {
+          requestId,
+          chunkId: chunk.id,
+          deletedSoFar: deletedCount,
+        });
+        return createErrorResponse('Failed to delete chunk', {
+          operation: 'deleteByUri',
+          chunkId: chunk.id,
+          error: errorMessage,
+          chunksDeletedBeforeFailure: deletedCount,
+        });
+      }
+
+      deletedCount++;
+    }
+
+    logger.info('DeleteByUri operation completed', {
+      requestId,
+      uri,
+      chunksDeleted: deletedCount,
+    });
+
+    const response: DeleteByUriResponse = {
+      success: true,
+      operation: 'deleteByUri',
+      uri,
+      chunksDeleted: deletedCount,
+      message: `Successfully deleted ${deletedCount} chunks for URI`,
+    };
+
+    return response;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('DeleteByUri operation failed', error as Error, { requestId, uri });
+    return createErrorResponse('Delete operation failed', {
+      operation: 'deleteByUri',
+      error: errorMessage,
+    });
+  }
+}
+
+/**
  * Main tool handler - routes to appropriate operation handler
  */
 export async function handleManageKnowledgeTool(
@@ -680,10 +851,13 @@ export async function handleManageKnowledgeTool(
     case 'search':
       return handleSearchOperation(args, logger, requestId);
 
+    case 'deleteByUri':
+      return handleDeleteByUriOperation(args, logger, requestId);
+
     default:
       return createErrorResponse(`Unsupported operation: ${args.operation}`, {
-        supportedOperations: ['ingest', 'getByUri', 'search'],
-        hint: 'Use "ingest" to add documents, "getByUri" to retrieve chunks, or "search" for semantic search',
+        supportedOperations: ['ingest', 'getByUri', 'search', 'deleteByUri'],
+        hint: 'Use "ingest" to add documents, "getByUri" to retrieve chunks, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
       });
   }
 }
