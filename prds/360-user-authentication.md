@@ -4,7 +4,7 @@
 **Priority**: High
 **GitHub Issue**: [#360](https://github.com/vfarcic/dot-ai/issues/360)
 **Created**: 2026-01-30
-**Last Updated**: 2026-02-02
+**Last Updated**: 2026-02-03
 
 ---
 
@@ -79,10 +79,11 @@ Implement **OAuth 2.1-based authentication** following the [MCP Authorization Sp
 2. **Backward Compatible**: Single token mode continues to work unchanged
 3. **Standard OAuth Providers**: GitHub and Google as initial identity providers
 4. **Plugin-Based Architecture**: Auth implemented as tools in the agentic-tools plugin (same as kubectl tools)
-5. **Local JWT Validation**: Plugin issues JWTs, MCP server validates locally (no per-request plugin calls)
-6. **Extensible**: Users can add custom auth by deploying their own auth plugin
-7. **Audit Integration**: User identity flows through to all audit logs
-8. **Foundation for Permissions**: Provides identity that PRD #361 builds upon
+5. **Plugin as Single Source of Truth**: All auth configuration lives in the plugin - MCP has no auth config, just caches validation results
+6. **Delegated Validation**: MCP asks the plugin to validate tokens, then caches the result (no JWT parsing in MCP)
+7. **Extensible**: Users can add custom auth by deploying their own auth plugin
+8. **Audit Integration**: User identity flows through to all audit logs
+9. **Foundation for Permissions**: Provides identity that PRD #361 builds upon
 
 ## Success Criteria
 
@@ -171,31 +172,33 @@ Implement **OAuth 2.1-based authentication** following the [MCP Authorization Sp
 
 Auth is implemented as **plugin tools** in the existing agentic-tools plugin, following the same pattern as kubectl tools. This provides a unified extensibility model and keeps all built-in capabilities in a single deployment.
 
+**MCP server has zero auth logic** - it delegates all validation to the plugin and caches results.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           MCP Server                                 │
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌────────────────────────┐ │
-│  │ Auth Hook    │    │ OAuth Routes │    │ JWT Validation         │ │
-│  │ (calls       │    │ /oauth/*     │    │ (local, using          │ │
-│  │  plugin)     │    │ /.well-known │    │  public key)           │ │
+│  │ Auth Hook    │    │ OAuth Routes │    │ Token Cache            │ │
+│  │ (calls       │    │ /oauth/*     │    │ (caches plugin         │ │
+│  │  plugin)     │    │ /.well-known │    │  validation results)   │ │
 │  └──────┬───────┘    └──────┬───────┘    └────────────────────────┘ │
 │         │                   │                                        │
 └─────────┼───────────────────┼────────────────────────────────────────┘
           │                   │
           │    HTTP calls     │
-          │    (initial auth  │
-          │     only)         │
+          │    (first request │
+          │     per token)    │
           ▼                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    agentic-tools Plugin Pod                          │
 │                                                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
-│  │ kubectl      │  │ Auth Tools:  │  │ JWT Signing              │   │
-│  │ tools        │  │ - authenticate│  │ (private key)            │   │
-│  │              │  │ - getMetadata│  │                          │   │
+│  │ kubectl      │  │ Auth Tools:  │  │ JWT Signing &            │   │
+│  │ tools        │  │ - validate   │  │ Validation               │   │
+│  │              │  │ - getMetadata│  │ (private + public key)   │   │
 │  │              │  │ - exchangeCode│  │                          │   │
-│  │              │  │ - getPublicKey│  │                          │   │
+│  │              │  │ - getConfig  │  │                          │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────────┘   │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
@@ -221,10 +224,21 @@ Auth is implemented as **plugin tools** in the existing agentic-tools plugin, fo
 5. MCP calls plugin's `exchangeCode` tool → Plugin returns JWT signed with private key
 6. MCP returns JWT to client
 
-**Subsequent Requests:**
-1. Client sends request with `Authorization: Bearer <JWT>`
-2. MCP validates JWT locally using cached public key (no plugin call)
-3. Request proceeds with user context
+**Subsequent Requests (Cache-Based Validation):**
+1. Client sends request with `Authorization: Bearer <token>`
+2. MCP checks token cache:
+   - **Cache hit** → Use cached user info, proceed with user context
+   - **Cache miss** → Call plugin's `auth_validate_token` tool
+3. Plugin validates token (admin token OR JWT) and returns user info (or error)
+4. MCP caches result with TTL matching token expiry
+5. Request proceeds with user context
+
+**Why Cache-Based (not Local Validation):**
+- MCP has **literally zero auth logic** - no JWT parsing, no admin token comparison
+- Plugin is single source of truth for ALL auth decisions (admin token AND JWTs)
+- Only one plugin call per token (not per request)
+- Cache TTL ensures tokens are revalidated appropriately
+- Plugin can implement any auth strategy without MCP changes
 
 ### Core Components
 
@@ -232,26 +246,27 @@ Auth is implemented as **plugin tools** in the existing agentic-tools plugin, fo
 
 | Tool | Purpose |
 |------|---------|
-| `auth_get_public_key` | Returns public key for JWT validation (called once at startup) |
+| `auth_get_config` | Returns auth config: mode, admin_token, issuer (called once at startup) |
 | `auth_get_metadata` | Returns OAuth metadata for well-known endpoints |
 | `auth_start_oauth_flow` | Initiates OAuth flow, returns redirect URL |
 | `auth_exchange_code` | Exchanges OAuth code for JWT (issues tokens) |
 | `auth_refresh_token` | Exchanges refresh token for new access token |
-| `auth_validate_token` | Validates token and returns claims (fallback if local validation fails) |
+| `auth_validate_token` | Validates ANY token (admin token OR JWT) and returns user claims |
 
 **2. MCP Server Auth Integration (`src/interfaces/mcp.ts`)**
-- Auth hook that calls plugin tools for initial auth
-- Local JWT validation using cached public key
+- Auth hook that checks token cache, calls plugin on cache miss
+- Token cache with TTL (maps token → user info)
 - OAuth HTTP routes (`/oauth/*`) that delegate to plugin
 - Well-known endpoints that call plugin's `getMetadata`
 - 401 response with WWW-Authenticate header
 - User context propagation to tool handlers
-- Backward compatibility with single token mode
+- **Literally zero auth logic** - no JWT parsing, no admin token comparison
+- All validation delegated to plugin's `auth_validate_token`
 
 **3. JWT Token Management**
 - Plugin generates RSA/EC key pair at startup
 - Plugin issues JWTs after successful OAuth (signed with private key)
-- MCP fetches public key once, validates JWTs locally
+- Plugin validates JWTs (MCP delegates validation to plugin)
 - Short-lived access tokens (1 hour), longer refresh tokens (7 days)
 
 **4. Identity Providers (in plugin)**
@@ -272,38 +287,27 @@ Auth is implemented as **plugin tools** in the existing agentic-tools plugin, fo
 
 **MCP Server Configuration:**
 ```yaml
-# Example configuration
-auth:
-  mode: "oauth"  # "none" (admin token only) or "oauth" (admin token + OAuth)
-
-  # Admin token - always works in both modes
-  token: "shared-secret"
-
-  # For mode: "oauth"
-  # Plugin handles OAuth - just specify which plugins to use
-  plugins:
-    - "agentic-tools"  # Built-in auth (default)
-    # - "custom-ldap-auth"  # User's custom auth plugin
+# MCP config is minimal - just specifies which plugin handles auth
+plugins:
+  auth: "agentic-tools"  # Which plugin handles auth (default)
 ```
 
-**Environment Variable Overrides:**
-```bash
-DOT_AI_AUTH_MODE=oauth              # "none" | "oauth" (default: "none")
-DOT_AI_AUTH_TOKEN=xxx               # Admin token (always available)
-DOT_AI_AUTH_PLUGINS=agentic-tools   # Comma-separated plugin list (for oauth mode)
-```
+MCP has no auth configuration - all auth settings live in the plugin.
 
-**Plugin Configuration (agentic-tools plugin):**
+**Plugin Configuration (agentic-tools plugin) - Single Source of Truth:**
 ```yaml
-# Plugin's own configuration (in plugin deployment)
+# All auth configuration lives here
 auth:
+  mode: "oauth"              # "none" (admin token only) or "oauth" (admin token + OAuth)
+  admin_token: "secret"      # Admin bypass token (always works in both modes)
   issuer: "https://mcp.company.com"
 
   providers:
     github:
       client_id: "xxx"
       client_secret: "yyy"
-      allowed_orgs: ["my-company"]  # Optional: restrict to org members
+      allowed_orgs: ["my-company"]    # Optional: restrict to org members
+      allowed_users: ["vfarcic"]      # Optional: explicit user allowlist
 
     google:  # Future
       client_id: "xxx"
@@ -314,6 +318,16 @@ auth:
     access_token_ttl: "1h"
     refresh_token_ttl: "7d"
     # Signing key generated automatically by plugin
+```
+
+**Environment Variable Overrides (Plugin):**
+```bash
+DOT_AI_AUTH_MODE=oauth                    # "none" | "oauth" (default: "none")
+DOT_AI_AUTH_ADMIN_TOKEN=xxx               # Admin token
+DOT_AI_AUTH_GITHUB_CLIENT_ID=xxx          # GitHub OAuth app client ID
+DOT_AI_AUTH_GITHUB_CLIENT_SECRET=xxx      # GitHub OAuth app client secret
+DOT_AI_AUTH_GITHUB_ALLOWED_ORGS=org1,org2 # Comma-separated org list
+DOT_AI_AUTH_GITHUB_ALLOWED_USERS=user1,user2  # Comma-separated user list
 ```
 
 ### Well-Known Endpoints
@@ -376,21 +390,18 @@ No manual token configuration needed - the OAuth flow handles it.
 
 **Deliverables:**
 - [x] Auth tools in agentic-tools plugin:
-  - [x] `auth_get_public_key` - Returns public key for JWT validation
+  - [x] `auth_get_config` - Returns auth config (mode, admin_token, issuer)
   - [x] `auth_get_metadata` - Returns OAuth metadata (RFC 9728, RFC 8414)
-  - [x] `auth_validate_token` - Validates token (fallback for local validation)
+  - [x] `auth_validate_token` - Validates token and returns user claims
 - [x] MCP server integration:
-  - [x] Fetch and cache public key from plugin at startup
-  - [x] Local JWT validation using cached public key
+  - [x] Fetch auth config from plugin at startup
   - [x] Well-known endpoints (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`)
   - [x] 401 response with WWW-Authenticate header
-  - [x] Auth plugin configuration schema
-- [x] Admin token always works regardless of mode (`DOT_AI_AUTH_TOKEN`)
+- [x] Admin token always works regardless of mode
 
 **Success Criteria:**
 - MCP clients can discover auth requirements via standard endpoints
 - Endpoints return spec-compliant metadata
-- JWTs validated locally (no plugin call per request)
 - Single token mode unchanged
 
 ---
@@ -421,19 +432,36 @@ No manual token configuration needed - the OAuth flow handles it.
 
 ### Milestone 3: MCP Request Authentication
 
-**Objective**: Integrate auth into MCP request flow
+**Objective**: Integrate auth into MCP request flow using cache-based validation
 
 **Deliverables:**
 - [ ] Auth hook in MCP HTTP handler
+- [x] Token cache implementation (token → user info, with TTL)
+- [x] Cache-based validation flow:
+  - [x] Cache hit → use cached user info
+  - [x] Cache miss → call plugin's `auth_validate_token`, cache result
 - [ ] User context propagation to tool handlers
-- [ ] Mode selection via configuration (`none`, `oauth`)
-- [ ] Graceful degradation if plugin unavailable
+- [x] Fetch auth config from plugin at startup (mode, admin_token)
+- [x] Graceful degradation if plugin unavailable
+- [x] `allowed_users` support in plugin's `auth_exchange_code` tool
+- [x] Test provider for integration testing:
+  - [x] `test` provider that issues JWTs without browser flow
+  - [x] Enabled only when `DOT_AI_AUTH_TEST_MODE=true`
+  - [x] Uses same JWT signing code as GitHub provider
+  - [x] Uses same `GITHUB_ALLOWED_USERS` for access control (not separate config)
+- [x] Admin token validation moved to plugin (MCP has zero auth logic)
 
 **Success Criteria:**
 - MCP connections require valid token (in OAuth mode)
+- MCP has zero auth logic - plugin is single source of truth
+- Only one plugin call per token (cached after first validation)
 - User identity available in all tool handlers
 - Single token mode works when configured
 - Clear error messages for auth failures
+- Personal repos can use `allowed_users` for access control
+- Integration tests can obtain real JWTs without browser interaction
+
+**Note:** Integration tests not yet executed - will run later.
 
 ---
 
@@ -533,8 +561,46 @@ No manual token configuration needed - the OAuth flow handles it.
 
 ---
 
+## Decision Log
+
+### Decision 1: Plugin as Single Source of Truth for Auth Config
+- **Date**: 2026-02-03
+- **Decision**: All auth configuration (mode, admin_token, allowed_orgs, allowed_users) lives in the plugin, not MCP server
+- **Rationale**: Simplifies MCP server, keeps all auth logic in one place, easier for users to configure
+- **Impact**: MCP config reduced to just specifying which plugin handles auth; plugin config expanded to include all auth settings
+
+### Decision 2: Cache-Based Validation Instead of Local JWT Validation
+- **Date**: 2026-02-03
+- **Decision**: MCP delegates all token validation to the plugin and caches results, rather than parsing JWTs locally
+- **Rationale**: MCP has zero auth logic - it just asks the plugin "is this token valid?" and caches the answer. Simpler architecture, plugin is single source of truth.
+- **Impact**: Removed `auth_get_public_key` tool; MCP no longer needs JWT parsing; added token cache with TTL; one plugin call per token (not per request)
+
+### Decision 3: Add `allowed_users` for Personal Repos
+- **Date**: 2026-02-03
+- **Decision**: Add `allowed_users` configuration alongside `allowed_orgs` in plugin config
+- **Rationale**: `allowed_orgs` only works for GitHub organizations; personal repos (like `vfarcic/dot-ai`) need explicit user allowlisting
+- **Impact**: Plugin config gains `allowed_users` field; `auth_exchange_code` checks user against allowlist before issuing JWT
+
+### Decision 4: Move ALL Token Validation to Plugin (Including Admin Token)
+- **Date**: 2026-02-03
+- **Decision**: Plugin's `auth_validate_token` handles ALL token types - both admin tokens and JWTs. MCP has literally zero auth logic.
+- **Rationale**:
+  - Current state had admin token comparison in MCP, violating "zero auth logic" principle
+  - Plugin should be the single point that decides "is this token valid?"
+  - Simpler MCP code - just calls plugin and caches result
+  - Enables plugin to implement any auth strategy (admin token, JWT, API keys, etc.)
+- **Impact**:
+  - `auth_validate_token` checks: is this the admin token? → return admin user. Is this a valid JWT? → return user claims.
+  - MCP removes `validateAsAdminToken()` function - just calls `validateTokenWithCache()` for everything
+  - Admin token validation moves from MCP to plugin
+  - Config: `admin_token` stays in plugin config (already there)
+
+---
+
 ## Version History
 
+- **v3.4** (2026-02-03): Move ALL token validation to plugin (including admin token); MCP has literally zero auth logic
+- **v3.3** (2026-02-03): Architecture simplification - plugin as single source of truth; cache-based validation instead of local JWT; added `allowed_users` support
 - **v3.2** (2026-02-03): Completed Milestone 2 - GitHub OAuth flow with PKCE, token exchange, refresh tokens
 - **v3.1** (2026-02-02): Simplified auth modes to `none`/`oauth`; admin token always available; removed anonymous access option; completed Milestone 1 implementation
 - **v3.0** (2026-02-02): Architecture change to plugin-based auth; auth tools in agentic-tools plugin, MCP validates JWTs locally

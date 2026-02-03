@@ -3,22 +3,17 @@
  *
  * PRD #360: User Authentication & Access Control
  *
- * Authentication is ALWAYS required. Two modes are supported:
- * - none: Only admin token authentication (DOT_AI_AUTH_TOKEN)
- * - oauth: OAuth 2.1 for users, admin token also works
- *
- * The admin token (DOT_AI_AUTH_TOKEN) ALWAYS works regardless of mode:
- * - First-time setup access before OAuth is configured
- * - Emergency access if OAuth provider is down
- * - CI/CD and headless environment access
+ * MCP has ZERO auth logic - all validation is delegated to the plugin.
+ * The plugin's auth_validate_token handles both admin tokens and JWTs.
+ * MCP just calls the plugin and caches the result.
  */
 
 import { IncomingMessage } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
 import {
-  validateJWT,
+  validateTokenWithCache,
   isOAuthInitialized,
   buildWWWAuthenticateHeader,
+  getAuthConfig,
   UserContext,
 } from './auth-oauth';
 
@@ -39,7 +34,7 @@ export interface AuthResult {
   message?: string;
   /** WWW-Authenticate header value for 401 responses */
   wwwAuthenticate?: string;
-  /** User context if authenticated via OAuth */
+  /** User context if authenticated */
   user?: UserContext;
   /** Whether this is admin/token-based auth (vs user/OAuth) */
   isAdmin?: boolean;
@@ -47,8 +42,15 @@ export interface AuthResult {
 
 /**
  * Get the configured authentication mode
+ * Reads from plugin config (single source of truth), falls back to env var
  */
 export function getAuthMode(): AuthMode {
+  // Try plugin config first (single source of truth)
+  const config = getAuthConfig();
+  if (config) {
+    return config.mode;
+  }
+  // Fallback to env var (for startup before plugin is initialized)
   const mode = process.env.DOT_AI_AUTH_MODE?.toLowerCase();
   if (mode === 'oauth') {
     return 'oauth';
@@ -58,25 +60,35 @@ export function getAuthMode(): AuthMode {
 
 /**
  * Get the configured issuer URL for OAuth
+ * Reads from plugin config (single source of truth), falls back to env var
  */
 export function getAuthIssuer(): string {
+  // Try plugin config first (single source of truth)
+  const config = getAuthConfig();
+  if (config) {
+    return config.issuer;
+  }
+  // Fallback to env var (for startup before plugin is initialized)
   return process.env.DOT_AI_AUTH_ISSUER || '';
 }
 
 /**
- * Check if admin token is configured (DOT_AI_AUTH_TOKEN is set)
+ * Check if admin token is configured
+ * Reads from plugin config (single source of truth), falls back to env var
  */
 export function isAdminTokenConfigured(): boolean {
+  const config = getAuthConfig();
+  if (config) {
+    return !!config.admin_token;
+  }
   return !!process.env.DOT_AI_AUTH_TOKEN;
 }
 
 /**
  * Authenticate an incoming request
  *
- * Authentication flow:
- * 1. Admin token (DOT_AI_AUTH_TOKEN) is always checked first
- * 2. In 'oauth' mode, JWT validation is tried if admin token doesn't match
- * 3. In 'none' mode, only admin token works
+ * MCP has ZERO auth logic - all validation is delegated to the plugin.
+ * The plugin's auth_validate_token handles both admin tokens and JWTs.
  *
  * @param req - The incoming HTTP request
  * @returns AuthResult indicating if request is authorized
@@ -131,78 +143,30 @@ export async function checkAuth(req: IncomingMessage): Promise<AuthResult> {
     };
   }
 
-  // PRIORITY 1: Always check admin token first
-  const adminResult = validateAsAdminToken(token);
-  if (adminResult.authorized) {
-    return adminResult;
-  }
-
-  // PRIORITY 2: In oauth mode, try JWT validation
-  if (mode === 'oauth') {
-    if (!isOAuthInitialized()) {
-      return {
-        authorized: false,
-        message: 'OAuth authentication not initialized. Contact administrator.',
-        wwwAuthenticate: issuer ? buildWWWAuthenticateHeader(issuer) : undefined,
-      };
-    }
-
-    const jwtResult = await validateAsJWT(token, issuer);
+  // Check if auth system is initialized
+  if (!isOAuthInitialized()) {
     return {
-      ...jwtResult,
-      wwwAuthenticate: !jwtResult.authorized && issuer ? buildWWWAuthenticateHeader(issuer) : undefined,
+      authorized: false,
+      message: 'Authentication system not initialized. Contact administrator.',
+      wwwAuthenticate: issuer ? buildWWWAuthenticateHeader(issuer) : undefined,
     };
   }
 
-  // Mode is 'none' and admin token didn't match
-  return {
-    authorized: false,
-    message: 'Invalid authentication token.',
-  };
-}
-
-/**
- * Validate a token as the admin token (DOT_AI_AUTH_TOKEN)
- */
-function validateAsAdminToken(token: string): AuthResult {
-  const configuredToken = process.env.DOT_AI_AUTH_TOKEN;
-
-  if (!configuredToken) {
-    return { authorized: false, message: 'Admin token not configured.' };
-  }
-
-  // Use constant-time comparison to prevent timing attacks
-  const configuredBuffer = Buffer.from(configuredToken, 'utf8');
-  const providedBuffer = Buffer.from(token, 'utf8');
-
-  // If lengths differ, tokens don't match
-  if (configuredBuffer.length !== providedBuffer.length) {
-    // Perform a dummy comparison to maintain constant time
-    timingSafeEqual(configuredBuffer, configuredBuffer);
-    return { authorized: false, message: 'Invalid authentication token.' };
-  }
-
-  if (!timingSafeEqual(configuredBuffer, providedBuffer)) {
-    return { authorized: false, message: 'Invalid authentication token.' };
-  }
-
-  return { authorized: true, isAdmin: true };
-}
-
-/**
- * Validate a token as a JWT
- */
-async function validateAsJWT(token: string, issuer: string): Promise<AuthResult> {
-  const result = await validateJWT(token, issuer || undefined, issuer || undefined);
+  // Delegate ALL validation to plugin (admin token AND JWTs)
+  // Plugin's auth_validate_token handles both cases
+  const result = await validateTokenWithCache(token);
 
   if (!result.authorized) {
-    return result;
+    return {
+      ...result,
+      wwwAuthenticate: mode === 'oauth' && issuer ? buildWWWAuthenticateHeader(issuer) : undefined,
+    };
   }
 
   return {
     authorized: true,
     user: result.user,
-    isAdmin: false,
+    isAdmin: result.user?.provider === 'admin_token',
   };
 }
 

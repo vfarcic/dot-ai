@@ -208,6 +208,60 @@ function isUserInAllowedOrgs(userOrgs: GitHubOrg[], allowedOrgs: string[]): bool
 }
 
 /**
+ * Check if user is in the allowed users list
+ */
+function isUserInAllowedUsers(userLogin: string, allowedUsers: string[]): boolean {
+  if (allowedUsers.length === 0) {
+    return true; // No restriction
+  }
+
+  return allowedUsers.some((allowed) => allowed.toLowerCase() === userLogin.toLowerCase());
+}
+
+/**
+ * Check if user passes access control (orgs OR users allowlist)
+ * If both are configured, user must match at least one
+ */
+function checkAccessControl(
+  userLogin: string,
+  userOrgs: GitHubOrg[],
+  allowedOrgs: string[],
+  allowedUsers: string[]
+): { allowed: boolean; reason?: string } {
+  const hasOrgRestriction = allowedOrgs.length > 0;
+  const hasUserRestriction = allowedUsers.length > 0;
+
+  // No restrictions configured
+  if (!hasOrgRestriction && !hasUserRestriction) {
+    return { allowed: true };
+  }
+
+  // Check user allowlist first (more specific)
+  if (hasUserRestriction && isUserInAllowedUsers(userLogin, allowedUsers)) {
+    return { allowed: true };
+  }
+
+  // Check org allowlist
+  if (hasOrgRestriction && isUserInAllowedOrgs(userOrgs, allowedOrgs)) {
+    return { allowed: true };
+  }
+
+  // Build rejection reason
+  const reasons: string[] = [];
+  if (hasUserRestriction) {
+    reasons.push(`allowed users: ${allowedUsers.join(', ')}`);
+  }
+  if (hasOrgRestriction) {
+    reasons.push(`allowed orgs: ${allowedOrgs.join(', ')}`);
+  }
+
+  return {
+    allowed: false,
+    reason: `User '${userLogin}' is not in ${reasons.join(' or ')}`,
+  };
+}
+
+/**
  * auth_exchange_code tool
  *
  * Exchanges a GitHub authorization code for a dot-ai JWT.
@@ -292,18 +346,18 @@ export const authExchangeCode: AuthTool = {
     const emails = await fetchGitHubEmails(githubToken);
     const primaryEmail = getPrimaryEmail(emails, user.email);
 
-    // Check org membership if configured
+    // Parse allowed orgs and users from environment
     const allowedOrgsEnv = process.env.GITHUB_ALLOWED_ORGS;
-    if (allowedOrgsEnv) {
-      const allowedOrgs = allowedOrgsEnv.split(',').map((o) => o.trim()).filter((o) => o);
-      const userOrgs = await fetchGitHubOrgs(githubToken);
+    const allowedUsersEnv = process.env.GITHUB_ALLOWED_USERS;
+    const allowedOrgs = allowedOrgsEnv ? allowedOrgsEnv.split(',').map((o) => o.trim()).filter((o) => o) : [];
+    const allowedUsers = allowedUsersEnv ? allowedUsersEnv.split(',').map((u) => u.trim()).filter((u) => u) : [];
 
-      if (!isUserInAllowedOrgs(userOrgs, allowedOrgs)) {
-        return authErrorResult(
-          'access_denied',
-          `User is not a member of any allowed organization: ${allowedOrgs.join(', ')}`
-        );
-      }
+    // Check access control (orgs OR users)
+    const userOrgs = await fetchGitHubOrgs(githubToken);
+    const accessCheck = checkAccessControl(user.login, userOrgs, allowedOrgs, allowedUsers);
+
+    if (!accessCheck.allowed) {
+      return authErrorResult('access_denied', accessCheck.reason || 'Access denied');
     }
 
     // Build JWT claims

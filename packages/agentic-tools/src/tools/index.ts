@@ -46,6 +46,9 @@ import { authValidateToken } from './auth-validate-token';
 import { authStartOAuthFlow } from './auth-start-oauth-flow';
 import { authExchangeCode } from './auth-exchange-code';
 import { authRefreshToken } from './auth-refresh-token';
+// PRD #360 Milestone 3: Auth config and test provider
+import { authGetConfig } from './auth-get-config';
+import { authGetTestToken } from './auth-test-provider';
 
 /**
  * All kubectl and helm tools in a single array
@@ -83,6 +86,7 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
  *
  * Milestone 1: authGetPublicKey, authGetMetadata, authValidateToken
  * Milestone 2: authStartOAuthFlow, authExchangeCode, authRefreshToken
+ * Milestone 3: authGetConfig, authGetTestToken (plugin as single source of truth + test provider)
  */
 const ALL_AUTH_TOOLS: AuthTool[] = [
   authGetPublicKey,
@@ -92,6 +96,10 @@ const ALL_AUTH_TOOLS: AuthTool[] = [
   authStartOAuthFlow,
   authExchangeCode,
   authRefreshToken,
+  // Milestone 3: Auth config (plugin as single source of truth)
+  authGetConfig,
+  // Milestone 3: Test provider for integration testing
+  authGetTestToken,
 ];
 
 /**

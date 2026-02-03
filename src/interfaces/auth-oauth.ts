@@ -49,6 +49,8 @@ export interface OAuthAuthResult {
   authorized: boolean;
   message?: string;
   user?: UserContext;
+  /** Whether this is an admin token (vs user JWT) */
+  isAdmin?: boolean;
 }
 
 /**
@@ -70,6 +72,25 @@ export interface AuthorizationServerMetadata {
   scopes_supported: string[];
 }
 
+/**
+ * Auth configuration from plugin (single source of truth)
+ */
+export interface AuthConfig {
+  mode: 'none' | 'oauth';
+  admin_token: string;
+  issuer: string;
+  test_mode_enabled: boolean;
+}
+
+/**
+ * Cached token entry
+ */
+interface CachedTokenEntry {
+  user: UserContext;
+  expiresAt: Date;
+  isAdmin?: boolean;
+}
+
 // Module state
 let cachedPublicKey: jose.KeyLike | null = null;
 let cachedKeyKid: string | null = null;
@@ -77,8 +98,63 @@ let keyFetchedAt: Date | null = null;
 let initializationError: string | null = null;
 let logger: Logger = new ConsoleLogger('auth-oauth');
 
+// Auth config from plugin (single source of truth)
+let authConfig: AuthConfig | null = null;
+
+// Token cache: token → {user, expiresAt}
+const tokenCache = new Map<string, CachedTokenEntry>();
+
+// Cache cleanup interval (every 5 minutes)
+const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
- * Initialize OAuth authentication by fetching the public key from the auth plugin.
+ * Start periodic cache cleanup
+ */
+function startCacheCleanup(): void {
+  setInterval(() => {
+    const now = new Date();
+    let cleaned = 0;
+    for (const [token, entry] of tokenCache.entries()) {
+      if (entry.expiresAt < now) {
+        tokenCache.delete(token);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      logger.debug(`Cleaned ${cleaned} expired tokens from cache`);
+    }
+  }, CACHE_CLEANUP_INTERVAL_MS);
+}
+
+/**
+ * Fetch auth config from the plugin (single source of truth)
+ */
+async function fetchAuthConfigFromPlugin(): Promise<AuthConfig | null> {
+  try {
+    const response = await invokePluginTool('agentic-tools', 'auth_get_config', {});
+
+    if (!response.success) {
+      const errorMsg = 'error' in response ? response.error.message : 'Unknown error';
+      logger.error('Failed to fetch auth config from plugin', new Error(errorMsg));
+      return null;
+    }
+
+    const result = response.result as { success: boolean; data: string };
+    if (!result.success) {
+      logger.error('Plugin returned unsuccessful config result', new Error('Unsuccessful result'));
+      return null;
+    }
+
+    return typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching auth config', err);
+    return null;
+  }
+}
+
+/**
+ * Initialize OAuth authentication by fetching config and public key from the auth plugin.
  * Should be called once at startup after plugins are discovered.
  *
  * @param customLogger - Optional custom logger instance
@@ -97,6 +173,23 @@ export async function initializeOAuthAuth(customLogger?: Logger): Promise<boolea
   }
 
   try {
+    // Step 1: Fetch auth config from plugin (single source of truth)
+    logger.info('Fetching auth config from plugin');
+    const config = await fetchAuthConfigFromPlugin();
+
+    if (!config) {
+      initializationError = 'Failed to fetch auth config from plugin';
+      return false;
+    }
+
+    authConfig = config;
+    logger.info('Auth config loaded', {
+      mode: config.mode,
+      issuer: config.issuer,
+      testModeEnabled: config.test_mode_enabled,
+    });
+
+    // Step 2: Fetch public key for local JWT validation (optimization)
     logger.info('Fetching public key from auth plugin');
 
     const response = await invokePluginTool('agentic-tools', 'auth_get_public_key', {});
@@ -126,6 +219,9 @@ export async function initializeOAuthAuth(customLogger?: Logger): Promise<boolea
     keyFetchedAt = new Date();
     initializationError = null;
 
+    // Start cache cleanup
+    startCacheCleanup();
+
     logger.info('OAuth auth initialized successfully', {
       kid: cachedKeyKid,
       fetchedAt: keyFetchedAt.toISOString(),
@@ -144,7 +240,7 @@ export async function initializeOAuthAuth(customLogger?: Logger): Promise<boolea
  * Check if OAuth authentication is initialized and ready
  */
 export function isOAuthInitialized(): boolean {
-  return cachedPublicKey !== null;
+  return cachedPublicKey !== null && authConfig !== null;
 }
 
 /**
@@ -152,6 +248,34 @@ export function isOAuthInitialized(): boolean {
  */
 export function getOAuthInitializationError(): string | null {
   return initializationError;
+}
+
+/**
+ * Get the auth config from plugin (single source of truth)
+ */
+export function getAuthConfig(): AuthConfig | null {
+  return authConfig;
+}
+
+/**
+ * Get admin token from config (plugin is single source of truth)
+ */
+export function getAdminToken(): string | null {
+  return authConfig?.admin_token || null;
+}
+
+/**
+ * Get auth mode from config (plugin is single source of truth)
+ */
+export function getAuthModeFromConfig(): 'none' | 'oauth' {
+  return authConfig?.mode || 'none';
+}
+
+/**
+ * Get issuer from config (plugin is single source of truth)
+ */
+export function getIssuerFromConfig(): string {
+  return authConfig?.issuer || '';
 }
 
 /**
@@ -224,6 +348,105 @@ export async function validateJWT(
 }
 
 /**
+ * Validate a token using the cache (preferred method)
+ * Checks cache first, calls plugin's auth_validate_token on cache miss.
+ * MCP has zero auth logic - plugin is single source of truth.
+ *
+ * @param token - Token to validate
+ * @returns Validation result with user context if successful
+ */
+export async function validateTokenWithCache(token: string): Promise<OAuthAuthResult> {
+  // Check cache first
+  const cached = tokenCache.get(token);
+  if (cached) {
+    // Check if still valid
+    if (cached.expiresAt > new Date()) {
+      logger.debug('Token cache hit');
+      return { authorized: true, user: cached.user, isAdmin: cached.isAdmin };
+    }
+    // Expired - remove from cache
+    tokenCache.delete(token);
+    logger.debug('Token cache expired, removing');
+  }
+
+  // Cache miss - call plugin to validate
+  logger.debug('Token cache miss, calling plugin');
+
+  if (!isPluginInitialized()) {
+    return {
+      authorized: false,
+      message: 'Plugin system not initialized',
+    };
+  }
+
+  try {
+    const issuer = authConfig?.issuer || '';
+    const response = await invokePluginTool('agentic-tools', 'auth_validate_token', {
+      token,
+      issuer,
+      audience: issuer,
+    });
+
+    if (!response.success) {
+      const errorMsg = 'error' in response ? response.error.message : 'Unknown error';
+      return {
+        authorized: false,
+        message: `Token validation failed: ${errorMsg}`,
+      };
+    }
+
+    const result = response.result as { success: boolean; data: string; error?: string };
+    if (!result.success) {
+      return {
+        authorized: false,
+        message: result.error || 'Token validation failed',
+      };
+    }
+
+    // Parse the validation result
+    const validationData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+
+    // Plugin returns { valid, claims, isAdmin, error }
+    if (!validationData.valid) {
+      return {
+        authorized: false,
+        message: validationData.error || 'Token validation failed',
+      };
+    }
+
+    // Extract user context from claims
+    const claims = validationData.claims || validationData;
+    const user: UserContext = {
+      id: claims.sub,
+      name: claims.name,
+      email: claims.email,
+      provider: claims.provider,
+      providerId: claims.provider_id,
+      scopes: claims.scope ? claims.scope.split(' ') : undefined,
+    };
+
+    const isAdmin = validationData.isAdmin === true;
+
+    // Cache the result - use exp claim for TTL, default to 1 hour
+    const expiresAt = claims.exp
+      ? new Date(claims.exp * 1000)
+      : new Date(Date.now() + 3600 * 1000);
+
+    tokenCache.set(token, { user, expiresAt, isAdmin });
+    logger.debug('Token validated and cached', { userId: user.id, isAdmin, expiresAt: expiresAt.toISOString() });
+
+    return { authorized: true, user, isAdmin };
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error validating token with plugin', err);
+    return {
+      authorized: false,
+      message: `Token validation error: ${err.message}`,
+    };
+  }
+}
+
+/**
  * Fetch OAuth metadata from the auth plugin
  *
  * @param type - Type of metadata to fetch ('protected-resource' or 'authorization-server')
@@ -286,4 +509,6 @@ export function resetOAuthAuth(): void {
   cachedKeyKid = null;
   keyFetchedAt = null;
   initializationError = null;
+  authConfig = null;
+  tokenCache.clear();
 }
