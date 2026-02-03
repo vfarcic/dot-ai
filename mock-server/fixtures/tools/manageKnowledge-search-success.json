@@ -7,7 +7,7 @@
       "content": "Kubernetes deployments allow you to declaratively update applications. You describe a desired state in a Deployment, and the controller changes the actual state to match.",
       "score": 0.92,
       "matchType": "semantic",
-      "uri": "git://acme/platform/docs/deployment-guide.md",
+      "uri": "https://github.com/acme/platform/blob/main/docs/deployment-guide.md",
       "metadata": {
         "source": "platform-docs",
         "category": "kubernetes"
@@ -20,7 +20,7 @@
       "content": "StatefulSets are used for stateful applications that require stable network identifiers. Each pod in a StatefulSet has a persistent identifier maintained across rescheduling.",
       "score": 0.87,
       "matchType": "semantic",
-      "uri": "git://acme/platform/docs/deployment-guide.md",
+      "uri": "https://github.com/acme/platform/blob/main/docs/deployment-guide.md",
       "metadata": {
         "source": "platform-docs",
         "category": "kubernetes"
@@ -33,7 +33,7 @@
       "content": "ConfigMaps allow you to decouple configuration from container images. This separation enables portable and reusable application configurations.",
       "score": 0.78,
       "matchType": "semantic",
-      "uri": "git://acme/platform/docs/config-guide.md",
+      "uri": "https://github.com/acme/platform/blob/main/docs/config-guide.md",
       "metadata": {
         "source": "platform-docs",
         "category": "kubernetes"

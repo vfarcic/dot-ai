@@ -133,7 +133,7 @@ All MCP tools are automatically exposed via HTTP at `POST /api/v1/tools/:toolNam
 # Ingest a document
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
-  -d '{"operation": "ingest", "uri": "git://acme/platform/docs/guide.md", "content": "..."}'
+  -d '{"operation": "ingest", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md", "content": "..."}'
 
 # Search the knowledge base
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
@@ -143,7 +143,7 @@ curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
 # Delete all chunks for a URI (for updates: delete then re-ingest)
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
   -H "Content-Type: application/json" \
-  -d '{"operation": "deleteByUri", "uri": "git://acme/platform/docs/guide.md"}'
+  -d '{"operation": "deleteByUri", "uri": "https://github.com/acme/platform/blob/main/docs/guide.md"}'
 
 # Get a specific chunk
 curl -X POST http://localhost:3456/api/v1/tools/manageKnowledge \
@@ -165,7 +165,7 @@ interface ManageKnowledgeParams {
 
   // For ingest
   content?: string;
-  uri?: string;                    // Required for ingest - full URI (e.g., 'git://org/repo/docs/guide.md')
+  uri?: string;                    // Required for ingest - full URL (e.g., 'https://github.com/org/repo/blob/main/docs/guide.md')
   metadata?: Record<string, any>;  // Optional additional metadata
 
   // For search
@@ -186,7 +186,7 @@ interface ManageKnowledgeParams {
 interface KnowledgeChunk {
   id: string;                        // Deterministic UUID v5 from uri#chunkIndex
   content: string;                   // Chunk text
-  uri: string;                       // Full URI (e.g., 'git://org/repo/docs/guide.md')
+  uri: string;                       // Full URL (e.g., 'https://github.com/org/repo/blob/main/docs/guide.md')
   metadata: Record<string, any>;     // Optional source-specific metadata
 
   // Change tracking
@@ -511,10 +511,10 @@ interface KnowledgeSearchResult {
     - **Impact**: Renamed `deleteBySource` to `deleteByUri`. Removed `sourceId` from schema.
     - **Date**: 2025-02-02
 
-17. **URI Format**: Should URIs be short paths or full URIs?
-    - **Decision**: Full URIs required (e.g., `git://org/repo/docs/guide.md`)
-    - **Rationale**: Globally unique, self-describing, no collisions across different repos/sources. Controller knows full context and constructs complete URI.
-    - **Examples**: `git://acme/platform/docs/guide.md`, `slack://workspace-id/channel-id`, `confluence://space-key/page-id`
+17. **URI Format**: Should URIs be short paths or full URLs?
+    - **Decision**: Full clickable URLs required (e.g., `https://github.com/org/repo/blob/main/docs/guide.md`)
+    - **Rationale**: Globally unique, self-describing, directly clickable in search results. Controller constructs complete URL including host and branch.
+    - **Examples**: `https://github.com/acme/platform/blob/main/docs/guide.md`, `https://slack.com/archives/C123/p456`, `https://confluence.acme.com/wiki/spaces/PLAT/pages/123`
     - **Date**: 2025-02-02
 
 18. **Chunk ID Generation**: How to generate chunk IDs?
@@ -792,7 +792,7 @@ interface KnowledgeSearchResult {
 1. **Simplified Identifier Model**
    - Single `uri` field replaces separate `sourceId` + `uri`
    - URI is the unique identifier for source documents
-   - Full URIs required (e.g., `git://org/repo/docs/guide.md`)
+   - Full clickable URLs required (e.g., `https://github.com/org/repo/blob/main/docs/guide.md`)
    - Renamed `deleteBySource` → `deleteByUri`
 
 2. **Deterministic Chunk IDs**

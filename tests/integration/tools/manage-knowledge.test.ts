@@ -26,7 +26,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
   describe('Ingest and Retrieve Workflow', () => {
     test('should ingest single-chunk document and retrieve with exact values', async () => {
       const testId = Date.now();
-      const testUri = `git://test/docs/single-chunk-${testId}.md`;
+      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/single-chunk-${testId}.md`;
 
       // Content under 1000 chars = exactly 1 chunk
       const testContent = 'This is a short test document for the knowledge base integration test.';
@@ -96,7 +96,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
     test('should ingest multi-chunk document and retrieve with exact values', async () => {
       const testId = Date.now();
-      const testUri = `git://test/docs/multi-chunk-${testId}.md`;
+      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/multi-chunk-${testId}.md`;
       const testMetadata = { source: 'integration-test', testId };
 
       // Two meaningful paragraphs, each ~500 chars, separated by \n\n
@@ -181,7 +181,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
     test('should handle empty content with zero chunks', async () => {
       const testId = Date.now();
-      const testUri = `git://test/docs/empty-${testId}.md`;
+      const testUri = `https://github.com/test-org/test-repo/blob/main/docs/empty-${testId}.md`;
 
       const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
@@ -207,7 +207,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
     test('should return empty chunks array for non-existent URI', async () => {
       const testId = Date.now();
-      const nonExistentUri = `git://test/docs/does-not-exist-${testId}.md`;
+      const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/does-not-exist-${testId}.md`;
 
       const getResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'getByUri',
@@ -237,7 +237,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
-        uri: `git://test/docs/test-${testId}.md`,
+        uri: `https://github.com/test-org/test-repo/blob/main/docs/test-${testId}.md`,
         interaction_id: `ingest_no_content_${testId}`,
       });
 
@@ -273,7 +273,7 @@ describe.concurrent('ManageKnowledge Integration', () => {
             error: {
               message: 'Missing required parameter: uri',
               operation: 'ingest',
-              hint: 'Provide the full URI identifying the document (e.g., git://org/repo/docs/guide.md)',
+              hint: 'Provide the full URL identifying the document (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
             },
           },
         },
@@ -333,9 +333,9 @@ describe.concurrent('ManageKnowledge Integration', () => {
 
       // Create 3 documents with unique, distinct content (each under 1000 chars = 1 chunk)
       // Using testId in content to ensure uniqueness and avoid collision with other tests
-      const k8sUri = `git://test/search/flamingo-deployment-${testId}.md`;
-      const dbUri = `git://test/search/pelican-database-${testId}.md`;
-      const netUri = `git://test/search/albatross-network-${testId}.md`;
+      const k8sUri = `https://github.com/test-org/test-repo/blob/main/search/flamingo-deployment-${testId}.md`;
+      const dbUri = `https://github.com/test-org/test-repo/blob/main/search/pelican-database-${testId}.md`;
+      const netUri = `https://github.com/test-org/test-repo/blob/main/search/albatross-network-${testId}.md`;
 
       // Unique content with invented terms to avoid matching other ingested docs
       const k8sContent = `Flamingo orchestration system ${testId} enables declarative application updates.
@@ -428,24 +428,28 @@ This unique albatross-based protocol stack ensures reliable delivery.`;
 
     test('should search multi-chunk document and return the specific matching chunk', async () => {
       const testId = Date.now();
-      const multiChunkUri = `git://test/search/phoenix-guide-${testId}.md`;
+      const multiChunkUri = `https://github.com/test-org/test-repo/blob/main/search/phoenix-guide-${testId}.md`;
 
-      // Create content that produces exactly 2 chunks (each ~600 chars, total ~1200 > 1000 chunk size)
+      // Create content that produces exactly 2 chunks (each ~700 chars, total ~1400 > 1000 chunk size)
       // Chunk 0: About phoenix migration patterns
       // Chunk 1: About phoenix caching strategies (distinct topic)
       const chunk0Content = `Phoenix migration patterns ${testId} enable seamless database schema evolution.
 The phoenix migrator tracks schema versions using a dedicated migrations table.
-Each phoenix migration runs in a transaction ensuring atomic changes.
-Phoenix supports both forward migrations and rollback operations for safety.
-The phoenix CLI generates timestamped migration files automatically.
-Teams using phoenix migrations achieve zero-downtime schema deployments.`;
+Each phoenix migration runs in a transaction ensuring atomic changes to the database.
+Phoenix supports both forward migrations and rollback operations for maximum safety.
+The phoenix CLI generates timestamped migration files automatically for developers.
+Teams using phoenix migrations achieve zero-downtime schema deployments consistently.
+Phoenix migration best practices include writing reversible migrations when possible.
+The phoenix migration system integrates with continuous integration pipelines seamlessly.`;
 
       const chunk1Content = `Phoenix caching strategies ${testId} improve application performance dramatically.
-The phoenix cache layer supports multiple backends including Redis and Memcached.
-Phoenix implements cache invalidation using tag-based expiration policies.
-Distributed phoenix caches synchronize across cluster nodes automatically.
-The phoenix cache warming feature preloads frequently accessed data on startup.
-Applications using phoenix caching see response times drop significantly.`;
+The phoenix cache layer supports multiple backends including Redis and Memcached servers.
+Phoenix implements cache invalidation using tag-based expiration policies for accuracy.
+Distributed phoenix caches synchronize across cluster nodes automatically and reliably.
+The phoenix cache warming feature preloads frequently accessed data on application startup.
+Applications using phoenix caching see response times drop significantly in production.
+Phoenix cache configuration allows fine-grained control over TTL and eviction policies.
+The phoenix caching system provides comprehensive metrics for monitoring cache efficiency.`;
 
       const fullContent = `${chunk0Content}\n\n${chunk1Content}`;
 

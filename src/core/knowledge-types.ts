@@ -20,7 +20,7 @@ export interface KnowledgeChunk {
   /** Chunk text content */
   content: string;
 
-  /** Full URI identifying the source document (e.g., 'git://org/repo/docs/guide.md') */
+  /** Full URL identifying the source document (e.g., 'https://github.com/org/repo/blob/main/docs/guide.md') */
   uri: string;
 
   /** Optional source-specific metadata */

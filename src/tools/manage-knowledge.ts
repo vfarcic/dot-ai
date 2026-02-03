@@ -48,8 +48,8 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
     .string()
     .optional()
     .describe(
-      'Full URI identifying the document (required for ingest and getByUri). ' +
-        'E.g., git://org/repo/docs/guide.md'
+      'Full URL identifying the document (required for ingest and getByUri). ' +
+        'E.g., https://github.com/org/repo/blob/main/docs/guide.md'
     ),
   metadata: z
     .record(z.string(), z.unknown())
@@ -66,7 +66,7 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   uriFilter: z
     .string()
     .optional()
-    .describe('Optional URI prefix to filter search results (e.g., "git://org/repo/").'),
+    .describe('Optional URL prefix to filter search results (e.g., "https://github.com/org/repo/").'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate.'),
 };
 
@@ -125,7 +125,7 @@ async function handleIngestOperation(
   if (!uri) {
     return createErrorResponse('Missing required parameter: uri', {
       operation: 'ingest',
-      hint: 'Provide the full URI identifying the document (e.g., git://org/repo/docs/guide.md)',
+      hint: 'Provide the full URL identifying the document (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
     });
   }
 
