@@ -351,6 +351,23 @@ interface KnowledgeSearchResult {
 
 ---
 
+### Milestone 7: Documentation
+**Goal**: Create user-facing documentation after controller integration is validated
+
+**Success Criteria**:
+- [ ] User guide for knowledge base ingestion and search
+- [ ] API reference with examples for all operations (ingest, search, getByUri, deleteByUri, getChunk)
+- [ ] Architecture overview showing MCP server + controller interaction
+- [ ] Troubleshooting guide for common issues
+
+**Validation**:
+- Documentation tested against working end-to-end system
+- Examples verified to work with real API
+
+**Note**: This milestone intentionally follows controller integration to ensure documentation reflects validated, working functionality.
+
+---
+
 ---
 
 ## Success Criteria
