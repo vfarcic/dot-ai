@@ -461,7 +461,7 @@ No manual token configuration needed - the OAuth flow handles it.
 - Personal repos can use `allowed_users` for access control
 - Integration tests can obtain real JWTs without browser interaction
 
-**Note:** Integration tests not yet executed - will run later.
+**Note:** Helm chart updated with auth configuration (`auth.testMode`, `auth.github.allowedUsers`, `auth.github.allowedOrgs`). Integration tests written (`auth-test-provider.test.ts`) but not yet executed.
 
 ---
 

@@ -69,6 +69,49 @@ spec:
         {{- /* PRD #359: agentic-tools needs Qdrant URL for vector operations */}}
         - name: QDRANT_URL
           value: {{ if $.Values.qdrant.enabled }}"http://{{ $.Release.Name }}-qdrant.{{ $.Release.Namespace }}.svc.cluster.local:6333"{{ else }}{{ $.Values.qdrant.external.url | quote }}{{ end }}
+        {{- /* PRD #360: Auth settings - plugin is single source of truth for auth */}}
+        - name: DOT_AI_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secrets.name }}
+              key: {{ $.Values.secrets.auth.keyName }}
+              optional: true
+        {{- with $.Values.auth }}
+        {{- if .mode }}
+        - name: DOT_AI_AUTH_MODE
+          value: {{ .mode | quote }}
+        {{- end }}
+        {{- if .issuer }}
+        - name: DOT_AI_AUTH_ISSUER
+          value: {{ .issuer | quote }}
+        {{- end }}
+        {{- if .testMode }}
+        - name: DOT_AI_AUTH_TEST_MODE
+          value: "true"
+        {{- end }}
+        {{- with .github }}
+        {{- if .clientId }}
+        - name: GITHUB_CLIENT_ID
+          value: {{ .clientId | quote }}
+        {{- end }}
+        {{- if .clientSecretKey }}
+        - name: GITHUB_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secrets.name }}
+              key: {{ .clientSecretKey }}
+              optional: true
+        {{- end }}
+        {{- if .allowedOrgs }}
+        - name: GITHUB_ALLOWED_ORGS
+          value: {{ .allowedOrgs | quote }}
+        {{- end }}
+        {{- if .allowedUsers }}
+        - name: GITHUB_ALLOWED_USERS
+          value: {{ .allowedUsers | quote }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         {{- end }}
         {{- with $config.env }}
           {{- toYaml . | nindent 10 }}
