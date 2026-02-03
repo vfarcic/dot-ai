@@ -317,6 +317,10 @@ export class RestApiRouter {
       // OAuth well-known endpoints (PRD #360)
       'GET:/.well-known/oauth-protected-resource': () => this.handleProtectedResourceMetadata(req, res, requestId),
       'GET:/.well-known/oauth-authorization-server': () => this.handleAuthorizationServerMetadata(req, res, requestId),
+      // OAuth flow endpoints (PRD #360 Milestone 2)
+      'GET:/oauth/authorize': () => this.handleOAuthAuthorize(req, res, requestId, searchParams),
+      'GET:/oauth/callback': () => this.handleOAuthCallback(req, res, requestId, searchParams),
+      'POST:/oauth/token': () => this.handleOAuthToken(req, res, requestId, body),
       // Tool endpoints
       'GET:/api/v1/tools': () => this.handleToolDiscovery(req, res, requestId, searchParams),
       'POST:/api/v1/tools/:toolName': () => this.handleToolExecution(req, res, requestId, params.toolName, body, startTime),
@@ -628,6 +632,324 @@ export class RestApiRouter {
     const host = req.headers.host || 'localhost';
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     return `${protocol}://${host}`;
+  }
+
+  // ==========================================================================
+  // OAuth Flow Handlers (PRD #360 Milestone 2)
+  // ==========================================================================
+
+  /**
+   * Handle OAuth authorize request
+   * Initiates the OAuth flow by redirecting to GitHub
+   */
+  private async handleOAuthAuthorize(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing OAuth authorize request', { requestId });
+
+      // Extract and validate required parameters
+      const responseType = searchParams.get('response_type');
+      const redirectUri = searchParams.get('redirect_uri');
+      const state = searchParams.get('state');
+      const codeChallenge = searchParams.get('code_challenge');
+      const codeChallengeMethod = searchParams.get('code_challenge_method');
+      const scope = searchParams.get('scope') || undefined;
+
+      // Validate required parameters
+      if (responseType !== 'code') {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'response_type must be "code"');
+        return;
+      }
+
+      if (!redirectUri) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'redirect_uri is required');
+        return;
+      }
+
+      if (!state) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'state is required');
+        return;
+      }
+
+      if (!codeChallenge) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'code_challenge is required');
+        return;
+      }
+
+      if (codeChallengeMethod !== 'S256') {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'code_challenge_method must be "S256"');
+        return;
+      }
+
+      // Check if plugin is available
+      if (!isPluginInitialized()) {
+        await this.sendOAuthError(res, requestId, 'server_error', 'OAuth service unavailable');
+        return;
+      }
+
+      // Get issuer URL
+      const issuer = this.getIssuerUrl(req);
+
+      // Call plugin's auth_start_oauth_flow tool
+      const response = await invokePluginTool('agentic-tools', 'auth_start_oauth_flow', {
+        redirect_uri: redirectUri,
+        scope,
+        issuer,
+      });
+
+      if (!response.success) {
+        const errorMsg = 'error' in response ? response.error.message : 'Unknown error';
+        this.logger.error('Failed to start OAuth flow', new Error(errorMsg), { requestId });
+        await this.sendOAuthError(res, requestId, 'server_error', errorMsg);
+        return;
+      }
+
+      const result = response.result as { success: boolean; data: string; error?: string; message?: string };
+      if (!result.success) {
+        await this.sendOAuthError(res, requestId, 'server_error', result.message || result.error || 'Failed to start OAuth flow');
+        return;
+      }
+
+      const flowData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+      const authorizationUrl = flowData.authorization_url;
+
+      if (!authorizationUrl) {
+        await this.sendOAuthError(res, requestId, 'server_error', 'No authorization URL returned');
+        return;
+      }
+
+      // Redirect to GitHub
+      this.logger.info('Redirecting to GitHub authorization', { requestId });
+      res.writeHead(302, { Location: authorizationUrl });
+      res.end();
+    } catch (error) {
+      this.logger.error('OAuth authorize failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+      await this.sendOAuthError(res, requestId, 'server_error', 'Internal server error');
+    }
+  }
+
+  /**
+   * Handle OAuth callback from GitHub
+   * Exchanges the authorization code for tokens
+   */
+  private async handleOAuthCallback(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing OAuth callback', { requestId });
+
+      // Check for error from GitHub
+      const error = searchParams.get('error');
+      if (error) {
+        const errorDescription = searchParams.get('error_description') || error;
+        this.logger.warn('OAuth callback received error from GitHub', { requestId, error, errorDescription });
+        await this.sendOAuthError(res, requestId, error, errorDescription);
+        return;
+      }
+
+      // Extract required parameters
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+
+      if (!code) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'code is required');
+        return;
+      }
+
+      if (!state) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'state is required');
+        return;
+      }
+
+      // Check if plugin is available
+      if (!isPluginInitialized()) {
+        await this.sendOAuthError(res, requestId, 'server_error', 'OAuth service unavailable');
+        return;
+      }
+
+      // Get the redirect_uri from the request (needed to match original)
+      const issuer = this.getIssuerUrl(req);
+      const redirectUri = `${issuer}/oauth/callback`;
+
+      // Call plugin's auth_exchange_code tool
+      const response = await invokePluginTool('agentic-tools', 'auth_exchange_code', {
+        code,
+        state,
+        redirect_uri: redirectUri,
+      });
+
+      if (!response.success) {
+        const errorMsg = 'error' in response ? response.error.message : 'Unknown error';
+        this.logger.error('Failed to exchange code', new Error(errorMsg), { requestId });
+        await this.sendOAuthError(res, requestId, 'invalid_grant', errorMsg);
+        return;
+      }
+
+      const result = response.result as { success: boolean; data: string; error?: string; message?: string };
+      if (!result.success) {
+        await this.sendOAuthError(res, requestId, result.error || 'invalid_grant', result.message || 'Failed to exchange code');
+        return;
+      }
+
+      const tokenData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+
+      // Return tokens as JSON (MCP clients will capture this)
+      this.logger.info('OAuth callback successful, returning tokens', { requestId });
+      await this.sendJsonResponse(res, HttpStatus.OK, tokenData);
+    } catch (error) {
+      this.logger.error('OAuth callback failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+      await this.sendOAuthError(res, requestId, 'server_error', 'Internal server error');
+    }
+  }
+
+  /**
+   * Handle OAuth token request
+   * Exchanges authorization code or refresh token for access token
+   */
+  private async handleOAuthToken(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing OAuth token request', { requestId });
+
+      // Validate body
+      if (!body || typeof body !== 'object') {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'Request body is required');
+        return;
+      }
+
+      const tokenRequest = body as Record<string, unknown>;
+      const grantType = tokenRequest.grant_type as string;
+
+      if (!grantType) {
+        await this.sendOAuthError(res, requestId, 'invalid_request', 'grant_type is required');
+        return;
+      }
+
+      // Check if plugin is available
+      if (!isPluginInitialized()) {
+        await this.sendOAuthError(res, requestId, 'server_error', 'OAuth service unavailable');
+        return;
+      }
+
+      let response;
+
+      if (grantType === 'authorization_code') {
+        // Exchange authorization code
+        const code = tokenRequest.code as string;
+        const redirectUri = tokenRequest.redirect_uri as string;
+        const codeVerifier = tokenRequest.code_verifier as string;
+
+        if (!code || !redirectUri || !codeVerifier) {
+          await this.sendOAuthError(res, requestId, 'invalid_request', 'code, redirect_uri, and code_verifier are required');
+          return;
+        }
+
+        // For /oauth/token, we need to look up the state from the code
+        // Since we don't have state here, we'll use the code_verifier for PKCE validation
+        // The plugin will validate this against the stored flow state
+
+        // Note: In a standard OAuth flow, the state is only used during the browser redirect.
+        // For /oauth/token, we rely on the code and code_verifier for security.
+        // We need to pass state to the plugin - but we don't have it here.
+        // The plugin should have stored the state when it created the flow.
+        // For now, we'll need the client to pass the state or we look it up differently.
+
+        // Actually, for /oauth/token with authorization_code grant, the state was already
+        // validated during /oauth/callback. This endpoint is for clients that want to
+        // exchange the code themselves rather than through the callback redirect.
+
+        // For this to work, we need to either:
+        // 1. Have the client pass the state
+        // 2. Or modify the flow to allow code exchange without state
+
+        // For MCP clients, they typically go through /oauth/callback which handles the state.
+        // The /oauth/token endpoint is more for direct API usage.
+
+        // Let's require state for now to maintain security
+        const state = tokenRequest.state as string;
+        if (!state) {
+          await this.sendOAuthError(res, requestId, 'invalid_request', 'state is required for authorization_code grant');
+          return;
+        }
+
+        response = await invokePluginTool('agentic-tools', 'auth_exchange_code', {
+          code,
+          state,
+          redirect_uri: redirectUri,
+        });
+      } else if (grantType === 'refresh_token') {
+        // Exchange refresh token
+        const refreshToken = tokenRequest.refresh_token as string;
+        const scope = tokenRequest.scope as string | undefined;
+
+        if (!refreshToken) {
+          await this.sendOAuthError(res, requestId, 'invalid_request', 'refresh_token is required');
+          return;
+        }
+
+        response = await invokePluginTool('agentic-tools', 'auth_refresh_token', {
+          refresh_token: refreshToken,
+          scope,
+        });
+      } else {
+        await this.sendOAuthError(res, requestId, 'unsupported_grant_type', `Unsupported grant type: ${grantType}`);
+        return;
+      }
+
+      if (!response.success) {
+        const errorMsg = 'error' in response ? response.error.message : 'Unknown error';
+        this.logger.error('Token request failed', new Error(errorMsg), { requestId, grantType });
+        await this.sendOAuthError(res, requestId, 'invalid_grant', errorMsg);
+        return;
+      }
+
+      const result = response.result as { success: boolean; data: string; error?: string; message?: string };
+      if (!result.success) {
+        await this.sendOAuthError(res, requestId, result.error || 'invalid_grant', result.message || 'Token request failed');
+        return;
+      }
+
+      const tokenData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+
+      this.logger.info('Token request successful', { requestId, grantType });
+      await this.sendJsonResponse(res, HttpStatus.OK, tokenData);
+    } catch (error) {
+      this.logger.error('Token request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+      await this.sendOAuthError(res, requestId, 'server_error', 'Internal server error');
+    }
+  }
+
+  /**
+   * Send OAuth error response
+   */
+  private async sendOAuthError(
+    res: ServerResponse,
+    requestId: string,
+    error: string,
+    errorDescription: string
+  ): Promise<void> {
+    this.logger.warn('OAuth error', { requestId, error, errorDescription });
+    await this.sendJsonResponse(res, HttpStatus.BAD_REQUEST, {
+      error,
+      error_description: errorDescription,
+    });
   }
 
   /**
@@ -2030,7 +2352,19 @@ export class RestApiRouter {
    * Check if the given path matches the REST API pattern
    */
   isApiRequest(pathname: string): boolean {
-    return pathname.startsWith(`${this.config.basePath}/${this.config.version}`);
+    // Standard REST API endpoints
+    if (pathname.startsWith(`${this.config.basePath}/${this.config.version}`)) {
+      return true;
+    }
+    // OAuth well-known endpoints (PRD #360)
+    if (pathname.startsWith('/.well-known/oauth')) {
+      return true;
+    }
+    // OAuth flow endpoints (PRD #360 Milestone 2)
+    if (pathname.startsWith('/oauth/')) {
+      return true;
+    }
+    return false;
   }
 
   /**

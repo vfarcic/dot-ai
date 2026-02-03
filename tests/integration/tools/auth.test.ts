@@ -117,7 +117,7 @@ describe.concurrent('Authentication Integration Tests', () => {
       expect(response.success).toBe(true);
       expect(response.data).toMatchObject({
         result: expect.objectContaining({
-          success: true,
+          status: 'success',
         }),
         tool: 'version',
       });
@@ -190,6 +190,8 @@ describe.concurrent('Authentication Integration Tests', () => {
     });
 
     test('should return 401 for empty bearer token', async () => {
+      // Note: "Bearer " with trailing space gets trimmed to "Bearer"
+      // which then fails format validation (no space separator)
       const emptyTokenClient = new HttpRestApiClient({
         headers: {
           'Authorization': 'Bearer ',
@@ -201,7 +203,7 @@ describe.concurrent('Authentication Integration Tests', () => {
       expect(response.success).toBe(false);
       expect(response.error).toMatchObject({
         code: 'UNAUTHORIZED',
-        message: expect.stringContaining('empty'),
+        message: expect.stringContaining('Expected: Bearer'),
       });
     });
   });

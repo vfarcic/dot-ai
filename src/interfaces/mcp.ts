@@ -575,9 +575,11 @@ export class MCPServer {
         // Skip authentication for public endpoints:
         // - /api/v1/openapi - OpenAPI specification (public documentation)
         // - /.well-known/* - OAuth discovery endpoints (RFC 9728, RFC 8414)
+        // - /oauth/* - OAuth flow endpoints (PRD #360 Milestone 2)
         const isPublicEndpoint =
           req.url?.startsWith('/api/v1/openapi') ||
-          req.url?.startsWith('/.well-known/');
+          req.url?.startsWith('/.well-known/') ||
+          req.url?.startsWith('/oauth/');
 
         if (!isPublicEndpoint) {
           const authResult = await checkAuth(req);

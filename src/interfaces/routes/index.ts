@@ -14,6 +14,12 @@ import {
   ProtectedResourceMetadataSchema,
   AuthorizationServerMetadataSchema,
   AuthErrorResponseSchema,
+  // OAuth flow schemas (PRD #360 Milestone 2)
+  OAuthAuthorizeQuerySchema,
+  OAuthCallbackQuerySchema,
+  OAuthTokenRequestSchema,
+  OAuthTokenResponseSchema,
+  OAuthErrorResponseSchema,
   // Tool schemas
   ToolDiscoveryResponseSchema,
   ToolExecutionResponseSchema,
@@ -161,6 +167,52 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
     response: AuthorizationServerMetadataSchema,
     errorResponses: {
       500: AuthErrorResponseSchema,
+    },
+  },
+
+  // ============================================
+  // OAuth Flow Endpoints (PRD #360 Milestone 2)
+  // These endpoints are PUBLIC - no authentication required
+  // ============================================
+  {
+    path: '/oauth/authorize',
+    method: 'GET',
+    description: 'Initiates the OAuth 2.1 authorization flow. Redirects the user to GitHub for authentication. Requires PKCE parameters.',
+    tags: ['Auth'],
+    query: OAuthAuthorizeQuerySchema,
+    // Response is a redirect (302), not JSON - but we define a response for OpenAPI
+    response: z.object({
+      redirect: z.string().url().describe('Redirect URL to authorization server'),
+    }),
+    errorResponses: {
+      400: OAuthErrorResponseSchema,
+      500: OAuthErrorResponseSchema,
+    },
+  },
+  {
+    path: '/oauth/callback',
+    method: 'GET',
+    description: 'OAuth callback endpoint. Receives the authorization code from GitHub and exchanges it for tokens.',
+    tags: ['Auth'],
+    query: OAuthCallbackQuerySchema,
+    // Response can be a redirect or JSON depending on client type
+    response: OAuthTokenResponseSchema,
+    errorResponses: {
+      400: OAuthErrorResponseSchema,
+      500: OAuthErrorResponseSchema,
+    },
+  },
+  {
+    path: '/oauth/token',
+    method: 'POST',
+    description: 'Token endpoint. Exchange an authorization code or refresh token for an access token.',
+    tags: ['Auth'],
+    body: OAuthTokenRequestSchema,
+    response: OAuthTokenResponseSchema,
+    errorResponses: {
+      400: OAuthErrorResponseSchema,
+      401: OAuthErrorResponseSchema,
+      500: OAuthErrorResponseSchema,
     },
   },
 

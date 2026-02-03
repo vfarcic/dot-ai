@@ -42,6 +42,10 @@ import { AuthTool } from './auth-base';
 import { authGetPublicKey } from './auth-get-public-key';
 import { authGetMetadata } from './auth-get-metadata';
 import { authValidateToken } from './auth-validate-token';
+// PRD #360 Milestone 2: GitHub OAuth flow tools
+import { authStartOAuthFlow } from './auth-start-oauth-flow';
+import { authExchangeCode } from './auth-exchange-code';
+import { authRefreshToken } from './auth-refresh-token';
 
 /**
  * All kubectl and helm tools in a single array
@@ -76,11 +80,18 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
 /**
  * PRD #360: Auth tools for OAuth 2.1 authentication
  * These tools handle JWT key management, OAuth metadata, and token validation
+ *
+ * Milestone 1: authGetPublicKey, authGetMetadata, authValidateToken
+ * Milestone 2: authStartOAuthFlow, authExchangeCode, authRefreshToken
  */
 const ALL_AUTH_TOOLS: AuthTool[] = [
   authGetPublicKey,
   authGetMetadata,
   authValidateToken,
+  // Milestone 2: GitHub OAuth flow
+  authStartOAuthFlow,
+  authExchangeCode,
+  authRefreshToken,
 ];
 
 /**
