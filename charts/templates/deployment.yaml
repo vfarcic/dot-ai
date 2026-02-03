@@ -114,6 +114,13 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.auth.keyName }}
               optional: true
+        # PRD #360: OAuth authentication mode
+{{- with .Values.auth }}
+{{- if .mode }}
+        - name: DOT_AI_AUTH_MODE
+          value: {{ .mode | quote }}
+{{- end }}
+{{- end }}
         # Web UI integration (PRD #317: Query Visualization)
 {{- if .Values.webUI.baseUrl }}
         - name: WEB_UI_BASE_URL

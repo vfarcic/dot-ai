@@ -205,7 +205,7 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
   {
     path: '/oauth/token',
     method: 'POST',
-    description: 'Token endpoint. Exchange an authorization code or refresh token for an access token.',
+    description: 'Token endpoint. Exchange an authorization code, refresh token, or test token for an access token. Test token grant (grant_type=test_token) is only available when DOT_AI_AUTH_TEST_MODE=true.',
     tags: ['Auth'],
     body: OAuthTokenRequestSchema,
     response: OAuthTokenResponseSchema,

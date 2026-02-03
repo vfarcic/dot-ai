@@ -101,12 +101,25 @@ export const OAuthTokenRefreshRequestSchema = z.object({
 });
 
 /**
+ * OAuth token request for test token grant (PRD #360)
+ * Only available when DOT_AI_AUTH_TEST_MODE=true
+ */
+export const OAuthTokenTestRequestSchema = z.object({
+  grant_type: z.literal('test_token'),
+  user_id: z.string().describe('User identifier (must be in GITHUB_ALLOWED_USERS list)'),
+  name: z.string().optional().describe('Display name for the user'),
+  email: z.string().email().optional().describe('Email address for the user'),
+  scope: z.string().optional().describe('OAuth scopes (default: mcp:read mcp:write)'),
+});
+
+/**
  * OAuth token request body
  * POST /oauth/token
  */
 export const OAuthTokenRequestSchema = z.discriminatedUnion('grant_type', [
   OAuthTokenAuthCodeRequestSchema,
   OAuthTokenRefreshRequestSchema,
+  OAuthTokenTestRequestSchema,
 ]);
 
 export type OAuthTokenRequest = z.infer<typeof OAuthTokenRequestSchema>;

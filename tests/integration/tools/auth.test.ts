@@ -169,7 +169,7 @@ describe.concurrent('Authentication Integration Tests', () => {
       expect(response.success).toBe(false);
       expect(response.error).toMatchObject({
         code: 'UNAUTHORIZED',
-        message: expect.stringContaining('Invalid authentication token'),
+        message: expect.stringContaining('Invalid token'),
       });
     });
 

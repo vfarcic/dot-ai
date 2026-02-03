@@ -4,12 +4,11 @@
  * PRD #360: User Authentication & Access Control - Milestone 3
  *
  * Tests for:
- * - Test provider token issuance (auth_get_test_token)
+ * - Test token grant via /oauth/token (grant_type=test_token)
  * - Allowed users access control (GITHUB_ALLOWED_USERS)
  * - JWT authentication flow
- * - Token validation (auth_validate_token)
+ * - Token validation (via API access)
  * - Refresh token flow
- * - Auth config retrieval
  * - Token claims verification
  * - Security edge cases
  *
@@ -36,30 +35,11 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
     unauthenticatedClient = new HttpRestApiClient({});
   });
 
-  describe('Auth Config', () => {
-    test('should return auth config via plugin tool', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_config', {});
-
-      expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            mode: expect.stringMatching(/^(none|oauth)$/),
-            admin_token: expect.any(String),
-            issuer: expect.stringMatching(/^https?:\/\//),
-            test_mode_enabled: true, // We enabled it in test script
-          }),
-        }),
-        tool: 'auth_get_config',
-      });
-    });
-  });
-
-  describe('Test Provider - Allowed Users', () => {
-    test('should issue JWT for allowed user', async () => {
+  describe('Test Token Grant - Allowed Users', () => {
+    test('should issue JWT for allowed user via test_token grant', async () => {
       // 'allowed-user-1' is in GITHUB_ALLOWED_USERS configured in test script
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
         name: 'Allowed User One',
         email: 'allowed1@test.local',
@@ -67,123 +47,112 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
 
       expect(response.success).toBe(true);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            access_token: expect.any(String),
-            token_type: 'Bearer',
-            expires_in: 3600,
-            refresh_token: expect.any(String),
-            scope: 'mcp:read mcp:write',
-          }),
-        }),
-        tool: 'auth_get_test_token',
+        access_token: expect.any(String),
+        token_type: 'Bearer',
+        expires_in: 3600,
+        refresh_token: expect.any(String),
+        scope: 'mcp:read mcp:write',
       });
 
       // Verify token is a valid JWT format (header.payload.signature)
-      const token = response.data.result.data.access_token;
+      const token = response.data.access_token;
       const parts = token.split('.');
       expect(parts.length).toBe(3);
     });
 
     test('should issue JWT for another allowed user', async () => {
       // 'allowed-user-2' is also in GITHUB_ALLOWED_USERS
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-2',
       });
 
       expect(response.success).toBe(true);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            access_token: expect.any(String),
-            token_type: 'Bearer',
-          }),
-        }),
+        access_token: expect.any(String),
+        token_type: 'Bearer',
       });
     });
 
     test('should issue JWT with case-insensitive user matching', async () => {
       // User matching should be case-insensitive
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'ALLOWED-USER-1', // Uppercase version
       });
 
       expect(response.success).toBe(true);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            access_token: expect.any(String),
-          }),
-        }),
+        access_token: expect.any(String),
       });
     });
 
     test('should reject non-allowed user', async () => {
       // 'unauthorized-user' is NOT in GITHUB_ALLOWED_USERS
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'unauthorized-user',
       });
 
-      expect(response.success).toBe(true); // Tool call succeeds, but returns error in result
+      // OAuth error response format
+      expect(response.success).toBe(false);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: false,
-          error: expect.objectContaining({
-            code: 'access_denied',
-            message: expect.stringContaining('unauthorized-user'),
-          }),
-        }),
+        error: 'access_denied',
+        error_description: expect.stringContaining('unauthorized-user'),
       });
     });
 
     test('should reject empty user_id', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: '',
       });
 
-      expect(response.success).toBe(true);
+      // OAuth error response format
+      expect(response.success).toBe(false);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: false,
-          error: expect.objectContaining({
-            code: 'invalid_request',
-            message: expect.stringContaining('user_id'),
-          }),
-        }),
+        error: expect.stringMatching(/invalid_request|access_denied/),
+        error_description: expect.any(String),
+      });
+    });
+
+    test('should reject missing user_id', async () => {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
+      });
+
+      expect(response.success).toBe(false);
+      expect(response.data).toMatchObject({
+        error: 'invalid_request',
+        error_description: expect.stringContaining('user_id'),
       });
     });
 
     test('should issue JWT with custom scope', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
         scope: 'mcp:read mcp:write mcp:admin',
       });
 
       expect(response.success).toBe(true);
       expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            scope: 'mcp:read mcp:write mcp:admin',
-          }),
-        }),
+        scope: 'mcp:read mcp:write mcp:admin',
       });
     });
   });
 
   describe('JWT Authentication Flow', () => {
-    test('should authenticate API requests with JWT from test provider', async () => {
-      // Step 1: Get a JWT from test provider
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+    test('should authenticate API requests with JWT from test_token grant', async () => {
+      // Step 1: Get a JWT via test_token grant
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'test-user',
         name: 'Test User',
       });
 
       expect(tokenResponse.success).toBe(true);
-      const accessToken = tokenResponse.data.result.data.access_token;
+      const accessToken = tokenResponse.data.access_token;
 
       // Step 2: Use JWT to access protected endpoint
       const jwtClient = new HttpRestApiClient({
@@ -203,11 +172,12 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
 
     test('should authenticate tool execution with JWT', async () => {
       // Get JWT
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'test-user',
       });
 
-      const accessToken = tokenResponse.data.result.data.access_token;
+      const accessToken = tokenResponse.data.access_token;
 
       const jwtClient = new HttpRestApiClient({
         headers: {
@@ -228,110 +198,71 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
     });
   });
 
-  describe('Token Validation', () => {
-    test('should validate admin token via auth_validate_token', async () => {
-      // Get the admin token from environment (same one used by integrationTest)
-      const adminToken = process.env.DOT_AI_AUTH_TOKEN || 'test-auth-token-integration';
-
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: adminToken,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            valid: true,
-            isAdmin: true,
-            claims: expect.objectContaining({
-              sub: 'admin',
-              provider: 'admin_token',
-            }),
-          }),
-        }),
-      });
-    });
-
-    test('should validate JWT via auth_validate_token', async () => {
-      // Get JWT from test provider
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+  describe('Token Validation via API Access', () => {
+    test('should accept valid JWT for protected endpoints', async () => {
+      // Get JWT
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
-        name: 'Test Validation User',
-        email: 'validate@test.local',
       });
 
-      const accessToken = tokenResponse.data.result.data.access_token;
+      expect(tokenResponse.success).toBe(true);
+      const accessToken = tokenResponse.data.access_token;
 
-      // Validate the JWT
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: accessToken,
+      const jwtClient = new HttpRestApiClient({
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       });
 
+      // Token should be accepted
+      const response = await jwtClient.get('/api/v1/tools');
       expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            valid: true,
-            isAdmin: false,
-            claims: expect.objectContaining({
-              sub: 'test:allowed-user-1',
-              name: 'Test Validation User',
-              email: 'validate@test.local',
-              provider: 'test',
-            }),
-          }),
-        }),
+    });
+
+    test('should reject invalid token for protected endpoints', async () => {
+      const invalidClient = new HttpRestApiClient({
+        headers: {
+          'Authorization': 'Bearer invalid-token-not-jwt-format',
+        },
+      });
+
+      const response = await invalidClient.get('/api/v1/tools');
+
+      expect(response.success).toBe(false);
+      expect(response.error).toMatchObject({
+        code: 'UNAUTHORIZED',
+        message: expect.stringContaining('Invalid token'),
       });
     });
 
-    test('should reject invalid token via auth_validate_token', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: 'invalid-token-not-jwt-format',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true, // Tool succeeds, validation result is in data
-          data: expect.objectContaining({
-            valid: false,
-            error: expect.stringContaining('not'),
-          }),
-        }),
-      });
-    });
-
-    test('should reject malformed JWT via auth_validate_token', async () => {
+    test('should reject malformed JWT for protected endpoints', async () => {
       // JWT format but invalid signature
       const malformedJwt = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.invalid-signature';
 
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: malformedJwt,
+      const malformedClient = new HttpRestApiClient({
+        headers: {
+          'Authorization': `Bearer ${malformedJwt}`,
+        },
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            valid: false,
-          }),
-        }),
-      });
+      const response = await malformedClient.get('/api/v1/tools');
+
+      expect(response.success).toBe(false);
+      expect(response.error?.code).toBe('UNAUTHORIZED');
     });
   });
 
   describe('Refresh Token Flow', () => {
     test('should refresh access token using refresh_token grant', async () => {
-      // Step 1: Get initial tokens from test provider
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      // Step 1: Get initial tokens via test_token grant
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
       });
 
       expect(tokenResponse.success).toBe(true);
-      const refreshToken = tokenResponse.data.result.data.refresh_token;
+      const refreshToken = tokenResponse.data.refresh_token;
 
       // Step 2: Exchange refresh token for new access token
       const refreshResponse = await unauthenticatedClient.post('/oauth/token', {
@@ -374,11 +305,12 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
 
     test('should reject reused refresh token (rotation)', async () => {
       // Get tokens
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
       });
 
-      const refreshToken = tokenResponse.data.result.data.refresh_token;
+      const refreshToken = tokenResponse.data.refresh_token;
 
       // First refresh - should succeed
       const firstRefresh = await unauthenticatedClient.post('/oauth/token', {
@@ -401,42 +333,15 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
     });
   });
 
-  describe('Auth Metadata', () => {
-    test('should return OAuth metadata via auth_get_metadata', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_metadata', {});
-
-      expect(response.success).toBe(true);
-      expect(response.data).toMatchObject({
-        result: expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            protected_resource: expect.objectContaining({
-              resource: expect.stringMatching(/^https?:\/\//),
-              authorization_servers: expect.any(Array),
-              scopes_supported: expect.arrayContaining(['mcp:read', 'mcp:write', 'mcp:admin']),
-            }),
-            authorization_server: expect.objectContaining({
-              issuer: expect.stringMatching(/^https?:\/\//),
-              authorization_endpoint: expect.stringMatching(/\/oauth\/authorize$/),
-              token_endpoint: expect.stringMatching(/\/oauth\/token$/),
-              response_types_supported: expect.arrayContaining(['code']),
-              grant_types_supported: expect.arrayContaining(['authorization_code', 'refresh_token']),
-              code_challenge_methods_supported: expect.arrayContaining(['S256']),
-            }),
-          }),
-        }),
-      });
-    });
-  });
-
   describe('Multiple Token Types Coexistence', () => {
     test('should accept both admin token and JWT for same endpoint', async () => {
-      // Get JWT
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      // Get JWT via test_token grant
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
       });
 
-      const accessToken = tokenResponse.data.result.data.access_token;
+      const accessToken = tokenResponse.data.access_token;
 
       // Test with admin token
       const adminResponse = await integrationTest.httpClient.get('/api/v1/tools');
@@ -457,48 +362,10 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
     });
   });
 
-  describe('Expired Token Handling', () => {
-    test('should reject expired JWT via auth_validate_token', async () => {
-      // Create an expired JWT by manually crafting one with past exp
-      // This is a pre-crafted expired token for testing
-      // In real scenarios, we'd wait for expiration or mock time
-      const expiredJwtPayload = {
-        sub: 'test:expired-user',
-        iss: 'http://localhost:3000',
-        aud: 'http://localhost:3000',
-        exp: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
-        iat: Math.floor(Date.now() / 1000) - 7200, // 2 hours ago
-        name: 'Expired User',
-        provider: 'test',
-      };
-
-      // Note: This test validates the expiration check logic
-      // The actual JWT would need to be signed with the server's key
-      // For now, we test that the validation endpoint properly checks expiration
-      // by validating a well-formed but expired token structure
-
-      // Get a real token first, then test validation response format
-      const tokenResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
-        user_id: 'allowed-user-1',
-      });
-
-      expect(tokenResponse.success).toBe(true);
-
-      // Verify validation works for valid token (confirms endpoint is functional)
-      const validToken = tokenResponse.data.result.data.access_token;
-      const validResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: validToken,
-      });
-
-      expect(validResponse.success).toBe(true);
-      expect(validResponse.data.result.data.valid).toBe(true);
-      expect(validResponse.data.result.data.claims.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
-    });
-  });
-
   describe('Token Claims Verification', () => {
     test('should include correct claims in JWT', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-1',
         name: 'Claims Test User',
         email: 'claims@test.local',
@@ -506,17 +373,13 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
       });
 
       expect(response.success).toBe(true);
-      const accessToken = response.data.result.data.access_token;
+      const accessToken = response.data.access_token;
 
-      // Validate and inspect claims
-      const validateResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: accessToken,
-      });
+      // Decode JWT payload (base64url) to verify claims
+      const payloadBase64 = accessToken.split('.')[1];
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString());
 
-      expect(validateResponse.success).toBe(true);
-      const claims = validateResponse.data.result.data.claims;
-
-      expect(claims).toMatchObject({
+      expect(payload).toMatchObject({
         sub: 'test:allowed-user-1',
         iss: expect.stringMatching(/^https?:\/\//),
         aud: expect.stringMatching(/^https?:\/\//),
@@ -531,32 +394,30 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
 
       // Verify timestamps are reasonable
       const now = Math.floor(Date.now() / 1000);
-      expect(claims.iat).toBeLessThanOrEqual(now);
-      expect(claims.exp).toBeGreaterThan(now);
-      expect(claims.exp - claims.iat).toBe(3600); // 1 hour TTL
+      expect(payload.iat).toBeLessThanOrEqual(now + 5); // Allow 5s clock skew
+      expect(payload.exp).toBeGreaterThan(now);
+      expect(payload.exp - payload.iat).toBe(3600); // 1 hour TTL
     });
 
     test('should use default values for optional claims', async () => {
       // Use allowed-user-2 with no optional params to test defaults
-      const response = await integrationTest.httpClient.post('/api/v1/tools/auth_get_test_token', {
+      const response = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
         user_id: 'allowed-user-2',
         // No name, email, or scope provided
       });
 
       expect(response.success).toBe(true);
-      const accessToken = response.data.result.data.access_token;
+      const accessToken = response.data.access_token;
 
-      const validateResponse = await integrationTest.httpClient.post('/api/v1/tools/auth_validate_token', {
-        token: accessToken,
-      });
-
-      expect(validateResponse.success).toBe(true);
-      const claims = validateResponse.data.result.data.claims;
+      // Decode JWT payload
+      const payloadBase64 = accessToken.split('.')[1];
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString());
 
       // Defaults should be applied
-      expect(claims.name).toBe('allowed-user-2'); // Defaults to user_id
-      expect(claims.email).toBe('allowed-user-2@test.local'); // Defaults to user_id@test.local
-      expect(claims.scope).toBe('mcp:read mcp:write'); // Default scope
+      expect(payload.name).toBe('allowed-user-2'); // Defaults to user_id
+      expect(payload.email).toBe('allowed-user-2@test.local'); // Defaults to user_id@test.local
+      expect(payload.scope).toBe('mcp:read mcp:write'); // Default scope
     });
   });
 

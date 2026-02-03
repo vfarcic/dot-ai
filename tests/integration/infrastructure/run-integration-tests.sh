@@ -313,10 +313,11 @@ helm upgrade --install dot-ai ./charts \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
+    --set auth.mode=oauth \
     --set auth.testMode=true \
     --set auth.issuer="http://dot-ai.127.0.0.1.nip.io:8180" \
-    --set auth.github.allowedUsers="allowed-user-1,allowed-user-2,test-user" \
-    --set auth.github.allowedOrgs="allowed-org-1,allowed-org-2" \
+    --set auth.github.allowedUsers="allowed-user-1\,allowed-user-2\,test-user" \
+    --set auth.github.allowedOrgs="allowed-org-1\,allowed-org-2" \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_USER_PROMPTS_CACHE_TTL\",\"value\":\"0\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"

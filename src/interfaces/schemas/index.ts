@@ -200,6 +200,7 @@ export {
   OAuthTokenResponseSchema,
   OAuthErrorCodeSchema,
   OAuthErrorResponseSchema,
+  OAuthTokenTestRequestSchema,
   type ProtectedResourceMetadata,
   type AuthorizationServerMetadata,
   type AuthErrorResponse,

@@ -435,7 +435,7 @@ No manual token configuration needed - the OAuth flow handles it.
 **Objective**: Integrate auth into MCP request flow using cache-based validation
 
 **Deliverables:**
-- [ ] Auth hook in MCP HTTP handler
+- [x] Auth hook in MCP HTTP handler
 - [x] Token cache implementation (token → user info, with TTL)
 - [x] Cache-based validation flow:
   - [x] Cache hit → use cached user info
@@ -450,6 +450,7 @@ No manual token configuration needed - the OAuth flow handles it.
   - [x] Uses same JWT signing code as GitHub provider
   - [x] Uses same `GITHUB_ALLOWED_USERS` for access control (not separate config)
 - [x] Admin token validation moved to plugin (MCP has zero auth logic)
+- [ ] Manual validation: Real OAuth flow with MCP client (browser opens, GitHub auth, callback, token issued)
 
 **Success Criteria:**
 - MCP connections require valid token (in OAuth mode)
@@ -461,7 +462,7 @@ No manual token configuration needed - the OAuth flow handles it.
 - Personal repos can use `allowed_users` for access control
 - Integration tests can obtain real JWTs without browser interaction
 
-**Note:** Helm chart updated with auth configuration (`auth.testMode`, `auth.github.allowedUsers`, `auth.github.allowedOrgs`). Integration tests written (`auth-test-provider.test.ts`) but not yet executed.
+**Note:** Helm chart updated with auth configuration (`auth.testMode`, `auth.github.allowedUsers`, `auth.github.allowedOrgs`). Integration tests passing (192/192) including `auth-test-provider.test.ts`, `auth.test.ts`, `auth-oauth-flow.test.ts`. Test token grant consolidated into `/oauth/token` with `grant_type=test_token`. Real OAuth flow with browser/GitHub requires manual validation.
 
 ---
 

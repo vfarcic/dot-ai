@@ -38,7 +38,7 @@ import {
 import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
-import { fetchOAuthMetadata } from './auth-oauth';
+import { fetchOAuthMetadata, getAuthConfig } from './auth-oauth';
 import { getAuthIssuer } from './auth';
 
 /**
@@ -906,6 +906,28 @@ export class RestApiRouter {
           refresh_token: refreshToken,
           scope,
         });
+      } else if (grantType === 'test_token') {
+        // Test token grant - only available when test mode is enabled (PRD #360)
+        const config = getAuthConfig();
+        if (!config?.test_mode_enabled) {
+          await this.sendOAuthError(res, requestId, 'unsupported_grant_type', 'test_token grant is only available in test mode');
+          return;
+        }
+
+        const userId = tokenRequest.user_id as string;
+        if (!userId) {
+          await this.sendOAuthError(res, requestId, 'invalid_request', 'user_id is required for test_token grant');
+          return;
+        }
+
+        this.logger.info('Processing test token request', { requestId, userId });
+
+        response = await invokePluginTool('agentic-tools', 'auth_get_test_token', {
+          user_id: userId,
+          name: tokenRequest.name as string | undefined,
+          email: tokenRequest.email as string | undefined,
+          scope: tokenRequest.scope as string | undefined,
+        });
       } else {
         await this.sendOAuthError(res, requestId, 'unsupported_grant_type', `Unsupported grant type: ${grantType}`);
         return;
@@ -951,6 +973,7 @@ export class RestApiRouter {
       error_description: errorDescription,
     });
   }
+
 
   /**
    * Handle resource sync requests from controller

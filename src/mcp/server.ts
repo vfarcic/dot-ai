@@ -125,37 +125,53 @@ async function main() {
         process.stderr.write(`Plugin discovery warning: ${error}\n`);
       }
 
+      // PRD #360: Helper to initialize OAuth when auth plugin is available
+      const authMode = process.env.DOT_AI_AUTH_MODE?.toLowerCase();
+      let oauthInitialized = false;
+
+      const tryInitializeOAuth = async (): Promise<boolean> => {
+        if (oauthInitialized || authMode !== 'oauth') return oauthInitialized;
+        process.stderr.write('Initializing OAuth authentication...\n');
+        const result = await initializeOAuthAuth();
+        if (result) {
+          oauthInitialized = true;
+          process.stderr.write('OAuth authentication initialized successfully\n');
+        } else {
+          process.stderr.write('Warning: OAuth authentication initialization failed. Will retry when plugin becomes available.\n');
+        }
+        return result;
+      };
+
       // Start background discovery for any plugins that failed initial discovery
       // They will be retried every 30 seconds for up to 10 minutes
       if (pluginManager.getPendingPlugins().length > 0) {
-        pluginManager.setOnPluginDiscovered((plugin) => {
+        pluginManager.setOnPluginDiscovered(async (plugin) => {
           process.stderr.write(`Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`);
           // Note: Tools are automatically registered via pluginManager's internal maps
           // The version tool will reflect the updated plugin status
+
+          // PRD #360: Try OAuth init when agentic-tools becomes available
+          if (plugin.name === 'agentic-tools' && !oauthInitialized) {
+            await tryInitializeOAuth();
+          }
         });
         pluginManager.startBackgroundDiscovery();
       }
-    } else {
-      process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
-    }
 
-    // PRD #359: Initialize unified plugin registry for all plugin tool invocations
-    // This replaces scattered plugin manager passing (telemetry, vector tools, etc.)
-    if (pluginConfigs.length > 0) {
+      // PRD #359: Initialize unified plugin registry for all plugin tool invocations
+      // This replaces scattered plugin manager passing (telemetry, vector tools, etc.)
       initializePluginRegistry(pluginManager);
 
       // PRD #360: Initialize OAuth authentication (fetch public key from plugin)
-      // This enables local JWT validation without per-request plugin calls
-      const authMode = process.env.DOT_AI_AUTH_MODE?.toLowerCase();
+      // Try immediately - if plugin isn't ready yet, it will be retried via background discovery callback
       if (authMode === 'oauth') {
-        process.stderr.write('Initializing OAuth authentication...\n');
-        const oauthInitialized = await initializeOAuthAuth();
-        if (oauthInitialized) {
-          process.stderr.write('OAuth authentication initialized successfully\n');
-        } else {
-          process.stderr.write('Warning: OAuth authentication initialization failed. JWT validation will not work.\n');
+        const initialized = await tryInitializeOAuth();
+        if (!initialized && pluginManager.getPendingPlugins().includes('agentic-tools')) {
+          process.stderr.write('OAuth initialization deferred - waiting for agentic-tools plugin discovery\n');
         }
       }
+    } else {
+      process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
     }
 
     // Create and configure MCP server
