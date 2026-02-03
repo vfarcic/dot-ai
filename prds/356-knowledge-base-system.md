@@ -952,7 +952,7 @@ interface KnowledgeSearchResult {
 - RRF result merging - Only one vector type currently
 
 **Next Steps**:
-- Milestone 5: Implement `getChunk` operation
+- Milestone 5: Controller PRD Creation
 
 ---
 
@@ -972,9 +972,9 @@ interface KnowledgeSearchResult {
    - Users can control precision vs recall based on their needs
    - Lower values (0.2-0.3) return more results, higher values (0.5+) stricter
 
-3. **Integration Tests** (9 tests all passing)
-   - Comprehensive workflow test: Ingest → GetByUri → Search → Re-ingest (upsert) → Delete → Verify
-   - Edge cases: empty content, non-existent URI, unrelated search query
+3. **Integration Tests** (7 tests all passing)
+   - Comprehensive workflow test: Ingest → Search → Re-ingest (upsert) → Delete → Verify via search
+   - Edge cases: empty content, unrelated search query
    - Error handling for missing parameters
 
 4. **Mock Server Fixture** (`manageKnowledge-deleteByUri-success.json`)
@@ -985,4 +985,34 @@ interface KnowledgeSearchResult {
 - Consistent with plugin delegation pattern established in Milestone 1
 
 **Next Steps**:
-- Milestone 5: Implement `getChunk` operation
+- Milestone 5: Controller PRD Creation
+
+---
+
+### 2025-02-03: API Simplification - Remove getByUri and getChunk
+**Status**: In Progress (Implementation phase complete)
+
+**Decisions Made**:
+
+1. **Removed `getChunk` operation** (Resolved Question #20)
+   - `search` returns chunk content and metadata in results
+   - No clear use case for single chunk retrieval by ID
+
+2. **Removed `getByUri` operation** (Resolved Question #21)
+   - Was only used for testing/debugging during development
+   - `search` with `uriFilter` achieves same result (find chunks for specific URI)
+   - Not part of core workflow: controller knows what it ingested, users find content via search
+
+**Final API** (3 operations):
+- `ingest` - Add documents to knowledge base
+- `search` - Semantic search (with optional `uriFilter` to target specific URI)
+- `deleteByUri` - Remove all chunks for a URI
+
+**Code Cleanup**:
+- Removed `handleGetByUriOperation` function
+- Removed `GetByUriResponse` and `GetChunkResponse` interfaces
+- Updated error messages and schema descriptions
+- Updated tests to verify deletion via search with uriFilter
+
+**Next Steps**:
+- Milestone 5: Controller PRD Creation
