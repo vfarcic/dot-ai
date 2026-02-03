@@ -288,18 +288,18 @@ interface KnowledgeSearchResult {
 **Goal**: Add semantic + keyword search operation
 
 **Success Criteria**:
-- [ ] Add `search` operation to Zod schema
-- [ ] Hybrid search combining dense and sparse vectors
-- [ ] RRF (Reciprocal Rank Fusion) for result merging
-- [ ] Source filtering by uri
-- [ ] Result includes provenance (uri, metadata, chunkIndex)
-- [ ] Configurable result limit
-- [ ] Integration tests for search
-- [ ] Mock server fixture for search operation
+- [x] Add `search` operation to Zod schema
+- [~] Hybrid search combining dense and sparse vectors - **Deferred**: BM25/FastEmbed not available for Node.js
+- [~] RRF (Reciprocal Rank Fusion) for result merging - **Deferred**: Single vector type (dense only)
+- [x] Source filtering by uri (uriFilter parameter)
+- [x] Result includes provenance (uri, metadata, chunkIndex)
+- [x] Configurable result limit
+- [x] Integration tests for search (5 tests passing)
+- [x] Mock server fixture for search operation
 
 **Validation**:
 - Semantic queries return relevant chunks
-- Exact keyword matches boosted appropriately
+- ~~Exact keyword matches boosted appropriately~~ (deferred - no BM25)
 - Results include correct source information
 
 ---
@@ -898,5 +898,40 @@ interface KnowledgeSearchResult {
 - Will rely on dense vector search; can add BM25 later if needed
 
 **Next Steps**:
-- Milestone 2: Create mock server fixture for `ingest` operation
-- Milestone 3: Implement `search` operation
+- Milestone 4: Implement `deleteByUri` operation
+- Milestone 5: Implement `getChunk` operation
+
+---
+
+### 2025-02-03: Milestone 3 Implementation Complete
+**Status**: In Progress (Milestone 3 done)
+
+**Completed Work**:
+
+1. **Search Operation** (`src/tools/manage-knowledge.ts`)
+   - Added `search` operation to Zod schema with `query`, `limit`, `uriFilter` parameters
+   - `handleSearchOperation` generates query embedding and calls `vector_search` plugin
+   - Score threshold of 0.5 filters low-relevance results
+   - Returns `KnowledgeSearchResponse` with chunks, scores, and provenance
+
+2. **URL Format Update**
+   - Changed from `git://org/repo/path` to real clickable URLs
+   - Example: `https://github.com/org/repo/blob/main/docs/guide.md`
+   - Updated PRD, code, tests, and mock fixtures
+
+3. **Integration Tests** (5 new tests, 12 total passing)
+   - Search returns only matching chunk from multiple ingested docs
+   - Multi-chunk document returns correct specific chunk by semantic match
+   - Limit parameter respected
+   - Empty results for non-matching queries
+   - Error handling for missing query parameter
+
+4. **Mock Server Fixture** (`manageKnowledge-search-success.json`)
+   - Sample response with 3 chunks, scores, and provenance
+
+**Deferred**:
+- Hybrid search (BM25 + dense) - FastEmbed not available for Node.js
+- RRF result merging - Only one vector type currently
+
+**Next Steps**:
+- Milestone 4: Implement `deleteByUri` operation
