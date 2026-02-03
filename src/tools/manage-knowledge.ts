@@ -66,10 +66,6 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
     .string()
     .optional()
     .describe('Optional URL prefix to filter search results (e.g., "https://github.com/org/repo/").'),
-  scoreThreshold: z
-    .number()
-    .optional()
-    .describe('Minimum similarity score threshold for search results (0-1, default: 0.3). Lower values return more results.'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate.'),
 };
 
@@ -84,7 +80,6 @@ export interface ManageKnowledgeInput {
   query?: string;
   limit?: number;
   uriFilter?: string;
-  scoreThreshold?: number;
   interaction_id?: string;
 }
 
@@ -329,11 +324,6 @@ async function handleIngestOperation(
 }
 
 /**
- * Default score threshold for semantic search
- */
-const DEFAULT_SCORE_THRESHOLD = 0.3;
-
-/**
  * Default limit for search results
  */
 const DEFAULT_SEARCH_LIMIT = 10;
@@ -346,7 +336,7 @@ async function handleSearchOperation(
   logger: Logger,
   requestId: string
 ): Promise<unknown> {
-  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter, scoreThreshold = DEFAULT_SCORE_THRESHOLD } = args;
+  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter } = args;
 
   // Validate required parameters
   if (!query) {
@@ -379,7 +369,6 @@ async function handleSearchOperation(
     requestId,
     queryLength: query.length,
     limit,
-    scoreThreshold,
     hasUriFilter: !!uriFilter,
   });
 
@@ -412,7 +401,7 @@ async function handleSearchOperation(
       embedding: queryEmbedding,
       limit,
       filter,
-      scoreThreshold,
+      scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
     });
 
     if (!searchResponse.success) {
@@ -683,6 +672,27 @@ async function handleDeleteByUriOperation(
 }
 
 /**
+ * MCP response format with content array
+ */
+interface McpToolResponse {
+  content: Array<{ type: 'text'; text: string }>;
+}
+
+/**
+ * Wrap response in MCP content format
+ */
+function wrapMcpResponse(response: unknown): McpToolResponse {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(response, null, 2),
+      },
+    ],
+  };
+}
+
+/**
  * Main tool handler - routes to appropriate operation handler
  */
 export async function handleManageKnowledgeTool(
@@ -690,27 +700,34 @@ export async function handleManageKnowledgeTool(
   _dotAI: DotAI | null,
   logger: Logger,
   requestId: string
-): Promise<unknown> {
+): Promise<McpToolResponse> {
   logger.info('Processing manageKnowledge tool request', {
     requestId,
     operation: args.operation,
   });
 
   // Route to appropriate handler based on operation
+  let response: unknown;
   switch (args.operation) {
     case 'ingest':
-      return handleIngestOperation(args, logger, requestId);
+      response = await handleIngestOperation(args, logger, requestId);
+      break;
 
     case 'search':
-      return handleSearchOperation(args, logger, requestId);
+      response = await handleSearchOperation(args, logger, requestId);
+      break;
 
     case 'deleteByUri':
-      return handleDeleteByUriOperation(args, logger, requestId);
+      response = await handleDeleteByUriOperation(args, logger, requestId);
+      break;
 
     default:
-      return createErrorResponse(`Unsupported operation: ${args.operation}`, {
+      response = createErrorResponse(`Unsupported operation: ${args.operation}`, {
         supportedOperations: ['ingest', 'search', 'deleteByUri'],
         hint: 'Use "ingest" to add documents, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
       });
   }
+
+  // Wrap response in MCP content format
+  return wrapMcpResponse(response);
 }

@@ -259,13 +259,52 @@ The narwhal metrics server collects and aggregates resource utilization data for
       });
     }, 60000);
 
-    test('should return empty results for completely unrelated search query', async () => {
+    test('should respect limit and return results ordered by relevance', async () => {
       const testId = Date.now();
 
+      // Ingest 3 documents with varying relevance to "kubernetes deployment"
+      // Doc 1: Highly relevant (kubernetes deployment focused)
+      const doc1Uri = `https://github.com/test-org/test-repo/blob/main/docs/k8s-deploy-${testId}.md`;
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: doc1Uri,
+        content: `Kubernetes deployment strategies ${testId} enable rolling updates and blue-green deployments.
+The deployment controller manages replica sets for zero-downtime updates in Kubernetes clusters.
+Pod scheduling and resource allocation are handled automatically by the Kubernetes deployment system.`,
+        metadata: { relevance: 'high', testId },
+        interaction_id: `limit_doc1_${testId}`,
+      });
+
+      // Doc 2: Moderately relevant (mentions kubernetes but different topic)
+      const doc2Uri = `https://github.com/test-org/test-repo/blob/main/docs/k8s-monitor-${testId}.md`;
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: doc2Uri,
+        content: `Kubernetes monitoring ${testId} with Prometheus collects metrics from all cluster components.
+Grafana dashboards visualize Kubernetes cluster health and application performance metrics.
+Alerting rules notify teams when Kubernetes resource utilization exceeds thresholds.`,
+        metadata: { relevance: 'medium', testId },
+        interaction_id: `limit_doc2_${testId}`,
+      });
+
+      // Doc 3: Low relevance (unrelated topic - cooking recipes)
+      const doc3Uri = `https://github.com/test-org/test-repo/blob/main/docs/recipes-${testId}.md`;
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: doc3Uri,
+        content: `Italian pasta recipes ${testId} for family dinners include carbonara and bolognese.
+Fresh ingredients like tomatoes, basil, and olive oil enhance Mediterranean cooking flavors.
+Homemade bread baking requires proper yeast activation and dough proofing techniques.`,
+        metadata: { relevance: 'low', testId },
+        interaction_id: `limit_doc3_${testId}`,
+      });
+
+      // Search with limit=2 - should return top 2 most relevant, exclude recipes
       const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'search',
-        query: `zxqwvtyu${testId} plmkjnhb${testId} qazxswed${testId}`,
-        interaction_id: `edge_nomatch_${testId}`,
+        query: 'kubernetes deployment strategies',
+        limit: 2,
+        interaction_id: `limit_search_${testId}`,
       });
 
       expect(searchResponse).toMatchObject({
@@ -274,13 +313,39 @@ The narwhal metrics server collects and aggregates resource utilization data for
           result: {
             success: true,
             operation: 'search',
-            chunks: [],
-            totalMatches: 0,
-            message: 'No matching documents found',
           },
         },
       });
-    }, 60000);
+
+      const result = searchResponse.data.result;
+
+      // Should return exactly 2 results (respecting limit)
+      expect(result.chunks.length).toBe(2);
+
+      // Results should be ordered by score (descending)
+      expect(result.chunks[0].score).toBeGreaterThanOrEqual(result.chunks[1].score);
+
+      // The recipes document (low relevance) should NOT be in top 2 results
+      const resultUris = result.chunks.map((c: { uri: string }) => c.uri);
+      expect(resultUris).not.toContain(doc3Uri);
+
+      // Cleanup: delete all 3 test documents
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: doc1Uri,
+        interaction_id: `limit_cleanup1_${testId}`,
+      });
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: doc2Uri,
+        interaction_id: `limit_cleanup2_${testId}`,
+      });
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: doc3Uri,
+        interaction_id: `limit_cleanup3_${testId}`,
+      });
+    }, 120000);
   });
 
   describe('Error Handling', () => {

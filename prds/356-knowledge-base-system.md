@@ -165,7 +165,7 @@ interface ManageKnowledgeParams {
   // For search
   query?: string;
   limit?: number;
-  scoreThreshold?: number;         // Min similarity score (0-1, default: 0.3)
+  uriFilter?: string;              // Filter results to specific URI
 }
 ```
 
@@ -283,7 +283,6 @@ interface KnowledgeSearchResult {
 - [x] Source filtering by uri (uriFilter parameter)
 - [x] Result includes provenance (uri, metadata, chunkIndex)
 - [x] Configurable result limit
-- [x] Configurable score threshold (scoreThreshold parameter, default 0.3)
 - [x] Integration tests for search (5 tests passing)
 - [x] Mock server fixture for search operation
 
@@ -967,12 +966,7 @@ interface KnowledgeSearchResult {
    - Handles edge cases: collection not found (returns 0 deleted), no chunks found
    - Returns `DeleteByUriResponse` with `chunksDeleted` count
 
-2. **Configurable Score Threshold**
-   - Added `scoreThreshold` parameter to search operation (default: 0.3)
-   - Users can control precision vs recall based on their needs
-   - Lower values (0.2-0.3) return more results, higher values (0.5+) stricter
-
-3. **Integration Tests** (7 tests all passing)
+2. **Integration Tests** (7 tests all passing)
    - Comprehensive workflow test: Ingest → Search → Re-ingest (upsert) → Delete → Verify via search
    - Edge cases: empty content, unrelated search query
    - Error handling for missing parameters
@@ -986,6 +980,32 @@ interface KnowledgeSearchResult {
 
 **Next Steps**:
 - Milestone 5: Controller PRD Creation
+
+---
+
+### 2026-02-03: MCP Response Format Fix & scoreThreshold Removal
+**Status**: Complete
+
+**Critical Bug Fix - MCP Response Format**:
+- **Problem**: `manageKnowledge` MCP tool wasn't returning responses to Claude Code
+- **Root Cause**: Tool returned raw response objects instead of MCP content format
+- **Solution**: Wrapped responses in `{ content: [{ type: 'text', text: JSON.stringify(response) }] }`
+- **Impact**: All operations (ingest, search, deleteByUri) now work via MCP
+
+**API Simplification - Remove scoreThreshold**:
+- Removed `scoreThreshold` parameter from search operation
+- Results are now returned up to `limit`, ordered by similarity score (descending)
+- Consumers can filter by score themselves based on their needs
+- Plugin call uses `scoreThreshold: 0` internally to disable filtering at that level
+
+**Test Updates**:
+- Changed "empty results for unrelated queries" test to "limit and relevance ordering"
+- New test: Ingest 3 docs with varying relevance → Search with limit=2 → Verify only top 2 returned
+- Validates both limit enforcement and relevance-based ordering
+
+**Files Changed**:
+- `src/tools/manage-knowledge.ts` - Added `wrapMcpResponse()` helper, removed scoreThreshold
+- `tests/integration/tools/manage-knowledge.test.ts` - Updated edge case test
 
 ---
 
