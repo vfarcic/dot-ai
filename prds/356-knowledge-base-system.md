@@ -309,22 +309,29 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 5: Controller PRD Creation
-**Goal**: Create PRD for controller-side knowledge base orchestration
+### Milestone 5: Controller Feature Request
+**Goal**: Request knowledge base orchestration feature from dot-ai-controller project
+
+**Task**: Use `/request-dot-ai-feature` to send API contract and requirements to controller project.
 
 **Success Criteria**:
-- [ ] Use `/request-dot-ai-feature` to send API contract to controller
-- [ ] Controller PRD created with: KnowledgeSource CRD, Git adapter, CronJob scheduling
-- [ ] Clear interface contract between controller and MCP server
+- [x] Send feature request via `/request-dot-ai-feature` with API contract
+- [ ] Receive completion signal from controller project
 
-**Validation**:
-- Controller team has clear PRD to implement
-- API contract is well-defined and tested via mock server
+**Request Contents**:
+- KnowledgeSource CRD definition
+- Git adapter requirements (clone, pull, diff)
+- CronJob scheduling based on sync frequency
+- API contract: `POST /api/v1/tools/manageKnowledge` with ingest, deleteByUri operations
+
+**Status**: Request sent, awaiting completion signal
 
 ---
 
-### Milestone 6: Documentation
-**Goal**: Create user-facing documentation after controller integration is validated
+### Milestone 6: Documentation Feature Request
+**Goal**: Request documentation creation from dot-ai-docs project (or create locally)
+
+**Task**: Create user-facing documentation after controller integration is validated.
 
 **Success Criteria**:
 - [ ] User guide for knowledge base ingestion and search
@@ -332,27 +339,26 @@ interface KnowledgeSearchResult {
 - [ ] Architecture overview showing MCP server + controller interaction
 - [ ] Troubleshooting guide for common issues
 
-**Validation**:
-- Documentation tested against working end-to-end system
-- Examples verified to work with real API
-
-**Note**: This milestone intentionally follows controller integration to ensure documentation reflects validated, working functionality.
+**Blocked By**: Milestone 5 (controller completion) - documentation should reflect validated end-to-end functionality
 
 ---
 
-### Milestone 7: Web UI PRD Creation
-**Goal**: Create PRD for knowledge base UI in the dot-ai-ui project
+### Milestone 7: Web UI Feature Request
+**Goal**: Request knowledge base UI feature from dot-ai-ui project
+
+**Task**: Use `/request-dot-ai-feature` to send API contract and UI requirements to dot-ai-ui project.
 
 **Success Criteria**:
-- [ ] Use `/request-dot-ai-feature` to send API contract to dot-ai-ui project
-- [ ] Web UI PRD created with: search interface, result display, source browsing
-- [ ] Clear interface contract between UI and MCP server API
+- [ ] Send feature request via `/request-dot-ai-feature` with API contract
+- [ ] Receive completion signal from UI project
 
-**Validation**:
-- UI team has clear PRD to implement
-- API contract covers all UI requirements (search, pagination, filtering)
+**Request Contents**:
+- Search interface requirements
+- Result display with source provenance
+- Source browsing capability
+- API contract: `POST /api/v1/tools/manageKnowledge` with search operation
 
-**Note**: UI PRD should be created after MCP server API is stable and controller integration is validated.
+**Blocked By**: Milestone 5 (controller completion) - UI should be created after end-to-end flow is validated
 
 ---
 
@@ -361,10 +367,10 @@ interface KnowledgeSearchResult {
 ## Success Criteria
 
 ### Functional Success
-- [ ] Documents can be ingested via MCP tool / HTTP API (same endpoint)
-- [ ] Documents chunked and stored with embeddings
-- [ ] Semantic search returns relevant results
-- [ ] Chunks can be deleted by URI (deleteByUri)
+- [x] Documents can be ingested via MCP tool / HTTP API (same endpoint)
+- [x] Documents chunked and stored with embeddings
+- [x] Semantic search returns relevant results
+- [x] Chunks can be deleted by URI (deleteByUri)
 
 ### Quality Success
 - [ ] Search latency < 500ms for typical queries
@@ -373,10 +379,10 @@ interface KnowledgeSearchResult {
 - [ ] Clear error messages for common issues
 
 ### Architecture Success
-- [ ] Clean separation: MCP server handles AI/vectors, controller handles orchestration
-- [ ] Reuses existing embedding and vector DB infrastructure
-- [ ] Mock server enables parallel controller development
-- [ ] Single unified access layer (MCP tool = HTTP API via `/api/v1/tools/manageKnowledge`)
+- [x] Clean separation: MCP server handles AI/vectors, controller handles orchestration
+- [x] Reuses existing embedding and vector DB infrastructure
+- [x] Mock server enables parallel controller development
+- [x] Single unified access layer (MCP tool = HTTP API via `/api/v1/tools/manageKnowledge`)
 
 ---
 
@@ -543,6 +549,12 @@ interface KnowledgeSearchResult {
     - **Decision**: No, removed from scope
     - **Rationale**: Was implemented for testing/debugging during development. Not part of core workflow - controller knows what it ingested, users find content via search, delete works directly by URI.
     - **Impact**: Removed `getByUri` operation. API now has 3 operations: ingest, search, deleteByUri.
+    - **Date**: 2025-02-03
+
+22. **Observability - Version Tool Integration**: Should the `version` tool report knowledge-base collection status?
+    - **Decision**: Yes, extend `version` tool to include knowledge-base collection stats
+    - **Rationale**: The `version` tool already reports status for patterns, policies, capabilities, and resources collections. Adding knowledge-base follows the same pattern and provides visibility into whether the collection is initialized and how many chunks are stored.
+    - **Impact**: Add `knowledgeBase` to `SystemStatus['vectorDB']['collections']` with `exists`, `documentsCount`, and `error` fields. Helps operators verify knowledge base is operational.
     - **Date**: 2025-02-03
 
 ---
@@ -1036,3 +1048,66 @@ interface KnowledgeSearchResult {
 
 **Next Steps**:
 - Milestone 5: Controller PRD Creation
+
+---
+
+### 2025-02-03: Version Tool Observability Enhancement
+**Status**: Complete (implementation in 2025-02-04 entry)
+
+**Decision**: Extend `version` tool to report knowledge-base collection status
+
+**Context**:
+- Controller integration is ready for testing
+- Need visibility into whether knowledge-base collection exists and chunk count
+- `version` tool already reports status for other collections (patterns, policies, capabilities, resources)
+
+**Implementation Approach**:
+1. Add `knowledgeBase` to `SystemStatus['vectorDB']['collections']` interface
+2. Create `testKnowledgeBaseCollectionStatus()` function following existing pattern
+3. Call alongside other collection tests in `getVectorDBStatus()`
+4. Returns: `{ exists: boolean, documentsCount?: number, error?: string }`
+
+**Benefits**:
+- Operators can verify knowledge base is operational via `/api/v1/tools/version`
+- Consistent with existing collection status reporting pattern
+- Helps debug controller integration issues
+
+**Next Steps**:
+- Implement version tool extension
+- Test with controller ingestion
+
+---
+
+### 2025-02-04: Version Tool Observability Complete + API Tuning
+**Status**: Complete
+
+**Completed Work**:
+
+1. **Version Tool Observability Extension** (`src/tools/version.ts`)
+   - Added `knowledgeBase` to `SystemStatus['vectorDB']['collections']` interface
+   - Created `testKnowledgeBaseCollectionStatus()` function using `collection_stats` plugin tool
+   - Created `createErrorCollections()` helper to eliminate code duplication (3 places → 1)
+   - Returns: `{ exists: boolean, documentsCount?: number, error?: string }`
+   - Integration test updated to expect `knowledgeBase` in collection status
+
+2. **Search Limit Adjustment** (`src/tools/manage-knowledge.ts`)
+   - Changed default search limit from 10 to 20 chunks
+   - Rationale: 10 chunks ≈ 2,500 tokens (too restrictive), 20 chunks ≈ 5,000 tokens (good balance)
+   - Updated schema description to reflect new default
+
+3. **Delete Bug Investigation** (deferred)
+   - Observed: Controller-ingested data showed 14 chunks deleted but 4 still searchable
+   - Tested via MCP: Single-chunk and multi-chunk documents delete correctly
+   - Conclusion: Delete works for MCP-ingested data; issue may be specific to controller ID format
+   - Decision: Defer investigation until bug reappears with controller data
+
+**Files Changed**:
+- `src/tools/version.ts` - knowledgeBase collection status, createErrorCollections helper
+- `src/tools/manage-knowledge.ts` - DEFAULT_SEARCH_LIMIT 10→20
+- `tests/integration/tools/version.test.ts` - expect knowledgeBase in collections
+- `tests/integration/tools/manage-knowledge.test.ts` - enhanced delete verification
+
+**Next Steps**:
+- Milestone 5: Await controller completion signal
+- Milestone 6: Documentation (blocked by M5)
+- Milestone 7: Web UI feature request (blocked by M5)

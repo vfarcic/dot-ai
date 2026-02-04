@@ -57,6 +57,9 @@ describe.concurrent('Version Tool Integration', () => {
                   }),
                   resources: expect.objectContaining({
                     exists: expect.any(Boolean)
+                  }),
+                  knowledgeBase: expect.objectContaining({
+                    exists: expect.any(Boolean)
                   })
                 }
               },

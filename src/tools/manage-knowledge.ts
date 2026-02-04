@@ -61,7 +61,7 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   limit: z
     .number()
     .optional()
-    .describe('Maximum number of results to return for search (default: 10).'),
+    .describe('Maximum number of results to return for search (default: 20).'),
   uriFilter: z
     .string()
     .optional()
@@ -310,7 +310,7 @@ async function handleIngestOperation(
 /**
  * Default limit for search results
  */
-const DEFAULT_SEARCH_LIMIT = 10;
+const DEFAULT_SEARCH_LIMIT = 20;
 
 /**
  * Handle the search operation

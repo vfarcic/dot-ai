@@ -196,8 +196,9 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
 
-      // ============ STEP 6: VERIFY DELETION via search with uriFilter ============
+      // ============ STEP 6: VERIFY DELETION via uriFilter search ============
       // Search with uriFilter targeting deleted URI should return empty results
+      // This is reliable because testUri includes unique testId, so no interference from concurrent tests
       const searchAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'search',
         query: 'deployment scaling orchestration',
@@ -206,8 +207,14 @@ The narwhal metrics server collects and aggregates resource utilization data for
         interaction_id: `workflow_search_deleted_${testId}`,
       });
 
-      // Deleted URI should return no results - confirms deletion worked
-      expect(searchAfterDelete.data.result.chunks).toHaveLength(0);
+      // CRITICAL: Verify the specific chunks we deleted are actually gone
+      // If this fails, it means delete reported success but chunks are still in the index
+      expect(
+        searchAfterDelete.data.result.chunks,
+        `Delete bug: Expected 0 chunks for deleted URI, but found ${searchAfterDelete.data.result.chunks.length}. ` +
+        `Delete reported ${deleteResponse.data.result.chunksDeleted} chunks deleted but they still exist. ` +
+        `Chunk IDs found: ${JSON.stringify(searchAfterDelete.data.result.chunks.map((c: { id: string }) => c.id))}`
+      ).toHaveLength(0);
 
       // ============ STEP 7: DELETE non-existent URI returns 0 ============
       const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/never-existed-${testId}.md`;
