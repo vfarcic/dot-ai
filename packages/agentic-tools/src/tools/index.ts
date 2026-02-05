@@ -1,7 +1,7 @@
 /**
  * Tool Registry
  *
- * Aggregates all kubectl, helm, and vector tools and exports them for the describe and invoke hooks.
+ * Aggregates all kubectl, helm, vector, and knowledge tools and exports them for the describe and invoke hooks.
  */
 
 import { ToolDefinition } from '../types';

@@ -64,12 +64,12 @@ For documents outside Git, or when you need to quickly add something, use your M
 - **Any text format**: Not limited to markdown - any text content works
 
 **Example**:
-```
+```text
 Ingest docs/guides/mcp-recommendation-guide.md
 ```
 
 **Response**:
-```
+```text
 Successfully ingested docs/guides/mcp-recommendation-guide.md into the knowledge base.
 The document was split into 33 chunks and stored with URI
 https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-recommendation-guide.md.
@@ -86,12 +86,12 @@ https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-recommendation-guide
 Search for relevant information using natural language queries. The system finds semantically similar content and synthesizes an answer.
 
 **Example**:
-```
+```text
 Search knowledgebase to explain how dot-ai recommendations work.
 ```
 
 **Response**:
-```
+```text
 How dot-ai Recommendations Work
 
 The dot-ai recommendation system provides AI-powered Kubernetes deployment
@@ -140,13 +140,13 @@ Remove all chunks for a document by its URI. This is useful when a document is u
 > **Note**: For Git repositories, the [dot-ai-controller](https://devopstoolkit.ai/docs/controller/knowledge-source-guide) handles document lifecycle automatically - it detects changes, deletes outdated chunks, and re-ingests updated content.
 
 **Example** (manual deletion):
-```
+```text
 Delete the recommendation guide from the knowledge base
 (URI: https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-recommendation-guide.md)
 ```
 
 **Response**:
-```
+```text
 Done. Deleted 33 chunks for the recommendation guide from the knowledge base.
 ```
 
@@ -161,13 +161,13 @@ Done. Deleted 33 chunks for the recommendation guide from the knowledge base.
 
 To verify the knowledge base is working and see how many documents are stored:
 
-```
+```text
 Show dot-ai status
 ```
 
 Look for the `knowledgeBase` collection in the response:
 
-```
+```text
 Collections
 
 | Collection    | Status   | Documents |
