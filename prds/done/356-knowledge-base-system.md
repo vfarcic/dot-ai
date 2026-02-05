@@ -13,7 +13,7 @@
 
 ## Problem Statement
 
-Organizations have valuable knowledge scattered across Git repositories (markdown docs), Slack, Confluence, and other sources. This knowledge isn't accessible to AI systems for semantic search and retrieval, limiting the AI's ability to provide contextual, organization-specific guidance.
+Organizations have valuable knowledge scattered across Git repositories (Markdown docs), Slack, Confluence, and other sources. This knowledge isn't accessible to AI systems for semantic search and retrieval, limiting the AI's ability to provide contextual, organization-specific guidance.
 
 ### Current Challenges
 
@@ -46,7 +46,7 @@ Create a knowledge base ingestion and search system in the MCP server that:
 
 ### Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  KUBERNETES CONTROLLER (separate PRD)                           │
 │  • KnowledgeSource CRD (repo, branch, paths, frequency)         │

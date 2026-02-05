@@ -2165,7 +2165,7 @@ export class RestApiRouter {
           res,
           requestId,
           HttpStatus.SERVICE_UNAVAILABLE,
-          'AI_UNAVAILABLE',
+          'AI_NOT_CONFIGURED',
           'AI provider not configured. Set ANTHROPIC_API_KEY or another provider API key.'
         );
         return;

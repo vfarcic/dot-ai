@@ -66,9 +66,10 @@ Capture organizational knowledge and governance policies that automatically enha
 [Pattern Management](guides/pattern-management-guide.md) | [Policy Management](guides/policy-management-guide.md)
 
 ### Knowledge Base
-Ingest organizational documentation into a searchable vector store. Search semantically using natural language to find relevant content by meaning, not just keywords. Supports automated ingestion from Git repositories via controller or ad-hoc ingestion through your AI coding assistant.
-
-[Learn more](guides/mcp-knowledge-base-guide.md)
+#### Overview
+- **What it does**: Ingests organizational documentation into a searchable vector store for semantic retrieval by meaning, not keywords.
+- **Use when**: You want AI to find relevant internal docs or run ad-hoc ingestion via your coding assistant or controller.
+- **📖 Full Guide**: [Knowledge Base](guides/mcp-knowledge-base-guide.md)
 
 ### Project Setup & Governance
 Generate 25+ governance, legal, and automation files (LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, GitHub workflows, Renovate, OpenSSF Scorecard) for repository standardization.

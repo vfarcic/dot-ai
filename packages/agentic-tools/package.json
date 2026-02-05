@@ -30,7 +30,7 @@
     "@langchain/core": "^1.0.0",
     "@langchain/textsplitters": "^1.0.0",
     "@qdrant/js-client-rest": "^1.16.2",
-    "uuid": "^11.0.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

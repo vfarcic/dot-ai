@@ -100,7 +100,7 @@ export const knowledgeChunk: KnowledgeTool = {
         },
         uri: {
           type: 'string',
-          description: 'Document URI for deterministic ID generation (e.g., git://org/repo/docs/guide.md)',
+          description: 'Document URI for deterministic ID generation (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
         },
         maxChunkSize: {
           type: 'number',
