@@ -1,6 +1,6 @@
 # PRD #356: Knowledge Base System
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2025-01-30
 **GitHub Issue**: [#356](https://github.com/vfarcic/dot-ai/issues/356)
 **Priority**: High
@@ -436,14 +436,16 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 **Task**: Use `/request-dot-ai-feature` to send API contract and UI requirements to dot-ai-ui project.
 
 **Success Criteria**:
-- [ ] Send feature request via `/request-dot-ai-feature` with API contract
-- [ ] Receive completion signal from UI project
+- [x] Send feature request via `/request-dot-ai-feature` with API contract
+- [~] Receive completion signal from UI project - **Skipped**: UI team will implement independently
 
 **Request Contents**:
 - Search interface requirements (use `/api/v1/knowledge/ask` for synthesized answers)
 - Result display with source provenance
 - Source browsing capability
 - API contract: `POST /api/v1/knowledge/ask` for question answering
+
+**Status**: Complete
 
 ---
 
@@ -1363,3 +1365,36 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 
 **Next Steps**:
 - Milestone 9: Send Web UI feature request (no longer blocked)
+
+---
+
+### 2025-02-05: Milestone 9 Complete - Web UI Feature Request
+**Status**: Complete
+
+**Completed Work**:
+
+1. **Feature Request Sent** to dot-ai-ui project
+   - API contract for `POST /api/v1/knowledge/ask` endpoint
+   - Request/response schemas with examples
+   - UI suggestions: search interface, answer display, source provenance, optional chunks display
+   - Error handling documentation
+
+**All Milestones Complete**:
+- M1: Ingest Operation ✅
+- M2: Ingest Mock Server Fixture ✅
+- M3: Search Operation ✅
+- M4: DeleteByUri Operation ✅
+- M5a: Notify Controller - Metadata Convention ✅
+- M5b: HTTP-Only DeleteBySource Endpoint ✅
+- M6: Controller Feature Request ✅
+- M7: Documentation ✅
+- M8: Knowledge Ask HTTP Endpoint ✅
+- M9: Web UI Feature Request ✅
+
+**PRD #356 Implementation Complete** - Knowledge Base System is fully functional with:
+- Document ingestion (chunking, embedding, storage)
+- Semantic search via MCP tool
+- Delete operations (by URI and by source)
+- AI-synthesized answers via HTTP endpoint
+- Full documentation
+- Integration with controller and UI projects initiated
