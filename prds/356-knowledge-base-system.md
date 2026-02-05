@@ -379,7 +379,7 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 
 **Success Criteria**:
 - [x] Send feature request via `/request-dot-ai-feature` with API contract
-- [ ] Receive completion signal from controller project
+- [x] Receive completion signal from controller project
 
 **Request Contents**:
 - KnowledgeSource CRD definition
@@ -388,7 +388,7 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 - API contract: `POST /api/v1/tools/manageKnowledge` with ingest, deleteByUri operations
 - API contract: `DELETE /api/v1/knowledge/source/:sourceIdentifier` for bulk cleanup
 
-**Status**: Request sent, awaiting completion signal
+**Status**: Complete
 
 ---
 
@@ -406,7 +406,31 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 
 ---
 
-### Milestone 8: Web UI Feature Request
+### Milestone 8: Knowledge Ask HTTP Endpoint
+**Goal**: HTTP-only endpoint for AI-synthesized answers (for Web UI)
+
+**Context**: Client agents (Claude Code) already synthesize raw search results themselves. Web UI has no AI capability and needs pre-synthesized answers. Adding a `synthesize` parameter to the MCP tool would add unused context to client agents.
+
+**Success Criteria**:
+- [x] Extract reusable `searchKnowledgeBase()` function from MCP tool
+- [x] Add Zod schemas for request/response (`KnowledgeAskRequest`, `KnowledgeAskResponse`)
+- [x] Add route definition: `POST /api/v1/knowledge/ask`
+- [x] Create agentic system prompt (`prompts/knowledge-ask.md`)
+- [x] Implement handler with `toolLoop` (AI can search multiple times, max 5 iterations)
+- [x] Update MCP tool description to mention multiple search calls
+- [x] Integration tests passing
+
+**Implementation Details**:
+- Uses `aiProvider.toolLoop()` with `search_knowledge_base` tool
+- AI can rephrase queries, search multiple times for complex questions
+- AI can supplement KB results with general knowledge for context
+- Returns: `{ answer, sources, chunks }` - answer + provenance + raw data for transparency
+
+**Status**: Complete
+
+---
+
+### Milestone 9: Web UI Feature Request
 **Goal**: Request knowledge base UI feature from dot-ai-ui project
 
 **Task**: Use `/request-dot-ai-feature` to send API contract and UI requirements to dot-ai-ui project.
@@ -416,12 +440,10 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 - [ ] Receive completion signal from UI project
 
 **Request Contents**:
-- Search interface requirements
+- Search interface requirements (use `/api/v1/knowledge/ask` for synthesized answers)
 - Result display with source provenance
 - Source browsing capability
-- API contract: `POST /api/v1/tools/manageKnowledge` with search operation
-
-**Blocked By**: Milestone 6 (controller completion) - UI should be created after end-to-end flow is validated
+- API contract: `POST /api/v1/knowledge/ask` for question answering
 
 ---
 
@@ -1283,3 +1305,61 @@ DELETE /api/v1/knowledge/source/default%2Fplatform-docs
 **Next Steps**:
 - Milestone 6: Await controller completion signal
 - Milestone 8: Web UI feature request (blocked by M6)
+
+---
+
+### 2025-02-05: Milestone 6 Complete + Milestone 8 Knowledge Ask Endpoint
+**Status**: Complete
+
+**Completed Work**:
+
+1. **Milestone 6: Controller Feature Request** - Received completion signal from controller project
+
+2. **Milestone 8: Knowledge Ask HTTP Endpoint** (`POST /api/v1/knowledge/ask`)
+
+   **Why HTTP-only (not MCP)**:
+   - Client agents (Claude Code) already synthesize raw search results themselves
+   - Adding `synthesize` parameter to MCP tool would add unused context
+   - Web UI has no AI capability and needs pre-synthesized answers
+
+   **Implementation**:
+   - Extracted reusable `searchKnowledgeBase()` function from MCP tool handler
+   - Added Zod schemas: `KnowledgeAskRequest`, `KnowledgeAskResponse`, error schemas
+   - Added route definition in `src/interfaces/routes/index.ts`
+   - Created agentic system prompt: `prompts/knowledge-ask.md`
+   - Implemented handler using `aiProvider.toolLoop()` with `search_knowledge_base` tool
+   - AI can search multiple times (max 5 iterations) for complex questions
+   - AI can supplement KB results with general knowledge for context
+   - Updated MCP tool description to mention multiple search calls capability
+
+   **Response Format**:
+   ```json
+   {
+     "answer": "AI-synthesized answer",
+     "sources": [{ "uri": "..." }],
+     "chunks": [{ "content": "...", "uri": "...", "score": 0.95, "chunkIndex": 0 }]
+   }
+   ```
+
+3. **Integration Tests**
+   - Added 2 new tests for `/api/v1/knowledge/ask` endpoint
+   - Test with verifiable fact: document says "company car is blue" → answer contains "blue"
+   - Test for missing query parameter returns 400
+   - All 9 tests passing
+
+**Key Design Decisions**:
+- **Agentic approach**: AI decides what to search, can rephrase and search multiple times
+- **Semantic search handles synonyms**: No need for rephrasing instructions in prompt
+- **AI can use general knowledge**: KB is authoritative for org-specific info, AI supplements with context
+
+**Files Changed**:
+- `src/tools/manage-knowledge.ts` - Extracted `searchKnowledgeBase()`, updated tool description
+- `src/interfaces/schemas/knowledge.ts` - Added request/response schemas
+- `src/interfaces/schemas/index.ts` - Exported new schemas
+- `src/interfaces/routes/index.ts` - Added route definition
+- `prompts/knowledge-ask.md` - System prompt for agentic loop
+- `src/interfaces/rest-api.ts` - Handler implementation with toolLoop
+- `tests/integration/tools/manage-knowledge.test.ts` - Added 2 integration tests
+
+**Next Steps**:
+- Milestone 9: Send Web UI feature request (no longer blocked)

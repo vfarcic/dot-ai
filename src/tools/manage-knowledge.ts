@@ -30,7 +30,9 @@ export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
 export const MANAGE_KNOWLEDGE_TOOL_DESCRIPTION =
   'Manage the knowledge base: ingest documents, search with natural language, or delete chunks. ' +
   'Use "ingest" to store organizational documentation, "search" to find relevant content semantically, ' +
-  'or "deleteByUri" to remove all chunks for a document.';
+  'or "deleteByUri" to remove all chunks for a document. ' +
+  'TIP: For complex questions, you can call search multiple times with different phrasings to gather ' +
+  'comprehensive information before synthesizing your answer.';
 
 // Input schema using Zod
 export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
@@ -323,7 +325,154 @@ async function handleIngestOperation(
 const DEFAULT_SEARCH_LIMIT = 20;
 
 /**
- * Handle the search operation
+ * Result type for the reusable search function
+ */
+export interface SearchKnowledgeBaseResult {
+  success: boolean;
+  chunks: KnowledgeSearchResultItem[];
+  totalMatches: number;
+  error?: string;
+}
+
+/**
+ * Reusable knowledge base search function.
+ * Can be called from MCP tool handler or HTTP endpoints.
+ *
+ * @param params Search parameters
+ * @returns Search results with chunks or error
+ */
+export async function searchKnowledgeBase(params: {
+  query: string;
+  limit?: number;
+  uriFilter?: string;
+}): Promise<SearchKnowledgeBaseResult> {
+  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter } = params;
+
+  // Check plugin availability
+  if (!isPluginInitialized()) {
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: 'Plugin system not available',
+    };
+  }
+
+  // Check embedding service availability
+  const embeddingService = new EmbeddingService();
+  if (!embeddingService.isAvailable()) {
+    const status = embeddingService.getStatus();
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: `Embedding service not available: ${status.reason}`,
+    };
+  }
+
+  // Generate embedding for the search query
+  const queryEmbedding = await embeddingService.generateEmbedding(query);
+
+  // Build filter if uriFilter is provided
+  let filter: Record<string, unknown> | undefined;
+  if (uriFilter) {
+    filter = {
+      must: [
+        {
+          key: 'uri',
+          match: {
+            value: uriFilter,
+          },
+        },
+      ],
+    };
+  }
+
+  // Call vector_search plugin tool
+  const searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
+    collection: KNOWLEDGE_COLLECTION,
+    embedding: queryEmbedding,
+    limit,
+    filter,
+    scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
+  });
+
+  if (!searchResponse.success) {
+    const error = searchResponse.error as { message?: string; error?: string } | undefined;
+    const errorMessage = error?.message || error?.error || 'Search failed';
+
+    // If collection doesn't exist (Not Found), return empty result (not error)
+    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+      return {
+        success: true,
+        chunks: [],
+        totalMatches: 0,
+      };
+    }
+
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: errorMessage,
+    };
+  }
+
+  // Extract results from plugin response
+  const searchResult = searchResponse.result as {
+    success: boolean;
+    data?: Array<{
+      id: string;
+      score: number;
+      payload: Record<string, unknown>;
+    }>;
+    error?: string;
+    message: string;
+  };
+
+  if (!searchResult.success) {
+    const errorMessage = searchResult.error || searchResult.message;
+
+    // If collection doesn't exist, return empty result (not error)
+    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+      return {
+        success: true,
+        chunks: [],
+        totalMatches: 0,
+      };
+    }
+
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: errorMessage,
+    };
+  }
+
+  // Transform results to KnowledgeSearchResultItem format
+  const results = searchResult.data || [];
+  const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
+    id: result.id,
+    content: result.payload.content as string,
+    score: result.score,
+    matchType: 'semantic' as const, // Dense vector search only (BM25 deferred)
+    uri: result.payload.uri as string,
+    metadata: (result.payload.metadata as Record<string, unknown>) || {},
+    chunkIndex: result.payload.chunkIndex as number,
+    totalChunks: result.payload.totalChunks as number,
+    extractedPolicies: undefined, // Populated by PRD #357
+  }));
+
+  return {
+    success: true,
+    chunks,
+    totalMatches: chunks.length,
+  };
+}
+
+/**
+ * Handle the search operation (MCP tool handler)
  */
 async function handleSearchOperation(
   args: ManageKnowledgeInput,
@@ -340,25 +489,6 @@ async function handleSearchOperation(
     });
   }
 
-  // Check plugin availability
-  if (!isPluginInitialized()) {
-    return createErrorResponse('Plugin system not available', {
-      operation: 'search',
-      hint: 'The agentic-tools plugin must be running for knowledge base operations',
-    });
-  }
-
-  // Check embedding service availability
-  const embeddingService = new EmbeddingService();
-  if (!embeddingService.isAvailable()) {
-    const status = embeddingService.getStatus();
-    return createErrorResponse('Embedding service not available', {
-      operation: 'search',
-      reason: status.reason,
-      hint: 'Set OPENAI_API_KEY environment variable to enable embeddings',
-    });
-  }
-
   logger.info('Starting knowledge base search', {
     requestId,
     queryLength: query.length,
@@ -367,128 +497,34 @@ async function handleSearchOperation(
   });
 
   try {
-    // Step 1: Generate embedding for the search query
-    logger.debug('Generating embedding for search query', { requestId });
-    const queryEmbedding = await embeddingService.generateEmbedding(query);
-
-    // Step 2: Build filter if uriFilter is provided
-    let filter: Record<string, unknown> | undefined;
-    if (uriFilter) {
-      // Use exact value match for URI filtering
-      filter = {
-        must: [
-          {
-            key: 'uri',
-            match: {
-              value: uriFilter,
-            },
-          },
-        ],
-      };
-    }
-
-    // Step 3: Call vector_search plugin tool
-    logger.debug('Executing vector search via plugin', { requestId, limit, hasFilter: !!filter });
-
-    const searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
-      collection: KNOWLEDGE_COLLECTION,
-      embedding: queryEmbedding,
-      limit,
-      filter,
-      scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
-    });
-
-    if (!searchResponse.success) {
-      const error = searchResponse.error as { message?: string; error?: string } | undefined;
-      const errorMessage = error?.message || error?.error || 'Search failed';
-
-      // If collection doesn't exist (Not Found), return empty result
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning empty search results', { requestId });
-        const response: KnowledgeSearchResponse = {
-          success: true,
-          operation: 'search',
-          chunks: [],
-          totalMatches: 0,
-          query,
-          message: 'No matching documents found',
-        };
-        return response;
-      }
-
-      logger.error('Plugin search failed', new Error(errorMessage), { requestId });
-      return createErrorResponse('Search failed', {
-        operation: 'search',
-        error: errorMessage,
-      });
-    }
-
-    // Extract results from plugin response
-    const searchResult = searchResponse.result as {
-      success: boolean;
-      data?: Array<{
-        id: string;
-        score: number;
-        payload: Record<string, unknown>;
-      }>;
-      error?: string;
-      message: string;
-    };
+    // Use the reusable search function
+    const searchResult = await searchKnowledgeBase({ query, limit, uriFilter });
 
     if (!searchResult.success) {
-      const errorMessage = searchResult.error || searchResult.message;
-
-      // If collection doesn't exist, return empty result
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning empty search results', { requestId });
-        const response: KnowledgeSearchResponse = {
-          success: true,
-          operation: 'search',
-          chunks: [],
-          totalMatches: 0,
-          query,
-          message: 'No matching documents found',
-        };
-        return response;
-      }
-
+      logger.error('Knowledge base search failed', new Error(searchResult.error), { requestId });
       return createErrorResponse('Search failed', {
         operation: 'search',
-        error: errorMessage,
+        error: searchResult.error,
       });
     }
-
-    // Step 4: Transform results to KnowledgeSearchResultItem format
-    const results = searchResult.data || [];
-    const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
-      id: result.id,
-      content: result.payload.content as string,
-      score: result.score,
-      matchType: 'semantic' as const, // Dense vector search only (BM25 deferred)
-      uri: result.payload.uri as string,
-      metadata: (result.payload.metadata as Record<string, unknown>) || {},
-      chunkIndex: result.payload.chunkIndex as number,
-      totalChunks: result.payload.totalChunks as number,
-      extractedPolicies: undefined, // Populated by PRD #357
-    }));
 
     logger.info('Knowledge base search completed', {
       requestId,
       query: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
-      resultsFound: chunks.length,
+      resultsFound: searchResult.chunks.length,
     });
 
     const response: KnowledgeSearchResponse = {
       success: true,
       operation: 'search',
-      chunks,
-      totalMatches: chunks.length,
+      chunks: searchResult.chunks,
+      totalMatches: searchResult.totalMatches,
       query,
       message:
-        chunks.length > 0
-          ? `Found ${chunks.length} matching chunks`
+        searchResult.chunks.length > 0
+          ? `Found ${searchResult.chunks.length} matching chunks`
           : 'No matching documents found',
-      agentInstructions: chunks.length > 0
+      agentInstructions: searchResult.chunks.length > 0
         ? `Use the chunks as source material to answer the user's question:
 1. Extract and combine only the relevant information from the chunks
 2. Synthesize a coherent answer that directly addresses the user's query

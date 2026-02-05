@@ -38,6 +38,8 @@ import {
 import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
+import { searchKnowledgeBase, type SearchKnowledgeBaseResult } from '../tools/manage-knowledge';
+import type { AITool } from '../core/ai-provider.interface';
 
 /**
  * HTTP status codes for REST responses
@@ -328,6 +330,7 @@ export class RestApiRouter {
       'GET:/api/v1/visualize/:sessionId': () => this.handleVisualize(req, res, requestId, params.sessionId, searchParams),
       'GET:/api/v1/sessions/:sessionId': () => this.handleSessionRetrieval(req, res, requestId, params.sessionId),
       'DELETE:/api/v1/knowledge/source/:sourceIdentifier': () => this.handleDeleteKnowledgeSource(req, res, requestId, params.sourceIdentifier),
+      'POST:/api/v1/knowledge/ask': () => this.handleKnowledgeAsk(req, res, requestId, body),
     };
 
     const handler = handlers[routeKey];
@@ -2089,6 +2092,236 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'DELETE_SOURCE_ERROR',
         'Failed to delete knowledge source',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle POST /api/v1/knowledge/ask (PRD #356)
+   * Ask a question and receive an AI-synthesized answer from the knowledge base.
+   * Uses an agentic approach with toolLoop to allow multiple searches if needed.
+   */
+  private async handleKnowledgeAsk(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      // Validate request body
+      if (!body || typeof body !== 'object') {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'Request body must be a JSON object'
+        );
+        return;
+      }
+
+      const { query, limit = 20, uriFilter } = body as {
+        query?: string;
+        limit?: number;
+        uriFilter?: string;
+      };
+
+      // Validate required query parameter
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'Missing or empty required parameter: query'
+        );
+        return;
+      }
+
+      this.logger.info('Processing knowledge ask request', {
+        requestId,
+        queryLength: query.length,
+        limit,
+        hasUriFilter: !!uriFilter,
+      });
+
+      // Check plugin availability (needed for search)
+      if (!isPluginInitialized()) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'PLUGIN_UNAVAILABLE',
+          'Plugin system not initialized'
+        );
+        return;
+      }
+
+      // Check AI provider availability
+      const aiProvider = createAIProvider();
+      if (!aiProvider.isInitialized()) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'AI_UNAVAILABLE',
+          'AI provider not configured. Set ANTHROPIC_API_KEY or another provider API key.'
+        );
+        return;
+      }
+
+      // Define the search tool for the AI
+      const searchTool: AITool = {
+        name: 'search_knowledge_base',
+        description: 'Search the knowledge base for relevant information. Returns chunks of text from documents that match the query semantically.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The search query - can be a question or keywords',
+            },
+          },
+          required: ['query'],
+        },
+      };
+
+      // Collect all chunks from search results across iterations
+      const allChunks: Array<{
+        content: string;
+        uri: string;
+        score: number;
+        chunkIndex: number;
+      }> = [];
+
+      // Tool executor that calls searchKnowledgeBase
+      const toolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
+        if (toolName !== 'search_knowledge_base') {
+          return {
+            success: false,
+            error: `Unknown tool: ${toolName}`,
+          };
+        }
+
+        const searchInput = input as { query: string };
+        const result: SearchKnowledgeBaseResult = await searchKnowledgeBase({
+          query: searchInput.query,
+          limit,
+          uriFilter,
+        });
+
+        if (!result.success) {
+          return {
+            success: false,
+            error: result.error,
+            message: 'Search failed',
+          };
+        }
+
+        // Collect chunks for the response
+        for (const chunk of result.chunks) {
+          // Avoid duplicates (same id)
+          if (!allChunks.some(c => c.uri === chunk.uri && c.chunkIndex === chunk.chunkIndex)) {
+            allChunks.push({
+              content: chunk.content,
+              uri: chunk.uri,
+              score: chunk.score,
+              chunkIndex: chunk.chunkIndex,
+            });
+          }
+        }
+
+        // Return results to the AI
+        if (result.chunks.length === 0) {
+          return {
+            success: true,
+            message: 'No matching documents found in the knowledge base.',
+            chunks: [],
+          };
+        }
+
+        return {
+          success: true,
+          message: `Found ${result.chunks.length} relevant chunks.`,
+          chunks: result.chunks.map(c => ({
+            content: c.content,
+            uri: c.uri,
+            score: c.score,
+          })),
+        };
+      };
+
+      // Load system prompt
+      const systemPrompt = loadPrompt('knowledge-ask');
+
+      // Execute tool loop
+      this.logger.info('Starting knowledge ask tool loop', { requestId });
+
+      const result = await aiProvider.toolLoop({
+        systemPrompt,
+        userMessage: query,
+        tools: [searchTool],
+        toolExecutor,
+        maxIterations: 5,
+        operation: 'knowledge-ask',
+        evaluationContext: {
+          user_intent: query,
+        },
+      });
+
+      this.logger.info('Knowledge ask tool loop completed', {
+        requestId,
+        iterations: result.iterations,
+        chunksCollected: allChunks.length,
+        toolCallsCount: result.toolCallsExecuted.length,
+      });
+
+      // Deduplicate sources from collected chunks
+      const sourceMap = new Map<string, { uri: string; title?: string }>();
+      for (const chunk of allChunks) {
+        if (!sourceMap.has(chunk.uri)) {
+          sourceMap.set(chunk.uri, { uri: chunk.uri });
+        }
+      }
+      const sources = Array.from(sourceMap.values());
+
+      // Build response
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          answer: result.finalMessage,
+          sources,
+          chunks: allChunks,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Knowledge ask completed', {
+        requestId,
+        sourcesFound: sources.length,
+        chunksReturned: allChunks.length,
+        answerLength: result.finalMessage.length,
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Knowledge ask request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SYNTHESIS_ERROR',
+        'Failed to process knowledge ask request',
         { error: errorMessage }
       );
     }

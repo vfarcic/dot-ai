@@ -602,4 +602,73 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
       });
     }, 60000);
   });
+
+  describe('Knowledge Ask Endpoint', () => {
+    test('should answer question with verifiable fact from knowledge base', async () => {
+      const testId = Date.now();
+
+      // Document with clear, verifiable facts
+      const policyUri = `https://github.com/test-org/docs/blob/main/company-policy-${testId}.md`;
+      const policyContent = `# Company Vehicle Policy
+
+The company car color is blue. All company vehicles must be blue to maintain brand consistency.
+
+The maximum speed limit in the company parking lot is 15 miles per hour.
+
+Employees must return company vehicles with at least half a tank of fuel.`;
+
+      // Ingest the document
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: policyUri,
+        content: policyContent,
+        metadata: { testId, category: 'policy' },
+      });
+
+      // Ask a question about a specific fact
+      const response = await integrationTest.httpClient.post('/api/v1/knowledge/ask', {
+        query: `What color is the company car? ${testId}`,
+      });
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          answer: expect.any(String),
+          sources: expect.any(Array),
+          chunks: expect.any(Array),
+        },
+        meta: expect.objectContaining({
+          version: 'v1',
+        }),
+      });
+
+      // Verify the answer contains the specific fact
+      const answer = response.data.answer.toLowerCase();
+      expect(answer).toContain('blue');
+
+      // Verify sources include the policy document
+      const sourceUris = response.data.sources.map((s: { uri: string }) => s.uri);
+      expect(sourceUris).toContain(policyUri);
+
+      // Cleanup
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: policyUri,
+      });
+    }, 120000);
+
+    test('should return 400 for missing query', async () => {
+      const response = await integrationTest.httpClient.post('/api/v1/knowledge/ask', {
+        limit: 10,
+      });
+
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: expect.stringContaining('query'),
+        },
+      });
+    });
+  });
 });
