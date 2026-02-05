@@ -150,7 +150,17 @@ async function handleIngestOperation(
   });
 
   try {
-    // Step 1: Call plugin to chunk the document
+    // Step 1: Delete any existing chunks for this URI (ensures clean replacement)
+    const deletedCount = await deleteChunksByUri(uri, logger, requestId);
+    if (deletedCount > 0) {
+      logger.info('Deleted existing chunks before re-ingestion', {
+        requestId,
+        uri,
+        chunksDeleted: deletedCount,
+      });
+    }
+
+    // Step 2: Chunk the document
     logger.debug('Calling knowledge_chunk plugin tool', { requestId, uri });
 
     const chunkResponse = await invokePluginTool(PLUGIN_NAME, 'knowledge_chunk', {
@@ -203,7 +213,7 @@ async function handleIngestOperation(
       return response;
     }
 
-    // Step 2: Initialize collection via plugin
+    // Step 3: Initialize collection via plugin
     const vectorSize = embeddingService.getDimensions();
     logger.debug('Initializing knowledge collection via plugin', { requestId, vectorSize });
 
@@ -223,7 +233,7 @@ async function handleIngestOperation(
       });
     }
 
-    // Step 3: Store each chunk with embedding via plugin
+    // Step 4: Store each chunk with embedding via plugin
     const chunkIds: string[] = [];
     const ingestedAt = new Date().toISOString();
 
@@ -478,6 +488,14 @@ async function handleSearchOperation(
         chunks.length > 0
           ? `Found ${chunks.length} matching chunks`
           : 'No matching documents found',
+      agentInstructions: chunks.length > 0
+        ? `Use the chunks as source material to answer the user's question:
+1. Extract and combine only the relevant information from the chunks
+2. Synthesize a coherent answer that directly addresses the user's query
+3. Discard irrelevant text - chunks may contain both relevant and irrelevant content
+4. At the end, include a "Sources:" section listing the unique source URIs as clickable markdown links
+5. Do NOT show raw chunks, scores, or chunk metadata to the user`
+        : undefined,
     };
 
     return response;
@@ -489,6 +507,91 @@ async function handleSearchOperation(
       error: errorMessage,
     });
   }
+}
+
+/**
+ * Helper to delete all chunks for a URI.
+ * Returns the number of chunks deleted, or throws an error.
+ * Handles "collection not found" gracefully (returns 0).
+ */
+async function deleteChunksByUri(
+  uri: string,
+  logger: Logger,
+  requestId: string
+): Promise<number> {
+  // Query all chunks matching the URI
+  const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
+    collection: KNOWLEDGE_COLLECTION,
+    filter: {
+      must: [{ key: 'uri', match: { value: uri } }],
+    },
+    limit: 10000, // High limit to get all chunks for a document
+  });
+
+  if (!queryResponse.success) {
+    const error = queryResponse.error as { message?: string; error?: string } | undefined;
+    const errorMessage = error?.message || error?.error || 'Query failed';
+
+    // If collection doesn't exist (Not Found), return 0 (no chunks to delete)
+    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+      logger.debug('Collection not found - no chunks to delete', { requestId, uri });
+      return 0;
+    }
+
+    throw new Error(`Failed to query chunks for deletion: ${errorMessage}`);
+  }
+
+  // Extract results from plugin response
+  const queryResult = queryResponse.result as {
+    success: boolean;
+    data?: Array<{
+      id: string;
+      payload: Record<string, unknown>;
+    }>;
+    error?: string;
+    message: string;
+  };
+
+  if (!queryResult.success) {
+    const errorMessage = queryResult.error || queryResult.message;
+
+    // If collection doesn't exist, return 0
+    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+      logger.debug('Collection not found - no chunks to delete', { requestId, uri });
+      return 0;
+    }
+
+    throw new Error(`Failed to query chunks for deletion: ${errorMessage}`);
+  }
+
+  const chunksToDelete = queryResult.data || [];
+
+  // If no chunks found, return 0
+  if (chunksToDelete.length === 0) {
+    logger.debug('No existing chunks found for URI', { requestId, uri });
+    return 0;
+  }
+
+  // Delete each chunk by ID
+  let deletedCount = 0;
+  for (const chunk of chunksToDelete) {
+    logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
+
+    const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
+      collection: KNOWLEDGE_COLLECTION,
+      id: chunk.id,
+    });
+
+    if (!deleteResponse.success) {
+      const error = deleteResponse.error as { message?: string } | undefined;
+      const errorMessage = error?.message || 'Delete failed';
+      throw new Error(`Failed to delete chunk ${chunk.id}: ${errorMessage}`);
+    }
+
+    deletedCount++;
+  }
+
+  return deletedCount;
 }
 
 /**
@@ -520,115 +623,7 @@ async function handleDeleteByUriOperation(
   logger.info('Starting deleteByUri operation', { requestId, uri });
 
   try {
-    // Step 1: Query all chunks matching the URI
-    const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
-      collection: KNOWLEDGE_COLLECTION,
-      filter: {
-        must: [{ key: 'uri', match: { value: uri } }],
-      },
-      limit: 10000, // High limit to get all chunks for a document
-    });
-
-    if (!queryResponse.success) {
-      const error = queryResponse.error as { message?: string; error?: string } | undefined;
-      const errorMessage = error?.message || error?.error || 'Query failed';
-
-      // If collection doesn't exist (Not Found), return success with 0 deleted
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning success with 0 deleted', { requestId, uri });
-        const response: DeleteByUriResponse = {
-          success: true,
-          operation: 'deleteByUri',
-          uri,
-          chunksDeleted: 0,
-          message: 'No chunks found for URI',
-        };
-        return response;
-      }
-
-      logger.error('Plugin query failed', new Error(errorMessage), { requestId, uri });
-      return createErrorResponse('Failed to query chunks for deletion', {
-        operation: 'deleteByUri',
-        error: errorMessage,
-      });
-    }
-
-    // Extract results from plugin response
-    const queryResult = queryResponse.result as {
-      success: boolean;
-      data?: Array<{
-        id: string;
-        payload: Record<string, unknown>;
-      }>;
-      error?: string;
-      message: string;
-    };
-
-    if (!queryResult.success) {
-      const errorMessage = queryResult.error || queryResult.message;
-
-      // If collection doesn't exist, return success with 0 deleted
-      if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-        logger.info('Collection not found - returning success with 0 deleted', { requestId, uri });
-        const response: DeleteByUriResponse = {
-          success: true,
-          operation: 'deleteByUri',
-          uri,
-          chunksDeleted: 0,
-          message: 'No chunks found for URI',
-        };
-        return response;
-      }
-
-      return createErrorResponse('Failed to query chunks for deletion', {
-        operation: 'deleteByUri',
-        error: errorMessage,
-      });
-    }
-
-    const chunksToDelete = queryResult.data || [];
-
-    // If no chunks found, return success with 0 deleted
-    if (chunksToDelete.length === 0) {
-      logger.info('No chunks found for URI', { requestId, uri });
-      const response: DeleteByUriResponse = {
-        success: true,
-        operation: 'deleteByUri',
-        uri,
-        chunksDeleted: 0,
-        message: 'No chunks found for URI',
-      };
-      return response;
-    }
-
-    // Step 2: Delete each chunk by ID
-    let deletedCount = 0;
-    for (const chunk of chunksToDelete) {
-      logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
-
-      const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
-        collection: KNOWLEDGE_COLLECTION,
-        id: chunk.id,
-      });
-
-      if (!deleteResponse.success) {
-        const error = deleteResponse.error as { message?: string } | undefined;
-        const errorMessage = error?.message || 'Delete failed';
-        logger.error('Failed to delete chunk', new Error(errorMessage), {
-          requestId,
-          chunkId: chunk.id,
-          deletedSoFar: deletedCount,
-        });
-        return createErrorResponse('Failed to delete chunk', {
-          operation: 'deleteByUri',
-          chunkId: chunk.id,
-          error: errorMessage,
-          chunksDeletedBeforeFailure: deletedCount,
-        });
-      }
-
-      deletedCount++;
-    }
+    const deletedCount = await deleteChunksByUri(uri, logger, requestId);
 
     logger.info('DeleteByUri operation completed', {
       requestId,
@@ -641,7 +636,9 @@ async function handleDeleteByUriOperation(
       operation: 'deleteByUri',
       uri,
       chunksDeleted: deletedCount,
-      message: `Successfully deleted ${deletedCount} chunks for URI`,
+      message: deletedCount > 0
+        ? `Successfully deleted ${deletedCount} chunks for URI`
+        : 'No chunks found for URI',
     };
 
     return response;

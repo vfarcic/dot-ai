@@ -46,6 +46,10 @@ import {
   // Sessions schemas
   SessionResponseSchema,
   SessionNotFoundErrorSchema,
+  // Knowledge schemas
+  DeleteBySourceResponseSchema,
+  DeleteBySourcePluginUnavailableErrorSchema,
+  DeleteBySourceErrorSchema,
   // Common schemas
   NotFoundErrorSchema,
   InternalServerErrorSchema,
@@ -116,6 +120,10 @@ const PromptNameParamsSchema = z.object({
 
 const SessionIdParamsSchema = z.object({
   sessionId: z.string().describe('Session ID'),
+});
+
+const SourceIdentifierParamsSchema = z.object({
+  sourceIdentifier: z.string().describe('Source identifier (e.g., namespace/name of GitKnowledgeSource CR)'),
 });
 
 /**
@@ -349,6 +357,22 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
     errorResponses: {
       404: SessionNotFoundErrorSchema,
       500: InternalServerErrorSchema,
+    },
+  },
+
+  // ============================================
+  // Knowledge Base Endpoints (PRD #356)
+  // ============================================
+  {
+    path: '/api/v1/knowledge/source/:sourceIdentifier',
+    method: 'DELETE',
+    description: 'Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.',
+    tags: ['Knowledge'],
+    params: SourceIdentifierParamsSchema,
+    response: DeleteBySourceResponseSchema,
+    errorResponses: {
+      503: DeleteBySourcePluginUnavailableErrorSchema,
+      500: DeleteBySourceErrorSchema,
     },
   },
 ];

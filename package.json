@@ -108,7 +108,7 @@
     "@ai-sdk/openai": "^2.0.42",
     "@ai-sdk/xai": "^2.0.26",
     "@kubernetes/client-node": "^1.3.0",
-    "@modelcontextprotocol/sdk": "^1.13.2",
+    "@modelcontextprotocol/sdk": "1.25.3",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.207.0",

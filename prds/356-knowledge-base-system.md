@@ -195,7 +195,7 @@ interface KnowledgeChunk {
 ```
 
 **Chunk ID Generation**: Deterministic UUID v5 from `${uri}#${chunkIndex}` enables:
-- **Upsert behavior**: Re-ingesting same content updates in place (no duplicates)
+- **Clean replacement**: Ingest auto-deletes existing chunks for the URI first, then stores new chunks
 - **Direct lookup**: Can compute ID from URI without querying
 - **Idempotent ingestion**: Same request = same result
 
@@ -309,7 +309,70 @@ interface KnowledgeSearchResult {
 
 ---
 
-### Milestone 5: Controller Feature Request
+### Milestone 5a: Notify Controller - Metadata Convention
+**Goal**: Inform controller about `metadata.sourceIdentifier` convention for bulk deletion support
+
+**Task**: Send feature response to controller with metadata convention details.
+
+**Success Criteria**:
+- [x] Write response to `../dot-ai-controller-prd-44-knowledgesource-crd/tmp/feature-response.md`
+- [x] Document `metadata.sourceIdentifier` field usage on ingest
+- [x] Explain that `deleteBySource` endpoint is coming in M5b
+
+**Response Contents**:
+- Controller should pass `metadata: { sourceIdentifier: "namespace/name" }` on all ingest calls
+- This enables future bulk deletion by source
+- Delete endpoint will be available after M5b implementation
+
+**Status**: Complete
+
+---
+
+### Milestone 5b: HTTP-Only DeleteBySource Endpoint
+**Goal**: Add HTTP endpoint for bulk deletion by source identifier (for controller cleanup)
+
+**Context**: Controller needs to delete all documents from a GitKnowledgeSource when:
+1. The CR is deleted (cleanup all synced documents)
+2. Spec changes (full re-sync: delete old docs before re-ingesting)
+
+**Success Criteria**:
+- [x] HTTP endpoint: `DELETE /api/v1/knowledge/source/:sourceIdentifier`
+- [x] Query chunks by `metadata.sourceIdentifier` payload field
+- [x] Delete all matching chunks atomically
+- [x] Return `{ success: boolean, chunksDeleted: number }`
+- [x] Integration tests for deleteBySource
+- [x] Notify controller that endpoint is ready
+
+**Why HTTP-only (not MCP)**:
+- Controller calls this programmatically during reconciliation, not AI agent interactive use
+- MCP tools are for AI agents; this is machine-to-machine communication
+- Simpler than extending MCP tool schema
+
+**Usage from Controller**:
+```typescript
+// On ingest - include source identifier in metadata
+POST /api/v1/tools/manageKnowledge
+{
+  "operation": "ingest",
+  "uri": "https://github.com/org/repo/blob/main/docs/guide.md",
+  "content": "...",
+  "metadata": { "sourceIdentifier": "default/platform-docs" }
+}
+
+// On cleanup - delete all docs from this source
+DELETE /api/v1/knowledge/source/default%2Fplatform-docs
+// Returns: { "success": true, "chunksDeleted": 42 }
+```
+
+**Validation**:
+- Controller can delete all documents for a GitKnowledgeSource with single API call
+- Works correctly with URL-encoded sourceIdentifier containing slashes
+
+**Status**: Complete
+
+---
+
+### Milestone 6: Controller Feature Request
 **Goal**: Request knowledge base orchestration feature from dot-ai-controller project
 
 **Task**: Use `/request-dot-ai-feature` to send API contract and requirements to controller project.
@@ -323,27 +386,27 @@ interface KnowledgeSearchResult {
 - Git adapter requirements (clone, pull, diff)
 - CronJob scheduling based on sync frequency
 - API contract: `POST /api/v1/tools/manageKnowledge` with ingest, deleteByUri operations
+- API contract: `DELETE /api/v1/knowledge/source/:sourceIdentifier` for bulk cleanup
 
 **Status**: Request sent, awaiting completion signal
 
 ---
 
-### Milestone 6: Documentation Feature Request
-**Goal**: Request documentation creation from dot-ai-docs project (or create locally)
-
-**Task**: Create user-facing documentation after controller integration is validated.
+### Milestone 7: Documentation
+**Goal**: Create user-facing documentation for knowledge base features
 
 **Success Criteria**:
-- [ ] User guide for knowledge base ingestion and search
-- [ ] API reference with examples for all operations (ingest, search, deleteByUri)
-- [ ] Architecture overview showing MCP server + controller interaction
-- [ ] Troubleshooting guide for common issues
+- [x] User guide for knowledge base ingestion and search
+- [x] API reference with examples for all operations (ingest, search, deleteByUri, deleteBySource)
+- [x] Architecture overview showing MCP server + controller interaction
+- [x] Troubleshooting guide for common issues
+- [x] Controller documentation links configured
 
-**Blocked By**: Milestone 5 (controller completion) - documentation should reflect validated end-to-end functionality
+**Status**: Complete
 
 ---
 
-### Milestone 7: Web UI Feature Request
+### Milestone 8: Web UI Feature Request
 **Goal**: Request knowledge base UI feature from dot-ai-ui project
 
 **Task**: Use `/request-dot-ai-feature` to send API contract and UI requirements to dot-ai-ui project.
@@ -358,7 +421,7 @@ interface KnowledgeSearchResult {
 - Source browsing capability
 - API contract: `POST /api/v1/tools/manageKnowledge` with search operation
 
-**Blocked By**: Milestone 5 (controller completion) - UI should be created after end-to-end flow is validated
+**Blocked By**: Milestone 6 (controller completion) - UI should be created after end-to-end flow is validated
 
 ---
 
@@ -530,7 +593,7 @@ interface KnowledgeSearchResult {
 
 18. **Chunk ID Generation**: How to generate chunk IDs?
     - **Decision**: Deterministic UUID v5 from `${uri}#${chunkIndex}` using a fixed namespace
-    - **Rationale**: Enables upsert behavior (re-ingesting updates in place), direct lookup by computed ID, and idempotent ingestion. Same URI + chunk index always produces same ID.
+    - **Rationale**: Enables clean replacement (auto-delete old chunks before ingesting new), direct lookup by computed ID, and idempotent ingestion. Same URI + chunk index always produces same ID.
     - **Impact**: Qdrant point IDs are deterministic, not random UUIDs. Simplifies update flow.
     - **Date**: 2025-02-02
 
@@ -556,6 +619,19 @@ interface KnowledgeSearchResult {
     - **Rationale**: The `version` tool already reports status for patterns, policies, capabilities, and resources collections. Adding knowledge-base follows the same pattern and provides visibility into whether the collection is initialized and how many chunks are stored.
     - **Impact**: Add `knowledgeBase` to `SystemStatus['vectorDB']['collections']` with `exists`, `documentsCount`, and `error` fields. Helps operators verify knowledge base is operational.
     - **Date**: 2025-02-03
+
+23. **Bulk Delete by Source**: Should `deleteBySource` be an MCP tool operation or HTTP-only API?
+    - **Decision**: HTTP-only API endpoint, not exposed as MCP tool operation
+    - **Rationale**:
+      1. The controller calls this programmatically during CR deletion/reconciliation, not an AI agent interactively
+      2. MCP tools are for AI agents - bulk cleanup is a machine-to-machine operation
+      3. Simpler implementation - no need to extend MCP tool schema
+    - **Implementation**:
+      - HTTP endpoint: `DELETE /api/v1/knowledge/source/:sourceIdentifier`
+      - Controller passes `metadata.sourceIdentifier` on ingest (e.g., `"default/platform-docs"`)
+      - Delete endpoint queries chunks by `metadata.sourceIdentifier` and removes all matching
+    - **Impact**: Add new milestone for HTTP-only `deleteBySource` endpoint. Existing `deleteByUri` MCP operation remains for individual document cleanup.
+    - **Date**: 2025-02-04
 
 ---
 
@@ -826,7 +902,7 @@ interface KnowledgeSearchResult {
 
 2. **Deterministic Chunk IDs**
    - UUID v5 generated from `${uri}#${chunkIndex}`
-   - Enables upsert behavior (re-ingest updates in place)
+   - Enables clean replacement (auto-delete old chunks before ingesting new)
    - Same input always produces same chunk IDs
    - Idempotent ingestion
 
@@ -979,7 +1055,7 @@ interface KnowledgeSearchResult {
    - Returns `DeleteByUriResponse` with `chunksDeleted` count
 
 2. **Integration Tests** (7 tests all passing)
-   - Comprehensive workflow test: Ingest → Search → Re-ingest (upsert) → Delete → Verify via search
+   - Comprehensive workflow test: Ingest → Search → Re-ingest (replaces) → Delete → Verify via search
    - Edge cases: empty content, unrelated search query
    - Error handling for missing parameters
 
@@ -1108,6 +1184,102 @@ interface KnowledgeSearchResult {
 - `tests/integration/tools/manage-knowledge.test.ts` - enhanced delete verification
 
 **Next Steps**:
-- Milestone 5: Await controller completion signal
-- Milestone 6: Documentation (blocked by M5)
-- Milestone 7: Web UI feature request (blocked by M5)
+- Milestone 6: Await controller completion signal
+- Milestone 7: Documentation (blocked by M6)
+- Milestone 8: Web UI feature request (blocked by M6)
+
+---
+
+### 2025-02-04: Milestone 5a & 5b Complete - DeleteBySource Implementation
+**Status**: Complete
+
+**Context**:
+- Controller requested `deleteBySource` functionality for GitKnowledgeSource cleanup
+- Decided to implement as HTTP-only endpoint (not MCP) since it's controller-to-MCP communication
+
+**Completed Work**:
+
+1. **Milestone 5a: Notify Controller - Metadata Convention**
+   - Sent response explaining `metadata.sourceIdentifier` usage on ingest
+   - Controller can start passing sourceIdentifier immediately
+
+2. **Milestone 5b: HTTP DeleteBySource Endpoint**
+   - Added route: `DELETE /api/v1/knowledge/source/:sourceIdentifier`
+   - Created schema: `src/interfaces/schemas/knowledge.ts`
+   - Implemented handler in `src/interfaces/rest-api.ts`
+   - Queries chunks by `metadata.sourceIdentifier` payload field
+   - Deletes all matching chunks, returns `chunksDeleted` count
+   - Handles edge cases: non-existent source, collection not found (returns 0)
+   - URL decoding for sourceIdentifier containing slashes
+
+3. **Integration Tests**
+   - Extended existing workflow test to include deleteBySource
+   - Ingests documents WITH and WITHOUT sourceIdentifier
+   - Verifies deleteBySource only removes targeted docs
+   - Verifies control docs (no sourceIdentifier) survive
+   - All 7 tests passing
+
+**Files Changed**:
+- `src/interfaces/schemas/knowledge.ts` - New schema file
+- `src/interfaces/schemas/index.ts` - Export knowledge schemas
+- `src/interfaces/routes/index.ts` - Route definition
+- `src/interfaces/rest-api.ts` - Handler implementation + CORS DELETE method
+- `tests/integration/tools/manage-knowledge.test.ts` - Extended workflow test
+- `prds/356-knowledge-base-system.md` - Updated milestones and decisions
+
+**Next Steps**:
+- Milestone 6: Await controller completion signal
+- Milestone 7: Documentation
+- Milestone 8: Web UI feature request (blocked by M6)
+
+---
+
+### 2025-02-05: Milestone 7 Documentation Complete
+**Status**: Complete
+
+**Completed Work**:
+
+1. **Knowledge Base Guide** (`docs/guides/mcp-knowledge-base-guide.md`)
+   - Created comprehensive user guide with two ingestion modes:
+     - Option 1: Controller (recommended for Git repos) - automated sync
+     - Option 2: Via AI Agent (for ad-hoc ingestion) - flexible manual ingestion
+   - Search examples with real output showing synthesized answers
+   - Delete operations documented
+   - Troubleshooting section with `version` tool status check
+   - FAQ section
+
+2. **Tools Overview Update** (`docs/guides/mcp-tools-overview.md`)
+   - Added Knowledge Base entry with link to full guide
+
+3. **Index Updates** (`docs/index.md`, `README.md`)
+   - Added Knowledge Base to Key Features section
+   - Added to In Scope section
+   - Added to Feature Guides list
+   - Added to Key capabilities in README
+
+4. **Code Improvements**
+   - Added `agentInstructions` field to search response for better AI presentation
+   - Implemented auto-delete-before-ingest behavior (fixes orphan chunk issue when document shrinks)
+   - Updated integration tests to validate 3→2 chunk re-ingest scenario
+
+5. **Feature Request**
+   - Sent request to dot-ai-website for docs navigation update
+
+**Design Decision: Auto-Delete-Before-Ingest**
+- Changed from upsert behavior to delete-then-insert
+- Rationale: When a document shrinks (e.g., 3 chunks → 2 chunks), upsert would leave orphan chunks
+- Implementation: `deleteChunksByUri()` called before ingesting new chunks
+- Impact: Clean replacement semantics, no orphan chunks
+
+**Files Changed**:
+- `docs/guides/mcp-knowledge-base-guide.md` - New documentation file
+- `docs/guides/mcp-tools-overview.md` - Added Knowledge Base entry
+- `docs/index.md` - Added to Key Features, In Scope, Feature Guides
+- `README.md` - Added to Key capabilities
+- `src/core/knowledge-types.ts` - Added `agentInstructions` field
+- `src/tools/manage-knowledge.ts` - Added agentInstructions, auto-delete-before-ingest
+- `tests/integration/tools/manage-knowledge.test.ts` - Enhanced re-ingest test (3→2 chunks)
+
+**Next Steps**:
+- Milestone 6: Await controller completion signal
+- Milestone 8: Web UI feature request (blocked by M6)

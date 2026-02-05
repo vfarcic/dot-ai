@@ -6,7 +6,7 @@
 
 ## What is DevOps AI Toolkit?
 
-DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. It provides intelligent Kubernetes deployment recommendations through capability discovery and semantic matching, AI-powered issue remediation, automated repository setup with governance and security files, and shared prompt libraries for consistent development workflows—all through natural language conversation.
+DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. It provides intelligent Kubernetes deployment recommendations through capability discovery and semantic matching, AI-powered issue remediation, semantic search over organizational documentation, automated repository setup with governance and security files, and shared prompt libraries for consistent development workflows—all through natural language conversation.
 
 Built on the Model Context Protocol (MCP), it integrates seamlessly with Claude Code, Cursor, and VS Code to provide conversational interaction for complex DevOps and development tasks.
 
@@ -33,6 +33,7 @@ DevOps AI Toolkit democratizes platform engineering and cloud native operations 
 - AI-powered resource provisioning recommendations using Kubernetes as control plane
 - Intelligent issue remediation and root cause analysis
 - Organizational pattern and policy management with semantic search
+- Knowledge base with semantic search over organizational documentation
 - MCP-based integration with AI coding assistants
 - Multi-provider AI model support (Claude, GPT, Gemini)
 - Project setup with governance, legal, and security files
@@ -63,6 +64,11 @@ AI-powered root cause analysis with multi-step investigation, executable remedia
 Capture organizational knowledge and governance policies that automatically enhance AI recommendations with best practices and compliance requirements. Uses vector search for intelligent semantic matching.
 
 [Pattern Management](guides/pattern-management-guide.md) | [Policy Management](guides/policy-management-guide.md)
+
+### Knowledge Base
+Ingest organizational documentation into a searchable vector store. Search semantically using natural language to find relevant content by meaning, not just keywords. Supports automated ingestion from Git repositories via controller or ad-hoc ingestion through your AI coding assistant.
+
+[Learn more](guides/mcp-knowledge-base-guide.md)
 
 ### Project Setup & Governance
 Generate 25+ governance, legal, and automation files (LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, GitHub workflows, Renovate, OpenSSF Scorecard) for repository standardization.
@@ -112,4 +118,5 @@ For individual component installation:
 - **[Issue Remediation](guides/mcp-remediate-guide.md)** - AI-powered troubleshooting
 - **[Pattern Management](guides/pattern-management-guide.md)** - Organizational deployment patterns
 - **[Policy Management](guides/policy-management-guide.md)** - Governance and compliance
+- **[Knowledge Base](guides/mcp-knowledge-base-guide.md)** - Semantic search over documentation
 - **[Project Setup](guides/mcp-project-setup-guide.md)** - Repository governance automation

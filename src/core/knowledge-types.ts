@@ -108,6 +108,8 @@ export interface KnowledgeSearchResponse {
   totalMatches: number;
   query: string;
   message: string;
+  /** Instructions for how the AI agent should present results to the user */
+  agentInstructions?: string;
 }
 
 /**

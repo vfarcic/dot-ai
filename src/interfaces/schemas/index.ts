@@ -185,3 +185,14 @@ export {
   type PromptGetResponse,
   type PromptGetRequest,
 } from './prompts';
+
+// Knowledge schemas
+export {
+  DeleteBySourceDataSchema,
+  DeleteBySourceResponseSchema,
+  DeleteBySourceBadRequestErrorSchema,
+  DeleteBySourcePluginUnavailableErrorSchema,
+  DeleteBySourceErrorSchema,
+  type DeleteBySourceData,
+  type DeleteBySourceResponse,
+} from './knowledge';

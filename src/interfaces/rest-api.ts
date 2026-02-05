@@ -327,6 +327,7 @@ export class RestApiRouter {
       'POST:/api/v1/prompts/:promptName': () => this.handlePromptsGetRequest(req, res, requestId, params.promptName, body),
       'GET:/api/v1/visualize/:sessionId': () => this.handleVisualize(req, res, requestId, params.sessionId, searchParams),
       'GET:/api/v1/sessions/:sessionId': () => this.handleSessionRetrieval(req, res, requestId, params.sessionId),
+      'DELETE:/api/v1/knowledge/source/:sourceIdentifier': () => this.handleDeleteKnowledgeSource(req, res, requestId, params.sourceIdentifier),
     };
 
     const handler = handlers[routeKey];
@@ -1861,11 +1862,244 @@ export class RestApiRouter {
   }
 
   /**
+   * Handle DELETE /api/v1/knowledge/source/:sourceIdentifier (PRD #356)
+   * Delete all knowledge base chunks for a source identifier
+   * Used by controller for GitKnowledgeSource cleanup
+   */
+  private async handleDeleteKnowledgeSource(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    sourceIdentifier: string
+  ): Promise<void> {
+    try {
+      // URL-decode the sourceIdentifier (it may contain / encoded as %2F)
+      const decodedSourceIdentifier = decodeURIComponent(sourceIdentifier);
+
+      this.logger.info('Processing delete knowledge source request', {
+        requestId,
+        sourceIdentifier: decodedSourceIdentifier,
+      });
+
+      // Check plugin availability
+      if (!isPluginInitialized()) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'PLUGIN_UNAVAILABLE',
+          'Plugin system not initialized'
+        );
+        return;
+      }
+
+      const KNOWLEDGE_COLLECTION = 'knowledge-base';
+      const PLUGIN_NAME = 'agentic-tools';
+
+      // Step 1: Query all chunks matching the sourceIdentifier in metadata
+      const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
+        collection: KNOWLEDGE_COLLECTION,
+        filter: {
+          must: [{ key: 'metadata.sourceIdentifier', match: { value: decodedSourceIdentifier } }],
+        },
+        limit: 10000, // High limit to get all chunks for a source
+      });
+
+      if (!queryResponse.success) {
+        const error = queryResponse.error as { message?: string; error?: string } | undefined;
+        const errorMessage = error?.message || error?.error || 'Query failed';
+
+        // If collection doesn't exist (Not Found), return success with 0 deleted
+        if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+          this.logger.info('Collection not found - returning success with 0 deleted', {
+            requestId,
+            sourceIdentifier: decodedSourceIdentifier,
+          });
+
+          const response: RestApiResponse = {
+            success: true,
+            data: {
+              sourceIdentifier: decodedSourceIdentifier,
+              chunksDeleted: 0,
+            },
+            meta: {
+              timestamp: new Date().toISOString(),
+              requestId,
+              version: this.config.version,
+            },
+          };
+
+          await this.sendJsonResponse(res, HttpStatus.OK, response);
+          return;
+        }
+
+        this.logger.error('Plugin query failed', new Error(errorMessage), {
+          requestId,
+          sourceIdentifier: decodedSourceIdentifier,
+        });
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'DELETE_SOURCE_ERROR',
+          'Failed to query chunks for deletion',
+          { error: errorMessage }
+        );
+        return;
+      }
+
+      // Extract results from plugin response
+      const queryResult = queryResponse.result as {
+        success: boolean;
+        data?: Array<{
+          id: string;
+          payload: Record<string, unknown>;
+        }>;
+        error?: string;
+        message: string;
+      };
+
+      if (!queryResult.success) {
+        const errorMessage = queryResult.error || queryResult.message;
+
+        // If collection doesn't exist, return success with 0 deleted
+        if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+          this.logger.info('Collection not found - returning success with 0 deleted', {
+            requestId,
+            sourceIdentifier: decodedSourceIdentifier,
+          });
+
+          const response: RestApiResponse = {
+            success: true,
+            data: {
+              sourceIdentifier: decodedSourceIdentifier,
+              chunksDeleted: 0,
+            },
+            meta: {
+              timestamp: new Date().toISOString(),
+              requestId,
+              version: this.config.version,
+            },
+          };
+
+          await this.sendJsonResponse(res, HttpStatus.OK, response);
+          return;
+        }
+
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'DELETE_SOURCE_ERROR',
+          'Failed to query chunks for deletion',
+          { error: errorMessage }
+        );
+        return;
+      }
+
+      const chunksToDelete = queryResult.data || [];
+
+      // If no chunks found, return success with 0 deleted
+      if (chunksToDelete.length === 0) {
+        this.logger.info('No chunks found for source identifier', {
+          requestId,
+          sourceIdentifier: decodedSourceIdentifier,
+        });
+
+        const response: RestApiResponse = {
+          success: true,
+          data: {
+            sourceIdentifier: decodedSourceIdentifier,
+            chunksDeleted: 0,
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            requestId,
+            version: this.config.version,
+          },
+        };
+
+        await this.sendJsonResponse(res, HttpStatus.OK, response);
+        return;
+      }
+
+      // Step 2: Delete each chunk by ID
+      let deletedCount = 0;
+      for (const chunk of chunksToDelete) {
+        this.logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
+
+        const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
+          collection: KNOWLEDGE_COLLECTION,
+          id: chunk.id,
+        });
+
+        if (!deleteResponse.success) {
+          const error = deleteResponse.error as { message?: string } | undefined;
+          const errorMessage = error?.message || 'Delete failed';
+          this.logger.error('Failed to delete chunk', new Error(errorMessage), {
+            requestId,
+            chunkId: chunk.id,
+            deletedSoFar: deletedCount,
+          });
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            'DELETE_SOURCE_ERROR',
+            'Failed to delete chunk',
+            { chunkId: chunk.id, error: errorMessage, chunksDeletedBeforeFailure: deletedCount }
+          );
+          return;
+        }
+
+        deletedCount++;
+      }
+
+      this.logger.info('Delete knowledge source operation completed', {
+        requestId,
+        sourceIdentifier: decodedSourceIdentifier,
+        chunksDeleted: deletedCount,
+      });
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          sourceIdentifier: decodedSourceIdentifier,
+          chunksDeleted: deletedCount,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Delete knowledge source request failed', error instanceof Error ? error : new Error(String(error)), {
+        requestId,
+        sourceIdentifier,
+      });
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'DELETE_SOURCE_ERROR',
+        'Failed to delete knowledge source',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
    * Set CORS headers
    */
   private setCorsHeaders(res: ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Max-Age', '86400');
   }

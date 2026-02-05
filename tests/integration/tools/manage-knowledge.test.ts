@@ -2,7 +2,7 @@
  * Integration Test: ManageKnowledge Tool
  *
  * Tests the knowledge base functionality via REST API with a comprehensive
- * workflow test covering ingest, search, re-ingest (upsert), and deleteByUri.
+ * workflow test covering ingest, search, re-ingest, and deleteByUri.
  *
  * PRD #356: Knowledge Base System
  */
@@ -23,12 +23,12 @@ describe.concurrent('ManageKnowledge Integration', () => {
   });
 
   describe('Complete Knowledge Base Workflow', () => {
-    test('should complete full ingest → search → re-ingest → delete workflow', async () => {
+    test('should complete full ingest → search → re-ingest (replaces) → delete workflow', async () => {
       const testId = Date.now();
       const testUri = `https://github.com/test-org/test-repo/blob/main/docs/workflow-${testId}.md`;
 
-      // Multi-chunk content (2 chunks) - each paragraph ~600 chars, total ~1200+ chars
-      // With chunkSize=1000 and overlap=200, this produces 2 chunks
+      // Multi-chunk content (3 chunks) - each paragraph ~600 chars, total ~1800+ chars
+      // With chunkSize=1000 and overlap=200, this produces 3 chunks
       const originalParagraph1 = `Narwhal deployment patterns ${testId} enable seamless container orchestration across enterprise environments.
 The narwhal controller reconciles desired state with actual state using sophisticated rolling update strategies.
 Narwhal manages replica sets automatically for zero-downtime deployments in production systems worldwide.
@@ -47,10 +47,20 @@ Applications using narwhal scaling see improved reliability under load with auto
 Narwhal scaling policies can be customized per workload type including batch jobs and long-running services.
 The narwhal metrics server collects and aggregates resource utilization data for intelligent scaling decisions.`;
 
-      const originalContent = `${originalParagraph1}\n\n${originalParagraph2}`;
+      const originalParagraph3 = `Narwhal networking capabilities ${testId} provide advanced service mesh integration for microservices.
+The narwhal network plugin supports multiple CNI providers including Calico, Cilium, and Flannel seamlessly.
+Narwhal ingress controllers manage external traffic routing with TLS termination and path-based routing.
+Service discovery in narwhal environments uses CoreDNS for reliable name resolution across namespaces.
+The narwhal network policies enforce security boundaries between pods with fine-grained access control rules.
+Load balancing strategies in narwhal include round-robin, least-connections, and IP-hash algorithms.
+Narwhal supports both layer 4 and layer 7 load balancing for different application requirements.
+The narwhal service mesh integration enables observability, traffic management, and security features.`;
+
+      const originalContent = `${originalParagraph1}\n\n${originalParagraph2}\n\n${originalParagraph3}`;
       const originalMetadata = { version: 1, testId };
 
-      // Updated content for re-ingest (upsert) - different metadata, similar structure
+      // Updated content for re-ingest - SHORTER content that produces only 2 chunks
+      // This tests that auto-delete removes all 3 old chunks before inserting 2 new ones
       const updatedParagraph1 = `Narwhal deployment patterns ${testId} enable seamless container orchestration across enterprise environments.
 The narwhal controller reconciles desired state with actual state using sophisticated rolling update strategies.
 Narwhal manages replica sets automatically for zero-downtime deployments in production systems worldwide.
@@ -75,8 +85,10 @@ The narwhal metrics server collects and aggregates resource utilization data for
       // Pre-calculate expected chunk IDs (deterministic from URI + index)
       const expectedChunk0Id = uuidv5(`${testUri}#0`, KNOWLEDGE_NAMESPACE);
       const expectedChunk1Id = uuidv5(`${testUri}#1`, KNOWLEDGE_NAMESPACE);
+      const expectedChunk2Id = uuidv5(`${testUri}#2`, KNOWLEDGE_NAMESPACE);
 
-      // ============ STEP 1: INGEST multi-chunk document ============
+      // ============ STEP 1: INGEST documents ============
+      // 1a: Multi-chunk document WITHOUT sourceIdentifier (serves as control for deleteBySource)
       const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
         uri: testUri,
@@ -92,11 +104,32 @@ The narwhal metrics server collects and aggregates resource utilization data for
             success: true,
             operation: 'ingest',
             uri: testUri,
-            chunksCreated: 2,
-            chunkIds: [expectedChunk0Id, expectedChunk1Id],
-            message: 'Successfully ingested document into 2 chunks',
+            chunksCreated: 3,
+            chunkIds: [expectedChunk0Id, expectedChunk1Id, expectedChunk2Id],
+            message: 'Successfully ingested document into 3 chunks',
           },
         },
+      });
+
+      // 1b: Documents WITH sourceIdentifier (for deleteBySource test)
+      const sourceIdentifier = `default/test-source-${testId}`;
+      const sourceDoc1Uri = `https://github.com/test-org/test-repo/blob/main/docs/source-doc1-${testId}.md`;
+      const sourceDoc2Uri = `https://github.com/test-org/test-repo/blob/main/docs/source-doc2-${testId}.md`;
+
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: sourceDoc1Uri,
+        content: `Narwhal source document one ${testId} with sourceIdentifier for bulk deletion testing.`,
+        metadata: { sourceIdentifier, testId },
+        interaction_id: `workflow_source_doc1_${testId}`,
+      });
+
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: sourceDoc2Uri,
+        content: `Narwhal source document two ${testId} with sourceIdentifier for bulk deletion testing.`,
+        metadata: { sourceIdentifier, testId },
+        interaction_id: `workflow_source_doc2_${testId}`,
       });
 
       // ============ STEP 2: SEARCH - verify semantic search works ============
@@ -154,7 +187,22 @@ The narwhal metrics server collects and aggregates resource utilization data for
       });
       expect(limitedSearch.data.result.chunks.length).toBeLessThanOrEqual(1);
 
-      // ============ STEP 4: RE-INGEST (upsert) - update with new content ============
+      // ============ STEP 4: RE-INGEST - update with SHORTER content (auto-deletes old chunks first) ============
+      // CRITICAL TEST: Original had 3 chunks, updated content produces only 2 chunks
+      // Auto-delete-before-ingest should remove all 3 old chunks, then insert 2 new ones
+
+      // 4a: Verify we have 3 chunks BEFORE re-ingest
+      const searchBeforeReIngest = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal ${testId}`,
+        limit: 10,
+        uriFilter: testUri,
+        interaction_id: `workflow_search_before_reingest_${testId}`,
+      });
+      const chunksBeforeReIngest = searchBeforeReIngest.data.result.chunks;
+      expect(chunksBeforeReIngest.length, 'Should have 3 chunks before re-ingest').toBe(3);
+
+      // 4b: Re-ingest with shorter content (2 chunks instead of 3)
       const reIngestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'ingest',
         uri: testUri,
@@ -171,12 +219,101 @@ The narwhal metrics server collects and aggregates resource utilization data for
             operation: 'ingest',
             uri: testUri,
             chunksCreated: 2,
-            chunkIds: [expectedChunk0Id, expectedChunk1Id], // Same deterministic IDs
+            chunkIds: [expectedChunk0Id, expectedChunk1Id], // Only 2 chunks now
           },
         },
       });
 
-      // ============ STEP 5: DELETE BY URI - remove all chunks ============
+      // 4c: Verify we have exactly 2 chunks AFTER re-ingest (old 3 deleted, new 2 inserted)
+      const searchAfterReIngest = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal ${testId}`,
+        limit: 10,
+        uriFilter: testUri,
+        interaction_id: `workflow_search_after_reingest_${testId}`,
+      });
+      const chunksAfterReIngest = searchAfterReIngest.data.result.chunks;
+      expect(
+        chunksAfterReIngest.length,
+        `Auto-delete bug: Expected 2 chunks after re-ingest, but found ${chunksAfterReIngest.length}. ` +
+        `Old chunks may not have been deleted before inserting new ones.`
+      ).toBe(2);
+
+      // 4d: Verify source docs (different URIs) are NOT affected by re-ingest
+      const sourceDoc1Search = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal source document ${testId}`,
+        limit: 5,
+        uriFilter: sourceDoc1Uri,
+        interaction_id: `workflow_verify_source1_${testId}`,
+      });
+      expect(
+        sourceDoc1Search.data.result.chunks.length,
+        'Source doc 1 should NOT be affected by re-ingesting testUri'
+      ).toBeGreaterThan(0);
+
+      const sourceDoc2Search = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal source document ${testId}`,
+        limit: 5,
+        uriFilter: sourceDoc2Uri,
+        interaction_id: `workflow_verify_source2_${testId}`,
+      });
+      expect(
+        sourceDoc2Search.data.result.chunks.length,
+        'Source doc 2 should NOT be affected by re-ingesting testUri'
+      ).toBeGreaterThan(0);
+
+      // ============ STEP 5: DELETE BY SOURCE - HTTP endpoint for bulk cleanup ============
+      // Verify all docs (control + source) are searchable before deleteBySource
+      const searchBeforeDeleteBySource = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal ${testId}`,
+        limit: 10,
+        interaction_id: `workflow_search_before_source_delete_${testId}`,
+      });
+
+      const allTestUris = [testUri, sourceDoc1Uri, sourceDoc2Uri];
+      const chunksBeforeSourceDelete = searchBeforeDeleteBySource.data.result.chunks.filter(
+        (c: { uri: string }) => allTestUris.includes(c.uri)
+      );
+      expect(chunksBeforeSourceDelete.length).toBeGreaterThanOrEqual(4); // 2 from testUri (after re-ingest) + 2 source docs
+
+      // Call DELETE /api/v1/knowledge/source/:sourceIdentifier (URL-encode the /)
+      const encodedSourceId = encodeURIComponent(sourceIdentifier);
+      const deleteBySourceResponse = await integrationTest.httpClient.delete(
+        `/api/v1/knowledge/source/${encodedSourceId}`
+      );
+
+      expect(deleteBySourceResponse, `DeleteBySource: ${JSON.stringify(deleteBySourceResponse, null, 2)}`).toMatchObject({
+        success: true,
+        data: {
+          sourceIdentifier,
+          chunksDeleted: 2, // Only the 2 source docs (1 chunk each)
+        },
+      });
+
+      // Verify: source docs deleted, control doc (testUri) remains
+      const searchAfterDeleteBySource = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: `narwhal ${testId}`,
+        limit: 10,
+        interaction_id: `workflow_search_after_source_delete_${testId}`,
+      });
+
+      // Source docs should be gone
+      const sourceDocsAfter = searchAfterDeleteBySource.data.result.chunks.filter(
+        (c: { uri: string }) => c.uri === sourceDoc1Uri || c.uri === sourceDoc2Uri
+      );
+      expect(sourceDocsAfter, 'Source docs should be deleted by deleteBySource').toHaveLength(0);
+
+      // Control doc (testUri, no sourceIdentifier) should still exist
+      const controlDocsAfter = searchAfterDeleteBySource.data.result.chunks.filter(
+        (c: { uri: string }) => c.uri === testUri
+      );
+      expect(controlDocsAfter.length, 'Control doc without sourceIdentifier should survive deleteBySource').toBeGreaterThan(0);
+
+      // ============ STEP 6: DELETE BY URI - remove control document ============
       const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'deleteByUri',
         uri: testUri,
@@ -196,7 +333,7 @@ The narwhal metrics server collects and aggregates resource utilization data for
         },
       });
 
-      // ============ STEP 6: VERIFY DELETION via uriFilter search ============
+      // ============ STEP 7: VERIFY DELETION via uriFilter search ============
       // Search with uriFilter targeting deleted URI should return empty results
       // This is reliable because testUri includes unique testId, so no interference from concurrent tests
       const searchAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
@@ -216,7 +353,7 @@ The narwhal metrics server collects and aggregates resource utilization data for
         `Chunk IDs found: ${JSON.stringify(searchAfterDelete.data.result.chunks.map((c: { id: string }) => c.id))}`
       ).toHaveLength(0);
 
-      // ============ STEP 7: DELETE non-existent URI returns 0 ============
+      // ============ STEP 8: DELETE non-existent URI/source returns 0 ============
       const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/never-existed-${testId}.md`;
       const deleteNonExistent = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'deleteByUri',
@@ -234,6 +371,21 @@ The narwhal metrics server collects and aggregates resource utilization data for
             chunksDeleted: 0,
             message: 'No chunks found for URI',
           },
+        },
+      });
+
+      // Non-existent source identifier also returns 0
+      const nonExistentSource = `nonexistent/source-${testId}`;
+      const encodedNonExistent = encodeURIComponent(nonExistentSource);
+      const deleteNonExistentSource = await integrationTest.httpClient.delete(
+        `/api/v1/knowledge/source/${encodedNonExistent}`
+      );
+
+      expect(deleteNonExistentSource).toMatchObject({
+        success: true,
+        data: {
+          sourceIdentifier: nonExistentSource,
+          chunksDeleted: 0,
         },
       });
     }, 300000);
