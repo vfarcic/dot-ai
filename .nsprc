@@ -1,0 +1,5 @@
+{
+  "exceptions": [
+    "https://github.com/advisories/GHSA-345p-7cg4-v4c7"
+  ]
+}
