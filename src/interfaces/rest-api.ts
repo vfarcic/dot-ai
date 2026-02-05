@@ -2127,6 +2127,18 @@ export class RestApiRouter {
         uriFilter?: string;
       };
 
+      // Validate limit parameter (must be positive integer)
+      if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_PARAMETER',
+          'The "limit" parameter must be a positive integer'
+        );
+        return;
+      }
+
       // Validate required query parameter
       if (!query || typeof query !== 'string' || query.trim().length === 0) {
         await this.sendErrorResponse(

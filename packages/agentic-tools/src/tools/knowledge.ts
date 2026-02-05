@@ -125,6 +125,14 @@ export const knowledgeChunk: KnowledgeTool = {
       return errorResult('Missing required parameter: uri', 'knowledge_chunk requires uri parameter');
     }
 
+    // Validate chunk parameters
+    if (!Number.isInteger(maxChunkSize) || maxChunkSize < 1) {
+      return errorResult('Invalid maxChunkSize', 'maxChunkSize must be a positive integer');
+    }
+    if (!Number.isInteger(chunkOverlap) || chunkOverlap < 0 || chunkOverlap >= maxChunkSize) {
+      return errorResult('Invalid chunkOverlap', 'chunkOverlap must be >= 0 and < maxChunkSize');
+    }
+
     // Handle empty or missing content
     if (!content || !content.trim()) {
       return successResult(

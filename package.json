@@ -84,6 +84,7 @@
     "LICENSE"
   ],
   "devDependencies": {
+    "better-npm-audit": "^3.11.0",
     "@eslint/js": "^9.39.2",
     "@types/glob": "^9.0.0",
     "@types/handlebars": "^4.0.40",
