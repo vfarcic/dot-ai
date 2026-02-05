@@ -97,15 +97,15 @@ describe.concurrent('Version Tool Integration', () => {
                 webhookReady: true,
                 policyGenerationReady: true
               },
-              // PRD #343: Plugin stats (31 tools: 17 kubectl + 4 helm + 10 vector - PRD #359)
+              // PRD #343: Plugin stats (32 tools: 17 kubectl + 4 helm + 10 vector + 1 knowledge - PRD #359, #356)
               plugins: {
                 pluginCount: 1,
-                toolCount: 31,
+                toolCount: 32,
                 plugins: [
                   {
                     name: 'agentic-tools',
                     version: '1.0.0',
-                    toolCount: 31
+                    toolCount: 32
                   }
                 ]
               }
