@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.1.0] - 2026-02-06
+
+### Features
+
+- ## REST API Route Registry with Complete OpenAPI Documentation
+
+  The REST API now provides complete OpenAPI documentation for all endpoints through a new route registry system. Previously, only tool endpoints (`/api/v1/tools/*`) were documented, while visualization, session, resource, and event endpoints lacked OpenAPI coverage. Adding new endpoints required manual updates to both the router and documentation, which frequently fell out of sync.
+
+  All REST endpoints are now defined in a centralized route registry with Zod schemas for request and response validation. The OpenAPI specification at `/api/v1/openapi` is auto-generated from these schemas, ensuring documentation always matches implementation. Endpoints for visualizations, sessions, resources, events, prompts, and tools are fully documented with accurate request/response schemas and error responses.
+
+  A mock server is available as a Docker image (`ghcr.io/vfarcic/dot-ai-mock-server:latest`) for integration testing and UI development. The mock server serves realistic fixture data for all endpoints, enabling Playwright tests and local development without a live cluster. Add it to docker-compose with `docker compose up mock-api` and point tests to `http://mock-api:3001`. ([#354](https://github.com/vfarcic/dot-ai/issues/354))
+- ## Knowledge Base System
+
+  Ingest, search, and query organizational knowledge from any source. Organizations often have valuable documentation scattered across Git repositories, wikis, and internal systems that AI assistants cannot access for context-aware recommendations.
+
+  The `manageKnowledge` MCP tool provides three operations: `ingest` accepts document content with a source URI and automatically chunks it using semantic-aware text splitting, generating embeddings for vector storage; `search` performs semantic search across all ingested documents with optional URI filtering; `deleteByUri` removes all chunks for a specific document. Documents are automatically chunked at 1000 characters with 200 character overlap for context continuity. Re-ingesting a document automatically replaces previous chunks, handling cases where documents shrink without leaving orphan data.
+
+  The HTTP API at `POST /api/v1/knowledge/ask` provides AI-synthesized answers for applications without built-in AI capability. The endpoint uses an agentic loop that can search multiple times to find relevant information, then synthesizes a natural language answer with source citations. A separate `DELETE /api/v1/knowledge/source/:sourceIdentifier` endpoint enables bulk deletion of all documents from a specific source, useful for GitKnowledgeSource cleanup operations.
+
+  The `version` tool now reports knowledge-base collection status alongside other vector collections, showing whether the collection exists and how many chunks are stored.
+
+  See the [Knowledge Base Guide](https://devopstoolkit.ai/docs/mcp/guides/mcp-knowledge-base-guide) for usage examples and integration patterns. ([#356](https://github.com/vfarcic/dot-ai/issues/356))
+
+### Other Changes
+
+- ## Qdrant Operations Plugin Migration
+
+  Vector database operations now run through the agentic-tools plugin instead of being embedded in the MCP server. This architectural change removes ~2,500 lines of Qdrant-specific code from the MCP server and consolidates all vector storage operations into a single plugin.
+
+  The plugin exposes 8 generic vector tools (vector_search, vector_store, vector_query, vector_get, vector_delete, vector_list, collection_initialize, collection_stats) that handle all storage mechanics. The MCP server remains responsible for embedding generation and domain logic, passing pre-computed vectors to the plugin. This separation enables future extensibility—users could swap Qdrant for another vector database by providing a plugin with the same interface.
+
+  Plugin tool invocation is now unified across the codebase via a central registry (`invokePluginTool()`), replacing inconsistent patterns where some tools received `pluginManager` as a parameter while others used module-level setters. All kubectl, helm, shell, and vector tools now use the same invocation pattern.
+
+  Qdrant configuration (`QDRANT_URL`, `QDRANT_API_KEY`) moves from MCP server to the agentic-tools plugin. Helm chart deployments handle this automatically. ([#359](https://github.com/vfarcic/dot-ai/issues/359))
+- ## ESLint 9.x Upgrade
+
+  Upgraded to ESLint 9.x with the new flat config format. The TypeScript ESLint packages were updated from v6 to v8, bringing improved type checking and stricter linting rules. This internal tooling update ensures compatibility with current ESLint ecosystem and enables better code quality checks during development. ([#365](https://github.com/vfarcic/dot-ai/issues/365))
+
+
 ## [1.0.3] - 2026-01-29
 
 ### Bug Fixes
