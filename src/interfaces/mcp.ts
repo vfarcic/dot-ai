@@ -59,6 +59,13 @@ import {
   QUERY_TOOL_INPUT_SCHEMA,
   handleQueryTool,
 } from '../tools/query';
+import {
+  MANAGE_KNOWLEDGE_TOOL_NAME,
+  MANAGE_KNOWLEDGE_TOOL_DESCRIPTION,
+  MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA,
+  handleManageKnowledgeTool,
+  type ManageKnowledgeInput,
+} from '../tools/manage-knowledge';
 
 import {
   handlePromptsListRequest,
@@ -398,6 +405,28 @@ export class MCPServer {
       ['query', 'search', 'discover', 'capabilities', 'cluster']
     );
 
+    // Register manageKnowledge tool (PRD #356: Knowledge Base System)
+    this.registerTool(
+      MANAGE_KNOWLEDGE_TOOL_NAME,
+      MANAGE_KNOWLEDGE_TOOL_DESCRIPTION,
+      MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA,
+      async (args: ToolArgs) => {
+        const requestId = this.generateRequestId();
+        this.logger.info(
+          `Processing ${MANAGE_KNOWLEDGE_TOOL_NAME} tool request`,
+          { requestId }
+        );
+        return await handleManageKnowledgeTool(
+          args as unknown as ManageKnowledgeInput,
+          this.dotAI,
+          this.logger,
+          requestId
+        );
+      },
+      'Knowledge',
+      ['knowledge', 'documents', 'ingest', 'semantic', 'search']
+    );
+
     // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.
     // They are internal implementation details used by built-in tools like remediate/query.
     // Plugin tools are invoked via invokePluginTool() from the unified registry.
@@ -410,7 +439,8 @@ export class MCPServer {
       REMEDIATE_TOOL_NAME,
       OPERATE_TOOL_NAME,
       PROJECT_SETUP_TOOL_NAME,
-      QUERY_TOOL_NAME
+      QUERY_TOOL_NAME,
+      MANAGE_KNOWLEDGE_TOOL_NAME
     ];
 
     // Log summary of tool registration

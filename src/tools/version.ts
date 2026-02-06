@@ -60,6 +60,11 @@ export interface SystemStatus {
         documentsCount?: number;
         error?: string;
       };
+      knowledgeBase: {
+        exists: boolean;
+        documentsCount?: number;
+        error?: string;
+      };
     };
   };
   embedding: {
@@ -138,6 +143,20 @@ export interface VersionSessionData extends BaseVisualizationData {
 }
 
 /**
+ * Helper function to create error collections object
+ * PRD #356: Added knowledgeBase collection
+ */
+function createErrorCollections(errorMessage: string): SystemStatus['vectorDB']['collections'] {
+  return {
+    patterns: { exists: false, error: errorMessage },
+    policies: { exists: false, error: errorMessage },
+    capabilities: { exists: false, error: errorMessage },
+    resources: { exists: false, error: errorMessage },
+    knowledgeBase: { exists: false, error: errorMessage },
+  };
+}
+
+/**
  * Test Vector DB connectivity and get status for all collections
  * PRD #359: Uses plugin for all Qdrant operations, URL comes from plugin
  */
@@ -155,12 +174,7 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
         connected: false,
         url: fallbackUrl,
         error: 'Health check failed - Vector DB not responding',
-        collections: {
-          patterns: { exists: false, error: 'Vector DB not accessible' },
-          policies: { exists: false, error: 'Vector DB not accessible' },
-          capabilities: { exists: false, error: 'Vector DB not accessible' },
-          resources: { exists: false, error: 'Vector DB not accessible' },
-        },
+        collections: createErrorCollections('Vector DB not accessible'),
       };
     }
 
@@ -192,6 +206,9 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     // Test resources collection and get synced types
     const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
 
+    // Test knowledge base collection (PRD #356)
+    const knowledgeBaseStatus = await testKnowledgeBaseCollectionStatus();
+
     return {
       connected: true,
       url,
@@ -200,6 +217,7 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
         policies: policiesStatus,
         capabilities: capabilitiesStatus,
         resources: resourcesStatus,
+        knowledgeBase: knowledgeBaseStatus,
       },
     };
   } catch (error) {
@@ -207,12 +225,7 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
       connected: false,
       url: fallbackUrl,
       error: error instanceof Error ? error.message : String(error),
-      collections: {
-        patterns: { exists: false, error: 'Vector DB connection failed' },
-        policies: { exists: false, error: 'Vector DB connection failed' },
-        capabilities: { exists: false, error: 'Vector DB connection failed' },
-        resources: { exists: false, error: 'Vector DB connection failed' },
-      },
+      collections: createErrorCollections('Vector DB connection failed'),
     };
   }
 }
@@ -271,6 +284,64 @@ async function testResourcesCollectionStatus(
     return {
       exists: false,
       error: collectionNotExists ? 'resources collection does not exist' : errorMessage
+    };
+  }
+}
+
+/**
+ * Test knowledge base collection status (PRD #356)
+ * Uses plugin to query collection stats directly
+ */
+async function testKnowledgeBaseCollectionStatus(): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
+  try {
+    const response = await invokePluginTool('agentic-tools', 'collection_stats', {
+      collection: 'knowledge-base',
+    });
+
+    if (!response.success) {
+      const errorMessage = response.error?.message || 'Failed to get collection stats';
+      const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+        (errorMessage.toLowerCase().includes('not exist') ||
+         errorMessage.toLowerCase().includes('does not exist') ||
+         errorMessage.toLowerCase().includes('not found'));
+
+      return {
+        exists: false,
+        error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
+      };
+    }
+
+    const result = response.result as { success?: boolean; data?: { pointsCount?: number }; error?: string };
+
+    // Check for nested error in result
+    if (result.success === false) {
+      const errorMessage = result.error || 'Collection query failed';
+      const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+        (errorMessage.toLowerCase().includes('not exist') ||
+         errorMessage.toLowerCase().includes('does not exist') ||
+         errorMessage.toLowerCase().includes('not found'));
+
+      return {
+        exists: false,
+        error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
+      };
+    }
+
+    return {
+      exists: true,
+      documentsCount: result.data?.pointsCount ?? 0
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+      (errorMessage.toLowerCase().includes('not exist') ||
+       errorMessage.toLowerCase().includes('does not exist') ||
+       errorMessage.toLowerCase().includes('not found'));
+
+    return {
+      exists: false,
+      error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
     };
   }
 }

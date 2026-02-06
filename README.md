@@ -39,6 +39,7 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 - Intelligent Kubernetes deployment recommendations
 - AI-powered issue remediation and root cause analysis
 - Organizational pattern and policy management
+- Semantic search over organizational documentation
 - Automated repository setup with governance files
 - Shared prompt libraries for consistent workflows
 

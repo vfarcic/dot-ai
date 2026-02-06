@@ -1,0 +1,6 @@
+{
+  "1112952": {
+    "active": true,
+    "notes": "MCP SDK 1.26.0 breaks HTTP transport. Tracking issue: #368"
+  }
+}

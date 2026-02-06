@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "operation": "search",
+  "chunks": [
+    {
+      "id": "a1b2c3d4-e5f6-5a7b-8c9d-0e1f2a3b4c5d",
+      "content": "Kubernetes deployments allow you to declaratively update applications. You describe a desired state in a Deployment, and the controller changes the actual state to match.",
+      "score": 0.92,
+      "matchType": "semantic",
+      "uri": "https://github.com/acme/platform/blob/main/docs/deployment-guide.md",
+      "metadata": {
+        "source": "platform-docs",
+        "category": "kubernetes"
+      },
+      "chunkIndex": 0,
+      "totalChunks": 3
+    },
+    {
+      "id": "b2c3d4e5-f6a7-5b8c-9d0e-1f2a3b4c5d6e",
+      "content": "StatefulSets are used for stateful applications that require stable network identifiers. Each pod in a StatefulSet has a persistent identifier maintained across rescheduling.",
+      "score": 0.87,
+      "matchType": "semantic",
+      "uri": "https://github.com/acme/platform/blob/main/docs/deployment-guide.md",
+      "metadata": {
+        "source": "platform-docs",
+        "category": "kubernetes"
+      },
+      "chunkIndex": 1,
+      "totalChunks": 3
+    },
+    {
+      "id": "d4e5f6a7-b8c9-5d0e-1f2a-3b4c5d6e7f8a",
+      "content": "ConfigMaps allow you to decouple configuration from container images. This separation enables portable and reusable application configurations.",
+      "score": 0.78,
+      "matchType": "semantic",
+      "uri": "https://github.com/acme/platform/blob/main/docs/config-guide.md",
+      "metadata": {
+        "source": "platform-docs",
+        "category": "kubernetes"
+      },
+      "chunkIndex": 0,
+      "totalChunks": 2
+    }
+  ],
+  "totalMatches": 3,
+  "query": "how to deploy applications to kubernetes",
+  "message": "Found 3 matching chunks"
+}

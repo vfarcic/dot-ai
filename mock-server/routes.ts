@@ -27,6 +27,12 @@ export const routes: RouteDefinition[] = [
     // fixture: 'tools/discovery-success.json',
   },
   {
+    path: '/api/v1/tools/manageKnowledge',
+    method: 'POST',
+    description: 'Manage knowledge base (ingest, search, delete)',
+    fixture: 'tools/manageKnowledge-ingest-success.json',
+  },
+  {
     path: '/api/v1/tools/:toolName',
     method: 'POST',
     description: 'Execute a tool',
