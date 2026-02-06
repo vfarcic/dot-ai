@@ -68,6 +68,7 @@ import {
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
 import { checkAuth } from './auth';
+import { runWithRequestContext } from './request-context';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
@@ -581,6 +582,9 @@ export class MCPServer {
           req.url?.startsWith('/.well-known/') ||
           req.url?.startsWith('/oauth/');
 
+        // PRD #360: Authenticate and build request context with user identity
+        let requestCtx: { user?: import('./auth-oauth').UserContext; isAdmin?: boolean } = {};
+
         if (!isPublicEndpoint) {
           const authResult = await checkAuth(req);
           if (!authResult.authorized) {
@@ -608,7 +612,13 @@ export class MCPServer {
             endSpan(401);
             return;
           }
+
+          requestCtx = { user: authResult.user, isAdmin: authResult.isAdmin };
         }
+
+        // PRD #360: Run all downstream handlers within request context
+        // so tool handlers can access the authenticated user via getCurrentUser()
+        await runWithRequestContext(requestCtx, async () => {
 
         // Parse request body for POST requests
         let body: unknown = undefined;
@@ -649,6 +659,8 @@ export class MCPServer {
           }
           endSpan(500);
         }
+
+        }); // Close runWithRequestContext()
         } catch (error) {
           // Handle any unexpected errors in span creation or request handling
           this.logger.error('Unexpected error in HTTP request handler', error as Error);

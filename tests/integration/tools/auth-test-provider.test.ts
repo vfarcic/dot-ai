@@ -421,6 +421,65 @@ describe.concurrent('Test Provider & JWT Authentication', () => {
     });
   });
 
+  describe('User Context Propagation to Tool Handlers', () => {
+    test('should propagate JWT user context to version tool response', async () => {
+      // Get JWT with specific user claims
+      const tokenResponse = await unauthenticatedClient.post('/oauth/token', {
+        grant_type: 'test_token',
+        user_id: 'allowed-user-1',
+        name: 'Context Test User',
+        email: 'context@test.local',
+        scope: 'mcp:read mcp:write',
+      });
+
+      expect(tokenResponse.success).toBe(true);
+      const accessToken = tokenResponse.data.access_token;
+
+      // Call version tool with JWT - user context should be propagated
+      const jwtClient = new HttpRestApiClient({
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+
+      const versionResponse = await jwtClient.post('/api/v1/tools/version', {});
+
+      expect(versionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            authenticatedUser: {
+              id: 'test:allowed-user-1',
+              name: 'Context Test User',
+              email: 'context@test.local',
+              provider: 'test',
+              providerId: 'allowed-user-1',
+              scopes: ['mcp:read', 'mcp:write'],
+            },
+          },
+        },
+      });
+    });
+
+    test('should propagate admin token context to version tool response', async () => {
+      // Call version tool with admin token
+      const versionResponse = await integrationTest.httpClient.post('/api/v1/tools/version', {});
+
+      expect(versionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            authenticatedUser: {
+              id: 'admin',
+              name: 'Admin',
+              provider: 'admin_token',
+            },
+          },
+        },
+      });
+    });
+  });
+
   describe('Security Edge Cases', () => {
     test('should use constant-time comparison for admin token', async () => {
       // This test ensures timing attacks are mitigated

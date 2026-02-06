@@ -440,7 +440,7 @@ No manual token configuration needed - the OAuth flow handles it.
 - [x] Cache-based validation flow:
   - [x] Cache hit → use cached user info
   - [x] Cache miss → call plugin's `auth_validate_token`, cache result
-- [ ] User context propagation to tool handlers
+- [x] User context propagation to tool handlers
 - [x] Fetch auth config from plugin at startup (mode, admin_token)
 - [x] Graceful degradation if plugin unavailable
 - [x] `allowed_users` support in plugin's `auth_exchange_code` tool
@@ -462,7 +462,7 @@ No manual token configuration needed - the OAuth flow handles it.
 - Personal repos can use `allowed_users` for access control
 - Integration tests can obtain real JWTs without browser interaction
 
-**Note:** Helm chart updated with auth configuration (`auth.testMode`, `auth.github.allowedUsers`, `auth.github.allowedOrgs`). Integration tests passing (192/192) including `auth-test-provider.test.ts`, `auth.test.ts`, `auth-oauth-flow.test.ts`. Test token grant consolidated into `/oauth/token` with `grant_type=test_token`. Real OAuth flow with browser/GitHub requires manual validation.
+**Note:** Helm chart updated with auth configuration (`auth.testMode`, `auth.github.allowedUsers`, `auth.github.allowedOrgs`). Integration tests passing (194/194) including `auth-test-provider.test.ts`, `auth.test.ts`, `auth-oauth-flow.test.ts`. Test token grant consolidated into `/oauth/token` with `grant_type=test_token`. User context propagation implemented via `AsyncLocalStorage` in `request-context.ts` — tool handlers access authenticated user via `getCurrentUser()`, verified in version tool response. Real OAuth flow with browser/GitHub requires manual validation (needs GitHub OAuth App setup).
 
 ---
 
