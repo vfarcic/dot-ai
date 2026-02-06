@@ -77,6 +77,12 @@ Comprehensive health check and diagnostics for your DevOps AI Toolkit installati
 - **Use when**: Troubleshooting setup issues, verifying installation, or checking what features are available
 - **📖 Full Guide**: [System Status](mcp-version-guide.md)
 
+### 📚 Knowledge Base
+Semantic search over organizational documentation.
+- **What it does**: Ingests documents into a searchable vector store, enabling natural language search across your organization's documentation
+- **Use when**: Making organizational knowledge searchable by AI, finding relevant documentation by meaning rather than keywords
+- **📖 Full Guide**: [Knowledge Base](mcp-knowledge-base-guide.md)
+
 ## Quick Start
 
 1. **Complete Setup**: Follow the [MCP Setup Guide](../setup/mcp-setup.md)

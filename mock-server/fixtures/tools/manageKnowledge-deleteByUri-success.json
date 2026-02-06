@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "operation": "deleteByUri",
+  "uri": "https://github.com/acme/platform/blob/main/docs/deployment-guide.md",
+  "chunksDeleted": 3,
+  "message": "Successfully deleted 3 chunks for URI"
+}

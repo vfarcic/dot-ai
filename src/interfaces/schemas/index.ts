@@ -185,3 +185,29 @@ export {
   type PromptGetResponse,
   type PromptGetRequest,
 } from './prompts';
+
+// Knowledge schemas
+export {
+  DeleteBySourceDataSchema,
+  DeleteBySourceResponseSchema,
+  DeleteBySourceBadRequestErrorSchema,
+  DeleteBySourcePluginUnavailableErrorSchema,
+  DeleteBySourceErrorSchema,
+  // Knowledge Ask schemas (PRD #356)
+  KnowledgeAskRequestSchema,
+  KnowledgeAskSourceSchema,
+  KnowledgeAskChunkSchema,
+  KnowledgeAskDataSchema,
+  KnowledgeAskResponseSchema,
+  KnowledgeAskBadRequestErrorSchema,
+  KnowledgeAskAIUnavailableErrorSchema,
+  KnowledgeAskPluginUnavailableErrorSchema,
+  KnowledgeAskErrorSchema,
+  type DeleteBySourceData,
+  type DeleteBySourceResponse,
+  type KnowledgeAskRequest,
+  type KnowledgeAskSource,
+  type KnowledgeAskChunk,
+  type KnowledgeAskData,
+  type KnowledgeAskResponse,
+} from './knowledge';

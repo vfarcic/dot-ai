@@ -46,6 +46,14 @@ import {
   // Sessions schemas
   SessionResponseSchema,
   SessionNotFoundErrorSchema,
+  // Knowledge schemas
+  DeleteBySourceResponseSchema,
+  DeleteBySourcePluginUnavailableErrorSchema,
+  DeleteBySourceErrorSchema,
+  KnowledgeAskResponseSchema,
+  KnowledgeAskBadRequestErrorSchema,
+  KnowledgeAskErrorSchema,
+  ServiceUnavailableErrorSchema,
   // Common schemas
   NotFoundErrorSchema,
   InternalServerErrorSchema,
@@ -116,6 +124,16 @@ const PromptNameParamsSchema = z.object({
 
 const SessionIdParamsSchema = z.object({
   sessionId: z.string().describe('Session ID'),
+});
+
+const SourceIdentifierParamsSchema = z.object({
+  sourceIdentifier: z.string().describe('Source identifier (e.g., namespace/name of GitKnowledgeSource CR)'),
+});
+
+const KnowledgeAskBodySchema = z.object({
+  query: z.string().min(1).describe('The question to answer from the knowledge base'),
+  limit: z.coerce.number().optional().default(20).describe('Maximum chunks to retrieve per search (default: 20)'),
+  uriFilter: z.string().optional().describe('Optional: filter searches to specific document URI'),
 });
 
 /**
@@ -349,6 +367,35 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
     errorResponses: {
       404: SessionNotFoundErrorSchema,
       500: InternalServerErrorSchema,
+    },
+  },
+
+  // ============================================
+  // Knowledge Base Endpoints (PRD #356)
+  // ============================================
+  {
+    path: '/api/v1/knowledge/source/:sourceIdentifier',
+    method: 'DELETE',
+    description: 'Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.',
+    tags: ['Knowledge'],
+    params: SourceIdentifierParamsSchema,
+    response: DeleteBySourceResponseSchema,
+    errorResponses: {
+      503: DeleteBySourcePluginUnavailableErrorSchema,
+      500: DeleteBySourceErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/knowledge/ask',
+    method: 'POST',
+    description: 'Ask a question and receive an AI-synthesized answer from the knowledge base. Uses an agentic approach that can search multiple times with different phrasings for comprehensive answers.',
+    tags: ['Knowledge'],
+    body: KnowledgeAskBodySchema,
+    response: KnowledgeAskResponseSchema,
+    errorResponses: {
+      400: KnowledgeAskBadRequestErrorSchema,
+      503: ServiceUnavailableErrorSchema,
+      500: KnowledgeAskErrorSchema,
     },
   },
 ];

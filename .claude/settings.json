@@ -14,8 +14,6 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:modelcontextprotocol.io)",
-      "WebFetch(domain:modelcontextprotocol.io)",
-      "WebFetch(domain:modelcontextprotocol.io)",
       "Bash(rg:*)",
       "Bash(npm run build:*)",
       "Bash(npm test)",
@@ -120,7 +118,12 @@
       "Bash(find:*)",
       "Bash(helm template:*)",
       "WebFetch(domain:mise.jdx.dev)",
-      "Bash(export KUBECONFIG=./kubeconfig-test.yaml)"
+      "Bash(export KUBECONFIG=./kubeconfig-test.yaml)",
+      "Bash(helm show chart:*)",
+      "Bash(npm pack)",
+      "Bash(docker build:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(kind create cluster:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
