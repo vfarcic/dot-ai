@@ -64,7 +64,7 @@ export const routes: RouteDefinition[] = [
     path: '/api/v1/resources/search',
     method: 'GET',
     description: 'Search resources',
-    // fixture: 'resources/search-results.json',
+    fixture: 'resources/search-results.json',
   },
   {
     path: '/api/v1/resources/sync',
@@ -113,6 +113,20 @@ export const routes: RouteDefinition[] = [
     method: 'POST',
     description: 'Get a prompt with arguments',
     // fixture: 'prompts/get-success.json',
+  },
+
+  // Knowledge Base Endpoints
+  {
+    path: '/api/v1/knowledge/source/:sourceIdentifier',
+    method: 'DELETE',
+    description: 'Delete all knowledge base chunks for a source identifier',
+    fixture: 'knowledge/delete-source-success.json',
+  },
+  {
+    path: '/api/v1/knowledge/ask',
+    method: 'POST',
+    description: 'Ask a question and receive an AI-synthesized answer from the knowledge base',
+    fixture: 'knowledge/ask-success.json',
   },
 
   // Visualization Endpoint

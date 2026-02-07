@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "data": {
+    "answer": "RBAC policies in Kubernetes can be configured by creating Role and RoleBinding resources. A Role defines a set of permissions within a namespace, while a ClusterRole defines cluster-wide permissions. RoleBindings grant the permissions defined in a Role to a user or set of users.",
+    "sources": [
+      {
+        "uri": "https://github.com/acme/platform/blob/main/docs/rbac-guide.md",
+        "title": "RBAC Configuration Guide"
+      },
+      {
+        "uri": "https://github.com/acme/platform/blob/main/docs/security-best-practices.md",
+        "title": "Security Best Practices"
+      }
+    ],
+    "chunks": [
+      {
+        "content": "Role-based access control (RBAC) is managed through Role and RoleBinding resources. A Role contains rules that represent a set of permissions. Permissions are purely additive (there are no deny rules).",
+        "uri": "https://github.com/acme/platform/blob/main/docs/rbac-guide.md",
+        "score": 0.95,
+        "chunkIndex": 0
+      },
+      {
+        "content": "A RoleBinding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts) and a reference to the role being granted.",
+        "uri": "https://github.com/acme/platform/blob/main/docs/rbac-guide.md",
+        "score": 0.91,
+        "chunkIndex": 1
+      },
+      {
+        "content": "For security best practices, always follow the principle of least privilege when configuring RBAC. Avoid using cluster-admin role bindings unless absolutely necessary.",
+        "uri": "https://github.com/acme/platform/blob/main/docs/security-best-practices.md",
+        "score": 0.82,
+        "chunkIndex": 3
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2026-01-15T10:30:00.000Z",
+    "requestId": "rest_1736935800000_2",
+    "version": "v1"
+  }
+}
