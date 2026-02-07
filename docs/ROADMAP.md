@@ -17,6 +17,7 @@ This roadmap is a living document and may change based on community feedback and
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Update to Kimi K2.5 model support (PRD #353)
+- Update OpenAI model to GPT-5.3-Codex when API available (PRD #369)
 - User authentication & access control for multi-user MCP deployments (PRD #360)
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 
