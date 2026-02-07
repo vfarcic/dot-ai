@@ -3,46 +3,87 @@
   "data": {
     "resources": [
       {
-        "name": "nginx-deployment",
+        "name": "nginx",
         "namespace": "default",
         "kind": "Deployment",
         "apiVersion": "apps/v1",
         "apiGroup": "apps",
         "labels": {
-          "app": "nginx"
+          "app": "nginx",
+          "tier": "frontend"
         },
-        "createdAt": "2024-01-10T08:00:00Z",
+        "createdAt": "2026-01-10T08:00:00.000Z",
         "score": 0.95
       },
       {
-        "name": "nginx-config",
-        "namespace": "default",
-        "kind": "ConfigMap",
-        "apiVersion": "v1",
-        "labels": {
-          "app": "nginx"
-        },
-        "createdAt": "2024-01-10T07:55:00Z",
-        "score": 0.87
-      },
-      {
-        "name": "nginx-service",
+        "name": "nginx",
         "namespace": "default",
         "kind": "Service",
         "apiVersion": "v1",
+        "apiGroup": "",
         "labels": {
           "app": "nginx"
         },
-        "createdAt": "2024-01-10T08:05:00Z",
+        "createdAt": "2026-01-10T08:01:00.000Z",
+        "score": 0.91
+      },
+      {
+        "name": "postgres",
+        "namespace": "database",
+        "kind": "StatefulSet",
+        "apiVersion": "apps/v1",
+        "apiGroup": "apps",
+        "labels": {
+          "app": "postgres",
+          "tier": "backend"
+        },
+        "createdAt": "2026-01-12T14:30:00.000Z",
+        "score": 0.87
+      },
+      {
+        "name": "app-config",
+        "namespace": "default",
+        "kind": "ConfigMap",
+        "apiVersion": "v1",
+        "apiGroup": "",
+        "labels": {
+          "app": "platform"
+        },
+        "createdAt": "2026-01-11T09:15:00.000Z",
         "score": 0.82
+      },
+      {
+        "name": "redis",
+        "namespace": "cache",
+        "kind": "Deployment",
+        "apiVersion": "apps/v1",
+        "apiGroup": "apps",
+        "labels": {
+          "app": "redis",
+          "tier": "cache"
+        },
+        "createdAt": "2026-01-13T11:45:00.000Z",
+        "score": 0.78
+      },
+      {
+        "name": "api-gateway",
+        "namespace": "ingress",
+        "kind": "Ingress",
+        "apiVersion": "networking.k8s.io/v1",
+        "apiGroup": "networking.k8s.io",
+        "labels": {
+          "app": "api-gateway"
+        },
+        "createdAt": "2026-01-14T16:20:00.000Z",
+        "score": 0.74
       }
     ],
-    "total": 3,
+    "total": 6,
     "limit": 20,
     "offset": 0
   },
   "meta": {
-    "timestamp": "2024-01-15T10:30:00.000Z",
+    "timestamp": "2026-01-15T10:30:00.000Z",
     "version": "1.0.0"
   }
 }

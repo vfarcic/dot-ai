@@ -42,7 +42,7 @@
     "build:mcp": "npm run build && echo 'MCP server built successfully'",
     "dev": "ts-node src/index.ts",
     "start:mcp": "node dist/mcp/server.js",
-    "lint": "eslint src/ --ext .ts",
+    "lint": "eslint src/",
     "format": "prettier --write src/",
     "audit": "npm audit",
     "version:dev": "npm version patch --preid=devel --prerelease",
