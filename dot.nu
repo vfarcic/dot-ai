@@ -12,11 +12,12 @@ source scripts/atlas.nu
 source scripts/jaeger.nu
 source scripts/dot-ai.nu
 source scripts/cnpg.nu
+source scripts/grafana-stack.nu
 
 def main [] {}
 
 def "main setup" [
-    --stack-version: string = "0.20.0",
+    --stack-version: string = "0.44.0",
     --kyverno-enabled = true,
     --atlas-enabled = true,
     --cnpg-enabled = false,
@@ -24,6 +25,7 @@ def "main setup" [
     --crossplane-provider = none,    # Which provider to use. Available options are `none`, `google`, `aws`, and `azure`
     --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
     --jaeger-enabled = false,
+    --grafana-enabled = false,
     --kubernetes-provider = "kind"
 ] {
 
@@ -39,6 +41,10 @@ def "main setup" [
     cp kubeconfig-dot.yaml kubeconfig.yaml
 
     main apply ingress nginx --provider kind
+
+    if $grafana_enabled {
+        main apply grafana-stack nginx 127.0.0.1.nip.io
+    }
 
     if $crossplane_enabled {(
         main apply crossplane --app-config true --db-config true
