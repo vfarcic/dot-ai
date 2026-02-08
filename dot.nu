@@ -26,6 +26,7 @@ def "main setup" [
     --crossplane-db-config = false,  # Whether to apply DOT SQL Crossplane Configuration
     --jaeger-enabled = false,
     --grafana-enabled = false,
+    --cnpg-enabled = false,
     --kubernetes-provider = "kind"
 ] {
 
@@ -81,7 +82,7 @@ def "main setup" [
 
     kubectl --namespace dot-ai apply --filename examples/solution-dot-ai.yaml
 
-    main apply cnpg
+    if $cnpg_enabled { main apply cnpg }
 
     main print source
 
