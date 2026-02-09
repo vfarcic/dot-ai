@@ -2,7 +2,6 @@ apiVersion: dot-ai.devopstoolkit.live/v1alpha1
 kind: GitKnowledgeSource
 metadata:
   name: company-standards
-  namespace: dot-ai
 spec:
   repository:
     url: https://github.com/vfarcic/dot-ai.git
