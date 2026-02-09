@@ -1,0 +1,16 @@
+apiVersion: dot-ai.devopstoolkit.live/v1alpha1
+kind: GitKnowledgeSource
+metadata:
+  name: company-standards
+  namespace: dot-ai
+spec:
+  repository:
+    url: https://github.com/vfarcic/dot-ai.git
+    branch: main
+  paths:
+    - "examples/knowledgebase/**/*.md"
+  mcpServer:
+    url: http://dot-ai.dot-ai.svc:3456
+    authSecretRef:
+      name: dot-ai-secrets
+      key: auth-token
