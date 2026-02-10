@@ -9,7 +9,6 @@
  * - Converts Zod schemas to JSON Schema for complete API documentation
  */
 
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { RestToolRegistry, ToolInfo } from './rest-registry';
 import { RestRouteRegistry, RouteDefinition } from './rest-route-registry';
@@ -41,10 +40,13 @@ type OpenApiPathItem = {
     required?: boolean;
     content?: Record<string, { schema: JsonSchemaObject }>;
   };
-  responses?: Record<string, {
-    description: string;
-    content?: Record<string, { schema: JsonSchemaObject }>;
-  }>;
+  responses?: Record<
+    string,
+    {
+      description: string;
+      content?: Record<string, { schema: JsonSchemaObject }>;
+    }
+  >;
   [key: string]: unknown;
 };
 
@@ -74,8 +76,22 @@ export interface OpenApiSpec {
   paths: Record<string, Record<string, OpenApiPathItem>>;
   components?: {
     schemas?: Record<string, JsonSchemaObject>;
-    responses?: Record<string, { description: string; content?: Record<string, { schema: JsonSchemaObject }> }>;
-    securitySchemes?: Record<string, { type: string; scheme?: string; bearerFormat?: string; description?: string }>;
+    responses?: Record<
+      string,
+      {
+        description: string;
+        content?: Record<string, { schema: JsonSchemaObject }>;
+      }
+    >;
+    securitySchemes?: Record<
+      string,
+      {
+        type: string;
+        scheme?: string;
+        bearerFormat?: string;
+        description?: string;
+      }
+    >;
   };
   tags?: Array<{
     name: string;
@@ -154,15 +170,11 @@ export class OpenApiGenerator {
     const toolPaths = this.generateToolPaths(tools);
 
     // Generate paths from route registry (REST endpoints) - PRD #354
-    const routePaths = this.routeRegistry
-      ? this.generateRoutePaths()
-      : {};
+    const routePaths = this.routeRegistry ? this.generateRoutePaths() : {};
 
     // Generate component schemas
     const toolSchemas = this.generateToolSchemas(tools);
-    const routeSchemas = this.routeRegistry
-      ? this.generateRouteSchemas()
-      : {};
+    const routeSchemas = this.routeRegistry ? this.generateRouteSchemas() : {};
 
     const spec: OpenApiSpec = {
       openapi: '3.0.0',
@@ -207,12 +219,12 @@ export class OpenApiGenerator {
       contact: {
         name: 'Viktor Farcic',
         url: 'https://devopstoolkit.live/',
-        email: 'viktor@farcic.com'
+        email: 'viktor@farcic.com',
       },
       license: {
         name: 'MIT',
-        url: 'https://github.com/vfarcic/dot-ai/blob/main/LICENSE'
-      }
+        url: 'https://github.com/vfarcic/dot-ai/blob/main/LICENSE',
+      },
     };
 
     return info;
@@ -225,8 +237,8 @@ export class OpenApiGenerator {
     return [
       {
         url: this.config.serverUrl || 'http://localhost:3456',
-        description: 'DevOps AI Toolkit MCP Server'
-      }
+        description: 'DevOps AI Toolkit MCP Server',
+      },
     ];
   }
 
@@ -368,7 +380,9 @@ export class OpenApiGenerator {
               description: 'Tool execution result',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ToolExecutionResponse' },
+                  schema: {
+                    $ref: '#/components/schemas/ToolExecutionResponse',
+                  },
                 },
               },
             },
@@ -425,7 +439,8 @@ export class OpenApiGenerator {
         paths[openApiPath] = {};
       }
 
-      (paths[openApiPath] as Record<string, OpenApiPathItem>)[method] = this.routeToOpenApiOperation(route);
+      (paths[openApiPath] as Record<string, OpenApiPathItem>)[method] =
+        this.routeToOpenApiOperation(route);
     }
 
     return paths;
@@ -503,10 +518,7 @@ export class OpenApiGenerator {
     // Add error responses
     if (route.errorResponses) {
       for (const statusCode of Object.keys(route.errorResponses)) {
-        const errorSchemaName = this.getSchemaName(
-          route,
-          `Error${statusCode}`
-        );
+        const errorSchemaName = this.getSchemaName(route, `Error${statusCode}`);
         operation.responses![statusCode] = {
           description: this.getErrorDescription(Number(statusCode)),
           content: {
@@ -559,8 +571,20 @@ export class OpenApiGenerator {
   private zodSchemaToParameters(
     schema: z.ZodSchema<unknown>,
     location: 'query' | 'path'
-  ): Array<{ name: string; in: string; required: boolean; description: string; schema: JsonSchemaObject }> {
-    const parameters: Array<{ name: string; in: string; required: boolean; description: string; schema: JsonSchemaObject }> = [];
+  ): Array<{
+    name: string;
+    in: string;
+    required: boolean;
+    description: string;
+    schema: JsonSchemaObject;
+  }> {
+    const parameters: Array<{
+      name: string;
+      in: string;
+      required: boolean;
+      description: string;
+      schema: JsonSchemaObject;
+    }> = [];
 
     try {
       const jsonSchema = this.zodSchemaToJsonSchema(schema);
@@ -598,8 +622,8 @@ export class OpenApiGenerator {
     const pathParts = route.path
       .replace(/^\/api\/v\d+\//, '') // Remove /api/v1/ prefix
       .split('/')
-      .filter((part) => part.length > 0)
-      .map((part) => {
+      .filter(part => part.length > 0)
+      .map(part => {
         // Remove : prefix for params and capitalize
         const cleaned = part.replace(/^:/, '');
         return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
@@ -631,23 +655,20 @@ export class OpenApiGenerator {
   /**
    * Convert Zod schema to JSON Schema with caching
    */
-  private zodSchemaToJsonSchema(schema: z.ZodSchema<unknown>): JsonSchemaObject {
+  private zodSchemaToJsonSchema(
+    schema: z.ZodSchema<unknown>
+  ): JsonSchemaObject {
     const cacheKey = JSON.stringify(schema);
     if (this.schemaCache.has(cacheKey)) {
       return this.schemaCache.get(cacheKey)!;
     }
 
     try {
-      // The zodToJsonSchema function accepts ZodSchema but TypeScript needs a cast
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type compatibility workaround
-      const jsonSchema = zodToJsonSchema(schema as any, {
-        target: 'openApi3',
-        $refStrategy: 'none', // Inline all schemas
-      }) as JsonSchemaObject;
+      const result = z.toJSONSchema(schema) as JsonSchemaObject;
 
-      // Remove $schema property if present (not valid in OpenAPI component schemas)
-      const result = { ...jsonSchema };
+      // Remove $schema and additionalProperties (not valid in OpenAPI component schemas)
       delete result.$schema;
+      delete result.additionalProperties;
 
       this.schemaCache.set(cacheKey, result);
       return result;
@@ -679,7 +700,10 @@ export class OpenApiGenerator {
           properties: {
             code: { type: 'string', description: 'Error code' },
             message: { type: 'string', description: 'Error message' },
-            details: { type: 'object', description: 'Additional error details' },
+            details: {
+              type: 'object',
+              description: 'Additional error details',
+            },
           },
         },
         meta: {
@@ -817,8 +841,7 @@ export class OpenApiGenerator {
         },
         method: {
           type: 'string',
-          description:
-            'Method name (e.g., initialize, tools/call, tools/list)',
+          description: 'Method name (e.g., initialize, tools/call, tools/list)',
         },
         params: { type: 'object', description: 'Method parameters' },
       },
@@ -956,7 +979,7 @@ export class OpenApiGenerator {
     ];
 
     // Track tag names to avoid duplicates
-    const tagNames = new Set(tags.map((t) => t.name));
+    const tagNames = new Set(tags.map(t => t.name));
 
     // Add category-based tags from tool registry
     for (const category of categories) {
@@ -970,7 +993,7 @@ export class OpenApiGenerator {
     }
 
     // Add generic tools tag for uncategorized tools
-    if (this.toolRegistry.getAllTools().some((tool) => !tool.category)) {
+    if (this.toolRegistry.getAllTools().some(tool => !tool.category)) {
       if (!tagNames.has('Tools')) {
         tags.push({
           name: 'Tools',
@@ -1006,14 +1029,19 @@ export class OpenApiGenerator {
     try {
       const schema = tool.schema;
       if (schema.properties) {
-        for (const [propName, propSchema] of Object.entries(schema.properties)) {
-          example[propName] = this.generateExampleValue(propSchema as JsonSchemaObject, propName);
+        for (const [propName, propSchema] of Object.entries(
+          schema.properties
+        )) {
+          example[propName] = this.generateExampleValue(
+            propSchema as JsonSchemaObject,
+            propName
+          );
         }
       }
     } catch (error) {
       this.logger.warn('Failed to generate example for tool', {
         toolName: tool.name,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
 
@@ -1023,7 +1051,10 @@ export class OpenApiGenerator {
   /**
    * Generate example value for a property schema
    */
-  private generateExampleValue(propSchema: JsonSchemaObject, propName: string): unknown {
+  private generateExampleValue(
+    propSchema: JsonSchemaObject,
+    propName: string
+  ): unknown {
     if (propSchema.example !== undefined) {
       return propSchema.example;
     }
@@ -1061,13 +1092,23 @@ export class OpenApiGenerator {
         return false;
 
       case 'array':
-        return [this.generateExampleValue(propSchema.items as JsonSchemaObject, 'item')];
+        return [
+          this.generateExampleValue(
+            propSchema.items as JsonSchemaObject,
+            'item'
+          ),
+        ];
 
       case 'object': {
         const objExample: Record<string, unknown> = {};
         if (propSchema.properties) {
-          for (const [subPropName, subPropSchema] of Object.entries(propSchema.properties)) {
-            objExample[subPropName] = this.generateExampleValue(subPropSchema as JsonSchemaObject, subPropName);
+          for (const [subPropName, subPropSchema] of Object.entries(
+            propSchema.properties
+          )) {
+            objExample[subPropName] = this.generateExampleValue(
+              subPropSchema as JsonSchemaObject,
+              subPropName
+            );
           }
         }
         return objExample;

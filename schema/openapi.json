@@ -143,7 +143,16 @@
               "schema": {
                 "$ref": "#/components/schemas/manageKnowledgeRequest"
               },
-              "example": {}
+              "example": {
+                "operation": "ingest",
+                "content": "example content",
+                "uri": "example uri",
+                "metadata": {},
+                "query": "example query",
+                "limit": 42,
+                "uriFilter": "example uriFilter",
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -205,7 +214,24 @@
               "schema": {
                 "$ref": "#/components/schemas/manageOrgDataRequest"
               },
-              "example": {}
+              "example": {
+                "dataType": "pattern",
+                "operation": "create",
+                "sessionId": "example sessionId",
+                "step": "example step",
+                "response": "example response",
+                "id": "example id",
+                "limit": 42,
+                "resource": {
+                  "kind": "example kind",
+                  "group": "example group",
+                  "apiVersion": "example apiVersion"
+                },
+                "resourceList": "example resourceList",
+                "mode": "full",
+                "collection": "example collection",
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -267,7 +293,13 @@
               "schema": {
                 "$ref": "#/components/schemas/operateRequest"
               },
-              "example": {}
+              "example": {
+                "intent": "deploy web application with PostgreSQL database",
+                "sessionId": "example sessionId",
+                "executeChoice": 42,
+                "refinedIntent": "deploy web application with PostgreSQL database",
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -329,7 +361,18 @@
               "schema": {
                 "$ref": "#/components/schemas/projectSetupRequest"
               },
-              "example": {}
+              "example": {
+                "step": "discover",
+                "sessionId": "example sessionId",
+                "existingFiles": [
+                  "example item"
+                ],
+                "selectedScopes": [
+                  "example item"
+                ],
+                "scope": "example scope",
+                "answers": {}
+              }
             }
           }
         },
@@ -391,7 +434,10 @@
               "schema": {
                 "$ref": "#/components/schemas/queryRequest"
               },
-              "example": {}
+              "example": {
+                "intent": "deploy web application with PostgreSQL database",
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -453,7 +499,15 @@
               "schema": {
                 "$ref": "#/components/schemas/recommendRequest"
               },
-              "example": {}
+              "example": {
+                "stage": "example stage",
+                "intent": "deploy web application with PostgreSQL database",
+                "final": false,
+                "solutionId": "example solutionId",
+                "answers": {},
+                "timeout": 30,
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -515,7 +569,18 @@
               "schema": {
                 "$ref": "#/components/schemas/remediateRequest"
               },
-              "example": {}
+              "example": {
+                "issue": "example issue",
+                "mode": "manual",
+                "confidenceThreshold": 42,
+                "maxRiskLevel": "low",
+                "executeChoice": 42,
+                "sessionId": "example sessionId",
+                "executedCommands": [
+                  "example item"
+                ],
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -577,7 +642,9 @@
               "schema": {
                 "$ref": "#/components/schemas/versionRequest"
               },
-              "example": {}
+              "example": {
+                "interaction_id": "example interaction_id"
+              }
             }
           }
         },
@@ -654,7 +721,38 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Filter tools by category",
+            "schema": {
+              "description": "Filter tools by category",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "Filter tools by tag",
+            "schema": {
+              "description": "Filter tools by tag",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Search tools by name or description",
+            "schema": {
+              "description": "Search tools by name or description",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/tools/{toolName}": {
@@ -711,9 +809,10 @@
             "name": "toolName",
             "in": "path",
             "required": true,
-            "description": "toolName parameter",
+            "description": "Name of the tool to execute",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Name of the tool to execute"
             }
           }
         ],
@@ -809,7 +908,58 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "description": "Resource kind (e.g., Pod, Deployment)",
+            "schema": {
+              "type": "string",
+              "description": "Resource kind (e.g., Pod, Deployment)"
+            }
+          },
+          {
+            "name": "apiVersion",
+            "in": "query",
+            "required": true,
+            "description": "API version (e.g., v1, apps/v1)",
+            "schema": {
+              "type": "string",
+              "description": "API version (e.g., v1, apps/v1)"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "description": "Filter by namespace",
+            "schema": {
+              "description": "Filter by namespace",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum results to return",
+            "schema": {
+              "description": "Maximum results to return",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Offset for pagination",
+            "schema": {
+              "description": "Offset for pagination",
+              "type": "number"
+            }
+          }
+        ]
       }
     },
     "/api/v1/resources/kinds": {
@@ -851,7 +1001,18 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "description": "Filter kinds by namespace",
+            "schema": {
+              "description": "Filter kinds by namespace",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/resources/search": {
@@ -903,7 +1064,40 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query",
+            "schema": {
+              "type": "string",
+              "description": "Search query"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "description": "Maximum results to return",
+            "schema": {
+              "default": 20,
+              "description": "Maximum results to return",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "description": "Offset for pagination",
+            "schema": {
+              "default": 0,
+              "description": "Offset for pagination",
+              "type": "number"
+            }
+          }
+        ]
       }
     },
     "/api/v1/resources/sync": {
@@ -1016,7 +1210,48 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "description": "Resource kind",
+            "schema": {
+              "type": "string",
+              "description": "Resource kind"
+            }
+          },
+          {
+            "name": "apiVersion",
+            "in": "query",
+            "required": true,
+            "description": "API version",
+            "schema": {
+              "type": "string",
+              "description": "API version"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "Resource name",
+            "schema": {
+              "type": "string",
+              "description": "Resource name"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "description": "Namespace (for namespaced resources)",
+            "schema": {
+              "description": "Namespace (for namespaced resources)",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/namespaces": {
@@ -1109,7 +1344,38 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "Resource name",
+            "schema": {
+              "type": "string",
+              "description": "Resource name"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "description": "Resource kind",
+            "schema": {
+              "type": "string",
+              "description": "Resource kind"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "description": "Resource namespace",
+            "schema": {
+              "description": "Resource namespace",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/logs": {
@@ -1161,7 +1427,58 @@
             }
           }
         },
-        "parameters": []
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "Pod name",
+            "schema": {
+              "type": "string",
+              "description": "Pod name"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": true,
+            "description": "Pod namespace",
+            "schema": {
+              "type": "string",
+              "description": "Pod namespace"
+            }
+          },
+          {
+            "name": "container",
+            "in": "query",
+            "required": false,
+            "description": "Container name (defaults to first container)",
+            "schema": {
+              "description": "Container name (defaults to first container)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tailLines",
+            "in": "query",
+            "required": false,
+            "description": "Number of lines from end",
+            "schema": {
+              "description": "Number of lines from end",
+              "type": "number"
+            }
+          },
+          {
+            "name": "previous",
+            "in": "query",
+            "required": false,
+            "description": "Get logs from previous container instance",
+            "schema": {
+              "description": "Get logs from previous container instance",
+              "type": "boolean"
+            }
+          }
+        ]
       }
     },
     "/api/v1/prompts": {
@@ -1239,9 +1556,10 @@
             "name": "promptName",
             "in": "path",
             "required": true,
-            "description": "promptName parameter",
+            "description": "Name of the prompt",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Name of the prompt"
             }
           }
         ],
@@ -1311,9 +1629,20 @@
             "name": "sessionId",
             "in": "path",
             "required": true,
-            "description": "sessionId parameter",
+            "description": "Session ID",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session ID"
+            }
+          },
+          {
+            "name": "reload",
+            "in": "query",
+            "required": false,
+            "description": "Force regeneration of visualization",
+            "schema": {
+              "description": "Force regeneration of visualization",
+              "type": "boolean"
             }
           }
         ]
@@ -1363,9 +1692,10 @@
             "name": "sessionId",
             "in": "path",
             "required": true,
-            "description": "sessionId parameter",
+            "description": "Session ID",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session ID"
             }
           }
         ]
@@ -1415,9 +1745,10 @@
             "name": "sourceIdentifier",
             "in": "path",
             "required": true,
-            "description": "sourceIdentifier parameter",
+            "description": "Source identifier (e.g., namespace/name of GitKnowledgeSource CR)",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Source identifier (e.g., namespace/name of GitKnowledgeSource CR)"
             }
           }
         ]
@@ -1806,75 +2137,4440 @@
           "error"
         ]
       },
-      "manageKnowledgeRequest": {},
-      "manageOrgDataRequest": {},
-      "operateRequest": {},
-      "projectSetupRequest": {},
-      "queryRequest": {},
-      "recommendRequest": {},
-      "remediateRequest": {},
-      "versionRequest": {},
-      "ToolsGetResponse": {},
-      "ToolsGetError500": {},
-      "ToolsToolNamePostResponse": {},
-      "ToolsToolNamePostRequest": {},
-      "ToolsToolNamePostError400": {},
-      "ToolsToolNamePostError404": {},
-      "ToolsToolNamePostError500": {},
-      "OpenapiGetResponse": {},
-      "OpenapiGetError500": {},
-      "ResourcesGetResponse": {},
-      "ResourcesGetError400": {},
-      "ResourcesGetError500": {},
-      "ResourcesGetError503": {},
-      "ResourcesKindsGetResponse": {},
-      "ResourcesKindsGetError500": {},
-      "ResourcesKindsGetError503": {},
-      "ResourcesSearchGetResponse": {},
-      "ResourcesSearchGetError400": {},
-      "ResourcesSearchGetError500": {},
-      "ResourcesSearchGetError503": {},
-      "ResourcesSyncPostResponse": {},
-      "ResourcesSyncPostRequest": {},
-      "ResourcesSyncPostError400": {},
-      "ResourcesSyncPostError500": {},
-      "ResourceGetResponse": {},
-      "ResourceGetError400": {},
-      "ResourceGetError404": {},
-      "ResourceGetError500": {},
-      "ResourceGetError503": {},
-      "NamespacesGetResponse": {},
-      "NamespacesGetError500": {},
-      "NamespacesGetError503": {},
-      "EventsGetResponse": {},
-      "EventsGetError400": {},
-      "EventsGetError500": {},
-      "EventsGetError503": {},
-      "LogsGetResponse": {},
-      "LogsGetError400": {},
-      "LogsGetError500": {},
-      "LogsGetError503": {},
-      "PromptsGetResponse": {},
-      "PromptsGetError500": {},
-      "PromptsPromptNamePostResponse": {},
-      "PromptsPromptNamePostRequest": {},
-      "PromptsPromptNamePostError404": {},
-      "PromptsPromptNamePostError500": {},
-      "VisualizeSessionIdGetResponse": {},
-      "VisualizeSessionIdGetError404": {},
-      "VisualizeSessionIdGetError500": {},
-      "VisualizeSessionIdGetError503": {},
-      "SessionsSessionIdGetResponse": {},
-      "SessionsSessionIdGetError404": {},
-      "SessionsSessionIdGetError500": {},
-      "KnowledgeSourceSourceIdentifierDeleteResponse": {},
-      "KnowledgeSourceSourceIdentifierDeleteError500": {},
-      "KnowledgeSourceSourceIdentifierDeleteError503": {},
-      "KnowledgeAskPostResponse": {},
-      "KnowledgeAskPostRequest": {},
-      "KnowledgeAskPostError400": {},
-      "KnowledgeAskPostError500": {},
-      "KnowledgeAskPostError503": {}
+      "manageKnowledgeRequest": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "ingest",
+              "search",
+              "deleteByUri"
+            ],
+            "description": "Operation to perform: \"ingest\" to add documents, \"search\" for semantic search, \"deleteByUri\" to remove all chunks for a document."
+          },
+          "content": {
+            "description": "Document content to ingest (required for ingest operation).",
+            "type": "string"
+          },
+          "uri": {
+            "description": "Full URL identifying the document (required for ingest and deleteByUri). E.g., https://github.com/org/repo/blob/main/docs/guide.md",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Optional metadata to store with chunks",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "query": {
+            "description": "Natural language search query (required for search operation).",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of results to return for search (default: 20).",
+            "type": "number"
+          },
+          "uriFilter": {
+            "description": "Optional URL prefix to filter search results (e.g., \"https://github.com/org/repo/\").",
+            "type": "string"
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "manageOrgDataRequest": {
+        "type": "object",
+        "properties": {
+          "dataType": {
+            "type": "string",
+            "enum": [
+              "pattern",
+              "policy",
+              "capabilities"
+            ],
+            "description": "Type of cluster data to manage: \"pattern\" for organizational patterns, \"policy\" for policy intents, \"capabilities\" for resource capabilities"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "create",
+              "list",
+              "get",
+              "delete",
+              "deleteAll",
+              "scan",
+              "analyze",
+              "progress",
+              "search"
+            ],
+            "description": "Operation to perform on the cluster data"
+          },
+          "sessionId": {
+            "description": "Session ID (required for continuing workflow steps, optional for progress - uses latest session if omitted)",
+            "type": "string"
+          },
+          "step": {
+            "description": "Current workflow step (required when sessionId is provided)",
+            "type": "string"
+          },
+          "response": {
+            "description": "User response to previous workflow step question",
+            "type": "string"
+          },
+          "id": {
+            "description": "Data item ID (required for get/delete operations) or search query (required for search operations)",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of items to return (default: 10)",
+            "type": "number"
+          },
+          "resource": {
+            "description": "Kubernetes resource reference (for capabilities operations)",
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "group": {
+                "type": "string"
+              },
+              "apiVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "group",
+              "apiVersion"
+            ],
+            "additionalProperties": false
+          },
+          "resourceList": {
+            "description": "Comma-separated list of resources to scan (format: Kind.group or Kind for core resources). When provided without sessionId, triggers a fire-and-forget targeted scan.",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Scan mode: \"full\" triggers a fire-and-forget full cluster scan that returns immediately and scans all resources in the cluster. Mutually exclusive with resourceList.",
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          },
+          "collection": {
+            "description": "Collection name for capabilities operations (default: \"capabilities\", use \"capabilities-policies\" for pre-populated test data)",
+            "type": "string"
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataType",
+          "operation"
+        ]
+      },
+      "operateRequest": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "description": "User intent for operation: \"update X to Y\", \"scale Z\", \"make W HA\", etc.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "sessionId": {
+            "description": "Session ID from previous operate call",
+            "type": "string"
+          },
+          "executeChoice": {
+            "description": "Execute approved changes (1=execute)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1
+          },
+          "refinedIntent": {
+            "description": "Clarified intent if user wants to provide more details",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        }
+      },
+      "projectSetupRequest": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "description": "Workflow step: \"discover\" (default) starts new session and returns file list, \"reportScan\" analyzes scan results, \"generateScope\" generates all files in a scope. Defaults to \"discover\" if omitted.",
+            "type": "string",
+            "enum": [
+              "discover",
+              "reportScan",
+              "generateScope"
+            ]
+          },
+          "sessionId": {
+            "description": "Session ID from previous step (required for reportScan and generateScope steps)",
+            "type": "string"
+          },
+          "existingFiles": {
+            "description": "List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "selectedScopes": {
+            "description": "Scopes user chose to setup (e.g., [\"readme\", \"legal\", \"github-community\"]) (required for reportScan step after initial scan)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "description": "Scope to generate (e.g., \"github-community\") (required for generateScope step)",
+            "type": "string"
+          },
+          "answers": {
+            "description": "Answers to ALL questions for the scope (required for generateScope step)",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      },
+      "queryRequest": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "Natural language query about the cluster"
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent"
+        ]
+      },
+      "recommendRequest": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "description": "Deployment workflow stage: \"recommend\" (default), \"chooseSolution\", \"answerQuestion:required\", \"answerQuestion:basic\", \"answerQuestion:advanced\", \"answerQuestion:open\", \"generateManifests\", \"deployManifests\". Defaults to \"recommend\" if omitted.",
+            "type": "string"
+          },
+          "intent": {
+            "description": "What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: \"deploy web application\", \"create PostgreSQL database\", \"setup Redis cache\", \"install Prometheus monitoring\", \"configure Ingress controller\", \"provision storage volumes\", \"launch MongoDB operator\", \"run Node.js API\", \"setup CI/CD pipeline\", \"create load balancer\", \"install Grafana dashboard\", \"deploy React frontend\"",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "final": {
+            "description": "Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.",
+            "type": "boolean"
+          },
+          "solutionId": {
+            "description": "Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages",
+            "type": "string"
+          },
+          "answers": {
+            "description": "User answers for answerQuestion stage",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "timeout": {
+            "description": "Deployment timeout in seconds for deployManifests stage",
+            "type": "number"
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        }
+      },
+      "remediateRequest": {
+        "type": "object",
+        "properties": {
+          "issue": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Issue description that needs to be analyzed and remediated"
+          },
+          "mode": {
+            "default": "manual",
+            "description": "Execution mode: manual requires user approval, automatic executes based on thresholds",
+            "type": "string",
+            "enum": [
+              "manual",
+              "automatic"
+            ]
+          },
+          "confidenceThreshold": {
+            "default": 0.8,
+            "description": "For automatic mode: minimum confidence required for execution (default: 0.8)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "maxRiskLevel": {
+            "default": "low",
+            "description": "For automatic mode: maximum risk level allowed for execution (default: low)",
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "executeChoice": {
+            "description": "Execute a previously generated choice (1=Execute via MCP, 2=Execute via agent)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "sessionId": {
+            "description": "Session ID from previous remediate call when executing a choice",
+            "type": "string"
+          },
+          "executedCommands": {
+            "description": "Commands that were executed to remediate the issue",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "confidenceThreshold",
+          "maxRiskLevel"
+        ]
+      },
+      "versionRequest": {
+        "type": "object",
+        "properties": {
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        }
+      },
+      "ToolsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Tool name/identifier"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Tool description"
+                    },
+                    "category": {
+                      "description": "Tool category for grouping",
+                      "type": "string"
+                    },
+                    "tags": {
+                      "description": "Tags for filtering",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "parameters": {
+                      "description": "Tool parameters",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Parameter name"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Parameter type (string, number, boolean, object, array)"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Parameter description"
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "description": "Whether the parameter is required"
+                          },
+                          "default": {
+                            "description": "Default value if not provided"
+                          },
+                          "enum": {
+                            "description": "Allowed values for enum parameters",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "description",
+                          "required"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "inputSchema": {
+                      "description": "JSON Schema for tool input",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of available tools"
+              },
+              "total": {
+                "type": "number",
+                "description": "Total number of tools"
+              },
+              "categories": {
+                "description": "Available categories",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tags": {
+                "description": "Available tags",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "tools",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ToolsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ToolsToolNamePostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "result": {
+                "description": "Tool execution result"
+              },
+              "tool": {
+                "type": "string",
+                "description": "Name of the executed tool"
+              },
+              "executionTime": {
+                "description": "Execution time in milliseconds",
+                "type": "number"
+              }
+            },
+            "required": [
+              "result",
+              "tool"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ToolsToolNamePostRequest": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "description": "Tool execution parameters"
+      },
+      "ToolsToolNamePostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "INVALID_REQUEST"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ToolsToolNamePostError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "TOOL_NOT_FOUND"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ToolsToolNamePostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "EXECUTION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "OpenapiGetResponse": {
+        "type": "object",
+        "properties": {
+          "openapi": {
+            "type": "string"
+          },
+          "info": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "description",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "paths": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "openapi",
+          "info",
+          "paths"
+        ]
+      },
+      "OpenapiGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Resource name"
+                    },
+                    "namespace": {
+                      "description": "Namespace (for namespaced resources)",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "Resource kind"
+                    },
+                    "apiVersion": {
+                      "type": "string",
+                      "description": "API version"
+                    },
+                    "apiGroup": {
+                      "description": "API group",
+                      "type": "string"
+                    },
+                    "labels": {
+                      "description": "Resource labels",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "description": "Creation timestamp",
+                      "type": "string"
+                    },
+                    "score": {
+                      "description": "Search relevance score (for search results)",
+                      "type": "number"
+                    },
+                    "status": {
+                      "description": "Live status from Kubernetes API"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "kind",
+                    "apiVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of resources"
+              },
+              "total": {
+                "type": "number",
+                "description": "Total number of resources"
+              },
+              "limit": {
+                "description": "Applied limit",
+                "type": "number"
+              },
+              "offset": {
+                "description": "Applied offset",
+                "type": "number"
+              }
+            },
+            "required": [
+              "resources",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ResourcesGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "BAD_REQUEST",
+                  "MISSING_PARAMETER",
+                  "INVALID_PARAMETER",
+                  "VALIDATION_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesKindsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "Resource kind (e.g., \"Pod\", \"Deployment\")"
+                    },
+                    "apiVersion": {
+                      "type": "string",
+                      "description": "API version (e.g., \"v1\", \"apps/v1\")"
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of resources of this kind"
+                    },
+                    "apiGroup": {
+                      "description": "API group (e.g., \"apps\", \"networking.k8s.io\")",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "apiVersion",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of resource kinds with counts"
+              }
+            },
+            "required": [
+              "kinds"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ResourcesKindsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesKindsGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesSearchGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Resource name"
+                    },
+                    "namespace": {
+                      "description": "Namespace (for namespaced resources)",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "Resource kind"
+                    },
+                    "apiVersion": {
+                      "type": "string",
+                      "description": "API version"
+                    },
+                    "apiGroup": {
+                      "description": "API group",
+                      "type": "string"
+                    },
+                    "labels": {
+                      "description": "Resource labels",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "description": "Creation timestamp",
+                      "type": "string"
+                    },
+                    "score": {
+                      "description": "Search relevance score (for search results)",
+                      "type": "number"
+                    },
+                    "status": {
+                      "description": "Live status from Kubernetes API"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "kind",
+                    "apiVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Matching resources"
+              },
+              "total": {
+                "type": "number",
+                "description": "Total number of matches"
+              },
+              "limit": {
+                "type": "number",
+                "description": "Requested limit"
+              },
+              "offset": {
+                "type": "number",
+                "description": "Requested offset"
+              }
+            },
+            "required": [
+              "resources",
+              "total",
+              "limit",
+              "offset"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ResourcesSearchGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "BAD_REQUEST",
+                  "MISSING_PARAMETER",
+                  "INVALID_PARAMETER",
+                  "VALIDATION_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesSearchGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesSearchGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesSyncPostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "upserted": {
+                "description": "Number of resources upserted",
+                "type": "number"
+              },
+              "deleted": {
+                "description": "Number of resources deleted",
+                "type": "number"
+              },
+              "healthy": {
+                "description": "Health check result",
+                "type": "boolean"
+              },
+              "message": {
+                "description": "Operation message",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ResourcesSyncPostRequest": {
+        "type": "object",
+        "properties": {
+          "upserts": {
+            "description": "Resources to upsert",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "deletes": {
+            "description": "Resources to delete (requires namespace, name, kind, apiVersion)",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "isResync": {
+            "description": "When true, performs full reconciliation - deletes resources not in upserts list",
+            "type": "boolean"
+          }
+        }
+      },
+      "ResourcesSyncPostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "BAD_REQUEST",
+                  "MISSING_PARAMETER",
+                  "INVALID_PARAMETER",
+                  "VALIDATION_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourcesSyncPostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourceGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "resource": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "description": "Full Kubernetes resource object"
+              }
+            },
+            "required": [
+              "resource"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ResourceGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "BAD_REQUEST",
+                  "MISSING_PARAMETER",
+                  "INVALID_PARAMETER",
+                  "VALIDATION_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourceGetError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourceGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "ResourceGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "NamespacesGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "namespaces": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of namespace names"
+              }
+            },
+            "required": [
+              "namespaces"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "NamespacesGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "NamespacesGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EventsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lastTimestamp": {
+                      "description": "Last time the event occurred",
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Event type (Normal, Warning)"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "Short reason for the event"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    },
+                    "involvedObject": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "description": "Resource kind"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Resource name"
+                        },
+                        "namespace": {
+                          "description": "Resource namespace",
+                          "type": "string"
+                        },
+                        "uid": {
+                          "description": "Resource UID",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Object this event is about"
+                    },
+                    "count": {
+                      "description": "Number of times this event has occurred",
+                      "type": "number"
+                    },
+                    "firstTimestamp": {
+                      "description": "First time the event occurred",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "reason",
+                    "message",
+                    "involvedObject"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of events"
+              },
+              "count": {
+                "type": "number",
+                "description": "Number of events returned"
+              }
+            },
+            "required": [
+              "events",
+              "count"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "EventsGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "BAD_REQUEST"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EventsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EventsGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "LogsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "logs": {
+                "type": "string",
+                "description": "Container log output"
+              },
+              "container": {
+                "type": "string",
+                "description": "Container name"
+              },
+              "containerCount": {
+                "type": "number",
+                "description": "Number of containers in the pod"
+              }
+            },
+            "required": [
+              "logs",
+              "container",
+              "containerCount"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "LogsGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "BAD_REQUEST",
+                  "INVALID_PARAMETER"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "LogsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "LogsGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "prompts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Prompt name/identifier"
+                    },
+                    "description": {
+                      "description": "Prompt description",
+                      "type": "string"
+                    },
+                    "arguments": {
+                      "description": "Prompt arguments",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Argument name"
+                          },
+                          "description": {
+                            "description": "Argument description",
+                            "type": "string"
+                          },
+                          "required": {
+                            "description": "Whether the argument is required",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of available prompts"
+              }
+            },
+            "required": [
+              "prompts"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "PromptsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsPromptNamePostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "description": "Prompt description",
+                "type": "string"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "assistant",
+                        "system"
+                      ],
+                      "description": "Message role"
+                    },
+                    "content": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "text"
+                        },
+                        "text": {
+                          "type": "string",
+                          "description": "Message text content"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Message content"
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "content"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Prompt messages"
+              }
+            },
+            "required": [
+              "messages"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "PromptsPromptNamePostRequest": {
+        "type": "object",
+        "properties": {
+          "arguments": {
+            "description": "Arguments to pass to the prompt",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      },
+      "PromptsPromptNamePostError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "pattern": "Prompt not found"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsPromptNamePostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "VisualizeSessionIdGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Title of the visualization"
+              },
+              "visualizations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique visualization identifier"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Display label"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "mermaid",
+                        "cards",
+                        "code",
+                        "table",
+                        "diff",
+                        "bar-chart"
+                      ],
+                      "description": "Visualization type"
+                    },
+                    "content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "language": {
+                              "type": "string",
+                              "description": "Programming language for syntax highlighting"
+                            },
+                            "code": {
+                              "type": "string",
+                              "description": "Code content"
+                            }
+                          },
+                          "required": [
+                            "language",
+                            "code"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "headers": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Column headers"
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "description": "Table rows"
+                            }
+                          },
+                          "required": [
+                            "headers",
+                            "rows"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Unique card identifier"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "Card title"
+                              },
+                              "description": {
+                                "description": "Card description",
+                                "type": "string"
+                              },
+                              "tags": {
+                                "description": "Tags/labels for the card",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "before": {
+                              "type": "object",
+                              "properties": {
+                                "language": {
+                                  "type": "string",
+                                  "description": "Programming language for syntax highlighting"
+                                },
+                                "code": {
+                                  "type": "string",
+                                  "description": "Code content"
+                                }
+                              },
+                              "required": [
+                                "language",
+                                "code"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Code before changes"
+                            },
+                            "after": {
+                              "type": "object",
+                              "properties": {
+                                "language": {
+                                  "type": "string",
+                                  "description": "Programming language for syntax highlighting"
+                                },
+                                "code": {
+                                  "type": "string",
+                                  "description": "Code content"
+                                }
+                              },
+                              "required": [
+                                "language",
+                                "code"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Code after changes"
+                            }
+                          },
+                          "required": [
+                            "before",
+                            "after"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "description": "Data point label (e.g., \"node-1\", \"kube-system\")"
+                                  },
+                                  "value": {
+                                    "type": "number",
+                                    "description": "Numeric value"
+                                  },
+                                  "max": {
+                                    "description": "Maximum value for percentage calculation",
+                                    "type": "number"
+                                  },
+                                  "status": {
+                                    "description": "Status for color-coding",
+                                    "type": "string",
+                                    "enum": [
+                                      "error",
+                                      "warning",
+                                      "ok"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "value"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": "Chart data points"
+                            },
+                            "unit": {
+                              "description": "Unit label (e.g., \"Gi\", \"cores\", \"%\")",
+                              "type": "string"
+                            },
+                            "orientation": {
+                              "description": "Chart orientation",
+                              "type": "string",
+                              "enum": [
+                                "horizontal",
+                                "vertical"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "data"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Visualization content (varies by type)"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "type",
+                    "content"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Array of visualizations"
+              },
+              "insights": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "AI-generated insights about the data"
+              },
+              "toolsUsed": {
+                "description": "Tools called during visualization generation",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "title",
+              "visualizations",
+              "insights"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "VisualizeSessionIdGetError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "SESSION_NOT_FOUND"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "VisualizeSessionIdGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "VisualizeSessionIdGetError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "AI_NOT_CONFIGURED"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "SessionsSessionIdGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Session ID"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "toolName": {
+                    "description": "Tool that created this session",
+                    "type": "string"
+                  },
+                  "intent": {
+                    "description": "User intent for this session",
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": {},
+                "description": "Session data"
+              },
+              "createdAt": {
+                "description": "Session creation timestamp",
+                "type": "string"
+              },
+              "expiresAt": {
+                "description": "Session expiration timestamp",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "SessionsSessionIdGetError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "SESSION_NOT_FOUND"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "SessionsSessionIdGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "KnowledgeSourceSourceIdentifierDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sourceIdentifier": {
+                "type": "string",
+                "description": "The source identifier that was deleted"
+              },
+              "chunksDeleted": {
+                "type": "number",
+                "description": "Number of chunks deleted"
+              }
+            },
+            "required": [
+              "sourceIdentifier",
+              "chunksDeleted"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "KnowledgeSourceSourceIdentifierDeleteError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "DELETE_SOURCE_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "KnowledgeSourceSourceIdentifierDeleteError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PLUGIN_UNAVAILABLE"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "KnowledgeAskPostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string",
+                "description": "AI-synthesized answer to the question"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "Source document URI"
+                    },
+                    "title": {
+                      "description": "Document title if available from metadata",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uri"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Deduplicated source documents used"
+              },
+              "chunks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "Chunk text content"
+                    },
+                    "uri": {
+                      "type": "string",
+                      "description": "Source document URI"
+                    },
+                    "score": {
+                      "type": "number",
+                      "description": "Relevance score from semantic search"
+                    },
+                    "chunkIndex": {
+                      "type": "number",
+                      "description": "Position of chunk within source document"
+                    }
+                  },
+                  "required": [
+                    "content",
+                    "uri",
+                    "score",
+                    "chunkIndex"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Original chunks for transparency"
+              }
+            },
+            "required": [
+              "answer",
+              "sources",
+              "chunks"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "KnowledgeAskPostRequest": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The question to answer from the knowledge base"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Maximum chunks to retrieve per search (default: 20)",
+            "type": "number"
+          },
+          "uriFilter": {
+            "description": "Optional: filter searches to specific document URI",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "limit"
+        ]
+      },
+      "KnowledgeAskPostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "BAD_REQUEST"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "KnowledgeAskPostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "SEARCH_ERROR",
+                  "SYNTHESIS_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "KnowledgeAskPostError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "AI_NOT_CONFIGURED",
+                  "PLUGIN_UNAVAILABLE",
+                  "VECTOR_DB_UNAVAILABLE",
+                  "SERVICE_UNAVAILABLE"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      }
     }
   },
   "tags": [

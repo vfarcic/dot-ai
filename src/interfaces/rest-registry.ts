@@ -1,12 +1,11 @@
 /**
  * REST API Tool Registry
- * 
+ *
  * Central registry for all MCP tools exposed via REST API.
  * Manages tool metadata, schema conversion, and tool discovery capabilities.
  */
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Logger } from '../core/error-handling';
 
 /**
@@ -64,12 +63,12 @@ export class RestToolRegistry {
     this.tools.set(metadata.name, metadata);
     // Clear schema cache for this tool
     this.schemaCache.delete(metadata.name);
-    
+
     this.logger.debug('Tool registered in REST registry', {
       name: metadata.name,
       description: metadata.description,
       category: metadata.category,
-      tags: metadata.tags
+      tags: metadata.tags,
     });
   }
 
@@ -98,7 +97,7 @@ export class RestToolRegistry {
         description: tool.description,
         schema: this.convertZodSchemaToJsonSchema(tool.name, tool.inputSchema),
         category: tool.category,
-        tags: tool.tags
+        tags: tool.tags,
       };
     });
   }
@@ -127,62 +126,52 @@ export class RestToolRegistry {
   }
 
   /**
-   * Convert Zod schema to JSON Schema using zod-to-json-schema library
+   * Convert Zod schema to JSON Schema using Zod v4 native toJSONSchema
    */
-  private convertZodSchemaToJsonSchema(toolName: string, zodSchemas: Record<string, z.ZodSchema>): JsonSchema {
+  private convertZodSchemaToJsonSchema(
+    toolName: string,
+    zodSchemas: Record<string, z.ZodSchema>
+  ): JsonSchema {
     const cached = this.schemaCache.get(toolName);
     if (cached) {
       return cached;
     }
 
     try {
-      // Create a Zod object schema from the individual field schemas
       const zodObjectSchema = z.object(zodSchemas);
-      
-      // Convert to JSON Schema using OpenAPI3 conventions, inlining all subschemas
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type compatibility workaround
-      const jsonSchema = zodToJsonSchema(zodObjectSchema as any, {
-        name: `${toolName}Request`,
-        target: 'openApi3',
-        // Place definitions where OpenAPI expects them
-        definitionPath: 'components.schemas',
-        $refStrategy: 'none' // inline sub-schemas to avoid unresolved refs
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JsonSchema index signature
+      const result = z.toJSONSchema(zodObjectSchema) as any as JsonSchema;
 
-      let result = jsonSchema as JsonSchema;
+      // Remove $schema and additionalProperties (not valid in OpenAPI component schemas)
+      delete result.$schema;
+      delete result.additionalProperties;
 
-      // Extract the actual schema from components.schemas if it's using $ref
-      const jsonSchemaWithComponents = jsonSchema as { 'components.schemas'?: Record<string, unknown> };
-      if (result.$ref && jsonSchemaWithComponents['components.schemas']) {
-        const refKey = result.$ref.replace('#/components.schemas/', '');
-        if (jsonSchemaWithComponents['components.schemas'][refKey]) {
-          result = jsonSchemaWithComponents['components.schemas'][refKey] as JsonSchema;
-        }
-      }
-      
       this.schemaCache.set(toolName, result);
-      
+
       this.logger.debug('Converted Zod schema to JSON Schema', {
         toolName,
         schemaKeys: Object.keys(zodSchemas),
-        resultType: result.type
+        resultType: result.type,
       });
-      
+
       return result;
     } catch (error) {
-      this.logger.error('Failed to convert Zod schema to JSON Schema', error instanceof Error ? error : new Error(String(error)), {
-        toolName,
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
-      
-      // Fallback to a basic schema
+      this.logger.error(
+        'Failed to convert Zod schema to JSON Schema',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          toolName,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }
+      );
+
       const fallbackSchema: JsonSchema = {
         type: 'object',
         description: `Schema conversion failed for ${toolName} - using fallback`,
         properties: {},
-        additionalProperties: true
+        additionalProperties: true,
       };
-      
+
       return fallbackSchema;
     }
   }
@@ -190,11 +179,13 @@ export class RestToolRegistry {
   /**
    * Get tool discovery information with filtering
    */
-  getToolsFiltered(options: {
-    category?: string;
-    tag?: string;
-    search?: string;
-  } = {}): ToolInfo[] {
+  getToolsFiltered(
+    options: {
+      category?: string;
+      tag?: string;
+      search?: string;
+    } = {}
+  ): ToolInfo[] {
     let tools = this.getAllTools();
 
     if (options.category) {
@@ -207,9 +198,10 @@ export class RestToolRegistry {
 
     if (options.search) {
       const searchLower = options.search.toLowerCase();
-      tools = tools.filter(tool => 
-        tool.name.toLowerCase().includes(searchLower) ||
-        tool.description.toLowerCase().includes(searchLower)
+      tools = tools.filter(
+        tool =>
+          tool.name.toLowerCase().includes(searchLower) ||
+          tool.description.toLowerCase().includes(searchLower)
       );
     }
 
@@ -255,7 +247,7 @@ export class RestToolRegistry {
       totalTools: this.tools.size,
       categories: this.getCategories(),
       tags: this.getTags(),
-      cacheSize: this.schemaCache.size
+      cacheSize: this.schemaCache.size,
     };
   }
 }

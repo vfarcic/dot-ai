@@ -12,7 +12,10 @@ import { z } from 'zod';
  */
 export const MetaSchema = z.object({
   timestamp: z.string().describe('ISO 8601 timestamp of the response'),
-  requestId: z.string().optional().describe('Unique request identifier for tracing'),
+  requestId: z
+    .string()
+    .optional()
+    .describe('Unique request identifier for tracing'),
   version: z.string().describe('API version'),
 });
 
@@ -36,7 +39,9 @@ export type ErrorDetails = z.infer<typeof ErrorDetailsSchema>;
 export const RestApiResponseSchema = z.object({
   success: z.boolean().describe('Whether the request was successful'),
   data: z.any().optional().describe('Response payload'),
-  error: ErrorDetailsSchema.optional().describe('Error information if success is false'),
+  error: ErrorDetailsSchema.optional().describe(
+    'Error information if success is false'
+  ),
   meta: MetaSchema.optional().describe('Response metadata'),
 });
 
@@ -45,11 +50,12 @@ export type RestApiResponse = z.infer<typeof RestApiResponseSchema>;
 /**
  * Success response factory - creates a typed success response schema
  */
-export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {
+export function createSuccessResponseSchema<T extends z.ZodTypeAny>(
+  dataSchema: T
+) {
   return z.object({
     success: z.literal(true),
     data: dataSchema,
-    error: z.undefined().optional(),
     meta: MetaSchema.optional(),
   });
 }
@@ -59,7 +65,6 @@ export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: 
  */
 export const ErrorResponseSchema = z.object({
   success: z.literal(false),
-  data: z.undefined().optional(),
   error: ErrorDetailsSchema,
   meta: MetaSchema.optional(),
 });
@@ -77,7 +82,13 @@ export const NotFoundErrorSchema = ErrorResponseSchema.extend({
 
 export const BadRequestErrorSchema = ErrorResponseSchema.extend({
   error: ErrorDetailsSchema.extend({
-    code: z.enum(['BAD_REQUEST', 'INVALID_REQUEST', 'MISSING_PARAMETER', 'INVALID_PARAMETER', 'VALIDATION_ERROR']),
+    code: z.enum([
+      'BAD_REQUEST',
+      'INVALID_REQUEST',
+      'MISSING_PARAMETER',
+      'INVALID_PARAMETER',
+      'VALIDATION_ERROR',
+    ]),
   }),
 });
 
@@ -89,7 +100,12 @@ export const MethodNotAllowedErrorSchema = ErrorResponseSchema.extend({
 
 export const ServiceUnavailableErrorSchema = ErrorResponseSchema.extend({
   error: ErrorDetailsSchema.extend({
-    code: z.enum(['AI_NOT_CONFIGURED', 'PLUGIN_UNAVAILABLE', 'VECTOR_DB_UNAVAILABLE', 'SERVICE_UNAVAILABLE']),
+    code: z.enum([
+      'AI_NOT_CONFIGURED',
+      'PLUGIN_UNAVAILABLE',
+      'VECTOR_DB_UNAVAILABLE',
+      'SERVICE_UNAVAILABLE',
+    ]),
   }),
 });
 
