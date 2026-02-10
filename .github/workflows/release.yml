@@ -264,10 +264,45 @@ jobs:
         platforms: linux/amd64,linux/arm64
 
   # =============================================================================
+  # GENERATE OPENAPI: Generate OpenAPI spec for CLI consumption
+  # =============================================================================
+  generate-openapi:
+    needs: prepare
+    if: needs.prepare.outputs.notes_only != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        submodules: true
+
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Generate OpenAPI spec
+      run: npm run generate:openapi
+
+    - name: Upload OpenAPI spec artifact
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: openapi-spec
+        path: schema/openapi.json
+
+  # =============================================================================
   # FINALIZE: Helm chart, commit, GitHub release (after both images built)
   # =============================================================================
   finalize:
-    needs: [prepare, build-dot-ai, build-agentic-tools]
+    needs: [prepare, build-dot-ai, build-agentic-tools, generate-openapi]
     if: needs.prepare.outputs.notes_only != 'true'
     runs-on: ubuntu-latest
 
@@ -289,6 +324,12 @@ jobs:
       with:
         name: release-notes
         path: .
+
+    - name: Download OpenAPI spec artifact
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+      with:
+        name: openapi-spec
+        path: schema/
 
     - name: Install Devbox
       uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
@@ -344,8 +385,8 @@ jobs:
       run: |
         VERSION=${{ needs.prepare.outputs.version }}
 
-        # Add all version-related changes
-        git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu
+        # Add all version-related changes and generated artifacts
+        git add package.json charts/Chart.yaml charts/values.yaml server.json dot.nu schema/openapi.json
 
         git commit -m "chore: coordinated release v$VERSION
 
@@ -353,6 +394,7 @@ jobs:
         - docker image: ghcr.io/vfarcic/dot-ai:$VERSION
         - docker image: ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION
         - helm chart: oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION
+        - openapi spec: schema/openapi.json
 
         [skip ci]" || echo "No changes to commit"
 
