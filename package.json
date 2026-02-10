@@ -46,7 +46,8 @@
     "format": "prettier --write src/",
     "audit": "npm audit",
     "version:dev": "npm version patch --preid=devel --prerelease",
-    "version:prod": "npm version patch"
+    "version:prod": "npm version patch",
+    "generate:openapi": "./scripts/generate-openapi.sh"
   },
   "keywords": [
     "kubernetes",

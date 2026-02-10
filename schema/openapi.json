@@ -1,0 +1,1950 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DevOps AI Toolkit REST API",
+    "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Viktor Farcic",
+      "url": "https://devopstoolkit.live/",
+      "email": "viktor@farcic.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/vfarcic/dot-ai/blob/main/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3456",
+      "description": "DevOps AI Toolkit MCP Server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Open MCP SSE stream",
+        "description": "Opens a Server-Sent Events (SSE) stream for Model Context Protocol communication. This endpoint allows the server to push messages to the client without the client first sending data.",
+        "tags": [
+          "MCP Protocol"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed - server does not support SSE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Send MCP JSON-RPC message",
+        "description": "Send a JSON-RPC message using Model Context Protocol. Used for tool calls, initialization, and other MCP operations. The server may respond with either a JSON object or open an SSE stream.",
+        "tags": [
+          "MCP Protocol"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpJsonRpcRequest"
+              },
+              "examples": {
+                "initialize": {
+                  "summary": "Initialize MCP session",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                      "protocolVersion": "2024-11-05",
+                      "capabilities": {},
+                      "clientInfo": {
+                        "name": "example-client",
+                        "version": "1.0.0"
+                      }
+                    }
+                  }
+                },
+                "toolCall": {
+                  "summary": "Call a tool",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "version",
+                      "arguments": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response or SSE stream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpJsonRpcResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream with JSON-RPC messages"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid JSON-RPC message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpJsonRpcError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/manageKnowledge": {
+      "post": {
+        "summary": "Execute manageKnowledge tool",
+        "description": "Manage the knowledge base: ingest documents, search with natural language, or delete chunks. Use \"ingest\" to store organizational documentation, \"search\" to find relevant content semantically, or \"deleteByUri\" to remove all chunks for a document. TIP: For complex questions, you can call search multiple times with different phrasings to gather comprehensive information before synthesizing your answer.",
+        "tags": [
+          "Knowledge"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/manageKnowledgeRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/manageOrgData": {
+      "post": {
+        "summary": "Execute manageOrgData tool",
+        "description": "Unified tool for managing cluster data: organizational patterns, policy intents, and resource capabilities. For patterns and policies: supports create, list, get, delete, deleteAll, and search operations (patterns also support step-by-step creation workflow). For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: \"pattern\" for organizational patterns, \"policy\" for policy intents, \"capabilities\" for resource capabilities.",
+        "tags": [
+          "Management"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/manageOrgDataRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/operate": {
+      "post": {
+        "summary": "Execute operate tool",
+        "description": "AI-powered Kubernetes application operations tool for Day 2 operations. Handles updates, scaling, enhancements, rollbacks, and deletions through natural language intents. Analyzes current state, applies organizational patterns and policies, validates changes via dry-run, and executes approved operations safely.",
+        "tags": [
+          "Operations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/operateRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/projectSetup": {
+      "post": {
+        "summary": "Execute projectSetup tool",
+        "description": "Setup project, audit repository, or generate repository files. Use this when user wants to: setup project, audit repo, check missing files, create README, add LICENSE, generate CONTRIBUTING.md, add CI/CD workflows, initialize documentation, setup governance files. Analyzes local repositories and generates missing configuration, documentation, and governance files. Does NOT handle Kubernetes deployments - use recommend for those.",
+        "tags": [
+          "Project Setup"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/projectSetupRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/query": {
+      "post": {
+        "summary": "Execute query tool",
+        "description": "Natural language query interface for Kubernetes cluster intelligence. Ask any questions about your cluster resources, capabilities, and status in plain English. Examples: \"What databases are running?\", \"Describe the nginx deployment\", \"Show me pods in the kube-system namespace\", \"What operators are installed?\", \"Is my-postgres healthy?\"",
+        "tags": [
+          "Intelligence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/queryRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/recommend": {
+      "post": {
+        "summary": "Execute recommend tool",
+        "description": "Deploy applications, infrastructure, and services using Kubernetes resources with AI recommendations. Supports cloud resources via operators like Crossplane, cluster management via CAPI, and traditional Kubernetes workloads. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.",
+        "tags": [
+          "Deployment"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/recommendRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/remediate": {
+      "post": {
+        "summary": "Execute remediate tool",
+        "description": "AI-powered Kubernetes issue analysis that provides root cause identification and actionable remediation steps. Unlike basic kubectl commands, this tool performs multi-step investigation, correlates cluster data, and generates intelligent solutions. Use when users want to understand WHY something is broken, not just see raw status. Ideal for: troubleshooting failures, diagnosing performance issues, analyzing pod problems, investigating networking/storage issues, or any \"what's wrong\" questions.",
+        "tags": [
+          "Troubleshooting"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/remediateRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/version": {
+      "post": {
+        "summary": "Execute version tool",
+        "description": "Get comprehensive system health and diagnostics",
+        "tags": [
+          "System"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/versionRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "summary": "Discover available tools with optional filtering by category, tag, or search term",
+        "description": "Discover available tools with optional filtering by category, tag, or search term",
+        "tags": [
+          "Tools"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsGetError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/tools/{toolName}": {
+      "post": {
+        "summary": "Execute a tool with the provided parameters",
+        "description": "Execute a tool with the provided parameters",
+        "tags": [
+          "Tools"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsToolNamePostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsToolNamePostError400"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsToolNamePostError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsToolNamePostError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "toolName",
+            "in": "path",
+            "required": true,
+            "description": "toolName parameter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolsToolNamePostRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi": {
+      "get": {
+        "summary": "Get the OpenAPI 3.0 specification for this API",
+        "description": "Get the OpenAPI 3.0 specification for this API",
+        "tags": [
+          "Documentation"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenapiGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenapiGetError500"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources": {
+      "get": {
+        "summary": "List resources filtered by kind and optional namespace",
+        "description": "List resources filtered by kind and optional namespace",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesGetError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/resources/kinds": {
+      "get": {
+        "summary": "List all resource kinds available in the cluster with counts",
+        "description": "List all resource kinds available in the cluster with counts",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesKindsGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesKindsGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesKindsGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/resources/search": {
+      "get": {
+        "summary": "Search for resources using semantic search",
+        "description": "Search for resources using semantic search",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSearchGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSearchGetError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSearchGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSearchGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/resources/sync": {
+      "post": {
+        "summary": "Sync resources from the Kubernetes controller",
+        "description": "Sync resources from the Kubernetes controller",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSyncPostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSyncPostError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesSyncPostError500"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcesSyncPostRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resource": {
+      "get": {
+        "summary": "Get a single resource with full details including live status",
+        "description": "Get a single resource with full details including live status",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGetError400"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGetError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/namespaces": {
+      "get": {
+        "summary": "List all namespaces in the cluster",
+        "description": "List all namespaces in the cluster",
+        "tags": [
+          "Resources"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespacesGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespacesGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespacesGetError503"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "summary": "Get Kubernetes events for a specific resource",
+        "description": "Get Kubernetes events for a specific resource",
+        "tags": [
+          "Observability"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsGetError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/logs": {
+      "get": {
+        "summary": "Get container logs from a pod",
+        "description": "Get container logs from a pod",
+        "tags": [
+          "Observability"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsGetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsGetError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/prompts": {
+      "get": {
+        "summary": "List all available prompts",
+        "description": "List all available prompts",
+        "tags": [
+          "Prompts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsGetError500"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompts/{promptName}": {
+      "post": {
+        "summary": "Get a prompt with rendered template arguments",
+        "description": "Get a prompt with rendered template arguments",
+        "tags": [
+          "Prompts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsPromptNamePostResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsPromptNamePostError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsPromptNamePostError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "promptName",
+            "in": "path",
+            "required": true,
+            "description": "promptName parameter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptsPromptNamePostRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/visualize/{sessionId}": {
+      "get": {
+        "summary": "Get structured visualization data for a session",
+        "description": "Get structured visualization data for a session",
+        "tags": [
+          "Visualization"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualizeSessionIdGetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualizeSessionIdGetError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualizeSessionIdGetError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualizeSessionIdGetError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "sessionId parameter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions/{sessionId}": {
+      "get": {
+        "summary": "Get raw session data for any tool type (remediate, query, recommend, etc.)",
+        "description": "Get raw session data for any tool type (remediate, query, recommend, etc.)",
+        "tags": [
+          "Sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsSessionIdGetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsSessionIdGetError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsSessionIdGetError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "sessionId parameter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/knowledge/source/{sourceIdentifier}": {
+      "delete": {
+        "summary": "Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.",
+        "description": "Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.",
+        "tags": [
+          "Knowledge"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeSourceSourceIdentifierDeleteResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeSourceSourceIdentifierDeleteError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeSourceSourceIdentifierDeleteError503"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sourceIdentifier",
+            "in": "path",
+            "required": true,
+            "description": "sourceIdentifier parameter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/knowledge/ask": {
+      "post": {
+        "summary": "Ask a question and receive an AI-synthesized answer from the knowledge base. Uses an agentic approach that can search multiple times with different phrasings for comprehensive answers.",
+        "description": "Ask a question and receive an AI-synthesized answer from the knowledge base. Uses an agentic approach that can search multiple times with different phrasings for comprehensive answers.",
+        "tags": [
+          "Knowledge"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeAskPostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeAskPostError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeAskPostError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeAskPostError503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeAskPostRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RestApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request was successful"
+          },
+          "data": {
+            "type": "object",
+            "description": "Response data"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "details": {
+                "type": "object",
+                "description": "Additional error details"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Response timestamp"
+              },
+              "requestId": {
+                "type": "string",
+                "description": "Unique request identifier"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            }
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "ToolExecutionResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RestApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "result": {
+                    "type": "object",
+                    "description": "Tool execution result"
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "Name of the executed tool"
+                  },
+                  "executionTime": {
+                    "type": "number",
+                    "description": "Execution time in milliseconds"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ToolDiscoveryResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RestApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ToolInfo"
+                    }
+                  },
+                  "total": {
+                    "type": "number",
+                    "description": "Total number of tools"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Available tool categories"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Available tool tags"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ToolInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tool name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Tool description"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Tool input schema"
+          },
+          "category": {
+            "type": "string",
+            "description": "Tool category"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tool tags"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "schema"
+        ]
+      },
+      "ErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RestApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "details": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ]
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        ]
+      },
+      "McpJsonRpcRequest": {
+        "type": "object",
+        "description": "JSON-RPC 2.0 request message for MCP protocol",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "enum": [
+              "2.0"
+            ],
+            "description": "JSON-RPC version"
+          },
+          "id": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ],
+            "description": "Request identifier"
+          },
+          "method": {
+            "type": "string",
+            "description": "Method name (e.g., initialize, tools/call, tools/list)"
+          },
+          "params": {
+            "type": "object",
+            "description": "Method parameters"
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "method"
+        ]
+      },
+      "McpJsonRpcResponse": {
+        "type": "object",
+        "description": "JSON-RPC 2.0 response message",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "enum": [
+              "2.0"
+            ],
+            "description": "JSON-RPC version"
+          },
+          "id": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ],
+            "description": "Request identifier"
+          },
+          "result": {
+            "type": "object",
+            "description": "Method result"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "number",
+                "description": "Error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "data": {
+                "type": "object",
+                "description": "Additional error data"
+              }
+            }
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "id"
+        ]
+      },
+      "McpJsonRpcError": {
+        "type": "object",
+        "description": "JSON-RPC 2.0 error response",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "enum": [
+              "2.0"
+            ],
+            "description": "JSON-RPC version"
+          },
+          "id": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ],
+            "description": "Request identifier"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "number",
+                "description": "Error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "data": {
+                "type": "object",
+                "description": "Additional error data"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "id",
+          "error"
+        ]
+      },
+      "manageKnowledgeRequest": {},
+      "manageOrgDataRequest": {},
+      "operateRequest": {},
+      "projectSetupRequest": {},
+      "queryRequest": {},
+      "recommendRequest": {},
+      "remediateRequest": {},
+      "versionRequest": {},
+      "ToolsGetResponse": {},
+      "ToolsGetError500": {},
+      "ToolsToolNamePostResponse": {},
+      "ToolsToolNamePostRequest": {},
+      "ToolsToolNamePostError400": {},
+      "ToolsToolNamePostError404": {},
+      "ToolsToolNamePostError500": {},
+      "OpenapiGetResponse": {},
+      "OpenapiGetError500": {},
+      "ResourcesGetResponse": {},
+      "ResourcesGetError400": {},
+      "ResourcesGetError500": {},
+      "ResourcesGetError503": {},
+      "ResourcesKindsGetResponse": {},
+      "ResourcesKindsGetError500": {},
+      "ResourcesKindsGetError503": {},
+      "ResourcesSearchGetResponse": {},
+      "ResourcesSearchGetError400": {},
+      "ResourcesSearchGetError500": {},
+      "ResourcesSearchGetError503": {},
+      "ResourcesSyncPostResponse": {},
+      "ResourcesSyncPostRequest": {},
+      "ResourcesSyncPostError400": {},
+      "ResourcesSyncPostError500": {},
+      "ResourceGetResponse": {},
+      "ResourceGetError400": {},
+      "ResourceGetError404": {},
+      "ResourceGetError500": {},
+      "ResourceGetError503": {},
+      "NamespacesGetResponse": {},
+      "NamespacesGetError500": {},
+      "NamespacesGetError503": {},
+      "EventsGetResponse": {},
+      "EventsGetError400": {},
+      "EventsGetError500": {},
+      "EventsGetError503": {},
+      "LogsGetResponse": {},
+      "LogsGetError400": {},
+      "LogsGetError500": {},
+      "LogsGetError503": {},
+      "PromptsGetResponse": {},
+      "PromptsGetError500": {},
+      "PromptsPromptNamePostResponse": {},
+      "PromptsPromptNamePostRequest": {},
+      "PromptsPromptNamePostError404": {},
+      "PromptsPromptNamePostError500": {},
+      "VisualizeSessionIdGetResponse": {},
+      "VisualizeSessionIdGetError404": {},
+      "VisualizeSessionIdGetError500": {},
+      "VisualizeSessionIdGetError503": {},
+      "SessionsSessionIdGetResponse": {},
+      "SessionsSessionIdGetError404": {},
+      "SessionsSessionIdGetError500": {},
+      "KnowledgeSourceSourceIdentifierDeleteResponse": {},
+      "KnowledgeSourceSourceIdentifierDeleteError500": {},
+      "KnowledgeSourceSourceIdentifierDeleteError503": {},
+      "KnowledgeAskPostResponse": {},
+      "KnowledgeAskPostRequest": {},
+      "KnowledgeAskPostError400": {},
+      "KnowledgeAskPostError500": {},
+      "KnowledgeAskPostError503": {}
+    }
+  },
+  "tags": [
+    {
+      "name": "MCP Protocol",
+      "description": "Model Context Protocol endpoints for AI assistant integration via JSON-RPC and Server-Sent Events"
+    },
+    {
+      "name": "Tool Discovery",
+      "description": "Endpoints for discovering available tools and their capabilities"
+    },
+    {
+      "name": "Documentation",
+      "description": "API documentation and specification endpoints"
+    },
+    {
+      "name": "Deployment",
+      "description": "Deployment tools and operations"
+    },
+    {
+      "name": "Intelligence",
+      "description": "Intelligence tools and operations"
+    },
+    {
+      "name": "Knowledge",
+      "description": "Knowledge tools and operations"
+    },
+    {
+      "name": "Management",
+      "description": "Management tools and operations"
+    },
+    {
+      "name": "Operations",
+      "description": "Operations tools and operations"
+    },
+    {
+      "name": "Project Setup",
+      "description": "Project Setup tools and operations"
+    },
+    {
+      "name": "System",
+      "description": "System tools and operations"
+    },
+    {
+      "name": "Troubleshooting",
+      "description": "Troubleshooting tools and operations"
+    },
+    {
+      "name": "Observability",
+      "description": "Observability endpoints"
+    },
+    {
+      "name": "Prompts",
+      "description": "Prompts endpoints"
+    },
+    {
+      "name": "Resources",
+      "description": "Resources endpoints"
+    },
+    {
+      "name": "Sessions",
+      "description": "Sessions endpoints"
+    },
+    {
+      "name": "Tools",
+      "description": "Tools endpoints"
+    },
+    {
+      "name": "Visualization",
+      "description": "Visualization endpoints"
+    }
+  ]
+}
