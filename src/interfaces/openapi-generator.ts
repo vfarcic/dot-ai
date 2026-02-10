@@ -9,10 +9,16 @@
  * - Converts Zod schemas to JSON Schema for complete API documentation
  */
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { z } from 'zod';
 import { RestToolRegistry, ToolInfo } from './rest-registry';
 import { RestRouteRegistry, RouteDefinition } from './rest-route-registry';
 import { Logger } from '../core/error-handling';
+
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '../../package.json'), 'utf8')
+);
 
 /**
  * JSON Schema object type for OpenAPI schemas
@@ -137,7 +143,7 @@ export class OpenApiGenerator {
       title: 'DevOps AI Toolkit REST API',
       description:
         'REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities',
-      version: '1.0.0',
+      version: packageJson.version,
       basePath: '/api',
       apiVersion: 'v1',
       serverUrl: 'http://localhost:3456',
