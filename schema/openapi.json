@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
