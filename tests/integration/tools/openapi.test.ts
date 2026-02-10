@@ -41,19 +41,19 @@ describe.concurrent('OpenAPI Specification Integration', () => {
         info: expect.objectContaining({
           title: expect.any(String),
           description: expect.any(String),
-          version: expect.any(String)
+          version: expect.any(String),
         }),
         servers: expect.arrayContaining([
           expect.objectContaining({
             url: expect.any(String),
-            description: expect.any(String)
-          })
+            description: expect.any(String),
+          }),
         ]),
         paths: expect.any(Object),
         components: expect.objectContaining({
-          schemas: expect.any(Object)
+          schemas: expect.any(Object),
         }),
-        tags: expect.any(Array)
+        tags: expect.any(Array),
       });
     });
 
@@ -106,9 +106,29 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       expect(schemas).toHaveProperty('McpJsonRpcResponse');
       expect(schemas).toHaveProperty('McpJsonRpcError');
 
-      // Verify tool request schemas exist (sample validation)
-      expect(schemas).toHaveProperty('versionRequest');
-      expect(schemas).toHaveProperty('recommendRequest');
+      // Verify tool request schemas exist AND contain actual property definitions
+      // (not empty objects — regression guard for Zod v4 / zod-to-json-schema incompatibility)
+      expect(schemas.queryRequest).toMatchObject({
+        type: 'object',
+        properties: expect.objectContaining({
+          intent: expect.objectContaining({ type: 'string' }),
+        }),
+        required: expect.arrayContaining(['intent']),
+      });
+
+      expect(schemas.recommendRequest).toMatchObject({
+        type: 'object',
+        properties: expect.objectContaining({
+          intent: expect.objectContaining({ type: 'string' }),
+        }),
+      });
+
+      expect(schemas.remediateRequest).toMatchObject({
+        type: 'object',
+        properties: expect.objectContaining({
+          issue: expect.objectContaining({ type: 'string' }),
+        }),
+      });
     });
 
     test('should include proper tags for grouping', async () => {
@@ -138,12 +158,12 @@ describe.concurrent('OpenAPI Specification Integration', () => {
         contact: {
           name: expect.any(String),
           url: expect.any(String),
-          email: expect.stringContaining('@')
+          email: expect.stringContaining('@'),
         },
         license: {
           name: 'MIT',
-          url: expect.stringContaining('LICENSE')
-        }
+          url: expect.stringContaining('LICENSE'),
+        },
       });
     });
 
@@ -185,17 +205,19 @@ describe.concurrent('OpenAPI Specification Integration', () => {
         content: {
           'application/json': {
             schema: {
-              $ref: '#/components/schemas/versionRequest'
-            }
-          }
-        }
+              $ref: '#/components/schemas/versionRequest',
+            },
+          },
+        },
       });
 
       // Verify response schema reference
       expect(versionEndpoint).toHaveProperty('responses');
       expect(versionEndpoint.responses).toHaveProperty('200');
-      expect(versionEndpoint.responses['200'].content['application/json'].schema).toMatchObject({
-        $ref: '#/components/schemas/ToolExecutionResponse'
+      expect(
+        versionEndpoint.responses['200'].content['application/json'].schema
+      ).toMatchObject({
+        $ref: '#/components/schemas/ToolExecutionResponse',
       });
     });
   });
@@ -207,13 +229,16 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const unauthSpec = getOpenApiSpec(unauthResponse);
 
       // Get spec with auth (using the authenticated client from IntegrationTest)
-      const authResponse = await integrationTest.httpClient.get('/api/v1/openapi');
+      const authResponse =
+        await integrationTest.httpClient.get('/api/v1/openapi');
       const authSpec = getOpenApiSpec(authResponse);
 
       // Both should return the same OpenAPI spec structure
       expect(unauthSpec.openapi).toBe(authSpec.openapi);
       expect(unauthSpec.info.title).toBe(authSpec.info.title);
-      expect(Object.keys(unauthSpec.paths)).toEqual(Object.keys(authSpec.paths));
+      expect(Object.keys(unauthSpec.paths)).toEqual(
+        Object.keys(authSpec.paths)
+      );
     });
   });
 
@@ -226,8 +251,8 @@ describe.concurrent('OpenAPI Specification Integration', () => {
         success: false,
         error: {
           code: 'METHOD_NOT_ALLOWED',
-          message: expect.stringContaining('GET')
-        }
+          message: expect.stringContaining('GET'),
+        },
       });
     });
   });
@@ -261,7 +286,9 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       });
 
       // Verify response schema reference exists
-      expect(vizEndpoint.responses['200'].content['application/json'].schema.$ref).toBeDefined();
+      expect(
+        vizEndpoint.responses['200'].content['application/json'].schema.$ref
+      ).toBeDefined();
 
       // Verify error responses are documented
       expect(vizEndpoint.responses).toHaveProperty('404');
