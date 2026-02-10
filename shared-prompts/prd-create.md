@@ -112,6 +112,8 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
 
+**Note**: If creating the GitHub issue fails because the "PRD" label does not exist, create the label first (`gh label create "PRD" --description "Product Requirements Document" --color 0052CC`) and then retry creating the issue.
+
 ## Workflow
 
 1. **Concept Discussion**: Get the basic idea and validate the need
