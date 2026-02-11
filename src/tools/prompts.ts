@@ -21,7 +21,7 @@ export interface PromptArgument {
 export interface PromptMetadata {
   name: string;
   description: string;
-  category: string;
+  category?: string;
   arguments?: PromptArgument[];
 }
 
@@ -112,7 +112,10 @@ function parseYamlFrontmatter(yaml: string): Partial<PromptMetadata> {
 /**
  * Loads and parses a prompt file with YAML frontmatter
  */
-export function loadPromptFile(filePath: string, source: 'built-in' | 'user' = 'built-in'): Prompt {
+export function loadPromptFile(
+  filePath: string,
+  source: 'built-in' | 'user' = 'built-in'
+): Prompt {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
 
@@ -129,9 +132,9 @@ export function loadPromptFile(filePath: string, source: 'built-in' | 'user' = '
     // Parse YAML with support for arguments array
     const metadata = parseYamlFrontmatter(frontmatterYaml);
 
-    if (!metadata.name || !metadata.description || !metadata.category) {
+    if (!metadata.name || !metadata.description) {
       throw new Error(
-        `Missing required metadata in ${filePath}: name, description, category`
+        `Missing required metadata in ${filePath}: name, description`
       );
     }
 
@@ -204,10 +207,13 @@ export function mergePrompts(
 
   for (const userPrompt of userPrompts) {
     if (builtInNames.has(userPrompt.name)) {
-      logger.warn('User prompt name collision with built-in prompt, skipping user prompt', {
-        name: userPrompt.name,
-        message: 'Built-in prompt takes precedence',
-      });
+      logger.warn(
+        'User prompt name collision with built-in prompt, skipping user prompt',
+        {
+          name: userPrompt.name,
+          message: 'Built-in prompt takes precedence',
+        }
+      );
       continue;
     }
     merged.push(userPrompt);
@@ -257,7 +263,11 @@ export interface PromptsListArgs {
 }
 
 interface PromptsListResponse {
-  prompts: Array<{ name: string; description: string; arguments?: PromptArgument[] }>;
+  prompts: Array<{
+    name: string;
+    description: string;
+    arguments?: PromptArgument[];
+  }>;
 }
 
 /**
@@ -278,7 +288,11 @@ export async function handlePromptsListRequest(
 
     // Convert to MCP prompts/list response format (include arguments if present)
     const promptList = prompts.map(prompt => {
-      const item: { name: string; description: string; arguments?: PromptArgument[] } = {
+      const item: {
+        name: string;
+        description: string;
+        arguments?: PromptArgument[];
+      } = {
         name: prompt.name,
         description: prompt.description,
       };
@@ -377,7 +391,10 @@ export async function handlePromptsGetRequest(
             operation: 'prompts_get',
             component: 'PromptsHandler',
             requestId,
-            input: { promptName: prompt.name, missingArguments: missingRequired },
+            input: {
+              promptName: prompt.name,
+              missingArguments: missingRequired,
+            },
           }
         );
       }
@@ -386,7 +403,10 @@ export async function handlePromptsGetRequest(
     // Substitute {{argumentName}} placeholders in content
     let processedContent = prompt.content;
     for (const [argName, argValue] of Object.entries(providedArgs)) {
-      processedContent = processedContent.replaceAll(`{{${argName}}}`, String(argValue));
+      processedContent = processedContent.replaceAll(
+        `{{${argName}}}`,
+        String(argValue)
+      );
     }
 
     logger.info('Prompt found and returned', {
