@@ -24,7 +24,7 @@ export const routes: RouteDefinition[] = [
     path: '/api/v1/tools',
     method: 'GET',
     description: 'Discover available tools',
-    // fixture: 'tools/discovery-success.json',
+    fixture: 'tools/discovery-success.json',
   },
   {
     path: '/api/v1/tools/manageKnowledge',
@@ -106,13 +106,13 @@ export const routes: RouteDefinition[] = [
     path: '/api/v1/prompts',
     method: 'GET',
     description: 'List available prompts',
-    // fixture: 'prompts/list-success.json',
+    fixture: 'prompts/list-success.json',
   },
   {
     path: '/api/v1/prompts/:promptName',
     method: 'POST',
     description: 'Get a prompt with arguments',
-    // fixture: 'prompts/get-success.json',
+    fixture: 'prompts/get-success.json',
   },
 
   // Knowledge Base Endpoints
@@ -125,7 +125,8 @@ export const routes: RouteDefinition[] = [
   {
     path: '/api/v1/knowledge/ask',
     method: 'POST',
-    description: 'Ask a question and receive an AI-synthesized answer from the knowledge base',
+    description:
+      'Ask a question and receive an AI-synthesized answer from the knowledge base',
     fixture: 'knowledge/ask-success.json',
   },
 
@@ -172,7 +173,7 @@ function compilePath(path: string): { regex: RegExp; paramNames: string[] } {
 }
 
 // Pre-compile all routes
-const compiledRoutes: CompiledRoute[] = routes.map((route) => {
+const compiledRoutes: CompiledRoute[] = routes.map(route => {
   const { regex, paramNames } = compilePath(route.path);
   return { definition: route, regex, paramNames };
 });
