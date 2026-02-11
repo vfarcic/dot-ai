@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.2.0] - 2026-02-11
+
+### Features
+
+- ## Claude Opus 4.6 Model Support
+
+  The default Anthropic Opus model is now Claude Opus 4.6, replacing Claude Opus 4.5. Opus 4.6 brings a 1M token context window (beta), 128K max output tokens, adaptive thinking controls, and improved agentic coding performance—all at the same pricing as Opus 4.5.
+
+  Set `AI_PROVIDER=anthropic_opus` to use the new model. No other configuration changes are required. ([#370](https://github.com/vfarcic/dot-ai/issues/370))
+
+### Bug Fixes
+
+- ## Fix ESLint Lint Script
+
+  The `npm run lint` command now works correctly with the project's flat config (`eslint.config.js`). The `--ext .ts` flag was removed as it is not supported in flat config mode, which caused builds to fail locally. ([#370](https://github.com/vfarcic/dot-ai/issues/370))
+- ## User Prompts No Longer Require Category Field
+
+  User prompts loaded from external git repositories now correctly load when their YAML frontmatter contains only `name` and `description`. Previously, prompts missing the `category` field were silently skipped during loading, causing the prompts API to return fewer prompts than expected with no error or warning to the caller.
+
+  The `category` field is now optional in prompt frontmatter validation, matching the fact that it was never included in API responses or used after parsing. ([#372](https://github.com/vfarcic/dot-ai/issues/372))
+
+
 ## [1.1.0] - 2026-02-06
 
 ### Features
