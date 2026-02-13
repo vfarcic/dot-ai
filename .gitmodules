@@ -1,3 +1,0 @@
-[submodule ".claude/skills/shared"]
-	path = .claude/skills/shared
-	url = https://github.com/vfarcic/dot-ai-skills.git
