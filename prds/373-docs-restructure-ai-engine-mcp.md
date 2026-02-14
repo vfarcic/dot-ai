@@ -124,7 +124,7 @@ Beyond moving files:
 
 ## Milestones
 
-- [ ] **M1: Create new directory structure and move files** — Create `ai-engine/` and `mcp/` directories with all subdirectories, move all files per the mapping table, add `_category_.yml` files for sidebar ordering. Delete old `setup/` and `guides/` directories.
+- [x] **M1: Create new directory structure and move files** — Create `ai-engine/` and `mcp/` directories with all subdirectories, move all files per the mapping table, add `_category_.yml` files for sidebar ordering. Delete old `setup/` and `guides/` directories.
 - [ ] **M2: Split mcp-setup.md into deployment + MCP client config** — Extract server deployment content into `ai-engine/setup/deployment.md`, create `mcp/setup.md` with MCP client configuration, create `mcp/index.md` landing page.
 - [ ] **M3: Update content — remove MCP-centric language** — Go through each capability doc and replace MCP-specific framing with access-method-agnostic language.
 - [ ] **M4: Update all internal cross-references** — Fix every internal link across all docs to reflect new paths.
