@@ -1,6 +1,6 @@
 # Quick Start
 
-**Get started with DevOps AI Toolkit in minutes - deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows through MCP.**
+**Get started with DevOps AI Toolkit in minutes — deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows.**
 
 > **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
 >
@@ -8,11 +8,11 @@
 
 ## Overview
 
-**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows in your MCP-enabled coding agent.
+**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows via [MCP](../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli).
 
 **Use when**: You want intelligent Kubernetes operations without memorizing commands, need AI-powered troubleshooting, or want to establish governance policies across your cluster.
 
-**📖 Full Guide**: See [MCP Setup Guide](setup/mcp-setup.md) for detailed configuration options and [Tools Overview](guides/mcp-tools-overview.md) for complete feature reference.
+**📖 Full Guide**: See the [Deployment Guide](setup/deployment.md) for detailed configuration options and the [Tools Overview](tools/overview.md) for complete feature reference.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@
 
 **For AI-powered features (deployment, remediation, patterns, policies, capabilities):**
 - **AI Model API key** - Required for AI analysis and intelligent recommendations
-  - **Multiple AI models supported** - see [AI Model Configuration](setup/mcp-setup.md#ai-model-configuration) for all options and setup
+  - **Multiple AI models supported** - see [AI Model Configuration](setup/deployment.md#ai-model-configuration) for all options and setup
   - **Quick setup**: Claude (default) - `export ANTHROPIC_API_KEY=your_key_here`
 
 **For Kubernetes deployment recommendations:**
@@ -43,7 +43,7 @@
 
 ## Installation
 
-DevOps AI Toolkit is designed to be used through AI development tools via MCP (Model Context Protocol). No direct installation needed - simply configure your AI tool to connect to the MCP server.
+DevOps AI Toolkit runs as a server on Kubernetes. AI agents connect to it via [MCP](../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli). This guide walks through server deployment and MCP client setup.
 
 ## Usage
 
@@ -160,7 +160,7 @@ You should see a status report showing all components are healthy.
 - ✅ **Automatic Capability Discovery**: Controller watches for CRD changes and scans automatically
 - ✅ **Team Collaboration**: Shared MCP server accessible by multiple developers
 
-**Full Configuration**: See the [MCP Setup Guide](setup/mcp-setup.md) for advanced configuration options.
+**Full Configuration**: See the [Deployment Guide](setup/deployment.md) for advanced configuration options.
 
 ### Step 5: Start Using Conversational Workflows
 
@@ -168,18 +168,18 @@ Try these example prompts to explore the toolkit:
 
 | What You Want | Example Prompt | Guide |
 |---------------|----------------|-------|
-| Scan capabilities | Use controller (recommended) or "Scan my cluster for capabilities" | [Capability Management](guides/mcp-capability-management-guide.md) |
-| Query cluster | "What databases are running?" | [Cluster Query](guides/mcp-query-guide.md) |
-| Deploy an app | "I want to deploy a web application" | [Recommendation Guide](guides/mcp-recommendation-guide.md) |
-| Operate resources | "Scale my database to 3 replicas" | [Operations Guide](guides/mcp-operate-guide.md) |
-| Fix issues | "Something is wrong with my database" | [Remediation Guide](guides/mcp-remediate-guide.md) |
-| Create patterns | "Create a pattern for database deployments" | [Pattern Management](guides/pattern-management-guide.md) |
-| Create policies | "Create a policy requiring resource limits" | [Policy Management](guides/policy-management-guide.md) |
-| Setup project | "Help me setup governance files" | [Project Setup Guide](guides/mcp-project-setup-guide.md) |
-| Use prompts | `/dot-ai:prd-create` | [Prompts Guide](guides/mcp-prompts-guide.md) |
+| Scan capabilities | Use controller (recommended) or "Scan my cluster for capabilities" | [Capability Management](tools/capability-management.md) |
+| Query cluster | "What databases are running?" | [Cluster Query](tools/query.md) |
+| Deploy an app | "I want to deploy a web application" | [Recommendation Guide](tools/recommend.md) |
+| Operate resources | "Scale my database to 3 replicas" | [Operations Guide](tools/operate.md) |
+| Fix issues | "Something is wrong with my database" | [Remediation Guide](tools/remediate.md) |
+| Create patterns | "Create a pattern for database deployments" | [Pattern Management](organizational-data/patterns.md) |
+| Create policies | "Create a policy requiring resource limits" | [Policy Management](organizational-data/policies.md) |
+| Setup project | "Help me setup governance files" | [Project Setup Guide](tools/project-setup.md) |
+| Use prompts | `/dot-ai:prd-create` | [Prompts Guide](tools/prompts.md) |
 
 ## Next Steps
 
-📖 **[MCP Setup Guide →](setup/mcp-setup.md)** - Detailed configuration, troubleshooting, and examples
+📖 **[Deployment Guide →](setup/deployment.md)** - Detailed configuration, troubleshooting, and examples
 
-📖 **[Complete Tools & Features Reference →](guides/mcp-tools-overview.md)** - Comprehensive guide to all available tools, workflows, and advanced features
+📖 **[Complete Tools & Features Reference →](tools/overview.md)** - Comprehensive guide to all available tools, workflows, and advanced features

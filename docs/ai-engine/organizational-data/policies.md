@@ -28,7 +28,7 @@ Policy Management works alongside Capability Management and Pattern Management t
 - **Patterns**: What resources to deploy together (organizational preferences)  
 - **Policies**: How resources should be configured (governance requirements)
 
-For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
+For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](concepts.md)**.
 
 ### How It Works
 
@@ -49,15 +49,15 @@ This video demonstrates how Policy Management transforms organizational governan
 Before using Policy Management, ensure you have:
 
 ### Required Setup
-- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
+- **DevOps AI Toolkit deployed** (see [Deployment Guide](../setup/deployment.md))
 - **Vector DB service** (Qdrant) for policy storage
-- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration)) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration)) can be set as environment variables or in your deployment configuration
 
 ### Optional (for Kyverno enforcement)
 - **[Kyverno](https://kyverno.io/)** installed in your cluster for optional policy enforcement
 - **kubectl access** to your cluster for policy deployment
 
-For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
+For complete setup instructions, see the [Deployment Guide](../setup/deployment.md).
 
 ## Section 1: Policy Management Basics
 
@@ -428,7 +428,7 @@ If policies exist with deployed Kyverno policies, you'll get a batch confirmatio
 
 ## AI Integration
 
-Policy intents automatically enhance deployment recommendations when users request deployments. For complete examples of how policies influence recommendations, see the [MCP Recommendation Guide](mcp-recommendation-guide.md).
+Policy intents automatically enhance deployment recommendations when users request deployments. For complete examples of how policies influence recommendations, see the [Recommendation Guide](../tools/recommend.md).
 
 The recommendation system automatically:
 - Searches for relevant policy intents using semantic matching
@@ -464,7 +464,7 @@ The recommendation system automatically:
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   See [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for AI model and embedding provider setup with all available options.
+   See [AI Model Configuration](../setup/deployment.md#ai-model-configuration) for AI model and embedding provider setup with all available options.
 
 #### Kyverno Policy Generation Fails
 
@@ -515,7 +515,7 @@ The recommendation system automatically:
    - Test with different request phrasings
 
 2. **Check embedding service**:
-   - Verify embedding provider is configured (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
+   - Verify embedding provider is configured (see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration))
    - Confirm embedding service API key is properly set
 
 3. **Verify policy storage**:
@@ -568,7 +568,7 @@ The recommendation system automatically:
 
 **Solutions**:
 1. **Verify OpenAI configuration**:
-   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
+   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration))
    - Test API key with simple request
    - Check API usage limits and billing status
 
@@ -683,7 +683,7 @@ A: Yes, generated policies use modern Kyverno CEL expressions and follow least-p
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
+- **[Tools and Features Overview](../tools/overview.md)** - Browse all available tools and features
 
 ---

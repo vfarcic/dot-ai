@@ -3,9 +3,9 @@
 ## Documentation Standards & Format
 
 ### File Structure Requirements
-- **Filename format**: Use kebab-case with descriptive names (`mcp-tools-overview.md`, `setup/mcp-setup.md`)
-- **Directory organization**: Group related docs in subdirectories (`setup/`, guides, references)
-- **Consistent naming**: Use prefix patterns (`mcp-` for MCP-related guides, `setup/` directory for setup guides)
+- **Filename format**: Use kebab-case with descriptive names (`overview.md`, `deployment.md`, `knowledge-base.md`)
+- **Directory organization**: Docs live under `ai-engine/` (the product) or `mcp/` (MCP-specific). Within `ai-engine/`, group by concern: `tools/`, `setup/`, `organizational-data/`, `operations/`, `api/`
+- **Consistent naming**: Use short, descriptive names within their directory context (e.g., `ai-engine/tools/query.md`, `ai-engine/setup/deployment.md`) — no prefixes needed since the directory provides context
 
 ### Documentation Format Standards
 - **H1 Title**: One H1 per file with descriptive title and bold summary line

@@ -14,7 +14,6 @@ This roadmap is a living document and may change based on community feedback and
 - Deployment documentation & example-based learning (PRD #228)
 - Git operations for recommend tool - push generated manifests to Git repos (PRD #362)
 - Argo CD support for operate tool - detect managed resources and modify source repos (PRD #363)
-- Restructure docs into AI Engine and MCP top-level sections (PRD #373)
 - Documentation validation system - crawling, readability, syntax validation (PRD #262)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Update to Kimi K2.5 model support (PRD #353)
