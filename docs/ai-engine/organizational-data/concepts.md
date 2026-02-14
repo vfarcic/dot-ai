@@ -127,7 +127,7 @@ All with policy-compliant configurations and organizational best practices
 **Preferred: Use the controller** for automatic, event-driven scanning. See [Capability Management Guide](../tools/capability-management.md#method-1-controller-based-scanning-recommended).
 
 **Alternative: Manual scanning** when controller cannot reach the server:
-```
+```text
 "Scan my cluster capabilities"
 ```
 

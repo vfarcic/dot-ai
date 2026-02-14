@@ -77,7 +77,7 @@ Semantic queries let you find resources by concept rather than exact resource ty
 What dot-ai components are running in the cluster?
 ```
 
-**Response:**
+**Response** (sample output — versions and ports vary by deployment):
 
 ```text
 The cluster has the following dot-ai components running in the dot-ai namespace:

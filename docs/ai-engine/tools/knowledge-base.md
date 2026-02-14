@@ -76,7 +76,7 @@ https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-recommendation-guide
 ```
 
 **What happened behind the scenes:**
-- AI assistant read the file content
+- AI coding agent read the file content
 - Constructed the full URI from the file path
 - Called `manageKnowledge` with `operation: "ingest"`
 - Document was chunked (~1000 characters per chunk) and stored with embeddings

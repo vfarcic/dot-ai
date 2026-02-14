@@ -48,7 +48,7 @@ Start your MCP client. It will automatically connect to the server.
 
 In your MCP client, ask:
 
-```
+```text
 Show dot-ai status
 ```
 
@@ -80,3 +80,4 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 ## Next Steps
 
 - **[Tools Overview](../ai-engine/tools/overview.md)** — Explore all available tools and how they work together
+

@@ -177,11 +177,11 @@ At this point, we have two execution paths available. We'll explore both options
 
 **User selects Choice 1** - Tool executes commands internally and returns complete results
 
-```
+```text
 User: 1
 ```
 
-```
+```text
 Agent: I'll execute the remediation automatically and validate the results.
 
 [Uses remediate tool with executeChoice: 1, sessionId: "rem_2025-09-20T1653_818d80901b10ce62", mode: "manual"]

@@ -252,10 +252,9 @@ Your prompt instructions go here...
 - **`category`**: Used for organizing prompts in documentation (must be one of: `project-management`, `development`)
 
 **How It Works:**
-1. **Server Processing**: The DevOps AI Toolkit reads these metadata fields from all prompt files
-2. **Standard Endpoints**: Metadata is exposed via `prompts/list` and `prompts/get` endpoints
-3. **Agent Integration**: Your coding agent discovers prompts through these endpoints and makes them available as slash commands
-4. **User Experience**: The `name` becomes the command, `description` appears in menus, and `category` organizes documentation
+1. **Prompt Discovery**: Your coding agent automatically discovers all available prompts and their metadata
+2. **Slash Commands**: Each prompt appears as a slash command — the `name` becomes the command, `description` appears in menus
+3. **Organization**: The `category` field groups prompts in documentation for easy browsing
 
 **Contribution Guidelines:**
 - Use descriptive, kebab-case names (e.g., `database-optimization`, `api-security-review`)
@@ -398,7 +397,7 @@ The feature is designed for graceful degradation:
 **User prompts don't appear**
 - **Cause**: Repository not configured or clone failed
 - **Solution**: Verify `DOT_AI_USER_PROMPTS_REPO` is set and accessible
-- **Check**: Look for clone errors in server logs
+- **Check**: Run "Show dot-ai status" to verify prompt loading and connectivity
 
 **Private repository auth fails**
 - **Cause**: Missing or invalid `DOT_AI_GIT_TOKEN`
